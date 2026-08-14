@@ -195,6 +195,25 @@ export function applyLearningState(proto) {
     return lq;
   };
 
+  /**
+   * Is one of our jobs in flight right now?
+   *
+   * The value is already in the snapshot — this only surfaces it. The chain is
+   * jobs/active_job.py:145 (dispatched_job_is_in_flight, "THE single answer")
+   * -> core/manager.py:4391, which sets live_queue.active from
+   * `status in {"started", "paused"}`.
+   *
+   * PAUSED COUNTS, deliberately and already: a job paused mid-room is exactly
+   * when a user wants the status pane on screen.
+   *
+   * Not dashboardLiveQueue(): that also requires a non-empty `steps` array, so
+   * it answers "is there a queue worth drawing" and returns null for a running
+   * job with no steps. Right for the queue panel, wrong for this question.
+   */
+  proto.hasActiveJob = function () {
+    return this.dashboardJobProgress()?.live_queue?.active === true;
+  };
+
   // Collapse state for the live-queue panel (its own separate view — defaults expanded).
   proto.isLiveQueueCollapsed = function () {
     return Boolean(this._liveQueueCollapsed);

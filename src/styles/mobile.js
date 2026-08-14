@@ -1085,4 +1085,77 @@ export const MOBILE_STYLES = `
       display: none;
     }
   }
+
+  /* ===========================================================
+     LANDSCAPE — AUTO-HIDING SHELL CHROME
+     -----------------------------------------------------------
+     Measured at 772x360: the status pane is 33px and the nav 56px, so 89px —
+     25% of the viewport — goes to chrome that is mostly not being read. Both
+     are already in their --compact variants, so that is the floor without
+     hiding them.
+
+     The attribute is set by main.js on scroll direction: down hides, up
+     reveals, and near the top it always shows. This stylesheet owns what the
+     attribute MEANS, so the behaviour and the layout cannot drift apart.
+
+     WHY BOTH max-height AND transform. .evcc-mobile-nav is position:static, so
+     translating it alone would slide it away and leave its 56px hole behind —
+     the space would not be reclaimed, which is the entire point. Collapsing
+     max-height reclaims it; the transform is what makes that read as a slide
+     instead of a snap. They transition together.
+
+     Chrome-only: this changes whether two panes are drawn, never what is in
+     them or what is reachable, so the worst case is cosmetic. If it reads as
+     jank on a device, the whole thing reverts as one commit.
+     =========================================================== */
+
+  .evcc-shell[data-viewport="mobile"] .evcc-mobile-header,
+  .evcc-shell[data-viewport="mobile"] .evcc-mobile-nav {
+    max-height: 200px;
+    overflow: hidden;
+    transition:
+      max-height 180ms ease,
+      padding-block 180ms ease,
+      transform 180ms ease,
+      opacity 140ms ease;
+  }
+
+  /* padding-block goes too, or max-height:0 still leaves the box its padding —
+     measured 12px of a supposedly hidden pane, which is 12px not reclaimed.
+
+     :not([data-chrome-pin-status]) rather than a second rule restoring the
+     values: the first version put the padding back by hand and guessed 10px,
+     which is the base padding and NOT the --compact one, so a pinned header
+     rendered 41px against its natural 33. A rule that never matches cannot
+     restore the wrong thing. */
+  .evcc-shell[data-viewport="mobile"][data-chrome-hidden]:not([data-chrome-pin-status])
+    .evcc-mobile-header {
+    max-height: 0;
+    padding-block: 0;
+    transform: translateY(-100%);
+    opacity: 0;
+    border-bottom-width: 0;
+  }
+
+  .evcc-shell[data-viewport="mobile"][data-chrome-hidden] .evcc-mobile-nav {
+    max-height: 0;
+    padding-block: 0;
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  /* PINNED WHILE A JOB IS IN FLIGHT — handled by the :not() above, which simply
+     does not hide it. The 33px is worth paying exactly when the numbers behind
+     it are moving; a running or paused job is when a user wants status on
+     screen without going looking for it. The nav still hides: navigation is not
+     live information. */
+
+  /* Someone who has asked not to see motion gets the space back without the
+     slide — the reclaim is the feature, the animation is decoration. */
+  @media (prefers-reduced-motion: reduce) {
+    .evcc-shell[data-viewport="mobile"] .evcc-mobile-header,
+    .evcc-shell[data-viewport="mobile"] .evcc-mobile-nav {
+      transition: none;
+    }
+  }
 `;
