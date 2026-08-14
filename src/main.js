@@ -27,6 +27,17 @@ const CHROME_SCROLL_SOURCES = [
   ".evcc-theme-editor-scrollbox",
 ].join(",");
 
+/* How far from the top still counts as "at the top", where the chrome always
+   shows. Roughly one thumb-nudge, so returning to the start of a list reliably
+   brings the nav back without needing a flick. */
+const CHROME_TOP_ZONE = 24;
+
+/* Upward travel required to reveal the chrome mid-list, accumulated across a
+   gesture and reset on any downward movement. Deliberately larger than the
+   scroll a user makes while reaching a control — that constant small
+   adjustment was bringing the footer back and taking the space with it. */
+const CHROME_REVEAL_TRAVEL = 140;
+
 /* =========================================================
    CARD CLASS
    ========================================================= */
@@ -187,13 +198,39 @@ class EufyVacuumCommandCenter extends HTMLElement {
       const delta = top - this._chromeLastScrollTop;
       // Ignore the jitter that momentum scrolling produces at the extremes,
       // which would otherwise flap the chrome on every frame.
-      if (Math.abs(delta) < 8) return;
+      if (Math.abs(delta) < 4) return;
       this._chromeLastScrollTop = top;
 
       // Near the top, always show: there is nothing above to reveal, and a user
       // who has scrolled back to the start is orienting, not reading.
-      if (top < 24) return this._setChromeHidden(false);
-      this._setChromeHidden(delta > 0);
+      if (top <= CHROME_TOP_ZONE) {
+        this._chromeUpAccum = 0;
+        return this._setChromeHidden(false);
+      }
+
+      // Scrolling down: hide, and forget any upward progress.
+      if (delta > 0) {
+        this._chromeUpAccum = 0;
+        return this._setChromeHidden(true);
+      }
+
+      /* A DELIBERATE FLICK REVEALS IT. A NUDGE DOES NOT.
+         Revealing on any upward movement was too eager: in landscape the
+         editor is ~129px, so reaching a control means scrolling up constantly,
+         and every one of those brought the footer back and took the space with
+         it. Reported as "scrolling the controls back up brings the footer back
+         up, we need to gate that part better."
+
+         Position alone ("only show at the very top") would stop the flapping
+         but strand a user at the bottom of a 53,000px token list with no way
+         back to the nav. So: accumulate upward distance and require a decisive
+         amount of it, resetting the moment direction changes. Small
+         adjustments never accumulate enough; one real flick always does. */
+      this._chromeUpAccum = (this._chromeUpAccum || 0) - delta;
+      if (this._chromeUpAccum >= CHROME_REVEAL_TRAVEL) {
+        this._chromeUpAccum = 0;
+        this._setChromeHidden(false);
+      }
     };
 
     applyCardDomHelpers(this);
@@ -2154,6 +2191,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._chromeHidden = undefined;
     this._chromeShortMode = false;
     this._chromeLastScrollTop = 0;
+    this._chromeUpAccum = 0;
     if (this.shadowRoot) {
       this.shadowRoot.removeEventListener("scroll", this._boundHandleChromeScroll, true);
     }
