@@ -867,62 +867,7 @@ export function applySetupRenderers(proto) {
     `;
   };
 
-}
 
-/* -----------------------------------------------------------
-   Helpers (module-private)
-   ----------------------------------------------------------- */
-
-/**
- * Reformat a room SLUG (e.g. "guest-bedroom") into a display-friendly label
- * ("Guest Bedroom") for State C's dropped-rooms report. `plan_migration`
- * (rooms/reconciliation.py) reports `dropped` as slugs, not display names —
- * the original room's name is gone along with the rest of its durable data,
- * so the slug is genuinely the best label left. Pure formatting, not i18n:
- * the slug itself is derived from whatever name the user gave the room.
- */
-function _prettifySlug(slug) {
-  const s = String(slug ?? "").trim();
-  if (!s) return s;
-  return s
-    .split(/[-_]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
-/**
- * Check whether the named step is marked completed in a steps array.
- */
-function _isStepCompleted(steps, stepId) {
-  if (!Array.isArray(steps)) return false;
-  const entry = steps.find((s) => s.id === stepId);
-  return Boolean(entry?.completed);
-}
-
-/**
- * Build a fallback steps array from legacy status fields when the
- * backend response predates the data-driven contract.
- *
- * Mirrors the old hardcoded two-step wizard: add_vacuum + import+save
- * combined under the legacy "no_map"→"ready" transition. This lets the
- * card render against an older snapshot of state without crashing;
- * once the backend ships, this branch is rarely hit.
- */
-function _legacyStepsFallback(vacuumEntry) {
-  if (!vacuumEntry) {
-    return [
-      { id: "add_vacuum",        label: "Add vacuum",       completed: false, service: "" },
-      { id: "import_active_map", label: "Import active map", completed: false, service: "" },
-      { id: "save_rooms",        label: "Configure rooms",  completed: false, service: "" },
-    ];
-  }
-  const hasImported = Boolean(vacuumEntry.has_imported_map);
-  return [
-    { id: "add_vacuum",        label: "Add vacuum",        completed: true,        service: "" },
-    { id: "import_active_map", label: "Import active map", completed: hasImported, service: "" },
-    { id: "save_rooms",        label: "Configure rooms",   completed: hasImported, service: "" },
-  ];
   /* =========================================================
      SUB-TAB STRIP + THE "SYSTEM" BINDING TABLE (live:ENT-11)
      ========================================================= */
@@ -1035,5 +980,60 @@ function _legacyStepsFallback(vacuumEntry) {
     }
     return strip + _renderSetupSteps.call(this, ctx);
   };
+}
 
+/* -----------------------------------------------------------
+   Helpers (module-private)
+   ----------------------------------------------------------- */
+
+/**
+ * Reformat a room SLUG (e.g. "guest-bedroom") into a display-friendly label
+ * ("Guest Bedroom") for State C's dropped-rooms report. `plan_migration`
+ * (rooms/reconciliation.py) reports `dropped` as slugs, not display names —
+ * the original room's name is gone along with the rest of its durable data,
+ * so the slug is genuinely the best label left. Pure formatting, not i18n:
+ * the slug itself is derived from whatever name the user gave the room.
+ */
+function _prettifySlug(slug) {
+  const s = String(slug ?? "").trim();
+  if (!s) return s;
+  return s
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/**
+ * Check whether the named step is marked completed in a steps array.
+ */
+function _isStepCompleted(steps, stepId) {
+  if (!Array.isArray(steps)) return false;
+  const entry = steps.find((s) => s.id === stepId);
+  return Boolean(entry?.completed);
+}
+
+/**
+ * Build a fallback steps array from legacy status fields when the
+ * backend response predates the data-driven contract.
+ *
+ * Mirrors the old hardcoded two-step wizard: add_vacuum + import+save
+ * combined under the legacy "no_map"→"ready" transition. This lets the
+ * card render against an older snapshot of state without crashing;
+ * once the backend ships, this branch is rarely hit.
+ */
+function _legacyStepsFallback(vacuumEntry) {
+  if (!vacuumEntry) {
+    return [
+      { id: "add_vacuum",        label: "Add vacuum",       completed: false, service: "" },
+      { id: "import_active_map", label: "Import active map", completed: false, service: "" },
+      { id: "save_rooms",        label: "Configure rooms",  completed: false, service: "" },
+    ];
+  }
+  const hasImported = Boolean(vacuumEntry.has_imported_map);
+  return [
+    { id: "add_vacuum",        label: "Add vacuum",        completed: true,        service: "" },
+    { id: "import_active_map", label: "Import active map", completed: hasImported, service: "" },
+    { id: "save_rooms",        label: "Configure rooms",   completed: hasImported, service: "" },
+  ];
 }
