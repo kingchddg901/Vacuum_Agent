@@ -153,10 +153,18 @@ export const foundationStyles = `
      with no scroll container. As a dashboard CARD the host does supply a height, so
      this is scoped to the panel attribute rather than applied globally.
 
-     --header-height is HA's own toolbar variable; the fallback matches its default
-     so a themed or hidden header degrades to a small gap, never an overflow. */
+     --evcc-panel-offset is MEASURED (main.js:_syncPanelOffset) — where the host
+     actually starts in the viewport. It replaces a guess: this integration
+     registers through panel_custom with embed_iframe=False, so HA renders it in
+     ha-panel-custom, which gives the panel the whole area and NO toolbar. The
+     old header-height subtraction therefore removed ~56px for chrome that
+     is not on screen, leaving that much dead space below the bottom nav.
+
+     The --header-height chain stays as the fallback for the frame before the
+     first measurement, and for any context where the toolbar IS drawn, so this
+     degrades to the previous behaviour rather than to an overflow. */
   :host([data-evcc-panel]) {
-    height: calc(100dvh - var(--header-height, 56px));
+    height: calc(100dvh - var(--evcc-panel-offset, var(--header-height, 56px)));
   }
 
   :host {

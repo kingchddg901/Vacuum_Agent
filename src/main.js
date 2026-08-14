@@ -121,6 +121,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
        ===================================================== */
     this._resizeObserver = null;
     this._boundHandleResize = (entries) => {
+      this._syncPanelOffset();
       if (!this._state) return;
       // Honor the config override even on resize.
       if (this._mobileShellOverride === true || this._mobileShellOverride === false) return;
@@ -133,6 +134,40 @@ class EufyVacuumCommandCenter extends HTMLElement {
     };
 
     applyCardDomHelpers(this);
+  }
+
+  /**
+   * MEASURE THE OFFSET INSTEAD OF ASSUMING IT.
+   *
+   * In panel mode the shell sizes itself from the viewport, and used to do it
+   * as `100dvh - var(--header-height, 56px)` — subtracting Home Assistant's
+   * DASHBOARD toolbar. But this integration registers through
+   * `panel_custom.async_register_panel(..., embed_iframe=False)`, so HA renders
+   * it via ha-panel-custom, which hands the panel the whole area and draws NO
+   * toolbar. `--header-height` stays defined globally regardless, so the shell
+   * was subtracting ~56px for chrome that is not on screen and leaving that
+   * much dead space below the bottom nav. Reported from a phone, and the
+   * measured gap matched the fallback.
+   *
+   * So: read where the host actually starts. Toolbar absent -> 0 -> full
+   * height. Toolbar present -> its real height -> identical to the old
+   * behaviour. Themed, hidden, or changed by a future HA layout -> still
+   * right, because nothing is being guessed.
+   *
+   * Writes only on CHANGE. The property feeds a height, the ResizeObserver
+   * that calls this watches that height, and an unconditional write would
+   * therefore hand the observer a reason to fire forever.
+   */
+  _syncPanelOffset() {
+    if (!this.hasAttribute("data-evcc-panel")) return;
+    const top = this.getBoundingClientRect().top;
+    if (!Number.isFinite(top)) return;
+    // Round: sub-pixel jitter from zoom or a scrollbar would otherwise write a
+    // new value on every frame, which is the loop this guard exists to stop.
+    const next = `${Math.max(0, Math.round(top))}px`;
+    if (this._panelOffset === next) return;
+    this._panelOffset = next;
+    this.style.setProperty("--evcc-panel-offset", next);
   }
 
   /**
@@ -279,6 +314,11 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // _panel was previously stored and never read, so the card knew it was a panel
     // and did nothing with it. Styling hangs off this attribute (see foundation.js).
     this.toggleAttribute("data-evcc-panel", Boolean(panel));
+    // The ResizeObserver's first callback may already have run and bailed,
+    // because this setter is what stamps the attribute _syncPanelOffset gates
+    // on. Measure once the stamp exists; rAF so it reads a laid-out box rather
+    // than whatever the element was before the panel attribute applied.
+    if (panel) requestAnimationFrame(() => this._syncPanelOffset());
     // Note: setConfig now accepts empty config and renders a setup
     // placeholder instead of throwing, so pass through unconditionally.
     if (panel?.config !== undefined) {
@@ -1972,6 +2012,10 @@ class EufyVacuumCommandCenter extends HTMLElement {
   }
 
   disconnectedCallback() {
+    // Drop the cached offset so a re-mount MEASURES rather than trusting a
+    // number taken in a layout that no longer exists — panel navigation and
+    // sidebar toggles both re-connect the card somewhere different.
+    this._panelOffset = undefined;
     document.removeEventListener("visibilitychange", this._boundHandleVisibilityChange);
     window.removeEventListener("focus", this._boundHandlePanelResume);
     window.removeEventListener("location-changed", this._boundHandleLocationChanged);
