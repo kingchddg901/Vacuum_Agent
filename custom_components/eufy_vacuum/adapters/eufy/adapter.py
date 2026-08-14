@@ -50,6 +50,7 @@ from .vocabulary import (
     CANCEL_SERVICE_EXCLUSION_STATES,
 )
 from .entities import (
+    ALL_SUFFIXES,
     build_entity_id,
     SUFFIX_TASK_STATUS,
     SUFFIX_DOCK_STATUS,
@@ -242,6 +243,11 @@ def register_eufy_adapter_for_vacuum(
         model_family=model_family,
         capability_hints=capability_hints,
         maintenance_components=MAINTENANCE_COMPONENTS,
+        # The FULL suffix vocabulary, not just the probed roles. Several
+        # colliding pairs (`_cleaning_area` / `_total_cleaning_area`) have one
+        # half declared in `entities` and the other in `entity_candidates`, so
+        # sibling matching cannot see the conflict without this (live:ENT-4).
+        reserved_suffixes=ALL_SUFFIXES,
     )
 
     # Build entity ID map from adapter entity patterns.

@@ -495,11 +495,25 @@ def _vacuum_diagnostics(
     except Exception:  # pragma: no cover - defensive
         declared_map = {}
     merged_map = {**declared_map, **entities_map} if isinstance(declared_map, dict) else entities_map
-    entity_resolution = {
-        role: _entity_snapshot(hass, entity_id)
-        for role, entity_id in sorted(merged_map.items())
-    }
+    # live:ENT-2 — carry WHY, not just what. A bare `null` per role cannot
+    # distinguish "no such entity" from "present but disabled", and those need
+    # opposite fixes: one is ours, the other is a toggle in the user's own UI.
+    # Issue #49 spent a round-trip on that ambiguity while both position
+    # sensors sat disabled on the device.
+    _reasons = (caps.get("entity_resolution_reasons") or {}) if isinstance(caps, dict) else {}
+    entity_resolution = {}
+    for role, entity_id in sorted(merged_map.items()):
+        snapshot = _entity_snapshot(hass, entity_id)
+        if isinstance(snapshot, dict) and role in _reasons:
+            snapshot["reason"] = _reasons[role]
+        entity_resolution[role] = snapshot
     out["entity_resolution"] = entity_resolution
+
+    # live:ENT-3 — did the device-sibling rescue actually RUN? Every failure
+    # path in it returned the candidates unchanged and logged nothing, so a
+    # dump could not tell a rescue that died from one that found nothing.
+    if isinstance(caps, dict) and caps.get("entity_augmentation"):
+        out["entity_augmentation"] = caps["entity_augmentation"]
 
     # DIAG-1: the counterpart to the table above. Read them together — declared
     # roles that failed to resolve, against what the device really has.

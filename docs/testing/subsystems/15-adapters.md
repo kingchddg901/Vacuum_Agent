@@ -207,7 +207,7 @@ non-SDK import and a planted `hass._private_thing` each turn their own check red
 | `brands.py` | 58 | 100% | `test_brand_selection.py` | integration | clean |
 | `eufy/segmentor.py` | 866 | 91% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/adapter.py` | 52 | 85% | `tests/adapters/eufy/` | adapter | - |
-| `eufy/entities.py` | 28 | 100% | `test_buttons_entities.py` | adapter | clean |
+| `eufy/entities.py` | 28 | 100% | `test_buttons_entities.py` + `test_suffix_vocabulary.py` | adapter | clean |
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter | clean |
 | `eufy/constants.py` | 15 | 100% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/model_catalog.py` | 12 | 100% | `test_model_catalog.py` | adapter | clean |

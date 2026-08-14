@@ -491,3 +491,197 @@ async def test_detect_capabilities_actually_uses_the_device_fallback(hass):
         "the device fallback is not wired into detect_capabilities — the role "
         "resolved to nothing even though the device exposes it"
     )
+
+
+# ---------------------------------------------------------------------------
+# [CAP-12] live:ENT-4 — exclusivity: a longer declared suffix owns its sibling
+# ---------------------------------------------------------------------------
+
+async def test_longer_declared_suffix_owns_the_sibling(hass):
+    """[CAP-12] A per-run role must not borrow the LIFETIME TOTAL entity.
+
+    `endswith` is unsafe when one declared suffix is a substring of another:
+    `_area` also matches `..._total_area`. Both then land in the same candidate
+    list and which one wins depends on entity-registry ORDER — so a per-run
+    metric can silently resolve to a lifetime counter. That is wrong data, not
+    missing data, which is the worse failure because it reads as working.
+
+    CONFIRMED on real hardware: the issue #49 device carries both
+    `..._cleaning_area` and `..._total_cleaning_area`.
+
+    Deliberately brand-agnostic suffixes — the Eufy pair is asserted in
+    tests/adapters/eufy/.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    _vacuum_on_device(
+        hass,
+        companions=[
+            ("sensor", "downstairs_alfred_area"),
+            ("sensor", "downstairs_alfred_total_area"),
+        ],
+    )
+
+    given = {"area": ["sensor.alfred_area"]}
+    out = augment_candidates_from_device(
+        hass, _VAC, given, reserved_suffixes=("_area", "_total_area")
+    )
+
+    assert "sensor.downstairs_alfred_area" in out["area"]
+    assert "sensor.downstairs_alfred_total_area" not in out["area"], (
+        "the lifetime-total entity was offered to the per-run role — "
+        "exclusivity is not holding"
+    )
+
+
+async def test_collision_ablation_without_the_vocabulary(hass):
+    """[CAP-12b] The guard must be load-bearing, not decorative.
+
+    A test that passes with AND without the fix proves nothing. Withhold
+    `reserved_suffixes` and the collision must reappear — that is what shows
+    the vocabulary is what prevents it, rather than some accident of ordering.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    _vacuum_on_device(
+        hass,
+        companions=[
+            ("sensor", "downstairs_alfred_area"),
+            ("sensor", "downstairs_alfred_total_area"),
+        ],
+    )
+
+    out = augment_candidates_from_device(hass, _VAC, {"area": ["sensor.alfred_area"]})
+
+    assert "sensor.downstairs_alfred_total_area" in out["area"], (
+        "without the declared vocabulary the collision should still occur; if "
+        "it does not, this test no longer proves the guard does anything"
+    )
+
+
+# ---------------------------------------------------------------------------
+# [CAP-13] live:ENT-2 — absent vs disabled are no longer the same answer
+# ---------------------------------------------------------------------------
+
+async def test_disabled_companion_is_reported_as_disabled(hass):
+    """[CAP-13] A disabled entity is not a missing one, and needs the opposite fix.
+
+    Both position sensors on the issue #49 device exist with exactly the ids we
+    derive — they are switched off. A disabled entity has no state, so the role
+    read as absent and we hunted a naming bug that was not there. The user fix
+    is a toggle in their own UI; ours would have been code.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        REASON_ABSENT,
+        REASON_DISABLED,
+        REASON_RESOLVED,
+        resolve_with_reason,
+    )
+
+    registry = _vacuum_on_device(hass)
+    registry.async_get_or_create(
+        "sensor", "eufy_vacuum", "uid_disabled",
+        suggested_object_id="alfred_position_x",
+        disabled_by=er.RegistryEntryDisabler.USER,
+    )
+
+    entity_id, reason = resolve_with_reason(hass, ["sensor.alfred_position_x"])
+    assert reason == REASON_DISABLED
+    assert entity_id == "sensor.alfred_position_x", (
+        "the id must still be reported — the user needs to know WHICH entity to enable"
+    )
+
+    assert resolve_with_reason(hass, ["sensor.alfred_nope"]) == (None, REASON_ABSENT)
+
+    hass.states.async_set("sensor.alfred_works", "5")
+    assert resolve_with_reason(hass, ["sensor.alfred_works"]) == (
+        "sensor.alfred_works",
+        REASON_RESOLVED,
+    )
+
+
+async def test_reporting_the_reason_does_not_change_resolution(hass):
+    """[CAP-13b] live:ENT-2 adds explanation and NOTHING else.
+
+    `entities` resolves each role as ``_find(...) or _find_reg(...)``, so a
+    registered-but-disabled entity is deliberately still reported as the role's
+    id — downstream wants to know WHICH entity, and a disabled entity can be
+    enabled. That behaviour predates this change and must survive it.
+
+    So the assertion is deliberately the unchanged value plus the new reason
+    beside it. If a future refactor makes a disabled role resolve to None, that
+    is a behaviour change to argue for on its own merits, not a side effect of
+    adding diagnostics.
+    """
+    registry = _vacuum_on_device(hass)
+    registry.async_get_or_create(
+        "sensor", "eufy_vacuum", "uid_disabled_role",
+        suggested_object_id="alfred_task_status",
+        disabled_by=er.RegistryEntryDisabler.USER,
+    )
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        entity_candidates={"task_status": ["sensor.alfred_task_status"]},
+    )
+
+    assert caps["entities"]["task_status"] == "sensor.alfred_task_status", (
+        "the registered-entity fallback stopped supplying disabled roles — that "
+        "is a behaviour change, not a diagnostics change"
+    )
+    assert caps["entity_resolution_reasons"]["task_status"] == "disabled", (
+        "the role resolved via the registry with no state; the reason must say "
+        "so rather than leaving the reader to guess"
+    )
+
+
+# ---------------------------------------------------------------------------
+# [CAP-14] live:ENT-3 — the rescue no longer fails silently
+# ---------------------------------------------------------------------------
+
+async def test_augmentation_reports_why_it_did_not_run(hass):
+    """[CAP-14] "Died" and "ran and found nothing" must not look identical.
+
+    Every early return here used to hand back the candidates unchanged with no
+    log and no trace. Issue #49 cost a morning of elimination against a dump
+    that could not say whether this code had executed at all.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    report: dict = {}
+    given = {"task_status": ["sensor.ghost_task_status"]}
+    assert augment_candidates_from_device(hass, "vacuum.ghost", given, report=report) == given
+    assert report["ran"] is False
+    assert report["reason"] == "vacuum_not_in_registry"
+
+
+async def test_augmentation_reports_a_registry_failure(hass, monkeypatch):
+    """[CAP-14b] The blanket except must leave evidence, not just a return.
+
+    This is the path that most likely killed issue #49 on HA 2026.8.1, and it
+    is unprovable precisely because it was silent.
+    """
+    from custom_components.eufy_vacuum.core import capabilities as cap
+
+    _vacuum_on_device(hass, companions=[("sensor", "downstairs_alfred_task_status")])
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("registry exploded")
+
+    monkeypatch.setattr(cap.er, "async_entries_for_device", _boom)
+
+    report: dict = {}
+    given = {"task_status": ["sensor.alfred_task_status"]}
+    out = cap.augment_candidates_from_device(hass, _VAC, given, report=report)
+
+    assert out == given, "a failed augmentation must never REMOVE a candidate"
+    assert report["reason"] == "registry_error"
+    assert "registry exploded" in report["error"]

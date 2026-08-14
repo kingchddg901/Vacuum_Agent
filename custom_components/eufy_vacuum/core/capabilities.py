@@ -35,10 +35,24 @@ logic is universal HA entity detection that works for any brand.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Iterable
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+
+_LOGGER = logging.getLogger(__name__)
+
+#: Resolution outcomes reported alongside each role (live:ENT-2).
+#: ``absent`` and ``disabled`` used to be indistinguishable — both produced a
+#: bare ``None`` — yet they need OPPOSITE fixes: one is ours, the other is a
+#: toggle in the user's own UI. Issue #49 burned a round-trip on exactly that
+#: ambiguity, with both position sensors present-but-disabled on the device.
+REASON_RESOLVED = "resolved"
+REASON_DISABLED = "disabled"
+REASON_REGISTERED_NO_STATE = "registered_no_state"
+REASON_ABSENT = "absent"
 
 
 # ----------------------------------------------------------------------
@@ -77,6 +91,45 @@ def _find_registered_entity(
         if _registry_entry_exists(hass, entity_id):
             return entity_id
     return None
+
+
+def resolve_with_reason(
+    hass: HomeAssistant,
+    candidates: list[str],
+) -> tuple[str | None, str]:
+    """Return ``(entity_id, reason)`` for the first candidate that explains itself.
+
+    live:ENT-2. ``_find_existing_entity`` answers "which id has a state" and
+    erases everything else, so a role reads ``None`` whether the entity is
+    missing, switched off, or simply not added yet. Those need different fixes
+    and only one of them is a bug in this integration.
+
+    Order matters: a candidate with a STATE always wins, so a working install
+    resolves exactly as before and never pays for the extra registry lookups.
+    Only an unresolved role walks the registry to explain itself.
+    """
+    for entity_id in candidates:
+        if _state_exists(hass, entity_id):
+            return entity_id, REASON_RESOLVED
+
+    try:
+        registry = er.async_get(hass)
+    except Exception:  # pragma: no cover - defensive; never break detection
+        return None, REASON_ABSENT
+
+    for entity_id in candidates:
+        entry = registry.async_get(entity_id)
+        if entry is None:
+            continue
+        # Registered but stateless. `disabled_by` is the authoritative signal —
+        # it names WHO disabled it (user, integration, config entry). An entry
+        # with no state and no disabled_by is mid-startup or unavailable, which
+        # is a third thing again and must not be reported as "disabled".
+        if getattr(entry, "disabled_by", None) is not None:
+            return entity_id, REASON_DISABLED
+        return entity_id, REASON_REGISTERED_NO_STATE
+
+    return None, REASON_ABSENT
 
 
 def _find_registry_entity_by_tokens(
@@ -183,6 +236,9 @@ def augment_candidates_from_device(
     hass: HomeAssistant,
     vacuum_entity_id: str,
     entity_candidates: dict[str, list[str]] | None,
+    *,
+    reserved_suffixes: Iterable[str] | None = None,
+    report: dict[str, Any] | None = None,
 ) -> dict[str, list[str]]:
     """Append device-registry siblings to each role's candidate list.
 
@@ -212,14 +268,30 @@ def augment_candidates_from_device(
     Best-effort — a registry that cannot be read returns the candidates
     unchanged, because failing to ADD a fallback must never remove one.
     """
+    # live:ENT-3 — this function used to fail SILENTLY. Every early return and
+    # the blanket except returned the candidates unchanged with no log and no
+    # trace, so "the rescue died" and "the rescue ran and found nothing" were
+    # indistinguishable in the field. Issue #49 cost a morning of elimination
+    # that ONE log line would have answered. `rpt` is that trace; diagnostics
+    # publishes it.
+    rpt: dict[str, Any] = report if isinstance(report, dict) else {}
+    rpt.update(
+        {"ran": False, "siblings_seen": 0, "merged": 0, "reason": None, "error": None}
+    )
+
     cands = entity_candidates or {}
     if not cands:
+        rpt["reason"] = "no_candidates"
         return dict(cands)
 
     try:
         registry = er.async_get(hass)
         entry = registry.async_get(vacuum_entity_id)
-        if entry is None or not entry.device_id:
+        if entry is None:
+            rpt["reason"] = "vacuum_not_in_registry"
+            return dict(cands)
+        if not entry.device_id:
+            rpt["reason"] = "vacuum_has_no_device"
             return dict(cands)
 
         siblings = [
@@ -228,13 +300,67 @@ def augment_candidates_from_device(
                 registry, entry.device_id, include_disabled_entities=True
             )
         ]
+        rpt["siblings_seen"] = len(siblings)
         if not siblings:
+            rpt["reason"] = "device_has_no_entities"
             return dict(cands)
-    except Exception:  # pragma: no cover - defensive
+    except Exception as err:
+        rpt["reason"] = "registry_error"
+        rpt["error"] = repr(err)
+        # WARNING, not debug: failing to augment means companion entities go
+        # unresolved and features read as absent. That is a user-visible
+        # degradation and must not be discoverable only by reading the source.
+        _LOGGER.warning(
+            "entity augmentation failed for %s — companion entities may not "
+            "resolve and features may read as unsupported: %r",
+            vacuum_entity_id,
+            err,
+        )
         return dict(cands)
 
     object_id = vacuum_entity_id.split(".", 1)[-1]
     out: dict[str, list[str]] = {}
+    rpt["ran"] = True
+
+    # live:ENT-4 — the SUFFIX UNIVERSE, and why exclusivity is not optional.
+    #
+    # `endswith` is an unsafe test when one declared suffix is a substring of
+    # another: `_cleaning_area` also matches `..._total_cleaning_area`, so a
+    # per-run metric can resolve to the LIFETIME TOTAL. That is WRONG DATA, not
+    # missing data — the far worse failure, because it reads as working.
+    #
+    # No amount of name matching separates that pair on its own. The only thing
+    # that can is knowing the longer suffix is ALSO declared, so the sibling
+    # already has a rightful owner. CONFIRMED on real hardware: issue #49's
+    # device carries both entities, and which one won depended on registry order.
+    #
+    # `reserved_suffixes` exists because the colliding partner is often declared
+    # in the adapter's `entities` map rather than in `entity_candidates` — the
+    # two halves cannot see each other, so the adapter passes its full suffix
+    # vocabulary in. Omit it and this degrades to candidate-vs-candidate
+    # exclusivity, which is still strictly better than today.
+    universe: set[str] = set()
+    for _declared in cands.values():
+        for _candidate in _declared or []:
+            if not isinstance(_candidate, str) or "." not in _candidate:
+                continue
+            _, _, _cand_object = _candidate.partition(".")
+            if not _cand_object.startswith(object_id):
+                continue
+            _suffix = _cand_object[len(object_id):]
+            if _suffix:
+                universe.add(_suffix)
+    for _reserved in reserved_suffixes or ():
+        if isinstance(_reserved, str) and _reserved:
+            universe.add(_reserved)
+
+    def _claimed_by(sib_object: str) -> str | None:
+        """The LONGEST declared suffix this sibling ends with — its rightful owner."""
+        best: str | None = None
+        for known in universe:
+            if sib_object.endswith(known) and (best is None or len(known) > len(best)):
+                best = known
+        return best
 
     for role, declared in cands.items():
         merged = list(declared or [])
@@ -260,9 +386,17 @@ def augment_candidates_from_device(
                 sib_domain, _, sib_object = sibling.partition(".")
                 # Domain AND suffix must both match. Suffix alone would let a
                 # `select.*_water_level` satisfy a role that needs the sensor.
-                if sib_domain == domain and sib_object.endswith(suffix):
-                    merged.append(sibling)
-                    seen.add(sibling)
+                if sib_domain != domain or not sib_object.endswith(suffix):
+                    continue
+                # EXCLUSIVITY (live:ENT-4): a sibling belongs to the role whose
+                # declared suffix explains the most of its name. If a LONGER
+                # declared suffix also fits, that role owns it and this one must
+                # not borrow it.
+                if _claimed_by(sib_object) != suffix:
+                    continue
+                merged.append(sibling)
+                seen.add(sibling)
+                rpt["merged"] = int(rpt.get("merged") or 0) + 1
 
         out[role] = merged
 
@@ -279,6 +413,10 @@ def detect_capabilities(
     model_family: str | None = None,
     capability_hints: dict[str, bool] | None = None,
     maintenance_components: dict[str, Any] | None = None,
+    # The adapter's FULL suffix vocabulary, including roles it resolves outside
+    # `entity_candidates`. Needed so sibling matching knows a longer suffix is
+    # already spoken for — see augment_candidates_from_device (live:ENT-4).
+    reserved_suffixes: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """Detect and return a capability map for one vacuum.
 
@@ -307,11 +445,28 @@ def detect_capabilities(
     # live:ENT-1: derived names first, device siblings appended behind them. An
     # install where derivation already works resolves byte-identically; only a
     # role that would have found NOTHING can now find something.
-    _cands = augment_candidates_from_device(hass, vacuum_entity_id, entity_candidates)
+    _aug_report: dict[str, Any] = {}
+    _cands = augment_candidates_from_device(
+        hass,
+        vacuum_entity_id,
+        entity_candidates,
+        reserved_suffixes=reserved_suffixes,
+        report=_aug_report,
+    )
     _hints = capability_hints or {}
+    _reasons: dict[str, str] = {}
 
     def _find(key: str) -> str | None:
-        return _find_existing_entity(hass, _cands.get(key, []))
+        """Resolve a role, recording WHY it failed (live:ENT-2).
+
+        Returns an id only when the candidate has a STATE — byte-identical to
+        the previous behaviour, so no working install changes. A disabled or
+        stateless match still resolves to None; it is merely no longer
+        indistinguishable from "no such entity" in the report.
+        """
+        entity_id, reason = resolve_with_reason(hass, _cands.get(key, []))
+        _reasons[key] = reason
+        return entity_id if reason == REASON_RESOLVED else None
 
     def _find_reg(key: str) -> str | None:
         return _find_registered_entity(hass, _cands.get(key, []))
@@ -452,6 +607,12 @@ def detect_capabilities(
 
     return {
         "vacuum_entity_id": vacuum_entity_id,
+        # live:ENT-2/ENT-3 — WHY each role resolved as it did, and whether the
+        # device-sibling rescue ran at all. Both are diagnostics-facing only;
+        # nothing branches on them. They exist because issue #49 could not be
+        # answered from a dump that reported a bare `null` per role.
+        "entity_resolution_reasons": dict(_reasons),
+        "entity_augmentation": dict(_aug_report),
         "detected_model": detected_model,
         "model_family": model_family or "generic",
         "supported_features": supported_features,

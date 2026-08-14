@@ -124,3 +124,26 @@ def build_entity_id(
         )
     object_id = vacuum_entity_id.split(".", 1)[-1]
     return f"{domain}.{object_id}{suffix}"
+
+
+#: Every entity suffix this adapter knows, derived rather than hand-listed.
+#:
+#: Consumed as ``reserved_suffixes`` by ``detect_capabilities`` so that sibling
+#: matching can tell when a LONGER declared suffix already owns an entity:
+#: ``_cleaning_area`` also matches ``..._total_cleaning_area``, and without the
+#: full vocabulary a per-run metric can silently resolve to the LIFETIME TOTAL
+#: (live:ENT-4, confirmed on the issue #49 device).
+#:
+#: Derived from the module's own ``SUFFIX_*`` constants on purpose: the two
+#: halves of that collision are declared in different places, and a hand-kept
+#: list would drift the moment a suffix is added. A new ``SUFFIX_*`` constant
+#: joins this tuple automatically.
+ALL_SUFFIXES: tuple[str, ...] = tuple(
+    sorted(
+        {
+            value
+            for name, value in list(globals().items())
+            if name.startswith("SUFFIX_") and isinstance(value, str) and value
+        }
+    )
+)
