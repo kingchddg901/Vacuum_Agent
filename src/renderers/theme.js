@@ -777,10 +777,19 @@ export function applyThemeRenderers(proto) {
         ${this._renderThemePreviewPane()}
 
         <div class="evcc-theme-editor-main">
+        ${/* THE SELECTOR IS NOT PART OF WHAT IT SELECTS.
+              The chip row used to render INSIDE .evcc-theme-editor-scrollbox,
+              so scrolling to a token scrolled the selector off the top — you
+              lost your place and had to scroll back up to change group. It has
+              its own bounded, scrollable frame, but nesting that inside a
+              larger scroll made the bound pointless.
+              Hoisted out: chips are pinned above, the token list scrolls
+              beneath. Two frames, two scrolls, neither able to push the other
+              off screen. */""}
+        ${this._renderThemeGroupFilters()}
+
         <div class="evcc-theme-editor-scrollbox">
         <div class="evcc-token-editor">
-          ${this._renderThemeGroupFilters()}
-
           <div class="evcc-token-list">
           ${renderedGroups.length ? renderedGroups.join("") : `
             <div class="evcc-empty evcc-empty--theme-group-search">

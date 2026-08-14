@@ -3483,10 +3483,11 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
         ${this._renderThemePreviewPane()}
 
         <div class="evcc-theme-editor-main">
+        
+        ${this._renderThemeGroupFilters()}
+
         <div class="evcc-theme-editor-scrollbox">
         <div class="evcc-token-editor">
-          ${this._renderThemeGroupFilters()}
-
           <div class="evcc-token-list">
           ${s.length?s.join(""):`
             <div class="evcc-empty evcc-empty--theme-group-search">
