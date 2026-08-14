@@ -146,9 +146,9 @@ export function applyMobileShellRenderer(proto) {
     // string when there's no fork map-switcher so nothing renders.
     const mapSwitchHtml = this._renderMapSwitch?.(ctx.state) ?? "";
 
-    // TEST BUILD (2026-08-10): the Theme view is a long scrolling token list, and the
-    // status block (vacuum / dock / battery) is irrelevant while editing colours. Trade it
-    // for vertical budget on that view only — the name + language control stay.
+    // The Theme view is a long scrolling token list, and the status block
+    // (vacuum / dock / battery) is irrelevant while editing colours. Trade it for
+    // vertical budget on that view only — the name + language control stay.
     const compactChrome = ctx?.view === "theme";
 
     return `

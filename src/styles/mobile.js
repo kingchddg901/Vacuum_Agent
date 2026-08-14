@@ -977,9 +977,10 @@ export const MOBILE_STYLES = `
      =========================================================== */
 
   /* ===========================================================
-     TEST BUILD (2026-08-10) — COMPACT CHROME FOR THE THEME VIEW
+     COMPACT CHROME FOR THE THEME VIEW
      -----------------------------------------------------------
-     Paired with MOBILE_TOKEN_EDITOR (renderers/theme.js). The
+     Paired with the phone-reachable token editor
+     (renderers/theme.js). The
      token editor is a long scrolling list inside its own
      .evcc-theme-editor-scrollbox, so the scarce resource on a
      phone is VERTICAL BUDGET, not layout. Both chrome bands are

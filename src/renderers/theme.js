@@ -22,19 +22,14 @@ import { FACETS, orderTags, facetOf, SUGGESTED_VIBE_TAGS } from "../theme-tags/i
 // The public Pages "store" — the card links out to it (no auto-download).
 const THEME_GALLERY_URL = "https://kingchddg901.github.io/Vacuum_Agent/";
 
-/* TEST BUILD (2026-08-10) — mobile token editor.
-   e6bc123 made the Theme view PICKING-ONLY on a phone (forced presets sub-tab, dropped
-   Palette/Tokens + the draft footer) on the reasoning that the editors "need too many
-   panels for a phone". On-device testing says otherwise: the token list already scrolls in
-   its own container (.evcc-theme-editor-scrollbox, styles/theme.js:537) with the contextual
-   preview and footer OUTSIDE it, the <=1100px query already hoists the preview full-width
-   above the editor, and the group chips are tappable by hand. The real constraint is
-   vertical BUDGET, not layout — which is what the paired compact chrome addresses.
-
-   Flip to false to restore shipped behaviour byte-for-byte: every gate below reads this one
-   flag, and `isMobile` itself is untouched so any future mobile-only adaptation in this file
-   is unaffected. */
-const MOBILE_TOKEN_EDITOR = true;
+/* The Theme view is fully editable on a phone — presets, Palette, Tokens and the
+   draft footer. An earlier revision made it PICKING-ONLY there, reasoning that the
+   editors "need too many panels for a phone"; on-device testing said otherwise. The
+   token list already scrolls in its own container (.evcc-theme-editor-scrollbox,
+   styles/theme.js:537) with the contextual preview and footer OUTSIDE it, the
+   <=1100px query hoists the preview full-width above the editor, and the group chips
+   are tappable by hand. The real constraint is vertical BUDGET, not layout — which is
+   what the paired compact chrome in styles/mobile.js addresses. */
 
 /* =========================================================
    COLOR-MIX PARSER
@@ -225,12 +220,7 @@ export function applyThemeRenderers(proto) {
   proto.renderThemeView = function () {
     const state = this.card._state._ensureThemeState();
     const { tokens, sources } = this.card._state.resolvedTheme();
-    const isMobile = this.card._state.isMobileViewport();
-    // Mobile = theme PICKING only: force the Themes (presets) sub-tab and drop the
-    // Palette/Tokens editors — they need too many panels for a phone.
-    // TEST BUILD: MOBILE_TOKEN_EDITOR lifts that restriction (see the flag's note).
-    const pickingOnly = isMobile && !MOBILE_TOKEN_EDITOR;
-    const activeTab = pickingOnly ? "presets" : (state.activeSubTab || "presets");
+    const activeTab = state.activeSubTab || "presets";
 
     /* The caret takes the sub-tab strip WITH it. Collapsing only the search row
        reclaimed ~26px — measured on device, and visibly not worth a control.
@@ -239,14 +229,13 @@ export function applyThemeRenderers(proto) {
 
        Only when the header is on screen to expand from: the presets tab renders
        no header, so there would be no caret and the strip would be unreachable. */
-    const chromeCollapsed =
-      activeTab !== "presets" && !pickingOnly && !!state.searchCollapsed;
+    const chromeCollapsed = activeTab !== "presets" && !!state.searchCollapsed;
 
     return `
       <div class="evcc-view evcc-view--theme">
         ${activeTab === "presets" ? "" : this._renderThemeHeader(state, activeTab)}
 
-        ${pickingOnly || chromeCollapsed ? "" : `
+        ${chromeCollapsed ? "" : `
         <div class="evcc-chips evcc-theme-tabs" role="tablist">
           <button
             class="evcc-chip ${activeTab === "presets" ? "active" : ""}"
@@ -272,8 +261,8 @@ export function applyThemeRenderers(proto) {
 
         <div class="evcc-view-content">
           ${activeTab === "presets" ? this._renderThemePresets(state) : ""}
-          ${!pickingOnly && activeTab === "palette" ? this._renderThemePalette(tokens, sources) : ""}
-          ${!pickingOnly && activeTab === "tokens" ? this._renderThemeTokenEditor(tokens, sources) : ""}
+          ${activeTab === "palette" ? this._renderThemePalette(tokens, sources) : ""}
+          ${activeTab === "tokens" ? this._renderThemeTokenEditor(tokens, sources) : ""}
         </div>
 
         ${this._renderThemeFooter(state)}
@@ -1240,13 +1229,9 @@ ${fontPresets}
   proto._renderThemeFooter = function (state) {
     const hasDraft = !!state.draftDirty;
     const hasActiveTheme = !!state.activeThemeId;
-    // Mobile = picking only: keep theme-level Export/Import/Download/Upload; drop
-    // the floor-preset + draft (Save/Discard) controls, which belong to the
-    // desktop-only token editor.
-    // TEST BUILD: MOBILE_TOKEN_EDITOR brings the editor to mobile, so those controls
-    // must come with it — a token editor you cannot Save is worse than none.
-    const isMobile = this.card._state.isMobileViewport();
-    const pickingOnly = isMobile && !MOBILE_TOKEN_EDITOR;
+    // The floor-preset and draft (Save/Discard) controls belong to the token editor,
+    // which is reachable at every width — so they ship at every width too. A token
+    // editor you cannot Save is worse than none.
 
     return `
       <div class="evcc-view-footer">
@@ -1291,7 +1276,6 @@ ${fontPresets}
             <span class="evcc-chip-label">${this.t("theme.upload")}</span>
           </button>
 
-          ${pickingOnly ? "" : `
           <select
             class="evcc-chip evcc-floor-scope-select"
             data-theme-floor-scope
@@ -1322,10 +1306,9 @@ ${fontPresets}
             title="${this.t("theme.apply_preset_title")}"
           >
             ${this.t("theme.apply_preset")}
-          </button>`}
+          </button>
         </div>
 
-        ${pickingOnly ? "" : `
         <div class="footer-right">
           <button
             class="evcc-chip"
@@ -1342,7 +1325,7 @@ ${fontPresets}
           >
             ${hasActiveTheme ? this.t("common.save") : this.t("theme.save_as_new")}
           </button>
-        </div>`}
+        </div>
       </div>
     `;
   };
