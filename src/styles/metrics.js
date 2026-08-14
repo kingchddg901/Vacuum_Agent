@@ -227,6 +227,35 @@ export const metricsStyles = `
     border-bottom: 1px solid var(--evcc-border-default);
   }
 
+  /* THE LAST COLUMN EATS THE SLACK; THE OTHERS HUG THEIR CONTENT AND NEVER WRAP.
+
+     width:100% with an auto layout spreads spare width across EVERY column, so
+     on a wide screen "All jobs (mixed + single)", its 0.833 and its 47 sat
+     separated by two chasms — a row you have to track with a finger.
+
+     Giving the last column all the leftover fixes that, but ALONE it
+     over-corrects: the earlier columns collapse to min-content, which for
+     wrapping text is the longest word. Measured before this nowrap was added —
+     the Zone column fell to 56px and "Mid-job (15→75)", "Low (≤ 29 %)" and
+     "Last full session" all wrapped, taking every row from 25px to 40px while
+     the notes column sat on 548px it did not need.
+
+     So: labels and values never wrap, and only the final prose column does.
+     Cells are text-align:start, so the value still sits at the left of that
+     wide last column rather than drifting away from its label.
+
+     The table stays width:100% — shrinking it to its content would tighten the
+     columns too, and take the row separators with it. */
+  .evcc-metrics-table th:last-child,
+  .evcc-metrics-table td:last-child {
+    width: 100%;
+  }
+
+  .evcc-metrics-table th:not(:last-child),
+  .evcc-metrics-table td:not(:last-child) {
+    white-space: nowrap;
+  }
+
   .evcc-metrics-table th {
     font-weight: 600;
     color: var(--evcc-text-muted);
