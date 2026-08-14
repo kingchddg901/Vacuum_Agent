@@ -1,10 +1,29 @@
 name: release assets
 
-# On every published GitHub release, attach the generated translator reference
-# (en.reference.jsonc — the full key list + a per-string context note) as a
-# downloadable asset, so translators can grab it straight from the Releases page
-# without digging into custom_components/.../frontend/locales/. The file is
-# committed in-tree and is current at the tagged commit.
+# On every published GitHub release, attach:
+#
+#   1. eufy_vacuum.zip -- THE INSTALL PAYLOAD. hacs.json sets zip_release +
+#      filename, so HACS downloads THIS ASSET rather than pulling the directory
+#      contents from the tag. Two consequences, both load-bearing:
+#
+#        - A release published WITHOUT this asset cannot be installed. That
+#          includes any release cut while this workflow is broken or skipped, and
+#          it includes older releases from before the switch (backfill them or
+#          accept that version-pinning users cannot select them).
+#        - GitHub only meters RELEASE ASSET downloads. Pulling a directory from a
+#          tag is invisible, which is why this project reported no download count
+#          at all before the switch -- not zero installs, no counter.
+#
+#      The archive holds the CONTENTS of custom_components/eufy_vacuum/ at its
+#      root (manifest.json at top level, no wrapping folder). That layout is the
+#      contract; a wrapped folder installs to the wrong path for everyone. The
+#      guard below asserts it before upload rather than trusting the zip command.
+#
+#   2. en.reference.jsonc -- the generated translator reference (full key list +
+#      a per-string context note), so translators can grab it from the Releases
+#      page without digging into custom_components/.../frontend/locales/.
+#
+# Both files are committed in-tree and current at the tagged commit.
 
 on:
   release:
@@ -14,17 +33,45 @@ permissions:
   contents: write
 
 jobs:
-  translator-reference:
+  release-assets:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.release.tag_name }}
 
-      - name: Attach en.reference.jsonc to the release
+      - name: Build eufy_vacuum.zip (contents at root, no wrapping folder)
+        run: |
+          cd custom_components/eufy_vacuum
+          zip -r -q "$GITHUB_WORKSPACE/eufy_vacuum.zip" . \
+            -x '*__pycache__*' -x '*.pyc' -x '*.pyo'
+
+      - name: Assert the archive layout HACS requires
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          # manifest.json MUST be a root entry. If it lands as
+          # eufy_vacuum/manifest.json the integration installs one directory too
+          # deep and every user who updates gets a broken install -- fail here,
+          # loudly, rather than shipping that.
+          if ! unzip -l eufy_vacuum.zip | awk '{print $4}' | grep -qx 'manifest.json'; then
+            echo "::error::manifest.json is not at the zip root -- refusing to upload."
+            unzip -l eufy_vacuum.zip | head -20
+            exit 1
+          fi
+          # A domain the manifest disagrees with would install to the wrong path.
+          domain=$(python3 -c "import json,zipfile;print(json.loads(zipfile.ZipFile('eufy_vacuum.zip').read('manifest.json'))['domain'])")
+          if [ "$domain" != "eufy_vacuum" ]; then
+            echo "::error::manifest domain is '$domain' but the asset is named eufy_vacuum.zip."
+            exit 1
+          fi
+          echo "layout OK -- manifest.json at root, domain=$domain"
+          unzip -l eufy_vacuum.zip | tail -1
+
+      - name: Attach the release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "${{ github.event.release.tag_name }}" \
+            eufy_vacuum.zip \
             custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc \
             --clobber
