@@ -17614,8 +17614,20 @@ ${r}
      jank on a device, the whole thing reverts as one commit.
      =========================================================== */
 
-  .evcc-shell[data-viewport="mobile"] .evcc-mobile-header,
-  .evcc-shell[data-viewport="mobile"] .evcc-mobile-nav {
+  /* NOT THE ONE IN THE PREVIEW.
+
+     The theme editor's App Shell preview renders the REAL mobile header as a
+     specimen, so there are TWO .evcc-mobile-header elements inside the shell
+     and a descendant selector hits both. Hiding the chrome therefore collapsed
+     the specimen too and left the preview pane empty \u2014 measured on the live
+     card: preview shell-frame h=1, its header maxH=0.
+
+     This is the same defect as the z-index one fixed earlier by isolating the
+     preview frames: a preview that renders the real component inherits every
+     rule aimed at the real component. Any future rule targeting shell chrome
+     needs this guard too. */
+  .evcc-shell[data-viewport="mobile"] .evcc-mobile-header:not(.evcc-theme-preview-shell-frame *),
+  .evcc-shell[data-viewport="mobile"] .evcc-mobile-nav:not(.evcc-theme-preview-shell-frame *) {
     max-height: 200px;
     overflow: hidden;
     transition:
@@ -17634,7 +17646,7 @@ ${r}
      rendered 41px against its natural 33. A rule that never matches cannot
      restore the wrong thing. */
   .evcc-shell[data-viewport="mobile"][data-chrome-hidden]:not([data-chrome-pin-status])
-    .evcc-mobile-header {
+    .evcc-mobile-header:not(.evcc-theme-preview-shell-frame *) {
     max-height: 0;
     padding-block: 0;
     transform: translateY(-100%);
@@ -17642,7 +17654,7 @@ ${r}
     border-bottom-width: 0;
   }
 
-  .evcc-shell[data-viewport="mobile"][data-chrome-hidden] .evcc-mobile-nav {
+  .evcc-shell[data-viewport="mobile"][data-chrome-hidden] .evcc-mobile-nav:not(.evcc-theme-preview-shell-frame *) {
     max-height: 0;
     padding-block: 0;
     transform: translateY(100%);
