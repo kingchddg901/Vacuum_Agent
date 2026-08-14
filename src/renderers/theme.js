@@ -737,12 +737,46 @@ export function applyThemeRenderers(proto) {
       isChild.add(group);
     }
 
+    /* How many tokens a group owns ITSELF, counted from the registry and NOT
+       through the filters. themeGroupCounts() reports the FILTERED total, which
+       is the right number for a header and the wrong one for a structural
+       question: under an active search a populated parent transiently counts 0,
+       and deciding hierarchy from that would restructure the tree as you type. */
+    const ownTokenCount = {};
+    for (const def of THEME_TOKEN_REGISTRY) {
+      if (PALETTE_KEYS.has(def.key)) continue;
+      const g = def.group || "";
+      ownTokenCount[g] = (ownTokenCount[g] ?? 0) + 1;
+    }
+
+    /* ONE-MEMBER FAMILY — a parent that owns no tokens and has exactly one
+       child is a heading wrapped around a heading. "Animal Companion" owns
+       global tokens, so its parent row always has something to say; the
+       memorial parent "Rainbow Bridge" owns none, so it rendered as
+       `Rainbow Bridge (0 / 0)` above `Mittens (0 / 6)` — two disclosure rows
+       and a zero count in front of six real tokens.
+
+       Collapse the pair into one row. The CHILD keeps ownership: it holds the
+       tokens, so open/closed state, per-group search and reset all continue to
+       address the group they actually affect. Only the visible title is
+       composed.
+
+       Deliberately conditional on there being exactly one child, so this undoes
+       itself the moment a second memorial animal is registered and the parent
+       becomes a real grouping again. Safe for the chip filter, which already
+       matches descendants via `startsWith(filter + " — ")` — selecting either
+       chip still resolves to these tokens. */
+    const soleChildOf = (group) =>
+      (childrenOf[group] ?? []).length === 1 && !(ownTokenCount[group] > 0)
+        ? childrenOf[group][0]
+        : null;
+
     /* Set while rendering: does anything on screen actually take a colour
        gesture? The hint below is hoisted out of the rows, so it must not
        promise a drag to someone looking at a list of numbers and sizes. */
     let anyColorRow = false;
 
-    const renderGroup = (group, nested = false) => {
+    const renderGroup = (group, nested = false, titleOverride = null) => {
       const groupTokens = this.card._state.filteredThemeTokensForGroup(
         group,
         THEME_TOKEN_REGISTRY,
@@ -774,6 +808,13 @@ export function applyThemeRenderers(proto) {
         ? group.slice(group.lastIndexOf(" — ") + 3)
         : group;
 
+      /* Resolved ONCE. The title reaches three sinks — the header, the
+         per-group search placeholder and the no-match message — and they must
+         agree, or a collapsed one-member family would search under a name it
+         never displays. */
+      const groupTitle =
+        titleOverride ?? this.tVocab("theme_group", group, displayTitle);
+
       return `
         <div
           class="evcc-token-group ${isOpen ? "is-open" : "is-closed"} ${nested ? "evcc-token-group--child" : ""}"
@@ -784,7 +825,7 @@ export function applyThemeRenderers(proto) {
             data-theme-group-toggle="${this.escapeHtml(group)}"
           >
             <div class="group-title">
-              ${this.tVocab("theme_group", group, displayTitle)} (${counts.modified} / ${counts.total})
+              ${groupTitle} (${counts.modified} / ${counts.total})
             </div>
 
             <div class="group-actions">
@@ -809,7 +850,7 @@ export function applyThemeRenderers(proto) {
                 <div class="evcc-token-group-search">
                   <input
                     type="text"
-                    placeholder="${this.t("theme.group_search_placeholder", { title: this.tVocab("theme_group", group, displayTitle) })}"
+                    placeholder="${this.t("theme.group_search_placeholder", { title: groupTitle })}"
                     value="${this.escapeHtml(groupSearchQuery)}"
                     data-theme-group-search="${this.escapeHtml(group)}"
                   />
@@ -826,7 +867,7 @@ export function applyThemeRenderers(proto) {
                 ).join("")}
               ` : (hasActiveSearch ? `
                 <div class="evcc-empty evcc-empty--theme-group-search">
-                  ${this.t("theme.group_no_match", { title: this.tVocab("theme_group", group, displayTitle), query: this.escapeHtml(groupSearchQuery) })}
+                  ${this.t("theme.group_no_match", { title: groupTitle, query: this.escapeHtml(groupSearchQuery) })}
                 </div>
               ` : "")}
 
@@ -839,7 +880,23 @@ export function applyThemeRenderers(proto) {
 
     const renderedGroups = THEME_GROUPS
       .filter((group) => !isChild.has(group))
-      .map((group) => renderGroup(group))
+      .map((group) => {
+        const only = soleChildOf(group);
+        if (!only) return renderGroup(group);
+
+        /* Render the CHILD in the parent's place, titled with both. The parent
+           half is translated ("Rainbow Bridge"); the child half goes through
+           tVocab with its own display name as the fallback, which is what keeps
+           a memorial animal's name UNTRANSLATED — `vocab.theme_group.*` has a
+           key for every floor texture and deliberately none for a pet, because
+           a pet's name is not vocabulary. Composing two already-escaped tVocab
+           results around a literal separator is safe. */
+        const childDisplay = only.slice(only.lastIndexOf(" — ") + 3);
+        const title =
+          `${this.tVocab("theme_group", group, group)} — ` +
+          `${this.tVocab("theme_group", only, childDisplay)}`;
+        return renderGroup(only, false, title);
+      })
       .filter(Boolean);
 
     return `
