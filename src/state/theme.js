@@ -190,16 +190,22 @@ export function applyThemeState(proto) {
 
         modifiedOnly: false,
 
-        /* The search + Modified Only row collapses to a caret. On a 390px phone
-           that row wraps to two lines and costs ~90px — more than the entire
-           category chip band — so it starts collapsed there and expanded on
-           desktop, where the space is free. A DEFAULT, not a lock: toggling is
-           one tap and the choice is respected for the rest of the session.
+        /* The search + Modified Only row collapses to a caret, taking the
+           Themes/Palette/Tokens strip with it. It starts collapsed where
+           vertical room is scarce and expanded where it is free. A DEFAULT,
+           not a lock: toggling is one tap and the choice holds for the session.
+
+           NARROW **or** SHORT, matching state/viewport.js. Keying this on width
+           alone was wrong for the same reason the viewport predicate was:
+           rotating a phone gives ~844x390, which clears any width gate while
+           having the least height of any case the editor sees — so the chrome
+           expanded exactly where it could least afford to.
 
            Ephemeral, like every other field here. Nothing about the editor's
            chrome belongs in persisted user data. */
         searchCollapsed:
-          typeof window !== "undefined" && window.innerWidth <= 600,
+          typeof window !== "undefined" &&
+          (window.innerWidth <= 600 || window.innerHeight <= 500),
 
         /* Preset (theme) facet filter + search — mirrors the Pages gallery,
            driven by the shared src/theme-tags core. `_presetTags` is a lazy

@@ -854,7 +854,7 @@ export const MODAL_HOST_STYLES = `
      (not inside the card shadow root), so the shell-data-attribute
      selectors in mobile.js never reach it.
      ========================================================= */
-  @media (max-width: 600px) {
+  @media (max-width: 600px), (max-height: 500px) {
     .evcc-modal-backdrop {
       /* Pin to bottom — modal rises from the edge of the screen.
          Zero padding so the sheet can use the full width and

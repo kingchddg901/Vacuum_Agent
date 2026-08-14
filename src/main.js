@@ -115,7 +115,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
        actual rendered card width, which is what the layout
        decision should be based on.
 
-       Debounced via setViewportFromWidth's own change-detection
+       Debounced via setViewportFromSize's own change-detection
        (it returns false when the mobile/desktop boundary isn't
        crossed). Re-renders only when the boundary actually changes.
        ===================================================== */
@@ -128,7 +128,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       const width = (entries?.[0]?.contentRect?.width)
                     ?? this.getBoundingClientRect().width
                     ?? window.innerWidth;
-      if (this._state.setViewportFromWidth(width)) {
+      if (this._state.setViewportFromSize(width)) {
         this._scheduleRender();
       }
     };
@@ -264,7 +264,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       // may return 0; falls back to window.innerWidth in that case.
       // connectedCallback + ResizeObserver correct this once layout
       // settles.
-      this._state.setViewportFromWidth(this._measureCardWidth());
+      this._state.setViewportFromSize(this._measureCardWidth());
     }
 
     // Honor explicit mobile_shell override from card config. Useful
@@ -1545,7 +1545,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // If the user has explicitly overridden via mobile_shell config,
     // skip the width-based detection — keep their forced choice.
     if (this._mobileShellOverride !== true && this._mobileShellOverride !== false) {
-      this._state.setViewportFromWidth?.(this._measureCardWidth());
+      this._state.setViewportFromSize?.(this._measureCardWidth());
     }
 
     // If the active view's tab is no longer available for this adapter (a
@@ -1964,7 +1964,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     if (this._state
         && this._mobileShellOverride !== true
         && this._mobileShellOverride !== false) {
-      this._state.setViewportFromWidth(this._measureCardWidth());
+      this._state.setViewportFromSize(this._measureCardWidth());
     }
 
     // ResizeObserver on the card host. Fires whenever the card's own

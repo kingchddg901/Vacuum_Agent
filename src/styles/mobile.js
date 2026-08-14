@@ -925,7 +925,7 @@ export const MOBILE_STYLES = `
      the same chips outside the footer, are untouched.
      =========================================================== */
 
-  @media (max-width: 600px) {
+  @media (max-width: 600px), (max-height: 500px) {
     .evcc-view-stage[data-view="theme"] .evcc-view-footer {
       gap: 6px;
       padding-top: 2px;

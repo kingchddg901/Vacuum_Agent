@@ -11,6 +11,15 @@ only.
 ## [Unreleased]
 
 ### Fixed
+- **Rotating a phone to landscape no longer breaks the layout.** The card chose its shell on
+  width alone, so a rotated 390×844 phone — about 844×390 — cleared the 600px threshold and
+  rendered the desktop layout at the moment it had the least height of any case: full-size
+  chrome, no touch targets, and a preview stacked above an editor that was left 26px tall. The
+  decision is now **narrow *or* short**, and layout direction is separated from chrome density:
+  a short-but-wide viewport keeps the compact chrome while placing the preview *beside* the
+  editor rather than above it, since stacking spends the axis that has run out. The editor goes
+  from 26px to 124px. Landscape is now a cramped but coherent layout rather than a broken one;
+  portrait and desktop are unchanged, measured.
 - **Animal colours no longer turn the animal black.** Setting any Animal Companion colour —
   fur, eyes, pupil, anything — painted that part of the animal black instead of the chosen
   colour, and had done since the tokens became editable. The animal SVGs consume their

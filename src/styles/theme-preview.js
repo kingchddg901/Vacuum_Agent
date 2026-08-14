@@ -739,6 +739,43 @@ export const themePreviewStyles = `
   }
 
   /* ===========================================================
+     LANDSCAPE — STACKING IS THE WRONG TRADE WHEN HEIGHT IS SCARCE
+     -----------------------------------------------------------
+     The <=1100px block above stacks the preview ABOVE the editor,
+     spending vertical space to buy horizontal. That is right on a
+     portrait phone, where width is the scarce axis, and exactly
+     backwards on a phone in landscape, where width is abundant and
+     height has collapsed.
+
+     Rotating a 390x844 phone gives ~844x390, which is under 1100 —
+     so it stacked, and the preview took ~100px of a 390px viewport.
+     Measured: 26px of editor left, which is no editor at all.
+
+     min-width 640 is what side by side actually needs: a 320px
+     preview column, the 16px gap, and roughly 300px of editor. Below
+     that, stacking really is the better of two bad options and this
+     block correctly does not apply.
+
+     Declared AFTER the block it overrides, same specificity, so the
+     later rule wins — the two are read as one decision rather than a
+     patch fighting a default.
+     =========================================================== */
+
+  @media (max-height: 500px) and (min-width: 640px) {
+    .evcc-theme-editor-pane {
+      flex-direction: row;
+    }
+
+    .evcc-theme-preview-column {
+      flex: 0 0 320px;
+      width: 320px;
+      order: 0;
+      overflow: hidden;
+      padding-inline-end: 4px;
+    }
+  }
+
+  /* ===========================================================
      PHONE — SCALE THE PREVIEW
      -----------------------------------------------------------
      The <=1100px block above drops the height cap so the preview
@@ -755,7 +792,7 @@ export const themePreviewStyles = `
      sizes in the main block above.
      =========================================================== */
 
-  @media (max-width: 600px) {
+  @media (max-width: 600px), (max-height: 500px) {
     .evcc-theme-preview-pane {
       max-height: 22vh;
       overflow-y: auto;
@@ -819,5 +856,21 @@ export const themePreviewStyles = `
        preview misreport the card size the theme actually produces, which is
        the one thing this pane exists to show. The pane scrolls instead, so a
        tall floor-texture card is still fully reachable. */
+  }
+
+  /* LAST, ON PURPOSE. The phone block above caps the preview at 22vh, which is
+     right when the preview sits ABOVE the editor and is competing for the same
+     vertical budget. In landscape it sits BESIDE the editor and competes for
+     nothing, so the cap becomes an arbitrary shrink of a pane that has a whole
+     column to fill.
+
+     Same conditions as the landscape layout block earlier — kept apart only
+     because this one declaration has to out-order the 22vh rule, and the
+     cascade is the mechanism that decides it. */
+  @media (max-height: 500px) and (min-width: 640px) {
+    .evcc-theme-preview-pane {
+      max-height: none;
+      overflow-y: auto;
+    }
   }
 `;
