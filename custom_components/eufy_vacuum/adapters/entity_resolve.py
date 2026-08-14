@@ -72,6 +72,7 @@ def resolve_declared_entities(
     vacuum_entity_id: str,
     entities: dict[str, Any],
     overrides: dict[str, Any] | None = None,
+    reserved_suffixes: Any = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
     """Return ``(entities, report)`` with unresolvable IDs repaired where unambiguous.
 
@@ -151,6 +152,20 @@ def resolve_declared_entities(
         _suffix = _suffix_of(_declared, vacuum_object_id)
         if _suffix:
             declared_suffixes.add(_suffix)
+
+    # Deriving the universe from `entities` ALONE makes this guard depend on the
+    # caller having declared BOTH halves of a collision — and Roborock declares
+    # `_cleaning_area` while binding no lifetime role at all, so replaying the
+    # predicate below against its real map returned
+    # `_claimed_by("ivy_total_cleaning_area") == "_cleaning_area"`: the counter
+    # accepted as the per-run sensor. The brand's full vocabulary closes that,
+    # and it is the argument rather than a longer `entities` map because a brand
+    # should not have to BIND a role merely to be protected from it. A brand that
+    # still omits a suffix now degrades to "no rescue" instead of "wrong rescue".
+    if reserved_suffixes:
+        for _reserved in reserved_suffixes:
+            if isinstance(_reserved, str) and _reserved:
+                declared_suffixes.add(_reserved)
 
     def _claimed_by(object_id: str) -> str | None:
         """The LONGEST declared suffix this id ends with — its rightful owner."""

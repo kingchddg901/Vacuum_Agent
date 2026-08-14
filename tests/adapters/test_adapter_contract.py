@@ -538,3 +538,125 @@ def test_a_declared_live_pose_declares_its_cadence(adapter):
         f"{brand}: live_pose.pose_refresh_s = {refresh!r} is not a number"
     )
     assert refresh > 0, f"{brand}: a pose cadence of {refresh} is not a cadence"
+
+
+def test_every_brand_registrar_arms_the_exclusivity_guard():
+    """EVERY brand must hand core its suffix vocabulary — not just the one we
+    happened to write the guard for.
+
+    live:ENT-4 excludes a LONGER declared suffix from a shorter one's sibling
+    match: `_cleaning_area` also matches `..._total_cleaning_area`, so without
+    the full vocabulary a per-run metric can bind to the LIFETIME TOTAL. That is
+    the 17,975 ft² bug, and it feeds the learning store, run segmentation and
+    battery metrics while never raising.
+
+    The guard shipped armed on Eufy and UNARMED on Roborock for an entire
+    release. The pin test that was supposed to prevent exactly this
+    (tests/adapters/eufy/test_suffix_vocabulary.py) is brand-scoped by
+    construction — its own docstring says "a correct core rule with NO CALLER is
+    precisely the reachability gap behind issue #49 ... Audit the call site, not
+    just the function", and it audits one call site. A per-brand guarantee reads
+    as a framework guarantee, which is the shape this project keeps paying for.
+
+    Parametrised over BRAND_REGISTRARS so a NEW brand cannot ship unarmed: the
+    registrar table is the switch that makes a brand reachable, so anything in
+    it is answerable to this.
+
+    Source-level for the same reason the Eufy original is: standing up a full
+    registration would pass whether or not the kwarg survives, because nothing
+    downstream asserts on it.
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    from custom_components.eufy_vacuum.adapters.brands import BRAND_REGISTRARS
+
+    assert BRAND_REGISTRARS, "no brands registered — this test is anchored wrong"
+
+    unarmed: list[str] = []
+    checked = 0
+    for registrar in BRAND_REGISTRARS:
+        source = textwrap.dedent(inspect.getsource(registrar.register))
+        # Parsed, not substring-matched. The first version of this test asked
+        # whether "reserved_suffixes=" appeared ANYWHERE in the function, and a
+        # deliberate ablation that stripped it from the detect_capabilities call
+        # still passed — because the adapter hands the same vocabulary to
+        # resolve_declared_entities a few lines later. A guard that reads the
+        # right token in the wrong call is the failure it exists to catch.
+        calls = [
+            node
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.Call)
+            and getattr(node.func, "id", getattr(node.func, "attr", None))
+            == "detect_capabilities"
+        ]
+        if not calls:
+            # A brand that does not detect capabilities has no guard to arm.
+            continue
+        checked += 1
+        for call in calls:
+            if not any(kw.arg == "reserved_suffixes" for kw in call.keywords):
+                unarmed.append(registrar.brand_id)
+
+    assert checked, (
+        "no brand registrar calls detect_capabilities — this test is anchored to "
+        "the wrong function and is asserting nothing"
+    )
+
+    assert not unarmed, (
+        f"brand(s) {unarmed} call detect_capabilities without reserved_suffixes, "
+        "so the live:ENT-4 exclusivity guard is unarmed for them: a per-run role "
+        "can silently bind to a lifetime counter on that hardware"
+    )
+
+
+def test_every_brand_vocabulary_declares_both_halves_of_the_known_collision():
+    """A vocabulary is only protective if it CONTAINS the colliding partner.
+
+    Passing `reserved_suffixes` is necessary but not sufficient: the guard
+    excludes a longer declared suffix, so if a brand declares `_cleaning_area`
+    and never declares `_total_cleaning_area`, the longer name is not in the
+    universe and the shorter one claims it anyway. Roborock shipped in exactly
+    that state — `_total_cleaning_count` was declared but not the `_area` /
+    `_time` halves that actually collide — while carrying all three entities on
+    real hardware.
+
+    Checked as a PAIRING rule rather than a fixed list, so it keeps meaning
+    something for a brand with different names: for every `_total_<x>` a brand
+    declares we do not care, but for every per-run suffix that has a `_total_`
+    partner ON THE SAME BRAND, both must be known.
+    """
+    import importlib
+
+    from custom_components.eufy_vacuum.adapters.brands import BRAND_REGISTRARS
+
+    missing: list[str] = []
+    for registrar in BRAND_REGISTRARS:
+        module_root = registrar.register.__module__.rsplit(".", 1)[0]
+        try:
+            entities = importlib.import_module(f"{module_root}.entities")
+        except ModuleNotFoundError:  # pragma: no cover - brand without a vocabulary module
+            continue
+        suffixes = {
+            value
+            for name, value in vars(entities).items()
+            if name.startswith("SUFFIX_") and isinstance(value, str) and value
+        }
+        for suffix in sorted(suffixes):
+            if suffix.startswith("_total_"):
+                continue
+            partner = f"_total{suffix}"
+            # Only demand the partner when the brand shows it knows the family —
+            # i.e. it declares at least one `_total_*` suffix at all.
+            if not any(s.startswith("_total_") for s in suffixes):
+                continue
+            if partner in suffixes:
+                continue
+            if suffix in ("_cleaning_area", "_cleaning_time"):
+                missing.append(f"{registrar.brand_id}:{suffix} (needs {partner})")
+
+    assert not missing, (
+        "brand vocabulary is missing the lifetime half of a known collision, so "
+        "the exclusivity guard cannot exclude it: " + ", ".join(missing)
+    )

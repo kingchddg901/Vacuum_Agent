@@ -29,6 +29,7 @@ from ..entity_resolve import resolve_declared_entities
 from ..registry import register_adapter_config
 from .const import ADAPTER_ID, LOW_BATTERY_THRESHOLD_PERCENT
 from .entities import (
+    ALL_SUFFIXES,
     build_entity_id,
     SUFFIX_TASK_STATUS,
     SUFFIX_ACTIVE_CLEANING_TARGET,
@@ -203,6 +204,14 @@ def register_roborock_adapter_for_vacuum(
         # get the fix without a Roborock-specific code path.
         entity_overrides=entity_overrides or {},
         maintenance_components=MAINTENANCE_COMPONENTS,
+        # live:ENT-4 — this brand shipped WITHOUT it, so sibling matching could
+        # not tell that `_total_cleaning_area` is its own role: the guard's own
+        # predicate replayed against this adapter's map returned
+        # _claimed_by("ivy_total_cleaning_area") == "_cleaning_area", accepting a
+        # lifetime counter as a per-run metric. Eufy passed this from the start,
+        # which is exactly how a core fix reads as done while one brand runs
+        # unguarded.
+        reserved_suffixes=ALL_SUFFIXES,
     )
 
     # --- entity ID map --------------------------------------------------------
@@ -241,7 +250,9 @@ def register_roborock_adapter_for_vacuum(
     # and refuses to guess when ambiguous, so a working install cannot be altered.
     # See adapters/entity_resolve.
     entities, entity_remaps = resolve_declared_entities(
-        hass, vid, entities, overrides=entity_overrides
+        hass, vid, entities,
+        overrides=entity_overrides,
+        reserved_suffixes=ALL_SUFFIXES,
     )
 
     config = {
@@ -823,6 +834,7 @@ def register_roborock_adapter_for_vacuum(
         # adapters/eufy/adapter.py — the storage/options merge and its precedence
         # rule live in __init__.py and must not be re-derived downstream.
         "_entity_overrides": dict(entity_overrides or {}),
+        "_reserved_suffixes": list(ALL_SUFFIXES),
     }
 
     register_adapter_config(vacuum_entity_id, config)

@@ -29,6 +29,19 @@ SUFFIX_CLEANING_AREA = "_cleaning_area"          # sensor — per-run m2
 # and diagnostics can read them; see ../../job_active_signal.py.
 SUFFIX_LAST_CLEAN_END = "_last_clean_end"        # sensor — timestamp, end of last clean
 SUFFIX_TOTAL_CLEANING_COUNT = "_total_cleaning_count"  # sensor — lifetime completed runs
+# The LIFETIME halves of the per-run pair above. Not roles this adapter binds —
+# nothing here reads a lifetime total — but declared so they enter ALL_SUFFIXES
+# and the live:ENT-4 exclusivity guard can tell them apart from their per-run
+# namesakes. `_cleaning_area` also matches `..._total_cleaning_area` under an
+# endswith test, so a vocabulary that omits the longer suffix lets a per-run
+# metric bind to the counter.
+#
+# Both exist on real hardware: an S6 carries sensor.<obj>_total_cleaning_area
+# and sensor.<obj>_total_cleaning_time next to the per-run pair, and the
+# entity-resolution design doc records the total reaching the contest on that
+# device (only the translation_key rung excluded it).
+SUFFIX_TOTAL_CLEANING_AREA = "_total_cleaning_area"    # sensor — lifetime m2
+SUFFIX_TOTAL_CLEANING_TIME = "_total_cleaning_time"    # sensor — lifetime minutes
 SUFFIX_BATTERY = "_battery"                      # sensor (BATTERY feature bit unset -> this sensor is mandatory)
 SUFFIX_ERROR_MESSAGE = "_vacuum_error"           # sensor — enum error-code string
 
@@ -43,6 +56,29 @@ DOMAIN_BINARY_SENSOR = "binary_sensor"
 DOMAIN_SELECT = "select"
 DOMAIN_NUMBER = "number"
 DOMAIN_BUTTON = "button"
+
+
+#: Every entity suffix this adapter knows, derived rather than hand-listed.
+#:
+#: Consumed as ``reserved_suffixes`` so sibling matching can tell when a LONGER
+#: declared suffix already owns an entity. Without it this brand shipped with the
+#: live:ENT-4 guard UNARMED: replaying the guard's own predicate against this
+#: adapter's real map returned ``_claimed_by("ivy_total_cleaning_area") ==
+#: "_cleaning_area"`` — the lifetime counter accepted as the per-run sensor —
+#: where the same predicate on Eufy correctly returns ``_total_cleaning_area``.
+#:
+#: Derived from this module's own ``SUFFIX_*`` constants, mirroring
+#: adapters/eufy/entities.py: a hand-kept list drifts the moment a suffix is
+#: added, and the two halves of the collision are declared apart from each other.
+ALL_SUFFIXES: tuple[str, ...] = tuple(
+    sorted(
+        {
+            value
+            for name, value in list(globals().items())
+            if name.startswith("SUFFIX_") and isinstance(value, str) and value
+        }
+    )
+)
 
 
 def build_entity_id(

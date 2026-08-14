@@ -325,7 +325,9 @@ def register_eufy_adapter_for_vacuum(
     # exist. Only touches IDs that FAIL to resolve, and refuses to guess when
     # ambiguous, so a working install cannot be altered. See adapters/entity_resolve.
     entities, entity_remaps = resolve_declared_entities(
-        hass, vacuum_entity_id, entities, overrides=entity_overrides
+        hass, vacuum_entity_id, entities,
+        overrides=entity_overrides,
+        reserved_suffixes=ALL_SUFFIXES,
     )
 
     config = {
