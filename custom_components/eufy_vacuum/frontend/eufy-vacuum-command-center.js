@@ -489,8 +489,8 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
           <!-- battery buckets carry clean_mode as a DISPLAY label ("vacuum and
                mop"); collapse " and " so tVocab's slug matches the vocab code key. -->
           <td>${this.tVocab("battery_bucket_key",String(R).replace(/\s+and\s+/gi," "),R)}</td>
-          <td>${this.escapeHtml(a(b[R]?.mean,3))}</td>
-          <td>${this.escapeHtml(String(b[R]?.count??0))}</td>
+          <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${this.escapeHtml(a(b[R]?.mean,3))}</td>
+          <td data-label="${this.escapeHtml(this.t("metrics.battery_col_jobs"))}">${this.escapeHtml(String(b[R]?.count??0))}</td>
         </tr>
       `).join(""):`<tr><td colspan="3"><em>${this.t("metrics.battery_bucket_empty",{label:w})}</em></td></tr>`},m=t.last_job_per_m2?.attrs?.all_jobs_count??0,p=t.last_job_per_m2?.attrs?.all_jobs_mean,h=`
       <div class="evcc-metrics-section-title">${this.t("metrics.battery_drain_title")}</div>
@@ -508,8 +508,8 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
         <tbody>
           <tr>
             <td><strong>${this.t("metrics.battery_all_jobs")}</strong></td>
-            <td>${this.escapeHtml(a(p,3))}</td>
-            <td>${this.escapeHtml(String(m))}</td>
+            <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${this.escapeHtml(a(p,3))}</td>
+            <td data-label="${this.escapeHtml(this.t("metrics.battery_col_jobs"))}">${this.escapeHtml(String(m))}</td>
           </tr>
           <tr><td colspan="3"><em>${this.t("metrics.battery_by_clean_mode")}</em></td></tr>
           ${u(c,this.t("metrics.battery_bucket_clean_mode"))}
@@ -17471,6 +17471,71 @@ ${r}
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-table {
     font-size: 0.78rem;
     width: 100%;
+  }
+
+  /* ===========================================================
+     NARROW \u2014 STACK THE TABLE ROWS
+     -----------------------------------------------------------
+     Columns plus a sideways scroll is the wrong shape for a phone held
+     upright, and it gets worse in longer locales and in OpenDyslexic, where a
+     label column alone can need 469px inside a 320px screen.
+
+     Chris's call, and the view's own copy already argued it: the Raw data
+     files section tells the reader that long-term review belongs in the CSV.
+     The card is a glance surface, so optimising it for scanning a column of
+     numbers was defending something it does not need to be good at \u2014 and the
+     comparison is not lost, it moves to the tool that is actually good at it.
+
+     WIDTH, not the mobile flag. data-viewport="mobile" now includes LANDSCAPE
+     (short but wide), where the tables fit in columns and stacking would only
+     make them taller in the axis that has already run out. This is about a
+     narrow screen, so it keys on a narrow screen.
+
+     Measured at 249px on real data: 226px -> 303px per table, about a third
+     taller, and the sideways scroll goes away entirely.
+     =========================================================== */
+  @media (max-width: 600px) {
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table,
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table tbody {
+      display: block;
+      width: 100%;
+    }
+
+    /* Column headers cannot align with stacked cells, so they stop being
+       headers. What they carried is re-attached per cell via data-label
+       below \u2014 dropping them outright would leave a bare "43" meaning nothing. */
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table thead {
+      display: none;
+    }
+
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table tr {
+      display: block;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--evcc-border-default);
+    }
+
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table td {
+      display: block;
+      width: auto;
+      white-space: normal;   /* overrides the nowrap that columns needed */
+      padding: 0 10px;
+      border: none;
+    }
+
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table td:first-child {
+      font-weight: 600;
+    }
+
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table td:not(:first-child) {
+      color: var(--evcc-text-secondary);
+    }
+
+    /* Only where a value cannot speak for itself. "0.3 %/min" and a prose note
+       need no help; "43" does. */
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table td[data-label]::before {
+      content: attr(data-label) ": ";
+      color: var(--evcc-text-muted);
+    }
   }
 
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-table th,

@@ -829,6 +829,71 @@ export const MOBILE_STYLES = `
     width: 100%;
   }
 
+  /* ===========================================================
+     NARROW — STACK THE TABLE ROWS
+     -----------------------------------------------------------
+     Columns plus a sideways scroll is the wrong shape for a phone held
+     upright, and it gets worse in longer locales and in OpenDyslexic, where a
+     label column alone can need 469px inside a 320px screen.
+
+     Chris's call, and the view's own copy already argued it: the Raw data
+     files section tells the reader that long-term review belongs in the CSV.
+     The card is a glance surface, so optimising it for scanning a column of
+     numbers was defending something it does not need to be good at — and the
+     comparison is not lost, it moves to the tool that is actually good at it.
+
+     WIDTH, not the mobile flag. data-viewport="mobile" now includes LANDSCAPE
+     (short but wide), where the tables fit in columns and stacking would only
+     make them taller in the axis that has already run out. This is about a
+     narrow screen, so it keys on a narrow screen.
+
+     Measured at 249px on real data: 226px -> 303px per table, about a third
+     taller, and the sideways scroll goes away entirely.
+     =========================================================== */
+  @media (max-width: 600px) {
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table,
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table tbody {
+      display: block;
+      width: 100%;
+    }
+
+    /* Column headers cannot align with stacked cells, so they stop being
+       headers. What they carried is re-attached per cell via data-label
+       below — dropping them outright would leave a bare "43" meaning nothing. */
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table thead {
+      display: none;
+    }
+
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table tr {
+      display: block;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--evcc-border-default);
+    }
+
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table td {
+      display: block;
+      width: auto;
+      white-space: normal;   /* overrides the nowrap that columns needed */
+      padding: 0 10px;
+      border: none;
+    }
+
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table td:first-child {
+      font-weight: 600;
+    }
+
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table td:not(:first-child) {
+      color: var(--evcc-text-secondary);
+    }
+
+    /* Only where a value cannot speak for itself. "0.3 %/min" and a prose note
+       need no help; "43" does. */
+    .evcc-shell[data-viewport="mobile"] .evcc-metrics-table td[data-label]::before {
+      content: attr(data-label) ": ";
+      color: var(--evcc-text-muted);
+    }
+  }
+
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-table th,
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-table td {
     padding: 5px 8px;

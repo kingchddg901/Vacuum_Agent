@@ -951,8 +951,8 @@ export function applyMetricsRenderers(proto) {
           <!-- battery buckets carry clean_mode as a DISPLAY label ("vacuum and
                mop"); collapse " and " so tVocab's slug matches the vocab code key. -->
           <td>${this.tVocab("battery_bucket_key", String(k).replace(/\s+and\s+/gi, " "), k)}</td>
-          <td>${this.escapeHtml(numFmt(obj[k]?.mean, 3))}</td>
-          <td>${this.escapeHtml(String(obj[k]?.count ?? 0))}</td>
+          <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${this.escapeHtml(numFmt(obj[k]?.mean, 3))}</td>
+          <td data-label="${this.escapeHtml(this.t("metrics.battery_col_jobs"))}">${this.escapeHtml(String(obj[k]?.count ?? 0))}</td>
         </tr>
       `).join("");
     };
@@ -976,8 +976,8 @@ export function applyMetricsRenderers(proto) {
         <tbody>
           <tr>
             <td><strong>${this.t("metrics.battery_all_jobs")}</strong></td>
-            <td>${this.escapeHtml(numFmt(allMean, 3))}</td>
-            <td>${this.escapeHtml(String(allCount))}</td>
+            <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${this.escapeHtml(numFmt(allMean, 3))}</td>
+            <td data-label="${this.escapeHtml(this.t("metrics.battery_col_jobs"))}">${this.escapeHtml(String(allCount))}</td>
           </tr>
           <tr><td colspan="3"><em>${this.t("metrics.battery_by_clean_mode")}</em></td></tr>
           ${renderBucketRows(buckets, this.t("metrics.battery_bucket_clean_mode"))}
