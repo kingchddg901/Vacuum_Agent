@@ -1103,6 +1103,16 @@ start_run_profile:
       required: true
       selector:
         text: {}
+    strict_order:
+      name: Strict room order
+      description: >-
+        Clean the profile's rooms in the saved order on a vacuum that would otherwise
+        optimise its own route. Leave blank to use the profile's own saved setting;
+        set it here to override that profile for this run only. No effect on vacuums
+        that already honour the dispatched order.
+      required: false
+      selector:
+        boolean: {}
     confirm_reduced_run:
       name: Confirm reduced run
       description: Explicitly allow a reduced run to start when the preflight would otherwise require confirmation.
@@ -1589,6 +1599,16 @@ save_run_profile:
       required: false
       selector:
         boolean: {}
+    strict_order:
+      name: Strict room order
+      description: >-
+        Save this profile to clean its rooms in the saved order on a vacuum that would
+        otherwise optimise its own route. The exposed button carries no service data, so
+        this stored setting is how a button-driven run opts in. No effect on vacuums that
+        already honour the dispatched order.
+      required: false
+      selector:
+        boolean: {}
 
 set_run_profile_steps:
   name: Set run-profile steps
@@ -1677,6 +1697,14 @@ overwrite_run_profile:
         text: {}
     expose_as_button:
       name: Expose as button
+      required: false
+      selector:
+        boolean: {}
+    strict_order:
+      name: Strict room order
+      description: >-
+        Leave blank to keep the profile's current setting. Set it to clean this profile's
+        rooms in the saved order on a vacuum that would otherwise optimise its own route.
       required: false
       selector:
         boolean: {}

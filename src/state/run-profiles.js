@@ -35,6 +35,9 @@ export function applyRunProfilesState(proto) {
     return {
       name: "",
       expose_as_button: false,
+      // ISSUE #50 — persisted per-profile strict room order. Default false keeps a
+      // newly-created profile on today's path-optimised dispatch.
+      strict_order: false,
       steps: [],
       stepsExpanded: false,
     };
@@ -105,6 +108,7 @@ export function applyRunProfilesState(proto) {
       room_names: Array.isArray(profile?.room_names) ? profile.room_names : [],
       room_names_label: String(profile?.room_names_label ?? ""),
       expose_as_button: Boolean(profile?.expose_as_button),
+      strict_order: Boolean(profile?.strict_order),
       summary: String(profile?.summary ?? ""),
       created_at: String(profile?.created_at ?? ""),
       updated_at: String(profile?.updated_at ?? ""),
@@ -254,6 +258,7 @@ export function applyRunProfilesState(proto) {
     state.draft = {
       name: profile.name,
       expose_as_button: Boolean(profile.expose_as_button),
+      strict_order: Boolean(profile.strict_order),
       steps: this._cloneRunProfileSteps(profile.steps),
       stepsExpanded: Boolean(profile.has_charge_steps),
     };

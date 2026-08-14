@@ -14,11 +14,25 @@ Architecture reference: [docs/dev/16-profile-manager.md](../../dev/16-profile-ma
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `manager.py` | 521 | 96% | `test_profiles_manager.py` | integration | spec'd |
+| `manager.py` | 521 | 96% | `test_profiles_manager.py`, `test_run_profile_strict_order.py`, `test_run_profile_step_leak.py` | integration | spec'd |
 | `room_profiles.py` | 196 | 95% | `test_profiles_room_profiles.py` (unit), `test_profile_catalog.py` (unit) | unit | clean |
 
 (The room-profile *services* are in [17 — services](17-services.md) via
 `test_services_room_profiles.py`.)
+
+**Run-profile start plumbing** has two dedicated files, both pinning things that fail
+*silently* rather than loudly — a start that succeeds while quietly doing the wrong thing:
+
+- `test_run_profile_strict_order.py` — **issue #50.** `SO-1..SO-5`: a profile's saved
+  `strict_order` reaches dispatch; a legacy record with no such key dispatches `False`
+  (the migration guarantee — existing profiles keep today's behaviour untouched); an
+  explicit argument overrides the saved flag in both directions; and the read path
+  normalises a pre-key record rather than raising. Before this, a saved profile's room
+  order was discarded on every run for a path-optimising brand, and the exposed profile
+  button — which carries no service data — had no route to opt in at all.
+- `test_run_profile_step_leak.py` — `LEAK-1..LEAK-5`: a refused start must not leak its
+  stashed step sequence, or the *next* plain start on that map silently becomes a
+  charge/wait run.
 
 ---
 

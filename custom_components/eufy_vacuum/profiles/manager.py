@@ -1129,6 +1129,11 @@ class ProfileManager:
             "room_names": summary["room_names"],
             "room_names_label": summary["room_names_label"],
             "expose_as_button": bool(profile.get("expose_as_button", False)),
+            # ISSUE #50. Absent on every profile saved before this key existed, and the
+            # `.get(..., False)` default is deliberately the pre-existing behaviour: a
+            # stored profile that predates the flag keeps path-optimised dispatch, so
+            # nothing changes for anyone until they tick the box.
+            "strict_order": bool(profile.get("strict_order", False)),
             "steps": steps,
             "has_charge_steps": any(s.get("type") == "charge_wait" for s in steps),
             # has_stops == "this is a SEQUENCED run, not a plain queue": any break step
@@ -1217,6 +1222,7 @@ class ProfileManager:
         map_id: str,
         name: str,
         expose_as_button: bool = False,
+        strict_order: bool = False,
     ) -> dict[str, Any]:
         """Save the current enabled-room run as a reusable named profile."""
         clean_name = str(name or "").strip()
@@ -1258,6 +1264,7 @@ class ProfileManager:
             "room_names": summary["room_names"],
             "room_names_label": summary["room_names_label"],
             "expose_as_button": bool(expose_as_button),
+            "strict_order": bool(strict_order),
             "rooms": enabled_rooms,
             "created_at": now,
             "updated_at": now,
@@ -1337,6 +1344,7 @@ class ProfileManager:
         profile_id: str,
         name: str | None = None,
         expose_as_button: bool | None = None,
+        strict_order: bool | None = None,
     ) -> dict[str, Any]:
         """Overwrite one saved run profile with the current enabled-room run snapshot."""
         library = self._get_saved_run_profile_store(
@@ -1390,6 +1398,9 @@ class ProfileManager:
             "room_names_label": summary["room_names_label"],
             "expose_as_button": bool(
                 existing.get("expose_as_button", False) if expose_as_button is None else expose_as_button
+            ),
+            "strict_order": bool(
+                existing.get("strict_order", False) if strict_order is None else strict_order
             ),
             "rooms": enabled_rooms,
             # RE-SNAPSHOT, don't blank. Overwrite means "this profile now IS the current
@@ -1761,6 +1772,7 @@ class ProfileManager:
         confirm_token: str | None = None,
         path_block_action: str | None = None,
         pause_timeout_minutes_override: int | None = None,
+        strict_order: bool | None = None,
     ) -> dict[str, Any]:
         """Apply one saved run profile and start it through the normal protected path.
 
@@ -1797,6 +1809,18 @@ class ProfileManager:
             vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
         ).get(profile_id, {})
         _prof_steps = self.run_profile_steps(_prof)
+        # ISSUE #50. The profile's saved room ORDER was silently discarded on a
+        # path-optimising brand (Roborock declares honors_clean_order: False), because
+        # strict_order reached start_selected_rooms only from the direct service and never
+        # from a profile — so the button entity, which carries no service data at all,
+        # could not opt in by any route. The stored flag IS the button's only opt-in.
+        # An explicit argument still wins, so a service call can override a saved profile
+        # in either direction without editing it.
+        _strict_order = (
+            bool(_prof.get("strict_order", False))
+            if strict_order is None
+            else bool(strict_order)
+        )
         if any(
             step_requires_stepped_execution(s) for s in _prof_steps
         ):
@@ -1819,6 +1843,7 @@ class ProfileManager:
             confirm_token=confirm_token,
             path_block_action=path_block_action,
             pause_timeout_minutes_override=pause_timeout_minutes_override,
+            strict_order=_strict_order,
         )
         # start_selected_rooms POPS the stashed steps only deep in _build_effective_start_plan,
         # which it never reaches when it returns early (blocked / confirmation-required without a

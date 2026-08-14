@@ -106,6 +106,11 @@ _START_RUN_PROFILE_SCHEMA = vol.Schema(
         vol.Optional("pause_timeout_minutes_override"): vol.All(
             vol.Coerce(int), vol.Range(min=0)
         ),
+        # ISSUE #50: mirrors _START_SELECTED_ROOMS_SCHEMA above. Omitting it here made
+        # strict order unreachable from a profile, so a saved profile's room order was
+        # silently dropped on a path-optimizing brand. Absent -> the profile's own saved
+        # flag decides; passing it explicitly overrides the profile either way.
+        vol.Optional("strict_order"): cv.boolean,
     }
 )
 

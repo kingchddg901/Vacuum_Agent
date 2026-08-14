@@ -53,6 +53,13 @@ export function applyRunProfilesBindings(proto) {
       this.card._scheduleRender();
     });
 
+    // ISSUE #50 — persisted per-profile strict order. Re-renders because the hint text
+    // below the checkbox is conditional on it.
+    this.card._onAll("[data-run-profile-field='strict_order']", "change", (e) => {
+      this.card._state.updateRunProfileDraft?.("strict_order", e.currentTarget.checked);
+      this.card._scheduleRender();
+    });
+
     this.card._onAll("[data-action='apply-run-profile']", "click", async (e) => {
       const profileId = e.currentTarget.dataset.profileId;
       if (!profileId) return;
@@ -96,6 +103,7 @@ export function applyRunProfilesBindings(proto) {
           map_id: this.card._state.activeMapId?.(),
           name,
           expose_as_button: Boolean(draft?.expose_as_button),
+          strict_order: Boolean(draft?.strict_order),
         });
 
         if (result?.ok === false) {
@@ -171,6 +179,7 @@ export function applyRunProfilesBindings(proto) {
           profile_id: profile.id,
           name,
           expose_as_button: Boolean(draft?.expose_as_button),
+          strict_order: Boolean(draft?.strict_order),
         });
 
         if (result?.ok === false) {

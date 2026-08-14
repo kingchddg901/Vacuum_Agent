@@ -47,6 +47,9 @@ _RUN_PROFILE_NAME_SCHEMA = vol.Schema(
         vol.Optional("map_id"): cv.string,
         vol.Required("name"): cv.string,
         vol.Optional("expose_as_button"): cv.boolean,
+        # ISSUE #50: persisted per-profile opt-in to strict room order. The button
+        # entity carries no service data, so the stored flag is its only way in.
+        vol.Optional("strict_order"): cv.boolean,
     }
 )
 
@@ -65,6 +68,8 @@ _RUN_PROFILE_OVERWRITE_SCHEMA = vol.Schema(
         vol.Required("profile_id"): cv.string,
         vol.Optional("name"): cv.string,
         vol.Optional("expose_as_button"): cv.boolean,
+        # ISSUE #50: tri-state on overwrite — absent leaves the saved flag untouched.
+        vol.Optional("strict_order"): cv.boolean,
     }
 )
 

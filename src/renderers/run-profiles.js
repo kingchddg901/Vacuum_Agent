@@ -75,6 +75,23 @@ export function applyRunProfilesRenderers(proto) {
               <span>${this.t("run_profiles.expose_as_button")}</span>
             </label>
 
+            <!-- ISSUE #50. The Rooms view's strict-order toggle is per-run and ephemeral,
+                 so a profile started from its exposed BUTTON (which carries no service
+                 data) could never opt in and silently lost its saved room order on a
+                 path-optimising brand. Reuses the Rooms view's existing keys rather than
+                 minting a second vocabulary for the same question. -->
+            <label class="evcc-run-profiles-toggle">
+              <input
+                type="checkbox"
+                ${draft.strict_order ? "checked" : ""}
+                data-run-profile-field="strict_order"
+              />
+              <span>${this.t("rooms.force_exact_order")}</span>
+            </label>
+            ${draft.strict_order
+              ? `<div class="evcc-run-profiles-hint">${this.t("rooms.strict_order_on_text")}</div>`
+              : ""}
+
             ${editorMode === "edit" ? this._renderRunProfileStepsEditor(state) : ""}
 
             <div class="evcc-run-profiles-editor-actions">

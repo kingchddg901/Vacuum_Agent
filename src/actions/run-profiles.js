@@ -41,6 +41,7 @@ export function applyRunProfilesActions(proto) {
    * @param {string} opts.map_id
    * @param {string} opts.name
    * @param {boolean} [opts.expose_as_button]
+   * @param {boolean} [opts.strict_order] ISSUE #50 — persisted; the exposed button's only opt-in.
    * @returns {Promise<object|null>}
    */
   proto.saveRunProfile = async function ({
@@ -48,6 +49,7 @@ export function applyRunProfilesActions(proto) {
     map_id,
     name,
     expose_as_button,
+    strict_order,
   } = {}) {
     const result = await this.callService(
       DOMAIN,
@@ -57,6 +59,7 @@ export function applyRunProfilesActions(proto) {
         map_id,
         name,
         expose_as_button: Boolean(expose_as_button),
+        strict_order: Boolean(strict_order),
       },
       true
     );
@@ -72,6 +75,7 @@ export function applyRunProfilesActions(proto) {
    * @param {string} opts.profile_id
    * @param {string} [opts.name]
    * @param {boolean} [opts.expose_as_button]
+   * @param {boolean} [opts.strict_order] ISSUE #50 — omit to leave the saved setting untouched.
    * @returns {Promise<object|null>}
    */
   proto.overwriteRunProfile = async function ({
@@ -80,6 +84,7 @@ export function applyRunProfilesActions(proto) {
     profile_id,
     name,
     expose_as_button,
+    strict_order,
   } = {}) {
     const payload = {
       vacuum_entity_id,
@@ -93,6 +98,10 @@ export function applyRunProfilesActions(proto) {
 
     if (expose_as_button != null) {
       payload.expose_as_button = Boolean(expose_as_button);
+    }
+
+    if (strict_order != null) {
+      payload.strict_order = Boolean(strict_order);
     }
 
     const result = await this.callService(

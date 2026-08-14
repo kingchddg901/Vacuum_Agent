@@ -18,7 +18,6 @@
     "tests/integration/test_native_rollover.py",
     "tests/integration/test_pose_sampler_cadence.py",
     "tests/integration/test_roborock_e2e.py",
-    "tests/integration/test_run_profile_step_leak.py",
     "tests/integration/test_set_room_access_graph.py",
     "tests/integration/test_watchdog_liveness.py",
     "tests/integration/test_zone_phase.py",

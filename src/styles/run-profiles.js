@@ -94,6 +94,16 @@ export const runProfileStyles = `
     color: var(--evcc-text-secondary);
   }
 
+  /* ISSUE #50 — consequence text under the strict-order checkbox. Shown only when
+     ticked, because the cost it names (a dock trip between rooms) is exactly what
+     surprised a reporter who had it on without being told. */
+  .evcc-run-profiles-hint {
+    margin: -2px 0 2px 30px;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: var(--evcc-text-secondary);
+  }
+
   .evcc-run-profiles-editor-actions,
   .evcc-run-profiles-selected-actions,
   .evcc-run-profiles-list {
