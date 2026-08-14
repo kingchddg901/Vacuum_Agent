@@ -13613,6 +13613,36 @@ ${r}
       gap: 6px;
     }
 
+    /* THE PANE WAS SPENDING 29% OF ITSELF TALKING ABOUT ITSELF. Measured at
+       360px: the preview shows 167px of 272px of content \u2014 it is already
+       scrolling, 105px hidden \u2014 and the header block is 78px of that (eyebrow
+       11 + title 16 + description 33.4, plus 6px gaps), before the pane's own
+       12px gap below it. Cutting it drops single-subject previews under the
+       22vh cap so they stop scrolling at all.
+
+       VISUALLY HIDDEN, NOT display:none, and applied to the HEADER rather than
+       its three children. Two reasons:
+         - the title is the pane's only textual identification; removing it from
+           the accessibility tree leaves a screen-reader user with an unlabelled
+           region, which is a worse regression than the pixels it buys. Hiding
+           the wrapper keeps the description in the tree too, so assistive tech
+           loses nothing at all \u2014 this is a sighted-phone-only trade.
+         - position:absolute takes it out of flow, so the pane's 12px flex gap
+           goes with it. display:none on the children would leave a 0px header
+           still claiming that gap.
+       Desktop is untouched; the i18n keys stay live, so no locale work. */
+    .evcc-theme-preview-header {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+
     .evcc-theme-preview-heading {
       font-size: 0.92rem;   /* 1.2rem */
     }

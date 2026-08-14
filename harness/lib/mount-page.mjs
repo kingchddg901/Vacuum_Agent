@@ -134,6 +134,23 @@ export function probeLayout(page, { tol = 2 } = {}) {
       const ov = el.scrollWidth - cw;
       if (cw <= 0 || ov <= t) continue;
       if (getComputedStyle(el).overflowX !== "visible") continue; // clips/scrolls → intentional
+      // VISUALLY HIDDEN content cannot visually overflow — it is never painted.
+      // The visually-hidden idiom (a 1x1 clipped box that keeps its text in the
+      // accessibility tree) makes every descendant report a huge scrollWidth
+      // against a 1px clientWidth, which is the idiom working, not a defect: no
+      // sighted user can see anything cut off, because nothing is shown at all.
+      // Detected from LAYOUT rather than a class list, per this probe's own rule
+      // that the allowlist is computed from CSS — an ancestor that both clips and
+      // has collapsed to <=1px in either axis is hiding, not laying out.
+      let hidden = false;
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        const pcs = getComputedStyle(p);
+        if (pcs.overflow !== "visible" && (p.clientWidth <= 1 || p.clientHeight <= 1)) {
+          hidden = true;
+          break;
+        }
+      }
+      if (hidden) continue;
       // A DESCENDANT whose negative margin ≥ the overflow is a deliberate bleed,
       // not content overflow — skip (see doc above). Scans descendants, not just
       // direct children: the bleed extends past every ancestor up to the one that
