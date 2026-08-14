@@ -3437,61 +3437,61 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
           </div>
         </div>
       </div>
-    `},n._renderThemeTokenEditor=function(e,t){let a=this.card._state.getThemeGroupFilter(),r={},o=new Set;for(let c of Ee){let l=c.indexOf(" \u2014 ");if(l===-1)continue;let d=c.slice(0,l);Ee.includes(d)&&((r[d]=r[d]??[]).push(c),o.add(c))}let i=(c,l=!1)=>{let d=this.card._state.filteredThemeTokensForGroup(c,Qe,{excludeKeys:La}),u=this.card._state.getThemeGroupSearchQuery(c),m=String(u||"").trim().length>0,p=a===c||m,f=(r[c]??[]).map(b=>i(b,!0)).filter(Boolean).join("");if(!d.length&&!p&&!f)return"";let v=this.card._state.themeGroupCounts(c,Qe,{excludeKeys:La}),k=this.card._state.shouldForceThemeGroupOpenForSearch(c,Qe,{excludeKeys:La})||this.card._state.isThemeGroupOpen(c),y=l?c.slice(c.lastIndexOf(" \u2014 ")+3):c;return`
+    `},n._renderThemeTokenEditor=function(e,t){let a=this.card._state.getThemeGroupFilter(),r={},o=new Set;for(let l of Ee){let d=l.indexOf(" \u2014 ");if(d===-1)continue;let u=l.slice(0,d);Ee.includes(u)&&((r[u]=r[u]??[]).push(l),o.add(l))}let i=!1,s=(l,d=!1)=>{let u=this.card._state.filteredThemeTokensForGroup(l,Qe,{excludeKeys:La});u.some(w=>w.type==="color")&&(i=!0);let m=this.card._state.getThemeGroupSearchQuery(l),p=String(m||"").trim().length>0,h=a===l||p,v=(r[l]??[]).map(w=>s(w,!0)).filter(Boolean).join("");if(!u.length&&!h&&!v)return"";let g=this.card._state.themeGroupCounts(l,Qe,{excludeKeys:La}),y=this.card._state.shouldForceThemeGroupOpenForSearch(l,Qe,{excludeKeys:La})||this.card._state.isThemeGroupOpen(l),b=d?l.slice(l.lastIndexOf(" \u2014 ")+3):l;return`
         <div
-          class="evcc-token-group ${k?"is-open":"is-closed"} ${l?"evcc-token-group--child":""}"
-          data-theme-group-name="${this.escapeHtml(c)}"
+          class="evcc-token-group ${y?"is-open":"is-closed"} ${d?"evcc-token-group--child":""}"
+          data-theme-group-name="${this.escapeHtml(l)}"
         >
           <div
             class="evcc-token-group-header"
-            data-theme-group-toggle="${this.escapeHtml(c)}"
+            data-theme-group-toggle="${this.escapeHtml(l)}"
           >
             <div class="group-title">
-              ${this.tVocab("theme_group",c,y)} (${v.modified} / ${v.total})
+              ${this.tVocab("theme_group",l,b)} (${g.modified} / ${g.total})
             </div>
 
             <div class="group-actions">
-              ${v.modified>0?`
+              ${g.modified>0?`
                 <button
                   class="evcc-chip"
-                  data-theme-group-reset="${this.escapeHtml(c)}"
+                  data-theme-group-reset="${this.escapeHtml(l)}"
                 >
                   ${this.t("common.reset")}
                 </button>
               `:""}
 
               <span class="group-toggle">
-                ${k?"\u25BE":"\u25B8"}
+                ${y?"\u25BE":"\u25B8"}
               </span>
             </div>
           </div>
 
-          ${k?`
+          ${y?`
             <div class="evcc-token-group-body">
-              ${d.length>0||m?`
+              ${u.length>0||p?`
                 <div class="evcc-token-group-search">
                   <input
                     type="text"
-                    placeholder="${this.t("theme.group_search_placeholder",{title:this.tVocab("theme_group",c,y)})}"
-                    value="${this.escapeHtml(u)}"
-                    data-theme-group-search="${this.escapeHtml(c)}"
+                    placeholder="${this.t("theme.group_search_placeholder",{title:this.tVocab("theme_group",l,b)})}"
+                    value="${this.escapeHtml(m)}"
+                    data-theme-group-search="${this.escapeHtml(l)}"
                   />
                 </div>
               `:""}
 
-              ${d.length?`
-                ${d.map(b=>this._renderThemeTokenRow(b,e[b.key],t[b.key])).join("")}
-              `:m?`
+              ${u.length?`
+                ${u.map(w=>this._renderThemeTokenRow(w,e[w.key],t[w.key])).join("")}
+              `:p?`
                 <div class="evcc-empty evcc-empty--theme-group-search">
-                  ${this.t("theme.group_no_match",{title:this.tVocab("theme_group",c,y),query:this.escapeHtml(u)})}
+                  ${this.t("theme.group_no_match",{title:this.tVocab("theme_group",l,b),query:this.escapeHtml(m)})}
                 </div>
               `:""}
 
-              ${f}
+              ${v}
             </div>
           `:""}
         </div>
-      `},s=Ee.filter(c=>!o.has(c)).map(c=>i(c)).filter(Boolean);return`
+      `},c=Ee.filter(l=>!o.has(l)).map(l=>s(l)).filter(Boolean);return`
       <div class="evcc-theme-editor-pane">
         ${this._renderThemePreviewPane()}
 
@@ -3500,9 +3500,13 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
         ${this._renderThemeGroupFilters()}
 
         <div class="evcc-theme-editor-scrollbox">
+        
+        ${i?`
+          <div class="evcc-token-hint-sticky">${this.t("theme.color_hint")}</div>
+        `:""}
         <div class="evcc-token-editor">
           <div class="evcc-token-list">
-          ${s.length?s.join(""):`
+          ${c.length?c.join(""):`
             <div class="evcc-empty evcc-empty--theme-group-search">
               ${this.t("theme.no_tokens_match_filters")}
             </div>
@@ -3538,9 +3542,6 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
             </button>
           `:""}
 
-          <div class="token-hint">
-            ${this.t("theme.color_hint")}
-          </div>
         </div>
 
         <div class="token-head">
@@ -12381,6 +12382,36 @@ ${r}
 
      If it must read in full, shorten the STRING for that locale. Do not
      remove the nowrap. */
+  /* STATED ONCE, AND IT STAYS. The colour hint used to render in every colour
+     row on its own line: 12px x 303 rows = 3636px of scroll at 390px, spent
+     repeating one sentence. Sticky at the top of the scrollbox it is read once
+     and remains while you scroll the rows it describes.
+
+     Deliberately NOT nowrap, unlike the per-row .token-hint below. A single
+     instance can afford a second line in a long locale \u2014 14px once, against
+     14px times 303 \u2014 so ru no longer has to be clipped to fit. That was the
+     whole reason the per-row copy needed an ellipsis.
+
+     Needs its own background: the rows scroll UNDER it. */
+  .evcc-token-hint-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin-bottom: 8px;
+    padding: 6px 2px;
+    background: var(--evcc-surface-panel);
+    /* The scrollbox has 12px of padding, and sticky pins to the PADDING edge \u2014
+       so rows would scroll through the sliver above this bar and read as a
+       rendering fault. Extend the fill upward over that gap with a hard shadow
+       instead of changing the scrollbox's padding, which every other group
+       depends on. */
+    box-shadow: 0 -13px 0 var(--evcc-surface-panel);
+    border-bottom: 1px solid var(--evcc-border-subtle);
+    font-size: 0.7rem;
+    color: var(--evcc-text-muted, rgba(255,255,255,0.6));
+    opacity: 0.9;
+  }
+
   /* The note above says this CLIPS. It did not \u2014 nowrap alone only makes the
      box wider than its parent, and nothing here cut it off. In ru at a larger
      type size the tail ran past the card and the editor pane could be DRAGGED

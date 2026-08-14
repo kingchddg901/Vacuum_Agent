@@ -840,6 +840,36 @@ export const themeStyles = `
 
      If it must read in full, shorten the STRING for that locale. Do not
      remove the nowrap. */
+  /* STATED ONCE, AND IT STAYS. The colour hint used to render in every colour
+     row on its own line: 12px x 303 rows = 3636px of scroll at 390px, spent
+     repeating one sentence. Sticky at the top of the scrollbox it is read once
+     and remains while you scroll the rows it describes.
+
+     Deliberately NOT nowrap, unlike the per-row .token-hint below. A single
+     instance can afford a second line in a long locale — 14px once, against
+     14px times 303 — so ru no longer has to be clipped to fit. That was the
+     whole reason the per-row copy needed an ellipsis.
+
+     Needs its own background: the rows scroll UNDER it. */
+  .evcc-token-hint-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin-bottom: 8px;
+    padding: 6px 2px;
+    background: var(--evcc-surface-panel);
+    /* The scrollbox has 12px of padding, and sticky pins to the PADDING edge —
+       so rows would scroll through the sliver above this bar and read as a
+       rendering fault. Extend the fill upward over that gap with a hard shadow
+       instead of changing the scrollbox's padding, which every other group
+       depends on. */
+    box-shadow: 0 -13px 0 var(--evcc-surface-panel);
+    border-bottom: 1px solid var(--evcc-border-subtle);
+    font-size: 0.7rem;
+    color: var(--evcc-text-muted, rgba(255,255,255,0.6));
+    opacity: 0.9;
+  }
+
   /* The note above says this CLIPS. It did not — nowrap alone only makes the
      box wider than its parent, and nothing here cut it off. In ru at a larger
      type size the tail ran past the card and the editor pane could be DRAGGED

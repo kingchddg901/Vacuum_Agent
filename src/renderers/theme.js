@@ -748,12 +748,18 @@ export function applyThemeRenderers(proto) {
       isChild.add(group);
     }
 
+    /* Set while rendering: does anything on screen actually take a colour
+       gesture? The hint below is hoisted out of the rows, so it must not
+       promise a drag to someone looking at a list of numbers and sizes. */
+    let anyColorRow = false;
+
     const renderGroup = (group, nested = false) => {
       const groupTokens = this.card._state.filteredThemeTokensForGroup(
         group,
         THEME_TOKEN_REGISTRY,
         { excludeKeys: PALETTE_KEYS }
       );
+      if (groupTokens.some((t) => t.type === "color")) anyColorRow = true;
       const groupSearchQuery  = this.card._state.getThemeGroupSearchQuery(group);
       const hasActiveSearch   = String(groupSearchQuery || "").trim().length > 0;
       const isPinned          = selectedGroupFilter === group || hasActiveSearch;
@@ -864,6 +870,18 @@ export function applyThemeRenderers(proto) {
         ${this._renderThemeGroupFilters()}
 
         <div class="evcc-theme-editor-scrollbox">
+        ${/* SAID ONCE, NOT 303 TIMES.
+              This hint used to render inside every colour row, on its own line
+              — measured at 390px: 12px per row across 303 rows, 3636px of
+              scroll spent repeating one sentence. It is also the string that
+              overflowed in ru, precisely because a per-row copy had to fit
+              beside the input and could only be clipped.
+              Hoisted and made sticky, it is stated once, stays on screen while
+              you scroll the list it describes, and can WRAP freely — a second
+              line costs 14px once instead of 14px times 303. */""}
+        ${anyColorRow ? `
+          <div class="evcc-token-hint-sticky">${this.t("theme.color_hint")}</div>
+        ` : ""}
         <div class="evcc-token-editor">
           <div class="evcc-token-list">
           ${renderedGroups.length ? renderedGroups.join("") : `
@@ -936,9 +954,6 @@ export function applyThemeRenderers(proto) {
             </button>
           ` : ""}
 
-          <div class="token-hint">
-            ${this.t("theme.color_hint")}
-          </div>
         </div>
 
         <div class="token-head">
