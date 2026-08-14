@@ -97,7 +97,8 @@ const results = await page.evaluate(
 
     const out = {};
     for (const [lang, pack] of Object.entries(packs)) {
-      let sum = 0, n = 0, over = 0;
+      let sum = 0, n = 0, over = 0, under = 0;
+      let minRatio = Infinity, minRatioKey = "";
       let maxRatio = 0, maxRatioKey = "", maxRatioText = "";
       let maxAbs = 0, maxAbsKey = "", maxAbsText = "";
       const byScreen = {};
@@ -109,6 +110,8 @@ const results = await page.evaluate(
         const r = w / ew;
         sum += r; n += 1;
         if (r > 1.3) over += 1;
+        if (r < 0.7) under += 1;
+        if (r < minRatio) { minRatio = r; minRatioKey = k; }
         if (r > maxRatio) { maxRatio = r; maxRatioKey = k; maxRatioText = strip(v).slice(0, 40); }
         if (w > maxAbs) { maxAbs = w; maxAbsKey = k; maxAbsText = strip(v).slice(0, 40); }
 
@@ -120,7 +123,7 @@ const results = await page.evaluate(
       }
 
       out[lang] = {
-        mean: n ? sum / n : 0, n, over,
+        mean: n ? sum / n : 0, n, over, under, minRatio, minRatioKey,
         maxRatio, maxRatioKey, maxRatioText,
         maxAbs, maxAbsKey, maxAbsText,
         byScreen: Object.fromEntries(
@@ -151,6 +154,18 @@ console.log("\nBY WIDEST SINGLE STRING  (chips / buttons / headings)");
 console.log("lang     widest   key / text");
 for (const [lang, r] of [...langs].sort((a, b) => b[1].maxAbs - a[1].maxAbs).slice(0, TOP)) {
   console.log(`${lang.padEnd(8)} ${String(Math.round(r.maxAbs)).padStart(5)}px  ${r.maxAbsKey}  "${r.maxAbsText}"`);
+}
+
+/* COMPRESSION IS THE OTHER STRESS, and the CJK packs hand it over for free.
+   Expansion breaks things by overflowing; compression breaks things by leaving
+   a layout that assumed text would fill it — label columns collapsing to
+   nothing, a "last column takes the slack" rule handing almost everything to
+   one cell, chips shrinking to pills, truncation that never fires and so is
+   never seen to be wrong. */
+console.log("\nBY COMPRESSION  (layouts that assumed text would fill the space)");
+console.log("lang      mean   <0.7x   narrowest-vs-en example");
+for (const [lang, r] of [...langs].sort((a, b) => a[1].mean - b[1].mean).slice(0, TOP)) {
+  console.log(`${lang.padEnd(8)} ${p(r.mean)}x  ${String(r.under ?? "-").padStart(4)}   ${r.minRatioKey || ""}`);
 }
 
 console.log("\nBY LARGEST SINGLE EXPANSION");
