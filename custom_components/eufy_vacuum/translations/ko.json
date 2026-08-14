@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Vacuum Agent 설정",
-        "description": "이 통합구성요소가 관리할 로봇청소기 엔티티를 선택하세요. '로봇청소기' 값을 변경하면 통합구성요소가 다시 로드되어 새 로봇청소기의 패널이 사이드바에 나타납니다.",
+        "description": "이 통합이 관리할 청소기 엔터티를 선택하세요. 값을 변경하면 통합이 다시 로드되어 새 청소기의 패널이 사이드바에 나타납니다.\n\n아래에 엔터티 선택기가 표시되면 Vacuum Agent가 어떤 엔터티가 어느 역할에 해당하는지 판단하지 못한 것입니다. 대개 청소기의 관련 엔터티 이름이 청소기 자체와 다르기 때문입니다. 올바른 것을 선택하면 이후 그것이 사용됩니다. 비워 두면 자동 감지를 계속합니다.",
         "data": {
           "vacuum_entity_id": "로봇청소기",
-          "notes": "메모"
+          "notes": "메모",
+          "entity_override__task_status": "작업 상태 센서",
+          "entity_override__work_mode": "작동 모드 센서",
+          "entity_override__dock_status": "도크 상태 센서",
+          "entity_override__active_map": "활성 지도 센서",
+          "entity_override__active_cleaning_target": "현재 청소 대상 센서",
+          "entity_override__cleaning_area": "청소 면적 센서(이번 청소, 누적 아님)",
+          "entity_override__cleaning_time": "청소 시간 센서(이번 청소, 누적 아님)",
+          "entity_override__water_level": "물 수위 엔터티",
+          "entity_override__cleaning_intensity": "청소 강도 선택",
+          "entity_override__robot_position_x": "로봇 위치 X 센서",
+          "entity_override__robot_position_y": "로봇 위치 Y 센서",
+          "entity_override__wash_mop_button": "걸레 세척 버튼",
+          "entity_override__dry_mop_button": "걸레 건조 버튼",
+          "entity_override__empty_dust_button": "먼지통 비우기 버튼"
         }
       }
     },

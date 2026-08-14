@@ -10,7 +10,33 @@ only.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-14
+
 ### Added
+- **Setup → System: a screen showing every value Vacuum Agent reads from your vacuum.** Each
+  row names the role, the entity behind it, what that entity currently reads, and *how it was
+  chosen* — name match, found on the device, found in the integration, declared by the
+  integration, or your own override. It deliberately lists everything rather than only
+  problems, because the collision fixed below resolves *successfully* to a real entity and is
+  simply the wrong one: a screen that lists only failures cannot show a failure that does not
+  look like one. Every row has a picker, so a wrong binding can be corrected without waiting
+  for a release; "Automatic" hands the role back to auto-detection.
+- **`set_entity_override` service and an `entity_overrides` setting**, so a role can be pinned
+  to a chosen entity from either the panel or Settings → Devices & Services → Configure. The
+  options screen is the reachable one when the panel is not.
+- **Saved run profiles honour their room order.** `strict_order` — which makes a
+  path-optimising vacuum clean rooms in queue order — was reachable from
+  `start_selected_rooms` and nowhere else. `start_run_profile` had no such option and the
+  profile button carries no service data, so a saved profile had no way to ask for it. On
+  Roborock, which does not honour clean order natively, a profile's room order was silently
+  discarded every time. Profiles now store it, the three profile services accept it, and the
+  run-profile editor has a checkbox.
+- Diagnostics now records, per role, WHY it resolved as it did (resolved / disabled /
+  registered-but-stateless / absent / your override did not resolve), whether the companion
+  search ran at all and what it found, and the `translation_key` / `state_class` /
+  `device_class` / unit of every entity on the device — the metadata needed to diagnose a
+  naming problem without a round-trip.
+
 - **The shell chrome gets out of the way in landscape.** On a phone held sideways the status
   pane and bottom navigation take 89px of a ~360px screen — a quarter of it — for information
   that mostly isn't being read. Both now hide by default and return on a deliberate upward
@@ -22,6 +48,32 @@ only.
   lose its navigation with no gesture available to bring it back.
 
 ### Fixed
+- **Companion entities are found when they are not named after the vacuum.** Vacuum Agent
+  derives names from the vacuum (`vacuum.alfred` → `sensor.alfred_battery`), which Home
+  Assistant does not guarantee: an area prefix, a rename, or an integration that names after
+  the *device* all produce ids the derivation never generates, and the feature then reads as
+  "your vacuum doesn't have this" while nothing errors. That assumption was repeated in the
+  entity search, in maintenance, in the card's own JavaScript, and in two independent copies
+  of one collision guard. All are fixed: the search now consults the vacuum's *integration*
+  as well as its device, a vacuum with no device no longer ends the search, maintenance gained
+  the fallback it never had, and the card uses the entity the backend resolved instead of
+  deriving its own.
+- **A per-clean reading could be bound to a lifetime counter.** `_cleaning_area` also matches
+  `_total_cleaning_area`, and whichever the entity registry happened to list first won — a
+  figure thousands of times too large feeding learning statistics, run segmentation and
+  battery metrics, and never throwing. Competing candidates are now settled by what the
+  upstream integration declares (its `translation_key`, or `state_class` ruling out a running
+  total), then by an unmistakable value gap, and if none of those settles it the role is left
+  unresolved and offered to you rather than decided by chance.
+- **Battery and charging could read correctly server-side and still show nothing on the card**,
+  because the card derived its own entity ids in the browser.
+- **HTML entities appeared as literal text in non-English locales** — French read
+  `d&#39;apprentissage`. Catalog strings are HTML-escaped once by the translation layer, and
+  several renderers escaped them again. Four views and four languages were affected; English
+  was entirely clean, which is why it survived.
+- **Metrics panels could overflow their container on a narrow screen** (measured at 94px over
+  at 299px wide), and long German compounds overflowed their card.
+
 - **Rotating a phone to landscape no longer breaks the layout.** The card chose its shell on
   width alone, so a rotated 390×844 phone — about 844×390 — cleared the 600px threshold and
   rendered the desktop layout at the moment it had the least height of any case: full-size
@@ -64,6 +116,10 @@ only.
   so a chip you scrolled down to find left the screen at the moment you tapped it.
 
 ### Changed
+- Bundled locales gained the new panel and options-flow strings in all 18 languages.
+- OpenDyslexic is attributed in `NOTICE`, with a CI guard asserting the licence ships whenever
+  the font does.
+
 - **The theme editor's search row collapses on a phone.** Search and "Modified Only", plus the
   Themes/Palette/Tokens strip, fold behind a caret that names the section you are in and shows
   which filter is running, so a collapsed control never hides why the token list is short.

@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Vacuum Agent 设置",
-        "description": "选择此集成要管理的扫地机器人实体。更改“扫地机器人”的值会重新加载集成，新扫地机器人的面板将出现在侧边栏。",
+        "description": "选择此集成应管理的扫地机实体。更改该值会重新加载集成，使新扫地机的面板出现在侧边栏。\n\n如果下方出现实体选择器，说明 Vacuum Agent 无法确定哪个实体对应哪项功能——通常是因为扫地机的配套实体与扫地机本身命名不同。选择正确的实体，之后就会使用它。留空则继续自动检测。",
         "data": {
           "vacuum_entity_id": "扫地机器人",
-          "notes": "备注"
+          "notes": "备注",
+          "entity_override__task_status": "任务状态传感器",
+          "entity_override__work_mode": "工作模式传感器",
+          "entity_override__dock_status": "基站状态传感器",
+          "entity_override__active_map": "当前地图传感器",
+          "entity_override__active_cleaning_target": "当前清扫目标传感器",
+          "entity_override__cleaning_area": "清扫面积传感器（本次，非累计）",
+          "entity_override__cleaning_time": "清扫时间传感器（本次，非累计）",
+          "entity_override__water_level": "水量实体",
+          "entity_override__cleaning_intensity": "清扫强度选择",
+          "entity_override__robot_position_x": "机器人 X 坐标传感器",
+          "entity_override__robot_position_y": "机器人 Y 坐标传感器",
+          "entity_override__wash_mop_button": "洗拖布按钮",
+          "entity_override__dry_mop_button": "烘干拖布按钮",
+          "entity_override__empty_dust_button": "集尘盒清空按钮"
         }
       }
     },

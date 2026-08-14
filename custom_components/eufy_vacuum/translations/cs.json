@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Nastavení Vacuum Agent",
-        "description": "Vyberte entitu vysavače, kterou má tato integrace spravovat. Změna hodnoty „Vysavač“ znovu načte integraci, takže se panel nového vysavače objeví v postranním panelu.",
+        "description": "Vyber entitu vysavače, kterou má tato integrace spravovat. Změna této hodnoty znovu načte integraci, takže se panel nového vysavače objeví v postranním panelu.\n\nPokud se níže objeví výběry entit, Vacuum Agent nedokázal určit, která entita patří ke které roli — obvykle proto, že doprovodné entity vysavače mají jiný název než vysavač sám. Vyber správnou a od té chvíle se bude používat. Ponech prázdné, aby detekce pokračovala automaticky.",
         "data": {
           "vacuum_entity_id": "Vysavač",
-          "notes": "Poznámky"
+          "notes": "Poznámky",
+          "entity_override__task_status": "Senzor stavu úlohy",
+          "entity_override__work_mode": "Senzor pracovního režimu",
+          "entity_override__dock_status": "Senzor stavu stanice",
+          "entity_override__active_map": "Senzor aktivní mapy",
+          "entity_override__active_cleaning_target": "Senzor aktuálního cíle úklidu",
+          "entity_override__cleaning_area": "Senzor uklizené plochy (tento úklid, ne celkem)",
+          "entity_override__cleaning_time": "Senzor doby úklidu (tento úklid, ne celkem)",
+          "entity_override__water_level": "Entita hladiny vody",
+          "entity_override__cleaning_intensity": "Výběr intenzity úklidu",
+          "entity_override__robot_position_x": "Senzor pozice robota X",
+          "entity_override__robot_position_y": "Senzor pozice robota Y",
+          "entity_override__wash_mop_button": "Tlačítko mytí mopu",
+          "entity_override__dry_mop_button": "Tlačítko sušení mopu",
+          "entity_override__empty_dust_button": "Tlačítko vyprázdnění prachového boxu"
         }
       }
     },

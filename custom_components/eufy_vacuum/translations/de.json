@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Vacuum Agent Einstellungen",
-        "description": "Wählen Sie die Saugroboter-Entität, die diese Integration verwalten soll. Eine Änderung des Werts „Saugroboter“ lädt die Integration neu, sodass das Panel des neuen Saugroboters in der Seitenleiste erscheint.",
+        "description": "Wähle die Saugroboter-Entität, die diese Integration verwalten soll. Eine Änderung lädt die Integration neu, damit das Panel des neuen Saugers in der Seitenleiste erscheint.\n\nWenn unten Entitätsauswahlfelder erscheinen, konnte Vacuum Agent nicht ermitteln, welche Entität zu einer Rolle gehört — meist weil die Begleit-Entitäten deines Saugers anders heißen als der Sauger selbst. Wähle die richtige aus, und sie wird ab dann verwendet. Leer lassen, um weiter automatisch zu erkennen.",
         "data": {
           "vacuum_entity_id": "Saugroboter",
-          "notes": "Notizen"
+          "notes": "Notizen",
+          "entity_override__task_status": "Sensor Aufgabenstatus",
+          "entity_override__work_mode": "Sensor Betriebsmodus",
+          "entity_override__dock_status": "Sensor Stationsstatus",
+          "entity_override__active_map": "Sensor aktive Karte",
+          "entity_override__active_cleaning_target": "Sensor aktuelles Reinigungsziel",
+          "entity_override__cleaning_area": "Sensor Reinigungsfläche (dieser Lauf, nicht die Gesamtsumme)",
+          "entity_override__cleaning_time": "Sensor Reinigungsdauer (dieser Lauf, nicht die Gesamtsumme)",
+          "entity_override__water_level": "Entität Wasserstand",
+          "entity_override__cleaning_intensity": "Auswahl Reinigungsintensität",
+          "entity_override__robot_position_x": "Sensor Roboterposition X",
+          "entity_override__robot_position_y": "Sensor Roboterposition Y",
+          "entity_override__wash_mop_button": "Taste Wischmopp waschen",
+          "entity_override__dry_mop_button": "Taste Wischmopp trocknen",
+          "entity_override__empty_dust_button": "Taste Staubbehälter entleeren"
         }
       }
     },

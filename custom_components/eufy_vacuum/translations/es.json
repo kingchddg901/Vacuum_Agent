@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Ajustes de Vacuum Agent",
-        "description": "Elige la entidad de aspirador que debe gestionar esta integración. Al cambiar el valor de «Aspirador» se recarga la integración para que el panel del nuevo aspirador aparezca en la barra lateral.",
+        "description": "Elige la entidad de aspiradora que debe gestionar esta integración. Cambiar este valor recarga la integración para que el panel de la nueva aspiradora aparezca en la barra lateral.\n\nSi aparecen selectores de entidad más abajo, Vacuum Agent no pudo determinar qué entidad corresponde a cada función, normalmente porque las entidades asociadas a tu aspiradora tienen un nombre distinto al de la aspiradora. Elige la correcta y se usará a partir de entonces. Déjalo en blanco para seguir con la detección automática.",
         "data": {
           "vacuum_entity_id": "Aspirador",
-          "notes": "Notas"
+          "notes": "Notas",
+          "entity_override__task_status": "Sensor de estado de tarea",
+          "entity_override__work_mode": "Sensor de modo de trabajo",
+          "entity_override__dock_status": "Sensor de estado de la base",
+          "entity_override__active_map": "Sensor de mapa activo",
+          "entity_override__active_cleaning_target": "Sensor de objetivo de limpieza activo",
+          "entity_override__cleaning_area": "Sensor de superficie limpiada (esta pasada, no el total)",
+          "entity_override__cleaning_time": "Sensor de tiempo de limpieza (esta pasada, no el total)",
+          "entity_override__water_level": "Entidad de nivel de agua",
+          "entity_override__cleaning_intensity": "Selector de intensidad de limpieza",
+          "entity_override__robot_position_x": "Sensor de posición X del robot",
+          "entity_override__robot_position_y": "Sensor de posición Y del robot",
+          "entity_override__wash_mop_button": "Botón de lavado de la mopa",
+          "entity_override__dry_mop_button": "Botón de secado de la mopa",
+          "entity_override__empty_dust_button": "Botón de vaciado del depósito de polvo"
         }
       }
     },

@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Réglages de Vacuum Agent",
-        "description": "Choisissez l'entité d'aspirateur que cette intégration doit gérer. Modifier la valeur « Aspirateur » recharge l'intégration afin que le panneau du nouvel aspirateur apparaisse dans la barre latérale.",
+        "description": "Choisissez l'entité aspirateur que cette intégration doit gérer. Modifier cette valeur recharge l'intégration afin que le panneau du nouvel aspirateur apparaisse dans la barre latérale.\n\nSi des sélecteurs d'entité apparaissent ci-dessous, Vacuum Agent n'a pas pu déterminer quelle entité correspond à un rôle — le plus souvent parce que les entités associées à votre aspirateur portent un nom différent du sien. Choisissez la bonne et elle sera utilisée ensuite. Laissez vide pour continuer la détection automatique.",
         "data": {
           "vacuum_entity_id": "Aspirateur",
-          "notes": "Notes"
+          "notes": "Notes",
+          "entity_override__task_status": "Capteur d'état de tâche",
+          "entity_override__work_mode": "Capteur de mode de travail",
+          "entity_override__dock_status": "Capteur d'état de la station",
+          "entity_override__active_map": "Capteur de carte active",
+          "entity_override__active_cleaning_target": "Capteur de cible de nettoyage active",
+          "entity_override__cleaning_area": "Capteur de surface nettoyée (ce cycle, pas le total)",
+          "entity_override__cleaning_time": "Capteur de durée de nettoyage (ce cycle, pas le total)",
+          "entity_override__water_level": "Entité de niveau d'eau",
+          "entity_override__cleaning_intensity": "Sélecteur d'intensité de nettoyage",
+          "entity_override__robot_position_x": "Capteur de position X du robot",
+          "entity_override__robot_position_y": "Capteur de position Y du robot",
+          "entity_override__wash_mop_button": "Bouton de lavage de la serpillière",
+          "entity_override__dry_mop_button": "Bouton de séchage de la serpillière",
+          "entity_override__empty_dust_button": "Bouton de vidage du bac à poussière"
         }
       }
     },

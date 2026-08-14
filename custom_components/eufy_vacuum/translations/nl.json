@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Vacuum Agent instellingen",
-        "description": "Kies de stofzuiger-entiteit die deze integratie moet beheren. Het wijzigen van de waarde 'Stofzuiger' herlaadt de integratie zodat het paneel van de nieuwe stofzuiger in de zijbalk verschijnt.",
+        "description": "Kies de stofzuiger-entiteit die deze integratie moet beheren. Deze waarde wijzigen herlaadt de integratie, zodat het paneel van de nieuwe stofzuiger in de zijbalk verschijnt.\n\nAls hieronder entiteitkiezers verschijnen, kon Vacuum Agent niet bepalen welke entiteit bij een rol hoort — meestal omdat de bijbehorende entiteiten van je stofzuiger anders heten dan de stofzuiger zelf. Kies de juiste en die wordt voortaan gebruikt. Laat leeg om automatisch te blijven detecteren.",
         "data": {
           "vacuum_entity_id": "Stofzuiger",
-          "notes": "Notities"
+          "notes": "Notities",
+          "entity_override__task_status": "Sensor taakstatus",
+          "entity_override__work_mode": "Sensor werkmodus",
+          "entity_override__dock_status": "Sensor dockstatus",
+          "entity_override__active_map": "Sensor actieve kaart",
+          "entity_override__active_cleaning_target": "Sensor actief schoonmaakdoel",
+          "entity_override__cleaning_area": "Sensor schoongemaakt oppervlak (deze beurt, niet het totaal)",
+          "entity_override__cleaning_time": "Sensor schoonmaaktijd (deze beurt, niet het totaal)",
+          "entity_override__water_level": "Entiteit waterniveau",
+          "entity_override__cleaning_intensity": "Keuze schoonmaakintensiteit",
+          "entity_override__robot_position_x": "Sensor robotpositie X",
+          "entity_override__robot_position_y": "Sensor robotpositie Y",
+          "entity_override__wash_mop_button": "Knop dweil wassen",
+          "entity_override__dry_mop_button": "Knop dweil drogen",
+          "entity_override__empty_dust_button": "Knop stofbak legen"
         }
       }
     },

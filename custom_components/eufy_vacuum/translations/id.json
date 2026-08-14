@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Pengaturan Vacuum Agent",
-        "description": "Pilih entitas penyedot debu yang harus dikelola integrasi ini. Mengubah nilai \"Penyedot debu\" memuat ulang integrasi sehingga panel penyedot debu baru muncul di bilah samping.",
+        "description": "Pilih entitas penyedot debu yang harus dikelola integrasi ini. Mengubah nilai ini memuat ulang integrasi sehingga panel penyedot debu baru muncul di bilah sisi.\n\nJika pemilih entitas muncul di bawah, Vacuum Agent tidak dapat menentukan entitas mana yang termasuk suatu peran — biasanya karena entitas pendamping penyedot debu Anda dinamai berbeda dari penyedot debunya. Pilih yang benar dan itu akan dipakai selanjutnya. Biarkan kosong untuk tetap mendeteksi otomatis.",
         "data": {
           "vacuum_entity_id": "Penyedot debu",
-          "notes": "Catatan"
+          "notes": "Catatan",
+          "entity_override__task_status": "Sensor status tugas",
+          "entity_override__work_mode": "Sensor mode kerja",
+          "entity_override__dock_status": "Sensor status dok",
+          "entity_override__active_map": "Sensor peta aktif",
+          "entity_override__active_cleaning_target": "Sensor target pembersihan aktif",
+          "entity_override__cleaning_area": "Sensor luas dibersihkan (sesi ini, bukan total)",
+          "entity_override__cleaning_time": "Sensor waktu pembersihan (sesi ini, bukan total)",
+          "entity_override__water_level": "Entitas level air",
+          "entity_override__cleaning_intensity": "Pemilih intensitas pembersihan",
+          "entity_override__robot_position_x": "Sensor posisi X robot",
+          "entity_override__robot_position_y": "Sensor posisi Y robot",
+          "entity_override__wash_mop_button": "Tombol cuci mop",
+          "entity_override__dry_mop_button": "Tombol keringkan mop",
+          "entity_override__empty_dust_button": "Tombol kosongkan kotak debu"
         }
       }
     },

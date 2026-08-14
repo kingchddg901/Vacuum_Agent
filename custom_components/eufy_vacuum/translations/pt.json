@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Definições do Vacuum Agent",
-        "description": "Escolha a entidade do aspirador que esta integração deve gerir. Alterar o valor de «Aspirador» recarrega a integração para que o painel do novo aspirador apareça na barra lateral.",
+        "description": "Escolhe a entidade do aspirador que esta integração deve gerir. Alterar este valor recarrega a integração para que o painel do novo aspirador apareça na barra lateral.\n\nSe aparecerem seletores de entidade abaixo, o Vacuum Agent não conseguiu determinar que entidade corresponde a cada função — normalmente porque as entidades associadas ao teu aspirador têm um nome diferente do aspirador. Escolhe a correta e passará a ser usada. Deixa em branco para continuar a deteção automática.",
         "data": {
           "vacuum_entity_id": "Aspirador",
-          "notes": "Notas"
+          "notes": "Notas",
+          "entity_override__task_status": "Sensor de estado da tarefa",
+          "entity_override__work_mode": "Sensor de modo de trabalho",
+          "entity_override__dock_status": "Sensor de estado da base",
+          "entity_override__active_map": "Sensor de mapa ativo",
+          "entity_override__active_cleaning_target": "Sensor de alvo de limpeza ativo",
+          "entity_override__cleaning_area": "Sensor de área limpa (esta passagem, não o total)",
+          "entity_override__cleaning_time": "Sensor de tempo de limpeza (esta passagem, não o total)",
+          "entity_override__water_level": "Entidade de nível de água",
+          "entity_override__cleaning_intensity": "Seletor de intensidade de limpeza",
+          "entity_override__robot_position_x": "Sensor de posição X do robô",
+          "entity_override__robot_position_y": "Sensor de posição Y do robô",
+          "entity_override__wash_mop_button": "Botão de lavagem da mopa",
+          "entity_override__dry_mop_button": "Botão de secagem da mopa",
+          "entity_override__empty_dust_button": "Botão de esvaziamento do depósito de pó"
         }
       }
     },

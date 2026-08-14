@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Vacuum Agent ayarları",
-        "description": "Bu entegrasyonun yöneteceği robot süpürge varlığını seçin. \"Robot süpürge\" değerini değiştirmek entegrasyonu yeniden yükler; yeni robot süpürgenin paneli kenar çubuğunda görünür.",
+        "description": "Bu entegrasyonun yöneteceği süpürge varlığını seç. Bu değeri değiştirmek entegrasyonu yeniden yükler, böylece yeni süpürgenin paneli kenar çubuğunda görünür.\n\nAşağıda varlık seçicileri görünüyorsa, Vacuum Agent hangi varlığın hangi role ait olduğunu belirleyememiştir — genellikle süpürgenizin yardımcı varlıkları süpürgeden farklı adlandırıldığı için. Doğru olanı seçin, bundan sonra o kullanılır. Otomatik algılamaya devam etmek için boş bırakın.",
         "data": {
           "vacuum_entity_id": "Robot süpürge",
-          "notes": "Notlar"
+          "notes": "Notlar",
+          "entity_override__task_status": "Görev durumu sensörü",
+          "entity_override__work_mode": "Çalışma modu sensörü",
+          "entity_override__dock_status": "İstasyon durumu sensörü",
+          "entity_override__active_map": "Etkin harita sensörü",
+          "entity_override__active_cleaning_target": "Etkin temizlik hedefi sensörü",
+          "entity_override__cleaning_area": "Temizlenen alan sensörü (bu tur, toplam değil)",
+          "entity_override__cleaning_time": "Temizlik süresi sensörü (bu tur, toplam değil)",
+          "entity_override__water_level": "Su seviyesi varlığı",
+          "entity_override__cleaning_intensity": "Temizlik yoğunluğu seçici",
+          "entity_override__robot_position_x": "Robot X konumu sensörü",
+          "entity_override__robot_position_y": "Robot Y konumu sensörü",
+          "entity_override__wash_mop_button": "Mop yıkama düğmesi",
+          "entity_override__dry_mop_button": "Mop kurutma düğmesi",
+          "entity_override__empty_dust_button": "Toz haznesi boşaltma düğmesi"
         }
       }
     },

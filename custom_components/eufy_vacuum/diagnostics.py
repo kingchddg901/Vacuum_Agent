@@ -27,6 +27,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
+from .core.capabilities import _sweep_siblings
+
 from .const import DATA_RUNTIME, DOMAIN
 from .debug_capture import _redact
 
@@ -436,16 +438,25 @@ def _device_entity_census(hass: HomeAssistant, vacuum_entity_id: str) -> dict[st
 
         device_id = entry.device_id
         census["device_id"] = device_id
-        if not device_id:
-            # A vacuum entity with no device cannot have siblings — say so
-            # explicitly rather than returning an empty list, which would read
-            # like "this device exposes nothing".
-            census["reason"] = "vacuum_entity_has_no_device"
+
+        # live:ENT-5 — TWO SCOPES, the same pair the resolver uses.
+        #
+        # This census was device-scoped only, and bailed outright when the vacuum
+        # had no device. That made it EMPTY on exactly the installs it exists to
+        # explain: issue #49's device search found nothing while the config-entry
+        # search rescued battery on the same box. A blank census on a naming
+        # problem is worse than no census, because it reads as "this device
+        # exposes nothing" — the very confusion the DIAG-1 comment above warns
+        # about, reintroduced one scope down.
+        _all, _device_count = _sweep_siblings(registry, entry)
+        siblings = [registry.async_get(eid) for eid in _all]
+        siblings = [item for item in siblings if item is not None]
+        census["device_entity_count"] = _device_count
+        census["config_entry_entity_count"] = len(siblings) - _device_count
+        if not siblings:
+            census["reason"] = "no_entities_on_device_or_config_entry"
             return census
 
-        siblings = er.async_entries_for_device(
-            registry, device_id, include_disabled_entities=True
-        )
         census["entity_count"] = len(siblings)
         census["entities"] = [
             {

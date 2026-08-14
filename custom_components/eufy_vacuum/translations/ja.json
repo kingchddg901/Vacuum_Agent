@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Vacuum Agent の設定",
-        "description": "この統合が管理するロボット掃除機のエンティティを選択してください。「ロボット掃除機」の値を変更すると統合が再読み込みされ、新しいロボット掃除機のパネルがサイドバーに表示されます。",
+        "description": "この統合が管理する掃除機エンティティを選択します。値を変更すると統合が再読み込みされ、新しい掃除機のパネルがサイドバーに表示されます。\n\n下にエンティティ選択欄が表示される場合、Vacuum Agent はどのエンティティがどの役割に対応するか判断できませんでした。多くは、掃除機の関連エンティティが掃除機本体と異なる名前になっているためです。正しいものを選ぶと以後それが使われます。空欄のままにすると自動検出を続けます。",
         "data": {
           "vacuum_entity_id": "ロボット掃除機",
-          "notes": "メモ"
+          "notes": "メモ",
+          "entity_override__task_status": "タスク状態センサー",
+          "entity_override__work_mode": "動作モードセンサー",
+          "entity_override__dock_status": "ドック状態センサー",
+          "entity_override__active_map": "使用中マップセンサー",
+          "entity_override__active_cleaning_target": "現在の清掃対象センサー",
+          "entity_override__cleaning_area": "清掃面積センサー（今回の運転。累計ではありません）",
+          "entity_override__cleaning_time": "清掃時間センサー（今回の運転。累計ではありません）",
+          "entity_override__water_level": "水量エンティティ",
+          "entity_override__cleaning_intensity": "清掃強度セレクト",
+          "entity_override__robot_position_x": "ロボット位置Xセンサー",
+          "entity_override__robot_position_y": "ロボット位置Yセンサー",
+          "entity_override__wash_mop_button": "モップ洗浄ボタン",
+          "entity_override__dry_mop_button": "モップ乾燥ボタン",
+          "entity_override__empty_dust_button": "ダストボックス排出ボタン"
         }
       }
     },

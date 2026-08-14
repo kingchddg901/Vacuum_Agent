@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Impostazioni di Vacuum Agent",
-        "description": "Scegli l'entità dell'aspirapolvere che questa integrazione deve gestire. Cambiare il valore «Aspirapolvere» ricarica l'integrazione così il pannello del nuovo aspirapolvere compare nella barra laterale.",
+        "description": "Scegli l'entità aspirapolvere che questa integrazione deve gestire. Modificare questo valore ricarica l'integrazione, così il pannello del nuovo aspirapolvere compare nella barra laterale.\n\nSe qui sotto compaiono selettori di entità, Vacuum Agent non è riuscito a capire quale entità corrisponde a un ruolo — di solito perché le entità associate al tuo aspirapolvere hanno un nome diverso dall'aspirapolvere stesso. Scegli quella giusta e verrà usata da quel momento. Lascia vuoto per continuare con il rilevamento automatico.",
         "data": {
           "vacuum_entity_id": "Aspirapolvere",
-          "notes": "Note"
+          "notes": "Note",
+          "entity_override__task_status": "Sensore stato attività",
+          "entity_override__work_mode": "Sensore modalità di lavoro",
+          "entity_override__dock_status": "Sensore stato base",
+          "entity_override__active_map": "Sensore mappa attiva",
+          "entity_override__active_cleaning_target": "Sensore obiettivo di pulizia attivo",
+          "entity_override__cleaning_area": "Sensore superficie pulita (questo ciclo, non il totale)",
+          "entity_override__cleaning_time": "Sensore durata pulizia (questo ciclo, non il totale)",
+          "entity_override__water_level": "Entità livello acqua",
+          "entity_override__cleaning_intensity": "Selettore intensità di pulizia",
+          "entity_override__robot_position_x": "Sensore posizione X del robot",
+          "entity_override__robot_position_y": "Sensore posizione Y del robot",
+          "entity_override__wash_mop_button": "Pulsante lavaggio mop",
+          "entity_override__dry_mop_button": "Pulsante asciugatura mop",
+          "entity_override__empty_dust_button": "Pulsante svuotamento contenitore polvere"
         }
       }
     },

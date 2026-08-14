@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Vacuum Agent 設定",
-        "description": "選擇此整合要管理的掃地機實體。變更「掃地機」的值會重新載入整合，新掃地機的面板會出現在側邊欄。",
+        "description": "選擇此整合應管理的掃地機實體。變更此值會重新載入整合，讓新掃地機的面板出現在側邊欄。\n\n如果下方出現實體選擇器，表示 Vacuum Agent 無法判斷哪個實體對應哪項功能——通常是因為掃地機的配套實體與掃地機本身命名不同。選擇正確的實體，之後就會使用它。留空則繼續自動偵測。",
         "data": {
           "vacuum_entity_id": "掃地機",
-          "notes": "備註"
+          "notes": "備註",
+          "entity_override__task_status": "任務狀態感測器",
+          "entity_override__work_mode": "工作模式感測器",
+          "entity_override__dock_status": "基站狀態感測器",
+          "entity_override__active_map": "目前地圖感測器",
+          "entity_override__active_cleaning_target": "目前清掃目標感測器",
+          "entity_override__cleaning_area": "清掃面積感測器（本次，非累計）",
+          "entity_override__cleaning_time": "清掃時間感測器（本次，非累計）",
+          "entity_override__water_level": "水量實體",
+          "entity_override__cleaning_intensity": "清掃強度選擇",
+          "entity_override__robot_position_x": "機器人 X 座標感測器",
+          "entity_override__robot_position_y": "機器人 Y 座標感測器",
+          "entity_override__wash_mop_button": "洗拖布按鈕",
+          "entity_override__dry_mop_button": "烘乾拖布按鈕",
+          "entity_override__empty_dust_button": "集塵盒清空按鈕"
         }
       }
     },

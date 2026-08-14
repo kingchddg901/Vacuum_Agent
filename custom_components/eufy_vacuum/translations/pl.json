@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Ustawienia Vacuum Agent",
-        "description": "Wybierz encję odkurzacza, którą ma zarządzać ta integracja. Zmiana wartości „Odkurzacz” przeładowuje integrację, dzięki czemu panel nowego odkurzacza pojawia się na pasku bocznym.",
+        "description": "Wybierz encję odkurzacza, którą ma zarządzać ta integracja. Zmiana tej wartości przeładowuje integrację, aby panel nowego odkurzacza pojawił się na pasku bocznym.\n\nJeśli poniżej pojawią się selektory encji, Vacuum Agent nie ustalił, która encja odpowiada danej roli — zwykle dlatego, że encje towarzyszące odkurzaczowi nazywają się inaczej niż sam odkurzacz. Wybierz właściwą, a będzie używana od tej pory. Pozostaw puste, aby nadal wykrywać automatycznie.",
         "data": {
           "vacuum_entity_id": "Odkurzacz",
-          "notes": "Notatki"
+          "notes": "Notatki",
+          "entity_override__task_status": "Czujnik stanu zadania",
+          "entity_override__work_mode": "Czujnik trybu pracy",
+          "entity_override__dock_status": "Czujnik stanu stacji",
+          "entity_override__active_map": "Czujnik aktywnej mapy",
+          "entity_override__active_cleaning_target": "Czujnik aktywnego celu sprzątania",
+          "entity_override__cleaning_area": "Czujnik posprzątanej powierzchni (ten przejazd, nie suma)",
+          "entity_override__cleaning_time": "Czujnik czasu sprzątania (ten przejazd, nie suma)",
+          "entity_override__water_level": "Encja poziomu wody",
+          "entity_override__cleaning_intensity": "Wybór intensywności sprzątania",
+          "entity_override__robot_position_x": "Czujnik pozycji X robota",
+          "entity_override__robot_position_y": "Czujnik pozycji Y robota",
+          "entity_override__wash_mop_button": "Przycisk mycia mopa",
+          "entity_override__dry_mop_button": "Przycisk suszenia mopa",
+          "entity_override__empty_dust_button": "Przycisk opróżniania pojemnika na kurz"
         }
       }
     },

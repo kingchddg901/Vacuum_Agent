@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "إعدادات Vacuum Agent",
-        "description": "اختر كيان المكنسة الذي يجب أن يديره هذا التكامل. تغيير قيمة «المكنسة» يعيد تحميل التكامل بحيث تظهر لوحة المكنسة الجديدة في الشريط الجانبي.",
+        "description": "اختر كيان المكنسة الذي يجب أن تديره هذه التكاملة. تغيير هذه القيمة يعيد تحميل التكاملة حتى تظهر لوحة المكنسة الجديدة في الشريط الجانبي.\n\nإذا ظهرت أدوات اختيار الكيانات أدناه، فهذا يعني أن Vacuum Agent لم يستطع تحديد الكيان الذي يخص كل وظيفة — غالباً لأن الكيانات المصاحبة لمكنستك تحمل أسماء مختلفة عن المكنسة نفسها. اختر الصحيح وسيُستخدم بعد ذلك. اتركه فارغاً لمواصلة الاكتشاف التلقائي.",
         "data": {
           "vacuum_entity_id": "المكنسة",
-          "notes": "ملاحظات"
+          "notes": "ملاحظات",
+          "entity_override__task_status": "حساس حالة المهمة",
+          "entity_override__work_mode": "حساس وضع التشغيل",
+          "entity_override__dock_status": "حساس حالة القاعدة",
+          "entity_override__active_map": "حساس الخريطة النشطة",
+          "entity_override__active_cleaning_target": "حساس هدف التنظيف الحالي",
+          "entity_override__cleaning_area": "حساس المساحة المنظفة (هذه الجولة، وليس الإجمالي)",
+          "entity_override__cleaning_time": "حساس زمن التنظيف (هذه الجولة، وليس الإجمالي)",
+          "entity_override__water_level": "كيان مستوى الماء",
+          "entity_override__cleaning_intensity": "محدد شدة التنظيف",
+          "entity_override__robot_position_x": "حساس موضع الروبوت X",
+          "entity_override__robot_position_y": "حساس موضع الروبوت Y",
+          "entity_override__wash_mop_button": "زر غسل الممسحة",
+          "entity_override__dry_mop_button": "زر تجفيف الممسحة",
+          "entity_override__empty_dust_button": "زر تفريغ حاوية الغبار"
         }
       }
     },

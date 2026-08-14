@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "הגדרות Vacuum Agent",
-        "description": "בחרו את ישות השואב שהאינטגרציה הזו תנהל. שינוי ערך «שואב» טוען מחדש את האינטגרציה כך שלוח השואב החדש יופיע בסרגל הצד.",
+        "description": "בחר את ישות השואב שאינטגרציה זו אמורה לנהל. שינוי הערך יטען מחדש את האינטגרציה כך שלוח השואב החדש יופיע בסרגל הצד.\n\nאם מופיעים בוררי ישויות למטה, Vacuum Agent לא הצליח לקבוע איזו ישות שייכת לאיזה תפקיד — לרוב מפני שהישויות הנלוות של השואב נקראות אחרת מהשואב עצמו. בחר את הנכונה והיא תשמש מכאן ואילך. השאר ריק כדי להמשיך בזיהוי אוטומטי.",
         "data": {
           "vacuum_entity_id": "שואב",
-          "notes": "הערות"
+          "notes": "הערות",
+          "entity_override__task_status": "חיישן מצב משימה",
+          "entity_override__work_mode": "חיישן מצב עבודה",
+          "entity_override__dock_status": "חיישן מצב תחנה",
+          "entity_override__active_map": "חיישן מפה פעילה",
+          "entity_override__active_cleaning_target": "חיישן יעד ניקוי נוכחי",
+          "entity_override__cleaning_area": "חיישן שטח שנוקה (סבב זה, לא הסך הכול)",
+          "entity_override__cleaning_time": "חיישן זמן ניקוי (סבב זה, לא הסך הכול)",
+          "entity_override__water_level": "ישות מפלס מים",
+          "entity_override__cleaning_intensity": "בורר עוצמת ניקוי",
+          "entity_override__robot_position_x": "חיישן מיקום X של הרובוט",
+          "entity_override__robot_position_y": "חיישן מיקום Y של הרובוט",
+          "entity_override__wash_mop_button": "כפתור שטיפת מגב",
+          "entity_override__dry_mop_button": "כפתור ייבוש מגב",
+          "entity_override__empty_dust_button": "כפתור ריקון מיכל האבק"
         }
       }
     },
