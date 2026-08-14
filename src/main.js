@@ -133,66 +133,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       }
     };
 
-    /* LANDSCAPE CHROME AUTO-HIDE.
-       The status pane and the bottom nav are 89px of a 360px landscape
-       viewport — 25%, both already in their --compact variants, so that is the
-       floor without hiding them. Scroll down hides, scroll up reveals.
-
-       Scroll direction rather than a tap target on a hidden edge: reversing a
-       scroll is reflex, finding an invisible strip is a discovery, and a strip
-       thin enough to be worth hiding is thinner than the 44px tap floor at
-       styles/mobile.js:831.
-
-       Everything here is chrome-only. It never changes what is on screen, only
-       whether two panes are drawn, so the worst failure is cosmetic. */
-    this._chromeLastScrollTop = 0;
-    this._boundHandleChromeScroll = (e) => {
-      const el = e.target;
-      if (!el || typeof el.scrollTop !== "number") return;
-
-      // Only where vertical room is actually scarce. Portrait has the space and
-      // would just get a moving target; this reuses the same "short" threshold
-      // as state/viewport.js rather than inventing a second definition.
-      const short = typeof window !== "undefined" && window.innerHeight <= 500;
-      if (!short || !this._state?.isMobileViewport?.()) {
-        if (this._chromeHidden) this._setChromeHidden(false);
-        return;
-      }
-
-      const top = el.scrollTop;
-      const delta = top - this._chromeLastScrollTop;
-      // Ignore the jitter that momentum scrolling produces at the extremes,
-      // which would otherwise flap the chrome on every frame.
-      if (Math.abs(delta) < 8) return;
-      this._chromeLastScrollTop = top;
-
-      // Near the top, always show: there is nothing above to reveal, and a user
-      // who has scrolled back to the start is orienting, not reading.
-      if (top < 24) return this._setChromeHidden(false);
-      this._setChromeHidden(delta > 0);
-    };
-
     applyCardDomHelpers(this);
-  }
-
-  /**
-   * Toggle the chrome. Writes an attribute and nothing else — the shell's CSS
-   * owns what that means, so this cannot get out of step with the layout.
-   *
-   * The status pane is PINNED while a job is in flight: that is precisely when
-   * its numbers are moving and worth their 33px. Docked and idle, it is free to
-   * go. See state/learning.js:hasActiveJob.
-   */
-  _setChromeHidden(hidden) {
-    if (this._chromeHidden === hidden) return;   // no attribute churn per frame
-    this._chromeHidden = hidden;
-    const shell = this.shadowRoot?.querySelector(".evcc-shell");
-    if (!shell) return;
-    shell.toggleAttribute("data-chrome-hidden", hidden);
-    shell.toggleAttribute(
-      "data-chrome-pin-status",
-      hidden && this._state?.hasActiveJob?.() === true,
-    );
   }
 
   /**
@@ -2007,15 +1948,6 @@ class EufyVacuumCommandCenter extends HTMLElement {
     document.addEventListener("keydown", this._boundHandleKeydown);
     document.addEventListener("animal-svg-registered", this._boundHandleAnimalRegistered);
 
-    /* Landscape chrome auto-hide. CAPTURE phase on the shadow root, because
-       scroll does not bubble — this catches it from whichever container is
-       actually scrolling (the view stage, the theme editor's scrollbox, a
-       modal body) without knowing their names, and it survives every re-render
-       because it is bound to the root rather than to the elements. */
-    if (this.shadowRoot) {
-      this.shadowRoot.addEventListener("scroll", this._boundHandleChromeScroll, true);
-    }
-
     // Initial viewport measurement. setConfig may have run before
     // connectedCallback (so _state already exists); re-measure now that
     // the element is in the document and laid out — getBoundingClientRect
@@ -2084,11 +2016,6 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // number taken in a layout that no longer exists — panel navigation and
     // sidebar toggles both re-connect the card somewhere different.
     this._panelOffset = undefined;
-    this._chromeHidden = undefined;
-    this._chromeLastScrollTop = 0;
-    if (this.shadowRoot) {
-      this.shadowRoot.removeEventListener("scroll", this._boundHandleChromeScroll, true);
-    }
     document.removeEventListener("visibilitychange", this._boundHandleVisibilityChange);
     window.removeEventListener("focus", this._boundHandlePanelResume);
     window.removeEventListener("location-changed", this._boundHandleLocationChanged);
