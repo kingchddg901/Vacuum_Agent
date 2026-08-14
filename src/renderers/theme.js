@@ -232,11 +232,21 @@ export function applyThemeRenderers(proto) {
     const pickingOnly = isMobile && !MOBILE_TOKEN_EDITOR;
     const activeTab = pickingOnly ? "presets" : (state.activeSubTab || "presets");
 
+    /* The caret takes the sub-tab strip WITH it. Collapsing only the search row
+       reclaimed ~26px — measured on device, and visibly not worth a control.
+       The strip is the rest of the chrome above the editor, and the caret can
+       carry "which tab" in a label far cheaper than three buttons can.
+
+       Only when the header is on screen to expand from: the presets tab renders
+       no header, so there would be no caret and the strip would be unreachable. */
+    const chromeCollapsed =
+      activeTab !== "presets" && !pickingOnly && !!state.searchCollapsed;
+
     return `
       <div class="evcc-view evcc-view--theme">
-        ${activeTab === "presets" ? "" : this._renderThemeHeader(state)}
+        ${activeTab === "presets" ? "" : this._renderThemeHeader(state, activeTab)}
 
-        ${pickingOnly ? "" : `
+        ${pickingOnly || chromeCollapsed ? "" : `
         <div class="evcc-chips evcc-theme-tabs" role="tablist">
           <button
             class="evcc-chip ${activeTab === "presets" ? "active" : ""}"
@@ -330,7 +340,7 @@ export function applyThemeRenderers(proto) {
      reinforcement on top of the label, never the thing carrying the meaning —
      and it is the accent token, not an error token, because a filter being on
      is the user doing a normal thing on purpose, not a fault. */
-  proto._renderThemeHeader = function (state) {
+  proto._renderThemeHeader = function (state, activeTab) {
     const query = state.tokenSearchQuery || "";
     const reason = query
       ? { kind: "search", value: query }
@@ -346,6 +356,21 @@ export function applyThemeRenderers(proto) {
         }</span>`
       : "";
 
+    /* Collapsed, the caret names the SUB-TAB it is standing in for. Hiding the
+       Themes/Palette/Tokens strip is most of what collapsing buys — the search
+       row alone was ~26px, which is not worth a control — but a hidden nav that
+       does not say where you are is a trap. With the label it reads as what it
+       now is: a dropdown showing the current section. */
+    const TAB_KEY = {
+      presets: "theme.tab_themes",
+      palette: "theme.tab_palette",
+      tokens: "theme.tab_tokens",
+    };
+    const tabLabel =
+      state.searchCollapsed && TAB_KEY[activeTab]
+        ? `<span class="evcc-theme-collapsed-tab">${this.t(TAB_KEY[activeTab])}</span>`
+        : "";
+
     /* One control, one place, both states — the caret does not move when the
        row opens, so it never has to be re-found. */
     const toggle = `
@@ -356,10 +381,10 @@ export function applyThemeRenderers(proto) {
         aria-expanded="${state.searchCollapsed ? "false" : "true"}"
         aria-label="${this.t("theme.search_toggle")}"
       >
+        ${state.searchCollapsed ? tabLabel + badge : ""}
         <ha-icon icon="${
           state.searchCollapsed ? "mdi:chevron-down" : "mdi:chevron-up"
         }"></ha-icon>
-        ${state.searchCollapsed ? badge : ""}
       </button>
     `;
 

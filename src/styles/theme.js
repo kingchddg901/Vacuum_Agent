@@ -93,6 +93,15 @@ export const themeStyles = `
     color: var(--evcc-text-primary);
   }
 
+  /* The section name, standing in for the whole Themes/Palette/Tokens strip.
+     Primary text weight because it IS the navigation while collapsed — the
+     filter badge beside it is secondary information about the list below. */
+  .evcc-theme-collapsed-tab {
+    color: var(--evcc-text-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
   /* THE FILTER, BY NAME. Collapsing must never hide the reason the token list
      is short — a user hunting a token that is being filtered away needs to see
      what to switch off, and "which filter" is a question colour cannot answer.
