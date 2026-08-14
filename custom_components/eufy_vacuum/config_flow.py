@@ -22,12 +22,23 @@ from .const import (
     CONF_NOTES,
     CONF_TESTED_MODEL,
     CONF_VACUUM_ENTITY_ID,
+    DATA_RUNTIME,
     DEFAULT_TITLE,
     DOMAIN,
+    ENTITY_OVERRIDES_KEY,
     SUPPORTED_TESTED_MODEL,
 )
+from .core.capabilities import REASON_RESOLVED
 
 _LOGGER = logging.getLogger(__name__)
+
+#: Prefix for the per-role override fields on the options form. Namespaced so a
+#: role can never collide with CONF_NOTES / CONF_VACUUM_ENTITY_ID, and so the
+#: submit handler can recognise them without knowing the role vocabulary.
+_OVERRIDE_FIELD_PREFIX = "entity_override__"
+
+#: Unfiltered on purpose — see _options_schema.
+_ANY_ENTITY_SELECTOR = selector.EntitySelector(selector.EntitySelectorConfig())
 
 _VACUUM_SELECTOR = selector.EntitySelector(
     selector.EntitySelectorConfig(domain="vacuum"),
@@ -118,7 +129,10 @@ class EufyVacuumOptionsFlow(OptionsFlow):
                     return self.async_show_form(
                         step_id="init",
                         data_schema=self._options_schema(
-                            current_vacuum=previous_vacuum, current_notes=notes,
+                            current_vacuum=previous_vacuum,
+                            current_notes=notes,
+                            unresolved_roles=self._resolution_gaps(previous_vacuum),
+                            current_overrides=self._current_overrides(previous_vacuum),
                         ),
                         errors={CONF_VACUUM_ENTITY_ID: "vacuum_not_found"},
                     )
@@ -142,6 +156,43 @@ class EufyVacuumOptionsFlow(OptionsFlow):
                 data = {CONF_NOTES: notes, CONF_VACUUM_ENTITY_ID: vacuum_entity_id}
             else:
                 data = {CONF_NOTES: notes}
+
+            # live:ENT-7 — persist any entity overrides the user picked.
+            #
+            # MERGE, NEVER REPLACE, and that is not a style preference. These
+            # fields are rendered only for roles that FAILED to resolve, so a
+            # role fixed by an override stops being unresolved and its field
+            # disappears from the next render. Rebuilding the map from the form
+            # alone would then drop that override, the role would break again,
+            # the field would come back — an install oscillating between fixed
+            # and broken on every visit to this screen.
+            #
+            # The cost of merging is that this screen cannot CLEAR an override;
+            # removal belongs to the panel's Setup tab, which renders the ones
+            # already set and can offer an explicit remove.
+            target_vacuum = vacuum_entity_id or previous_vacuum
+            picked = {
+                key[len(_OVERRIDE_FIELD_PREFIX):]: str(value).strip()
+                for key, value in user_input.items()
+                if key.startswith(_OVERRIDE_FIELD_PREFIX) and str(value or "").strip()
+            }
+            all_overrides = {
+                vac: dict(roles)
+                for vac, roles in (
+                    self.config_entry.options.get(ENTITY_OVERRIDES_KEY) or {}
+                ).items()
+                if isinstance(roles, dict)
+            }
+            if target_vacuum and picked:
+                merged = dict(all_overrides.get(target_vacuum) or {})
+                merged.update(picked)
+                all_overrides[target_vacuum] = merged
+                _LOGGER.info(
+                    "eufy_vacuum: entity overrides set for %s: %s",
+                    target_vacuum, picked,
+                )
+            if all_overrides:
+                data[ENTITY_OVERRIDES_KEY] = all_overrides
             return self.async_create_entry(title="", data=data)
 
         current_notes = self.config_entry.options.get(
@@ -151,13 +202,32 @@ class EufyVacuumOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=self._options_schema(
-                current_vacuum=previous_vacuum, current_notes=current_notes,
+                current_vacuum=previous_vacuum,
+                current_notes=current_notes,
+                unresolved_roles=self._resolution_gaps(previous_vacuum),
+                current_overrides=self._current_overrides(previous_vacuum),
             ),
         )
 
     @staticmethod
-    def _options_schema(*, current_vacuum: str, current_notes: str) -> vol.Schema:
-        """Build the options form schema for a given current vacuum/notes pair."""
+    def _options_schema(
+        *,
+        current_vacuum: str,
+        current_notes: str,
+        unresolved_roles: tuple[str, ...] = (),
+        current_overrides: dict[str, str] | None = None,
+    ) -> vol.Schema:
+        """Build the options form schema for a given current vacuum/notes pair.
+
+        live:ENT-7. When roles failed to resolve, one entity picker per role is
+        appended. Deliberately NOT a separate menu step: five existing tests
+        assert this flow shows a single ``init`` form, and a menu would change
+        the shape of an already-working screen to no user benefit.
+
+        When everything resolved, ``unresolved_roles`` is empty and this schema
+        is byte-identical to the one that shipped before — a healthy install
+        never sees a field it does not need.
+        """
         schema: dict[Any, Any] = {}
         if current_vacuum:
             schema[vol.Optional(CONF_VACUUM_ENTITY_ID, default=current_vacuum)] = (
@@ -166,4 +236,62 @@ class EufyVacuumOptionsFlow(OptionsFlow):
         else:
             schema[vol.Optional(CONF_VACUUM_ENTITY_ID)] = _VACUUM_SELECTOR
         schema[vol.Optional(CONF_NOTES, default=current_notes)] = str
+
+        overrides = current_overrides or {}
+        for role in unresolved_roles:
+            key = f"{_OVERRIDE_FIELD_PREFIX}{role}"
+            existing = overrides.get(role)
+            # Unfiltered entity selector on purpose. The whole reason this field
+            # exists is that our own naming assumptions missed — including the
+            # case of a companion on a DIFFERENT device, which no filter derived
+            # from those assumptions would ever offer.
+            if existing:
+                schema[vol.Optional(key, default=existing)] = _ANY_ENTITY_SELECTOR
+            else:
+                schema[vol.Optional(key)] = _ANY_ENTITY_SELECTOR
         return vol.Schema(schema)
+
+    def _current_overrides(self, vacuum_entity_id: str) -> dict[str, str]:
+        """Overrides already stored for one vacuum, so fields render pre-filled."""
+        if not vacuum_entity_id:
+            return {}
+        stored = self.config_entry.options.get(ENTITY_OVERRIDES_KEY) or {}
+        roles = stored.get(vacuum_entity_id) if isinstance(stored, dict) else None
+        return dict(roles) if isinstance(roles, dict) else {}
+
+    def _resolution_gaps(self, vacuum_entity_id: str) -> tuple[str, ...]:
+        """Roles that did not resolve, or that had competing candidates.
+
+        Best-effort by construction: this screen's PRIMARY job is editing the
+        vacuum and notes, and it must still open when the runtime is missing or
+        capability detection is unhappy — which is exactly when a user comes
+        looking for it.
+        """
+        if not vacuum_entity_id:
+            return ()
+        try:
+            manager = self.hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+            if manager is None:
+                return ()
+            caps = manager.get_vacuum_capabilities_snapshot(
+                vacuum_entity_id=vacuum_entity_id
+            )
+            if not isinstance(caps, dict):
+                return ()
+            reasons = caps.get("entity_resolution_reasons") or {}
+            augmentation = caps.get("entity_augmentation") or {}
+            ambiguous = augmentation.get("ambiguous") or {}
+            gaps = {
+                role
+                for role, reason in reasons.items()
+                if reason != REASON_RESOLVED
+            }
+            gaps.update(ambiguous)
+            return tuple(sorted(gaps))
+        except Exception:  # pragma: no cover - defensive; never block the form
+            _LOGGER.debug(
+                "eufy_vacuum: could not read resolution gaps for %s",
+                vacuum_entity_id,
+                exc_info=True,
+            )
+            return ()

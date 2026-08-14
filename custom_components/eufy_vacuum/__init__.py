@@ -53,6 +53,7 @@ from .const import (
     DATA_LEARNING,
     DATA_RUNTIME,
     DOMAIN,
+    ENTITY_OVERRIDES_KEY,
 )
 from .adapters.registry import (
     AdapterCoordinator,
@@ -379,9 +380,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # constructed just above async_initialize, outside this stretch — a failed
         # attempt's coordinator is simply replaced by a fresh one on the next
         # attempt, never referenced again.)
+        # live:ENT-7 — TWO SURFACES WRITE ONE CONTRACT, so merge them here.
+        #
+        # The panel's Setup tab writes entity overrides into the manager's own
+        # data; the options flow can only write config-entry OPTIONS, because a
+        # flow has no business mutating runtime state. Reading only one of those
+        # would silently ignore whichever surface the user happened to use.
+        #
+        # Entry options WIN: the options flow is the guaranteed-reachable rescue
+        # path, the one still available when the frontend is not, so a choice
+        # made there must not be overruled by a stale panel value.
+        _brand_data = manager.data
+        _entry_overrides = entry.options.get(ENTITY_OVERRIDES_KEY)
+        if isinstance(_entry_overrides, dict) and _entry_overrides:
+            _brand_data = {
+                **manager.data,
+                ENTITY_OVERRIDES_KEY: {
+                    **(manager.data.get(ENTITY_OVERRIDES_KEY) or {}),
+                    **_entry_overrides,
+                },
+            }
+
         for _vacuum_entity_id in manager.get_known_vacuum_ids():
             try:
-                register_brand_adapter(hass, _vacuum_entity_id, data=manager.data)
+                register_brand_adapter(hass, _vacuum_entity_id, data=_brand_data)
             except Exception:
                 _LOGGER.exception(  # pragma: no cover
                     "eufy_vacuum: failed to register adapter config for %s",

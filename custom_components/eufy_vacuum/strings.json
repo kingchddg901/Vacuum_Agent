@@ -20,10 +20,24 @@
     "step": {
       "init": {
         "title": "Vacuum Agent Settings",
-        "description": "Pick the vacuum entity this integration should manage. Changing the Vacuum value reloads the integration so the new vacuum's panel appears in the sidebar.",
+        "description": "Pick the vacuum entity this integration should manage. Changing the Vacuum value reloads the integration so the new vacuum's panel appears in the sidebar.\n\nIf any entity pickers appear below, Vacuum Agent could not work out which entity belongs to a role — usually because your vacuum's companion entities are named differently from the vacuum itself. Pick the right one and it will be used from then on. Leave any blank to keep guessing automatically.",
         "data": {
           "vacuum_entity_id": "Vacuum",
-          "notes": "Notes"
+          "notes": "Notes",
+          "entity_override__task_status": "Task status sensor",
+          "entity_override__work_mode": "Work mode sensor",
+          "entity_override__dock_status": "Dock status sensor",
+          "entity_override__active_map": "Active map sensor",
+          "entity_override__active_cleaning_target": "Active cleaning target sensor",
+          "entity_override__cleaning_area": "Cleaning area sensor (this run, not the lifetime total)",
+          "entity_override__cleaning_time": "Cleaning time sensor (this run, not the lifetime total)",
+          "entity_override__water_level": "Water level entity",
+          "entity_override__cleaning_intensity": "Cleaning intensity select",
+          "entity_override__robot_position_x": "Robot position X sensor",
+          "entity_override__robot_position_y": "Robot position Y sensor",
+          "entity_override__wash_mop_button": "Wash mop button",
+          "entity_override__dry_mop_button": "Dry mop button",
+          "entity_override__empty_dust_button": "Empty dust bin button"
         }
       }
     },
