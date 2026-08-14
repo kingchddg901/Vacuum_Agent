@@ -328,6 +328,15 @@ export const themePreviewStyles = `
     pointer-events: none;
   }
 
+  /* The room-card previews carry .evcc-room-grid TOO — that real class is what
+     consumes --evcc-room-grid-gap / -columns / -min, so a relationship token
+     moves the preview exactly as it moves the Rooms view. This adds only the
+     preview-ness: the cards are a specimen, not controls. Same reason the
+     floor-texture grid above is inert. */
+  .evcc-theme-preview-room-grid {
+    pointer-events: none;
+  }
+
   .evcc-theme-preview-order-chip,
   .evcc-theme-preview-room-order {
     background: var(--evcc-order-chip-bg, var(--evcc-queue-order-bg, rgba(255, 255, 255, 0.06)));

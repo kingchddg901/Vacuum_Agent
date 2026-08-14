@@ -3923,120 +3923,7 @@ ${r}
           </div>
         </section>
       </div>
-    `},n._renderThemePreviewCardsSurfaces=function(){return`
-      <div class="evcc-theme-preview-grid">
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.surfaces.raised_card")}</div>
-          <div class="evcc-theme-preview-surface-card">
-            <div class="evcc-theme-preview-surface-title">${this.t("theme_preview.surfaces.card_surface")}</div>
-            <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.surfaces.card_desc")}</div>
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.surfaces.panel_input")}</div>
-          <div class="evcc-theme-preview-surface-panel">
-            <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.surfaces.panel_desc")}</div>
-            <div class="evcc-theme-preview-input">${this.t("theme_preview.surfaces.search_tokens")}</div>
-          </div>
-        </section>
-      </div>
-    `},n._renderThemePreviewBordersShadows=function(){return`
-      <div class="evcc-theme-preview-grid">
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.borders.border_strength")}</div>
-          <div class="evcc-theme-preview-border-stack">
-            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--subtle">${this.t("theme_preview.borders.subtle")}</div>
-            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--default">${this.t("theme_preview.borders.default")}</div>
-            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--strong">${this.t("theme_preview.borders.strong")}</div>
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.borders.shadow_depth")}</div>
-          <div class="evcc-theme-preview-shadow-stack">
-            <div class="evcc-theme-preview-shadow-sample evcc-theme-preview-shadow-sample--card">${this.t("theme_preview.borders.card_shadow")}</div>
-            <div class="evcc-theme-preview-shadow-sample evcc-theme-preview-shadow-sample--hover">${this.t("theme_preview.borders.hover_shadow")}</div>
-          </div>
-        </section>
-      </div>
-    `},n._renderThemePreviewChips=function(){return`
-      <div class="evcc-theme-preview-card">
-        <div class="evcc-theme-preview-section-title">${this.t("theme_preview.chips.matrix")}</div>
-        <div class="evcc-theme-preview-chip-grid">
-          <span class="evcc-chip">${this.t("theme_preview.chips.default")}</span>
-          <span class="evcc-chip active">${this.t("theme_preview.chips.active")}</span>
-          <span class="evcc-chip evcc-theme-preview-chip--hover">${this.t("theme_preview.chips.hover")}</span>
-          <span class="evcc-chip evcc-theme-preview-chip--included">${this.t("theme_preview.chips.included")}</span>
-          <span class="evcc-chip evcc-theme-preview-chip--excluded">${this.t("theme_preview.chips.excluded")}</span>
-          <span class="evcc-chip evcc-theme-preview-chip--success">${this.t("theme_preview.chips.success")}</span>
-          <span class="evcc-chip evcc-theme-preview-chip--warning">${this.t("theme_preview.chips.warning")}</span>
-        </div>
-      </div>
-    `},n._renderThemePreviewRoomCards=function(){return`
-      <div class="evcc-theme-preview-grid evcc-theme-preview-grid--rooms">
-        <section class="evcc-theme-preview-room-card">
-          <div class="evcc-theme-preview-room-header">
-            <div class="evcc-theme-preview-room-name">${this.t("theme_preview.rooms.kitchen")}</div>
-            <span class="evcc-chip evcc-theme-preview-room-order">#1</span>
-          </div>
-
-          <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.profile_label")}</span>
-            <span class="evcc-chip evcc-theme-preview-profile-chip">${this.t("theme_preview.rooms.daily_vacuum")}</span>
-          </div>
-
-          <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.room_label")}</span>
-            <span class="evcc-chip evcc-theme-preview-room-chip">${this.t("theme_preview.rooms.hardwood")}</span>
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-room-card evcc-theme-preview-room-card--filled">
-          <div class="evcc-theme-preview-room-header">
-            <div class="evcc-theme-preview-room-name">${this.t("theme_preview.rooms.hallway")}</div>
-            <span class="evcc-chip evcc-theme-preview-room-order">#2</span>
-          </div>
-
-          <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.profile_label")}</span>
-            <span class="evcc-chip evcc-theme-preview-profile-chip evcc-theme-preview-profile-chip--custom">${this.t("theme_preview.rooms.custom_profile")}</span>
-          </div>
-
-          <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.room_label")}</span>
-            <span class="evcc-chip evcc-theme-preview-room-chip">${this.t("theme_preview.rooms.area_rug")}</span>
-          </div>
-        </section>
-      </div>
-    `},n._renderThemePreviewFloorTextures=function(){return`<div class="evcc-theme-preview-ftx-card-grid">${[{key:"tile",name:this.t("theme_preview.floor.tile")},{key:"wood",name:this.t("theme_preview.floor.wood")},{key:"marble",name:this.t("theme_preview.floor.marble")},{key:"concrete",name:this.t("theme_preview.floor.concrete")},{key:"carpet_low",name:this.t("theme_preview.floor.carpet_low")},{key:"carpet_high",name:this.t("theme_preview.floor.carpet_high")},{key:"granite_light",name:this.t("theme_preview.floor.granite")}].map(({key:r,name:o})=>this._renderFloorPreviewCard(r,o)).join("")}</div>`},n._renderFloorPreviewCard=function(t,a){return this.renderRoomCard({id:`preview-ftx-${t}`,name:a??t,floor_type:t,enabled:!0,order:1,force_floor_texture:!0},null)},n._renderThemePreviewFloorTextureTile=function(){return this._renderFloorPreviewCard("tile",this.t("theme_preview.floor.tile"))},n._renderThemePreviewFloorTextureWood=function(){return this._renderFloorPreviewCard("wood",this.t("theme_preview.floor.wood"))},n._renderThemePreviewFloorTextureMarble=function(){return this._renderFloorPreviewCard("marble",this.t("theme_preview.floor.marble"))},n._renderThemePreviewFloorTextureConcrete=function(){return this._renderFloorPreviewCard("concrete",this.t("theme_preview.floor.concrete"))},n._renderThemePreviewFloorTextureCarpetLow=function(){return this._renderFloorPreviewCard("carpet_low",this.t("theme_preview.floor.carpet_low"))},n._renderThemePreviewFloorTextureCarpetHigh=function(){return this._renderFloorPreviewCard("carpet_high",this.t("theme_preview.floor.carpet_high"))},n._renderThemePreviewFloorTextureGranite=function(){return this._renderFloorPreviewCard("granite_light",this.t("theme_preview.floor.granite"))},n._renderThemePreviewQueueOrdering=function(){return`
-      <div class="evcc-theme-preview-card">
-        <div class="evcc-theme-preview-section-title">${this.t("theme_preview.queue.strip")}</div>
-        <div class="evcc-theme-preview-queue-strip">
-          <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--current">
-            <span class="evcc-chip evcc-theme-preview-order-chip">1</span>
-            ${this.t("theme_preview.rooms.kitchen")}
-          </div>
-          <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--pending">
-            <span class="evcc-chip evcc-theme-preview-order-chip">2</span>
-            ${this.t("theme_preview.queue.cat_room")}
-          </div>
-          <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--completed">
-            <span class="evcc-chip evcc-theme-preview-order-chip">3</span>
-            ${this.t("theme_preview.queue.entry")}
-          </div>
-          <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--inferred">
-            <span class="evcc-chip evcc-theme-preview-order-chip">4</span>
-            ${this.t("theme_preview.queue.office")}
-          </div>
-        </div>
-
-        <div class="evcc-theme-preview-reorder-row">
-          <div class="evcc-theme-preview-drag-card">${this.t("theme_preview.queue.dragging")}</div>
-          <div class="evcc-theme-preview-order-target">${this.t("theme_preview.queue.drop_target")}</div>
-        </div>
-      </div>
-    `},n._renderThemePreviewStatusAlerts=function(){return`
+    `},n._themePreviewRoom=function(t={}){return{id:9001,name:this.t("theme_preview.rooms.kitchen"),slug:"kitchen",enabled:!0,order:1,clean_mode:"vacuum_and_mop",fan_speed:"max",water_level:"high",clean_intensity:"deep",clean_passes:2,edge_mopping:!0,floor_type:"wood",...t}},n._themePreviewState=function(t={}){return{hasActiveRun:()=>!1,orderDragItemId:()=>null,orderDragOverItemId:()=>null,troubleRoomForRoom:()=>null,dashboardPlannedWaterRoomForRoom:()=>null,roomEstimateForRoom:()=>null,...t}},n._themePreviewEstimate=function(t="success"){return{error:null,source:"learned",minutes:12.5,battery:8,sample_count:14,confidence_breakpoint:{ui_variant:t}}},n._themePreviewRoomGrid=function(t,a=null){return'<div class="evcc-room-grid evcc-theme-preview-room-grid">'+t.map(o=>this.renderRoomCard(o,a)).join("")+"</div>"},n._renderThemePreviewCardsSurfaces=function(){return this._themePreviewRoomGrid([this._themePreviewRoom()])},n._renderThemePreviewBordersShadows=function(){return this._themePreviewRoomGrid([this._themePreviewRoom()])},n._renderThemePreviewChips=function(){return this._themePreviewRoomGrid([this._themePreviewRoom()])},n._renderThemePreviewRoomCards=function(){return this._themePreviewRoomGrid([this._themePreviewRoom(),this._themePreviewRoom({id:9002,name:this.t("theme_preview.rooms.hallway"),slug:"hallway",order:2,enabled:!1,clean_mode:"vacuum",water_level:"",edge_mopping:!1,clean_passes:1,floor_type:"tile"})])},n._renderThemePreviewFloorTextures=function(){return`<div class="evcc-theme-preview-ftx-card-grid">${[{key:"tile",name:this.t("theme_preview.floor.tile")},{key:"wood",name:this.t("theme_preview.floor.wood")},{key:"marble",name:this.t("theme_preview.floor.marble")},{key:"concrete",name:this.t("theme_preview.floor.concrete")},{key:"carpet_low",name:this.t("theme_preview.floor.carpet_low")},{key:"carpet_high",name:this.t("theme_preview.floor.carpet_high")},{key:"granite_light",name:this.t("theme_preview.floor.granite")}].map(({key:r,name:o})=>this._renderFloorPreviewCard(r,o)).join("")}</div>`},n._renderFloorPreviewCard=function(t,a){return this.renderRoomCard({id:`preview-ftx-${t}`,name:a??t,floor_type:t,enabled:!0,order:1,force_floor_texture:!0},null)},n._renderThemePreviewFloorTextureTile=function(){return this._renderFloorPreviewCard("tile",this.t("theme_preview.floor.tile"))},n._renderThemePreviewFloorTextureWood=function(){return this._renderFloorPreviewCard("wood",this.t("theme_preview.floor.wood"))},n._renderThemePreviewFloorTextureMarble=function(){return this._renderFloorPreviewCard("marble",this.t("theme_preview.floor.marble"))},n._renderThemePreviewFloorTextureConcrete=function(){return this._renderFloorPreviewCard("concrete",this.t("theme_preview.floor.concrete"))},n._renderThemePreviewFloorTextureCarpetLow=function(){return this._renderFloorPreviewCard("carpet_low",this.t("theme_preview.floor.carpet_low"))},n._renderThemePreviewFloorTextureCarpetHigh=function(){return this._renderFloorPreviewCard("carpet_high",this.t("theme_preview.floor.carpet_high"))},n._renderThemePreviewFloorTextureGranite=function(){return this._renderFloorPreviewCard("granite_light",this.t("theme_preview.floor.granite"))},n._renderThemePreviewQueueOrdering=function(){return this._themePreviewRoomGrid([this._themePreviewRoom(),this._themePreviewRoom({id:9002,name:this.t("theme_preview.rooms.hallway"),slug:"hallway",order:2,floor_type:"tile"})])},n._renderThemePreviewStatusAlerts=function(){return`
       <div class="evcc-theme-preview-grid">
         <section class="evcc-theme-preview-card">
           <div class="evcc-theme-preview-section-title">${this.t("theme_preview.status.dots")}</div>
@@ -4060,26 +3947,7 @@ ${r}
           <div class="evcc-theme-preview-alert evcc-theme-preview-alert--error">${this.t("theme_preview.status.error_surface")}</div>
         </section>
       </div>
-    `},n._renderThemePreviewLearningMetrics=function(){return`
-      <div class="evcc-theme-preview-grid">
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.learning.estimate_badges")}</div>
-          <div class="evcc-theme-preview-chip-grid">
-            <span class="evcc-chip evcc-theme-preview-estimate-default">${this.t("theme_preview.learning.estimate_default",{min:18})}</span>
-            <span class="evcc-chip evcc-theme-preview-estimate-learned">${this.t("theme_preview.learning.estimate_learned",{min:14})}</span>
-            <span class="evcc-chip evcc-theme-preview-learning-confidence-high">${this.t("theme_preview.confidence.high")}</span>
-            <span class="evcc-chip evcc-theme-preview-learning-confidence-medium">${this.t("theme_preview.confidence.building")}</span>
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-learning-panel">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.learning.panel")}</div>
-          <div class="evcc-theme-preview-text-primary">${this.t("theme_preview.learning.water_use",{ml:410})}</div>
-          <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.learning.tank_after",{ml:850,pct:28})}</div>
-          <div class="evcc-theme-preview-note">${this.t("theme_preview.learning.reanchor_note")}</div>
-        </section>
-      </div>
-    `},n._renderThemePreviewModalsOverlays=function(){return`
+    `},n._renderThemePreviewLearningMetrics=function(){return this._themePreviewRoomGrid([this._themePreviewRoom()],this._themePreviewState({roomEstimateForRoom:()=>this._themePreviewEstimate("success")}))},n._renderThemePreviewModalsOverlays=function(){return`
       <div class="evcc-theme-preview-modal-stage">
         <div class="evcc-theme-preview-modal-backdrop"></div>
         <div class="evcc-theme-preview-modal">
@@ -4133,40 +4001,7 @@ ${r}
         ${o}
       </div>
       <div class="evcc-theme-preview-animal-note">${a}</div>
-    `},n._renderThemePreviewAnimalCompanion=function(){let t=window.AnimalSVG&&window.AnimalSVG.list?window.AnimalSVG.list():["cat","dog","raccoon","parrot","snake"];return this._renderAnimalPreviewGrid(t,this.tRaw("theme_preview.animal.parent_note"))},n._renderThemePreviewAnimal=function(t){let a=String(t||"").replace(/[^a-z0-9-]/gi,"");if(!a)return"";let r=this.tRaw("theme_preview.animal.subgroup_note",{animal:a});return this._renderAnimalPreviewGrid([a],r)},n._renderThemePreviewSharedFoundations=function(){return`
-      <div class="evcc-theme-preview-grid">
-        <section class="evcc-theme-preview-card evcc-theme-preview-foundation-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.foundations.surface_stack")}</div>
-          <div class="evcc-theme-preview-surface-panel">
-            <div class="evcc-theme-preview-input">${this.t("theme_preview.foundations.foundation_input")}</div>
-            <div class="evcc-theme-preview-chip-grid">
-              <span class="evcc-chip">${this.t("theme_preview.foundations.chip")}</span>
-              <span class="evcc-chip active">${this.t("theme_preview.chips.active")}</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-room-card">
-          <div class="evcc-theme-preview-room-header">
-            <div class="evcc-theme-preview-room-name">${this.t("theme_preview.foundations.mixed_surface")}</div>
-            <span class="evcc-chip evcc-theme-preview-order-chip">3</span>
-          </div>
-          <div class="evcc-theme-preview-text-secondary">
-            ${this.t("theme_preview.foundations.mixed_desc")}
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-learning-panel">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.foundations.composite_sample")}</div>
-          <div class="evcc-theme-preview-status-dots">
-            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--cleaning">${this.t("theme_preview.status.cleaning")}</span>
-          </div>
-          <div class="evcc-theme-preview-copy">
-            ${this.t("theme_preview.foundations.composite_desc")}
-          </div>
-        </section>
-      </div>
-    `}}function Bm(n){switch(n){case"cleaning":return"alert";case"returning":return"walking";case"paused":return"standing";case"error":return"warning";case"docked":case"idle":return"curled";default:return"curled"}}function xc(n){let e=0,t=0,a=0,r=n.length;for(let o=0,i=r-1;o<r;i=o++){let s=n[i][0]*n[o][1]-n[o][0]*n[i][1];e+=s,t+=(n[i][0]+n[o][0])*s,a+=(n[i][1]+n[o][1])*s}if(e*=.5,Math.abs(e)<1e-10){let o=n.reduce((s,c)=>s+c[0],0),i=n.reduce((s,c)=>s+c[1],0);return[o/r,i/r]}return[t/(6*e),a/(6*e)]}function Sc(n){let e=n?.geometry;if(!Array.isArray(e)||e.length<3)return null;let t=[],a=[];for(let r of e){if(!Array.isArray(r)||r.length!==2)continue;let o=Number(r[0]),i=Number(r[1]);!Number.isFinite(o)||!Number.isFinite(i)||(t.push(o),a.push(i))}return t.length<3?null:[Math.min(...t),Math.min(...a),Math.max(...t),Math.max(...a)]}var Vm=[{key:"dark"},{key:"light"},{key:"default"}];function Rc(n){n.renderMapRoomView=function(e){let{state:t,vacuumStatus:a}=e,r=t.mapSegmentsData(),o=t.mapImageUrl(),i=!!t.liveMapImageEntity?.(),s=!!(t.useVaRender?.()&&t.supportsVaRender?.()),c=t.isVaRenderActive?.()??!1;if(!c&&(!o||!r?.available&&!i)){let j=(t.segmentationMode?.()??"cv")==="custom",O=s?this.t("map.empty_rendering_title"):this.t("map.empty_no_image_title"),P=s?this.t("map.empty_rendering_hint"):i?this.t("map.empty_live_hint"):j?this.t("map.empty_custom_hint"):this.t("map.empty_upload_hint");return`
+    `},n._renderThemePreviewAnimalCompanion=function(){let t=window.AnimalSVG&&window.AnimalSVG.list?window.AnimalSVG.list():["cat","dog","raccoon","parrot","snake"];return this._renderAnimalPreviewGrid(t,this.tRaw("theme_preview.animal.parent_note"))},n._renderThemePreviewAnimal=function(t){let a=String(t||"").replace(/[^a-z0-9-]/gi,"");if(!a)return"";let r=this.tRaw("theme_preview.animal.subgroup_note",{animal:a});return this._renderAnimalPreviewGrid([a],r)},n._renderThemePreviewSharedFoundations=function(){return this._themePreviewRoomGrid([this._themePreviewRoom(),this._themePreviewRoom({id:9002,name:this.t("theme_preview.rooms.hallway"),slug:"hallway",order:2,floor_type:"tile"})])}}function Bm(n){switch(n){case"cleaning":return"alert";case"returning":return"walking";case"paused":return"standing";case"error":return"warning";case"docked":case"idle":return"curled";default:return"curled"}}function xc(n){let e=0,t=0,a=0,r=n.length;for(let o=0,i=r-1;o<r;i=o++){let s=n[i][0]*n[o][1]-n[o][0]*n[i][1];e+=s,t+=(n[i][0]+n[o][0])*s,a+=(n[i][1]+n[o][1])*s}if(e*=.5,Math.abs(e)<1e-10){let o=n.reduce((s,c)=>s+c[0],0),i=n.reduce((s,c)=>s+c[1],0);return[o/r,i/r]}return[t/(6*e),a/(6*e)]}function Sc(n){let e=n?.geometry;if(!Array.isArray(e)||e.length<3)return null;let t=[],a=[];for(let r of e){if(!Array.isArray(r)||r.length!==2)continue;let o=Number(r[0]),i=Number(r[1]);!Number.isFinite(o)||!Number.isFinite(i)||(t.push(o),a.push(i))}return t.length<3?null:[Math.min(...t),Math.min(...a),Math.max(...t),Math.max(...a)]}var Vm=[{key:"dark"},{key:"light"},{key:"default"}];function Rc(n){n.renderMapRoomView=function(e){let{state:t,vacuumStatus:a}=e,r=t.mapSegmentsData(),o=t.mapImageUrl(),i=!!t.liveMapImageEntity?.(),s=!!(t.useVaRender?.()&&t.supportsVaRender?.()),c=t.isVaRenderActive?.()??!1;if(!c&&(!o||!r?.available&&!i)){let j=(t.segmentationMode?.()??"cv")==="custom",O=s?this.t("map.empty_rendering_title"):this.t("map.empty_no_image_title"),P=s?this.t("map.empty_rendering_hint"):i?this.t("map.empty_live_hint"):j?this.t("map.empty_custom_hint"):this.t("map.empty_upload_hint");return`
         <div class="evcc-map-view">
           <div class="evcc-map-unavailable">
             <p>${O}</p>
@@ -13254,6 +13089,15 @@ ${r}
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--evcc-gap, 10px);
+    pointer-events: none;
+  }
+
+  /* The room-card previews carry .evcc-room-grid TOO \u2014 that real class is what
+     consumes --evcc-room-grid-gap / -columns / -min, so a relationship token
+     moves the preview exactly as it moves the Rooms view. This adds only the
+     preview-ness: the cards are a specimen, not controls. Same reason the
+     floor-texture grid above is inert. */
+  .evcc-theme-preview-room-grid {
     pointer-events: none;
   }
 

@@ -100,106 +100,121 @@ export function applyThemePreviewRenderers(proto) {
     `;
   };
 
-  proto._renderThemePreviewCardsSurfaces = function () {
-    return `
-      <div class="evcc-theme-preview-grid">
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.surfaces.raised_card")}</div>
-          <div class="evcc-theme-preview-surface-card">
-            <div class="evcc-theme-preview-surface-title">${this.t("theme_preview.surfaces.card_surface")}</div>
-            <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.surfaces.card_desc")}</div>
-          </div>
-        </section>
+  /* =========================================================
+     ROOM-CARD PREVIEWS - render the product, never a drawing
+     =========================================================
 
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.surfaces.panel_input")}</div>
-          <div class="evcc-theme-preview-surface-panel">
-            <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.surfaces.panel_desc")}</div>
-            <div class="evcc-theme-preview-input">${this.t("theme_preview.surfaces.search_tokens")}</div>
-          </div>
-        </section>
-      </div>
-    `;
+     Hand-copies drift. The Modals preview invented two elements the real modal
+     does not have and missed four it does; nobody noticed, because a drawing
+     cannot disagree with anything. Calling the real renderer makes that class of
+     bug impossible: the preview IS the product.
+
+     THE FIXTURE IS DERIVED FROM WHAT renderRoomCard READS, never invented. Every
+     field below came from _normalizeRoomDisplayData's own fallback chain
+     (rooms.js) and from the card's state-accessor calls. A mock that agrees with
+     the CALLER instead of the callee is how this project's theme layout gate once
+     passed four tests against an empty editor.
+
+     Largely self-checking, which the drawings never were: a missing field
+     produces a card visibly missing its badge. You cannot get a
+     plausible-but-wrong picture, only a wrong card, and a wrong card looks wrong.
+
+     DELIBERATELY ABSENT: last_cleaned_at. It renders a RELATIVE time, which would
+     drift the tab-theme visual baseline every day it is not re-pinned.
+  */
+  proto._themePreviewRoom = function (over = {}) {
+    return {
+      id: 9001,
+      name: this.t("theme_preview.rooms.kitchen"),
+      slug: "kitchen",
+      enabled: true,
+      order: 1,
+      clean_mode: "vacuum_and_mop",
+      fan_speed: "max",
+      water_level: "high",
+      clean_intensity: "deep",
+      clean_passes: 2,
+      edge_mopping: true,
+      floor_type: "wood",
+      ...over,
+    };
+  };
+
+  // The card calls these six accessors on `state` and nothing else - verified by
+  // reading renderRoomCard, not by guessing. Defaults are the quiet case; each
+  // preview opts in to only what its own token family needs to show.
+  proto._themePreviewState = function (over = {}) {
+    return {
+      hasActiveRun: () => false,
+      orderDragItemId: () => null,
+      orderDragOverItemId: () => null,
+      troubleRoomForRoom: () => null,
+      dashboardPlannedWaterRoomForRoom: () => null,
+      roomEstimateForRoom: () => null,
+      ...over,
+    };
+  };
+
+  // Shape taken from the card's own reads: it gates on `error == null`, branches
+  // on `source`, formats `minutes`, and drives the card's confidence class from
+  // confidence_breakpoint.ui_variant (success -> high, warning -> medium, else low).
+  proto._themePreviewEstimate = function (uiVariant = "success") {
+    return {
+      error: null,
+      source: "learned",
+      minutes: 12.5,
+      battery: 8,
+      sample_count: 14,
+      confidence_breakpoint: { ui_variant: uiVariant },
+    };
+  };
+
+  // The REAL grid class, not a preview-only one: .evcc-room-grid is what consumes
+  // --evcc-room-grid-gap / -columns / -min and --evcc-grid-gap, so a relationship
+  // token edited here moves the preview exactly as it moves the Rooms view.
+  proto._themePreviewRoomGrid = function (rooms, state = null) {
+    const cards = rooms.map((r) => this.renderRoomCard(r, state)).join("");
+    return '<div class="evcc-room-grid evcc-theme-preview-room-grid">' + cards + '</div>';
+  };
+
+  proto._renderThemePreviewCardsSurfaces = function () {
+    // Card background, radius and the surface scale, on the actual card.
+    return this._themePreviewRoomGrid([this._themePreviewRoom()]);
   };
 
   proto._renderThemePreviewBordersShadows = function () {
-    return `
-      <div class="evcc-theme-preview-grid">
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.borders.border_strength")}</div>
-          <div class="evcc-theme-preview-border-stack">
-            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--subtle">${this.t("theme_preview.borders.subtle")}</div>
-            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--default">${this.t("theme_preview.borders.default")}</div>
-            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--strong">${this.t("theme_preview.borders.strong")}</div>
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.borders.shadow_depth")}</div>
-          <div class="evcc-theme-preview-shadow-stack">
-            <div class="evcc-theme-preview-shadow-sample evcc-theme-preview-shadow-sample--card">${this.t("theme_preview.borders.card_shadow")}</div>
-            <div class="evcc-theme-preview-shadow-sample evcc-theme-preview-shadow-sample--hover">${this.t("theme_preview.borders.hover_shadow")}</div>
-          </div>
-        </section>
-      </div>
-    `;
+    // A chip INSIDE a card: a border is the edge of a card or chip and the shadow
+    // sits beneath it, so one composed object carries both. The old preview drew
+    // five boxes on a subtle/default/strong SCALE, which is exactly why
+    // --evcc-border-warning had no sample anywhere - it is a semantic colour
+    // applied to an edge, not a step on that scale.
+    return this._themePreviewRoomGrid([this._themePreviewRoom()]);
   };
 
   proto._renderThemePreviewChips = function () {
-    return `
-      <div class="evcc-theme-preview-card">
-        <div class="evcc-theme-preview-section-title">${this.t("theme_preview.chips.matrix")}</div>
-        <div class="evcc-theme-preview-chip-grid">
-          <span class="evcc-chip">${this.t("theme_preview.chips.default")}</span>
-          <span class="evcc-chip active">${this.t("theme_preview.chips.active")}</span>
-          <span class="evcc-chip evcc-theme-preview-chip--hover">${this.t("theme_preview.chips.hover")}</span>
-          <span class="evcc-chip evcc-theme-preview-chip--included">${this.t("theme_preview.chips.included")}</span>
-          <span class="evcc-chip evcc-theme-preview-chip--excluded">${this.t("theme_preview.chips.excluded")}</span>
-          <span class="evcc-chip evcc-theme-preview-chip--success">${this.t("theme_preview.chips.success")}</span>
-          <span class="evcc-chip evcc-theme-preview-chip--warning">${this.t("theme_preview.chips.warning")}</span>
-        </div>
-      </div>
-    `;
+    // Every chip the card can show at once: mode, water (mop mode gates it),
+    // power, passes and edge-mopping.
+    return this._themePreviewRoomGrid([this._themePreviewRoom()]);
   };
 
   proto._renderThemePreviewRoomCards = function () {
-    return `
-      <div class="evcc-theme-preview-grid evcc-theme-preview-grid--rooms">
-        <section class="evcc-theme-preview-room-card">
-          <div class="evcc-theme-preview-room-header">
-            <div class="evcc-theme-preview-room-name">${this.t("theme_preview.rooms.kitchen")}</div>
-            <span class="evcc-chip evcc-theme-preview-room-order">#1</span>
-          </div>
-
-          <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.profile_label")}</span>
-            <span class="evcc-chip evcc-theme-preview-profile-chip">${this.t("theme_preview.rooms.daily_vacuum")}</span>
-          </div>
-
-          <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.room_label")}</span>
-            <span class="evcc-chip evcc-theme-preview-room-chip">${this.t("theme_preview.rooms.hardwood")}</span>
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-room-card evcc-theme-preview-room-card--filled">
-          <div class="evcc-theme-preview-room-header">
-            <div class="evcc-theme-preview-room-name">${this.t("theme_preview.rooms.hallway")}</div>
-            <span class="evcc-chip evcc-theme-preview-room-order">#2</span>
-          </div>
-
-          <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.profile_label")}</span>
-            <span class="evcc-chip evcc-theme-preview-profile-chip evcc-theme-preview-profile-chip--custom">${this.t("theme_preview.rooms.custom_profile")}</span>
-          </div>
-
-          <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.room_label")}</span>
-            <span class="evcc-chip evcc-theme-preview-room-chip">${this.t("theme_preview.rooms.area_rug")}</span>
-          </div>
-        </section>
-      </div>
-    `;
+    // The workhorse. Two cards, one disabled, so the enabled and disabled
+    // surfaces are visible together rather than one at a time.
+    return this._themePreviewRoomGrid([
+      this._themePreviewRoom(),
+      this._themePreviewRoom({
+        id: 9002,
+        name: this.t("theme_preview.rooms.hallway"),
+        slug: "hallway",
+        order: 2,
+        enabled: false,
+        clean_mode: "vacuum",
+        water_level: "",
+        edge_mopping: false,
+        clean_passes: 1,
+        floor_type: "tile",
+      }),
+    ]);
   };
 
   proto._renderThemePreviewFloorTextures = function () {
@@ -240,34 +255,19 @@ export function applyThemePreviewRenderers(proto) {
   proto._renderThemePreviewFloorTextureGranite  = function () { return this._renderFloorPreviewCard("granite_light", this.t("theme_preview.floor.granite"));    };
 
   proto._renderThemePreviewQueueOrdering = function () {
-    return `
-      <div class="evcc-theme-preview-card">
-        <div class="evcc-theme-preview-section-title">${this.t("theme_preview.queue.strip")}</div>
-        <div class="evcc-theme-preview-queue-strip">
-          <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--current">
-            <span class="evcc-chip evcc-theme-preview-order-chip">1</span>
-            ${this.t("theme_preview.rooms.kitchen")}
-          </div>
-          <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--pending">
-            <span class="evcc-chip evcc-theme-preview-order-chip">2</span>
-            ${this.t("theme_preview.queue.cat_room")}
-          </div>
-          <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--completed">
-            <span class="evcc-chip evcc-theme-preview-order-chip">3</span>
-            ${this.t("theme_preview.queue.entry")}
-          </div>
-          <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--inferred">
-            <span class="evcc-chip evcc-theme-preview-order-chip">4</span>
-            ${this.t("theme_preview.queue.office")}
-          </div>
-        </div>
-
-        <div class="evcc-theme-preview-reorder-row">
-          <div class="evcc-theme-preview-drag-card">${this.t("theme_preview.queue.dragging")}</div>
-          <div class="evcc-theme-preview-order-target">${this.t("theme_preview.queue.drop_target")}</div>
-        </div>
-      </div>
-    `;
+    // A RELATIONSHIP subject - order, gap, columns. You cannot show the space
+    // between two cards with one card, so this is one of only two previews that
+    // legitimately renders a second area.
+    return this._themePreviewRoomGrid([
+      this._themePreviewRoom(),
+      this._themePreviewRoom({
+        id: 9002,
+        name: this.t("theme_preview.rooms.hallway"),
+        slug: "hallway",
+        order: 2,
+        floor_type: "tile",
+      }),
+    ]);
   };
 
   proto._renderThemePreviewStatusAlerts = function () {
@@ -299,26 +299,16 @@ export function applyThemePreviewRenderers(proto) {
   };
 
   proto._renderThemePreviewLearningMetrics = function () {
-    return `
-      <div class="evcc-theme-preview-grid">
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.learning.estimate_badges")}</div>
-          <div class="evcc-theme-preview-chip-grid">
-            <span class="evcc-chip evcc-theme-preview-estimate-default">${this.t("theme_preview.learning.estimate_default", { min: 18 })}</span>
-            <span class="evcc-chip evcc-theme-preview-estimate-learned">${this.t("theme_preview.learning.estimate_learned", { min: 14 })}</span>
-            <span class="evcc-chip evcc-theme-preview-learning-confidence-high">${this.t("theme_preview.confidence.high")}</span>
-            <span class="evcc-chip evcc-theme-preview-learning-confidence-medium">${this.t("theme_preview.confidence.building")}</span>
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-learning-panel">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.learning.panel")}</div>
-          <div class="evcc-theme-preview-text-primary">${this.t("theme_preview.learning.water_use", { ml: 410 })}</div>
-          <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.learning.tank_after", { ml: 850, pct: 28 })}</div>
-          <div class="evcc-theme-preview-note">${this.t("theme_preview.learning.reanchor_note")}</div>
-        </section>
-      </div>
-    `;
+    // Needs a state stub: the estimate chip AND the card's confidence class both
+    // come from state.roomEstimateForRoom(), so with state=null (the call shape
+    // the floor-texture previews use) neither renders and the family previews
+    // nothing at all.
+    return this._themePreviewRoomGrid(
+      [this._themePreviewRoom()],
+      this._themePreviewState({
+        roomEstimateForRoom: () => this._themePreviewEstimate("success"),
+      }),
+    );
   };
 
   proto._renderThemePreviewModalsOverlays = function () {
@@ -437,39 +427,17 @@ export function applyThemePreviewRenderers(proto) {
   };
 
   proto._renderThemePreviewSharedFoundations = function () {
-    return `
-      <div class="evcc-theme-preview-grid">
-        <section class="evcc-theme-preview-card evcc-theme-preview-foundation-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.foundations.surface_stack")}</div>
-          <div class="evcc-theme-preview-surface-panel">
-            <div class="evcc-theme-preview-input">${this.t("theme_preview.foundations.foundation_input")}</div>
-            <div class="evcc-theme-preview-chip-grid">
-              <span class="evcc-chip">${this.t("theme_preview.foundations.chip")}</span>
-              <span class="evcc-chip active">${this.t("theme_preview.chips.active")}</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-room-card">
-          <div class="evcc-theme-preview-room-header">
-            <div class="evcc-theme-preview-room-name">${this.t("theme_preview.foundations.mixed_surface")}</div>
-            <span class="evcc-chip evcc-theme-preview-order-chip">3</span>
-          </div>
-          <div class="evcc-theme-preview-text-secondary">
-            ${this.t("theme_preview.foundations.mixed_desc")}
-          </div>
-        </section>
-
-        <section class="evcc-theme-preview-learning-panel">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.foundations.composite_sample")}</div>
-          <div class="evcc-theme-preview-status-dots">
-            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--cleaning">${this.t("theme_preview.status.cleaning")}</span>
-          </div>
-          <div class="evcc-theme-preview-copy">
-            ${this.t("theme_preview.foundations.composite_desc")}
-          </div>
-        </section>
-      </div>
-    `;
+    // The other relationship case: --evcc-gap / --evcc-grid-gap are the space
+    // BETWEEN things, so a single card cannot show them.
+    return this._themePreviewRoomGrid([
+      this._themePreviewRoom(),
+      this._themePreviewRoom({
+        id: 9002,
+        name: this.t("theme_preview.rooms.hallway"),
+        slug: "hallway",
+        order: 2,
+        floor_type: "tile",
+      }),
+    ]);
   };
 }
