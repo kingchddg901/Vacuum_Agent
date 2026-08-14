@@ -871,6 +871,117 @@
     "mop_wash_sent": "Mop wash sent",
     "stop_drying_sent": "Stop drying sent"
   },
+  "setup": {
+    "subtab_steps": "Setup steps",
+    "subtab_system": "System",
+    "add": "Add",
+    "add_another_vacuum": "Add another vacuum",
+    "add_vacuum": "Add Vacuum",
+    "step_add_vacuum": "Add vacuum",  // setup wizard step 1 heading
+    "step_import_active_map": "Import active map",  // setup wizard step 2 heading
+    "step_save_rooms": "Configure rooms",  // setup wizard step 3 heading (save/configure rooms)
+    "floor_hardwood": "Hardwood",  // floor type
+    "floor_laminate": "Laminate",  // floor type
+    "floor_tile": "Tile",  // floor type
+    "floor_marble": "Marble",  // floor type
+    "floor_granite": "Granite",  // floor type
+    "floor_concrete": "Concrete",  // floor type
+    "floor_carpet_low_pile": "Low-Pile Carpet",  // floor type: short/low carpet pile
+    "floor_carpet_high_pile": "High-Pile Carpet",  // floor type: deep/high carpet pile
+    "all_vacuums_managed": "All detected vacuums are already managed.",
+    "auto_adapter_default": "Auto (adapter default)",  // Live-map camera select default option; 'adapter'=brand integration shim (jargon)
+    "check_status": "Check Status",
+    "click_to_exclude": "Click to exclude",
+    "click_to_include": "Click to include",
+    "complete_add_vacuum_first": "Complete Add Vacuum first.",
+    "complete_map_import_first": "Complete map import first.",
+    "configure_each_map": "Configure each imported map — exclude ghost rooms and set floor types.",  // save_rooms intro; 'ghost rooms'=phantom/non-real rooms to exclude (term of art)
+    "configure_rooms": "Configure Rooms",
+    "configured_badge": "✓ Configured",
+    "delete_map": "Delete Map",
+    "delete_type_confirm": "Type <strong>{name}</strong> to confirm deletion.",
+    "delete_warning": "Delete <strong>{name}</strong>? This removes all rooms, history, and learning data for this map from the integration. The upstream cloud map is not affected.",
+    "deleting": "Deleting…",
+    "description": "Steps below are declared by your vacuum adapter. Each must complete in order. New rooms discovered after setup will surface here for review before they enter the room library.",
+    "drift_new_hint": "The vacuum reports rooms you haven't configured yet. Configure the matching map to include them, or reject as phantoms.",
+    "drift_new_title": "New rooms discovered ({count})",
+    "drift_removed_hint": "These rooms have been missing from discovery long enough to be confirmed removed. Reconfigure the matching map to drop them.",
+    "drift_removed_title": "Rooms no longer reported ({count})",
+    "drift_transient_hint": "Missing from recent discovery passes but not yet confirmed removed — likely a transient API glitch. Use \"Force remove\" only if you know the room is permanently gone.",
+    "drift_transient_title": "Temporarily missing ({count})",
+    "force_remove_now": "Force remove now",  // Drift button: permanently drop a room flagged as removed (force = override the wait)
+    "import_active_map": "Import Active Map",
+    "import_active_map_prompt": "Import the vacuum's currently active map. Make sure it has completed a mapping run first.",
+    "import_another_map": "Import Another Map",
+    "live_map_camera_hint": "Use a live map image/camera entity as this vacuum's map backdrop — for example the <code>camera.&lt;device&gt;_map</code> entity from the eufy-clean fork. Choose \"Auto\" to use the adapter default.",  // Keep code tokens literal: camera.<device>_map, 'eufy-clean fork', 'Auto' — do not translate
+    "live_map_camera_title": "Live map camera",
+    "loading_rooms": "Loading rooms…",
+    "map_label": "map {id}",  // Lowercase muted sub-label beside a room; {id}=the map's numeric id (cf. map_n capitalized)
+    "map_n": "Map {id}",
+    "maps_imported": "{count} maps imported.",
+    "no_rooms_discovered": "No rooms discovered yet. Run a clean cycle so the vacuum reports its room list, then refresh setup status.",
+    "no_rooms_for_map": "No rooms found for this map.",
+    "no_rooms_selected_hint": "Select at least one room to save. To remove this map entirely, use Delete Map instead.",
+    "no_step_handler": "No handler for step \"{id}\".",  // Internal error fallback; {id}=setup-step id; 'handler' is dev jargon, keep terse
+    "protection_reason": {
+      "only_map": "This is the only imported map for this vacuum.",  // Map-delete protection badge; reason CODE only_map from the backend
+      "has_active_job": "A cleaning job is running or was recently active on this map.",  // Map-delete protection badge; reason CODE has_active_job
+      "has_learning_data": {"one":"This map has cleaning history for {count} room.","other":"This map has cleaning history for {count} rooms."},
+      "has_rules": "One or more rooms have automation rules configured.",  // Map-delete protection badge; reason CODE has_rules
+      "has_access_graph": "One or more rooms are part of an access graph."  // Map-delete protection badge; reason CODE has_access_graph
+    },
+    "panel_name_hint": "Rename this vacuum's entry in the Home Assistant sidebar. After saving, refresh the page to see the new name. Leave blank to reset to the default.",
+    "panel_name_title": "Panel name",  // Heading for renaming this vacuum's Home Assistant sidebar entry ('Panel'=HA sidebar item)
+    "ready_banner": "✓ Setup complete — switch to the Rooms tab to start cleaning.",
+    "reconcile_dismiss_button": "Dismiss",  // CARD-7/RP-019 reconciliation banner: reconcile_room(action=ignore) — NOT permanent, an identical review can resurface later (design: never say "Ignore forever")
+    "reconcile_dismissing": "Dismissing…",
+    "reconcile_dropped_sentence": {"one":"<strong>{names}</strong> was removed from this map and its settings were discarded.","other":"<strong>{names}</strong> were removed from this map and their settings were discarded."},  // plural; State C (after Update) — rendered via tRaw, raw HTML bold (mirrors setup.delete_warning's pattern); {names}=comma-joined, already-escaped display names (prettified from the backend's slugs); {count}=names.length drives the form. Omitted entirely when dropped is empty.
+    "reconcile_formerly": "Formerly {name}",  // Secondary caption under a renamed room's NEW name in the reconciliation banner's "Renamed" group; {name}=the room's previous name (escaped by the caller). A separate translated unit from the name itself — never concatenated into one sentence.
+    "reconcile_rediscover_button": "Re-discover rooms",  // Manual retry button shown only when the silent plan_changed recovery itself failed
+    "reconcile_refresh_failed": "The map changed, but the refresh didn't go through automatically.",  // CARD-7/RP-019: shown when the silent plan_changed recovery (re-running discover_rooms) itself fails — design's literal fallback ("the map changed — re-discover" + a button)
+    "reconcile_renamed_hint": "Same room number, different name — either you renamed it in the app, or re-mapping reused this number for a different space. It can't be told apart automatically; review before updating.",
+    "reconcile_renamed_title": "Renamed rooms ({count})",
+    "reconcile_renumbered_hint": "The vacuum reassigned these room numbers after re-mapping. Saved settings will follow automatically — no action needed.",
+    "reconcile_renumbered_title": "Rooms renumbered ({count})",
+    "reconcile_stale_note": "The map changed while you were reviewing — this is the current state.",
+    "reconcile_update_button": "Update saved rooms",  // CARD-7/RP-019 reconciliation banner: reconcile_room(action=migrate) — the ONE whole-map decision (no per-row accept; reconcile_room has no per-room granularity)
+    "reconcile_updated_count": {"one":"Updated {count} room.","other":"Updated {count} rooms."},  // plural; State C (after a successful Update) — reconcile_room's migrated_room_count
+    "reconcile_updating": "Updating…",
+    "reconfigure": "Reconfigure",
+    "refresh": "Refresh",
+    "register_vacuum_prompt": "Register this vacuum with the integration so it can be managed.",
+    "reject_as_phantom": "Reject as phantom",  // Drift button: mark a discovered room as not-real (phantom = ghost/non-existent room)
+    "room_editor_hint": "Deselect rooms you don't want managed (phantom rooms, closets, etc.). Set each real room's floor type — it drives the cleaning profile system.",
+    "room_n": "Room {id}",
+    "rooms_configured_drift": "Rooms configured. Drift detection watches for new or removed rooms below.",
+    "save_room_config": "Save Room Configuration",
+    "title": "Vacuum Setup",
+    "unmanaged_vacuums_hint": "These vacuums are available in Home Assistant but not yet managed. Adding one registers its adapter and a sidebar panel (the integration reloads).",
+    "vacuum_registered": "Vacuum registered.",
+    "working": "Working…",
+    "panel_name_placeholder": "Vacuum Agent"
+  },
+  "system": {
+    "subtitle": "Every value Vacuum Agent reads from your vacuum, and how it was chosen. If a row names the wrong entity, the reading it feeds will be wrong too.",
+    "empty": "No entity bindings yet — the dashboard snapshot has not arrived.",
+    "col_role": "Reads",
+    "col_entity": "Entity",
+    "col_value": "Now",
+    "col_source": "Chosen by",
+    "no_value": "no reading",
+    "unresolved": "not found",
+    "rejected": "Also matched",
+    "source_derived": "Name match",
+    "source_object_id": "Vacuum name",
+    "source_translation_key": "Provided by the integration",
+    "source_state_class": "Measurement type",
+    "source_magnitude": "Value comparison",
+    "source_override": "Your choice",
+    "reason_disabled": "disabled in Home Assistant",
+    "reason_absent": "not found",
+    "reason_registered_no_state": "no reading yet",
+    "reason_override_unresolved": "your chosen entity is missing"
+  },
   "bind_external_jobs": {
     "confirm_failed_detail": "Confirm failed: {detail}",
     "confirm_failed_retry": "Confirm failed — please try again.",
@@ -2172,94 +2283,6 @@
     "subtitle": "Named spots you can re-clean any time — filed under the room they're in.",
     "title": "Saved Zones",
     "unassigned": "Unassigned"  // Section header for zones not filed under a room
-  },
-  "setup": {
-    "add": "Add",
-    "add_another_vacuum": "Add another vacuum",
-    "add_vacuum": "Add Vacuum",
-    "step_add_vacuum": "Add vacuum",  // setup wizard step 1 heading
-    "step_import_active_map": "Import active map",  // setup wizard step 2 heading
-    "step_save_rooms": "Configure rooms",  // setup wizard step 3 heading (save/configure rooms)
-    "floor_hardwood": "Hardwood",  // floor type
-    "floor_laminate": "Laminate",  // floor type
-    "floor_tile": "Tile",  // floor type
-    "floor_marble": "Marble",  // floor type
-    "floor_granite": "Granite",  // floor type
-    "floor_concrete": "Concrete",  // floor type
-    "floor_carpet_low_pile": "Low-Pile Carpet",  // floor type: short/low carpet pile
-    "floor_carpet_high_pile": "High-Pile Carpet",  // floor type: deep/high carpet pile
-    "all_vacuums_managed": "All detected vacuums are already managed.",
-    "auto_adapter_default": "Auto (adapter default)",  // Live-map camera select default option; 'adapter'=brand integration shim (jargon)
-    "check_status": "Check Status",
-    "click_to_exclude": "Click to exclude",
-    "click_to_include": "Click to include",
-    "complete_add_vacuum_first": "Complete Add Vacuum first.",
-    "complete_map_import_first": "Complete map import first.",
-    "configure_each_map": "Configure each imported map — exclude ghost rooms and set floor types.",  // save_rooms intro; 'ghost rooms'=phantom/non-real rooms to exclude (term of art)
-    "configure_rooms": "Configure Rooms",
-    "configured_badge": "✓ Configured",
-    "delete_map": "Delete Map",
-    "delete_type_confirm": "Type <strong>{name}</strong> to confirm deletion.",
-    "delete_warning": "Delete <strong>{name}</strong>? This removes all rooms, history, and learning data for this map from the integration. The upstream cloud map is not affected.",
-    "deleting": "Deleting…",
-    "description": "Steps below are declared by your vacuum adapter. Each must complete in order. New rooms discovered after setup will surface here for review before they enter the room library.",
-    "drift_new_hint": "The vacuum reports rooms you haven't configured yet. Configure the matching map to include them, or reject as phantoms.",
-    "drift_new_title": "New rooms discovered ({count})",
-    "drift_removed_hint": "These rooms have been missing from discovery long enough to be confirmed removed. Reconfigure the matching map to drop them.",
-    "drift_removed_title": "Rooms no longer reported ({count})",
-    "drift_transient_hint": "Missing from recent discovery passes but not yet confirmed removed — likely a transient API glitch. Use \"Force remove\" only if you know the room is permanently gone.",
-    "drift_transient_title": "Temporarily missing ({count})",
-    "force_remove_now": "Force remove now",  // Drift button: permanently drop a room flagged as removed (force = override the wait)
-    "import_active_map": "Import Active Map",
-    "import_active_map_prompt": "Import the vacuum's currently active map. Make sure it has completed a mapping run first.",
-    "import_another_map": "Import Another Map",
-    "live_map_camera_hint": "Use a live map image/camera entity as this vacuum's map backdrop — for example the <code>camera.&lt;device&gt;_map</code> entity from the eufy-clean fork. Choose \"Auto\" to use the adapter default.",  // Keep code tokens literal: camera.<device>_map, 'eufy-clean fork', 'Auto' — do not translate
-    "live_map_camera_title": "Live map camera",
-    "loading_rooms": "Loading rooms…",
-    "map_label": "map {id}",  // Lowercase muted sub-label beside a room; {id}=the map's numeric id (cf. map_n capitalized)
-    "map_n": "Map {id}",
-    "maps_imported": "{count} maps imported.",
-    "no_rooms_discovered": "No rooms discovered yet. Run a clean cycle so the vacuum reports its room list, then refresh setup status.",
-    "no_rooms_for_map": "No rooms found for this map.",
-    "no_rooms_selected_hint": "Select at least one room to save. To remove this map entirely, use Delete Map instead.",
-    "no_step_handler": "No handler for step \"{id}\".",  // Internal error fallback; {id}=setup-step id; 'handler' is dev jargon, keep terse
-    "protection_reason": {
-      "only_map": "This is the only imported map for this vacuum.",  // Map-delete protection badge; reason CODE only_map from the backend
-      "has_active_job": "A cleaning job is running or was recently active on this map.",  // Map-delete protection badge; reason CODE has_active_job
-      "has_learning_data": {"one":"This map has cleaning history for {count} room.","other":"This map has cleaning history for {count} rooms."},
-      "has_rules": "One or more rooms have automation rules configured.",  // Map-delete protection badge; reason CODE has_rules
-      "has_access_graph": "One or more rooms are part of an access graph."  // Map-delete protection badge; reason CODE has_access_graph
-    },
-    "panel_name_hint": "Rename this vacuum's entry in the Home Assistant sidebar. After saving, refresh the page to see the new name. Leave blank to reset to the default.",
-    "panel_name_title": "Panel name",  // Heading for renaming this vacuum's Home Assistant sidebar entry ('Panel'=HA sidebar item)
-    "ready_banner": "✓ Setup complete — switch to the Rooms tab to start cleaning.",
-    "reconcile_dismiss_button": "Dismiss",  // CARD-7/RP-019 reconciliation banner: reconcile_room(action=ignore) — NOT permanent, an identical review can resurface later (design: never say "Ignore forever")
-    "reconcile_dismissing": "Dismissing…",
-    "reconcile_dropped_sentence": {"one":"<strong>{names}</strong> was removed from this map and its settings were discarded.","other":"<strong>{names}</strong> were removed from this map and their settings were discarded."},  // plural; State C (after Update) — rendered via tRaw, raw HTML bold (mirrors setup.delete_warning's pattern); {names}=comma-joined, already-escaped display names (prettified from the backend's slugs); {count}=names.length drives the form. Omitted entirely when dropped is empty.
-    "reconcile_formerly": "Formerly {name}",  // Secondary caption under a renamed room's NEW name in the reconciliation banner's "Renamed" group; {name}=the room's previous name (escaped by the caller). A separate translated unit from the name itself — never concatenated into one sentence.
-    "reconcile_rediscover_button": "Re-discover rooms",  // Manual retry button shown only when the silent plan_changed recovery itself failed
-    "reconcile_refresh_failed": "The map changed, but the refresh didn't go through automatically.",  // CARD-7/RP-019: shown when the silent plan_changed recovery (re-running discover_rooms) itself fails — design's literal fallback ("the map changed — re-discover" + a button)
-    "reconcile_renamed_hint": "Same room number, different name — either you renamed it in the app, or re-mapping reused this number for a different space. It can't be told apart automatically; review before updating.",
-    "reconcile_renamed_title": "Renamed rooms ({count})",
-    "reconcile_renumbered_hint": "The vacuum reassigned these room numbers after re-mapping. Saved settings will follow automatically — no action needed.",
-    "reconcile_renumbered_title": "Rooms renumbered ({count})",
-    "reconcile_stale_note": "The map changed while you were reviewing — this is the current state.",
-    "reconcile_update_button": "Update saved rooms",  // CARD-7/RP-019 reconciliation banner: reconcile_room(action=migrate) — the ONE whole-map decision (no per-row accept; reconcile_room has no per-room granularity)
-    "reconcile_updated_count": {"one":"Updated {count} room.","other":"Updated {count} rooms."},  // plural; State C (after a successful Update) — reconcile_room's migrated_room_count
-    "reconcile_updating": "Updating…",
-    "reconfigure": "Reconfigure",
-    "refresh": "Refresh",
-    "register_vacuum_prompt": "Register this vacuum with the integration so it can be managed.",
-    "reject_as_phantom": "Reject as phantom",  // Drift button: mark a discovered room as not-real (phantom = ghost/non-existent room)
-    "room_editor_hint": "Deselect rooms you don't want managed (phantom rooms, closets, etc.). Set each real room's floor type — it drives the cleaning profile system.",
-    "room_n": "Room {id}",
-    "rooms_configured_drift": "Rooms configured. Drift detection watches for new or removed rooms below.",
-    "save_room_config": "Save Room Configuration",
-    "title": "Vacuum Setup",
-    "unmanaged_vacuums_hint": "These vacuums are available in Home Assistant but not yet managed. Adding one registers its adapter and a sidebar panel (the integration reloads).",
-    "vacuum_registered": "Vacuum registered.",
-    "working": "Working…",
-    "panel_name_placeholder": "Vacuum Agent"
   },
   "shell": {
     "setup_add_title": "Add your vacuum",

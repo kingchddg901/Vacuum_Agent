@@ -2201,7 +2201,9 @@
       },
       "has_rules": "하나 이상의 방에 자동화 규칙이 설정되어 있습니다.",
       "has_access_graph": "하나 이상의 방이 접근 그래프에 포함되어 있습니다."
-    }
+    },
+    "subtab_steps": "설정 단계",
+    "subtab_system": "시스템"
   },
   "external_jobs": {
     "back": "뒤로",
@@ -2938,5 +2940,26 @@
     "set": "일시정지 시간 제한이 {minutes}분으로 설정되었습니다",
     "could_not_save": "일시정지 시간 제한을 저장할 수 없습니다",
     "auto_cancel_disabled": "자동 취소 비활성화됨"
+  },
+  "system": {
+    "subtitle": "Vacuum Agent가 청소기에서 읽는 모든 값과 선택된 방식입니다. 행이 잘못된 엔터티를 가리키면 그 값도 잘못됩니다.",
+    "empty": "아직 엔터티 연결이 없습니다 — 대시보드 스냅샷이 도착하지 않았습니다.",
+    "col_role": "읽는 값",
+    "col_entity": "엔터티",
+    "col_value": "현재",
+    "col_source": "선택 기준",
+    "no_value": "값 없음",
+    "unresolved": "찾을 수 없음",
+    "rejected": "함께 일치함",
+    "source_derived": "이름 일치",
+    "source_object_id": "청소기 이름",
+    "source_translation_key": "통합에서 제공",
+    "source_state_class": "측정 유형",
+    "source_magnitude": "값 비교",
+    "source_override": "직접 선택",
+    "reason_disabled": "Home Assistant에서 비활성화됨",
+    "reason_absent": "찾을 수 없음",
+    "reason_registered_no_state": "아직 값 없음",
+    "reason_override_unresolved": "선택한 엔터티가 없습니다"
   }
 }

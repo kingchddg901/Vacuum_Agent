@@ -1530,7 +1530,9 @@
       },
       "has_rules": "Een of meer kamers hebben automatiseringsregels ingesteld.",
       "has_access_graph": "Een of meer kamers maken deel uit van een toegangsgraaf."
-    }
+    },
+    "subtab_steps": "Installatiestappen",
+    "subtab_system": "Systeem"
   },
   "shell": {
     "setup_add_title": "Voeg je stofzuiger toe",
@@ -2981,5 +2983,26 @@
     "set": "Pauzetimeout ingesteld op {minutes} min",
     "could_not_save": "Kan pauzetimeout niet opslaan",
     "auto_cancel_disabled": "Automatisch annuleren uitgeschakeld"
+  },
+  "system": {
+    "subtitle": "Elke waarde die Vacuum Agent van je stofzuiger leest en hoe die is gekozen. Noemt een rij de verkeerde entiteit, dan klopt ook de waarde niet.",
+    "empty": "Nog geen entiteitskoppelingen — de dashboard-snapshot is niet aangekomen.",
+    "col_role": "Leest",
+    "col_entity": "Entiteit",
+    "col_value": "Nu",
+    "col_source": "Gekozen door",
+    "no_value": "geen waarde",
+    "unresolved": "niet gevonden",
+    "rejected": "Kwam ook overeen",
+    "source_derived": "Naamovereenkomst",
+    "source_object_id": "Naam van de stofzuiger",
+    "source_translation_key": "Geleverd door de integratie",
+    "source_state_class": "Meettype",
+    "source_magnitude": "Waardevergelijking",
+    "source_override": "Jouw keuze",
+    "reason_disabled": "uitgeschakeld in Home Assistant",
+    "reason_absent": "niet gevonden",
+    "reason_registered_no_state": "nog geen waarde",
+    "reason_override_unresolved": "je gekozen entiteit ontbreekt"
   }
 }

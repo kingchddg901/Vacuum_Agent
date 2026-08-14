@@ -2201,7 +2201,9 @@
       },
       "has_rules": "一个或多个房间配置了自动化规则。",
       "has_access_graph": "一个或多个房间属于通行关系图。"
-    }
+    },
+    "subtab_steps": "设置步骤",
+    "subtab_system": "系统"
   },
   "external_jobs": {
     "back": "返回",
@@ -2938,5 +2940,26 @@
     "set": "暂停超时已设置为 {minutes} 分钟",
     "could_not_save": "无法保存暂停超时",
     "auto_cancel_disabled": "已禁用自动取消"
+  },
+  "system": {
+    "subtitle": "Vacuum Agent 从你的扫地机读取的每个值，以及它是如何选定的。如果某一行指向了错误的实体，它提供的读数也会是错的。",
+    "empty": "尚无实体绑定 — 仪表板快照尚未到达。",
+    "col_role": "读取",
+    "col_entity": "实体",
+    "col_value": "当前",
+    "col_source": "选定依据",
+    "no_value": "无读数",
+    "unresolved": "未找到",
+    "rejected": "也匹配",
+    "source_derived": "名称匹配",
+    "source_object_id": "扫地机名称",
+    "source_translation_key": "由集成提供",
+    "source_state_class": "测量类型",
+    "source_magnitude": "数值比较",
+    "source_override": "你的选择",
+    "reason_disabled": "已在 Home Assistant 中停用",
+    "reason_absent": "未找到",
+    "reason_registered_no_state": "尚无读数",
+    "reason_override_unresolved": "你选择的实体已不存在"
   }
 }

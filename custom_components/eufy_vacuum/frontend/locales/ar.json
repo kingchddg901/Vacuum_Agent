@@ -2360,7 +2360,9 @@
       },
       "has_rules": "غرفة واحدة أو أكثر لديها قواعد أتمتة مضبوطة.",
       "has_access_graph": "غرفة واحدة أو أكثر جزء من مخطط الوصول."
-    }
+    },
+    "subtab_steps": "خطوات الإعداد",
+    "subtab_system": "النظام"
   },
   "external_jobs": {
     "back": "رجوع",
@@ -3212,5 +3214,26 @@
     "set": "تم ضبط مهلة الإيقاف المؤقت على {minutes} دقيقة",
     "could_not_save": "تعذّر حفظ مهلة الإيقاف المؤقت",
     "auto_cancel_disabled": "تم تعطيل الإلغاء التلقائي"
+  },
+  "system": {
+    "subtitle": "كل قيمة يقرأها Vacuum Agent من مكنستك، وكيف تم اختيارها. إذا أشار صف إلى الكيان الخطأ، فستكون القيمة الناتجة خاطئة أيضاً.",
+    "empty": "لا توجد ارتباطات كيانات بعد — لم تصل لقطة لوحة المعلومات.",
+    "col_role": "يقرأ",
+    "col_entity": "الكيان",
+    "col_value": "الآن",
+    "col_source": "اختير بواسطة",
+    "no_value": "لا توجد قيمة",
+    "unresolved": "غير موجود",
+    "rejected": "تطابق أيضاً",
+    "source_derived": "تطابق الاسم",
+    "source_object_id": "اسم المكنسة",
+    "source_translation_key": "مقدَّم من التكامل",
+    "source_state_class": "نوع القياس",
+    "source_magnitude": "مقارنة القيم",
+    "source_override": "اختيارك",
+    "reason_disabled": "معطَّل في Home Assistant",
+    "reason_absent": "غير موجود",
+    "reason_registered_no_state": "لا توجد قيمة بعد",
+    "reason_override_unresolved": "الكيان الذي اخترته مفقود"
   }
 }

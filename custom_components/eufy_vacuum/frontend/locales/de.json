@@ -1530,7 +1530,9 @@
       },
       "has_rules": "In einem oder mehreren Räumen sind Automatisierungsregeln konfiguriert.",
       "has_access_graph": "Ein oder mehrere Räume sind Teil eines Zugangsgraphen."
-    }
+    },
+    "subtab_steps": "Einrichtungsschritte",
+    "subtab_system": "System"
   },
   "shell": {
     "setup_add_title": "Füge deinen Saugroboter hinzu",
@@ -2981,5 +2983,26 @@
     "set": "Pausenzeitlimit auf {minutes} Min gesetzt",
     "could_not_save": "Pausenzeitlimit konnte nicht gespeichert werden",
     "auto_cancel_disabled": "Automatischer Abbruch deaktiviert"
+  },
+  "system": {
+    "subtitle": "Jeder Wert, den Vacuum Agent von deinem Sauger liest, und wie er ausgewählt wurde. Nennt eine Zeile die falsche Entität, ist auch der daraus gespeiste Wert falsch.",
+    "empty": "Noch keine Entitätszuordnungen — der Dashboard-Snapshot ist nicht eingetroffen.",
+    "col_role": "Liest",
+    "col_entity": "Entität",
+    "col_value": "Jetzt",
+    "col_source": "Ausgewählt durch",
+    "no_value": "kein Wert",
+    "unresolved": "nicht gefunden",
+    "rejected": "Ebenfalls passend",
+    "source_derived": "Namensübereinstimmung",
+    "source_object_id": "Saugername",
+    "source_translation_key": "Von der Integration bereitgestellt",
+    "source_state_class": "Messtyp",
+    "source_magnitude": "Wertvergleich",
+    "source_override": "Deine Auswahl",
+    "reason_disabled": "in Home Assistant deaktiviert",
+    "reason_absent": "nicht gefunden",
+    "reason_registered_no_state": "noch kein Wert",
+    "reason_override_unresolved": "deine gewählte Entität fehlt"
   }
 }

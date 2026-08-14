@@ -38,6 +38,29 @@ export function applyCoreState(proto) {
     return s !== null && this.isValidState(s);
   };
 
+  /* === SETUP SUB-TAB (live:ENT-11) === */
+
+  /** @returns {"steps"|"system"} */
+  proto.setupSubtab = function () {
+    return this._setupSubtab === "system" ? "system" : "steps";
+  };
+
+  proto.setSetupSubtab = function (value) {
+    this._setupSubtab = value === "system" ? "system" : "steps";
+  };
+
+  /**
+   * One row per role: what we read, and how it was chosen.
+   * Assembled server-side (manager._entity_bindings) so the card stays a
+   * display layer, per the Setup tab's existing "adapter owns the truth"
+   * contract.
+   * @returns {Array<object>}
+   */
+  proto.entityBindings = function () {
+    const rows = this.dashboardSnapshot?.()?.entity_bindings;
+    return Array.isArray(rows) ? rows : [];
+  };
+
   /* === VACUUM RESOLUTION === */
 
   /** @returns {string|null} full vacuum entity ID from card config */

@@ -1870,7 +1870,9 @@
       },
       "has_rules": "Bir veya daha fazla odada otomasyon kuralları yapılandırılmış.",
       "has_access_graph": "Bir veya daha fazla oda erişim grafiğinin parçası."
-    }
+    },
+    "subtab_steps": "Kurulum adımları",
+    "subtab_system": "Sistem"
   },
   "theme": {
     "alpha_aria_label": "{label} opaklığı",
@@ -2980,5 +2982,26 @@
     "set": "Duraklatma zaman aşımı {minutes} dk olarak ayarlandı",
     "could_not_save": "Duraklatma zaman aşımı kaydedilemedi",
     "auto_cancel_disabled": "Otomatik iptal kapalı"
+  },
+  "system": {
+    "subtitle": "Vacuum Agent'ın süpürgenizden okuduğu her değer ve nasıl seçildiği. Bir satır yanlış varlığı gösteriyorsa, beslediği değer de yanlış olur.",
+    "empty": "Henüz varlık eşleşmesi yok — panel anlık görüntüsü ulaşmadı.",
+    "col_role": "Okur",
+    "col_entity": "Varlık",
+    "col_value": "Şimdi",
+    "col_source": "Seçim yöntemi",
+    "no_value": "değer yok",
+    "unresolved": "bulunamadı",
+    "rejected": "Ayrıca eşleşti",
+    "source_derived": "Ad eşleşmesi",
+    "source_object_id": "Süpürge adı",
+    "source_translation_key": "Entegrasyon tarafından sağlandı",
+    "source_state_class": "Ölçüm türü",
+    "source_magnitude": "Değer karşılaştırması",
+    "source_override": "Senin seçimin",
+    "reason_disabled": "Home Assistant'ta devre dışı",
+    "reason_absent": "bulunamadı",
+    "reason_registered_no_state": "henüz değer yok",
+    "reason_override_unresolved": "seçtiğin varlık eksik"
   }
 }

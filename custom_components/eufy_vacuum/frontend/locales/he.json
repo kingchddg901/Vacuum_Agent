@@ -2298,7 +2298,9 @@
       },
       "has_rules": "לחדר אחד או יותר מוגדרים כללי אוטומציה.",
       "has_access_graph": "חדר אחד או יותר הם חלק מגרף גישה."
-    }
+    },
+    "subtab_steps": "שלבי ההתקנה",
+    "subtab_system": "מערכת"
   },
   "external_jobs": {
     "back": "חזרה",
@@ -3104,5 +3106,26 @@
     "set": "פסק-זמן ההשהיה הוגדר ל-{minutes} דק׳",
     "could_not_save": "לא ניתן היה לשמור את פסק-זמן ההשהיה",
     "auto_cancel_disabled": "ביטול אוטומטי מושבת"
+  },
+  "system": {
+    "subtitle": "כל ערך ש-Vacuum Agent קורא מהשואב שלך, וכיצד נבחר. אם שורה מצביעה על הישות השגויה, גם הערך שהיא מזינה יהיה שגוי.",
+    "empty": "אין עדיין שיוכי ישויות — תצלום לוח המחוונים לא הגיע.",
+    "col_role": "קורא",
+    "col_entity": "ישות",
+    "col_value": "עכשיו",
+    "col_source": "נבחר לפי",
+    "no_value": "אין ערך",
+    "unresolved": "לא נמצא",
+    "rejected": "התאים גם",
+    "source_derived": "התאמת שם",
+    "source_object_id": "שם השואב",
+    "source_translation_key": "סופק על ידי האינטגרציה",
+    "source_state_class": "סוג מדידה",
+    "source_magnitude": "השוואת ערכים",
+    "source_override": "הבחירה שלך",
+    "reason_disabled": "מושבת ב-Home Assistant",
+    "reason_absent": "לא נמצא",
+    "reason_registered_no_state": "אין עדיין ערך",
+    "reason_override_unresolved": "הישות שבחרת חסרה"
   }
 }

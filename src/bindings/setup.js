@@ -38,6 +38,14 @@ export function applySetupBindings(proto) {
     const card = this.card;
 
     /* -------------------------------------------------------
+       SUB-TAB STRIP (live:ENT-11)
+       ------------------------------------------------------- */
+    card._onAll("[data-action='set-setup-subtab']", "click", (e) => {
+      card._state.setSetupSubtab?.(e.currentTarget?.dataset?.subtab);
+      card._scheduleRender();
+    });
+
+    /* -------------------------------------------------------
        ADD VACUUM
        ------------------------------------------------------- */
     card._onAll("[data-action='setup-add-vacuum']", "click", async () => {

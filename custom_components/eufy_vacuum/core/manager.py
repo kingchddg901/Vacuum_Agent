@@ -5214,6 +5214,69 @@ class EufyVacuumManager:
         """Delegate to MaintenanceManager."""
         return self.maintenance.get_upkeep_snapshot(**kwargs)
 
+    def _entity_bindings(self, vacuum_entity_id: str) -> list[dict[str, Any]]:
+        """One row per role: what we read, and HOW we chose it (live:ENT-11).
+
+        Assembled server-side so the card stays a display layer — the adapter
+        owns the truth, per the Setup tab's existing contract.
+
+        This is the data behind the "System" sub-tab, whose DEFAULT view is the
+        full table rather than a filtered one. Every other surface renders only
+        roles that FAILED, and a failures-only view is structurally blind to the
+        defect that motivated all of this: a collision resolves SUCCESSFULLY, to
+        a real enabled entity, just the wrong one by ~4000x. That screen looks
+        healthy.
+
+        Best-effort throughout: this decorates a dashboard that must render
+        whether or not capability detection is happy.
+        """
+        config = _get_adapter_config(vacuum_entity_id) or {}
+        entities = config.get("entities") or {}
+
+        reasons: dict[str, Any] = {}
+        decisions: dict[str, Any] = {}
+        try:
+            caps = self.get_vacuum_capabilities_snapshot(
+                vacuum_entity_id=vacuum_entity_id
+            )
+            if isinstance(caps, dict):
+                reasons = caps.get("entity_resolution_reasons") or {}
+                augmentation = caps.get("entity_augmentation") or {}
+                decisions = augmentation.get("decisions") or {}
+                # A role the adapter probes rather than declares still belongs in
+                # the table — otherwise task_status, the role that tells the card
+                # what the vacuum is DOING, would be missing from the one screen
+                # built to show what we read.
+                for role, entity_id in (caps.get("entities") or {}).items():
+                    entities.setdefault(role, entity_id)
+        except Exception:  # pragma: no cover - defensive
+            _LOGGER.debug(
+                "entity bindings: capabilities unavailable for %s",
+                vacuum_entity_id, exc_info=True,
+            )
+
+        rows: list[dict[str, Any]] = []
+        for role in sorted(entities):
+            entity_id = entities.get(role)
+            decision = decisions.get(role) or {}
+            rows.append({
+                "role": role,
+                "entity_id": entity_id if isinstance(entity_id, str) else None,
+                # live:ENT-2 — resolved / disabled / registered_no_state / absent
+                # / override_unresolved. "Absent" and "switched off" need
+                # opposite fixes and used to render identically.
+                "reason": reasons.get(role),
+                # live:ENT-9 — WHICH rung decided, when the role was contested.
+                # None means it was never contested, NOT that nothing decided it.
+                "chosen_by": decision.get("by"),
+                # The alternatives and why each lost. Only the rungs actually
+                # RUN appear: the ladder short-circuits, so anything below the
+                # deciding rung was never evaluated and must never be rendered
+                # as agreeing.
+                "rejected": decision.get("rejected") or {},
+            })
+        return rows
+
     def get_dashboard_snapshot(
         self,
         *,
@@ -5488,6 +5551,8 @@ class EufyVacuumManager:
                 for role, entity_id in (_adapter_cfg.get("entities", {}) or {}).items()
                 if isinstance(entity_id, str) and entity_id
             },
+            # live:ENT-11 — the "System" sub-tab's binding table.
+            "entity_bindings": self._entity_bindings(vacuum_entity_id),
             "supports_room_profiles": supports_room_profiles,
             "passes_is_global": passes_is_global,
             "supports_base_station": supports_base_station,

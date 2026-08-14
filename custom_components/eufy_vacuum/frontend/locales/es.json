@@ -1546,7 +1546,9 @@
       },
       "has_rules": "Una o más habitaciones tienen reglas de automatización configuradas.",
       "has_access_graph": "Una o más habitaciones forman parte de un gráfico de acceso."
-    }
+    },
+    "subtab_steps": "Pasos de configuración",
+    "subtab_system": "Sistema"
   },
   "shell": {
     "setup_add_title": "Añade tu aspirador",
@@ -3000,5 +3002,26 @@
     "set": "Tiempo de espera de pausa fijado en {minutes} min",
     "could_not_save": "No se pudo guardar el tiempo de espera de pausa",
     "auto_cancel_disabled": "Cancelación automática desactivada"
+  },
+  "system": {
+    "subtitle": "Cada valor que Vacuum Agent lee de tu aspiradora y cómo se eligió. Si una fila nombra la entidad equivocada, el valor que alimenta también será incorrecto.",
+    "empty": "Aún no hay vínculos de entidades — la instantánea del panel no ha llegado.",
+    "col_role": "Lee",
+    "col_entity": "Entidad",
+    "col_value": "Ahora",
+    "col_source": "Elegido por",
+    "no_value": "sin valor",
+    "unresolved": "no encontrada",
+    "rejected": "También coincidió",
+    "source_derived": "Coincidencia de nombre",
+    "source_object_id": "Nombre de la aspiradora",
+    "source_translation_key": "Proporcionado por la integración",
+    "source_state_class": "Tipo de medición",
+    "source_magnitude": "Comparación de valores",
+    "source_override": "Tu elección",
+    "reason_disabled": "desactivada en Home Assistant",
+    "reason_absent": "no encontrada",
+    "reason_registered_no_state": "aún sin valor",
+    "reason_override_unresolved": "falta la entidad que elegiste"
   }
 }

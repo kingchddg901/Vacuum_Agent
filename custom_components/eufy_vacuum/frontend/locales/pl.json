@@ -1873,7 +1873,9 @@
       },
       "has_rules": "Co najmniej jedno pomieszczenie ma skonfigurowane reguły automatyzacji.",
       "has_access_graph": "Co najmniej jedno pomieszczenie należy do grafu dostępu."
-    }
+    },
+    "subtab_steps": "Kroki konfiguracji",
+    "subtab_system": "System"
   },
   "theme": {
     "alpha_aria_label": "Krycie {label}",
@@ -2989,5 +2991,26 @@
     "set": "Ustawiono limit czasu wstrzymania na {minutes} min",
     "could_not_save": "Nie udało się zapisać limitu czasu wstrzymania",
     "auto_cancel_disabled": "Automatyczne anulowanie wyłączone"
+  },
+  "system": {
+    "subtitle": "Każda wartość, którą Vacuum Agent odczytuje z odkurzacza, i sposób jej wyboru. Jeśli wiersz wskazuje złą encję, zasilana przez nią wartość też będzie zła.",
+    "empty": "Brak powiązań encji — migawka panelu jeszcze nie dotarła.",
+    "col_role": "Odczytuje",
+    "col_entity": "Encja",
+    "col_value": "Teraz",
+    "col_source": "Wybrane przez",
+    "no_value": "brak wartości",
+    "unresolved": "nie znaleziono",
+    "rejected": "Pasowało również",
+    "source_derived": "Dopasowanie nazwy",
+    "source_object_id": "Nazwa odkurzacza",
+    "source_translation_key": "Dostarczone przez integrację",
+    "source_state_class": "Typ pomiaru",
+    "source_magnitude": "Porównanie wartości",
+    "source_override": "Twój wybór",
+    "reason_disabled": "wyłączona w Home Assistant",
+    "reason_absent": "nie znaleziono",
+    "reason_registered_no_state": "jeszcze brak wartości",
+    "reason_override_unresolved": "brakuje wybranej encji"
   }
 }

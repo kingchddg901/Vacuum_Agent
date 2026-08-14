@@ -2201,7 +2201,9 @@
       },
       "has_rules": "1つ以上の部屋に自動化ルールが設定されています。",
       "has_access_graph": "1つ以上の部屋がアクセスグラフに含まれています。"
-    }
+    },
+    "subtab_steps": "セットアップ手順",
+    "subtab_system": "システム"
   },
   "external_jobs": {
     "back": "戻る",
@@ -2938,5 +2940,26 @@
     "set": "一時停止タイムアウトを {minutes} 分に設定しました",
     "could_not_save": "一時停止タイムアウトを保存できませんでした",
     "auto_cancel_disabled": "自動キャンセルを無効化しました"
+  },
+  "system": {
+    "subtitle": "Vacuum Agent が掃除機から読み取っているすべての値と、その選ばれ方です。行が誤ったエンティティを指していれば、その値も誤りになります。",
+    "empty": "エンティティの割り当てはまだありません — ダッシュボードのスナップショットが届いていません。",
+    "col_role": "読み取り",
+    "col_entity": "エンティティ",
+    "col_value": "現在値",
+    "col_source": "選択理由",
+    "no_value": "値なし",
+    "unresolved": "見つかりません",
+    "rejected": "一致した候補",
+    "source_derived": "名前の一致",
+    "source_object_id": "掃除機の名前",
+    "source_translation_key": "統合が提供",
+    "source_state_class": "測定の種類",
+    "source_magnitude": "値の比較",
+    "source_override": "あなたの選択",
+    "reason_disabled": "Home Assistant で無効",
+    "reason_absent": "見つかりません",
+    "reason_registered_no_state": "まだ値がありません",
+    "reason_override_unresolved": "選択したエンティティがありません"
   }
 }

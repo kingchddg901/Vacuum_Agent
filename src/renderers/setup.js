@@ -923,4 +923,117 @@ function _legacyStepsFallback(vacuumEntry) {
     { id: "import_active_map", label: "Import active map", completed: hasImported, service: "" },
     { id: "save_rooms",        label: "Configure rooms",   completed: hasImported, service: "" },
   ];
+  /* =========================================================
+     SUB-TAB STRIP + THE "SYSTEM" BINDING TABLE (live:ENT-11)
+     ========================================================= */
+
+  proto._renderSetupSubtabStrip = function (state) {
+    const sub = state.setupSubtab?.() ?? "steps";
+    return `
+      <div class="evcc-setup-subtabs">
+        <button class="evcc-setup-subtab ${sub === "steps" ? "is-active" : ""}"
+                data-action="set-setup-subtab" data-subtab="steps"
+                aria-selected="${sub === "steps" ? "true" : "false"}"
+        >${this.t("setup.subtab_steps")}</button>
+        <button class="evcc-setup-subtab ${sub === "system" ? "is-active" : ""}"
+                data-action="set-setup-subtab" data-subtab="system"
+                aria-selected="${sub === "system" ? "true" : "false"}"
+        >${this.t("setup.subtab_system")}</button>
+      </div>
+    `;
+  };
+
+  /**
+   * WHAT WE ARE READING — every role, not only the broken ones.
+   *
+   * The default view is deliberately the FULL table. Every other surface shows
+   * only roles that FAILED, and a failures-only view is structurally blind to
+   * the defect this was built for: a name collision resolves SUCCESSFULLY, to a
+   * real enabled entity, and is simply the wrong one — per-run cleaning area
+   * reading a lifetime counter, off by ~4000x. That screen looks healthy.
+   *
+   * The current VALUE is on the row because it is the cheapest sanity check
+   * there is and needs no engineering literacy: 0 min beside 166 min settles it
+   * instantly. It also separates the two failure modes that look identical from
+   * outside — an entity resolving correctly while the consumer is broken (issue
+   * #49's battery) versus the resolver having picked the wrong entity.
+   */
+  proto._renderSystemSubtab = function (ctx) {
+    const { state } = ctx;
+    const rows = state.entityBindings?.() ?? [];
+
+    if (!rows.length) {
+      return `<div class="evcc-setup-empty">${this.t("system.empty")}</div>`;
+    }
+
+    const body = rows.map((row) => {
+      const entityId = row?.entity_id ?? null;
+      const value = entityId ? state.stateOf?.(entityId) : null;
+      const shown = (value == null || value === "")
+        ? this.t("system.no_value")
+        : this.escapeHtml(String(value));
+
+      // `chosen_by` is only set when the role was CONTESTED. Absent means it
+      // was never contested — NOT that nothing decided it — so it must not
+      // render as though a rung fired.
+      const source = row?.chosen_by
+        ? this.t(`system.source_${row.chosen_by}`)
+        : this.t("system.source_derived");
+
+      const reason = row?.reason && row.reason !== "resolved"
+        ? `<span class="evcc-system-flag">${this.t(`system.reason_${row.reason}`)}</span>`
+        : "";
+
+      const rejected = Object.entries(row?.rejected ?? {});
+      const alternatives = rejected.length
+        ? `<div class="evcc-system-rejected">${this.t("system.rejected")}: ` +
+          rejected.map(([id, why]) =>
+            `<code>${this.escapeHtml(id)}</code> (${this.escapeHtml(String(why))})`
+          ).join(", ") + `</div>`
+        : "";
+
+      return `
+        <tr>
+          <td class="evcc-system-role">${this.escapeHtml(String(row?.role ?? ""))}</td>
+          <td class="evcc-system-entity">
+            ${entityId ? `<code>${this.escapeHtml(entityId)}</code>` : `<em>${this.t("system.unresolved")}</em>`}
+            ${alternatives}
+          </td>
+          <td class="evcc-system-value">${shown}</td>
+          <td class="evcc-system-source">${source} ${reason}</td>
+        </tr>
+      `;
+    }).join("");
+
+    return `
+      <div class="evcc-system-panel">
+        <div class="evcc-system-intro">${this.t("system.subtitle")}</div>
+        <div class="evcc-system-scroll">
+          <table class="evcc-system-table">
+            <thead>
+              <tr>
+                <th>${this.t("system.col_role")}</th>
+                <th>${this.t("system.col_entity")}</th>
+                <th>${this.t("system.col_value")}</th>
+                <th>${this.t("system.col_source")}</th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  };
+
+  /* The steps list is the original renderSetupView; wrap rather than edit it so
+     a 700-line renderer stays untouched by the addition of a sibling view. */
+  const _renderSetupSteps = proto.renderSetupView;
+  proto.renderSetupView = function (ctx) {
+    const strip = this._renderSetupSubtabStrip(ctx.state);
+    if ((ctx.state.setupSubtab?.() ?? "steps") === "system") {
+      return strip + this._renderSystemSubtab(ctx);
+    }
+    return strip + _renderSetupSteps.call(this, ctx);
+  };
+
 }

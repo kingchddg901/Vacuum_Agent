@@ -1533,7 +1533,9 @@
       },
       "has_rules": "Una o più stanze hanno regole di automazione configurate.",
       "has_access_graph": "Una o più stanze fanno parte di un grafo di accesso."
-    }
+    },
+    "subtab_steps": "Passaggi di configurazione",
+    "subtab_system": "Sistema"
   },
   "shell": {
     "setup_add_title": "Aggiungi il tuo aspirapolvere",
@@ -2987,5 +2989,26 @@
     "set": "Timeout di pausa impostato a {minutes} min",
     "could_not_save": "Impossibile salvare il timeout di pausa",
     "auto_cancel_disabled": "Annullamento automatico disattivato"
+  },
+  "system": {
+    "subtitle": "Ogni valore che Vacuum Agent legge dal tuo aspirapolvere e come è stato scelto. Se una riga indica l'entità sbagliata, anche il valore che alimenta sarà sbagliato.",
+    "empty": "Nessun collegamento di entità — lo snapshot della dashboard non è arrivato.",
+    "col_role": "Legge",
+    "col_entity": "Entità",
+    "col_value": "Ora",
+    "col_source": "Scelto da",
+    "no_value": "nessun valore",
+    "unresolved": "non trovata",
+    "rejected": "Corrispondeva anche",
+    "source_derived": "Corrispondenza del nome",
+    "source_object_id": "Nome dell'aspirapolvere",
+    "source_translation_key": "Fornito dall'integrazione",
+    "source_state_class": "Tipo di misura",
+    "source_magnitude": "Confronto di valori",
+    "source_override": "La tua scelta",
+    "reason_disabled": "disattivata in Home Assistant",
+    "reason_absent": "non trovata",
+    "reason_registered_no_state": "ancora nessun valore",
+    "reason_override_unresolved": "l'entità scelta è mancante"
   }
 }

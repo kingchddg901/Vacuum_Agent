@@ -1872,7 +1872,9 @@
       },
       "has_rules": "Jedna nebo více místností má nastavená pravidla automatizace.",
       "has_access_graph": "Jedna nebo více místností je součástí grafu přístupu."
-    }
+    },
+    "subtab_steps": "Kroky nastavení",
+    "subtab_system": "Systém"
   },
   "theme": {
     "alpha_aria_label": "Krytí {label}",
@@ -2988,5 +2990,26 @@
     "set": "Časový limit pozastavení nastaven na {minutes} min",
     "could_not_save": "Nepodařilo se uložit časový limit pozastavení",
     "auto_cancel_disabled": "Automatické zrušení vypnuto"
+  },
+  "system": {
+    "subtitle": "Každá hodnota, kterou Vacuum Agent čte z vysavače, a jak byla vybrána. Pokud řádek uvádí špatnou entitu, bude špatná i hodnota, kterou napájí.",
+    "empty": "Zatím žádné vazby entit — snímek přehledu nedorazil.",
+    "col_role": "Čte",
+    "col_entity": "Entita",
+    "col_value": "Nyní",
+    "col_source": "Vybráno podle",
+    "no_value": "žádná hodnota",
+    "unresolved": "nenalezeno",
+    "rejected": "Odpovídalo také",
+    "source_derived": "Shoda názvu",
+    "source_object_id": "Název vysavače",
+    "source_translation_key": "Poskytnuto integrací",
+    "source_state_class": "Typ měření",
+    "source_magnitude": "Porovnání hodnot",
+    "source_override": "Tvoje volba",
+    "reason_disabled": "zakázáno v Home Assistantu",
+    "reason_absent": "nenalezeno",
+    "reason_registered_no_state": "zatím žádná hodnota",
+    "reason_override_unresolved": "zvolená entita chybí"
   }
 }

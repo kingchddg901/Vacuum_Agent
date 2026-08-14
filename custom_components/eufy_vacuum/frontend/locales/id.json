@@ -1870,7 +1870,9 @@
       },
       "has_rules": "Satu ruangan atau lebih memiliki aturan otomasi.",
       "has_access_graph": "Satu ruangan atau lebih merupakan bagian dari grafik akses."
-    }
+    },
+    "subtab_steps": "Langkah penyiapan",
+    "subtab_system": "Sistem"
   },
   "theme": {
     "alpha_aria_label": "Opasitas {label}",
@@ -2977,5 +2979,26 @@
     "set": "Batas waktu jeda diatur ke {minutes} min",
     "could_not_save": "Tidak dapat menyimpan batas waktu jeda",
     "auto_cancel_disabled": "Pembatalan otomatis nonaktif"
+  },
+  "system": {
+    "subtitle": "Setiap nilai yang dibaca Vacuum Agent dari penyedot debu Anda, dan bagaimana nilai itu dipilih. Jika satu baris menyebut entitas yang salah, nilainya juga akan salah.",
+    "empty": "Belum ada keterkaitan entitas — snapshot dasbor belum tiba.",
+    "col_role": "Membaca",
+    "col_entity": "Entitas",
+    "col_value": "Sekarang",
+    "col_source": "Dipilih oleh",
+    "no_value": "tidak ada nilai",
+    "unresolved": "tidak ditemukan",
+    "rejected": "Juga cocok",
+    "source_derived": "Kecocokan nama",
+    "source_object_id": "Nama penyedot debu",
+    "source_translation_key": "Disediakan oleh integrasi",
+    "source_state_class": "Jenis pengukuran",
+    "source_magnitude": "Perbandingan nilai",
+    "source_override": "Pilihan Anda",
+    "reason_disabled": "dinonaktifkan di Home Assistant",
+    "reason_absent": "tidak ditemukan",
+    "reason_registered_no_state": "belum ada nilai",
+    "reason_override_unresolved": "entitas pilihan Anda hilang"
   }
 }

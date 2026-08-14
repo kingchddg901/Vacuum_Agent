@@ -1546,7 +1546,9 @@
       },
       "has_rules": "Une ou plusieurs pièces ont des règles d'automatisation configurées.",
       "has_access_graph": "Une ou plusieurs pièces font partie d'un graphe d'accès."
-    }
+    },
+    "subtab_steps": "Étapes de configuration",
+    "subtab_system": "Système"
   },
   "shell": {
     "setup_add_title": "Ajoutez votre aspirateur",
@@ -3001,5 +3003,26 @@
     "set": "Délai de pause réglé sur {minutes} min",
     "could_not_save": "Impossible d'enregistrer le délai de pause",
     "auto_cancel_disabled": "Annulation automatique désactivée"
+  },
+  "system": {
+    "subtitle": "Chaque valeur que Vacuum Agent lit sur votre aspirateur, et comment elle a été choisie. Si une ligne désigne la mauvaise entité, la valeur qu'elle alimente sera fausse aussi.",
+    "empty": "Aucune liaison d'entité pour l'instant — l'instantané du tableau de bord n'est pas arrivé.",
+    "col_role": "Lit",
+    "col_entity": "Entité",
+    "col_value": "Maintenant",
+    "col_source": "Choisi par",
+    "no_value": "aucune valeur",
+    "unresolved": "introuvable",
+    "rejected": "Correspondait aussi",
+    "source_derived": "Correspondance de nom",
+    "source_object_id": "Nom de l'aspirateur",
+    "source_translation_key": "Fourni par l'intégration",
+    "source_state_class": "Type de mesure",
+    "source_magnitude": "Comparaison de valeurs",
+    "source_override": "Votre choix",
+    "reason_disabled": "désactivé dans Home Assistant",
+    "reason_absent": "introuvable",
+    "reason_registered_no_state": "pas encore de valeur",
+    "reason_override_unresolved": "l'entité que vous avez choisie est absente"
   }
 }

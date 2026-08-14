@@ -822,4 +822,54 @@ export const setupStyles = `
     font-weight: 600;
     color:       var(--evcc-text-primary, #f0f2f5);
   }
+
+  /* --- sub-tab strip + the binding table (live:ENT-11) ---------------- */
+  .evcc-setup-subtabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .evcc-setup-subtab {
+    background: transparent;
+    color: var(--evcc-text-secondary);
+    border: 1px solid var(--evcc-border-default);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.85em;
+    cursor: pointer;
+  }
+  .evcc-setup-subtab.is-active {
+    background: color-mix(in srgb, var(--evcc-accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--evcc-accent) 40%, transparent);
+    color: var(--evcc-accent);
+    font-weight: 600;
+  }
+  .evcc-system-intro {
+    color: var(--evcc-text-secondary);
+    font-size: 0.85em;
+    margin-bottom: 12px;
+  }
+  /* The table scrolls inside its OWN wrapper, never the page. Same rule the
+     metrics tables landed on: long entity ids plus a long locale plus
+     OpenDyslexic will always overflow a narrow viewport, and sideways scroll
+     on a contained box beats shrinking ids to illegibility. */
+  .evcc-system-scroll { overflow-x: auto; }
+  .evcc-system-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+  .evcc-system-table th {
+    text-align: start;
+    color: var(--evcc-text-secondary);
+    font-weight: 600;
+    padding: 4px 10px 8px 0;
+    border-bottom: 1px solid var(--evcc-border-default);
+  }
+  .evcc-system-table td {
+    padding: 8px 10px 8px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--evcc-border-default) 55%, transparent);
+    vertical-align: top;
+  }
+  .evcc-system-table code { font-size: 0.95em; word-break: break-all; }
+  .evcc-system-role { white-space: nowrap; color: var(--evcc-text-primary); }
+  .evcc-system-value { white-space: nowrap; }
+  .evcc-system-flag { color: var(--evcc-sem-warning); }
+  .evcc-system-rejected {
+    color: var(--evcc-text-secondary);
+    font-size: 0.9em;
+    margin-top: 4px;
+  }
 `;

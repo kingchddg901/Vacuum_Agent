@@ -1545,7 +1545,9 @@
       },
       "has_rules": "Uma ou mais divisões têm regras de automação configuradas.",
       "has_access_graph": "Uma ou mais divisões fazem parte de um grafo de acesso."
-    }
+    },
+    "subtab_steps": "Passos de configuração",
+    "subtab_system": "Sistema"
   },
   "shell": {
     "setup_add_title": "Adicione o seu aspirador",
@@ -2999,5 +3001,26 @@
     "set": "Tempo limite de pausa definido para {minutes} min",
     "could_not_save": "Não foi possível guardar o tempo limite de pausa",
     "auto_cancel_disabled": "Cancelamento automático desativado"
+  },
+  "system": {
+    "subtitle": "Cada valor que o Vacuum Agent lê do teu aspirador e como foi escolhido. Se uma linha indicar a entidade errada, o valor que alimenta também estará errado.",
+    "empty": "Ainda sem ligações de entidades — o instantâneo do painel não chegou.",
+    "col_role": "Lê",
+    "col_entity": "Entidade",
+    "col_value": "Agora",
+    "col_source": "Escolhido por",
+    "no_value": "sem valor",
+    "unresolved": "não encontrada",
+    "rejected": "Também correspondeu",
+    "source_derived": "Correspondência de nome",
+    "source_object_id": "Nome do aspirador",
+    "source_translation_key": "Fornecido pela integração",
+    "source_state_class": "Tipo de medição",
+    "source_magnitude": "Comparação de valores",
+    "source_override": "A tua escolha",
+    "reason_disabled": "desativada no Home Assistant",
+    "reason_absent": "não encontrada",
+    "reason_registered_no_state": "ainda sem valor",
+    "reason_override_unresolved": "a entidade escolhida está em falta"
   }
 }
