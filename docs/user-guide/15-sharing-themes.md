@@ -158,8 +158,13 @@ top tabs — see [the nav note in the overview](01-overview.md). The footer's
 **Export**, **Import**, **Download**, and **Upload** buttons are all there, so
 you can pick, activate, and share whole themes from your phone.
 
-What's *not* on mobile is the fine editing. The phone Theme tab shows only the
-preset grid — the **Palette** and **Tokens** editors are desktop-only — and the
-footer drops the **Download Floor** button, the floor-preset selects, and the
-**Save** / **Discard** controls that belong to those editors. So build and tweak
-themes on a desktop; browse, switch, import, and export them anywhere.
+The fine editing is there too. The **Palette** and **Tokens** editors, the
+floor-preset selects, **Download Floor**, and the **Save** / **Discard** draft
+controls all work on a phone — the token list scrolls in its own pane with the
+preview and footer staying put around it.
+
+To make room for it, the Theme tab trims its own chrome on a narrow screen: the
+status rows at the top are dropped while you are editing colours, the nav icons
+shrink, and the search row and sub-tab strip fold behind a caret that names the
+section you are in. Everything is still reachable — a phone simply has less
+vertical room, and that is what the editor needs most.

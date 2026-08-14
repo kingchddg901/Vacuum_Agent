@@ -114,8 +114,25 @@ only.
 - **Selecting a token group no longer scrolls the group chips out of view.** The chip band kept
   its scroll position across ordinary re-renders but reset to the top when a chip was selected,
   so a chip you scrolled down to find left the screen at the moment you tapped it.
+- **Pasting a theme export now works when the export is scoped.** A theme carrying `scope`
+  replaces floor namespaces on the card's active theme and must be sent with the vacuum it
+  belongs to; the Upload path knew that and the paste-JSON modal did not, so every scoped
+  export pasted in was rejected. A second bug hid the first: the theme services signal refusals
+  by raising rather than returning, so all nine reported the generic "could not complete" —
+  which reads as a network problem for a payload that never left the browser. Refusal codes are
+  now recovered from the raised error, which fixes reporting for all nine theme services, not
+  just import. The specific message ("No vacuum is selected for this card.") already existed
+  and was simply unreachable.
 
 ### Changed
+- **Releases now ship an installable `eufy_vacuum.zip` asset, and HACS installs that.**
+  Previously HACS pulled the integration's files straight from the tag — a path GitHub does
+  not meter, so this project reported no download count at all, which reads as zero installs
+  and was not. One consequence is worth knowing: with the switch on, a release published
+  without that asset cannot be installed, and that includes v2.0.1 and everything before it,
+  which predate the change. Pinning to a release older than this one is unsupported until
+  those are backfilled. The release workflow asserts the archive layout and the manifest
+  version before uploading, and fails the release rather than publishing a broken payload.
 - Bundled locales gained the new panel and options-flow strings in all 18 languages.
 - OpenDyslexic is attributed in `NOTICE`, with a CI guard asserting the licence ships whenever
   the font does.
