@@ -3120,6 +3120,8 @@
     "reason_override_unresolved": "выбранная сущность отсутствует",
     "source_device_sibling": "Найдено на устройстве пылесоса",
     "source_config_entry_sibling": "Найдено в интеграции пылесоса",
-    "source_declared_rescue": "Переименовано — сопоставлено по суффиксу"
+    "source_declared_rescue": "Переименовано — сопоставлено по суффиксу",
+    "col_change": "Изменить",
+    "pick_auto": "Автоматически"
   }
 }

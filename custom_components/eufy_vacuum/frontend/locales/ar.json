@@ -3237,6 +3237,8 @@
     "reason_override_unresolved": "الكيان الذي اخترته مفقود",
     "source_device_sibling": "عُثر عليه في جهاز المكنسة",
     "source_config_entry_sibling": "عُثر عليه في تكامل المكنسة",
-    "source_declared_rescue": "أُعيدت تسميته — طوبق باللاحقة"
+    "source_declared_rescue": "أُعيدت تسميته — طوبق باللاحقة",
+    "col_change": "تغيير",
+    "pick_auto": "تلقائي"
   }
 }

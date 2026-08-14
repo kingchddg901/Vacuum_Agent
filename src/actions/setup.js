@@ -4,6 +4,7 @@ import {
   DOMAIN,
   SERVICE_SETUP_GET_STATUS,
   SERVICE_SETUP_ADD_VACUUM,
+  SERVICE_SET_ENTITY_OVERRIDE,
   SERVICE_SETUP_IMPORT_MAP,
   SERVICE_SETUP_GET_MAP_ROOMS,
   SERVICE_SETUP_SAVE_ROOMS,
@@ -31,6 +32,31 @@ export function applySetupActions(proto) {
    * Register the given vacuum entity with the integration.
    * Returns an ActionResult dict or null.
    */
+  /**
+   * Pin one role to an entity the user picked, or clear it (live:ENT-13).
+   *
+   * All THREE params are named explicitly. This wrapper layer destructures a
+   * fixed list and silently drops anything unlisted, so an omitted param here
+   * fails as "the service ignored me" rather than as an error.
+   *
+   * @param {string} vacuumEntityId
+   * @param {string} role
+   * @param {string} entityId  blank clears the override
+   */
+  proto.setEntityOverride = async function (vacuumEntityId, role, entityId) {
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SET_ENTITY_OVERRIDE,
+      {
+        vacuum_entity_id: vacuumEntityId,
+        role,
+        entity_id: entityId ?? "",
+      },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
   proto.addVacuum = async function (vacuumEntityId) {
     const result = await this.callService(
       DOMAIN,

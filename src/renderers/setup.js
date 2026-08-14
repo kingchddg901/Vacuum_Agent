@@ -937,6 +937,22 @@ export function applySetupRenderers(proto) {
           ).join(", ") + `</div>`
         : "";
 
+      // The picker is the row's EDIT affordance — the table is for reading, and
+      // changing a binding is the exception. Options are config-entry scoped and
+      // domain-filtered server-side; a blank choice clears the override and hands
+      // the role back to automatic resolution.
+      const options = Array.isArray(row?.options) ? row.options : [];
+      const picker = options.length
+        ? `<select class="evcc-system-picker" data-action="set-entity-override"
+                   data-role="${this.escapeHtml(String(row?.role ?? ""))}">
+             <option value="">${this.t("system.pick_auto")}</option>
+             ${options.map((id) => `
+               <option value="${this.escapeHtml(id)}" ${row?.overridden && id === entityId ? "selected" : ""}>
+                 ${this.escapeHtml(id)}
+               </option>`).join("")}
+           </select>`
+        : "";
+
       return `
         <tr>
           <td class="evcc-system-role">${this.escapeHtml(String(row?.role ?? ""))}</td>
@@ -946,6 +962,7 @@ export function applySetupRenderers(proto) {
           </td>
           <td class="evcc-system-value">${shown}</td>
           <td class="evcc-system-source">${source} ${reason}</td>
+          <td class="evcc-system-edit">${picker}</td>
         </tr>
       `;
     }).join("");
@@ -961,6 +978,7 @@ export function applySetupRenderers(proto) {
                 <th>${this.t("system.col_entity")}</th>
                 <th>${this.t("system.col_value")}</th>
                 <th>${this.t("system.col_source")}</th>
+                <th>${this.t("system.col_change")}</th>
               </tr>
             </thead>
             <tbody>${body}</tbody>

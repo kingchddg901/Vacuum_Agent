@@ -2963,6 +2963,8 @@
     "reason_override_unresolved": "선택한 엔터티가 없습니다",
     "source_device_sibling": "청소기 기기에서 발견",
     "source_config_entry_sibling": "청소기 통합에서 발견",
-    "source_declared_rescue": "이름 변경됨 — 접미사로 일치"
+    "source_declared_rescue": "이름 변경됨 — 접미사로 일치",
+    "col_change": "변경",
+    "pick_auto": "자동"
   }
 }

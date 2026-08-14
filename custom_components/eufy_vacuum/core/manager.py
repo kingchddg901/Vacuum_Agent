@@ -5232,6 +5232,7 @@ class EufyVacuumManager:
         """
         config = _get_adapter_config(vacuum_entity_id) or {}
         entities = config.get("entities") or {}
+        overrides_applied: dict[str, Any] = {}
 
         reasons: dict[str, Any] = {}
         decisions: dict[str, Any] = {}
@@ -5244,6 +5245,7 @@ class EufyVacuumManager:
             if isinstance(caps, dict):
                 reasons = caps.get("entity_resolution_reasons") or {}
                 sources = caps.get("entity_sources") or {}
+                overrides_applied = augmentation.get("overrides_applied") or {}
                 augmentation = caps.get("entity_augmentation") or {}
                 decisions = augmentation.get("decisions") or {}
                 # A role the adapter probes rather than declares still belongs in
@@ -5255,6 +5257,39 @@ class EufyVacuumManager:
         except Exception:  # pragma: no cover - defensive
             _LOGGER.debug(
                 "entity bindings: capabilities unavailable for %s",
+                vacuum_entity_id, exc_info=True,
+            )
+
+        # live:ENT-13 — the picker's options: everything on the vacuum's CONFIG
+        # ENTRY, narrowed to the role's domain.
+        #
+        # CONFIG ENTRY, NOT DEVICE, and the difference is not theoretical.
+        # Roborock gives the dock its OWN device: on the maintainer's install
+        # `vacuum.ivy` sits on device "Ivy" while
+        # `binary_sensor.ivy_dock_mop_drying` sits on "Ivy Dock" — a different
+        # device, the same config entry. Device-scoped options would hide every
+        # dock entity from the picker on that brand.
+        #
+        # It costs almost nothing: measured across three vacuums, config-entry
+        # scope adds +1 entity for Ivy, +3 for Robin and +0 for Alfred over device
+        # scope. Domain filtering is what keeps the list readable (15/25/39
+        # sensors respectively) — a role needing a sensor can never want a select.
+        #
+        # Cross-vacuum contamination is not a risk here for the same reason it is
+        # not in ENT-5: each vacuum on this install has its own config entry. Where
+        # that is NOT true the list would include a second machine's entities, and
+        # the user is choosing explicitly, so a wrong pick is visible and revocable.
+        pickable: list[str] = []
+        try:
+            from .capabilities import _sweep_siblings
+
+            registry = er.async_get(self.hass)
+            entry = registry.async_get(vacuum_entity_id)
+            if entry is not None:
+                pickable, _device_count = _sweep_siblings(registry, entry)
+        except Exception:  # pragma: no cover - defensive
+            _LOGGER.debug(
+                "entity bindings: could not list pickable entities for %s",
                 vacuum_entity_id, exc_info=True,
             )
 
@@ -5286,6 +5321,12 @@ class EufyVacuumManager:
                 # deciding rung was never evaluated and must never be rendered
                 # as agreeing.
                 "rejected": decision.get("rejected") or {},
+                "options": sorted(
+                    item for item in pickable
+                    if not entity_id
+                    or item.partition(".")[0] == str(entity_id).partition(".")[0]
+                ),
+                "overridden": role in overrides_applied,
             })
         return rows
 

@@ -3024,6 +3024,8 @@
     "reason_override_unresolved": "a entidade escolhida está em falta",
     "source_device_sibling": "Encontrado no dispositivo do aspirador",
     "source_config_entry_sibling": "Encontrado na integração do aspirador",
-    "source_declared_rescue": "Renomeado — associado pelo sufixo"
+    "source_declared_rescue": "Renomeado — associado pelo sufixo",
+    "col_change": "Alterar",
+    "pick_auto": "Automático"
   }
 }

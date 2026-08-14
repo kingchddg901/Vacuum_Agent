@@ -3002,6 +3002,8 @@
     "reason_override_unresolved": "entitas pilihan Anda hilang",
     "source_device_sibling": "Ditemukan pada perangkat penyedot debu",
     "source_config_entry_sibling": "Ditemukan pada integrasi penyedot debu",
-    "source_declared_rescue": "Diganti nama — dicocokkan lewat akhiran"
+    "source_declared_rescue": "Diganti nama — dicocokkan lewat akhiran",
+    "col_change": "Ubah",
+    "pick_auto": "Otomatis"
   }
 }

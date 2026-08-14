@@ -872,4 +872,13 @@ export const setupStyles = `
     font-size: 0.9em;
     margin-top: 4px;
   }
+  .evcc-system-picker {
+    background: var(--evcc-surface-input);
+    color: var(--evcc-text-primary);
+    border: 1px solid var(--evcc-border-default);
+    border-radius: 6px;
+    padding: 4px 6px;
+    font-size: 0.9em;
+    max-width: 220px;
+  }
 `;

@@ -27,6 +27,8 @@ from ..const import (
     DATA_RUNTIME,
     DOMAIN,
     SERVICE_SETUP_ADD_VACUUM,
+    SERVICE_SET_ENTITY_OVERRIDE,
+    ENTITY_OVERRIDES_KEY,
     SERVICE_SETUP_DELETE_MAP,
     SERVICE_SETUP_FORCE_REMOVE_ROOM,
     SERVICE_SETUP_GET_MAP_ROOMS,
@@ -87,6 +89,15 @@ _SETUP_SET_MAP_CAMERA_SCHEMA = vol.Schema(
 )
 _SETUP_IMPORT_MAP_SCHEMA = vol.Schema(
     {vol.Required("vacuum_entity_id"): cv.entity_id}
+)
+_SET_ENTITY_OVERRIDE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("role"): cv.string,
+        # Plain string, not cv.entity_id, so "" is accepted as the CLEAR
+        # sentinel — same convention as setup_set_map_camera.
+        vol.Optional("entity_id", default=""): cv.string,
+    }
 )
 _SETUP_GET_STATUS_SCHEMA = vol.Schema({})
 _SETUP_GET_MAP_ROOMS_SCHEMA = vol.Schema(
@@ -219,6 +230,54 @@ def register(hass: HomeAssistant) -> None:
                     hass.config_entries.async_reload(entries[0].entry_id)
                 )
         return result
+
+    async def set_entity_override(call: ServiceCall) -> dict:
+        """Pin a role to an entity the user chose (live:ENT-13).
+
+        The panel's write path for the storage contract in const.ENTITY_OVERRIDES_KEY.
+        A blank entity_id CLEARS the override and lets auto-resolution take the
+        role back.
+
+        Reloads the config entry afterwards, because the override is consumed at
+        adapter-registration time — without the reload the user would save a
+        choice and see nothing change, which is the silent failure this whole
+        feature exists to remove.
+        """
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is None:
+            return {"status": "error", "reason": "runtime_unavailable"}
+
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        role = str(call.data["role"]).strip()
+        entity_id = str(call.data.get("entity_id") or "").strip()
+        if not role:
+            return {"status": "error", "reason": "missing_role"}
+
+        store = manager.data.setdefault(ENTITY_OVERRIDES_KEY, {})
+        per_vacuum = store.setdefault(vacuum_entity_id, {})
+        if entity_id:
+            per_vacuum[role] = entity_id
+        else:
+            per_vacuum.pop(role, None)
+            if not per_vacuum:
+                store.pop(vacuum_entity_id, None)
+        await manager.async_save()
+
+        _LOGGER.info(
+            "eufy_vacuum: entity override for %s role %r -> %s",
+            vacuum_entity_id, role, entity_id or "(cleared)",
+        )
+
+        entries = hass.config_entries.async_entries(DOMAIN)
+        if entries:
+            hass.async_create_task(
+                hass.config_entries.async_reload(entries[0].entry_id)
+            )
+        return {
+            "status": "success",
+            "role": role,
+            "entity_id": entity_id or None,
+        }
 
     async def setup_import_active_map(call: ServiceCall) -> dict:
         result = await _import_active_map(hass, call.data["vacuum_entity_id"])
@@ -455,6 +514,10 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SETUP_ADD_VACUUM, setup_add_vacuum,
         schema=_SETUP_ADD_VACUUM_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_ENTITY_OVERRIDE, set_entity_override,
+        schema=_SET_ENTITY_OVERRIDE_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SETUP_IMPORT_MAP, setup_import_active_map,

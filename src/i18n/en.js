@@ -192,6 +192,8 @@ export const en = {
   "system.col_entity": "Entity",
   "system.col_value": "Now",
   "system.col_source": "Chosen by",
+  "system.col_change": "Change",
+  "system.pick_auto": "Automatic",
   "system.no_value": "no reading",
   "system.unresolved": "not found",
   "system.rejected": "Also matched",

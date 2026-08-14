@@ -40,6 +40,17 @@ export function applySetupBindings(proto) {
     /* -------------------------------------------------------
        SUB-TAB STRIP (live:ENT-11)
        ------------------------------------------------------- */
+    card._onAll("[data-action='set-entity-override']", "change", async (e) => {
+      const role = e.currentTarget?.dataset?.role;
+      const entityId = e.currentTarget?.value ?? "";
+      const vacuumEntityId = card._config?.vacuum_entity_id;
+      if (!role || !vacuumEntityId) return;
+      // The backend RELOADS the config entry, so the snapshot that follows is
+      // the authority on what actually took effect — never assume the pick won.
+      await card._actions.setEntityOverride?.(vacuumEntityId, role, entityId);
+      card._scheduleRender();
+    });
+
     card._onAll("[data-action='set-setup-subtab']", "click", (e) => {
       card._state.setSetupSubtab?.(e.currentTarget?.dataset?.subtab);
       card._scheduleRender();

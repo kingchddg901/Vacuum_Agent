@@ -3013,6 +3013,8 @@
     "reason_override_unresolved": "zvolená entita chybí",
     "source_device_sibling": "Nalezeno na zařízení vysavače",
     "source_config_entry_sibling": "Nalezeno v integraci vysavače",
-    "source_declared_rescue": "Přejmenováno — spárováno podle přípony"
+    "source_declared_rescue": "Přejmenováno — spárováno podle přípony",
+    "col_change": "Změnit",
+    "pick_auto": "Automaticky"
   }
 }

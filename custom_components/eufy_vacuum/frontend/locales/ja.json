@@ -2963,6 +2963,8 @@
     "reason_override_unresolved": "選択したエンティティがありません",
     "source_device_sibling": "掃除機のデバイス上で発見",
     "source_config_entry_sibling": "掃除機の統合内で発見",
-    "source_declared_rescue": "名称変更 — 接尾辞で照合"
+    "source_declared_rescue": "名称変更 — 接尾辞で照合",
+    "col_change": "変更",
+    "pick_auto": "自動"
   }
 }

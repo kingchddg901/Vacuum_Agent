@@ -968,6 +968,8 @@
     "col_entity": "Entity",
     "col_value": "Now",
     "col_source": "Chosen by",
+    "col_change": "Change",
+    "pick_auto": "Automatic",
     "no_value": "no reading",
     "unresolved": "not found",
     "rejected": "Also matched",

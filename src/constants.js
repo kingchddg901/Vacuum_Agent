@@ -159,6 +159,7 @@ export const SERVICE_SET_HIDDEN_REGIONS = "set_hidden_regions";
 // --- Setup ---
 export const SERVICE_SETUP_GET_STATUS       = "setup_get_status";
 export const SERVICE_SETUP_ADD_VACUUM       = "setup_add_vacuum";
+export const SERVICE_SET_ENTITY_OVERRIDE    = "set_entity_override";
 export const SERVICE_SETUP_IMPORT_MAP       = "setup_import_active_map";
 export const SERVICE_SETUP_GET_MAP_ROOMS    = "setup_get_map_rooms";
 export const SERVICE_SETUP_SAVE_ROOMS       = "setup_save_rooms";

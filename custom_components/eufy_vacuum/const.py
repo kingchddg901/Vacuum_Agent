@@ -45,6 +45,7 @@ ENTITY_OVERRIDES_KEY = "entity_overrides"
 # Service names
 # ----------------------
 
+SERVICE_SET_ENTITY_OVERRIDE = "set_entity_override"
 SERVICE_DISCOVER_ROOMS = "discover_rooms"
 SERVICE_SAVE_MANAGED_ROOMS = "save_managed_rooms"
 SERVICE_GET_VACUUM_MAPS = "get_vacuum_maps"

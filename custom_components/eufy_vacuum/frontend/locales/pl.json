@@ -3014,6 +3014,8 @@
     "reason_override_unresolved": "brakuje wybranej encji",
     "source_device_sibling": "Znaleziono na urządzeniu odkurzacza",
     "source_config_entry_sibling": "Znaleziono w integracji odkurzacza",
-    "source_declared_rescue": "Zmieniono nazwę — dopasowano po końcówce"
+    "source_declared_rescue": "Zmieniono nazwę — dopasowano po końcówce",
+    "col_change": "Zmień",
+    "pick_auto": "Automatycznie"
   }
 }

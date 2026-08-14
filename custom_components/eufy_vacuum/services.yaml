@@ -40,6 +40,43 @@ discover_rooms:
       selector:
         text: {}
 
+set_entity_override:
+  name: Set entity override
+  description: >
+    Pin one role to a specific entity when auto-resolution picked the wrong one,
+    or could not find one at all. Vacuum Agent normally derives companion entity
+    ids from the vacuum's own name, then falls back to searching its device and
+    its integration; on installs where the companions are named differently, or
+    where two similarly-named entities collide, that can bind a role to the wrong
+    entity. A per-run cleaning-area role bound to a lifetime counter reads
+    thousands of times too high and never errors.
+    Leave the entity blank to clear the override and hand the role back to
+    automatic resolution. Reloads the integration so the change takes effect.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    role:
+      name: Role
+      description: >
+        The role to pin, as shown in the Setup tab's System view — for example
+        cleaning_area, task_status or battery.
+      required: true
+      example: cleaning_area
+      selector:
+        text: {}
+    entity_id:
+      name: Entity
+      description: >
+        The entity this role should read. Blank clears the override.
+      required: false
+      example: sensor.alfred_cleaning_area
+      selector:
+        text: {}
+
 setup_unreject_rooms:
   name: Un-reject rooms
   description: >

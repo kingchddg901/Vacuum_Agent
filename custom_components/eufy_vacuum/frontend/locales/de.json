@@ -3006,6 +3006,8 @@
     "reason_override_unresolved": "deine gewählte Entität fehlt",
     "source_device_sibling": "Auf dem Gerät des Saugers gefunden",
     "source_config_entry_sibling": "In der Integration des Saugers gefunden",
-    "source_declared_rescue": "Umbenannt — über die Endung zugeordnet"
+    "source_declared_rescue": "Umbenannt — über die Endung zugeordnet",
+    "col_change": "Ändern",
+    "pick_auto": "Automatisch"
   }
 }
