@@ -960,8 +960,8 @@ export function applySetupRenderers(proto) {
             ${entityId ? `<code>${this.escapeHtml(entityId)}</code>` : `<em>${this.t("system.unresolved")}</em>`}
             ${alternatives}
           </td>
-          <td class="evcc-system-value">${shown}</td>
-          <td class="evcc-system-source">${source} ${reason}</td>
+          <td class="evcc-system-value" data-label="${this.t("system.col_value")}">${shown}</td>
+          <td class="evcc-system-source" data-label="${this.t("system.col_source")}">${source} ${reason}</td>
           <td class="evcc-system-edit">${picker}</td>
         </tr>
       `;

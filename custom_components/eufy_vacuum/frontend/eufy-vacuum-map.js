@@ -5073,8 +5073,8 @@ ${r}
             ${s?`<code>${this.escapeHtml(s)}</code>`:`<em>${this.t("system.unresolved")}</em>`}
             ${p}
           </td>
-          <td class="evcc-system-value">${l}</td>
-          <td class="evcc-system-source">${d} ${u}</td>
+          <td class="evcc-system-value" data-label="${this.t("system.col_value")}">${l}</td>
+          <td class="evcc-system-source" data-label="${this.t("system.col_source")}">${d} ${u}</td>
           <td class="evcc-system-edit">${f}</td>
         </tr>
       `}).join("");return`
@@ -16642,28 +16642,97 @@ ${r}
      metrics tables landed on: long entity ids plus a long locale plus
      OpenDyslexic will always overflow a narrow viewport, and sideways scroll
      on a contained box beats shrinking ids to illegibility. */
-  .evcc-system-scroll { overflow-x: auto; }
-  .evcc-system-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
-  .evcc-system-table th {
-    text-align: start;
-    color: var(--evcc-text-secondary);
-    font-weight: 600;
-    padding: 4px 10px 8px 0;
-    border-bottom: 1px solid var(--evcc-border-default);
+  /* ===========================================================
+     THE BINDING TABLE IS A LIST OF RECORDS, NOT A GRID OF COLUMNS
+     -----------------------------------------------------------
+     Stacked at EVERY width \u2014 Chris's call after seeing it in French +
+     OpenDyslexic on a phone: "I like this layout and think it would work well
+     in desktop mode."
+
+     Five columns (role / entity / value / how it was chosen / a picker) never
+     really fitted. Entity ids are long, a longer locale makes the provenance
+     column longer still, and one column is a <select>. That forced a sideways
+     scroll on a phone and squeezed everything everywhere else.
+
+     Reading this surface is per-record \u2014 "what is THIS role bound to, and
+     why" \u2014 so a record is the right unit. What columns bought was comparison
+     ACROSS rows, and the one comparison that matters (which entities were
+     rescued) survives, because the provenance line is on every card.
+
+     On a wide screen the records flow into a responsive GRID rather than one
+     tall column, so the width is spent on showing more records at once instead
+     of on padding.
+     =========================================================== */
+  .evcc-system-scroll { overflow-x: visible; }
+
+  .evcc-system-table,
+  .evcc-system-table tbody {
+    display: block;
+    width: 100%;
   }
+
+  /* Column headers cannot align with stacked cells, so they stop being
+     headers. What they carried is re-attached per cell via data-label. */
+  .evcc-system-table thead { display: none; }
+
+  .evcc-system-table tr {
+    display: block;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--evcc-border-default) 55%, transparent);
+    border-radius: 10px;
+    background: var(--evcc-surface-panel);
+  }
+
   .evcc-system-table td {
-    padding: 8px 10px 8px 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--evcc-border-default) 55%, transparent);
-    vertical-align: top;
+    display: block;
+    width: auto;
+    white-space: normal;
+    padding: 1px 0;
+    border: none;
   }
+
   .evcc-system-table code { font-size: 0.95em; word-break: break-all; }
-  .evcc-system-role { white-space: nowrap; color: var(--evcc-text-primary); }
-  .evcc-system-value { white-space: nowrap; }
+
+  /* The role is the record's heading once the columns are gone. */
+  .evcc-system-role {
+    font-weight: 600;
+    font-size: 1.05em;
+    padding-bottom: 3px;
+    color: var(--evcc-text-primary);
+  }
+
+  .evcc-system-table td[data-label]::before {
+    content: attr(data-label) ": ";
+    color: var(--evcc-text-muted);
+  }
+
+  .evcc-system-edit { padding-top: 8px; }
+
+  .evcc-system-picker {
+    width: 100%;
+    max-width: 100%;
+    min-height: 40px;
+  }
+
   .evcc-system-flag { color: var(--evcc-sem-warning); }
+
   .evcc-system-rejected {
     color: var(--evcc-text-secondary);
     font-size: 0.9em;
     margin-top: 4px;
+  }
+
+  /* Wide screens: flow the records instead of stacking 21 of them in a column.
+     auto-fill + minmax means the count follows the width with no breakpoints \u2014
+     one column on a phone, three or four on a desktop panel. */
+  .evcc-shell[data-viewport="desktop"] .evcc-system-table tbody {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 10px;
+  }
+
+  .evcc-shell[data-viewport="mobile"] .evcc-system-table tr {
+    margin-bottom: 8px;
   }
   .evcc-system-picker {
     background: var(--evcc-surface-input);
@@ -17962,6 +18031,7 @@ ${r}
       transition: none;
     }
   }
+
 `;var Sl=`
   .evcc-btn {
     border: 1px solid var(--evcc-border-default);
