@@ -50,6 +50,24 @@ export function applyCoreState(proto) {
     return vacuumObjectId(this.vacuumEntityId());
   };
 
+  /**
+   * The entity the BACKEND resolved for a role, or null.
+   *
+   * live:ENT-10. The card used to derive its own ids from the vacuum's object_id
+   * — `sensor.${objectId}_battery` and friends — which is the same naming
+   * assumption the Python side repaired in ENT-1/ENT-5, in a language none of
+   * those fixes reach. On issue #49 the battery sensor resolves fine server-side
+   * and reads 100, while the card derives an id that does not exist and draws
+   * nothing. The resolver already knows the answer; asking it beats guessing.
+   *
+   * @param {string} role
+   * @returns {string|null}
+   */
+  proto.resolvedEntity = function (role) {
+    const id = this.dashboardSnapshot?.()?.resolved_entities?.[role];
+    return typeof id === "string" && id ? id : null;
+  };
+
   /** @returns {string|null} vacuum HA state ("docked", "cleaning", "returning", "paused", "error", …) */
   proto.vacuumState = function () {
     const entityId = this.vacuumEntityId();
@@ -104,9 +122,14 @@ export function applyCoreState(proto) {
     // isCharging() below already reads binary_sensor.<vacuum>_charging, so the
     // separate-entity pattern was known here; battery just never got the same
     // treatment. The shorter copy at the neighbouring seam.
+    // The RESOLVED id first (live:ENT-10) — the backend already rescued this on
+    // installs whose companions are not named after the vacuum. Falling back to
+    // derivation keeps every working install byte-identical.
     const objectId = this.vacuumObjectId();
-    if (!objectId) return null;
-    const raw2 = this.stateOf(`sensor.${objectId}_battery`);
+    const batteryId = this.resolvedEntity("battery")
+      || (objectId ? `sensor.${objectId}_battery` : null);
+    if (!batteryId) return null;
+    const raw2 = this.stateOf(batteryId);
     // The non-value check MUST precede Number(): Number("") is 0, and 0 is
     // finite, so an empty or missing state would read as a FLAT battery rather
     // than an unknown one — "good" becomes "emergency" with no data behind it.
@@ -126,9 +149,14 @@ export function applyCoreState(proto) {
    * @returns {boolean}
    */
   proto.isCharging = function () {
+    // Same rescue as batteryLevel (live:ENT-10). This is the neighbouring seam
+    // the battery comment already pointed at — the two are always broken
+    // together, because they carry the identical naming assumption.
     const objectId = this.vacuumObjectId();
-    if (!objectId) return false;
-    return this.stateOf(`binary_sensor.${objectId}_charging`) === "on";
+    const chargingId = this.resolvedEntity("charging")
+      || (objectId ? `binary_sensor.${objectId}_charging` : null);
+    if (!chargingId) return false;
+    return this.stateOf(chargingId) === "on";
   };
 
   /**

@@ -5471,6 +5471,23 @@ class EufyVacuumManager:
             "adapter_vocabulary": adapter_vocabulary,
             "max_clean_passes": max_clean_passes,
             "mop_active": mop_active,
+            # live:ENT-10 — the RESOLVED role -> entity_id map, for the card.
+            #
+            # The frontend derived its own ids (`sensor.${objectId}_battery`,
+            # `binary_sensor.${objectId}_charging`), carrying the same naming
+            # assumption ENT-1/ENT-5 repaired on the Python side — a FIFTH copy,
+            # in a language none of those fixes reach. On issue #49 the battery
+            # sensor resolves perfectly in the backend and reads 100, while the
+            # card derives an id that does not exist and draws nothing.
+            #
+            # Publishing what we actually resolved is also the seam the "System"
+            # sub-tab renders (§4.5.1): the card should never re-derive something
+            # the resolver has already decided.
+            "resolved_entities": {
+                role: entity_id
+                for role, entity_id in (_adapter_cfg.get("entities", {}) or {}).items()
+                if isinstance(entity_id, str) and entity_id
+            },
             "supports_room_profiles": supports_room_profiles,
             "passes_is_global": passes_is_global,
             "supports_base_station": supports_base_station,
