@@ -16,6 +16,7 @@ __init__.py via register_eufy_adapter_for_vacuum().
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -165,6 +166,8 @@ def _registry_model_code(hass: HomeAssistant, vacuum_entity_id: str) -> str | No
 def register_eufy_adapter_for_vacuum(
     hass: HomeAssistant,
     vacuum_entity_id: str,
+    *,
+    entity_overrides: dict[str, str] | None = None,
 ) -> None:
     """Assemble and register the Eufy adapter config for one vacuum.
 
@@ -248,6 +251,10 @@ def register_eufy_adapter_for_vacuum(
         # half declared in `entities` and the other in `entity_candidates`, so
         # sibling matching cannot see the conflict without this (live:ENT-4).
         reserved_suffixes=ALL_SUFFIXES,
+        # The user's own role->entity choices, consulted FIRST (live:ENT-7).
+        # Written by the options flow and the panel's Setup tab; core owns the
+        # mechanism, so this is the same three lines in every brand.
+        entity_overrides=entity_overrides or {},
     )
 
     # Build entity ID map from adapter entity patterns.

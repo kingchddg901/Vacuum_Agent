@@ -53,6 +53,12 @@ REASON_RESOLVED = "resolved"
 REASON_DISABLED = "disabled"
 REASON_REGISTERED_NO_STATE = "registered_no_state"
 REASON_ABSENT = "absent"
+#: The user set an override for this role and it did NOT resolve — renamed or
+#: deleted since. Resolution fell through to the normal candidates rather than
+#: pinning a dead id, but a user choice that has quietly stopped working must be
+#: VISIBLE; silently substituting our guess for their stated intent is the
+#: failure mode this whole effort exists to remove (live:ENT-7).
+REASON_OVERRIDE_UNRESOLVED = "override_unresolved"
 
 
 # ----------------------------------------------------------------------
@@ -238,6 +244,7 @@ def augment_candidates_from_device(
     entity_candidates: dict[str, list[str]] | None,
     *,
     reserved_suffixes: Iterable[str] | None = None,
+    overrides: dict[str, str] | None = None,
     report: dict[str, Any] | None = None,
 ) -> dict[str, list[str]]:
     """Append device-registry siblings to each role's candidate list.
@@ -284,12 +291,36 @@ def augment_candidates_from_device(
         rpt["reason"] = "no_candidates"
         return dict(cands)
 
+    # live:ENT-7 — APPLY THE OVERRIDE BEFORE ANYTHING CAN FAIL.
+    #
+    # Every early return below hands back the candidate map unchanged, so an
+    # override applied further down would be skipped on exactly the installs it
+    # exists to rescue: a vacuum missing from the registry, a registry that
+    # raises, a device with no siblings. The user's explicit choice does not
+    # depend on the registry search succeeding — it IS the answer the search was
+    # looking for.
+    user_overrides = overrides if isinstance(overrides, dict) else {}
+    applied_overrides: dict[str, str] = {}
+    base: dict[str, list[str]] = {}
+    for _role, _declared in cands.items():
+        _list = list(_declared or [])
+        _override = user_overrides.get(_role)
+        if isinstance(_override, str) and "." in _override:
+            # First in the list, and _find takes the first that EXISTS — so a
+            # resolvable override beats every derived and sibling candidate, and
+            # an unresolvable one falls through instead of pinning a dead id.
+            _list = [_override] + [item for item in _list if item != _override]
+            applied_overrides[_role] = _override
+        base[_role] = _list
+    if applied_overrides:
+        rpt["overrides_applied"] = applied_overrides
+
     try:
         registry = er.async_get(hass)
         entry = registry.async_get(vacuum_entity_id)
         if entry is None:
             rpt["reason"] = "vacuum_not_in_registry"
-            return dict(cands)
+            return dict(base)
 
         # live:ENT-5 — TWO SCOPES, because one of them is proven and the other
         # is the suspect.
@@ -330,7 +361,7 @@ def augment_candidates_from_device(
         rpt["siblings_seen"] = len(siblings)
         if not siblings:
             rpt["reason"] = "no_siblings_in_device_or_config_entry"
-            return dict(cands)
+            return dict(base)
     except Exception as err:
         rpt["reason"] = "registry_error"
         rpt["error"] = repr(err)
@@ -343,7 +374,7 @@ def augment_candidates_from_device(
             vacuum_entity_id,
             err,
         )
-        return dict(cands)
+        return dict(base)
 
     object_id = vacuum_entity_id.split(".", 1)[-1]
     out: dict[str, list[str]] = {}
@@ -424,7 +455,12 @@ def augment_candidates_from_device(
     ambiguous: dict[str, list[str]] = {}
 
     for role, declared in cands.items():
-        merged = list(declared or [])
+        merged = list(base.get(role) or declared or [])
+
+        # live:ENT-7 — the override is already FIRST in `merged` (applied above,
+        # before any early return could skip it). Suffix derivation below still
+        # walks the ORIGINAL declared ids, so an override that does not follow
+        # this vacuum's naming cannot pollute the suffix universe.
         seen = set(merged)
 
         for candidate in declared or []:
@@ -483,7 +519,10 @@ def augment_candidates_from_device(
                         if item.partition(".")[2] == f"{majority_stem}{suffix}"
                     ]
                 if len(narrowed) != 1:
-                    ambiguous.setdefault(role, sorted(matches))
+                    # An override means the user already decided this one; do
+                    # not report it as needing a decision.
+                    if role not in applied_overrides:
+                        ambiguous.setdefault(role, sorted(matches))
                     _LOGGER.debug(
                         "%s: role %r has %d competing companions for suffix %r; "
                         "leaving it unresolved rather than guessing: %s",
@@ -501,7 +540,6 @@ def augment_candidates_from_device(
 
     if ambiguous:
         rpt["ambiguous"] = ambiguous
-
     return out
 
 
@@ -519,6 +557,11 @@ def detect_capabilities(
     # `entity_candidates`. Needed so sibling matching knows a longer suffix is
     # already spoken for — see augment_candidates_from_device (live:ENT-4).
     reserved_suffixes: Iterable[str] | None = None,
+    # Per-vacuum user overrides, ``{role: entity_id}``. Consulted FIRST — the
+    # user's stated choice outranks every derived and sibling candidate
+    # (live:ENT-7). Written by both the options flow and the panel's Setup tab;
+    # see const.ENTITY_OVERRIDES_KEY for the storage contract.
+    entity_overrides: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Detect and return a capability map for one vacuum.
 
@@ -553,10 +596,12 @@ def detect_capabilities(
         vacuum_entity_id,
         entity_candidates,
         reserved_suffixes=reserved_suffixes,
+        overrides=entity_overrides,
         report=_aug_report,
     )
     _hints = capability_hints or {}
     _reasons: dict[str, str] = {}
+    _overrides = entity_overrides if isinstance(entity_overrides, dict) else {}
 
     def _find(key: str) -> str | None:
         """Resolve a role, recording WHY it failed (live:ENT-2).
@@ -567,8 +612,20 @@ def detect_capabilities(
         indistinguishable from "no such entity" in the report.
         """
         entity_id, reason = resolve_with_reason(hass, _cands.get(key, []))
+        # Decide the RETURN before relabelling the reason. Only an entity with a
+        # state resolves, exactly as before — otherwise a disabled fall-through
+        # would start counting as present and flip capability booleans that read
+        # `bool(<role>_entity)`.
+        has_state = reason == REASON_RESOLVED
+        # live:ENT-7 — an override that did not win must SAY so. It is first in
+        # the list, so anything else resolving means the user's choice failed and
+        # we fell through. Reporting plain "resolved" there would hide a stale
+        # user decision behind a working-looking role.
+        wanted = _overrides.get(key)
+        if isinstance(wanted, str) and wanted and entity_id != wanted:
+            reason = REASON_OVERRIDE_UNRESOLVED
         _reasons[key] = reason
-        return entity_id if reason == REASON_RESOLVED else None
+        return entity_id if has_state else None
 
     def _find_reg(key: str) -> str | None:
         return _find_registered_entity(hass, _cands.get(key, []))

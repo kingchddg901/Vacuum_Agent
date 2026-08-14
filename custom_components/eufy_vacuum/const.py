@@ -20,6 +20,27 @@ CONF_TESTED_MODEL = "tested_model"
 CONF_NOTES = "notes"
 CONF_VACUUM_ENTITY_ID = "vacuum_entity_id"
 
+#: Per-vacuum user overrides for entity roles that auto-resolution got wrong or
+#: could not resolve at all:
+#:
+#:     data[ENTITY_OVERRIDES_KEY][vacuum_entity_id] = {role: entity_id}
+#:
+#: Shape deliberately mirrors ``brand_overrides`` (adapters/brands.py) — a
+#: per-vacuum user choice living in config-entry data, read by core. Same idea
+#: one level down: there, the user names the BRAND we guessed wrong; here, the
+#: ENTITY.
+#:
+#: It is the CONTRACT between two surfaces, which is why it lives here rather
+#: than beside either of them: the options flow (reachable even when the
+#: frontend is not) and the panel's Setup tab (richer, and where drift is
+#: already handled) both write this one key.
+#:
+#: MUST NOT be stored as an adapter config. Stored configs load first and are
+#: then overwritten by the code adapter — "code adapters always win"
+#: (docs/dev/21-adapter-system.md §6) — so an override persisted there would be
+#: silently clobbered at every startup.
+ENTITY_OVERRIDES_KEY = "entity_overrides"
+
 # ----------------------
 # Service names
 # ----------------------

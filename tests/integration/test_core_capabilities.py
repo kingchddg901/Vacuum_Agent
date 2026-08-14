@@ -865,3 +865,113 @@ async def test_a_tied_stem_vote_is_not_a_majority(hass):
     assert report["majority_stem"] is None, (
         "a 1-1 split was reported as a majority; the winner is then insertion order"
     )
+
+
+# ---------------------------------------------------------------------------
+# [CAP-17] live:ENT-7 — the user's override outranks everything we derived
+# ---------------------------------------------------------------------------
+
+async def test_override_beats_a_working_derived_candidate(hass):
+    """[CAP-17] Ruled: "override wins — it's a user choice."
+
+    Not a last-resort fallback. Auto-resolution can succeed and still be WRONG
+    (the ENT-4 collision resolves a per-run role to a lifetime counter), and a
+    fallback-only override could never correct that. So the override must beat
+    a candidate that resolves perfectly well.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass.states.async_set("sensor.alfred_task_status", "cleaning")
+    hass.states.async_set("sensor.the_one_i_actually_want", "docked")
+
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        entity_candidates={"task_status": ["sensor.alfred_task_status"]},
+        entity_overrides={"task_status": "sensor.the_one_i_actually_want"},
+    )
+
+    assert caps["entities"]["task_status"] == "sensor.the_one_i_actually_want", (
+        "the derived candidate won despite an explicit user override — a user who "
+        "sets one and sees nothing change is the silent failure we are removing"
+    )
+
+
+async def test_a_stale_override_falls_through_but_says_so(hass):
+    """[CAP-17b] A user choice that stopped working must be VISIBLE.
+
+    If the override target was renamed or deleted, pinning the dead id would
+    break the role outright. Falling through keeps it working — but silently
+    substituting our guess for their stated intent is exactly the failure mode
+    this effort exists to remove, so the reason has to say `override_unresolved`.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass.states.async_set("sensor.alfred_task_status", "cleaning")
+
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        entity_candidates={"task_status": ["sensor.alfred_task_status"]},
+        entity_overrides={"task_status": "sensor.deleted_last_tuesday"},
+    )
+
+    assert caps["entities"]["task_status"] == "sensor.alfred_task_status", (
+        "a stale override must not pin a dead id; resolution continues"
+    )
+    assert caps["entity_resolution_reasons"]["task_status"] == "override_unresolved", (
+        "the fall-through was reported as ordinary success, hiding a stale user "
+        "decision behind a working-looking role"
+    )
+
+
+async def test_an_overridden_role_is_not_reported_as_ambiguous(hass):
+    """[CAP-17c] Do not ask the user to decide something they already decided.
+
+    The ambiguity list drives the picker. A role carrying an override belongs
+    nowhere near it.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    _vacuum_with_scopes(
+        hass,
+        config_companions=[
+            ("sensor", "living_room_robot_task_status"),
+            ("sensor", "hallway_robot_task_status"),
+        ],
+    )
+
+    report: dict = {}
+    augment_candidates_from_device(
+        hass,
+        _VAC,
+        {"task_status": ["sensor.alfred_task_status"]},
+        overrides={"task_status": "sensor.hallway_robot_task_status"},
+        report=report,
+    )
+
+    assert "task_status" not in report.get("ambiguous", {})
+    assert report["overrides_applied"]["task_status"] == "sensor.hallway_robot_task_status"
+
+
+async def test_both_brands_receive_overrides_from_the_tier(hass):
+    """[CAP-17d] The mechanism is CORE's, so no brand may need its own code path.
+
+    ISO-1 confines a brand package to the adapter SDK, so a brand must never
+    import the storage key. The tier extracts it and passes the finished map —
+    which is also what makes Roborock and any future brand inherit this for free.
+    """
+    import inspect
+
+    from custom_components.eufy_vacuum.adapters import brands
+
+    tier = inspect.getsource(brands.register_brand_adapter)
+    assert "ENTITY_OVERRIDES_KEY" in tier, "the tier stopped resolving the overrides"
+    assert "entity_overrides=" in tier, "the tier no longer passes them to the registrar"
+
+    for registrar in brands.BRAND_REGISTRARS:
+        params = inspect.signature(registrar.register).parameters
+        assert "entity_overrides" in params, (
+            f"{registrar.brand_id} cannot receive overrides; that brand's users "
+            f"would have no way to correct a misresolved entity"
+        )

@@ -50,7 +50,10 @@ def table(monkeypatch):
     calls: list[tuple[str, str]] = []
 
     def _reg(brand_id):
-        def _inner(hass, vacuum_entity_id):
+        # `entity_overrides` is part of the registrar contract: the tier extracts
+        # the user's {role: entity_id} map and hands the brand the meaning, never
+        # the storage key (ISO-1 confines brand packages to the adapter SDK).
+        def _inner(hass, vacuum_entity_id, *, entity_overrides=None):
             calls.append((brand_id, vacuum_entity_id))
         return _inner
 

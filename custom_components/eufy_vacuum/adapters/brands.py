@@ -42,6 +42,7 @@ from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
 
+from ..const import ENTITY_OVERRIDES_KEY
 from .eufy.adapter import register_eufy_adapter_for_vacuum
 from .roborock.adapter import (
     is_roborock_vacuum,
@@ -67,7 +68,11 @@ class BrandRegistrar:
     """
 
     brand_id: str
-    register: Callable[[HomeAssistant, str], None]
+    #: ``(hass, vacuum_entity_id, *, entity_overrides=None) -> None``.
+    #: ``entity_overrides`` is the user's resolved ``{role: entity_id}`` map for
+    #: THIS vacuum, already extracted by the tier above — a brand is handed the
+    #: meaning, never the storage key (ISO-1).
+    register: Callable[..., None]
     detect: Callable[[HomeAssistant, str], bool] | None = None
     is_default: bool = False
 
@@ -186,7 +191,13 @@ def register_brand_adapter(
     user with an unrecognised vacuum why it is being driven as a Eufy.
     """
     registrar, source = resolve_brand(hass, vacuum_entity_id, data=data)
-    registrar.register(hass, vacuum_entity_id)
+    # Resolve the user's per-vacuum entity overrides HERE and hand the registrar
+    # the finished dict. A brand must never learn the storage key: ISO-1 confines
+    # brand packages to the adapter SDK, and "core owns the KEYS, never a brand's
+    # words" is the same rule stated from the other side. The brand receives
+    # meaning ({role: entity_id}), not our schema.
+    _overrides = ((data or {}).get(ENTITY_OVERRIDES_KEY) or {}).get(vacuum_entity_id) or {}
+    registrar.register(hass, vacuum_entity_id, entity_overrides=_overrides)
     if source == "default":
         _LOGGER.info(
             "eufy_vacuum: %s was not identified as any supported brand; "

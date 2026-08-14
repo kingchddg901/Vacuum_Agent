@@ -19,6 +19,7 @@ registrar over the Eufy one).
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -106,6 +107,8 @@ def is_roborock_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> bool:
 def register_roborock_adapter_for_vacuum(
     hass: HomeAssistant,
     vacuum_entity_id: str,
+    *,
+    entity_overrides: dict[str, str] | None = None,
 ) -> None:
     """Assemble and register the Roborock adapter config for one vacuum.
 
@@ -195,6 +198,10 @@ def register_roborock_adapter_for_vacuum(
         entity_candidates=entity_candidates,
         model_family=profile["family"],
         capability_hints=capability_hints,
+        # live:ENT-7 — the override mechanism is CORE's, not a brand's, so this
+        # is the same three lines here as in the Eufy adapter and Roborock users
+        # get the fix without a Roborock-specific code path.
+        entity_overrides=entity_overrides or {},
         maintenance_components=MAINTENANCE_COMPONENTS,
     )
 
