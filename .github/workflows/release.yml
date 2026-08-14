@@ -40,6 +40,43 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name }}
 
+      - name: Assert manifest.json version matches the tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          # manifest.json is the ONLY version file in this project, and nothing
+          # upstream forces it to agree with the tag being published. Cutting a
+          # stable tag off a tree whose manifest still says -beta ships a build
+          # that reports the wrong version to HACS, to diagnostics, and to every
+          # issue report -- with no error anywhere. This is a content check, so
+          # it runs before the zip is even built.
+          #
+          # Tags carry a leading v; the manifest does not.
+          version=$(python3 -c "import json;print(json.load(open('custom_components/eufy_vacuum/manifest.json'))['version'])")
+          expected="${TAG#v}"
+          if [ "$version" != "$expected" ]; then
+            echo "::error::tag $TAG expects manifest version '$expected' but manifest.json says '$version'. Refusing to build the release asset."
+            exit 1
+          fi
+          echo "version OK -- tag $TAG matches manifest $version"
+
+          # A pre-release version published WITHOUT the pre-release flag becomes
+          # "latest" for every HACS default-store user. The check above already
+          # forces manifest == tag, so this only has to police the flag.
+          case "$version" in
+            *-*)
+              if [ "$IS_PRERELEASE" != "true" ]; then
+                echo "::error::version '$version' carries a pre-release suffix but the GitHub release is not marked as a pre-release -- it would be offered to every HACS user as the latest stable. Tick 'Set as a pre-release' and re-publish."
+                exit 1
+              fi
+              echo "pre-release flag OK -- $version published as a pre-release"
+              ;;
+            *)
+              echo "stable version -- no pre-release suffix"
+              ;;
+          esac
+
       - name: Build eufy_vacuum.zip (contents at root, no wrapping folder)
         run: |
           cd custom_components/eufy_vacuum

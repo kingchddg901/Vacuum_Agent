@@ -1,8 +1,13 @@
 # Release checklist
 
 Cutting a release = bump the version, land it on `master`, tag it, and publish a
-GitHub release. **HACS** serves whatever the latest GitHub release tag points at;
-it reads the version from `custom_components/eufy_vacuum/manifest.json`.
+GitHub release. It reads the version from `custom_components/eufy_vacuum/manifest.json`.
+
+**`hacs.json` sets `zip_release` + `filename`, so HACS installs the
+`eufy_vacuum.zip` release ASSET — not the directory contents of the tag.** A
+release published without that asset cannot be installed at all, so the tag alone
+is not a release. The asset is built and attached by the `release assets`
+workflow; §4 is where you confirm it actually arrived.
 
 > `scripts\deploy-live.ps1` hand-copies the working tree to the live HA for
 > **test iteration** — that is *not* a release. A release is the tag + GitHub
@@ -21,7 +26,10 @@ it reads the version from `custom_components/eufy_vacuum/manifest.json`.
 ## 2. Version + changelog
 
 - [ ] Bump `custom_components/eufy_vacuum/manifest.json` → `"version": "X.Y.Z"`. **This is the only
-      version HACS reads** — the npm `package.json` version is unrelated and stays as-is.
+      version HACS reads** — the npm `package.json` version is unrelated and stays as-is. It must
+      equal the tag without the leading `v`; the release workflow fails the release if it does not.
+      Cutting a stable tag off a tree whose manifest still says `-beta` is the specific mistake
+      that guard exists for.
 - [ ] `CHANGELOG.md` — finalize the `## [X.Y.Z] - YYYY-MM-DD` section (dated), and leave a fresh
       empty `## [Unreleased]` above it.
 - [ ] Commit: `release: vX.Y.Z`.
@@ -35,14 +43,21 @@ it reads the version from `custom_components/eufy_vacuum/manifest.json`.
 
 - [ ] `gh release create vX.Y.Z --title "vX.Y.Z — <headline>" --notes-file <notes>`
       (or via the GitHub UI from the tag). Use the CHANGELOG section as the notes.
-- [ ] The **`release assets`** workflow (`.github/workflows/release.yml`) auto-attaches
-      `en.reference.jsonc` to the release — confirm it appears under **Assets** so translators
-      can download it.
+- [ ] **Pre-release?** Pass `--prerelease` (or tick *Set as a pre-release*) for any version with
+      a `-beta`/`-rc` suffix. Without the flag it becomes *latest* for every HACS default-store
+      user. The workflow now refuses to publish assets if the suffix and the flag disagree.
+- [ ] The **`release assets`** workflow (`.github/workflows/release.yml`) must finish green. It
+      asserts `manifest.json` matches the tag, then attaches:
+      - **`eufy_vacuum.zip` — the install payload.** Confirm it is under **Assets**. If it is
+        missing, nobody can install or update to this release; fix the workflow and re-run it
+        rather than leaving the release published.
+      - `en.reference.jsonc`, so translators can download the key reference.
 
 ## 5. Post-release
 
-- [ ] HACS detects the new tag (a few minutes; users get the update banner). Spot-check a cold
-      HACS install for a notable release.
+- [ ] HACS offers the new version (a few minutes; users get the update banner). Spot-check a cold
+      HACS install for a notable release — that exercises the zip asset, which is the only path
+      real users take.
 - [ ] If the release adds languages or notable card UI, mention it in the
       [translate discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).
 
