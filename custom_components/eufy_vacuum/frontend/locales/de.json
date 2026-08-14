@@ -1671,7 +1671,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Jedes registrierte Tier in stehender Pose über alle fünf Akkustands-Bänder. Augenfarb- und globale Paletten-Tokens in dieser Gruppe gelten für jedes Tier.",
+        "desc": "Ein stellvertretendes Tier über alle fünf Akkustands-Bänder. Augenfarb- und globale Paletten-Tokens in dieser Gruppe gelten für jedes Tier.",
         "title": "Begleittier-Vorschau"
       },
       "animal_sub": {

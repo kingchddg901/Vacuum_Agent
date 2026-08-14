@@ -1024,7 +1024,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Setiap hewan terdaftar dalam pose berdiri di seluruh lima pita status baterai. Token warna mata dan palet global dalam grup ini berlaku untuk setiap hewan.",
+        "desc": "Satu hewan representatif di seluruh lima pita status baterai. Token warna mata dan palet global dalam grup ini berlaku untuk setiap hewan.",
         "title": "Pratinjau Pendamping Hewan"
       },
       "animal_sub": {

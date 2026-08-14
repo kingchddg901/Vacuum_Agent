@@ -1674,7 +1674,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Ogni animale registrato in posa eretta in tutte e cinque le bande di stato batteria. I token del colore degli occhi e della palette globale in questo gruppo si applicano a ogni animale.",
+        "desc": "Un animale rappresentativo su tutte e cinque le fasce di stato della batteria. I token del colore degli occhi e della palette globale in questo gruppo si applicano a ogni animale.",
         "title": "Anteprima animale da compagnia"
       },
       "animal_sub": {

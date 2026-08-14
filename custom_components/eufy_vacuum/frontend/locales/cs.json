@@ -1024,7 +1024,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Každé registrované zvíře ve stojící póze napříč všemi pěti pásmy stavu baterie. Tokeny barvy očí a globální palety v této skupině platí pro každé zvíře.",
+        "desc": "Jedno reprezentativní zvíře napříč všemi pěti pásmy stavu baterie. Tokeny barvy očí a globální palety v této skupině platí pro každé zvíře.",
         "title": "Náhled zvířecího společníka"
       },
       "animal_sub": {

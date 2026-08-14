@@ -1024,7 +1024,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Każde zarejestrowane zwierzę w pozie stojącej we wszystkich pięciu pasmach stanu baterii. Tokeny koloru oczu i globalnej palety w tej grupie obowiązują dla każdego zwierzęcia.",
+        "desc": "Jedno reprezentatywne zwierzę we wszystkich pięciu pasmach stanu baterii. Tokeny koloru oczu i globalnej palety w tej grupie obowiązują dla każdego zwierzęcia.",
         "title": "Podgląd zwierzęcego towarzysza"
       },
       "animal_sub": {

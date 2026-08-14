@@ -1687,7 +1687,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Chaque animal enregistré en pose debout sur les cinq bandes d'état de batterie. Les jetons de couleur des yeux et de palette globale de ce groupe s'appliquent à tous les animaux.",
+        "desc": "Un animal représentatif sur les cinq bandes d'état de batterie. Les jetons de couleur des yeux et de palette globale de ce groupe s'appliquent à tous les animaux.",
         "title": "Aperçu de l'animal de compagnie"
       },
       "animal_sub": {

@@ -2400,7 +2400,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Every registered animal in standing pose across all five battery-state bands. Eye-color and global palette tokens in this group apply across every animal.",
+        "desc": "A single representative animal across all five battery-state bands. Eye-color and global palette tokens in this group apply across every animal.",
         "title": "Animal Companion Preview"
       },
       "animal_sub": {

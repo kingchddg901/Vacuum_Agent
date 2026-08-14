@@ -1686,7 +1686,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Todos os animais registados em pose ereta nas cinco bandas de estado da bateria. Os tokens de cor dos olhos e da paleta global neste grupo aplicam-se a todos os animais.",
+        "desc": "Um animal representativo em todas as cinco faixas de estado da bateria. Os tokens de cor dos olhos e da paleta global neste grupo aplicam-se a todos os animais.",
         "title": "Pré-visualização do Animal de Companhia"
       },
       "animal_sub": {

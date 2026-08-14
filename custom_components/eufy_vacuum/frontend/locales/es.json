@@ -1687,7 +1687,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Cada animal registrado en pose de pie a lo largo de las cinco bandas de estado de batería. Los tokens de color de ojos y de paleta global de este grupo se aplican a todos los animales.",
+        "desc": "Un animal representativo a lo largo de las cinco bandas de estado de batería. Los tokens de color de ojos y de paleta global de este grupo se aplican a todos los animales.",
         "title": "Vista previa de Animal de compañía"
       },
       "animal_sub": {

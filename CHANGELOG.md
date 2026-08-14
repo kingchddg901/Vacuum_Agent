@@ -10,6 +10,50 @@ only.
 
 ## [Unreleased]
 
+### Fixed
+- **Animal colours no longer turn the animal black.** Setting any Animal Companion colour —
+  fur, eyes, pupil, anything — painted that part of the animal black instead of the chosen
+  colour, and had done since the tokens became editable. The animal SVGs consume their
+  variables as bare HSL components (`fill="hsl(var(--animal-fur))"`, 332 of 332 uses), while
+  the theme editor stores every colour as hex; the cascade therefore produced
+  `hsl(#e8e800e0)`, which is invalid CSS, and an invalid `fill` falls back to SVG's initial
+  value — black. Untouched animals looked correct because their built-in defaults were
+  already components, so the failure read as a bad colour choice rather than a bug. The theme
+  layer now converts these tokens on the way to the DOM, alpha included. **Existing themes
+  need no repair** — the stored values were always right, and they start working again on
+  upgrade.
+- **The panel no longer leaves a strip of dead space below the bottom nav.** In panel mode the
+  card sized itself as `100dvh` minus Home Assistant's dashboard toolbar, but this integration
+  registers through `panel_custom`, which hands the panel the whole area and draws no toolbar
+  — so roughly 56px was subtracted for chrome that was never on screen. The offset is now
+  measured from where the card actually starts, so a toolbar being present, absent, themed, or
+  moved by a future HA layout all resolve correctly.
+- **Long translations no longer drag the theme editor sideways.** The per-row colour hint was
+  set to `nowrap` and nothing clipped it, so in longer locales it pushed past the card and the
+  whole editor pane could be scrolled horizontally, carrying the group header and search box
+  off screen. Both the editor list and the group-chip band declared only a vertical overflow,
+  which silently makes the horizontal axis scrollable; both now state it explicitly.
+- **The Animal Companion preview is legible on a phone.** The parent group drew every
+  registered animal side by side, with the column count derived from available width while the
+  animals came from a live registry a user can extend — so at phone width the matrix spilled
+  into ragged rows with labels sitting over nothing. It now previews a single representative
+  animal across the five battery bands; the per-animal sub-groups are where one animal is
+  inspected.
+- **Selecting a token group no longer scrolls the group chips out of view.** The chip band kept
+  its scroll position across ordinary re-renders but reset to the top when a chip was selected,
+  so a chip you scrolled down to find left the screen at the moment you tapped it.
+
+### Changed
+- **The theme editor's search row collapses on a phone.** Search and "Modified Only", plus the
+  Themes/Palette/Tokens strip, fold behind a caret that names the section you are in and shows
+  which filter is running, so a collapsed control never hides why the token list is short.
+  Expanded by default on desktop, where the space is free.
+- **The colour hint is stated once instead of on every row.** "Drag for opacity · Double tap
+  for color" rendered inside all 303 colour rows on its own line — measured at 3,636px of extra
+  scrolling on a 390px screen. It is now a single sticky line at the top of the token list,
+  which also lets longer translations wrap and be read in full rather than being clipped to
+  fit beside an input.
+
 ## [2.0.1] - 2026-08-10
 
 ### Fixed

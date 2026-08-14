@@ -1671,7 +1671,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Elk geregistreerd dier in staande houding over alle vijf accustatusbanden. Oogkleur- en globale palettokens in deze groep gelden voor elk dier.",
+        "desc": "Eén representatief dier over alle vijf batterijstatusbanden. Oogkleur- en globale palettokens in deze groep gelden voor elk dier.",
         "title": "Animal Companion-voorbeeld"
       },
       "animal_sub": {

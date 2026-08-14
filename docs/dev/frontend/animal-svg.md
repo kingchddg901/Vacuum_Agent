@@ -208,6 +208,36 @@ Override priority, highest first:
 2. **Global animal token** — `--evcc-animal-fur`, `--evcc-animal-eye-warn`, etc.
 3. **Animal's own default** — the value baked into the animal's `colors` block.
 
+### Value format: components, not colors
+
+These tokens are **HSL components** — `0 0% 7%` — not CSS colors. Every animal
+variable is consumed inside `hsl()`:
+
+```html
+fill="hsl(var(--animal-fur))"
+```
+
+which is 332 of 332 uses across the animal files. So a token holding a color
+rather than components produces `hsl(#e8e800e0)`, which is invalid CSS — and an
+invalid `fill` falls back to SVG's initial value, **black**. Untouched animals
+still look right, because their baked defaults are already components, so the
+failure presents as "I broke my theme" rather than "this is broken."
+
+The theme editor stores every color token as 8-digit hex, so
+`applyDynamicTheme` (`src/styles/index.js`) converts any `--evcc-animal-*` value
+to components on the way to the DOM — including alpha, which rides along as
+`hsl()`'s slash syntax. The conversion happens at the WRITE, not in the store:
+the editor's swatch reads the hex bucket and the export envelope carries hex, so
+both are unchanged, and saved themes need no migration.
+
+**Consequences for anyone extending this:**
+
+- A new consumer of `--evcc-animal-*` must either wrap in `hsl()` like the rest,
+  or the conversion will hand it something it cannot read. There are currently
+  no consumers outside the animal-svg module.
+- Do not "fix" a black animal by changing the token value. The value was never
+  the problem.
+
 A theme that just wants "all forest dark" sets the global tokens once.
 A theme that wants per-animal character (cat black, dog brown, parrot bright)
 sets per-animal tokens. Both layers can coexist — per-animal wins where set,

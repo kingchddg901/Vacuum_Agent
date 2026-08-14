@@ -1736,7 +1736,7 @@ export const en = {
   "theme_preview.foundations.mixed_desc": "Shared gap, radius, font, hover lift, and transition values show up here together.",
   "theme_preview.foundations.mixed_surface": "Mixed Surface",
   "theme_preview.foundations.surface_stack": "Surface Stack",
-  "theme_preview.group.animal.desc": "Every registered animal in standing pose across all five battery-state bands. Eye-color and global palette tokens in this group apply across every animal.",
+  "theme_preview.group.animal.desc": "A single representative animal across all five battery-state bands. Eye-color and global palette tokens in this group apply across every animal.",
   "theme_preview.group.animal.title": "Animal Companion Preview",
   "theme_preview.group.animal_sub.desc": "The {animal} across all five battery-state bands. Tokens in this sub-group (prefixed --evcc-animal-{animal}-) override the global Animal Companion palette and eye-state colors for just the {animal}.",
   "theme_preview.group.animal_sub.title": "{animal} Preview",

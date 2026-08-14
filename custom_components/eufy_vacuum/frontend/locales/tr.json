@@ -1024,7 +1024,7 @@
     },
     "group": {
       "animal": {
-        "desc": "Kayıtlı her hayvan, beş pil durumu bandının tümünde ayakta pozda. Bu gruptaki göz rengi ve genel palet token'ları her hayvana uygulanır.",
+        "desc": "Beş pil durumu bandının tamamında tek bir temsili hayvan. Bu gruptaki göz rengi ve genel palet token'ları her hayvana uygulanır.",
         "title": "Hayvan Dostu Önizlemesi"
       },
       "animal_sub": {
