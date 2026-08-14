@@ -17,6 +17,16 @@ import { loadUserFonts, runtimeShadowFontCss, runtimeFontTokenRules, ensureUserF
 
 import { LearningController }                 from "./controllers/learning-controller.js";
 
+/* Scrollers that count as "the screen" for the landscape chrome auto-hide.
+   Everything else — the preview pane, the group-filter chip band, a modal
+   body — is a PANEL: it scrolls its own content and must not move the shell
+   around it. Kept as an allowlist because panels are added often and content
+   scrollers almost never; a new panel is then inert here by default. */
+const CHROME_SCROLL_SOURCES = [
+  ".evcc-view-stage",
+  ".evcc-theme-editor-scrollbox",
+].join(",");
+
 /* =========================================================
    CARD CLASS
    ========================================================= */
@@ -149,6 +159,20 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._boundHandleChromeScroll = (e) => {
       const el = e.target;
       if (!el || typeof el.scrollTop !== "number") return;
+
+      /* THE SCREEN SCROLLS THE CHROME. A PANEL DOES NOT.
+         The first version listened in capture phase and reacted to ANY
+         scroll, which meant nudging the preview pane or the chip band —
+         small panels a thumb brushes constantly — toggled the chrome,
+         changed every height mid-gesture, and made two independent
+         scrollers read as one linked thing. Reported as "when I scroll
+         anything the preview scrolls too."
+
+         An ALLOWLIST rather than a denylist of panels: the set of real
+         content scrollers is small and stable, while panels get added all
+         the time and would each have to be remembered. A new panel is
+         inert here by default, which is the safe direction to be wrong in. */
+      if (!el.matches?.(CHROME_SCROLL_SOURCES)) return;
 
       // Only where vertical room is actually scarce. Portrait has the space and
       // would just get a moving target; this reuses the same "short" threshold
@@ -1695,6 +1719,49 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._bindings?.bindEvents();
     this._restoreShadowFocusState(focusSnapshot);
     this._restoreShadowScrollState(scrollSnapshot);
+    this._applyChromeDefault();
+  }
+
+  /**
+   * In landscape the chrome starts HIDDEN — Chris's call: "we need the footer
+   * to hide by default, and only come back on screen scroll."
+   *
+   * Applied on entering short mode, not on every render, so a re-render never
+   * undoes a reveal the user asked for by scrolling up.
+   *
+   * GATED ON THE SCROLLER ACTUALLY OVERFLOWING. Hiding the nav where nothing
+   * scrolls would stage the one failure this whole approach is built to avoid:
+   * navigation gone, and no gesture in the view that can bring it back. If
+   * there is nothing to scroll, the chrome stays.
+   */
+  _applyChromeDefault() {
+    const short = typeof window !== "undefined" && window.innerHeight <= 500;
+    const active = short && this._state?.isMobileViewport?.() === true;
+
+    if (!active) {
+      this._chromeShortMode = false;
+      if (this._chromeHidden) this._setChromeHidden(false);
+      return;
+    }
+    if (this._chromeShortMode) return;   // already applied; leave it to scroll
+
+    /* ANY allowlisted scroller, not the first one found. querySelector returns
+       the earliest in DOM order, which is .evcc-view-stage — and the stage is
+       overflow:hidden in the theme editor, where the scrolling is done by the
+       token box nested inside it. Asking only the stage answered "nothing
+       scrolls here" on the very view that scrolls 53,000px. */
+    const scrollers = [...(this.shadowRoot?.querySelectorAll(CHROME_SCROLL_SOURCES) || [])];
+    const canScroll = scrollers.some((el) => el.scrollHeight - el.clientHeight > 8);
+
+    /* LATCH ONLY ONCE THE QUESTION CAN BE ANSWERED. Latching on the first
+       render answered it before the content existed — nothing overflowed yet,
+       so the default resolved to "stay visible" and every later render
+       returned early holding that verdict. Leaving it unlatched means the next
+       render tries again, and the default lands the moment there is genuinely
+       something to scroll. */
+    if (!canScroll) return;
+    this._chromeShortMode = true;
+    this._setChromeHidden(true);
   }
 
   _ensureShellFrame(styles) {
@@ -2085,6 +2152,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // sidebar toggles both re-connect the card somewhere different.
     this._panelOffset = undefined;
     this._chromeHidden = undefined;
+    this._chromeShortMode = false;
     this._chromeLastScrollTop = 0;
     if (this.shadowRoot) {
       this.shadowRoot.removeEventListener("scroll", this._boundHandleChromeScroll, true);
