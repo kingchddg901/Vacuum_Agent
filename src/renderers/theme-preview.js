@@ -114,18 +114,21 @@ export function applyThemePreviewRenderers(proto) {
             state: { mapSwitcher: () => null, mapSwitchPending: () => null },
           })}
         </section>
-
-        <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.shell.text_stack")}</div>
-          <div class="evcc-theme-preview-text-stack">
-            <div class="evcc-theme-preview-text-primary">${this.t("theme_preview.shell.text_primary")}</div>
-            <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.shell.text_secondary")}</div>
-            <div class="evcc-theme-preview-text-muted">${this.t("theme_preview.shell.text_muted")}</div>
-          </div>
-        </section>
       </div>
     `;
   };
+  /* A text-stack section used to sit here: three sentences of demo copy
+     explaining what primary, secondary and muted text are. Removed — it failed
+     the same test the hero card above it failed. The rule is that a preview
+     earns its space only for surfaces you CANNOT see while editing, and text at
+     all three levels is on screen everywhere at once: the header specimen above
+     uses them, and so does the editor around it (group title primary, hint
+     muted, labels secondary). It was demo copy competing for the pane's budget
+     with the one thing here that is genuinely hidden — the status block the
+     Theme view's compact chrome drops.
+
+     Also makes this a SINGLE-section preview, so it drops under the 22vh phone
+     cap instead of scrolling inside it. */
 
   /* =========================================================
      ROOM-CARD PREVIEWS - render the product, never a drawing
