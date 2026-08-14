@@ -838,12 +838,94 @@ async def test_two_vacuums_on_one_config_entry_are_not_guessed(hass):
     ], "both competitors must be RECORDED — that list is what the picker pre-fills"
 
 
-async def test_a_tied_stem_vote_is_not_a_majority(hass):
-    """[CAP-16b] The tie-break must not itself be a guess.
+async def test_state_class_separates_per_run_from_lifetime(hass):
+    """[CAP-16b] live:ENT-9 — `state_class` decides the collision that matters.
 
-    Taking `max()` of the stem votes returns whichever stem was inserted first
-    on a dead heat — dict order dressed up as evidence. Caught by probe: the
-    two-vacuum case resolved anyway until a tie was made to mean "no majority".
+    `cleaning_area` and `total_cleaning_area` are not merely different entities,
+    they are different QUANTITIES: on live hardware 2.9 m² against 11,814.2 m².
+    Binding the wrong one feeds a ~4000x error into the learning store, counter
+    segmentation and battery metrics, and it never throws — a cumulative counter
+    just looks like a vacuum making no progress.
+
+    `state_class` is HA's own semantics, declared by the upstream integration:
+    `measurement` is the value right now, `total` is a cumulative counter. It
+    lives in the entity REGISTRY, so it works during setup with no state at all —
+    and therefore on a BRAND-NEW vacuum with zero runtime, where every
+    value-based test is blind.
+
+    Shape verified against the maintainer's real registry (robovac_mqtt sets
+    state_class and no translation_key).
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    registry = _vacuum_with_scopes(hass)
+    device_id = registry.async_get(_VAC).device_id
+    registry.async_get_or_create(
+        "sensor", "robovac_mqtt", "uid_area_run",
+        suggested_object_id="downstairs_alfred_area",
+        device_id=device_id,
+        # UNSET, not "measurement" — Dreame's real shape, and the case that
+        # broke a version of this guard that required `measurement`.
+        capabilities={},
+    )
+    registry.async_get_or_create(
+        "sensor", "robovac_mqtt", "uid_area_total",
+        suggested_object_id="downstairs_alfred_lifetime_area",
+        device_id=device_id,
+        capabilities={"state_class": "total_increasing"},
+    )
+
+    out = augment_candidates_from_device(hass, _VAC, {"area": ["sensor.alfred_area"]})
+
+    assert "sensor.downstairs_alfred_area" in out["area"]
+    assert "sensor.downstairs_alfred_lifetime_area" not in out["area"], (
+        "the cumulative counter was offered to a per-run role; state_class said "
+        "`total` and was ignored"
+    )
+
+
+async def test_translation_key_decides_when_state_class_is_absent(hass):
+    """[CAP-16c] live:ENT-9 — the upstream's own name for the concept.
+
+    Roborock sets `translation_key` and no `state_class`; robovac_mqtt does the
+    opposite. Between the two signals both shipping brands are covered, which is
+    why the ladder tries translation_key before state_class rather than picking
+    one.
+
+    Shape verified against the maintainer's real registry.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    registry = _vacuum_with_scopes(hass)
+    device_id = registry.async_get(_VAC).device_id
+    registry.async_get_or_create(
+        "sensor", "robovac_mqtt", "uid_tk_run",
+        suggested_object_id="downstairs_alfred_area",
+        device_id=device_id, translation_key="area",
+    )
+    registry.async_get_or_create(
+        "sensor", "robovac_mqtt", "uid_tk_total",
+        suggested_object_id="downstairs_alfred_lifetime_area",
+        device_id=device_id, translation_key="lifetime_area",
+    )
+
+    out = augment_candidates_from_device(hass, _VAC, {"area": ["sensor.alfred_area"]})
+
+    assert "sensor.downstairs_alfred_area" in out["area"]
+    assert "sensor.downstairs_alfred_lifetime_area" not in out["area"]
+
+
+async def test_indistinguishable_candidates_still_go_to_a_human(hass):
+    """[CAP-16d] live:ENT-9 — the ladder must still be able to give up.
+
+    Two candidates with no translation_key, no state_class and no states are
+    genuinely indistinguishable. Guessing there is how a card gets bound to the
+    wrong machine; the honest answer is to leave the role unresolved and ask a
+    question the user can actually answer.
     """
     from custom_components.eufy_vacuum.core.capabilities import (
         augment_candidates_from_device,
@@ -858,13 +940,12 @@ async def test_a_tied_stem_vote_is_not_a_majority(hass):
     )
 
     report: dict = {}
-    augment_candidates_from_device(
+    out = augment_candidates_from_device(
         hass, _VAC, {"task_status": ["sensor.alfred_task_status"]}, report=report
     )
 
-    assert report["majority_stem"] is None, (
-        "a 1-1 split was reported as a majority; the winner is then insertion order"
-    )
+    assert out["task_status"] == ["sensor.alfred_task_status"]
+    assert "task_status" in report.get("ambiguous", {})
 
 
 # ---------------------------------------------------------------------------

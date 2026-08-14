@@ -309,6 +309,119 @@ KNOWN_CAPABILITY_HINTS: frozenset[str] = frozenset({
 })
 
 
+#: A competing candidate must be this many times larger before magnitude alone
+#: decides. A per-run figure against a lifetime counter is ~4000x on real
+#: hardware (2.9 m² vs 11,814 m²), so the bar is set high enough that only an
+#: unmistakable gap counts and two similar readings stay ambiguous.
+_MAGNITUDE_RATIO = 10.0
+
+
+def _sibling_traits(registry: Any, siblings: Iterable[str]) -> dict[str, dict[str, Any]]:
+    """Registry metadata per sibling — available at STARTUP, with no state.
+
+    live:ENT-9. The entity registry carries ``translation_key``, ``capabilities``
+    (which holds ``state_class``), ``device_class`` and the unit, all persisted
+    and readable before the upstream integration has produced a single state.
+    That makes these discriminators safe during setup in a way that reading
+    ``hass.states`` is not.
+    """
+    traits: dict[str, dict[str, Any]] = {}
+    for entity_id in siblings:
+        try:
+            entry = registry.async_get(entity_id)
+        except Exception:  # pragma: no cover - defensive
+            continue
+        if entry is None:
+            continue
+        capabilities = getattr(entry, "capabilities", None) or {}
+        traits[entity_id] = {
+            "translation_key": getattr(entry, "translation_key", None),
+            "state_class": capabilities.get("state_class"),
+            "device_class": (
+                getattr(entry, "original_device_class", None)
+                or getattr(entry, "device_class", None)
+            ),
+            "unit": getattr(entry, "unit_of_measurement", None),
+        }
+    return traits
+
+
+def _narrow_competing(
+    hass: HomeAssistant,
+    *,
+    role: str,
+    object_id: str,
+    matches: list[str],
+    traits: dict[str, dict[str, Any]],
+) -> str | None:
+    """Choose ONE competing candidate, or None to hand the decision to a human.
+
+    live:ENT-9. The colliding pair is almost always per-run versus lifetime —
+    ``cleaning_area`` against ``total_cleaning_area`` — and those are not merely
+    different entities, they are different QUANTITIES. On live hardware the
+    per-run figure reads 2.9 m² while the lifetime counter reads 11,814.2 m².
+
+    Binding the wrong one is not a missing feature, it is a ~4000x error fed
+    into the learning store, counter segmentation and battery metrics — and it
+    never throws, because a cumulative counter simply looks like a vacuum making
+    no progress.
+
+    Ordered strongest evidence first, and each rung must be DECISIVE (exactly
+    one survivor) or the next is tried:
+
+      1. the candidate still carrying the vacuum's own object_id
+      2. the upstream integration's own ``translation_key`` matching the role —
+         its name for the concept, independent of how the entity was named
+      3. ``state_class``: ``measurement`` is "the value right now",
+         ``total`` is a cumulative counter. HA's own semantics, declared by the
+         upstream, and it works on a BRAND-NEW vacuum with no runtime at all
+      4. magnitude — only with prior runtime, and only on an unmistakable gap
+
+    Returning None is a real answer: the role stays unresolved and is offered to
+    the user, whose question is answerable ("which of these resets after each
+    clean?") rather than a blind pick.
+    """
+    step = [item for item in matches if object_id in item]
+    if len(step) == 1:
+        return step[0]
+
+    step = [
+        item for item in matches
+        if (traits.get(item) or {}).get("translation_key") == role
+    ]
+    if len(step) == 1:
+        return step[0]
+
+    # EXCLUDE the cumulative rather than REQUIRE `measurement`. Dreame marks its
+    # lifetime sensor `total_increasing` and leaves the per-run one UNSET — so a
+    # test that demanded `measurement` would find zero survivors and fall through
+    # on the very hardware it was meant to handle. Verified against the
+    # maintainer's live Dreame registry.
+    step = [
+        item for item in matches
+        if (traits.get(item) or {}).get("state_class")
+        not in ("total", "total_increasing")
+    ]
+    if len(step) == 1:
+        return step[0]
+
+    values: dict[str, float] = {}
+    for item in matches:
+        state = hass.states.get(item)
+        try:
+            values[item] = float(state.state)  # type: ignore[union-attr]
+        except (AttributeError, TypeError, ValueError):
+            continue
+    if len(values) == len(matches) and len(values) > 1:
+        ordered = sorted(values.items(), key=lambda kv: kv[1])
+        (smallest_id, smallest), (_, runner_up) = ordered[0], ordered[1]
+        # A brand-new vacuum reads 0 for BOTH, and 0 vs 0 is not evidence.
+        if smallest >= 0 and runner_up > 0 and runner_up >= smallest * _MAGNITUDE_RATIO:
+            return smallest_id
+
+    return None
+
+
 def augment_candidates_from_device(
     hass: HomeAssistant,
     vacuum_entity_id: str,
@@ -410,6 +523,7 @@ def augment_candidates_from_device(
         # left, and a config entry shared by TWO vacuums is exactly why the
         # ambiguity guard below refuses to guess.
         siblings, _device_count = _sweep_siblings(registry, entry)
+        sibling_traits = _sibling_traits(registry, siblings)
         rpt["device_siblings"] = _device_count
         rpt["config_entry_siblings"] = len(siblings) - _device_count
 
@@ -475,37 +589,6 @@ def augment_candidates_from_device(
                 best = known
         return best
 
-    # live:ENT-6 — the COMPANION STEM, by majority vote.
-    #
-    # Companions are named after something, and it is not always the vacuum: on
-    # issue #49 the vacuum is `robovac_x10_pro_omni` while all 65 of its
-    # companions are `living_room_eufy_clean_x10_pro_omni_*` — two unrelated
-    # stems on one device. Strip each sibling's owning suffix and whatever
-    # remains is its stem; the stem most of them agree on is this install's real
-    # naming convention.
-    #
-    # Used ONLY to break ties (below), never to synthesise an entity id. A
-    # majority vote is evidence about naming, not proof an entity exists, and
-    # the evidence base for the rule is still a single install.
-    stem_votes: dict[str, int] = {}
-    for _sibling in siblings:
-        _, _, _sib_object = _sibling.partition(".")
-        _owner = _claimed_by(_sib_object)
-        if not _owner:
-            continue
-        _stem = _sib_object[: -len(_owner)]
-        if _stem:
-            stem_votes[_stem] = stem_votes.get(_stem, 0) + 1
-    # A TIE IS NOT A MAJORITY. `max()` would hand back whichever stem happened to
-    # be inserted first, which is dict order dressed up as evidence — the exact
-    # guessing this tie-break exists to prevent. Two vacuums on one config entry
-    # produce a dead heat, and that case must stay ambiguous.
-    majority_stem: str | None = None
-    if stem_votes:
-        _top = max(stem_votes.values())
-        _leaders = [stem for stem, votes in stem_votes.items() if votes == _top]
-        majority_stem = _leaders[0] if len(_leaders) == 1 else None
-    rpt["majority_stem"] = majority_stem
 
     ambiguous: dict[str, list[str]] = {}
 
@@ -566,14 +649,14 @@ def augment_candidates_from_device(
             # recorded as ambiguous — which is the signal the options UI needs to
             # pre-fill a choice rather than invent one.
             if len(matches) > 1:
-                narrowed = [item for item in matches if object_id in item]
-                if len(narrowed) != 1 and majority_stem:
-                    narrowed = [
-                        item
-                        for item in matches
-                        if item.partition(".")[2] == f"{majority_stem}{suffix}"
-                    ]
-                if len(narrowed) != 1:
+                chosen = _narrow_competing(
+                    hass,
+                    role=role,
+                    object_id=object_id,
+                    matches=matches,
+                    traits=sibling_traits,
+                )
+                if chosen is None:
                     # An override means the user already decided this one; do
                     # not report it as needing a decision.
                     if role not in applied_overrides:
@@ -584,7 +667,7 @@ def augment_candidates_from_device(
                         vacuum_entity_id, role, len(matches), suffix, sorted(matches),
                     )
                     continue
-                matches = narrowed
+                matches = [chosen]
 
             for sibling in matches:
                 merged.append(sibling)
