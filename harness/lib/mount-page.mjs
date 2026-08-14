@@ -126,7 +126,17 @@ export function probeLayout(page, { tol = 2 } = {}) {
     const host = document.getElementById("evcc-host");
     const root = host && host.shadowRoot;
     if (!root) return { shellOverflow: 0, culprits: [] };
-    const SKIP = new Set(["svg", "img", "canvas", "video"]);
+    // Form controls report an INTRINSIC scrollWidth that has nothing to do with
+    // their container: a closed <select> measures its widest <option>, which the
+    // UA paints in its own popup layer and never inline. A <select> sized to 218px
+    // inside a 470px cell still reports scrollWidth 232 when one option is a long
+    // entity id — 14px of "overflow" that no user can see. probeBleed already
+    // excludes these for the same reason; this probe measured them and produced a
+    // culprit whose box sits 220px INSIDE its cell.
+    const SKIP = new Set([
+      "svg", "img", "canvas", "video",
+      "select", "option", "input", "textarea",
+    ]);
     const over = [];
     for (const el of root.querySelectorAll("*")) {
       if (SKIP.has(el.tagName.toLowerCase()) || el.closest("svg")) continue;

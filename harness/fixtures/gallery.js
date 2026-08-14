@@ -712,8 +712,100 @@ const ROOMS_OPENDYSLEXIC = {
   font: "opendyslexic",
 };
 
+/* =========================================================
+   SETUP -> SYSTEM — the entity-binding table
+   ---------------------------------------------------------
+   The screen that reports how every role was bound, added in
+   2.1.0. It renders a TABLE, which is the layout most likely
+   to break under a long-word locale, and its source/reason
+   labels are catalog strings that reach the DOM through
+   several different paths — so it needs the localized, RTL
+   and entity-leak gates the other populated views already
+   get.
+
+   One row per branch of _renderSystemSubtab, because a
+   single happy-path row would leave the interesting halves
+   of that renderer unrendered and the gates would report
+   coverage they do not have:
+
+     battery      resolved, uncontested (no chosen_by)
+     cleaning_area  contested + WON on state_class, with a
+                    rejected alternative and a live value
+     mop_life     resolved via a config-entry sweep
+     brush_life   user override in force, picker selected
+     dust_bin     unresolved -> the empty-value + <em> path
+   ========================================================= */
+const SETUP_SYSTEM = {
+  id: "setup-system",
+  view: "setup",
+  label: "Setup → System — entity bindings (resolved / contested / overridden / unresolved)",
+  tokens: [],
+  state: {
+    setupSubtab: () => "system",
+    stateOf: (id) => ({
+      "sensor.alfred_battery": "82",
+      "sensor.alfred_cleaning_area": "0.0",
+      "sensor.alfred_mop_life": "94",
+      "sensor.living_room_x10_brush_life": "61",
+    })[id] ?? null,
+    entityBindings: () => [
+      {
+        role: "battery",
+        entity_id: "sensor.alfred_battery",
+        reason: "resolved",
+        options: [],
+      },
+      {
+        role: "cleaning_area",
+        entity_id: "sensor.alfred_cleaning_area",
+        chosen_by: "state_class",
+        reason: "resolved",
+        rejected: {
+          "sensor.alfred_total_cleaning_area": "cumulative",
+        },
+        options: [
+          "sensor.alfred_cleaning_area",
+          "sensor.alfred_total_cleaning_area",
+        ],
+      },
+      {
+        role: "mop_life",
+        entity_id: "sensor.alfred_mop_life",
+        chosen_by: "entry_sweep",
+        reason: "resolved",
+        options: [],
+      },
+      {
+        role: "brush_life",
+        entity_id: "sensor.living_room_x10_brush_life",
+        chosen_by: "override",
+        reason: "resolved",
+        overridden: true,
+        options: [
+          "sensor.living_room_x10_brush_life",
+          "sensor.alfred_brush_life",
+        ],
+      },
+      {
+        role: "dust_bin",
+        entity_id: null,
+        reason: "ambiguous",
+        rejected: {
+          "sensor.alfred_dust_bin": "competing",
+          "sensor.living_room_x10_dust_bin": "competing",
+        },
+        options: [
+          "sensor.alfred_dust_bin",
+          "sensor.living_room_x10_dust_bin",
+        ],
+      },
+    ],
+  },
+};
+
 export const GALLERY = [
   ROOMS_ACTIVE,
+  SETUP_SYSTEM,
   ROOMS_OPENDYSLEXIC,
   ROOMS_CYRILLIC,
   LEARNING_REVIEW,

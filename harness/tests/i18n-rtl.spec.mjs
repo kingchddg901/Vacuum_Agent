@@ -114,6 +114,7 @@ const RTL_POPULATED = [
   ["review-badges", ".evcc-review-job-card"],
   ["maintenance", ".evcc-maintenance-card"],
   ["run-profiles-unsupported-break", ".evcc-run-profiles-step"],
+  ["setup-system", ".evcc-system-role"],
 ];
 
 for (const lang of ["ar", "he"]) {

@@ -67,6 +67,7 @@ const POPULATED = [
   ["learning_review", "review-badges"],
   ["maintenance", "maintenance"],
   ["rooms+profiles", "run-profiles-unsupported-break"],
+  ["setup", "setup-system"],
 ];
 
 // The catalogue must be FLATTENED before it is registered — the nested JSON is

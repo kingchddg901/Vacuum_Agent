@@ -433,6 +433,10 @@ const POPULATED = [
   ["learning_review", "review-badges", ".evcc-review-job-card"],
   ["maintenance", "maintenance", ".evcc-maintenance-card"],
   ["rooms+profiles", "run-profiles-unsupported-break", ".evcc-run-profiles-step"],
+  // Setup → System is a TABLE, the layout most exposed to a long-word locale.
+  // `.evcc-system-role` is a row cell, so it tallies 0 in the steps sub-tab the
+  // stub renders and 5 here — an emptied fixture fails rather than passing.
+  ["setup", "setup-system", ".evcc-system-role"],
 ];
 
 for (const [width, chrome] of [[390, true], [500, false]]) {
