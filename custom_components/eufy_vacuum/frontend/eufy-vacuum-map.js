@@ -17614,6 +17614,20 @@ ${r}
      jank on a device, the whole thing reverts as one commit.
      =========================================================== */
 
+  /* EVERY RULE BELOW IS INSIDE (max-height: 500px), and that is load-bearing.
+
+     The base rule sets overflow:hidden and max-height on the chrome so it can
+     be collapsed. Left unscoped it applied to ALL mobile, including PORTRAIT,
+     where nothing ever auto-hides \u2014 so portrait carried clipping machinery it
+     had no use for. overflow:hidden on the header clips the language dropdown
+     that lives inside it, which is the third time tonight that dropdown has
+     been collateral damage from a rule aimed at something else.
+
+     Rule of thumb this earned: styling that exists to serve a behaviour should
+     be scoped to where that behaviour runs. It is not free elsewhere; it is
+     just not obviously broken yet. */
+  @media (max-height: 500px) {
+
   /* NOT THE ONE IN THE PREVIEW.
 
      The theme editor's App Shell preview renders the REAL mobile header as a
@@ -17667,8 +17681,15 @@ ${r}
      screen without going looking for it. The nav still hides: navigation is not
      live information. */
 
+  }
+  /* end @media (max-height: 500px) \u2014 the auto-hide exists only in landscape */
+
   /* Someone who has asked not to see motion gets the space back without the
-     slide \u2014 the reclaim is the feature, the animation is decoration. */
+     slide \u2014 the reclaim is the feature, the animation is decoration. Outside
+     the block above on purpose: nesting two media queries would need @media
+     (max-height: 500px) and (prefers-reduced-motion: reduce), and this reads
+     more plainly as "never animate this chrome" \u2014 which is also true in
+     portrait, where there is now no transition to cancel anyway. */
   @media (prefers-reduced-motion: reduce) {
     .evcc-shell[data-viewport="mobile"] .evcc-mobile-header,
     .evcc-shell[data-viewport="mobile"] .evcc-mobile-nav {
