@@ -2254,6 +2254,31 @@ class EufyVacuumCommandCenter extends HTMLElement {
     const selectors = [
       ".evcc-view-stage",
       ".evcc-theme-editor-scrollbox",
+      // The group-filter chip band. It became scrollable when it was bounded
+      // to a fixed height, and every render rebuilt it at scrollTop 0 — so
+      // tapping a chip that you had scrolled down to find threw it off screen
+      // at the moment you selected it. Reported as "it jumps to the top; it'd
+      // be nice if it stayed where you selected".
+      //
+      // Restoring is right even when disclosure CHANGES the chip set: the
+      // levels it descends into start with back + the parent, so the top of
+      // the list is what matters there, and the browser clamps a stale
+      // scrollTop to a shorter list rather than stranding it.
+      // The group-filter chip band. It became scrollable when it was bounded
+      // to a fixed height, and selecting a chip rebuilt it at scrollTop 0 — so
+      // tapping a chip you had scrolled down to find threw it off screen at
+      // the moment you selected it. Reported as "it jumps to the top; it'd be
+      // nice if it stayed where you selected".
+      //
+      // ABLATED: with this selector removed, a chip click resets the band to 0
+      // while a plain re-render preserves 34 — so it is specifically SELECTION
+      // that loses the place, which is exactly the reported case.
+      //
+      // Restoring is right even when disclosure CHANGES the chip set: those
+      // levels start with back + the parent, so the top is what matters there,
+      // and the browser clamps a stale scrollTop to a shorter list rather than
+      // stranding it.
+      ".evcc-theme-filters",
       ".evcc-room-rules-content",
       ".evcc-rule-editor-body",
       ".evcc-rule-entity-search",
