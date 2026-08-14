@@ -82,6 +82,70 @@ export const STYLES = [
 ].join("\n");
 
 /**
+ * ANIMAL TOKENS ARE HSL COMPONENTS, NOT COLOURS.
+ *
+ * The animal SVGs consume every one of their variables inside hsl():
+ *
+ *   default:   "--animal-fur": "0 0% 7%"
+ *   consumed:  fill="hsl(var(--animal-fur))"          332 uses, 332 wrapped
+ *
+ * But the theme system stores every colour token as 8-digit hex
+ * (state/theme.js:_hexWithAlpha), so setting Fur to yellow at 88% produced
+ * `fill="hsl(#e8e800e0)"` — invalid CSS. An invalid fill falls back to SVG's
+ * initial value, which is BLACK. So ANY animal colour a user set turned that
+ * part of the animal black, while untouched animals looked correct because
+ * their built-in triplets were still in play. That reads as "I broke my
+ * theme", which is how it was reported.
+ *
+ * Converted here, at the write to the DOM, rather than in resolvedTheme():
+ * the editor's swatch reads the hex bucket, and the export envelope stores
+ * hex, so both keep working unchanged. Nothing outside the animal-svg module
+ * consumes --evcc-animal-*, so no other consumer can be surprised by the
+ * different shape.
+ *
+ * Exported for the unit test — the conversion is pure and worth pinning.
+ *
+ * @param {string} hex "#rrggbb" or "#rrggbbaa"
+ * @returns {string|null} "H S% L%" / "H S% L% / A", or null if not hex
+ */
+export function animalHslComponents(hex) {
+  const m = /^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.exec(String(hex || "").trim());
+  if (!m) return null;
+
+  const int = parseInt(m[1], 16);
+  const r = ((int >> 16) & 255) / 255;
+  const g = ((int >> 8) & 255) / 255;
+  const b = (int & 255) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+
+  let h = 0;
+  let s = 0;
+  if (d !== 0) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+
+  const round = (n) => Math.round(n * 10) / 10;
+  const base = `${round(h)} ${round(s * 100)}% ${round(l * 100)}%`;
+
+  // Alpha rides along as hsl()'s slash syntax rather than being dropped —
+  // the opacity slider is half of what this editor's colour row does.
+  if (m[2] === undefined) return base;
+  const a = parseInt(m[2], 16) / 255;
+  // Two decimals so the emitted alpha reads as the percentage the slider
+  // showed (0xe0 -> 0.88, not 0.878) — round() above is one decimal and is
+  // for the H/S/L components.
+  return a >= 1 ? base : `${base} / ${Math.round(a * 100) / 100}`;
+}
+
+/**
  * Writes resolved theme tokens as inline CSS custom properties on a host element.
  * Tokens absent or empty in the resolved theme are removed so foundation defaults
  * take over rather than leaving stale values from a previous draft.
@@ -103,7 +167,12 @@ export function applyDynamicTheme(card, resolvedTheme) {
 
   Object.entries(tokens).forEach(([property, value]) => {
     if (value !== null && value !== undefined && value !== "") {
-      host.style.setProperty(property, value);
+      // See animalHslComponents: these are consumed as bare hsl() components,
+      // so a hex value here renders the animal black.
+      const asComponents = property.startsWith("--evcc-animal-")
+        ? animalHslComponents(value)
+        : null;
+      host.style.setProperty(property, asComponents ?? value);
     }
   });
 }
