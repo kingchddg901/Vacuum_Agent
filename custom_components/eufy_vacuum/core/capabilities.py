@@ -60,6 +60,14 @@ REASON_ABSENT = "absent"
 #: failure mode this whole effort exists to remove (live:ENT-7).
 REASON_OVERRIDE_UNRESOLVED = "override_unresolved"
 
+#: WHICH rung of the live:ENT-9 ladder decided a contested role. First-class
+#: values rather than prose, because six months from now "chosen by: magnitude"
+#: sends you somewhere completely different from "chosen by: manual override".
+BY_OBJECT_ID = "object_id"
+BY_TRANSLATION_KEY = "translation_key"
+BY_STATE_CLASS = "state_class"
+BY_MAGNITUDE = "magnitude"
+
 
 # ----------------------------------------------------------------------
 # Entity lookup helpers
@@ -353,8 +361,18 @@ def _narrow_competing(
     object_id: str,
     matches: list[str],
     traits: dict[str, dict[str, Any]],
-) -> str | None:
-    """Choose ONE competing candidate, or None to hand the decision to a human.
+) -> tuple[str | None, str | None, dict[str, str]]:
+    """Choose ONE competing candidate, and say HOW — or None for a human.
+
+    Returns ``(chosen, decided_by, rejected)``. ``rejected`` maps each losing
+    candidate to the trait that ruled it out, which is the forensic trail the
+    System tab renders: "rejected: translation_key=total_cleaning_area".
+
+    IMPORTANT for any consumer: the ladder SHORT-CIRCUITS on the first decisive
+    rung. A role decided by translation_key never evaluated state_class or
+    magnitude, so those must render as NOT EVALUATED — never as agreeing.
+    Presenting rungs we never ran as corroboration would manufacture confidence,
+    which is the exact failure this surface exists to catch.
 
     live:ENT-9. The colliding pair is almost always per-run versus lifetime —
     ``cleaning_area`` against ``total_cleaning_area`` — and those are not merely
@@ -381,16 +399,28 @@ def _narrow_competing(
     the user, whose question is answerable ("which of these resets after each
     clean?") rather than a blind pick.
     """
+    def _losers(winner: str, label: str) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for item in matches:
+            if item == winner:
+                continue
+            value = (traits.get(item) or {}).get(label)
+            out[item] = f"{label}={value}" if value is not None else f"{label} did not match"
+        return out
+
     step = [item for item in matches if object_id in item]
     if len(step) == 1:
-        return step[0]
+        return step[0], BY_OBJECT_ID, {
+            item: "does not carry the vacuum's object_id"
+            for item in matches if item != step[0]
+        }
 
     step = [
         item for item in matches
         if (traits.get(item) or {}).get("translation_key") == role
     ]
     if len(step) == 1:
-        return step[0]
+        return step[0], BY_TRANSLATION_KEY, _losers(step[0], "translation_key")
 
     # EXCLUDE the cumulative rather than REQUIRE `measurement`. Dreame marks its
     # lifetime sensor `total_increasing` and leaves the per-run one UNSET — so a
@@ -403,7 +433,7 @@ def _narrow_competing(
         not in ("total", "total_increasing")
     ]
     if len(step) == 1:
-        return step[0]
+        return step[0], BY_STATE_CLASS, _losers(step[0], "state_class")
 
     values: dict[str, float] = {}
     for item in matches:
@@ -417,9 +447,12 @@ def _narrow_competing(
         (smallest_id, smallest), (_, runner_up) = ordered[0], ordered[1]
         # A brand-new vacuum reads 0 for BOTH, and 0 vs 0 is not evidence.
         if smallest >= 0 and runner_up > 0 and runner_up >= smallest * _MAGNITUDE_RATIO:
-            return smallest_id
+            return smallest_id, BY_MAGNITUDE, {
+                item: f"value={values[item]:g}"
+                for item in matches if item != smallest_id
+            }
 
-    return None
+    return None, None, {}
 
 
 def augment_candidates_from_device(
@@ -591,6 +624,7 @@ def augment_candidates_from_device(
 
 
     ambiguous: dict[str, list[str]] = {}
+    decisions: dict[str, dict[str, Any]] = {}
 
     for role, declared in cands.items():
         merged = list(base.get(role) or declared or [])
@@ -649,13 +683,19 @@ def augment_candidates_from_device(
             # recorded as ambiguous — which is the signal the options UI needs to
             # pre-fill a choice rather than invent one.
             if len(matches) > 1:
-                chosen = _narrow_competing(
+                chosen, decided_by, rejected = _narrow_competing(
                     hass,
                     role=role,
                     object_id=object_id,
                     matches=matches,
                     traits=sibling_traits,
                 )
+                if chosen is not None:
+                    decisions[role] = {
+                        "chosen": chosen,
+                        "by": decided_by,
+                        "rejected": rejected,
+                    }
                 if chosen is None:
                     # An override means the user already decided this one; do
                     # not report it as needing a decision.
@@ -678,6 +718,8 @@ def augment_candidates_from_device(
 
     if ambiguous:
         rpt["ambiguous"] = ambiguous
+    if decisions:
+        rpt["decisions"] = decisions
     return out
 
 

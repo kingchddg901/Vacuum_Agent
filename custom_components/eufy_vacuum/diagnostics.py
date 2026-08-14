@@ -455,6 +455,26 @@ def _device_entity_census(hass: HomeAssistant, vacuum_entity_id: str) -> dict[st
                 # hass.states.get, from one that was never created at all.
                 "disabled": bool(item.disabled_by),
                 "platform": item.platform,
+                # live:ENT-9 — the fields that decide a COLLISION, and the ones a
+                # dump could not previously answer. `cleaning_area` and
+                # `total_cleaning_area` are both real, enabled sensors with the
+                # same domain and a shared suffix; nothing in entity_id, disabled
+                # or platform separates them. translation_key and state_class do,
+                # and both live in the registry with no state required.
+                #
+                # Verified across three brands on the maintainer's own install:
+                # robovac_mqtt sets state_class and no translation_key, Roborock
+                # the reverse, Dreame sets translation_key on 39/39 sensors. A
+                # dump carrying only one of the two would be blind to a brand.
+                "translation_key": getattr(item, "translation_key", None),
+                "state_class": (getattr(item, "capabilities", None) or {}).get(
+                    "state_class"
+                ),
+                "device_class": (
+                    getattr(item, "original_device_class", None)
+                    or getattr(item, "device_class", None)
+                ),
+                "unit": getattr(item, "unit_of_measurement", None),
             }
             for item in sorted(siblings, key=lambda i: i.entity_id)
         ]

@@ -216,6 +216,95 @@ Default the screen to the **unresolved roles only** (already computed as
 resolution. Picker defaults to the vacuum's own device entities, ranked; plain entity selector
 as the escape hatch, since the different-device case is precisely who needs this.
 
+### 4.5.1 The "System" sub-tab — WHAT WE ARE READING (surface 2)
+
+**Name provisional** (Chris, 2026-08-14: *"System for now, I can pick a better name
+before we ship"*). Rejected: "System settings and configuration" — `settings` and
+`configuration` are the same word twice, and the label lives in the Setup tab strip, which is
+the tightest horizontal space in the panel at 360px. It measures 31 characters in English and
+German pushes it past 40; the theme editor's sub-tab strip already had to be rebuilt for exactly
+that. Frontend string, so it routes through the project's own i18n pipeline — not the 18-file
+HA-side path.
+
+**Its DEFAULT view is the FULL binding table, not a filtered one.** This is the whole point and
+the easiest thing to get wrong. Every surface built so far renders only roles that FAILED, and a
+failures-only view is structurally blind to the defect that motivated this document: the §1.1
+collision resolves *successfully* — a real, existing, enabled entity — it is simply the WRONG
+one, off by ~4000x. That user's screen looks perfectly healthy. A view that lists problems
+cannot show them a problem that does not look like one.
+
+One row per role: **role · entity id · HOW IT WAS CHOSEN**, with editing as the exception on a
+row rather than the purpose of the screen.
+
+The provenance column is the part with no home today. All of it is already computed and lands
+only in a diagnostics dump, which is a file you download and paste into an issue:
+
+| shown as | source |
+|---|---|
+| derived name | the adapter's own candidate resolved |
+| device sibling / config-entry sibling | live:ENT-5, and `entity_augmentation` reports the split |
+| translation_key / state_class / magnitude | live:ENT-9, which rung of the ladder decided |
+| your override | `overrides_applied` |
+| disabled · absent · override_unresolved | live:ENT-2 `entity_resolution_reasons` |
+
+Two reasons beyond the collision. The ENT-9 ladder now makes AUTOMATED choices between competing
+candidates, and the magnitude rung is the least certain of them — a human should be able to
+sanity-check it. And issue #49's battery is not a naming bug at all: the reporter could see we
+ARE bound to `sensor.living_room_..._battery` at state 100, which moves their question from
+"what is broken" to "why is it not drawing".
+
+This also carries the removal path the options flow cannot offer (§4.5: that screen merges and
+never clears, because its fields disappear once a role is fixed).
+
+Per-vacuum, inheriting the Setup tab's existing per-vacuum iteration. The container name is
+deliberately broad so brand override can land beside it later — `brand_overrides` has had a read
+path and no writer since the brands table was written.
+
+#### Two levels, and the CURRENT VALUE on the summary row
+
+Refined after an external review (ChatGPT, 2026-08-14), which was right on all three counts.
+
+**Summary row** — role · entity id · **current value** · how it was chosen · [Change].
+
+The value is the cheapest sanity check that exists, and it needs no engineering literacy:
+
+```
+Cleaning time         sensor.robin_cleaning_time         0 min
+Total cleaning time   sensor.robin_total_cleaning_time   166 min
+```
+
+A reader confirms that in under a second. It also separates the two failure modes that look
+identical from outside — issue #49's battery resolves to a real entity reading `100` while the
+card draws nothing, so seeing the value instantly moves the question from "the resolver picked
+wrong" to "the resolver picked right and the consumer is broken".
+
+**Expanded row** — the forensic trail: every rung, the traits behind it, and the alternatives
+with WHY each was rejected.
+
+**THE TRAIL MUST NOT MANUFACTURE AGREEMENT.** The ladder short-circuits on the first decisive
+rung, so a role decided by `translation_key` never evaluated `state_class` or magnitude. Those
+render as **not evaluated**, never as concurring. Showing unrun rungs as corroboration would
+produce exactly the confident-and-wrong artifact this surface exists to catch — the review's
+sketch had magnitude as "supporting" on a row where it was never computed.
+
+`augment_candidates_from_device` now records this (`report["decisions"]`), verified on live
+hardware:
+
+```
+ivy    cleaning_area -> by=translation_key  rejected {ivy_total_cleaning_area: translation_key=total_cleaning_area}
+alfred cleaning_area -> by=state_class      rejected {..._total_cleaning_area: state_class=total}
+robin  task_status   -> by=translation_key  rejected {robin_status: translation_key=status}
+```
+
+Provenance is a first-class enum, not prose (`BY_OBJECT_ID`, `BY_TRANSLATION_KEY`,
+`BY_STATE_CLASS`, `BY_MAGNITUDE`, plus derived / sibling / override / recorder). Six months from
+now "chosen by: magnitude" sends you somewhere completely different from "chosen by: manual
+override" — one is a resolver bug to chase, the other is the user's own decision and not a bug
+at all.
+
+When the recorder pass lands it renders in the same human register — *"Observed reset behaviour
+across 3 cleaning runs"*, never `recorder_reset_behavior`.
+
 ### 4.6 One override generalises to the whole device
 
 Diff declared against chosen: the **suffix is identical**, so the stem is the only variable.
