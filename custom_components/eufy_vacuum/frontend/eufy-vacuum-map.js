@@ -17325,10 +17325,24 @@ ${r}
     scrollbar-width: thin;
   }
 
+  /* TEXT WRAPS, NUMBERS DO NOT.
+
+     nowrap on the whole table meant a long notes cell ran past its column and
+     was clipped \u2014 "Any active charge interva", "Slow precharge / soft-cel".
+     A taller row costs a few pixels; a truncated sentence costs the sentence.
+
+     Kept on the numeric column only, so a rate never breaks across lines as
+     "0.3" / "%/min". nth-child(2) because these tables have no per-column
+     classes; if a column is ever inserted, this moves with it and the wrong
+     column goes nowrap \u2014 which is visible immediately rather than silent. */
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-table {
     font-size: 0.78rem;
-    white-space: nowrap;
     width: 100%;
+  }
+
+  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table td:nth-child(2),
+  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table th:nth-child(2) {
+    white-space: nowrap;
   }
 
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-table th,
