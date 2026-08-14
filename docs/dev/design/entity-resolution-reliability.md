@@ -110,8 +110,26 @@ today.** Three cases, and the boundaries are what matter:
 | does not resolve, exactly one candidate | **AUTO-APPLY.** The install self-heals with no user action. |
 | does not resolve, candidates compete | **PRE-FILL and ask.** Confirmation is spent only where there is a real choice. |
 
-Derive the companion stem by majority vote across the device's entity object_ids, then use
-`f"{domain}.{stem}{suffix}"` to resolve or propose for each unresolved role.
+> **CORRECTION, made while building this (2026-08-14).** The framing above — stem derivation as
+> the thing that fixes a #49-class install — is **wrong**, and the code proved it. Deriving the
+> stem from device siblings requires reading device siblings, which is precisely the step
+> suspected of failing on that install; the derivation inherits the failure it was meant to
+> route around. Circular.
+>
+> **What actually closes the gap is SCOPE, not stems.** `resolve_declared_entities` searched the
+> vacuum's CONFIG ENTRY and rescued battery on that very install; `augment_candidates_from_device`
+> searched only its DEVICE and rescued nothing. Same instant, same registry. Searching both
+> (live:ENT-5) is the fix with field evidence behind it, and it retires "device_id absent at
+> setup" as a suspect rather than diagnosing it.
+>
+> The stem keeps a real but smaller job: **breaking ties** when several siblings match one role
+> (live:ENT-6). It never synthesises an entity id — a majority vote is evidence about naming, not
+> proof that an entity exists.
+
+Derive the companion stem by majority vote across the sibling object_ids (strip each one's owning
+suffix; what remains is its stem), and use it ONLY to rank competing candidates. **A tie is not a
+majority** — two vacuums on one config entry produce a dead heat, and that must stay ambiguous
+rather than resolve to whichever stem was inserted first.
 
 ### 3.1 "Unambiguous" is a predicate, not a judgement
 

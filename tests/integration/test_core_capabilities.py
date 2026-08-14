@@ -537,11 +537,23 @@ async def test_longer_declared_suffix_owns_the_sibling(hass):
 
 
 async def test_collision_ablation_without_the_vocabulary(hass):
-    """[CAP-12b] The guard must be load-bearing, not decorative.
+    """[CAP-12b] The vocabulary must be load-bearing, not decorative.
 
-    A test that passes with AND without the fix proves nothing. Withhold
-    `reserved_suffixes` and the collision must reappear — that is what shows
-    the vocabulary is what prevents it, rather than some accident of ordering.
+    A test that passes with AND without the fix proves nothing, so withhold
+    `reserved_suffixes` and assert the outcome genuinely differs.
+
+    TWO INDEPENDENT DEFENCES now cover this collision, and the difference
+    between them is the point:
+
+      - WITHOUT the vocabulary, `_area` matches both entities, nothing can rank
+        them, and live:ENT-6 refuses to guess — the role goes UNRESOLVED and is
+        recorded as ambiguous. Safe, but the user gets nothing.
+      - WITH it, the longer suffix claims its own entity and exactly one
+        candidate survives, so the role resolves CORRECTLY.
+
+    So the vocabulary is what converts "safely broken" into "right". Before
+    live:ENT-6 landed this test asserted the collision still occurred; that is
+    no longer true and asserting it would now be testing a bug we fixed twice.
     """
     from custom_components.eufy_vacuum.core.capabilities import (
         augment_candidates_from_device,
@@ -555,11 +567,18 @@ async def test_collision_ablation_without_the_vocabulary(hass):
         ],
     )
 
-    out = augment_candidates_from_device(hass, _VAC, {"area": ["sensor.alfred_area"]})
+    report: dict = {}
+    out = augment_candidates_from_device(
+        hass, _VAC, {"area": ["sensor.alfred_area"]}, report=report
+    )
 
-    assert "sensor.downstairs_alfred_total_area" in out["area"], (
-        "without the declared vocabulary the collision should still occur; if "
-        "it does not, this test no longer proves the guard does anything"
+    assert out["area"] == ["sensor.alfred_area"], (
+        "without the vocabulary neither entity can be ranked, so the role must "
+        "stay unresolved rather than pick one"
+    )
+    assert "area" in report.get("ambiguous", {}), (
+        "the competing pair must be recorded; without that the picker has "
+        "nothing to offer and the user is simply stuck"
     )
 
 
@@ -685,3 +704,164 @@ async def test_augmentation_reports_a_registry_failure(hass, monkeypatch):
     assert out == given, "a failed augmentation must never REMOVE a candidate"
     assert report["reason"] == "registry_error"
     assert "registry exploded" in report["error"]
+
+
+# ---------------------------------------------------------------------------
+# [CAP-15] live:ENT-5 — config-entry scope, the half with field evidence
+# ---------------------------------------------------------------------------
+
+def _vacuum_with_scopes(hass, *, device_companions=(), config_companions=(), with_device=True):
+    """Register a vacuum whose companions may sit outside its DEVICE.
+
+    `config_companions` are registered against the same config entry with NO
+    device link, which is the arrangement device-scoped lookup cannot see.
+    """
+    from homeassistant.helpers import device_registry as dr
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain="robovac_mqtt", entry_id="cap15")
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+
+    device_id = None
+    if with_device:
+        device_id = dr.async_get(hass).async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={("robovac_mqtt", "cap15-device")},
+        ).id
+
+    registry.async_get_or_create(
+        "vacuum", "robovac_mqtt", "cap15_vac",
+        suggested_object_id="alfred", device_id=device_id, config_entry=entry,
+    )
+    for domain, obj in device_companions:
+        registry.async_get_or_create(
+            domain, "robovac_mqtt", f"dev_{domain}_{obj}",
+            suggested_object_id=obj, device_id=device_id, config_entry=entry,
+        )
+    for domain, obj in config_companions:
+        registry.async_get_or_create(
+            domain, "robovac_mqtt", f"cfg_{domain}_{obj}",
+            suggested_object_id=obj, config_entry=entry,
+        )
+    return registry
+
+
+async def test_config_entry_scope_rescues_what_device_scope_misses(hass):
+    """[CAP-15] The scope with field evidence behind it.
+
+    On issue #49 the CONFIG-ENTRY search (entity_resolve) rescued battery and
+    the dock counters while the DEVICE search rescued nothing — same install,
+    same instant. Searching only the device is why ten roles stayed unresolved.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    _vacuum_with_scopes(
+        hass, config_companions=[("sensor", "living_room_robot_task_status")]
+    )
+
+    report: dict = {}
+    out = augment_candidates_from_device(
+        hass, _VAC, {"task_status": ["sensor.alfred_task_status"]}, report=report
+    )
+
+    assert "sensor.living_room_robot_task_status" in out["task_status"]
+    assert report["device_siblings"] == 1        # the vacuum itself
+    assert report["config_entry_siblings"] >= 1
+
+
+async def test_a_vacuum_with_no_device_can_still_be_rescued(hass):
+    """[CAP-15b] A missing device_id used to end the search immediately.
+
+    That was one of the three surviving suspects for #49. Falling back to the
+    config entry removes it as a failure mode rather than diagnosing it.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    _vacuum_with_scopes(
+        hass,
+        config_companions=[("sensor", "living_room_robot_task_status")],
+        with_device=False,
+    )
+
+    report: dict = {}
+    out = augment_candidates_from_device(
+        hass, _VAC, {"task_status": ["sensor.alfred_task_status"]}, report=report
+    )
+
+    assert "sensor.living_room_robot_task_status" in out["task_status"]
+    assert report["device_siblings"] == 0
+
+
+# ---------------------------------------------------------------------------
+# [CAP-16] live:ENT-6 — competing candidates are refused, not guessed
+# ---------------------------------------------------------------------------
+
+async def test_two_vacuums_on_one_config_entry_are_not_guessed(hass):
+    """[CAP-16] Registry ORDER must never be the tiebreaker.
+
+    A config entry shared by two vacuums offers two equally good companions per
+    role. Appending both and taking the first that exists makes entity-registry
+    insertion order the decision — which nobody chose, and which can silently
+    bind a card to the WRONG MACHINE.
+
+    entity_resolve.resolve_declared_entities already refuses in this situation;
+    this asserts the candidate path now matches that discipline.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    _vacuum_with_scopes(
+        hass,
+        config_companions=[
+            ("sensor", "living_room_robot_task_status"),
+            ("sensor", "hallway_robot_task_status"),
+        ],
+    )
+
+    report: dict = {}
+    out = augment_candidates_from_device(
+        hass, _VAC, {"task_status": ["sensor.alfred_task_status"]}, report=report
+    )
+
+    assert out["task_status"] == ["sensor.alfred_task_status"], (
+        "a competing pair was resolved anyway — the ambiguity guard is not holding"
+    )
+    assert sorted(report["ambiguous"]["task_status"]) == [
+        "sensor.hallway_robot_task_status",
+        "sensor.living_room_robot_task_status",
+    ], "both competitors must be RECORDED — that list is what the picker pre-fills"
+
+
+async def test_a_tied_stem_vote_is_not_a_majority(hass):
+    """[CAP-16b] The tie-break must not itself be a guess.
+
+    Taking `max()` of the stem votes returns whichever stem was inserted first
+    on a dead heat — dict order dressed up as evidence. Caught by probe: the
+    two-vacuum case resolved anyway until a tie was made to mean "no majority".
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    _vacuum_with_scopes(
+        hass,
+        config_companions=[
+            ("sensor", "living_room_robot_task_status"),
+            ("sensor", "hallway_robot_task_status"),
+        ],
+    )
+
+    report: dict = {}
+    augment_candidates_from_device(
+        hass, _VAC, {"task_status": ["sensor.alfred_task_status"]}, report=report
+    )
+
+    assert report["majority_stem"] is None, (
+        "a 1-1 split was reported as a majority; the winner is then insertion order"
+    )

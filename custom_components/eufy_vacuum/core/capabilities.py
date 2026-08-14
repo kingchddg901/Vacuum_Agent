@@ -290,19 +290,46 @@ def augment_candidates_from_device(
         if entry is None:
             rpt["reason"] = "vacuum_not_in_registry"
             return dict(cands)
-        if not entry.device_id:
-            rpt["reason"] = "vacuum_has_no_device"
-            return dict(cands)
 
-        siblings = [
-            item.entity_id
+        # live:ENT-5 — TWO SCOPES, because one of them is proven and the other
+        # is the suspect.
+        #
+        # This function only ever searched the vacuum's DEVICE, while
+        # adapters/entity_resolve.resolve_declared_entities searched its CONFIG
+        # ENTRY. On issue #49 the config-entry search rescued battery and the
+        # dock counters on the very same install, at the very same moment, where
+        # the device search rescued nothing — so the config-entry scope is the
+        # one with field evidence behind it and the device scope is where the
+        # failure lives. Searching both removes an entire class of failure
+        # (device_id absent or stale at setup) rather than diagnosing it.
+        #
+        # DEVICE FIRST, deliberately: it is the tighter, safer scope, and order
+        # is priority here. Config-entry entries only fill gaps device scope
+        # left, and a config entry shared by TWO vacuums is exactly why the
+        # ambiguity guard below refuses to guess.
+        siblings: list[str] = []
+        seen_siblings: set[str] = set()
+
+        if entry.device_id:
             for item in er.async_entries_for_device(
                 registry, entry.device_id, include_disabled_entities=True
-            )
-        ]
+            ):
+                if item.entity_id not in seen_siblings:
+                    siblings.append(item.entity_id)
+                    seen_siblings.add(item.entity_id)
+        rpt["device_siblings"] = len(siblings)
+
+        config_entry_id = getattr(entry, "config_entry_id", None)
+        if config_entry_id:
+            for item in er.async_entries_for_config_entry(registry, config_entry_id):
+                if item.entity_id not in seen_siblings:
+                    siblings.append(item.entity_id)
+                    seen_siblings.add(item.entity_id)
+        rpt["config_entry_siblings"] = len(siblings) - int(rpt["device_siblings"])
+
         rpt["siblings_seen"] = len(siblings)
         if not siblings:
-            rpt["reason"] = "device_has_no_entities"
+            rpt["reason"] = "no_siblings_in_device_or_config_entry"
             return dict(cands)
     except Exception as err:
         rpt["reason"] = "registry_error"
@@ -362,6 +389,40 @@ def augment_candidates_from_device(
                 best = known
         return best
 
+    # live:ENT-6 — the COMPANION STEM, by majority vote.
+    #
+    # Companions are named after something, and it is not always the vacuum: on
+    # issue #49 the vacuum is `robovac_x10_pro_omni` while all 65 of its
+    # companions are `living_room_eufy_clean_x10_pro_omni_*` — two unrelated
+    # stems on one device. Strip each sibling's owning suffix and whatever
+    # remains is its stem; the stem most of them agree on is this install's real
+    # naming convention.
+    #
+    # Used ONLY to break ties (below), never to synthesise an entity id. A
+    # majority vote is evidence about naming, not proof an entity exists, and
+    # the evidence base for the rule is still a single install.
+    stem_votes: dict[str, int] = {}
+    for _sibling in siblings:
+        _, _, _sib_object = _sibling.partition(".")
+        _owner = _claimed_by(_sib_object)
+        if not _owner:
+            continue
+        _stem = _sib_object[: -len(_owner)]
+        if _stem:
+            stem_votes[_stem] = stem_votes.get(_stem, 0) + 1
+    # A TIE IS NOT A MAJORITY. `max()` would hand back whichever stem happened to
+    # be inserted first, which is dict order dressed up as evidence — the exact
+    # guessing this tie-break exists to prevent. Two vacuums on one config entry
+    # produce a dead heat, and that case must stay ambiguous.
+    majority_stem: str | None = None
+    if stem_votes:
+        _top = max(stem_votes.values())
+        _leaders = [stem for stem, votes in stem_votes.items() if votes == _top]
+        majority_stem = _leaders[0] if len(_leaders) == 1 else None
+    rpt["majority_stem"] = majority_stem
+
+    ambiguous: dict[str, list[str]] = {}
+
     for role, declared in cands.items():
         merged = list(declared or [])
         seen = set(merged)
@@ -380,6 +441,7 @@ def augment_candidates_from_device(
             if not suffix:
                 continue
 
+            matches: list[str] = []
             for sibling in siblings:
                 if sibling in seen:
                     continue
@@ -394,11 +456,51 @@ def augment_candidates_from_device(
                 # not borrow it.
                 if _claimed_by(sib_object) != suffix:
                     continue
+                matches.append(sibling)
+
+            if not matches:
+                continue
+
+            # live:ENT-6 — WHEN CANDIDATES COMPETE, DO NOT GUESS.
+            #
+            # Appending every match and letting the first-existing win makes
+            # ENTITY REGISTRY ORDER the tiebreaker, which is not a decision
+            # anybody made. Two vacuums on one config entry produce exactly this.
+            # entity_resolve.resolve_declared_entities already refuses to guess
+            # in the same situation; this now matches that discipline.
+            #
+            # Two narrowings are tried, cheapest evidence first: a sibling still
+            # carrying the vacuum's own object_id, then one matching the majority
+            # stem. Neither yielding exactly one leaves the role UNRESOLVED and
+            # recorded as ambiguous — which is the signal the options UI needs to
+            # pre-fill a choice rather than invent one.
+            if len(matches) > 1:
+                narrowed = [item for item in matches if object_id in item]
+                if len(narrowed) != 1 and majority_stem:
+                    narrowed = [
+                        item
+                        for item in matches
+                        if item.partition(".")[2] == f"{majority_stem}{suffix}"
+                    ]
+                if len(narrowed) != 1:
+                    ambiguous.setdefault(role, sorted(matches))
+                    _LOGGER.debug(
+                        "%s: role %r has %d competing companions for suffix %r; "
+                        "leaving it unresolved rather than guessing: %s",
+                        vacuum_entity_id, role, len(matches), suffix, sorted(matches),
+                    )
+                    continue
+                matches = narrowed
+
+            for sibling in matches:
                 merged.append(sibling)
                 seen.add(sibling)
                 rpt["merged"] = int(rpt.get("merged") or 0) + 1
 
         out[role] = merged
+
+    if ambiguous:
+        rpt["ambiguous"] = ambiguous
 
     return out
 
