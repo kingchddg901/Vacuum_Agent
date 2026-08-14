@@ -5,14 +5,24 @@
  * (e.g. the status-dot strip captures just the header).
  *
  *   node harness/shoot-gallery.mjs [--bundle <name>] [--freeze]
+ *                                   [--mobile] [--width N]
+ *                                   [--lang de] [--font opendyslexic]
+ *
+ * LOCALE + FONT are the stress axes. Rank which to shoot with
+ * harness/measure-locale-width.mjs — it ranks by RENDERED WIDTH in the target
+ * font, which is not the same order as character count and differs per screen.
  *
  * Output: harness/out/gallery/<id>.png  and  _contact-sheet.png
+ *         (suffixed .<lang> / .<font> when those flags are used, so a stress
+ *          run never overwrites the plain baseline shots)
  */
 import { chromium } from "@playwright/test";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { mountHarness } from "./lib/mount-page.mjs";
+import { en } from "../src/i18n/en.js";
+import { flattenLocale } from "../src/i18n/flatten.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -31,6 +41,8 @@ const freeze = process.argv.includes("--freeze");
    chrome, the 44px tap floors and the stacked layouts all go unphotographed.
    renderGallery has always accepted this; nothing passed it. */
 const mobile = process.argv.includes("--mobile");
+const lang = flagValue("--lang", "");
+const font = flagValue("--font", "");
 const width = Number(flagValue("--width", mobile ? "390" : "520")) || (mobile ? 390 : 520);
 
 let bundle = {};
@@ -38,11 +50,31 @@ const bundlePath = join(here, "bundles", `${bundleName}.mjs`);
 if (existsSync(bundlePath)) bundle = (await import(pathToFileURL(bundlePath).href)).default ?? {};
 
 const outDir = join(here, "out", "gallery");
+const tag = [lang, font].filter(Boolean).join(".");
+const named = (base) => (tag ? `${base}.${tag}` : base);
 mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ deviceScaleFactor: 2 });
 await mountHarness(page);
+
+/* The bundle ships English only, so a foreign catalog has to be injected the
+   way the real card loads one at runtime — same path shoot-locales uses. */
+if (lang) {
+  try {
+    const nested = JSON.parse(
+      readFileSync(join(here, "..", "custom_components", "eufy_vacuum", "frontend", "locales", `${lang}.json`), "utf8"),
+    );
+    const { flat } = flattenLocale(nested, en);
+    await page.evaluate(([l, cat]) => window.__evcc.registerLocale(l, cat), [lang, flat]);
+    console.log(`locale ${lang} registered (${Object.keys(flat).length} keys)`);
+  } catch (e) {
+    // Loudly, not silently: a stress run that quietly renders English proves
+    // nothing and looks like a pass.
+    console.error(`✗ could not load ${lang}.json — ABORTING rather than shooting English: ${e.message}`);
+    process.exit(1);
+  }
+}
 
 const entries = await page.evaluate(() => window.__evcc.gallery);
 const shots = [];
@@ -53,8 +85,9 @@ for (const entry of entries) {
   // modal shots so the modal matches the card; leave the rest at the default.
   await page.emulateMedia({ colorScheme: entry.modal ? "dark" : "light" });
   const res = await page.evaluate(
-    ([id, b, w, m]) => window.__evcc.renderGallery(id, { bundle: b, width: w, mobile: m }),
-    [entry.id, bundle, width, mobile],
+    ([id, b, w, m, l, f]) =>
+      window.__evcc.renderGallery(id, { bundle: b, width: w, mobile: m, lang: l || null, font: f || null }),
+    [entry.id, bundle, width, mobile, lang, font],
   );
   if (!res.ok) {
     console.error(`✗ ${entry.id}: ${res.error}`);
@@ -64,7 +97,7 @@ for (const entry of entries) {
   // selector inside the card's shadow DOM resolves directly.
   const target = res.clip ? page.locator(res.clip).first() : page.locator("#evcc-host");
   const buf = await target.screenshot();
-  writeFileSync(join(outDir, `${entry.id}.png`), buf);
+  writeFileSync(join(outDir, `${named(entry.id)}.png`), buf);
   shots.push({ id: entry.id, label: res.label, b64: buf.toString("base64") });
   console.log(`✓ ${entry.id}`);
 }
@@ -82,7 +115,7 @@ await page.setContent(
   `<body style="margin:0;background:#0b0d10;display:grid;grid-template-columns:repeat(2,${width + 20}px);gap:18px;padding:18px;align-items:start">${cells}</body>`,
   { waitUntil: "domcontentloaded" },
 );
-writeFileSync(join(outDir, "_contact-sheet.png"), await page.screenshot({ fullPage: true }));
+writeFileSync(join(outDir, `${named("_contact-sheet")}.png`), await page.screenshot({ fullPage: true }));
 console.log(`contact sheet -> harness/out/gallery/_contact-sheet.png`);
 
 await browser.close();
