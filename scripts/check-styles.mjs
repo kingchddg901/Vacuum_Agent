@@ -25,6 +25,78 @@ const DIR = join(HERE, "..", "src", "styles");
 let failures = 0;
 const fail = (msg) => { failures += 1; console.error(`  ✗ ${msg}`); };
 
+/* ---------------------------------------------------------------------------
+ * BACKTICK LOCATOR — run BEFORE the import, because the import only tells you
+ * that something broke, not where.
+ *
+ * The import check below is the real guard and catches this. What it cannot do
+ * is point at it: a stray backtick ends the literal, everything after it parses
+ * as JS, and the failure surfaces as e.g. "Unexpected identifier 'display'" —
+ * an error naming a token that has nothing to do with the mistake, often
+ * hundreds of lines away. Four separate times in one session that message cost
+ * minutes of hunting for a one-character error.
+ *
+ * These modules are static CSS strings, so the rule is simple and exact: a
+ * backtick inside a CSS COMMENT is always wrong. Writing `--evcc-thing` or
+ * `display: table` in an explanatory comment is the natural habit that causes
+ * it, and there is no legitimate reason for one there.
+ *
+ * Reported with file:line and the offending line, so the fix is immediate.
+ * ------------------------------------------------------------------------- */
+/* A backtick in a JS docblock OUTSIDE the literal is perfectly legal — the
+   first version of this check flagged five of them. So it has to know where it
+   is, which needs a scanner rather than a regex: JS comment, string, template
+   literal, and CSS comment INSIDE a template are four different contexts and
+   only the last makes a backtick an error. */
+function strayBacktickLines(src) {
+  const hits = [];
+  let i = 0, line = 1;
+  let inTemplate = false, inCssComment = false, interp = 0;
+  const at = (s) => src.startsWith(s, i);
+
+  while (i < src.length) {
+    const c = src[i];
+    if (c === "\n") { line += 1; i += 1; continue; }
+
+    if (!inTemplate) {
+      if (at("//")) { while (i < src.length && src[i] !== "\n") i += 1; continue; }
+      if (at("/*")) { i += 2; while (i < src.length && !at("*/")) { if (src[i] === "\n") line += 1; i += 1; } i += 2; continue; }
+      if (c === "'" || c === '"') { const q = c; i += 1; while (i < src.length && src[i] !== q) { if (src[i] === "\\") i += 1; i += 1; } i += 1; continue; }
+      if (c === "`") { inTemplate = true; i += 1; continue; }
+      i += 1; continue;
+    }
+
+    // Inside the template literal.
+    if (src[i] === "\\") { i += 2; continue; }
+    if (at("${")) { interp += 1; i += 2; continue; }
+    if (interp > 0) {
+      if (c === "}") interp -= 1;
+      i += 1; continue;
+    }
+    if (at("/*")) { inCssComment = true; i += 2; continue; }
+    if (at("*/")) { inCssComment = false; i += 2; continue; }
+    if (c === "`") {
+      if (inCssComment) hits.push(line);   // THE BUG: ends the literal early
+      else inTemplate = false;             // the legitimate closing backtick
+      i += 1; continue;
+    }
+    i += 1;
+  }
+  return hits;
+}
+
+for (const f of readdirSync(DIR).filter((n) => n.endsWith(".js") && !n.endsWith(".test.js"))) {
+  const src = readFileSync(join(DIR, f), "utf8");
+  const lines = src.split("\n");
+  for (const line of strayBacktickLines(src)) {
+    fail(
+      `${f}:${line}: BACKTICK INSIDE A CSS COMMENT — it ends the template literal, ` +
+      `truncating every rule after it.\n      ${(lines[line - 1] || "").trim()}\n      ` +
+      `Fix: drop the backticks (write display:table, not the quoted form).`,
+    );
+  }
+}
+
 for (const f of readdirSync(DIR).filter((n) => n.endsWith(".js") && !n.endsWith(".test.js"))) {
   let mod;
   try {
