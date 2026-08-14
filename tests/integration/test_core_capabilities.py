@@ -1056,3 +1056,79 @@ async def test_both_brands_receive_overrides_from_the_tier(hass):
             f"{registrar.brand_id} cannot receive overrides; that brand's users "
             f"would have no way to correct a misresolved entity"
         )
+
+
+# ---------------------------------------------------------------------------
+# [CAP-18] live:ENT-14 — the binding table's provenance must actually arrive
+# ---------------------------------------------------------------------------
+
+async def test_entity_bindings_carry_decisions_and_overrides(hass, manager, monkeypatch):
+    """[CAP-18] REGRESSION: _entity_bindings read `augmentation` one line BEFORE
+    it was assigned.
+
+    The UnboundLocalError was swallowed by the enclosing `except Exception`
+    (DEBUG-logged), so the screen still rendered — just permanently stripped of
+    the data that makes it worth having: the live:ENT-9 ladder rung behind
+    "chosen by", the "Also matched" alternatives, the picker's pre-selection of a
+    saved override, and every role the adapter PROBES rather than declares.
+
+    Shipped in v2.1.0-beta.1. Found by the pre-release audit, not by me — I
+    verified the screen visually and it looked right, because everything I
+    checked came from `_entity_remaps`, computed OUTSIDE the try and therefore
+    unaffected.
+
+    THE ASSERTIONS HERE MUST DISCRIMINATE. My first version checked that the row
+    KEYS existed, which passed against the bug: every one of those variables is
+    pre-initialised to {} above the try, so a swallowed failure leaves an
+    identical shape. Only values that can ONLY come from inside the try block
+    prove it ran.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    register_adapter_config(_VAC, {
+        "adapter_id": "test",
+        # NOTE: task_status is deliberately NOT declared here — it must arrive
+        # from the capabilities snapshot via the setdefault loop inside the try.
+        "entities": {"battery": "sensor.alfred_battery"},
+    })
+
+    monkeypatch.setattr(
+        manager, "get_vacuum_capabilities_snapshot",
+        lambda **_: {
+            "entities": {"task_status": "sensor.probed_task_status"},
+            "entity_resolution_reasons": {"task_status": "resolved"},
+            "entity_sources": {"task_status": "config_entry_sibling"},
+            "entity_augmentation": {
+                "decisions": {
+                    "task_status": {
+                        "by": "translation_key",
+                        "rejected": {"sensor.other": "translation_key=other"},
+                    },
+                },
+                "overrides_applied": {"task_status": "sensor.probed_task_status"},
+            },
+        },
+        raising=False,
+    )
+
+    by_role = {r["role"]: r for r in manager._entity_bindings(_VAC)}
+
+    # 1. a PROBED-only role reaching the table proves the setdefault loop ran
+    assert "task_status" in by_role, (
+        "a role that exists only in the capabilities snapshot never reached the "
+        "table — the try block threw and was swallowed"
+    )
+    row = by_role["task_status"]
+    # 2. the ladder rung proves `decisions` was populated
+    assert row["chosen_by"] == "translation_key", (
+        f"chosen_by={row['chosen_by']!r} — the ENT-9 ladder rung never arrived, "
+        f"so 'Provided by the integration' is an unreachable label"
+    )
+    # 3. rejected alternatives prove the same dict carried its payload
+    assert row["rejected"] == {"sensor.other": "translation_key=other"}
+    # 4. the override flag proves overrides_applied was read AFTER assignment
+    assert row["overridden"] is True, (
+        "the picker would not pre-select the user's saved choice — they reopen "
+        "the panel and see 'Automatic'"
+    )

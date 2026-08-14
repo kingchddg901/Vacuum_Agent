@@ -5245,9 +5245,9 @@ class EufyVacuumManager:
             if isinstance(caps, dict):
                 reasons = caps.get("entity_resolution_reasons") or {}
                 sources = caps.get("entity_sources") or {}
-                overrides_applied = augmentation.get("overrides_applied") or {}
                 augmentation = caps.get("entity_augmentation") or {}
                 decisions = augmentation.get("decisions") or {}
+                overrides_applied = augmentation.get("overrides_applied") or {}
                 # A role the adapter probes rather than declares still belongs in
                 # the table — otherwise task_status, the role that tells the card
                 # what the vacuum is DOING, would be missing from the one screen
