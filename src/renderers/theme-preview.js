@@ -432,15 +432,39 @@ export function applyThemePreviewRenderers(proto) {
     `;
   };
 
+  /* ONE ANIMAL, NOT ALL OF THEM.
+
+     This used to render every registered animal side by side, and the columns
+     came from `repeat(auto-fit, ...)` — so the column count was derived from
+     available WIDTH while the item count came from the registry. At phone
+     width that is 90px of row label plus room for two columns, and seven
+     animals then spilled into implicit rows: the matrix silently degraded into
+     a ragged list with labels sitting over nothing.
+
+     It cannot be fixed by making the columns narrower, because the animal axis
+     is UNBOUNDED — AnimalSVG.list() is a live registry and a user can add
+     their own pet. A layout whose width grows with user data has no width that
+     works.
+
+     And it was never carrying its weight. This group's note says it: the five
+     eye-colour tokens drive the ROWS. Every extra animal redraws those same
+     five rows, so the matrix spent 35 cells communicating 5 facts. The
+     per-animal sub-groups (reachable as chips right below the preview) are
+     where a single animal is actually inspected.
+
+     So: one representative, in the single-column shape that already exists for
+     the sub-groups. Cat by preference so the preview is stable across renders
+     rather than following registration order, falling back to whatever is
+     registered if the built-ins ever change. */
   proto._renderThemePreviewAnimalCompanion = function () {
-    // Parent group preview: every registered animal in a column. If the
-    // animal-svg module hasn't finished loading the cells render the
+    // If the animal-svg module hasn't finished loading, the cell renders the
     // built-in "unknown animal" fallback — itself a useful signal.
     const animals = (window.AnimalSVG && window.AnimalSVG.list)
       ? window.AnimalSVG.list()
       : ["cat", "dog", "raccoon", "parrot", "snake"];
+    const representative = animals.includes("cat") ? "cat" : animals[0];
     return this._renderAnimalPreviewGrid(
-      animals,
+      representative ? [representative] : [],
       this.tRaw("theme_preview.animal.parent_note")
     );
   };

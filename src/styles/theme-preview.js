@@ -634,6 +634,15 @@ export const themePreviewStyles = `
     padding: 14px;
   }
 
+  /* NO LONGER REACHED, and kept only as the base the --single rule overrides.
+     Every caller of _renderAnimalPreviewGrid now passes exactly one animal, so
+     .evcc-theme-preview-animal-grid--single is always present.
+
+     Do not restore a multi-animal matrix on top of this: auto-fit derives the
+     column count from available WIDTH while the items come from the AnimalSVG
+     registry, which the user can extend. The two disagree at phone width and
+     the row spills into implicit rows, putting labels over nothing. That was a
+     real reported defect, not a theoretical one. */
   .evcc-theme-preview-animal-row {
     display: grid;
     grid-template-columns: 90px repeat(auto-fit, minmax(80px, 1fr));
@@ -641,7 +650,7 @@ export const themePreviewStyles = `
     gap: 8px;
   }
 
-  /* Single-animal (sub-group) preview: one larger cell, centred. */
+  /* Single-animal preview: one larger cell, centred. Now the only mode. */
   .evcc-theme-preview-animal-grid--single .evcc-theme-preview-animal-row {
     grid-template-columns: 90px 1fr;
   }
