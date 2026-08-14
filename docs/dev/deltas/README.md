@@ -20,12 +20,16 @@ enough for the next epoch-closing audit to adjudicate it.
 | epoch | closed | closing operation |
 |---|---|---|
 | **Epoch 1** | **2026-08-08** (v2.0.0, the Phoenix Release — the audit closes the epoch, the release ships it) | The hostile-audit campaign — **516 corpus records / 484 verified findings / 22 killed**, collapsed into 33 accepted repair families (6 candidates rejected) and landed as 60 packets (figures from `corpus/audit-findings-canonical.jsonl`, the frozen corpus; the `464 / 67` pair quoted elsewhere is the AUDIT-2 *gate rebase* from `49e6e3b`, a different measure — do not mix them) + the DR reconciliation passes that established this baseline: batch 1 (`5940830` + siblings) and the 17-cluster adversarially-verified workflow pass (runs `wf_c3085752-b7b` + `wf_16fa0e1a-3f3`, applied 2026-08-06). Includes the rebuilt Phased Jobs (docs 06/30 reconciled + Opus-verified in `6a87c13`, per the §13 epoch-edge ruling) and the full `live:FONT-1` resolution (fix `ecbe77f`/`d3f81e6`, user-confirmed; typeface mechanism + drop-in fonts documented same-commit, styles-system §4/§4b). Provenance: the audit record (`.claude/notes/synthesis/`, closure ledgers, the postmortem corpus). |
-| Epoch 2 | open | Accumulating. **No known code-vs-DR deltas at open** — every epoch-edge change landed with its DR statement in the same commit (§13). What remains open is *reconciliation residue*, listed below, not divergence. |
+| Epoch 2 | open | Accumulating. **19 commits since v2.0.0, of which 8 carry a DR delta** — enumerated below. The row previously read *"No known code-vs-DR deltas at open"*; that was written on 2026-08-09 at `3d04ff4f` and was already false by 2026-08-13, having gone unrevisited across sixteen further commits including a shipped release (2.0.1). Corrected rather than appended to, per [00 §5.4](../00-disaster-recovery-standard.md) — a superseded normative statement is edited in place. |
 
 ### Epoch 2 delta candidates — detail
 
 **`live:STALL-PROV-1` — stall captures record no provenance, and the write overwrites.**
-Opened 2026-08-09.
+Opened 2026-08-09. **ANSWERED 2026-08-13 by `9659a7d5` — see D-8 below.** The entry is kept
+because its reasoning predicted the shape the fix took (provenance recorded, never branched
+on; the capture inherits it from the correlation context rather than knowing the concept
+exists) and because the RETENTION half — a synthetic capture still overwrites the real one at
+a stable path — is untouched and still open.
 
 Note what kind of item this is, because it is the same shape as `RB-ERR-2` below: it is
 **not a current divergence**. [04 §6a](../04-listeners.md) describes the write accurately and
@@ -82,6 +86,99 @@ Roborock tables are correctly documented as declared-but-unreachable.
 The fix is gated on an adapter declaration (Eufy's `error_message` carries prose — "Robot
 is stuck" must never become a pseudo-code), so it is an adapter-contract change, not a
 local patch. That makes it delta-shaped rather than hotfix-shaped.
+
+---
+
+## Epoch 2 — the delta set, v2.0.0..master (19 commits)
+
+Enumerated 2026-08-13. **Eight entries, D-1..D-8, covering fifteen of the nineteen commits;
+six of those entries owe an actual DR edit** (D-1, D-2, D-3, D-4, D-6, D-8 — D-5 and D-7 are
+recorded as owing nothing). The remaining **four** commits have no DR surface and are listed at
+the end, so the set is provably complete rather than merely sampled: an unexamined commit and a
+clean one read identically.
+
+> **⚠ READ THIS BEFORE APPLYING ANY ENTRY BELOW.** A delta is a *pending DR edit*, so it
+> presumes the statement it edits is otherwise sound. **That presumption does not currently
+> hold.** A full corpus walk against the frozen v2.0.0 source on 2026-08-13 returned **47 of
+> 47 documents failing**, with 951 verified findings — 198 of them confidently wrong. So for
+> most entries below, "the DR section that must change" is a section that also needs
+> reconciling for reasons predating the delta. Apply these *with* that reconciliation, not
+> before it. Findings are repo-local, not on this site: `.claude/notes/_dr_findings_wave*.json`.
+
+**D-1 · `051ee7bc` — a second entity-resolution mechanism now exists, and nothing says how
+the two interact.** Shipped in 2.0.1. When a declared companion entity id does not resolve in
+the state machine, `adapters/entity_resolve.py` searches the vacuum's own config entry for a
+domain+suffix match and remaps. **DR edit required in 21 and 22:** doc 22 already documents a
+*different* registry fallback — per-role `token_sets` ("all-tokens-must-match") for dock
+`action_buttons` and maintenance `reset_button`. There are now two rescue mechanisms with
+different scopes, one declared per-role and one global and implicit, and no document states
+which runs first. That is capability/adapter semantics, which [00 §2.2](../00-disaster-recovery-standard.md)
+puts in DR.
+*Known limit:* the rescue refuses when a suffix matches more than one sibling and breaks the
+tie with `vacuum_object_id in candidate` — which can never succeed on the naming-mismatch
+installs the rescue exists for. Live evidence on issue #49: `cleaning_area` is unrescuable
+because `total_cleaning_area` also ends in `_cleaning_area`.
+
+**D-2 · `41537981` — diagnostics reports REGISTERED beside EXISTS, and records `disabled`.**
+Shipped in 2.0.1. The device census now walks with `include_disabled_entities=True` and stores
+`disabled` per entity. **No DR doc covers diagnostics** — the numbered set runs 00–32 with no
+diagnostics entry — so this is an *undocumented subsystem*, not a drifted one. Those need
+different treatment: authoring, not reconciliation. Decide which before filing it as a gap.
+
+**D-3 · `c10b0449` — a pasted theme import is scoped, and refusals that arrive as a throw are
+surfaced.** Unreleased. **DR edit required in `frontend/theme-system.md`** (the import
+contract) **and `frontend/backend-contract-and-data-shapes.md`** (how a service refusal
+reaches the user when it arrives as an exception rather than a result envelope).
+
+**D-4 · the mobile token editor — `77b04ae9` `2781d83f` `5b0fd100` `d948d55d` `73f96bdb`
+`d788e443` `17ab24ab` `115175f8`.** Unreleased. Legitimate mid-feature churn under §13, which
+explicitly protects exactly this. **But the flag is not a flag:** `src/renderers/theme.js`
+declares `const MOBILE_TOKEN_EDITOR = true` while its call sites still read "TEST BUILD". Every
+mobile user has it unconditionally and the code calls it provisional. That is a decision, not
+a documentation task — shipped (drop the constant, reconcile `frontend/styles-system.md` and
+`theme-system.md`, deferral ends) or genuinely a test build (say so, and it stays a delta). It
+cannot remain both. `17ab24ab` additionally rewrote the layout gate to assert on right-edge
+**bleed** rather than overflow, because `.evcc-shell` is `overflow:hidden` so breakage clips
+instead of overflowing — a gate that changed what it measures is reconstruction-critical and
+belongs in `frontend/render-harness.md`.
+
+**D-5 · `133097a5` — §13-COMPLIANT, no delta owed.** It corrected
+`reference/THEME_TOKEN_USAGE.md` in the same commit as the generator that produces it. Recorded
+here only so the enumeration is complete. One residual: the *architectural* fact that token
+names can be constructed at runtime and are therefore invisible to a `var()` scan is stated
+only in a generated file's header.
+
+**D-6 · `5779188e` — a saved run profile persists `strict_order`.** Issue #50. The run-profile
+record gains a boolean; `start_run_profile` resolves stored-versus-explicit and forwards it to
+dispatch. **DR edit required in 16** (the stored run-profile record shape, and the resolution
+rule: explicit argument wins, absent means the stored flag decides). **Migration is inert by
+construction** — `_enrich_saved_run_profile` reads it with `.get(..., False)`, so a profile
+saved before the key existed dispatches exactly as before. That property is load-bearing and
+pinned by `SO-2`; a rebuild that "simplifies" the default changes run duration, adds a dock
+trip between rooms, and alters per-room learning attribution for every existing profile.
+
+**D-7 · `de67758f` — two audit documents were published to the site.** `docs/audit-1-closeout.md`
+and `docs/how-this-was-audited.md`. No DR statement changes; recorded because it establishes the
+convention that a *curated* closeout may be public while the working record stays repo-local,
+and that such a document NAMES its private companion in backticks rather than linking it (a link
+would break `mkdocs --strict`).
+
+**D-8 · `9659a7d5` — the semantic-receipts subsystem, answering `live:STALL-PROV-1`.**
+A new `receipts/` package plus emission from the stall-capture path and provenance marking at
+the injection point. **No DR doc covers it** — like D-2 this is authoring, not reconciliation,
+and it is the larger of the two. Design lives in `PROTOCOL-semantic-flight-recorder.md` §6–§8
+(repo-local). ⚠ **Its implementation has not been reviewed line by line.** 23 tests pass and it
+traces to a decided design; that is the whole claim. The retention half of STALL-PROV-1 — a
+synthetic capture overwrites a real one at a path automations hardcode — is **not** addressed
+here and stays open, because changing retention breaks a contract [04 §6a](../04-listeners.md)
+states explicitly and therefore needs adjudicating rather than patching.
+
+### The four with no DR surface
+
+`3d04ff4f` (this ledger's own STALL-PROV-1 entry) · `3e0dbfdd` (NOTICE attribution) ·
+`de1d3018` (the 2.0.1 manifest bump) · `3558a083` (changelog).
+
+That accounts for all nineteen: 15 under D-1..D-8, plus these 4.
 
 ---
 
