@@ -10,6 +10,17 @@ only.
 
 ## [Unreleased]
 
+### Added
+- **The shell chrome gets out of the way in landscape.** On a phone held sideways the status
+  pane and bottom navigation take 89px of a ~360px screen — a quarter of it — for information
+  that mostly isn't being read. Both now hide by default and return on a deliberate upward
+  flick, or whenever you scroll back to the top of a list. That gives the content area a third
+  more room (270px → 359px on the theme editor). Only landscape is affected; portrait has the
+  space already and is untouched. Two deliberate limits: the status pane **stays pinned while a
+  job is running or paused**, because that is exactly when its numbers are worth the space; and
+  the chrome only auto-hides where something can actually be scrolled, so a short view can never
+  lose its navigation with no gesture available to bring it back.
+
 ### Fixed
 - **Rotating a phone to landscape no longer breaks the layout.** The card chose its shell on
   width alone, so a rotated 390×844 phone — about 844×390 — cleared the 600px threshold and

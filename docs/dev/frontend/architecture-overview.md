@@ -33,6 +33,7 @@ Links between frontend docs are bare sibling filenames; links out to backend sub
 **Cross-cutting systems**
 
 - **[styles-system.md](styles-system.md)** — where CSS lives, the `styles/` module structure, and the token/CSS-custom-property conventions the renderers emit.
+- **[responsive-shell.md](responsive-shell.md)** — which shell renders and why: the **narrow-or-short** viewport decision (landscape is short, not wide), chrome density vs layout direction as two axes, the landscape chrome auto-hide and what may drive it, panel-mode sizing from a measured offset, and the **preview-specimen rule** — previews render real components, so any rule aimed at shell chrome needs a guard or it hits the specimen too.
 - **[theme-system.md](theme-system.md)** — the theme token model, the editor, per-floor-texture token groups, export/import, presets, and the theme tag/search system.
 - **[i18n-system.md](i18n-system.md)** — `this.t` / `this.tVocab`, the locale loader, the de-bundled catalogs, and the trust-model-B "never `esc()` a `t()`" rule. Owns localization — the frontend side of the contract's canonical-vs-localized boundary.
 - **[render-harness.md](render-harness.md)** — the headless Playwright render/visual-regression/CVD/intake harness and the theme gallery.

@@ -5,6 +5,7 @@ nav:
   - state-management.md
   - event-binding-and-modal-host.md
   - styles-system.md
+  - responsive-shell.md
   - backend-contract-and-data-shapes.md
   - card-topology-and-bundles.md
   - module-reference.md
