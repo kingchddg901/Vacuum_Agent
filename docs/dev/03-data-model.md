@@ -467,7 +467,7 @@ Populated from the adapter config. Read by `get_vacuum_capabilities()`.
 ```
 
 Capability keys gate which payload fields are included per room (see §4).
-`entities` maps adapter role keys (e.g. `"task_status"`, `"robot_position_x"`)
+`entities` maps adapter role keys (e.g. `"task_status"`, `"cleaning_area"`)
 to live HA entity IDs.
 
 ---

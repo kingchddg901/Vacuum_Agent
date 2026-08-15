@@ -105,7 +105,7 @@ this is the orientation.
 | Block | Required | What it carries |
 |---|---|---|
 | `adapter_id`, `source` | yes | identity (`source: "code"` for a shipped adapter) |
-| `entities` | yes | role → HA entity-ID map (`task_status`, `dock_status`, `active_map`, `battery`, `charging`, `robot_position_x/y`, …). Absent entities degrade the dependent feature; they never raise. |
+| `entities` | yes | role → HA entity-ID map (`task_status`, `dock_status`, `active_map`, `battery`, `charging`, `cleaning_area`, …). Absent entities degrade the dependent feature; they never raise. Do NOT supply `robot_position_x/y` — it is an Eufy-only raw field, not a pose source; see [Eufy adapter → robot_position_x/y](../dev/25-eufy-adapter.md#4b-raw-robot-position-is-not-a-pose-source). Live pose comes from `map_state_source.live_pose` and arrives as `robot_anchor`. |
 | `dispatch` | yes | how to send a clean job (§4) |
 | `vocabulary` + `completion` | no (recommended) | the raw state strings your vacuum reports (§5) |
 | `capabilities` | no | feature flags (§6) |

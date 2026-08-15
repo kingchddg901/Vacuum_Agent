@@ -521,6 +521,53 @@ modules, projected verbatim into the config.
 
 ---
 
+## 4b. Raw robot position is not a pose source
+
+**Eufy-only, and not to be trusted as position.** `robot_position_x` /
+`robot_position_y` exist, resolve, and are the wrong thing to read if you want to
+know where the robot is.
+
+`entity_candidates` points them at `sensor.{object_id}_robot_position_x_raw`
+(`adapters/eufy/adapter.py`) and `_raw` is the operative word: this is the DPS pose
+in raw device units — uint32, ZUPT-clamped, no IMU. Not normalised, not in map
+space, and it does not fail loudly. A clamped sample looks like an ordinary number.
+
+**What they were for, and why that system is gone.** They fed the run-derived room
+bounds store (`room_bounds.py` / `RoomBoundsStore`) — learn each room's bounding box
+from robot samples, then infer the current room by testing the position against those
+boxes. It was retired in the mapping split, and the reason is a property of the
+device, not of the code: **it re-bases its coordinate origin every session, so
+bounds learned in one session did not describe the next.** Cross-session drift made
+the store unusable no matter how good the samples were. Room tracking now runs off
+the device's native current-room signal (`active_cleaning_target`) and nothing runs
+in vacuum coordinates. See
+[11 — Mapping system §3](11-mapping-system.md), kept as historical reference with
+its code deleted.
+
+That history is the point: the field did not become untrustworthy: **the coordinate
+frame it lives in was never stable across sessions**, which is why no amount of
+filtering rescued the system built on it.
+
+**Use `robot_anchor` instead.** Live pose is brand-generic since v2.0.1 — the adapter
+declares `map_state_source.live_pose.backend`, the coordinator's
+`async_get_map_live_pose` reads it, and the answer arrives as `robot_anchor`,
+pre-normalised to the rendered image with `robot_heading` beside it. See
+[31 — Map source coordinator](31-map-source-coordinator.md) and
+[04 — Listeners](04-listeners.md).
+
+**What the role is still for.** Exactly one thing: `capabilities.py` reads the
+PRESENCE of both x and y to set `supports_robot_position` /
+`robot_position_available`. Nothing consumes the values. Roborock never declares the
+entities — it only copies the resulting flag through
+(`adapters/roborock/adapter.py`), which is why this belongs in the Eufy chapter and
+not in any generic role list.
+
+**Do not add it to a new brand's `entities` map.** A porter following a generic role
+list and supplying an x/y pair earns a capability flag they cannot back with a usable
+reading.
+
+---
+
 ## 5. Button resolution pattern
 
 Buttons (dock actions, maintenance resets) are the one place a brand can't rely

@@ -95,7 +95,9 @@ The main entry point. Called when the config entry is loaded. In order:
 8. Registers the inline `battery_rebaseline` service.
 9. Instantiates `MappingTracker` (last of the subsystems); stores it at
    `hass.data[DOMAIN]["mapping_tracker"]`. Registers position entities for
-   vacuums whose capability map includes `robot_position_x`/`robot_position_y`.
+   vacuums whose capability map includes `robot_position_x`/`robot_position_y` —
+   in practice Eufy only, and NOT a pose source (see
+   [Eufy adapter](25-eufy-adapter.md#4b-raw-robot-position-is-not-a-pose-source)).
 10. Calls the remaining service registration functions: `async_register_services`,
    `async_register_learning_services`, `async_register_theme_services`,
    `async_register_mapping_services`.

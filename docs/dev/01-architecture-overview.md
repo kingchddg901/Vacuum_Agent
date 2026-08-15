@@ -438,8 +438,8 @@ adapter config dict rather than hard-coded.
 {
     "entities": {
         "vacuum": "vacuum.alfred",
-        "robot_position_x": "sensor.alfred_x",
-        "robot_position_y": "sensor.alfred_y",
+        "task_status": "sensor.alfred_status",
+        "cleaning_area": "sensor.alfred_cleaning_area",
         "battery_level": "sensor.alfred_battery",
         "error_message": "sensor.alfred_error_message",
         # ... all upstream entity IDs

@@ -297,101 +297,20 @@ The engine wrapper `EufyCVSegmenter.segment_map_image(*, image_path, tuning, con
 
 ---
 
-## 3. Room Bounds from Traces
+## 3. Room Bounds from Traces — RETIRED
 
-> **Removed (mapping split).** The learned per-room bounding-box store described
-> below — `room_bounds.py` / `RoomBoundsStore`, the sample→bounds attribution, and
-> the `get_room_bounds_snapshot` service — was **deleted**. It rode the device's
-> vacuum-coordinate frame, which re-bases every session, so the cross-session bounds
-> were a smear. Room tracking now reads the device's native current-room (§1). This
-> section is retained as a historical / disaster-recovery reference; the code is gone.
+> **Removed in the mapping split; the code is deleted.** The learned per-room
+> bounding-box store (`room_bounds.py` / `RoomBoundsStore`), its sample→bounds
+> attribution, and the `get_room_bounds_snapshot` service rode the device's
+> vacuum-coordinate frame, which re-bases every session — so cross-session bounds
+> were a smear. Room tracking now reads the device's native current-room signal (§1).
 >
-> **Preserve §3.1–§3.6 verbatim — do not trim.** This is the sole in-repo record of
-> the trace→bounds design, kept deliberately for a possible future revival. The
-> present tense below describes the *retired* algorithm, not current behavior; a
-> doc-sweep must not "reconcile" it away. Revival is gated on first proving a stable
-> cross-session coordinate origin (see memory `project_boundary_derivation_dead`).
-
-### 3.1 What a "trace" is
-
-A trace is a time-ordered list of vacuum position samples collected during a single cleaning job. Each sample is `(vx, vy)` in vacuum coordinate units. Samples are collected in `MappingTracker._handle_position_update` by reading the `robot_position_x` and `robot_position_y` HA sensor states.
-
-Deduplication is applied at collection time: if the new `(vx, vy)` is identical to the most recently recorded position, it is discarded. This prevents the X and Y sensors firing separately on the same movement event from creating double entries.
-
-Sampling pauses during mid-job dock returns (`pause_sampling` / `resume_sampling`) to prevent hundreds of identical dock-position samples from corrupting room bounds.
-
-Samples are flushed to a temporary file (`_samples_active.json`) every 25 unique positions so that an HA restart mid-job can recover the partial run.
-
-### 3.2 Attribution Strategy
-
-At the end of a job, `RoomBoundsStore.update_room_bounds` attributes samples to rooms:
-
-**Single-room job** (exactly one non-transition room in the job's room dict): all samples are attributed to that room unconditionally.
-
-**Multi-room job**: for each sample `(vx, vy)`, the first room whose stored bounding box (expanded by `BOUNDS_MARGIN`) contains the point receives credit. Rooms with fewer than `MULTI_ROOM_MIN_RUNS = 4` active history entries are skipped as attribution anchors because their bounds are not yet reliable enough. Unattributed samples are discarded.
-
-### 3.3 `BOUNDS_MARGIN = 50`
-
-After attribution, the bounding box query in `_update_confidence` also uses the same margin:
-
-```python
-BOUNDS_MARGIN = 50.0  # vacuum units
-```
-
-This adds 50 vacuum units to each side of the stored bounding box when testing whether a position falls within a room. The margin exists to handle two situations:
-- The robot may clean right up to the boundary of its known box, or slightly beyond it, as the room boundaries are learned incrementally.
-- Coordinate jitter in the vacuum's reported position means exact bounding-box containment would miss valid cleaning positions near edges.
-
-### 3.4 Percentile Trimming
-
-Before samples are committed to history, `_percentile_trim` is applied:
-
-```python
-def _percentile_trim(samples, p_lo=0.10, p_hi=0.90):
-    # Requires >= 10 samples (_TRIM_MIN_SAMPLES) to apply trimming.
-    xs = sorted(vx for vx, _ in samples)
-    ys = sorted(vy for _, vy in samples)
-    n = len(xs)
-    lo_i = int(n * 0.10)
-    hi_i = min(int(n * 0.90), n - 1)
-    x_lo, x_hi = xs[lo_i], xs[hi_i]
-    y_lo, y_hi = ys[lo_i], ys[hi_i]
-    return [(vx, vy) for vx, vy in samples if x_lo <= vx <= x_hi and y_lo <= vy <= y_hi]
-```
-
-The outermost 10% of both the X and the Y distributions are discarded (independently). A sample survives only if it is within both P10–P90 ranges. This eliminates:
-- Dock-adjacent outlier coordinates that slip through the pause gate.
-- Large coordinate excursions caused by the robot leaving a room briefly to navigate.
-- Sensor glitch spikes that report a physically impossible position for one sample.
-
-Below 10 samples, no trimming is applied because there is insufficient data to compute meaningful percentiles.
-
-### 3.5 History Cap — 20 Entries
-
-Each room's `job_bounds_history` is capped at 20 entries (newest first):
-
-```python
-history = [job_entry] + history
-history = history[:20]
-```
-
-The newest entry becomes index 0. The oldest survives entry becomes index 19. This is the *baseline entry* and is protected from manual exclusion (see Section 7). Capping at 20 prevents unbounded file growth while retaining enough history for meaningful outlier detection.
-
-### 3.6 Bounds Recomputation
-
-After every history update, `_recompute_bounds_from_history` rebuilds the active bounding box:
-
-```python
-active = [e for e in history if not e.get("excluded", False)]
-min_x = min(e["min_x"] for e in active)
-max_x = max(e["max_x"] for e in active)
-min_y = min(e["min_y"] for e in active)
-max_y = max(e["max_y"] for e in active)
-```
-
-The resulting bounds is the *union* of all active (non-excluded) job entries. There is no decay or weighting — every active run contributes equally to the envelope. The centroid `cx, cy` is the midpoint of the union box. `run_count` is the number of active entries. `updated_at` is the `recorded_at` timestamp of the most recently added entry (index 0).
-
----
+> **The full design is preserved verbatim in
+> [design/room-bounds-from-traces.md](design/room-bounds-from-traces.md)**, together
+> with what it got right (it was calibration-immune — CV pixels and vacuum coordinates
+> were never converted into each other; the user tied them by identity) and the two
+> requirements a brand would have to meet to revive it. Moved out of this document
+> 2026-08-14 so a live subsystem doc contains only live behaviour.
 
 ## 4. Coordinate System
 
@@ -527,28 +446,10 @@ Image metadata (width, height, path, browser_url) is recorded in the map bucket'
 
 ---
 
-## 7. Excluded History Entries
+## 7. Excluded History Entries — RETIRED
 
-> **Retired (mapping split).** The interactive **bounds-review** surface — which let
-> a user exclude an outlier run's `job_bounds_history` entry from the accumulated box —
-> is fully gone, along with the `job_bounds_history` store it operated on (§3).
->
-> - **Frontend view deleted outright.** `src/renderers/mapping-review.js`,
->   `src/actions/mapping-review.js`, `src/state/mapping-review.js`, and
->   `src/styles/mapping-review.js` no longer exist, and the "Map Bounds Review" nav
->   tab/view is removed. (Some leftover `mapping_review.*` i18n keys still sit in the
->   locale bundle — a separate code-cleanup, not a feature.)
-> - **Services gone.** `clear_room_bounds`, `exclude_room_job_bounds`,
->   `restore_room_job_bounds`, `rebuild_room_bounds_from_archive`, and
->   `get_room_bounds_snapshot` are all absent from `services.yaml`.
-> - **Scoring gone.** The `boundary.py` transition-candidate scoring that flagged
->   L-shaped / corridor rooms was removed; `boundary.py` now holds only
->   `point_in_polygon` (§9.2).
->
-> There is no longer any bounds store to exclude from. The retired review design lives
-> in git history.
-
----
+> Removed with the bounds store it belonged to. Preserved in
+> [design/room-bounds-from-traces.md](design/room-bounds-from-traces.md).
 
 ## 8. File Layout
 
