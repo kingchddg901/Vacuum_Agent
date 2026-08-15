@@ -327,6 +327,7 @@ class ExternalRunManager:
         fingerprint in the external-run shortlist ranker (external_ingest._rank_shortlist):
         before any room has a learned area, size still discriminates which room a segment is."""
         try:
+            # anchor: CN3NZ963  external-run map data fetch
             map_data = await self._manager.async_get_map_data_dict(
                 vacuum_entity_id=vacuum_entity_id
             )
@@ -391,6 +392,7 @@ class ExternalRunManager:
         def _build_and_write() -> dict[str, Any] | None:
             import json
 
+            # anchor: CN3M87RG  external-run pending record builder
             from ..learning.external_ingest import build_pending_record
             from ..learning.history_store import LearningHistoryStore
 

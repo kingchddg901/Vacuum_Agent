@@ -5533,6 +5533,7 @@ class EufyVacuumManager:
         #   capability, but no card surface consumes it today.
         # Both default to True when the key is absent (Eufy + older-backend safe).
         _dock_events_cfg = _adapter_cfg.get("dock_events", {}) or {}
+        # anchor: CN585YGW  supports_base_station derivation
         supports_base_station = bool(_dock_events_cfg.get("enabled")) or any(
             bool(_caps_cfg.get(_k))
             for _k in (

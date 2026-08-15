@@ -92,12 +92,21 @@ if hasattr(sys.stdout, "reconfigure"):
 ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 SUFFIX_LEN = 6
 
-# Identifier CLASS, not meaning. Reserve a new one only for a genuinely distinct
-# class of thing; "another subsystem" is not a class.
+# THE PREFIX IS A RELATIONSHIP TYPE, NOT A FOLDER. It says why a link exists, never
+# which subsystem owns it. `EU`, `RB`, `DG`, `UI` would all be wrong: those meanings
+# live in code and prose and evolve with the architecture. Reserve a class only when
+# the relationship being traversed is genuinely different.
 PREFIXES = {
-    "CN": "code/document notation anchor",
-    "ST": "semantic trace site",
+    "CN": "code notation — an implementation concept or significant code site",
+    "SN": "semantic notation — the translation layer behind diagnostics and receipts",
+    "HN": "historical notation — provenance: how or why this came to exist",
+    "PN": "prose notation — the deep canonical explanation lives here",
+    "IN": "invariant notation — something the system must preserve across refactors",
 }
+
+# Letters only, and only Crockford's unambiguous 22. 22 x 22 = 484 namespaces, each
+# holding 32^6 = 1,073,741,824 identities. Exhaustion is deliberately not a concern.
+PREFIX_LETTERS = "ABCDEFGHJKMNPQRSTVWXYZ"
 
 SOURCE_ROOTS = ("custom_components", "scripts", "src", "harness")
 DOC_ROOTS = ("docs",)
@@ -108,7 +117,20 @@ TOKEN_RE = re.compile(r"^" + TOKEN + r"$")
 # In SOURCE an anchor is only an anchor after the marker. A trailing descriptive
 # label is encouraged and ignored — it is taxonomy, not identity.
 DECL_RE = re.compile(MARKER + r"\s*(" + TOKEN + r")\b")
+# Anything declared with the marker that is NOT a registered class. Without this a
+# typo'd prefix makes the anchor INVISIBLE rather than invalid, which is the same
+# failure as a detector that cannot see its target: silence reads as success.
+# Only a candidate that LOOKS like an attempt at a token: two letters then
+# alphanumerics, uppercase. Ordinary prose using the word ("anchor: list of pixel
+# tuples") must not be reported, and this repo had four such sentences.
+MALFORMED_RE = re.compile(MARKER + r"\s*([A-Z]{2}[0-9A-Z]{2,10})\b")
 CITE_RE = re.compile(r"`(?P<path>[\w./-]+\.(?:py|js|mjs))#(?P<token>[\w:-]+)`")
+# A reference need not carry a path, and need not be in a document — the spec allows
+# a bare token in a test or in source. Existence is still checked.
+BARE_RE = re.compile(r"\b(" + TOKEN + r")\b")
+
+REF_ROOTS = ("docs", "tests", "custom_components", "scripts", "src", "harness")
+REF_SUFFIXES = {".md", ".py", ".js", ".mjs", ".yaml", ".yml"}
 
 
 def source_files() -> list[pathlib.Path]:
@@ -142,18 +164,60 @@ def scan() -> dict[str, list[tuple[pathlib.Path, int, str]]]:
     return found
 
 
-def cites() -> dict[str, list[tuple[str, int, str, str]]]:
-    """token -> [(doc, line, cited path, the sentence)]."""
-    out: dict[str, list[tuple[str, int, str, str]]] = defaultdict(list)
-    for root in DOC_ROOTS:
-        for doc in sorted((ROOT / root).rglob("*.md")):
-            rel = doc.relative_to(ROOT).as_posix()
-            for i, line in enumerate(
-                doc.read_text(encoding="utf-8", errors="replace").splitlines(), 1
-            ):
-                for m in CITE_RE.finditer(line):
-                    out[m.group("token")].append(
-                        (rel, i, m.group("path"), line.strip()))
+def ref_files() -> list[pathlib.Path]:
+    out: list[pathlib.Path] = []
+    for root in REF_ROOTS:
+        base = ROOT / root
+        if not base.is_dir():
+            continue
+        for p in base.rglob("*"):
+            if p.suffix not in REF_SUFFIXES:
+                continue
+            if "__pycache__" in p.parts or "node_modules" in p.parts:
+                continue
+            if p.name == "doc_anchor.py":
+                continue
+            if p.name == "test_generated_doc_gate.py":
+                continue  # manufactures anchor fixtures; its tokens are data
+            out.append(p)
+    return out
+
+
+def cites(known: set[str]) -> dict[str, list[tuple[str, int, str | None, str]]]:
+    """token -> [(file, line, cited path or None, the line)].
+
+    A reference may carry a path (`manager.py#IN5C9V2R`, routing information) or be
+    bare (`IN5C9V2R` in a test). Both are references; only the first can be stale.
+    The DEFINITION line is not a reference to itself and is excluded.
+    """
+    out: dict[str, list[tuple[str | None, int, str | None, str]]] = defaultdict(list)
+    for f in ref_files():
+        rel = f.relative_to(ROOT).as_posix()
+        try:
+            lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for i, line in enumerate(lines, 1):
+            seen_here: set[str] = set()
+            for m in CITE_RE.finditer(line):
+                out[m.group("token")].append((rel, i, m.group("path"), line.strip()))
+                seen_here.add(m.group("token"))
+            declared = set(DECL_RE.findall(line))
+            for tok in BARE_RE.findall(line):
+                if tok in declared or tok in seen_here:
+                    continue  # its own definition, or already counted with its path
+                if tok not in known:
+                    # DECLARED BLIND SPOT. A bare token is indistinguishable from an
+                    # English word: INSERTED, INSTANCE, INTENDED and INVERTED are all
+                    # valid IN-prefixed tokens and all appear in this codebase as
+                    # prose. So a bare token counts as a reference only when it names
+                    # an anchor that actually exists. The cost is real and worth
+                    # stating: a bare reference to a DELETED anchor cannot be told
+                    # apart from a word, so it will not be reported. The explicit
+                    # `file.py#TOKEN` form is the one that gets full validation.
+                    continue
+                out[tok].append((rel, i, None, line.strip()))
+                seen_here.add(tok)
     return out
 
 
@@ -174,14 +238,15 @@ def mint(prefix: str, taken: set[str]) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--mint", metavar="PREFIX", help="CN or ST")
+    ap.add_argument("--mint", metavar="PREFIX",
+                    help="notation class: " + " ".join(PREFIXES))
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--show", metavar="TOKEN", help="code beside the prose citing it")
     ap.add_argument("--orphans", action="store_true")
     args = ap.parse_args()
 
     anchors = scan()
-    citations = cites()
+    citations = cites(set(anchors))
 
     if args.mint:
         # Cited keys count as taken. A key is routinely minted, pasted into a
@@ -219,6 +284,23 @@ def main() -> int:
 
     problems: list[str] = []
 
+    # A declaration whose prefix is not a registered class. Without this check a
+    # typo'd or invented prefix is simply not matched, so the anchor disappears and
+    # the tree still reports clean — invisible, not invalid.
+    for f in source_files():
+        try:
+            lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for i, line in enumerate(lines, 1):
+            for tok in MALFORMED_RE.findall(line):
+                if TOKEN_RE.match(tok):
+                    continue
+                problems.append(
+                    f"MALFORMED  {f.relative_to(ROOT).as_posix()}:{i} declares {tok!r} — "
+                    f"expected a registered class ({' '.join(PREFIXES)}) "
+                    f"followed by {SUFFIX_LEN} Crockford characters")
+
     # DUPLICATE is a hard error: an id used twice is not an identity, and every
     # other guarantee in this scheme rests on this one holding.
     for tok, places in sorted(anchors.items()):
@@ -234,7 +316,7 @@ def main() -> int:
         if not homes:
             for doc, ln, _p, _s in uses:
                 problems.append(
-                    f"DANGLING   {doc}:{ln} cites {tok}, declared in no source file")
+                    f"BROKEN     {doc}:{ln} references {tok}, which is defined nowhere")
             continue
         if len(homes) > 1:
             # Already reported as DUPLICATE. Picking one of them as "the" home would
@@ -243,6 +325,8 @@ def main() -> int:
             continue
         home = homes[0][0].relative_to(ROOT).as_posix()
         for doc, ln, path, _s in uses:
+            if path is None:
+                continue  # a bare reference asserts no location, so it cannot be stale
             # Found, but not where the citation says. NOT a break — and not silently
             # resolved either. The citation works; the path is stale.
             if not home.endswith("/" + path.lstrip("./")) and home != path:

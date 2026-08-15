@@ -64,7 +64,7 @@ PLACEHOLDERS = {"file.py", "path/to/file.py", "module.py"}
 
 # An ID-form anchor: two-character class prefix + six Crockford Base32 characters.
 # Owned by scripts/doc_anchor.py — see the note at its use below.
-ANCHOR_ID_RE = re.compile(r"^(?:CN|ST)[0-9A-HJKMNP-TV-Z]{6}$")
+ANCHOR_ID_RE = re.compile(r"^(?:CN|SN|HN|PN|IN)[0-9A-HJKMNP-TV-Z]{6}$")
 
 # Tallied by form, because the ban is on the FORM, not on being currently wrong.
 FORMS = {"line": 0, "symbol": 0, "anchor": 0, "strong": 0, "weak": 0}

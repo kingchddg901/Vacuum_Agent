@@ -57,7 +57,7 @@ Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/learnin
 
 | Location | Enclosing | Payload built by | Nearest guards |
 |---|---|---|---|
-| `custom_components/eufy_vacuum/learning/external_run.py:457` | `ExternalRunManager._finalize_external_run` | dict literal at the call site | `result is not None` |
+| `custom_components/eufy_vacuum/learning/external_run.py:459` | `ExternalRunManager._finalize_external_run` | dict literal at the call site | `result is not None` |
 
 ## eufy_vacuum_job_finished
 
@@ -253,7 +253,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 
 | Location | Enclosing | Payload built by | Nearest guards |
 |---|---|---|---|
-| `custom_components/eufy_vacuum/core/manager.py:6767` | `EufyVacuumManager.start_selected_rooms` | dict literal at the call site | `active_job.get('current_room_id') not in (None, '')` |
+| `custom_components/eufy_vacuum/core/manager.py:6768` | `EufyVacuumManager.start_selected_rooms` | dict literal at the call site | `active_job.get('current_room_id') not in (None, '')` |
 | `custom_components/eufy_vacuum/jobs/active_job.py:1571` | `ActiveJobTracker._apply_room_rollover` | dict literal at the call site | `next_room_id >= 0` |
 | `custom_components/eufy_vacuum/jobs/active_job.py:1784` | `ActiveJobTracker._set_native_current_room` | dict literal at the call site | — |
 

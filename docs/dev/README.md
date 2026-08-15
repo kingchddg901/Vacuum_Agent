@@ -157,6 +157,11 @@ Not in the numbered reading order.
       — the token catalog and its CSS-usage trace (`node scripts/gen-theme-token-docs.mjs`).
     - [ai-theme-authoring](reference/ai-theme-authoring.md) — hand-written: theming the card with
       an AI assistant.
+- **[design/notation-anchors](design/notation-anchors.md)** — the stable-reference scheme:
+  an eight-character key (`CN` `SN` `HN` `PN` `IN` + six opaque Crockford characters) that
+  separates **identity from meaning**, so a reference survives a rename, a refactor or a
+  file move. Mint and check with `python scripts/doc_anchor.py`; `rg CN9BGGJ6` is the
+  fallback that works with no tooling at all.
 - **`dev/maintenance/`** — the hostile-audit working ledger
   (`highly-aggressive-audit.md`): what each subsystem audit found, what is fixed, what is still open.
   **Repo-only** — excluded from the published docs site (`exclude_docs` in `mkdocs.yml`), so it is

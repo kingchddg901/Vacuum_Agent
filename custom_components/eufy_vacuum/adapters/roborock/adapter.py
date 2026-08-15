@@ -211,6 +211,7 @@ def register_roborock_adapter_for_vacuum(
         # lifetime counter as a per-run metric. Eufy passed this from the start,
         # which is exactly how a core fix reads as done while one brand runs
         # unguarded.
+        # anchor: CNXD5V8Q  roborock reserved-suffixes at the capability probe
         reserved_suffixes=ALL_SUFFIXES,
     )
 
@@ -222,6 +223,7 @@ def register_roborock_adapter_for_vacuum(
     # completion block); harmless if unconsumed.
     entities = {
         "task_status": build_entity_id(vid, SUFFIX_TASK_STATUS),
+        # anchor: CNTM7CWT  roborock live-name entity
         "active_cleaning_target": build_entity_id(vid, SUFFIX_ACTIVE_CLEANING_TARGET),
         "active_map": build_entity_id(vid, SUFFIX_ACTIVE_MAP, DOMAIN_SELECT),
         "cleaning_time": build_entity_id(vid, SUFFIX_CLEANING_TIME),

@@ -360,7 +360,7 @@ dispatched (`started`) run at the resolved cadence via `manager.record_pose_samp
 and Eufy's own `map_state_source.live_pose` block (§`map_state_source` above)
 satisfies the capture-source gate `_can_sample()` checks. The buffered
 `pose_samples` are then read back off the active-job slot
-(`learning/external_run.py#build_pending_record`) and passed into `build_pending_record` (W5c,
+(`learning/external_run.py#CN3M87RG`) and passed into `build_pending_record` (W5c,
 [28-external-run-ingestion §11](28-external-run-ingestion.md)) on every external
 finalize. See [eufy-native-transition](design/eufy-native-transition.md).
 **Pattern:** room-identity recovery for external runs is its own pluggable engine.

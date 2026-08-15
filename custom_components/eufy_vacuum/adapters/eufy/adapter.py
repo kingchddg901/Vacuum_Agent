@@ -250,6 +250,7 @@ def register_eufy_adapter_for_vacuum(
         # colliding pairs (`_cleaning_area` / `_total_cleaning_area`) have one
         # half declared in `entities` and the other in `entity_candidates`, so
         # sibling matching cannot see the conflict without this (live:ENT-4).
+        # anchor: CN2X0DN6  eufy reserved-suffixes at the capability probe
         reserved_suffixes=ALL_SUFFIXES,
         # The user's own role->entity choices, consulted FIRST (live:ENT-7).
         # Written by the options flow and the panel's Setup tab; core owns the
@@ -512,6 +513,7 @@ def register_eufy_adapter_for_vacuum(
             "task_status_value": "completed",
             # Secondary completion signal — active_cleaning_target must be in
             # this sentinel set simultaneously with task_status_value.
+            # anchor: CN74RBSG  eufy secondary completion sentinel
             "secondary_clear_entity": "active_cleaning_target",
             "secondary_clear_sentinels": [
                 "", "unknown", "unavailable", "none", "null"

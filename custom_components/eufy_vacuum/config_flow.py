@@ -278,6 +278,7 @@ class EufyVacuumOptionsFlow(OptionsFlow):
             )
             if not isinstance(caps, dict):
                 return ()
+            # anchor: CNAYBZY3  entity-resolution reasons read by the options flow
             reasons = caps.get("entity_resolution_reasons") or {}
             augmentation = caps.get("entity_augmentation") or {}
             ambiguous = augmentation.get("ambiguous") or {}
