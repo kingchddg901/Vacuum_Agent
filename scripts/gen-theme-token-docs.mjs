@@ -94,11 +94,24 @@ const range = (t) => (t.min === undefined && t.max === undefined)
     return acc;
   }
   const rel = (p) => p.slice(ROOT.length + 1).split("\\").join("/");
+  // SORTED BY REPO-RELATIVE POSIX PATH, and the sort is load-bearing.
+  //
+  // `readdirSync` returns filesystem order, which is not the same on NTFS as on
+  // ext4, and each token's consumer list is built in walk order — so this file was
+  // never platform-stable. It regenerated differently on Windows and on Linux with
+  // no source change at all, which meant every regeneration by a different person
+  // produced spurious churn, and CI could never agree with a local run.
+  //
+  // Nobody could see it until the staleness gate started comparing the two: it
+  // failed on nine consecutive pushes, and the "stale" file was correct every time.
+  //
+  // Sorting the ABSOLUTE paths would not be enough — `\` (0x5C) and `/` (0x2F) sort
+  // differently against `-` and `.`, so the platform would still leak in.
   const files = [
     ...walk(join(ROOT, "src"), [".js"]),
     ...walk(join(ROOT, "custom_components/eufy_vacuum/frontend/animal-svg"), [".js"]),
     ...walk(join(ROOT, "custom_components/eufy_vacuum/themes"), [".py"]),
-  ];
+  ].sort((a, b) => (rel(a) < rel(b) ? -1 : rel(a) > rel(b) ? 1 : 0));
   const catalog = new Map(THEME_TOKEN_REGISTRY.map((t) => [t.key, t]));
   const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
   const VARG = /var\(\s*(--evcc-[A-Za-z0-9-]+)\s*[,)]/g;

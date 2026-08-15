@@ -23,9 +23,37 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 ## App Shell & Typography  ·  7 static / 7
 
 **`--evcc-accent`** — Accent · default src/styles/foundation.js:205, src/styles/index.js:393
+- custom_components/eufy_vacuum/themes/preloaded.py:81
+- custom_components/eufy_vacuum/themes/preloaded.py:82
+- custom_components/eufy_vacuum/themes/preloaded.py:83
+- custom_components/eufy_vacuum/themes/preloaded.py:105
+- custom_components/eufy_vacuum/themes/preloaded.py:106
+- custom_components/eufy_vacuum/themes/preloaded.py:107
+- custom_components/eufy_vacuum/themes/preloaded.py:112
+- custom_components/eufy_vacuum/themes/preloaded.py:113
+- custom_components/eufy_vacuum/themes/preloaded.py:114
+- custom_components/eufy_vacuum/themes/preloaded.py:115
+- custom_components/eufy_vacuum/themes/preloaded.py:116
+- custom_components/eufy_vacuum/themes/preloaded.py:117
+- custom_components/eufy_vacuum/themes/preloaded.py:124
+- custom_components/eufy_vacuum/themes/preloaded.py:125
+- custom_components/eufy_vacuum/themes/preloaded.py:126
+- custom_components/eufy_vacuum/themes/preloaded.py:143
+- custom_components/eufy_vacuum/themes/preloaded.py:162
+- custom_components/eufy_vacuum/themes/preloaded.py:164
+- custom_components/eufy_vacuum/themes/preloaded.py:174
+- custom_components/eufy_vacuum/themes/preloaded.py:175
+- custom_components/eufy_vacuum/themes/preloaded.py:176
+- custom_components/eufy_vacuum/themes/preloaded.py:190
+- custom_components/eufy_vacuum/themes/preloaded.py:191
+- custom_components/eufy_vacuum/themes/preloaded.py:196
+- custom_components/eufy_vacuum/themes/preloaded.py:197
+- custom_components/eufy_vacuum/themes/preloaded.py:198
+- custom_components/eufy_vacuum/themes/preloaded.py:199
+- custom_components/eufy_vacuum/themes/preloaded.py:507
+- src/cards/_shared.js:218 (color)
 - src/cards/dashboard-card.js:992 (--accent)
 - src/cards/profile-card.js:35 (--accent)
-- src/cards/_shared.js:218 (color)
 - src/room-card.js:374 (--accent)
 - src/styles/external-jobs.js:32
 - src/styles/external-jobs.js:33
@@ -235,34 +263,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:1388
 - src/styles/theme.js:1411
 - src/styles/theme.js:1434 (border-color)
-- custom_components/eufy_vacuum/themes/preloaded.py:81
-- custom_components/eufy_vacuum/themes/preloaded.py:82
-- custom_components/eufy_vacuum/themes/preloaded.py:83
-- custom_components/eufy_vacuum/themes/preloaded.py:105
-- custom_components/eufy_vacuum/themes/preloaded.py:106
-- custom_components/eufy_vacuum/themes/preloaded.py:107
-- custom_components/eufy_vacuum/themes/preloaded.py:112
-- custom_components/eufy_vacuum/themes/preloaded.py:113
-- custom_components/eufy_vacuum/themes/preloaded.py:114
-- custom_components/eufy_vacuum/themes/preloaded.py:115
-- custom_components/eufy_vacuum/themes/preloaded.py:116
-- custom_components/eufy_vacuum/themes/preloaded.py:117
-- custom_components/eufy_vacuum/themes/preloaded.py:124
-- custom_components/eufy_vacuum/themes/preloaded.py:125
-- custom_components/eufy_vacuum/themes/preloaded.py:126
-- custom_components/eufy_vacuum/themes/preloaded.py:143
-- custom_components/eufy_vacuum/themes/preloaded.py:162
-- custom_components/eufy_vacuum/themes/preloaded.py:164
-- custom_components/eufy_vacuum/themes/preloaded.py:174
-- custom_components/eufy_vacuum/themes/preloaded.py:175
-- custom_components/eufy_vacuum/themes/preloaded.py:176
-- custom_components/eufy_vacuum/themes/preloaded.py:190
-- custom_components/eufy_vacuum/themes/preloaded.py:191
-- custom_components/eufy_vacuum/themes/preloaded.py:196
-- custom_components/eufy_vacuum/themes/preloaded.py:197
-- custom_components/eufy_vacuum/themes/preloaded.py:198
-- custom_components/eufy_vacuum/themes/preloaded.py:199
-- custom_components/eufy_vacuum/themes/preloaded.py:507
 
 **`--evcc-accent-soft`** — Accent Soft · default src/styles/foundation.js:206
 - src/styles/map.js:1350 (background)
@@ -270,11 +270,15 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/map.js:1386 (fill)
 
 **`--evcc-text-muted`** — Text Muted · default src/styles/foundation.js:194, src/styles/index.js:389, src/styles/index.js:831
+- custom_components/eufy_vacuum/themes/preloaded.py:167
+- custom_components/eufy_vacuum/themes/preloaded.py:170
+- custom_components/eufy_vacuum/themes/preloaded.py:192
+- custom_components/eufy_vacuum/themes/preloaded.py:221
+- src/cards/_shared.js:211 (color)
+- src/cards/_shared.js:215 (color)
 - src/cards/dashboard-card.js:996 (--text-muted)
 - src/cards/profile-card.js:40 (--text-muted)
 - src/cards/vacuum-map-host.js:44 (color)
-- src/cards/_shared.js:211 (color)
-- src/cards/_shared.js:215 (color)
 - src/room-card.js:378 (--text-muted)
 - src/styles/base-station.js:88 (color)
 - src/styles/index.js:276 (--evcc-modal-text-muted)
@@ -404,10 +408,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:977 (color)
 - src/styles/theme.js:995 (color)
 - src/styles/theme.js:1499 (color)
-- custom_components/eufy_vacuum/themes/preloaded.py:167
-- custom_components/eufy_vacuum/themes/preloaded.py:170
-- custom_components/eufy_vacuum/themes/preloaded.py:192
-- custom_components/eufy_vacuum/themes/preloaded.py:221
 
 **`--evcc-text-on-accent`** — Text On Accent · default src/styles/foundation.js:196
 - src/cards/dashboard-card.js:1050 (color)
@@ -429,10 +429,15 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/setup.js:432 (color)
 
 **`--evcc-text-primary`** — Text Primary · default src/styles/foundation.js:192, src/styles/index.js:381, src/styles/index.js:823
-- src/cards/dashboard-card.js:995 (--text-primary)
-- src/cards/profile-card.js:39 (--text-primary)
+- custom_components/eufy_vacuum/themes/preloaded.py:91
+- custom_components/eufy_vacuum/themes/preloaded.py:129
+- custom_components/eufy_vacuum/themes/preloaded.py:193
+- custom_components/eufy_vacuum/themes/preloaded.py:213
+- custom_components/eufy_vacuum/themes/preloaded.py:222
 - src/cards/_shared.js:212 (color)
 - src/cards/_shared.js:216 (color)
+- src/cards/dashboard-card.js:995 (--text-primary)
+- src/cards/profile-card.js:39 (--text-primary)
 - src/room-card.js:377 (--text-primary)
 - src/styles/base-station.js:40 (color)
 - src/styles/base-station.js:75 (color)
@@ -579,13 +584,22 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:909 (color)
 - src/styles/theme.js:1184 (color)
 - src/styles/theme.js:1426 (color)
-- custom_components/eufy_vacuum/themes/preloaded.py:91
-- custom_components/eufy_vacuum/themes/preloaded.py:129
-- custom_components/eufy_vacuum/themes/preloaded.py:193
-- custom_components/eufy_vacuum/themes/preloaded.py:213
-- custom_components/eufy_vacuum/themes/preloaded.py:222
 
 **`--evcc-text-secondary`** — Text Secondary · default src/styles/foundation.js:193, src/styles/index.js:385, src/styles/index.js:827
+- custom_components/eufy_vacuum/themes/preloaded.py:99
+- custom_components/eufy_vacuum/themes/preloaded.py:108
+- custom_components/eufy_vacuum/themes/preloaded.py:111
+- custom_components/eufy_vacuum/themes/preloaded.py:120
+- custom_components/eufy_vacuum/themes/preloaded.py:135
+- custom_components/eufy_vacuum/themes/preloaded.py:138
+- custom_components/eufy_vacuum/themes/preloaded.py:145
+- custom_components/eufy_vacuum/themes/preloaded.py:166
+- custom_components/eufy_vacuum/themes/preloaded.py:173
+- custom_components/eufy_vacuum/themes/preloaded.py:186
+- custom_components/eufy_vacuum/themes/preloaded.py:187
+- custom_components/eufy_vacuum/themes/preloaded.py:194
+- custom_components/eufy_vacuum/themes/preloaded.py:214
+- custom_components/eufy_vacuum/themes/preloaded.py:223
 - src/styles/base-station.js:46 (color)
 - src/styles/base-station.js:82 (color)
 - src/styles/external-jobs.js:50 (color)
@@ -716,20 +730,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:679 (color)
 - src/styles/theme.js:873 (color)
 - src/styles/theme.js:1258 (color)
-- custom_components/eufy_vacuum/themes/preloaded.py:99
-- custom_components/eufy_vacuum/themes/preloaded.py:108
-- custom_components/eufy_vacuum/themes/preloaded.py:111
-- custom_components/eufy_vacuum/themes/preloaded.py:120
-- custom_components/eufy_vacuum/themes/preloaded.py:135
-- custom_components/eufy_vacuum/themes/preloaded.py:138
-- custom_components/eufy_vacuum/themes/preloaded.py:145
-- custom_components/eufy_vacuum/themes/preloaded.py:166
-- custom_components/eufy_vacuum/themes/preloaded.py:173
-- custom_components/eufy_vacuum/themes/preloaded.py:186
-- custom_components/eufy_vacuum/themes/preloaded.py:187
-- custom_components/eufy_vacuum/themes/preloaded.py:194
-- custom_components/eufy_vacuum/themes/preloaded.py:214
-- custom_components/eufy_vacuum/themes/preloaded.py:223
 
 **`--evcc-text-strong`** — Text Strong · default src/styles/foundation.js:195
 - src/styles/learning.js:735 (color)
@@ -776,8 +776,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/map.js:601 (background)
 
 **`--evcc-surface-action-hover`** — Surface Action Hover · default src/styles/foundation.js:187
-- src/cards/dashboard-card.js:1035 (background)
 - src/cards/_shared.js:217 (background)
+- src/cards/dashboard-card.js:1035 (background)
 - src/room-card.js:489 (background)
 - src/styles/learning.js:687 (background)
 - src/styles/learning.js:815 (background)
@@ -789,6 +789,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/setup.js:418 (background)
 
 **`--evcc-surface-base`** — Surface Base · default src/styles/foundation.js:177
+- custom_components/eufy_vacuum/themes/preloaded.py:73
+- custom_components/eufy_vacuum/themes/preloaded.py:201
 - src/styles/foundation.js:178 (--evcc-surface-card)
 - src/styles/foundation.js:179
 - src/styles/foundation.js:180
@@ -803,13 +805,12 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:1389
 - src/styles/theme.js:1409 (background)
 - src/styles/theme.js:1412
-- custom_components/eufy_vacuum/themes/preloaded.py:73
-- custom_components/eufy_vacuum/themes/preloaded.py:201
 
 **`--evcc-surface-card`** — Surface Card · default src/styles/foundation.js:178
+- custom_components/eufy_vacuum/themes/preloaded.py:70
+- src/cards/_shared.js:214 (background)
 - src/cards/dashboard-card.js:993 (--surface)
 - src/cards/profile-card.js:36 (--surface)
-- src/cards/_shared.js:214 (background)
 - src/room-card.js:375 (--surface)
 - src/styles/foundation.js:237 (--evcc-card-bg)
 - src/styles/rooms.js:321
@@ -830,7 +831,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:521 (background)
 - src/styles/theme.js:543
 - src/styles/theme.js:1183 (background)
-- custom_components/eufy_vacuum/themes/preloaded.py:70
 
 **`--evcc-surface-chip`** — Surface Chip · default src/styles/foundation.js:185
 - src/styles/learning.js:658 (background)
@@ -838,6 +838,15 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/learning.js:765 (background)
 
 **`--evcc-surface-input`** — Surface Input · default src/styles/foundation.js:181, src/styles/index.js:360, src/styles/index.js:806
+- custom_components/eufy_vacuum/themes/preloaded.py:69
+- custom_components/eufy_vacuum/themes/preloaded.py:84
+- custom_components/eufy_vacuum/themes/preloaded.py:103
+- custom_components/eufy_vacuum/themes/preloaded.py:118
+- custom_components/eufy_vacuum/themes/preloaded.py:136
+- custom_components/eufy_vacuum/themes/preloaded.py:171
+- custom_components/eufy_vacuum/themes/preloaded.py:209
+- custom_components/eufy_vacuum/themes/preloaded.py:217
+- custom_components/eufy_vacuum/themes/preloaded.py:218
 - src/cards/profile-card.js:37 (--surface-input)
 - src/styles/external-jobs.js:22 (background)
 - src/styles/external-jobs.js:122 (background)
@@ -923,23 +932,24 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:848 (background)
 - src/styles/theme.js:1085 (background)
 - src/styles/theme.js:1422 (background)
-- custom_components/eufy_vacuum/themes/preloaded.py:69
-- custom_components/eufy_vacuum/themes/preloaded.py:84
-- custom_components/eufy_vacuum/themes/preloaded.py:103
-- custom_components/eufy_vacuum/themes/preloaded.py:118
-- custom_components/eufy_vacuum/themes/preloaded.py:136
-- custom_components/eufy_vacuum/themes/preloaded.py:171
-- custom_components/eufy_vacuum/themes/preloaded.py:209
-- custom_components/eufy_vacuum/themes/preloaded.py:217
-- custom_components/eufy_vacuum/themes/preloaded.py:218
 
 **`--evcc-surface-overlay`** — Surface Overlay · default src/styles/foundation.js:182
+- custom_components/eufy_vacuum/themes/preloaded.py:200
 - src/styles/index.js:256 (--evcc-modal-backdrop-bg)
 - src/styles/index.js:759 (--evcc-modal-backdrop-bg)
 - src/styles/mobile.js:229 (background)
-- custom_components/eufy_vacuum/themes/preloaded.py:200
 
 **`--evcc-surface-panel`** — Surface Panel · default src/styles/foundation.js:179, src/styles/index.js:365, src/styles/index.js:802
+- custom_components/eufy_vacuum/themes/preloaded.py:71
+- custom_components/eufy_vacuum/themes/preloaded.py:89
+- custom_components/eufy_vacuum/themes/preloaded.py:109
+- custom_components/eufy_vacuum/themes/preloaded.py:127
+- custom_components/eufy_vacuum/themes/preloaded.py:188
+- custom_components/eufy_vacuum/themes/preloaded.py:211
+- custom_components/eufy_vacuum/themes/preloaded.py:215
+- custom_components/eufy_vacuum/themes/preloaded.py:216
+- custom_components/eufy_vacuum/themes/preloaded.py:219
+- custom_components/eufy_vacuum/themes/preloaded.py:427
 - src/styles/base-station.js:23 (background)
 - src/styles/external-jobs.js:29 (background)
 - src/styles/external-jobs.js:181 (background)
@@ -998,18 +1008,14 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:895
 - src/styles/theme.js:968 (background)
 - src/styles/theme.js:974
-- custom_components/eufy_vacuum/themes/preloaded.py:71
-- custom_components/eufy_vacuum/themes/preloaded.py:89
-- custom_components/eufy_vacuum/themes/preloaded.py:109
-- custom_components/eufy_vacuum/themes/preloaded.py:127
-- custom_components/eufy_vacuum/themes/preloaded.py:188
-- custom_components/eufy_vacuum/themes/preloaded.py:211
-- custom_components/eufy_vacuum/themes/preloaded.py:215
-- custom_components/eufy_vacuum/themes/preloaded.py:216
-- custom_components/eufy_vacuum/themes/preloaded.py:219
-- custom_components/eufy_vacuum/themes/preloaded.py:427
 
 **`--evcc-surface-raised`** — Surface Raised · default src/styles/foundation.js:180
+- custom_components/eufy_vacuum/themes/preloaded.py:95
+- custom_components/eufy_vacuum/themes/preloaded.py:133
+- custom_components/eufy_vacuum/themes/preloaded.py:220
+- custom_components/eufy_vacuum/themes/preloaded.py:331
+- custom_components/eufy_vacuum/themes/preloaded.py:381
+- custom_components/eufy_vacuum/themes/preloaded.py:404
 - src/styles/base-station.js:67 (background)
 - src/styles/base-station.js:107
 - src/styles/external-jobs.js:67 (background)
@@ -1041,12 +1047,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/shell.js:264 (background)
 - src/styles/shell.js:366 (background)
 - src/styles/shell.js:464 (background)
-- custom_components/eufy_vacuum/themes/preloaded.py:95
-- custom_components/eufy_vacuum/themes/preloaded.py:133
-- custom_components/eufy_vacuum/themes/preloaded.py:220
-- custom_components/eufy_vacuum/themes/preloaded.py:331
-- custom_components/eufy_vacuum/themes/preloaded.py:381
-- custom_components/eufy_vacuum/themes/preloaded.py:404
 
 **`--evcc-surface-subtle`** — Surface Subtle · default src/styles/foundation.js:183
 - src/cards/dashboard-card.js:1030 (background)
@@ -1075,10 +1075,21 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 ## Borders & Shadows  ·  6 static / 6
 
 **`--evcc-border-default`** — Border Default · default src/styles/foundation.js:200, src/styles/index.js:369, src/styles/index.js:811
-- src/cards/dashboard-card.js:994 (--border)
-- src/cards/profile-card.js:38 (--border)
+- custom_components/eufy_vacuum/themes/preloaded.py:85
+- custom_components/eufy_vacuum/themes/preloaded.py:104
+- custom_components/eufy_vacuum/themes/preloaded.py:110
+- custom_components/eufy_vacuum/themes/preloaded.py:119
+- custom_components/eufy_vacuum/themes/preloaded.py:134
+- custom_components/eufy_vacuum/themes/preloaded.py:172
+- custom_components/eufy_vacuum/themes/preloaded.py:185
+- custom_components/eufy_vacuum/themes/preloaded.py:189
+- custom_components/eufy_vacuum/themes/preloaded.py:202
+- custom_components/eufy_vacuum/themes/preloaded.py:203
+- custom_components/eufy_vacuum/themes/preloaded.py:210
 - src/cards/_shared.js:211
 - src/cards/_shared.js:214
+- src/cards/dashboard-card.js:994 (--border)
+- src/cards/profile-card.js:38 (--border)
 - src/room-card.js:376 (--border)
 - src/styles/base-station.js:22
 - src/styles/external-jobs.js:21
@@ -1211,19 +1222,13 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:1374
 - src/styles/theme.js:1399
 - src/styles/theme.js:1423
-- custom_components/eufy_vacuum/themes/preloaded.py:85
-- custom_components/eufy_vacuum/themes/preloaded.py:104
-- custom_components/eufy_vacuum/themes/preloaded.py:110
-- custom_components/eufy_vacuum/themes/preloaded.py:119
-- custom_components/eufy_vacuum/themes/preloaded.py:134
-- custom_components/eufy_vacuum/themes/preloaded.py:172
-- custom_components/eufy_vacuum/themes/preloaded.py:185
-- custom_components/eufy_vacuum/themes/preloaded.py:189
-- custom_components/eufy_vacuum/themes/preloaded.py:202
-- custom_components/eufy_vacuum/themes/preloaded.py:203
-- custom_components/eufy_vacuum/themes/preloaded.py:210
 
 **`--evcc-border-strong`** — Border Strong · default src/styles/foundation.js:201, src/styles/index.js:377, src/styles/index.js:819
+- custom_components/eufy_vacuum/themes/preloaded.py:90
+- custom_components/eufy_vacuum/themes/preloaded.py:128
+- custom_components/eufy_vacuum/themes/preloaded.py:204
+- custom_components/eufy_vacuum/themes/preloaded.py:212
+- custom_components/eufy_vacuum/themes/preloaded.py:450
 - src/styles/base-station.js:102 (border-color)
 - src/styles/foundation.js:105
 - src/styles/foundation.js:261 (--evcc-chip-hover-border)
@@ -1244,13 +1249,10 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:352 (border-color)
 - src/styles/theme-preview.js:220
 - src/styles/theme.js:534 (border-color)
-- custom_components/eufy_vacuum/themes/preloaded.py:90
-- custom_components/eufy_vacuum/themes/preloaded.py:128
-- custom_components/eufy_vacuum/themes/preloaded.py:204
-- custom_components/eufy_vacuum/themes/preloaded.py:212
-- custom_components/eufy_vacuum/themes/preloaded.py:450
 
 **`--evcc-border-subtle`** — Border Subtle · default src/styles/foundation.js:199, src/styles/index.js:373, src/styles/index.js:815
+- custom_components/eufy_vacuum/themes/preloaded.py:137
+- custom_components/eufy_vacuum/themes/preloaded.py:205
 - src/styles/base-station.js:66
 - src/styles/index.js:260 (--evcc-modal-border-subtle)
 - src/styles/index.js:525
@@ -1317,8 +1319,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:864 (border-color)
 - src/styles/theme.js:886
 - src/styles/theme.js:975
-- custom_components/eufy_vacuum/themes/preloaded.py:137
-- custom_components/eufy_vacuum/themes/preloaded.py:205
 
 **`--evcc-border-warning`** — Border Warning · default src/styles/foundation.js:202
 - src/styles/learning.js:631
@@ -2079,6 +2079,20 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:502 (color)
 
 **`--evcc-sem-error`** — Sem Error · default src/styles/foundation.js:211
+- custom_components/eufy_vacuum/themes/preloaded.py:86
+- custom_components/eufy_vacuum/themes/preloaded.py:87
+- custom_components/eufy_vacuum/themes/preloaded.py:88
+- custom_components/eufy_vacuum/themes/preloaded.py:144
+- custom_components/eufy_vacuum/themes/preloaded.py:149
+- custom_components/eufy_vacuum/themes/preloaded.py:150
+- custom_components/eufy_vacuum/themes/preloaded.py:151
+- custom_components/eufy_vacuum/themes/preloaded.py:165
+- custom_components/eufy_vacuum/themes/preloaded.py:180
+- custom_components/eufy_vacuum/themes/preloaded.py:181
+- custom_components/eufy_vacuum/themes/preloaded.py:330
+- custom_components/eufy_vacuum/themes/preloaded.py:404
+- custom_components/eufy_vacuum/themes/preloaded.py:427
+- custom_components/eufy_vacuum/themes/preloaded.py:450
 - src/styles/external-jobs.js:102
 - src/styles/external-jobs.js:103
 - src/styles/external-jobs.js:104 (color)
@@ -2154,22 +2168,11 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:532
 - src/styles/theme-preview.js:533 (color)
 - src/styles/theme.js:695 (color)
-- custom_components/eufy_vacuum/themes/preloaded.py:86
-- custom_components/eufy_vacuum/themes/preloaded.py:87
-- custom_components/eufy_vacuum/themes/preloaded.py:88
-- custom_components/eufy_vacuum/themes/preloaded.py:144
-- custom_components/eufy_vacuum/themes/preloaded.py:149
-- custom_components/eufy_vacuum/themes/preloaded.py:150
-- custom_components/eufy_vacuum/themes/preloaded.py:151
-- custom_components/eufy_vacuum/themes/preloaded.py:165
-- custom_components/eufy_vacuum/themes/preloaded.py:180
-- custom_components/eufy_vacuum/themes/preloaded.py:181
-- custom_components/eufy_vacuum/themes/preloaded.py:330
-- custom_components/eufy_vacuum/themes/preloaded.py:404
-- custom_components/eufy_vacuum/themes/preloaded.py:427
-- custom_components/eufy_vacuum/themes/preloaded.py:450
 
 **`--evcc-sem-info`** — Sem Info · default src/styles/foundation.js:215
+- custom_components/eufy_vacuum/themes/preloaded.py:130
+- custom_components/eufy_vacuum/themes/preloaded.py:131
+- custom_components/eufy_vacuum/themes/preloaded.py:132
 - src/styles/external-jobs.js:83
 - src/styles/job-summary.js:42
 - src/styles/job-summary.js:43
@@ -2180,11 +2183,33 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:519
 - src/styles/theme-preview.js:520
 - src/styles/theme-preview.js:521 (color)
-- custom_components/eufy_vacuum/themes/preloaded.py:130
-- custom_components/eufy_vacuum/themes/preloaded.py:131
-- custom_components/eufy_vacuum/themes/preloaded.py:132
 
 **`--evcc-sem-success`** — Sem Success · default src/styles/foundation.js:209
+- custom_components/eufy_vacuum/themes/preloaded.py:92
+- custom_components/eufy_vacuum/themes/preloaded.py:93
+- custom_components/eufy_vacuum/themes/preloaded.py:94
+- custom_components/eufy_vacuum/themes/preloaded.py:96
+- custom_components/eufy_vacuum/themes/preloaded.py:97
+- custom_components/eufy_vacuum/themes/preloaded.py:98
+- custom_components/eufy_vacuum/themes/preloaded.py:121
+- custom_components/eufy_vacuum/themes/preloaded.py:122
+- custom_components/eufy_vacuum/themes/preloaded.py:123
+- custom_components/eufy_vacuum/themes/preloaded.py:142
+- custom_components/eufy_vacuum/themes/preloaded.py:146
+- custom_components/eufy_vacuum/themes/preloaded.py:147
+- custom_components/eufy_vacuum/themes/preloaded.py:148
+- custom_components/eufy_vacuum/themes/preloaded.py:159
+- custom_components/eufy_vacuum/themes/preloaded.py:160
+- custom_components/eufy_vacuum/themes/preloaded.py:161
+- custom_components/eufy_vacuum/themes/preloaded.py:163
+- custom_components/eufy_vacuum/themes/preloaded.py:177
+- custom_components/eufy_vacuum/themes/preloaded.py:178
+- custom_components/eufy_vacuum/themes/preloaded.py:179
+- custom_components/eufy_vacuum/themes/preloaded.py:328
+- custom_components/eufy_vacuum/themes/preloaded.py:381
+- custom_components/eufy_vacuum/themes/preloaded.py:404
+- custom_components/eufy_vacuum/themes/preloaded.py:427
+- custom_components/eufy_vacuum/themes/preloaded.py:450
 - src/styles/base-station.js:107
 - src/styles/foundation.js:242 (--evcc-color-cleaning)
 - src/styles/index.js:715
@@ -2255,33 +2280,30 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:619 (color)
 - src/styles/theme.js:620
 - src/styles/theme.js:621
-- custom_components/eufy_vacuum/themes/preloaded.py:92
-- custom_components/eufy_vacuum/themes/preloaded.py:93
-- custom_components/eufy_vacuum/themes/preloaded.py:94
-- custom_components/eufy_vacuum/themes/preloaded.py:96
-- custom_components/eufy_vacuum/themes/preloaded.py:97
-- custom_components/eufy_vacuum/themes/preloaded.py:98
-- custom_components/eufy_vacuum/themes/preloaded.py:121
-- custom_components/eufy_vacuum/themes/preloaded.py:122
-- custom_components/eufy_vacuum/themes/preloaded.py:123
-- custom_components/eufy_vacuum/themes/preloaded.py:142
-- custom_components/eufy_vacuum/themes/preloaded.py:146
-- custom_components/eufy_vacuum/themes/preloaded.py:147
-- custom_components/eufy_vacuum/themes/preloaded.py:148
-- custom_components/eufy_vacuum/themes/preloaded.py:159
-- custom_components/eufy_vacuum/themes/preloaded.py:160
-- custom_components/eufy_vacuum/themes/preloaded.py:161
-- custom_components/eufy_vacuum/themes/preloaded.py:163
-- custom_components/eufy_vacuum/themes/preloaded.py:177
-- custom_components/eufy_vacuum/themes/preloaded.py:178
-- custom_components/eufy_vacuum/themes/preloaded.py:179
-- custom_components/eufy_vacuum/themes/preloaded.py:328
-- custom_components/eufy_vacuum/themes/preloaded.py:381
+
+**`--evcc-sem-warning`** — Sem Warning · default src/styles/foundation.js:210
+- custom_components/eufy_vacuum/themes/preloaded.py:100
+- custom_components/eufy_vacuum/themes/preloaded.py:101
+- custom_components/eufy_vacuum/themes/preloaded.py:102
+- custom_components/eufy_vacuum/themes/preloaded.py:139
+- custom_components/eufy_vacuum/themes/preloaded.py:140
+- custom_components/eufy_vacuum/themes/preloaded.py:141
+- custom_components/eufy_vacuum/themes/preloaded.py:152
+- custom_components/eufy_vacuum/themes/preloaded.py:153
+- custom_components/eufy_vacuum/themes/preloaded.py:154
+- custom_components/eufy_vacuum/themes/preloaded.py:168
+- custom_components/eufy_vacuum/themes/preloaded.py:169
+- custom_components/eufy_vacuum/themes/preloaded.py:182
+- custom_components/eufy_vacuum/themes/preloaded.py:183
+- custom_components/eufy_vacuum/themes/preloaded.py:184
+- custom_components/eufy_vacuum/themes/preloaded.py:195
+- custom_components/eufy_vacuum/themes/preloaded.py:224
+- custom_components/eufy_vacuum/themes/preloaded.py:225
+- custom_components/eufy_vacuum/themes/preloaded.py:226
+- custom_components/eufy_vacuum/themes/preloaded.py:329
 - custom_components/eufy_vacuum/themes/preloaded.py:404
 - custom_components/eufy_vacuum/themes/preloaded.py:427
 - custom_components/eufy_vacuum/themes/preloaded.py:450
-
-**`--evcc-sem-warning`** — Sem Warning · default src/styles/foundation.js:210
 - src/styles/external-jobs.js:38
 - src/styles/external-jobs.js:39
 - src/styles/external-jobs.js:40 (color)
@@ -2370,28 +2392,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:525
 - src/styles/theme-preview.js:526
 - src/styles/theme-preview.js:527
-- custom_components/eufy_vacuum/themes/preloaded.py:100
-- custom_components/eufy_vacuum/themes/preloaded.py:101
-- custom_components/eufy_vacuum/themes/preloaded.py:102
-- custom_components/eufy_vacuum/themes/preloaded.py:139
-- custom_components/eufy_vacuum/themes/preloaded.py:140
-- custom_components/eufy_vacuum/themes/preloaded.py:141
-- custom_components/eufy_vacuum/themes/preloaded.py:152
-- custom_components/eufy_vacuum/themes/preloaded.py:153
-- custom_components/eufy_vacuum/themes/preloaded.py:154
-- custom_components/eufy_vacuum/themes/preloaded.py:168
-- custom_components/eufy_vacuum/themes/preloaded.py:169
-- custom_components/eufy_vacuum/themes/preloaded.py:182
-- custom_components/eufy_vacuum/themes/preloaded.py:183
-- custom_components/eufy_vacuum/themes/preloaded.py:184
-- custom_components/eufy_vacuum/themes/preloaded.py:195
-- custom_components/eufy_vacuum/themes/preloaded.py:224
-- custom_components/eufy_vacuum/themes/preloaded.py:225
-- custom_components/eufy_vacuum/themes/preloaded.py:226
-- custom_components/eufy_vacuum/themes/preloaded.py:329
-- custom_components/eufy_vacuum/themes/preloaded.py:404
-- custom_components/eufy_vacuum/themes/preloaded.py:427
-- custom_components/eufy_vacuum/themes/preloaded.py:450
 
 **`--evcc-status-cleaning-bg`** — Status Cleaning BG · default —
 - src/styles/rooms.js:265 (background)
@@ -2632,26 +2632,26 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:602
 
 **`--evcc-modal-accent-bg`** — Modal Accent BG · default src/styles/index.js:281
+- custom_components/eufy_vacuum/themes/preloaded.py:206
 - src/styles/index.js:291 (--evcc-modal-chip-active-bg)
 - src/styles/index.js:618
 - src/styles/modals.js:195
 - src/styles/theme-preview.js:600 (background)
-- custom_components/eufy_vacuum/themes/preloaded.py:206
 
 **`--evcc-modal-accent-border`** — Modal Accent Border · default src/styles/index.js:282
+- custom_components/eufy_vacuum/themes/preloaded.py:207
 - src/styles/index.js:292 (--evcc-modal-chip-active-border)
 - src/styles/index.js:628
 - src/styles/modals.js:205
 - src/styles/theme-preview.js:601 (border-color)
-- custom_components/eufy_vacuum/themes/preloaded.py:207
 
 **`--evcc-modal-accent-text`** — Modal Accent Text · default src/styles/index.js:280
+- custom_components/eufy_vacuum/themes/preloaded.py:208
 - src/styles/index.js:293 (--evcc-modal-chip-active-text)
 - src/styles/index.js:623
 - src/styles/modals.js:200
 - src/styles/modals.js:218
 - src/styles/theme-preview.js:602 (color)
-- custom_components/eufy_vacuum/themes/preloaded.py:208
 
 **`--evcc-modal-backdrop-bg`** — Modal Backdrop BG · default src/styles/index.js:256, src/styles/index.js:759
 - src/styles/index.js:306 (background)
@@ -3178,6 +3178,7 @@ None — every catalog token is consumed, statically or dynamically.
 
 Used in CSS but not in the editor registry (dynamic fragments or intentional internals like `--evcc-grp`).
 
+- `--evcc-animal-X` — custom_components/eufy_vacuum/frontend/animal-svg/animal-svg.js:289
 - `--evcc-panel-offset` — src/styles/foundation.js:167
 - `--evcc-a11y-font-family` — src/styles/index.js:318, src/styles/index.js:1018, src/styles/shell.js:57, src/styles/theme-preview.js:121
 - `--evcc-space-xs` — src/styles/learning.js:325
@@ -3189,13 +3190,12 @@ Used in CSS but not in the editor registry (dynamic fragments or intentional int
 - `--evcc-surface-hover` — src/styles/rooms.js:1046
 - `--evcc-sheen-dir` — src/styles/rooms.js:1200, src/styles/rooms.js:1213, src/styles/rooms.js:1214, src/styles/rooms.js:1253, src/styles/rooms.js:1260, src/styles/rooms.js:1262
 - `--evcc-font-preview` — src/styles/theme.js:1032
-- `--evcc-animal-X` — custom_components/eufy_vacuum/frontend/animal-svg/animal-svg.js:289
 
 ---
 
 ## dynamic var(--evcc-…${…}) sites  ·  3
 
-- src/renderers/floor-texture-surface.js:104
 - custom_components/eufy_vacuum/frontend/animal-svg/animal-svg.js:316
 - custom_components/eufy_vacuum/frontend/animal-svg/animal-svg.js:317
+- src/renderers/floor-texture-surface.js:104
 
