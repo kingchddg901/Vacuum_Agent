@@ -187,7 +187,15 @@ This equal split is only the **fallback**. When a job has valid counter capture
 (`transit_capture_valid`), each room's minutes sample is instead its **captured**
 `room_timings[].cleaning_wall_seconds / 60` — exact for single **and** multi-room jobs
 (`stats_rebuilder.build_room_stats_payload`); `duration_minutes / room_count` is used
-only for a room with no captured segment. Note `actual_cleaning_minutes` is **not** used
+only for a room with no captured segment — **except an ALLOCATED one, which
+contributes NO sample at all**, neither the captured value nor the fallback.
+
+An allocated timing is arithmetic, not an observation: `cleaning_wall_seconds` on
+an allocated row is the WHOLE group phase's wall time, repeated identically for
+every member, so a 390 s two-room phase taught 6.5 minutes to BOTH rooms — which
+is how a one-minute Entryway reached a 6.9 minute estimate. The guard is mirrored
+on both the capture and the fallback path in `stats_rebuilder`, and the code states
+the trade: better unlearned than confidently wrong. Note `actual_cleaning_minutes` is **not** used
 for the room-stats sample — it feeds the *job-level* duration in `job_stats` / `jobs_index`
 (single-room jobs via `room_cleaning_minutes` → `actual_cleaning_minutes` → `duration_minutes`),
 not the per-room minutes here.
@@ -403,12 +411,17 @@ branch behaves exactly as pre-W5c. **Shipped in 1.8.0 this path extends to Robor
 dispatched runs: the per-tick capture source is adapter-declared and the dispatched reconcile
 is a third consumer — see §2.4.**
 
-**Boundary classification formula.** The `_classify` function applies a strict 4-branch precedence:
+**Boundary classification formula.** The `_classify` function applies a strict
+**5**-branch precedence:
 
-1. **wash_plateau**: gap > `gap_plateau_s` (>90 s) — unambiguous long pause
-2. **transit**: gap > `gap_transit_s` (60–90 s) AND area_after < `area_jump_m2` (flat area) — inter-room hop without new floor
+1. **recharge_dock**: gap > `_STALL_WALL_S` (600 s) **AND** battery rose by at least
+   `_RECHARGE_MIN_RISE_PCT` (5.0). Checked FIRST, and it is the branch that stops a
+   mid-job recharge being scored as a boundary — without it a ten-minute dock-and-charge
+   reads as an unambiguous long pause and takes `wash_plateau`'s weight.
+2. **wash_plateau**: gap > `gap_plateau_s` (>90 s) — unambiguous long pause
 3. **area_jump**: area_after ≥ `area_jump_m2` (≥2 m²) — new floor covered, regardless of gap
-4. **weak**: short gap with flat area — most likely a pass-turn, not a boundary
+4. **transit**: gap > `gap_transit_s` (60–90 s) — inter-room hop without new floor
+5. **weak**: short gap with flat area — most likely a pass-turn, not a boundary
 
 So a gap of 70 s with +2.5 m² area is classified **area_jump** (branch 3), not transit.
 

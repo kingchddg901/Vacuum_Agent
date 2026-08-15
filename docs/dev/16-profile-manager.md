@@ -579,8 +579,17 @@ manager.apply_run_profile(
 
 Restores a saved room selection to the live room data:
 
-1. Disables **all** rooms for the (vacuum, map) pair.
-2. For each room across the profile's `room_group` **steps**, in step order (via `run_profile_steps()`, so a legacy rooms-only profile back-fills to a single group; `charge_wait`/`wait` steps carry no rooms and are skipped here), enumerated 1-indexed for `order`:
+1. **Resolves first, wipes second.** Every room across the profile's steps is looked
+   up and collected into `updates` / `applied_room_ids` BEFORE any stored state is
+   touched. If nothing resolves, it returns `{"applied": False, "reason":
+   "no_matching_rooms"}` and storage is never written.
+
+   The order is the fix, not an implementation detail: the wipe used to run
+   unconditionally ahead of resolution, so a fully-failed apply still destroyed the
+   user's prior room selection with **no rollback**.
+2. Only once at least one room is confirmed does it disable **all** rooms for the
+   (vacuum, map) pair, then apply the resolved set — for each room across the
+   profile's `room_group` **steps**, in step order (via `run_profile_steps()`, so a legacy rooms-only profile back-fills to a single group; `charge_wait`/`wait` steps carry no rooms and are skipped here), enumerated 1-indexed for `order`:
    - Looks up the room by `room_id` in `data["maps"][vacuum][map_id]["rooms"]`. If absent, the id is added to `missing_room_ids` and skipped.
    - Enables the room and restores saved settings: `profile_name`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`, plus the enumeration `order`.
    - Runs `_finalize_room_update()` on the restored room.

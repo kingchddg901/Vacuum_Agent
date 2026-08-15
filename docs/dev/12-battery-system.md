@@ -270,7 +270,11 @@ A session is opened, accumulates samples, then closes. Each session has a `kind`
 
 ```python
 prev_charging = record["last_charging"]
-if not prev_charging and charging:
+# DR-BAT-3 — the `or session_was_discarded` arm is load-bearing. A session
+# force-closed by the SESSION_MAX_HOURS (12 h) stale guard must be able to
+# re-open on the SAME sample; without it prev_charging is still True, no new
+# session opens, and charging goes unrecorded until the next charge cycle.
+if charging and (not prev_charging or session_was_discarded):
     record["current_session"] = {
         "start_ts": ts,
         "start_battery": battery_level,
@@ -285,6 +289,13 @@ if not prev_charging and charging:
         "cc_delta_pct": 0.0,
         "cv_duration_min": 0.0,
         "cv_delta_pct": 0.0,
+        # Low/high-zone accumulators — four more keys the earlier copy of this
+        # literal omitted. A consumer reading only the fields above will KeyError
+        # on a real session.
+        "low_zone_rate_sum": 0.0,
+        "low_zone_rate_samples": 0,
+        "high_zone_rate_sum": 0.0,
+        "high_zone_rate_samples": 0,
     }
 ```
 

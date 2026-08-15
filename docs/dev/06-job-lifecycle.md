@@ -697,7 +697,17 @@ job — a room_group phase's rooms roll one at a time as their own
 **Slow-room path (timing has expired):**
 1. Requires `active_job["status"] == "started"` and a valid `current_room_id`.
 2. Elapsed >= `_timing_completion_threshold_minutes(current_room)`.
-3. Rollover is **timing-only** — when the threshold is reached, the room advances.
+3. Rollover is **not** timing-only. When the threshold is reached the room advances
+   **unless the pose can still see the robot in it** — `_pose_says_still_in_room`
+   vetoes the roll while the pose buffer places the robot inside within the
+   `_ROOM_EXIT_DWELL_S` (20 s) dwell window (`live:ROOM-FLICKER-1`).
+
+   Why the veto came back after the learned-bounds one was removed: the threshold
+   is the estimate plus slack, and on a DOUBLE-PASS run the estimate came from
+   single-pass history — so it opens roughly a third of the way through the room and
+   timing alone strikes out a room the robot is visibly still cleaning. The predicate
+   **abstains without pose**, so a brand with no live pose is unaffected and rolls on
+   timing exactly as before.
    (The old learned-bounds veto, which held rollover until the robot left the room's
    bounding box, was removed with the mapping split: it rode the device's per-session
    coordinate frame and drifted, and both adapters shipped `position_lock_reliable=False`,
