@@ -47,9 +47,26 @@ Absolute stability is not required; a recoverable offset is enough. The dock is 
 natural landmark and is already observable in vacuum coordinates — §3.1 pauses
 sampling there precisely to stop dock samples polluting bounds. Record the docked
 `(vx, vy)` at session start, diff against the previous session, apply to the stored
-bounds. **This works only if the re-base is a pure TRANSLATION.** If the device also
-re-bases heading, one landmark is not enough — you need a second, or a trusted dock
-heading. Testable: check whether the whole map content shifts by a constant.
+bounds.
+
+**The criterion is RESIDUAL ERROR AGAINST TOLERANCE, not the shape of the transform.**
+This system is deliberately coarse: `BOUNDS_MARGIN = 50` on every containment test
+(§3.3), P10–P90 trimming discarding the outer 20% of samples (§3.4), and a min/max
+union across up to 20 runs (§3.6). Heading is never an input — the store is
+axis-aligned min/max X/Y and containment tests, and overlapping claims are expected,
+resolved first-match-wins (§3.2). It does not want precision.
+
+So the test is: **after applying the dock-based shift, is the residual under ~50
+vacuum units AT THE FAR CORNER of the map** — not merely near the dock? A pure
+translation is corrected exactly at any distance by one landmark. A rotated frame is
+not, and its error grows with distance: 1° at 5,000 units from origin is ~87 units,
+past the margin, while the same rotation is invisible next to the dock.
+
+**The failure mode is box INFLATION, not a wrong answer.** Because bounds are a
+min/max UNION across runs, an uncorrected frame error makes every box grow until
+rooms overlap everything and first-match-wins decides by insertion order. That is
+precisely what the original retirement recorded — the cross-session bounds "were a
+smear" — which is the signature of union-under-drift rather than a clean break.
 
 **2 — A PERSISTENT map that can be sectioned any way you like, giving an image polygon
 tied to room identity.**
