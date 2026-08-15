@@ -39,7 +39,7 @@ rationale is sound for the automation case it was written for. DR is authoritati
 correct today.
 
 The gap is a consequence the baseline does not draw out. `dev_inject_stall` sets
-`"injected": True` in the event payload (`services/stall_capture.py:136`) and **nothing
+`"injected": True` in the event payload (`services/stall_capture.py#injected`) and **nothing
 reads it** — one writer, zero readers, verified by grep. Combined with the overwrite, a
 synthetic stall silently replaces a real capture and the resulting PNG is
 byte-indistinguishable from one produced by a genuine fault. 04 §6a already explains why the

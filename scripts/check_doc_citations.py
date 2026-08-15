@@ -63,7 +63,7 @@ DOC_ROOTS = ("docs",)
 PLACEHOLDERS = {"file.py", "path/to/file.py", "module.py"}
 
 # Tallied by form, because the ban is on the FORM, not on being currently wrong.
-FORMS = {"line": 0, "symbol": 0, "strong": 0, "weak": 0}
+FORMS = {"line": 0, "symbol": 0, "anchor": 0, "strong": 0, "weak": 0}
 
 # `path/to/file.py::symbol` / `file.py:symbol` / `file.py:120` / `:120-140`.
 #
@@ -76,10 +76,23 @@ FORMS = {"line": 0, "symbol": 0, "strong": 0, "weak": 0}
 CITE_RE = re.compile(
     r"`(?P<path>[\w./-]+\.py)"
     r"(?:::(?P<sym>[A-Za-z_][\w.]*)"          # ::symbol — preferred, refactor-proof
+    r"|#(?P<anchor>[^\s`]+)"                  # #anchor  — any unique string in the file
     r"|:(?P<sym1>[A-Za-z_][\w.]*)"            # :symbol  — older spelling, still valid
     r"|:~?(?P<line>\d+)(?:-(?P<end>\d+))?)"   # :N / :N-M (a leading ~ means "about")
     r"`"
 )
+
+# `file.py#anchor` — for targets that are real and stable but are not Python symbols:
+# a config key (`clean_mode_options`), a keyword argument, a rule id in a comment.
+# Roughly a fifth of the surviving line citations point at one of these, and forcing
+# them into `::symbol` would name the enclosing 700-line registration function, which
+# is true and useless.
+#
+# The repo already invented this. Sixty distinct rule ids (`RP-033/RF-32`,
+# `live:ENT-4`) live in source comments, thirty of them are cited in the docs, and
+# nothing has ever verified that a cited one still exists. Six do not.
+#
+# A rename breaks the citation, and that is correct — a renamed key IS a doc change.
 
 # A symbol named near the citation: the last backticked identifier before it on
 # the same line. `_sweep_siblings` (`capabilities.py:187`) is the common shape.
@@ -237,6 +250,16 @@ def check_doc(doc: pathlib.Path, idx: Index) -> tuple[list[Problem], int]:
             syms = idx.symbols(py)
             checked += 1
 
+            if (anchor := m.group("anchor")):
+                FORMS["anchor"] += 1
+                body = py.read_text(encoding="utf-8", errors="replace")
+                hits = body.count(anchor)
+                if hits == 0:
+                    problems.append(Problem(
+                        rel, lineno, "NO-ANCHOR",
+                        f"`{cited}#{anchor}` — that string does not appear in {py.name}"))
+                continue
+
             sym = m.group("sym") or m.group("sym1")
             if sym:
                 FORMS["symbol"] += 1
@@ -327,6 +350,7 @@ def main() -> int:
     print()
     print(f"  by form:   {FORMS['line']:4d} `file.py:N`  (every one a defect by rule)")
     print(f"             {FORMS['symbol']:4d} `file.py::symbol`  (refactor-proof)")
+    print(f"             {FORMS['anchor']:4d} `file.py#anchor`   (refactor-proof)")
     print(f"  of the {FORMS['line']} line citations:")
     print(f"             {FORMS['strong']:4d} strong-checked — a symbol was named beside them")
     print(f"             {FORMS['weak']:4d} weak only — nothing establishes the line is right")

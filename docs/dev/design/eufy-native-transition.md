@@ -18,7 +18,7 @@ and must be re-confirmed at implementation time (verify-vs-code rule).
 > pose/attribution path** — the in-job hybrid's prerequisite shims #1–#4 and the W3 flag flip were
 > **never wired into the `live_transition` seam**: Eufy still declares
 > `live_transition.native_transition_source: False` (`adapters/eufy/adapter.py:785`) and still uses
-> `active_cleaning_target` as its secondary completion sentinel (`adapters/eufy/adapter.py:439`);
+> `active_cleaning_target` as its secondary completion sentinel (`adapters/eufy/adapter.py#active_cleaning_target`);
 > Roborock declares `True` (`adapters/roborock/adapter.py:521`). Two structural moves since the
 > anchors were taken: external-run finalize is now owned by `ExternalRunManager` in
 > `learning/external_run.py` (the W5c bullet's `core/manager.py::_finalize_external_run` anchor
@@ -48,7 +48,7 @@ Two facts shape the whole design:
    `_resolve_native_target_room_id` at `jobs/active_job.py::_resolve_native_target_room_id`) wired as
    `entities.active_cleaning_target`. Eufy's `current_room` is an inferred raster-lookup room **ID**
    (`mapping/map_source.py::current_room_for_pixel`, surfaced at `sensor/map_overlays.py::native_value`), and Eufy already
-   uses `active_cleaning_target` as a completion **sentinel** (`adapters/eufy/adapter.py:353`). So a
+   uses `active_cleaning_target` as a completion **sentinel** (`adapters/eufy/adapter.py#active_cleaning_target`). So a
    name-surfacing + slug-reconciliation shim and a completion-path migration are prerequisites.
 2. **It's inference, not an upstream signal.** Our "prefer dedicated upstream signals over inferred
    state" principle would push native-only — but Eufy's `current_room` is a raster lookup *we*
@@ -118,7 +118,7 @@ blind spots.
 | # | Shim | Why | Anchor |
 |---|---|---|---|
 | 1 | Live current-room-**NAME** sensor (rid → `room.number` → managed name, slug-reconciled) | seam matches by slug, not id | `mapping/map_source.py:201,:259`, `sensor/map_overlays.py::native_value` |
-| 2 | Migrate Eufy completion off the `active_cleaning_target` sentinel → adopt `require_job_active_clear: True` | frees the entity to carry the live name (Roborock's approach) | `adapters/eufy/adapter.py:353`, `adapters/roborock/adapter.py:201` |
+| 2 | Migrate Eufy completion off the `active_cleaning_target` sentinel → adopt `require_job_active_clear: True` | frees the entity to carry the live name (Roborock's approach) | `adapters/eufy/adapter.py#active_cleaning_target`, `adapters/roborock/adapter.py#active_cleaning_target` |
 | 3 | **Server-side** refresh of the rid/name during a run, independent of the map tab | the 2s freshness is UI-poll-coupled (`src/cards/main.js:600-625`) and does NOT run when the tab is backgrounded | new periodic task |
 | 4 | N-frame settle on the native rollover for non-phased jobs | no built-in debounce; doorway cells can flicker the rid for one frame | `_maybe_roll_current_room_by_native_signal`, `jobs/active_job.py::_maybe_roll_current_room_by_native_signal` |
 | 5 | Re-map reconciliation: re-resolve rid→name when the raster version changes | rid raster is content-versioned (`eufy_version_of`, sha1) | `mapping/map_source.py::eufy_version_of`, cf. `adapters/roborock/adapter.py:274` |
