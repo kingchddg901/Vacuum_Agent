@@ -78,7 +78,11 @@ The card opens on the **Rooms** tab the first time you load it. After that it re
 
 ## On a narrow screen
 
-Below 600px the card switches to a mobile layout. The threshold is the **card's own measured width**, not the browser window's — so a card sitting in a narrow dashboard column gets the mobile layout on a desktop too. You can force it either way from the card config:
+The card switches to a mobile layout when it is **narrow or short**: the card itself under 600px wide, or the browser window under 500px tall.
+
+Width is the **card's own measured width**, so a card sitting in a narrow dashboard column gets the mobile layout on a desktop too. Height is the **browser window's**, not the card's — a dashboard card's height is set by its own content, so measuring that would feed the layout its own output, while the window is what actually limits vertical room. The height test is there for **phone landscape**: rotating a 390×844 phone gives you roughly 844×390, which clears the 600px width test at the exact moment there is least height to lay anything out in.
+
+You can force it either way from the card config:
 
 ```yaml
 mobile_shell: auto   # auto (default) | true (always mobile) | false (always desktop)
@@ -89,7 +93,8 @@ What changes:
 - **The navigation moves to a bottom tab bar** with shortened labels — **Rooms**, **Upkeep** (Maintenance), **Dock** (Base Station), and **Stats** (Metrics) — plus a **More** overflow sheet holding Learning Review, Room Rules, Theme, Map Config, and Setup. **Dock** only appears on vacuums that have a base station, so a dockless model shows three tabs and More.
 - **The header compacts to a name line and a status line.** The status line carries the vacuum's status with its coloured dot, and the battery — written out as "Battery 100%" rather than a bare percentage, and reading amber at 20% or below and red at 10% or below, the same bands as the desktop header. The dock's status gets a line of its own underneath when your model reports one.
 - **The Rooms toolbar wraps** instead of running off the edge, and its buttons grow to a full-size tap target; see [Rooms Panel → The Rooms toolbar](02-rooms-panel.md#the-rooms-toolbar).
-- **Theme editing is the one thing that narrows.** You can pick, activate, and share whole themes from a phone, but the Palette and Tokens editors need a desktop-width screen — see [Sharing themes → On a phone](15-sharing-themes.md#on-a-phone).
+- **Theme editing works at every width.** You can pick, activate, and share whole themes from a phone, and the **Palette** and **Tokens** editors work there too — what narrows on a small screen is the Theme tab's own chrome, not the editors. See [Sharing themes → On a phone](15-sharing-themes.md#on-a-phone).
+- **In landscape the chrome gets out of the way.** When the window is short — a phone turned sideways — the compact header and the bottom tab bar start out **hidden** on any view long enough to scroll, and a deliberate flick back up, or scrolling to the very top, brings them back. A small nudge doesn't: reaching a control in landscape means scrolling constantly, and if every one of those restored the chrome it would take the room away again mid-edit. While a run is in flight the header stays put — that's exactly when its numbers are worth the space — and only the tab bar hides.
 
 In the sidebar panel the card takes the full height of the panel at any width, so the header stays pinned and the bottom tab bar stays where your thumb expects it.
 

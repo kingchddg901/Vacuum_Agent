@@ -105,10 +105,12 @@ To pull a theme from, or publish one to, the **public gallery**, see
 
 Two tabs beside Themes — **Palette** (four headline tokens) and **Tokens**
 (everything else) — let you build a theme from any starting point and save it.
-The Palette and Tokens tabs need a desktop-width screen — under 600px wide the
-Theme tab drops both editors and their tab strip. Everything else on the
-Themes tab — the device/everywhere mode row, the filter bar, the grid, and the
-Export/Import/Download/Upload buttons — still works at any width.
+Both editors work at every width, a phone included. What a narrow or short
+screen changes is the chrome around them: the search row and the
+Themes/Palette/Tokens strip start folded behind a caret that names the tab
+you're standing in, so the strip is out of the way rather than gone — one tap
+on the caret brings it back, and that choice holds for the session. See
+[Sharing themes → On a phone](15-sharing-themes.md#on-a-phone).
 The token editor itself is documented in the
 [advanced theme reference](../advanced/05-theme-system.md).
 

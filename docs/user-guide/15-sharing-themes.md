@@ -158,13 +158,24 @@ top tabs — see [the nav note in the overview](01-overview.md). The footer's
 **Export**, **Import**, **Download**, and **Upload** buttons are all there, so
 you can pick, activate, and share whole themes from your phone.
 
-The fine editing is there too. The **Palette** and **Tokens** editors, the
-floor-preset selects, **Download Floor**, and the **Save** / **Discard** draft
-controls all work on a phone — the token list scrolls in its own pane with the
-preview and footer staying put around it.
+The fine editing is there too. The **Palette** and **Tokens** editors and the
+**Save** / **Discard** draft controls all work on a phone — the token list
+scrolls in its own pane with the preview and footer staying put around it.
 
 To make room for it, the Theme tab trims its own chrome on a narrow screen: the
 status rows at the top are dropped while you are editing colours, the nav icons
 shrink, and the search row and sub-tab strip fold behind a caret that names the
-section you are in. Everything is still reachable — a phone simply has less
-vertical room, and that is what the editor needs most.
+section you are in. Everything trimmed there is still reachable — a phone simply
+has less vertical room, and that is what the editor needs most.
+
+The footer is the one band where controls genuinely go away. The floor-type
+picker, **Download Floor**, the marble-preset picker, and **Apply Preset** are
+not on a phone at all — in portrait or in landscape — and they are dropped
+rather than shrunk, so a screen reader won't announce them either. Picking a
+floor material and applying a marble preset is desk work, and dropping those
+four is what buys back the footer rows the token list needs — shrinking the
+other controls to icons was tried first and didn't buy enough. The other six —
+**Export**, **Import**, **Download**, **Upload**, **Discard**, and **Save** —
+stay. If you want the floor-only export from
+[Sharing a theme you built](#sharing-a-theme-you-built) above, do it on a
+desktop-width screen.

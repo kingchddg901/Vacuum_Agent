@@ -13,6 +13,12 @@ Open the Lovelace card for your vacuum. The tab bar along the top
 includes a **Setup** item. Click it to open the wizard. The card shows
 a **Vacuum Setup** heading and a brief description.
 
+Two buttons sit above that heading. **Setup steps** is the wizard, and
+it is what you land on — most of this page describes it. **System** is
+a second view listing every reading the card takes from your vacuum and
+which entity each one comes from; see
+[The System sub-tab](#the-system-sub-tab).
+
 If the card has never loaded setup status from the integration, click
 the **Check Status** button at the bottom of the view. After the first
 successful fetch, the button label changes to **Refresh** and stays
@@ -80,14 +86,20 @@ The step badge fills with **✓** as soon as one map has been imported.
 You can come back later and import additional maps; the step stays
 checked.
 
-!!! tip "Stuck on this step? Download diagnostics"
+!!! tip "Stuck on this step? Check the System sub-tab first"
 
     If the import keeps failing — most commonly **"No active map detected"** —
-    download a diagnostics report and attach it when you ask for help:
+    open the **System** sub-tab and find the `active_map` row. If it says
+    **not found**, or names an entity whose **Now** column says **no reading**,
+    the import has nothing to read and that is the whole failure: pick the
+    right entity in that row's **Change** column and import again. See
+    [The System sub-tab](#the-system-sub-tab).
+
+    If that row looks right and the import still fails, download a diagnostics
+    report and attach it when you ask for help:
     **Settings → Devices & Services → Vacuum Agent → ⋮ → Download diagnostics**.
-    It shows how each entity resolves — including whether the active-map sensor
-    actually has a value — which usually pinpoints the cause at a glance.
-    Credentials are redacted.
+    It carries the same entity resolution the System sub-tab shows, plus the
+    map, room and capability state behind it. Credentials are redacted.
 
 ---
 
@@ -339,6 +351,116 @@ then re-import the map from scratch.
 > Note: deleting a map here only affects the integration's stored
 > data. It does not delete anything from the vacuum's cloud servers
 > or the Eufy app.
+
+---
+
+## The System sub-tab
+
+The **System** button at the top of the Setup tab opens a table that
+answers one question: which entity is the card actually reading for
+each thing it shows, and how did it pick that one?
+
+Vacuum Agent does not create the readings on this screen. Battery, what
+the vacuum is doing, how much area the current run has covered, which map
+is active — all of it is read from entities your vacuum's own integration
+created. (Vacuum Agent does add its own sensors elsewhere, for things it
+works out itself, like battery health — those are not on this screen and
+are not what these rows are about.)
+It finds them by name where the names line up, and by searching your
+vacuum's device and its integration where they don't. System is where
+that search shows its work.
+
+One row per reading, five columns:
+
+| Column | What it shows |
+|---|---|
+| **Reads** | What is being read, in the integration's own words — `battery`, `task_status`, `cleaning_area`, `active_map` and so on. |
+| **Entity** | The entity that reading comes from, or **not found**. If other entities also matched, they are listed underneath as **Also matched**, each with the reason it lost. |
+| **Now** | That entity's current value, or **no reading** if it has none. |
+| **Chosen by** | How this entity was picked — see below. A short note can follow it: **disabled in Home Assistant**, **not found**, **no reading yet**, or **your chosen entity is missing**. |
+| **Change** | A dropdown for binding the row to a different entity. |
+
+Before the card's first snapshot arrives from the integration the table
+is empty and says so; it fills in on its own once the snapshot lands.
+
+### Why it lists everything, not only the problems
+
+A row can name a real entity, show a believable value, and still be the
+wrong entity — that is the failure this screen exists for. Many
+installs carry two area sensors: one for the run that just happened,
+one that counts up forever. If the card binds the lifetime counter, a
+single room's clean is reported thousands of times too large. Nothing
+errors, nothing is blank, and a view that showed only "problems" would
+report that install as healthy.
+
+So the table lists every reading and puts the current value on the row,
+because the value is the check that needs no technical knowledge: if
+the vacuum has just cleaned one room and **Now** reads in the
+thousands, that row is bound to the wrong entity however tidy it looks.
+
+### What "Chosen by" means
+
+A row that says **Name match** was never contested: the entity named
+after your vacuum existed, and that was that. The other labels record
+what settled the row when the obvious answer wasn't available — either
+because several entities fitted the row, or because nothing with the
+expected name existed at all.
+
+Where several fitted, four tests run in order — **Vacuum name**, then
+**Provided by the integration**, then **Measurement type**, then
+**Value comparison** — strongest evidence first, stopping at the first
+test that leaves exactly one candidate. So a row that says **Value
+comparison** means the three before it were inconclusive on your
+install, not that they agreed.
+
+| Chosen by | What decided it |
+|---|---|
+| **Name match** | Nothing competed for this row — the expected entity existed and was used. |
+| **Vacuum name** | Several entities fitted; this one carries your vacuum's own name and the others don't. |
+| **Provided by the integration** | The upstream integration labels this entity as exactly this reading, whatever it happens to be called. |
+| **Measurement type** | Home Assistant marks the other candidates as cumulative totals and this one isn't, so this is the value right now rather than a running tally. |
+| **Value comparison** | Last resort: the candidates' current values were compared and this one reads far lower — a per-run figure rather than a lifetime one. Only used when the gap is unmistakable. |
+| **Your choice** | You pinned this row yourself. |
+| **Found on the vacuum's device** | The expected name didn't exist, so the entity was found on the same device as the vacuum. |
+| **Found in the vacuum's integration** | Same, but found elsewhere in the vacuum's integration rather than on its device — a dock is often a device of its own. |
+| **Renamed — matched by suffix** | The expected name didn't exist (a renamed vacuum, or a dock named for itself), so an entity in the same integration whose name ends the same way was used instead. |
+
+### Changing what a row reads
+
+The **Change** dropdown lists entities from your vacuum's own
+integration that are of the same kind as the row — a row reading a
+sensor is only offered sensors. A row showing **not found** has no kind
+to match, so it is offered all of them. Pick one and the row is pinned
+to it. Vacuum Agent reloads so the change takes effect, and the table
+then redraws from what actually resolved rather than from what you
+picked, so a choice that didn't take is visible instead of assumed.
+
+The first entry in the dropdown hands the row back to automatic
+resolution:
+
+- **Automatic** on a row you have not pinned. Leave it there.
+- **Clear — back to automatic** on a row you have pinned. Choosing it
+  removes your pin and lets automatic resolution decide again.
+
+Pins are stored per vacuum and survive restarts. There is a service for
+the same thing — **`eufy_vacuum.set_entity_override`** (Developer Tools
+→ Actions), taking the vacuum, the row's name from the **Reads** column
+(for example `cleaning_area`), and the entity to bind. Leave the entity
+blank to clear the pin.
+
+!!! note "If the panel itself is unusable"
+
+    A badly-resolved install can leave the card too broken to navigate to.
+    Some of the same pins can be set from **Settings → Devices & Services →
+    Vacuum Agent → Configure** — **Cleaning area sensor**, **Active map
+    sensor**, and so on.
+
+    Two limits worth knowing. The form offers pickers only for the readings
+    Vacuum Agent actively searches for, so a few — battery and the error
+    message among them — appear on the **System** screen but not on the
+    form. And a pin set on the form takes precedence over one set in the
+    card, so clearing the row in **System** will not remove it; clear it on
+    the form where it was set.
 
 ---
 

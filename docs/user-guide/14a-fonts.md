@@ -156,8 +156,8 @@ Two controls set the card's font, and they don't fight:
 The Font Family token offers one-click chips — **System UI**, **Home
 Assistant**, **Georgia**, **Consolas**, **OpenDyslexic**, and every typeface
 you've dropped in — above a free-text box for anything else. Each chip is drawn
-in the font it sets. The Palette and Tokens editors need a desktop-width screen;
-see [Theme system](17-theme-system.md).
+in the font it sets. The Palette and Tokens editors work at every width, a
+phone included; see [Theme system](17-theme-system.md).
 
 When you've picked a **Typeface**, it wins over the theme's **Font Family** for
 you: an accessibility choice outranks a decorative one, and someone else's theme

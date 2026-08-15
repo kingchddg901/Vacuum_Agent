@@ -271,6 +271,7 @@ Applies a saved run profile, rebuilds the queue from it, and starts cleaning —
 | `vacuum_entity_id` | Yes | |
 | `map_id` | No | |
 | `profile_id` | Yes | ID of the saved run profile to apply. |
+| `strict_order` | No | Boolean. Clean the profile's rooms in its saved order on a brand that would otherwise optimize its own route. **Leave it out to use the profile's own saved setting**; set it here to override that profile for this run only, in either direction. A no-op for order-honoring brands (Eufy). |
 | `confirm_reduced_run` | No | Allow a blocker-reduced run without interactive confirmation. |
 | `confirm_token` | No | Retry token from a prior `confirmation_required` response. |
 | `path_block_action` | No | `event_only`, `pause_and_event`, or `cancel_and_event`. |
@@ -932,6 +933,7 @@ Saves the currently enabled rooms and their settings as a new named run profile.
 | `map_id` | No | |
 | `name` | Yes | Display name for the profile. |
 | `expose_as_button` | No | Mark this profile for Home Assistant button exposure. |
+| `strict_order` | No | Boolean. Save this profile to clean its rooms in the saved order on a brand that would otherwise path-optimize. The exposed button carries no service data, so this stored setting is how a button-driven run opts in. A no-op for order-honoring brands (Eufy). Absent on profiles saved before this field existed, and the stored default is `false`, so an older profile keeps path-optimized dispatch until you set it. |
 
 #### `overwrite_run_profile`
 
@@ -944,6 +946,7 @@ Replaces the rooms snapshot in an existing run profile without creating a new on
 | `profile_id` | Yes | ID of the run profile to overwrite. |
 | `name` | No | Updated display name. Omit to keep the existing label. |
 | `expose_as_button` | No | |
+| `strict_order` | No | Boolean. **Omit to keep the profile's current setting** — this field is tri-state, so an overwrite never clears a flag you did not mention. Set it to clean this profile's rooms in the saved order on a brand that would otherwise path-optimize. |
 
 #### `rename_run_profile`
 
@@ -1824,6 +1827,22 @@ Sets which camera or image entity supplies this vacuum's live-map backdrop, stor
 | `entity_id` | No | The `camera.` or `image.` entity to use as the live-map backdrop. Pass blank to clear the override and fall back to the adapter pattern. |
 
 **Returns:** `{"status": "success", "message": ..., "vacuum_entity_id": ..., "live_map_image_entity": <the chosen entity, or null when cleared>}`.
+
+### `set_entity_override`
+
+Pins one adapter **role** to a specific entity, for an install where automatic resolution picked the wrong entity or could not find one at all. This is not an onboarding step: it backs the entity picker on every row of the Setup tab's **System** sub-tab, and stays useful long after setup is done.
+
+Resolution normally derives companion entity IDs from the vacuum's own name, then sweeps the vacuum's device and its config entry for siblings. On an install whose companions are named differently, or where two similarly-named entities collide, that can bind a role to the wrong entity — and a wrong binding never errors. A per-run `cleaning_area` role bound to a lifetime counter reads thousands of times too high and still looks like a working number, which is why the fix is a pin rather than a warning.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `role` | Yes | The role to pin, spelled as the System sub-tab lists it — for example `cleaning_area`, `task_status`, or `battery`. A blank role is refused with `{"status": "error", "reason": "missing_role"}`. |
+| `entity_id` | No | The entity this role should read. **Blank clears the override** and hands the role back to automatic resolution; clearing the last override for a vacuum drops its entry entirely. |
+
+Returns `{"status": "success", "role", "entity_id"}`, where `entity_id` is `null` when the override was cleared.
+
+The overrides are stored per vacuum as `entity_overrides` — a `{role: entity_id}` dict — and the same key can also be written from the integration's options flow, which is the rescue path that still works when the card does not. **The call reloads the config entry**, because an override is consumed at adapter-registration time: without the reload you would save a choice and watch nothing change, which is the silent failure this whole surface exists to remove.
 
 ---
 

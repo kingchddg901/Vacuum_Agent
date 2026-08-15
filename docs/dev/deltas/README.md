@@ -20,7 +20,7 @@ enough for the next epoch-closing audit to adjudicate it.
 | epoch | closed | closing operation |
 |---|---|---|
 | **Epoch 1** | **2026-08-08** (v2.0.0, the Phoenix Release — the audit closes the epoch, the release ships it) | The hostile-audit campaign — **516 corpus records / 484 verified findings / 22 killed**, collapsed into 33 accepted repair families (6 candidates rejected) and landed as 60 packets (figures from `corpus/audit-findings-canonical.jsonl`, the frozen corpus; the `464 / 67` pair quoted elsewhere is the AUDIT-2 *gate rebase* from `49e6e3b`, a different measure — do not mix them) + the DR reconciliation passes that established this baseline: batch 1 (`5940830` + siblings) and the 17-cluster adversarially-verified workflow pass (runs `wf_c3085752-b7b` + `wf_16fa0e1a-3f3`, applied 2026-08-06). Includes the rebuilt Phased Jobs (docs 06/30 reconciled + Opus-verified in `6a87c13`, per the §13 epoch-edge ruling) and the full `live:FONT-1` resolution (fix `ecbe77f`/`d3f81e6`, user-confirmed; typeface mechanism + drop-in fonts documented same-commit, styles-system §4/§4b). Provenance: the audit record (`.claude/notes/synthesis/`, closure ledgers, the postmortem corpus). |
-| Epoch 2 | open | Accumulating. **19 commits since v2.0.0, of which 8 carry a DR delta** — enumerated below. The row previously read *"No known code-vs-DR deltas at open"*; that was written on 2026-08-09 at `3d04ff4f` and was already false by 2026-08-13, having gone unrevisited across sixteen further commits including a shipped release (2.0.1). Corrected rather than appended to, per [00 §5.4](../00-disaster-recovery-standard.md) — a superseded normative statement is edited in place. |
+| Epoch 2 | open | Accumulating. **92 commits since v2.0.0 as of 2026-08-14. The delta set below enumerates the first 19 of them (`v2.0.0..5779188e`), 8 of which carry a DR delta; the 73 after that — effectively the whole 2.1.0 line — are NOT enumerated.** See the coverage note under the delta set before reading any silence there as evidence. The row previously read *"No known code-vs-DR deltas at open"*; that was written on 2026-08-09 at `3d04ff4f` and was already false by 2026-08-13, having gone unrevisited across sixteen further commits including a shipped release (2.0.1). It was then corrected to *"19 commits since v2.0.0, of which 8 carry a DR delta"* — which was accurate for one day. Both corrections were made in place rather than appended, per [00 §5.4](../00-disaster-recovery-standard.md) — a superseded normative statement is edited in place. The recurring defect is the same both times and is worth naming rather than fixing quietly a third time: **a commit count is a claim with a timestamp on it, and nothing in this file revisits it.** |
 
 ### Epoch 2 delta candidates — detail
 
@@ -89,13 +89,33 @@ local patch. That makes it delta-shaped rather than hotfix-shaped.
 
 ---
 
-## Epoch 2 — the delta set, v2.0.0..master (19 commits)
+## Epoch 2 — the delta set, `v2.0.0..5779188e` (19 commits)
 
-Enumerated 2026-08-13. **Eight entries, D-1..D-8, covering fifteen of the nineteen commits;
-six of those entries owe an actual DR edit** (D-1, D-2, D-3, D-4, D-6, D-8 — D-5 and D-7 are
-recorded as owing nothing). The remaining **four** commits have no DR surface and are listed at
-the end, so the set is provably complete rather than merely sampled: an unexamined commit and a
-clean one read identically.
+Enumerated 2026-08-13, over `v2.0.0..5779188e`. **Eight entries, D-1..D-8, covering fifteen of
+those nineteen commits; six of those entries owe an actual DR edit** (D-1, D-2, D-3, D-4, D-6,
+D-8 — D-5 and D-7 are recorded as owing nothing). The remaining **four** commits have no DR
+surface and are listed at the end, so the set is provably complete **over the range it was
+enumerated over** rather than merely sampled: an unexamined commit and a clean one read
+identically.
+
+> **⚠ COVERAGE, corrected 2026-08-14 — this is 19 of 92 commits, not 19 of Epoch 2.** The heading
+> and the paragraph above previously read `v2.0.0..master` and "the nineteen commits", which was a
+> claim about the epoch. `git rev-list --count v2.0.0..HEAD` is now **92**. The enumeration stops
+> at `5779188e`; the **73** commits after it have never been walked for DR surface — among them the
+> entity-resolution overhaul (`cfb352a5`..`cc7182db`: the four-rung contest ladder, the user
+> override, the device- and config-entry-sibling sweeps), the Setup → System sub-tab and its
+> `set_entity_override` service, the mobile/landscape shell pass (`3fe233da` made the viewport gate
+> narrow **OR** short — `widthPx < 600 || h < 500` — and the chrome auto-hides in landscape), and
+> the i18n double-escape fix (`ed7be631`).
+>
+> This is worse than an out-of-date number, and the completeness argument in the paragraph above is
+> exactly why. That argument exists so that **silence can be trusted** — and the reading rule at the
+> top of this file spends that trust: "**No delta file for a subsystem means the DR baseline is
+> authoritative, full stop.**" Applied to an un-enumerated range, that rule quietly certifies as
+> rebuild-truth a set of DR sections written before any of the above existed. Nothing in D-1..D-8
+> below covers those commits; do not read their absence as a clean bill. Re-enumerate against
+> `v2.0.0..HEAD`, or close Epoch 2 at the 2.1.0 tag and open Epoch 3 on the remainder, before
+> treating any silence here as evidence.
 
 > **⚠ READ THIS BEFORE APPLYING ANY ENTRY BELOW.** A delta is a *pending DR edit*, so it
 > presumes the statement it edits is otherwise sound. **That presumption does not currently
@@ -119,6 +139,25 @@ tie with `vacuum_object_id in candidate` — which can never succeed on the nami
 installs the rescue exists for. Live evidence on issue #49: `cleaning_area` is unrescuable
 because `total_cleaning_area` also ends in `_cleaning_area`.
 
+*Corrected 2026-08-14 — the Known limit above is FALSE at HEAD.* It is kept, not deleted,
+because it is the reasoning that predicted the shape of the fix. `_claimed_by`
+(`adapters/entity_resolve.py:170-176`, applied inside the candidate filter at `:198`) now awards
+a sibling to the role whose declared suffix explains the **most** of its name, so
+`..._total_cleaning_area` never enters `cleaning_area`'s candidate list at all: there is no
+ambiguity left for the tie-break to lose, and `cleaning_area` is rescuable. That is `live:ENT-4`,
+and the `reserved_suffixes` argument supplies the half a brand declares in its vocabulary but
+binds to no role — without it Roborock, which binds `_cleaning_area` and no lifetime role,
+accepted the counter as the per-run sensor. The `vacuum_object_id in candidate` narrowing
+survives at `:206`, but now only runs on candidates that already passed the ownership check.
+Separately, the competing-candidate tie-break on the *capability-detection* path is no longer a
+name-shape guess at all: `2c1d847f` replaced it with the four-rung contest ladder in
+`core/capabilities.py::_narrow_competing` (`:365-463` — `object_id` → `translation_key` →
+`state_class` → `magnitude`, short-circuiting on the first decisive rung and returning `None`
+rather than guessing), and `9e483b29` put a user override ahead of everything derived.
+**The DR edit this entry demands is still owed, and it is now larger than the entry describes:**
+21 and 22 owe the ladder, the override rung and the `live:ENT-8` maintenance rescue, not merely
+"two rescue mechanisms and nothing stating which runs first".
+
 **D-2 · `41537981` — diagnostics reports REGISTERED beside EXISTS, and records `disabled`.**
 Shipped in 2.0.1. The device census now walks with `include_disabled_entities=True` and stores
 `disabled` per entity. **No DR doc covers diagnostics** — the numbered set runs 00–32 with no
@@ -141,6 +180,19 @@ cannot remain both. `17ab24ab` additionally rewrote the layout gate to assert on
 **bleed** rather than overflow, because `.evcc-shell` is `overflow:hidden` so breakage clips
 instead of overflowing — a gate that changed what it measures is reconstruction-critical and
 belongs in `frontend/render-harness.md`.
+*CLOSED 2026-08-14 by `3667e1f1`* ("retire the MOBILE_TOKEN_EDITOR experiment flag"). The
+decision this entry demanded was made, in the first of the two directions it offered: shipped,
+not a test build. The constant is gone (`grep -rn MOBILE_TOKEN_EDITOR src/` → 0 hits) and
+`renderers/theme.js` carries no width gate — `const activeTab = state.activeSubTab || "presets"`
+(`:223`) — so presets, Palette, Tokens and the draft Save/Discard footer render at every width,
+and the chrome above the editor folds behind a caret (`chromeCollapsed`, `:232`) rather than
+being dropped. **Two residuals the entry made conditions of shipping are still owed**, and
+neither was landed with the flag removal: the `frontend/styles-system.md` +
+`frontend/theme-system.md` reconciliation (neither describes the mobile theme editor at all —
+`styles-system.md`'s only mobile mentions are the `MOBILE_STYLES` ordering rule at `:26`/`:30`,
+and `theme-system.md` has none), and the `17ab24ab` gate change in `frontend/render-harness.md`
+(`grep -rn bleed docs/dev/frontend/` → 0 hits; the gate itself now lives in
+`harness/tests/theme-mobile-layout.spec.mjs`).
 
 **D-5 · `133097a5` — §13-COMPLIANT, no delta owed.** It corrected
 `reference/THEME_TOKEN_USAGE.md` in the same commit as the generator that produces it. Recorded
@@ -160,8 +212,9 @@ trip between rooms, and alters per-room learning attribution for every existing 
 **D-7 · `de67758f` — two audit documents were published to the site.** `docs/audit-1-closeout.md`
 and `docs/how-this-was-audited.md`. No DR statement changes; recorded because it establishes the
 convention that a *curated* closeout may be public while the working record stays repo-local,
-and that such a document NAMES its private companion in backticks rather than linking it (a link
-would break `mkdocs --strict`).
+and that such a document NAMES its private companion in backticks rather than linking it. (The
+original entry said a link "would break `mkdocs --strict`" — it does not: a link into an excluded
+directory logs at INFO and the build still exits 0. Backticks are a convention here, not a gate.)
 
 **D-8 · `9659a7d5` — the semantic-receipts subsystem, answering `live:STALL-PROV-1`.**
 A new `receipts/` package plus emission from the stall-capture path and provenance marking at
@@ -178,7 +231,8 @@ states explicitly and therefore needs adjudicating rather than patching.
 `3d04ff4f` (this ledger's own STALL-PROV-1 entry) · `3e0dbfdd` (NOTICE attribution) ·
 `de1d3018` (the 2.0.1 manifest bump) · `3558a083` (changelog).
 
-That accounts for all nineteen: 15 under D-1..D-8, plus these 4.
+That accounts for all nineteen **of `v2.0.0..5779188e`**: 15 under D-1..D-8, plus these 4. It
+accounts for nothing after `5779188e` — see the coverage note at the head of this set.
 
 ---
 

@@ -45,6 +45,7 @@ produce `.corrupt` backup files.
   "maps":             dict[vacuum_entity_id, dict[map_id_str, MapBucket]]
   "capabilities":     dict[vacuum_entity_id, CapabilityBucket]
   "adapters":         dict[vacuum_entity_id, AdapterConfig]   # UI-wizard adapter configs; see 22-adapter-config-reference.md
+  "entity_overrides": dict[vacuum_entity_id, dict[role, entity_id]]   # user entity pins; SECOND store in config_entry.options — see below
   "active_jobs":      dict[vacuum_entity_id, dict[map_id_str, ActiveJobState]]
   "profiles":         dict["room_profiles", dict[profile_name, RoomProfileEntry]]
   "run_profiles":     dict[vacuum_entity_id, dict[map_id_str, dict[profile_id, RunProfileEntry]]]
@@ -87,9 +88,10 @@ interleaves the stash/pop would persist it — non-owning readers ignore it).
 on — `vacuums` (already present), `capabilities`, `room_history`,
 `room_rule_status`, `learning_processing_enabled` (default `True`), and
 `learning_pending_runs`. The remaining keys above (`active_jobs`, `profiles`,
-`run_profiles`, `setup_progress`, `discovery`, plus `battery` and `adapters`)
-are created lazily by their owning subsystems on first write — `battery` by
-`BatteryHealthManager._root()`, `adapters` by `save_adapter_config` — so they
+`run_profiles`, `setup_progress`, `discovery`, plus `battery`, `adapters` and
+`entity_overrides`) are created lazily by their owning subsystems on first
+write — `battery` by `BatteryHealthManager._root()`, `adapters` by
+`save_adapter_config`, `entity_overrides` by `set_entity_override` — so they
 may be absent until that subsystem first runs. Code that reads any other key
 must tolerate its absence.
 
@@ -116,6 +118,37 @@ repair needs none and latches unconditionally, so a vocabulary deferral must not
 it. A migration that could not evaluate every target it owns **does not stamp its key**
 and retries on the next start; missing runtime information is DEFERRED, never SUCCESS.
 Every plan function is pure (`plan_*`) and mutates nothing; the caller persists `data`.
+
+**`entity_overrides` — TWO stores, and config-entry options win.** Per-vacuum user
+pins for entity roles auto-resolution got wrong or could not resolve at all
+(`data["entity_overrides"][vacuum_entity_id] = {role: entity_id}`;
+`ENTITY_OVERRIDES_KEY` in `const.py`, which is where the contract lives because two
+surfaces write it and neither can see the other's store). It is therefore persisted
+**twice**:
+
+| Store | Written by | Notes |
+|---|---|---|
+| `.storage` top level (this key) | `set_entity_override` (`services/setup.py`) — the panel's Setup → System sub-tab | Lazily `setdefault`ed. A blank `entity_id` pops the role, and pops the whole per-vacuum dict once it empties — so this surface can REMOVE an override. |
+| `config_entry.options["entity_overrides"]` | `EufyVacuumOptionsFlow` (`config_flow.py`) — the per-role entity pickers on the options form | MERGED, never replaced: the pickers render only for roles that FAILED to resolve, so rebuilding the map from the form alone would drop the override that fixed a role, the role would break again, and the install would oscillate between fixed and broken on every visit. The cost is that this screen cannot CLEAR one. |
+
+`__init__.py async_setup_entry` merges the two before adapter registration —
+`{**data["entity_overrides"], **entry.options["entity_overrides"]}` — so **entry
+options win**, because the options flow is the guaranteed-reachable rescue path,
+the one still available when the frontend is not, and a choice made there must not
+be overruled by a stale panel value. The merge is keyed by `vacuum_entity_id`, not
+by role: a vacuum named in options takes its WHOLE role dict from options. The
+merged dict is passed to `register_brand_adapter` as read-only input and is never
+written back into `self.data`, so the two stores stay separate on disk.
+
+Overrides must **not** be stored as an adapter config: stored configs load first
+and are then overwritten by the code adapter ("code adapters always win", see
+[21-adapter-system](21-adapter-system.md) §6), so an override persisted there is
+silently clobbered at every startup. They are consumed at adapter-registration
+time, which is why `set_entity_override` reloads the config entry — without the
+reload the user saves a choice and sees nothing change, the silent failure the
+whole feature exists to remove. The resolved bindings, and how each was chosen,
+are surfaced in the dashboard snapshot's `entity_bindings`
+([05 §6](05-core-manager.md)).
 
 ### VacuumBucket
 

@@ -142,9 +142,12 @@ Not in the numbered reading order.
   [THEME_TOKEN_MAP](reference/THEME_TOKEN_MAP.md) + [THEME_TOKEN_USAGE](reference/THEME_TOKEN_USAGE.md)
   (both **generated** — regenerate with `node scripts/gen-theme-token-docs.mjs`, never hand-edit) and
   [ai-theme-authoring](reference/ai-theme-authoring.md) (theming the card with an AI assistant).
-- **[maintenance/](maintenance/highly-aggressive-audit.md)** — the hostile-audit working ledger
-  (`highly-aggressive-audit`): what each subsystem audit found, what is fixed, what is still open.
-  **Repo-only** — excluded from the published docs site (`exclude_docs` in `mkdocs.yml`).
+- **`dev/maintenance/`** — the hostile-audit working ledger
+  (`highly-aggressive-audit.md`): what each subsystem audit found, what is fixed, what is still open.
+  **Repo-only** — excluded from the published docs site (`exclude_docs` in `mkdocs.yml`), so it is
+  NAMED here in backticks rather than linked. A link would still render on the site, as an `<a href>`
+  pointing at a page that was never built — and `mkdocs build --strict` reports that at INFO, not as a
+  warning, so the build stays green while every reader of the public site gets a 404.
 
 ---
 

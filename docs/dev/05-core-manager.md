@@ -507,10 +507,86 @@ itself (`adapter_vocabulary`, `max_clean_passes`, `mop_active`,
 `supports_map_bounds`, `supports_zone_clean`, `zone_max`, `zone_bounds`,
 `supports_water_control`, `supports_edge_mopping`, `honors_clean_order`,
 `supports_va_render`, `setting_entities`, `scene_select`, `cv_available` /
-`cv_missing`) and a **live-map block** (`live_map_image_entity`, `map_switcher`,
-`live_map_rotation`, `map_overlay_visibility`, `area_label_anchors`,
-`hidden_regions`, `furnished_render`, `map_state_source`), plus `status_summary`
-/ `attention_summary` / `learning_processing` / `updated_at`.
+`cv_missing`), an **entity-resolution block** (`resolved_entities`,
+`entity_bindings` — below) and a **live-map block** (`live_map_image_entity`,
+`map_switcher`, `live_map_rotation`, `map_overlay_visibility`,
+`area_label_anchors`, `hidden_regions`, `furnished_render`, `map_state_source`),
+plus `status_summary` / `attention_summary` / `learning_processing` /
+`stall_capture_enabled` / `updated_at`. `stall_capture_enabled` is surfaced even
+when the key is absent on the vacuum record (as `False`), and is per-VACUUM — a
+toggle that cannot read its own value is the one that ends up showing the
+opposite of the truth.
+
+**The entity-resolution block.** `resolved_entities` is the flat
+`{role: entity_id}` map the resolver actually settled on — the adapter config's
+`entities` block with every non-string / empty value dropped (`live:ENT-10`). It
+is published because the card used to DERIVE its own ids
+(`sensor.${objectId}_battery`, `binary_sensor.${objectId}_charging`), a fifth
+copy of the naming assumption the entity-resolution work had already repaired on
+the Python side — in a language none of those fixes reach. On issue #49 the
+battery sensor resolves perfectly in the backend and reads 100 while the card
+derives an id that does not exist and draws nothing. The card must never
+re-derive something the resolver has already decided.
+
+`entity_bindings` is the table behind the Setup → System sub-tab, assembled
+server-side by `_entity_bindings` so the card stays a display layer
+(`live:ENT-11`). One row per role, `sorted()` by role name, over the adapter's
+declared `entities` **plus** every role it merely probes, so a role the adapter
+resolves through `entity_candidates` without declaring an id for cannot go
+missing from the one screen built to show what
+we read. Its default view is the FULL table, not a failures-only filter: a
+failures-only view is structurally blind to the defect that motivated the work,
+because a collision resolves SUCCESSFULLY, to a real enabled entity, just the
+wrong one by ~4000x — and that screen looks healthy.
+
+```
+{
+  "role":       str
+  "entity_id":  str | None            # what the role is bound to now
+  "reason":     str | None            # live:ENT-2 — "resolved" | "disabled"
+                                      #   | "registered_no_state" | "absent"
+                                      #   | "override_unresolved"
+  "chosen_by":  str | None            # HOW it was chosen; see below
+  "rejected":   dict[entity_id, str]  # each losing candidate -> the trait that ruled it out
+  "options":    list[str]             # what the row's entity picker offers
+  "overridden": bool                  # a user override is what won this role
+}
+```
+
+`chosen_by` is resolved in precedence order (`live:ENT-12`): the ladder rung that
+settled a **contest** (`object_id`, `translation_key`, `state_class`,
+`magnitude` — the `BY_*` constants in `core/capabilities.py`), else where the
+winning candidate came from (`derived`, `override`, `device_sibling`,
+`config_entry_sibling`), else `declared_rescue` when the adapter remapped the
+role, else `None`. `None` means no rung and no origin were recorded for this
+role — NOT that nothing decided it.
+
+`rejected` carries only the rungs that actually RAN. The ladder short-circuits on
+the first decisive rung, so a role decided by `translation_key` never evaluated
+`state_class` or `magnitude`; rendering a rung we never ran as corroboration
+would manufacture confidence, which is the exact failure this surface exists to
+catch.
+
+`options` is swept from the vacuum's **config entry**, not its device. Roborock
+gives the dock its own device — `vacuum.ivy` sits on "Ivy" while
+`binary_sensor.ivy_dock_mop_drying` sits on "Ivy Dock", the same config entry —
+so device scope would hide every dock entity from the picker on that brand. The
+sweep is then narrowed to the bound entity's domain (a role needing a `sensor`
+can never want a `select`); a role with no binding is offered the sweep
+unfiltered.
+
+`overridden` reads the candidate-augmentation report AND the adapter's stored
+`_entity_overrides` map, because the report only ever mentions CANDIDATE roles: a
+declared-only role (battery, the totals, `dock_firmware_version`, `scene_select`)
+is overridden in `entities` and absent from that report, so reading the report
+alone produced a row showing the user's entity while labelling it a name match
+and leaving the picker on Automatic — the binding right, the explanation wrong,
+on the one screen built to be trusted about exactly this. Where the overrides are
+persisted (two stores, config-entry options winning) is [03 §1](03-data-model.md).
+
+The whole block is best-effort: it decorates a dashboard that must render whether
+or not capability detection is happy, so a registry or capability failure yields
+a thinner table, never a broken snapshot.
 
 Because it is **per-vacuum**, it does NOT carry a managed-vacuums list (that is
 the separate `get_managed_vacuums`) nor a `payload` block (the separate

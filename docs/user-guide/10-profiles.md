@@ -97,6 +97,7 @@ A run profile is a full snapshot of the room queue as it was when you saved it. 
 - **Optionally, an ordered list of _steps_** — room groups broken up by **charge** stops ("dock and charge to X% before continuing") and **wait** stops ("dock and hold for X minutes"). A profile without steps is just a plain queue; a profile with steps runs as a sequence. See [Steps: charging and waiting mid-run](#steps-charging-and-waiting-mid-run) below.
 - The profile's display name
 - Whether the profile is exposed as a Home Assistant button entity (see below)
+- Whether the profile insists on its saved room order (see [Keeping the saved room order](#keeping-the-saved-room-order) below)
 
 A run profile is tied to a specific map. You will only see run profiles for the map you are currently viewing.
 
@@ -125,7 +126,8 @@ The Run Profiles panel appears alongside the Rooms view as a side panel on the r
 2. In the Run Profiles panel, click **Save This Setup**.
 3. An editor form opens. Enter a name for the profile (for example, "Morning Clean").
 4. Optionally tick **Expose as Home Assistant Button** if you want the integration to create a button entity for this profile (see below).
-5. Click **Create Profile**.
+5. Optionally tick **Force this exact order** if your vacuum plans its own route and you want it to clean these rooms in the saved order anyway (see [Keeping the saved room order](#keeping-the-saved-room-order) below).
+6. Click **Create Profile**.
 
 The profile appears immediately in the list.
 
@@ -140,6 +142,21 @@ Applying a profile replaces your current queue. It does not start a cleaning run
 When you select a saved profile, its detail section shows a **Run** button alongside **Edit** and **Delete**. **Run** applies the profile *and* starts it immediately — the one-tap "do this now" action, so you do not have to apply and then press **Start** separately.
 
 If the profile has steps (below), **Run** dispatches the whole sequence, not just the first group.
+
+### Keeping the saved room order
+
+A run profile saves the room order, but saving an order and getting it are two different things. A path-optimising vacuum plans its own route and treats the order it is handed as a suggestion, so a profile built as *kitchen, hall, bedroom* can come back cleaned in whatever order the robot preferred.
+
+**Force this exact order** in the run-profile editor — the checkbox directly under **Expose as Home Assistant Button** — stores that insistence on the profile itself. Tick it and a note appears: "Strict order ON — rooms will clean one at a time in the order shown (slower: a dock trip between rooms)." That is the mechanism, not a warning label: strict order does not ask the robot to behave, it dispatches **one room at a time** and only sends the next after the previous one finishes, so there is never more than one room for the robot to reorder. The cost is the dock trip between rooms, which makes the run longer than the same rooms cleaned in one batch.
+
+The reason this lives on the profile, rather than only in the action bar, is the button. The Rooms view has its own **Strict order** toggle (see [The Queue and Room Order](03-queue-and-order.md)), but that one is a property of the card in front of you, not of the profile: it stays as you left it until the card is reloaded, and it is not saved anywhere. A profile started from its exposed Home Assistant button carries no per-run settings at all, so a button-driven run silently discarded the order the profile had saved. The checkbox is how a button-driven run opts in. Editing an existing profile (select it, then **Edit**) shows the box already ticked or unticked to match what was saved.
+
+Two cases where the checkbox makes no difference either way:
+
+- On a vacuum that already cleans in the order it is given — Eufy — ticking it changes nothing. The order is followed regardless.
+- A profile carrying mid-run charge, wait, or zone stops is dispatched in strict order whether or not the box is ticked, because its sequence is deliberate. See [How stepped runs behave on Roborock](#how-stepped-runs-behave-on-roborock).
+
+Profiles saved before this checkbox existed have it off, so an older profile keeps cleaning exactly as it did until you open it and tick the box.
 
 ---
 
@@ -241,6 +258,8 @@ Deletion cannot be undone.
 ### Exposing a run profile as a Home Assistant button
 
 When you create or edit a run profile, you can tick **Expose as Home Assistant Button**. When this is enabled, the backend creates a `button` entity for that profile. Pressing the button from anywhere in Home Assistant — a dashboard, a script, or an automation — applies the saved room configuration and starts the vacuum. If the profile has steps, the button runs the whole sequence (charge and wait stops included), exactly like the card's **Run** button.
+
+Neither the button nor the card's **Run** button carries any per-run settings, so both fall back to the profile's own saved **Force this exact order** setting. The Rooms view's per-run **Strict order** toggle has no bearing on either of them — see [Keeping the saved room order](#keeping-the-saved-room-order).
 
 This is the main way to use run profiles in automations. You do not need to interact with the card at all: your automation calls `button.press` on the profile's entity, and the vacuum starts the saved run. A profile button is also a tidy dashboard tile — it triggers from a tap without opening the card.
 
