@@ -419,6 +419,40 @@ makes them safe. The standing rule that prose cites symbols rather than line num
 exists because prose has no mechanism to stay current. A generator does — provided
 something runs it.
 
+### Line-number citations are banned — `scripts/check_doc_citations.py`
+
+A `file.py:187` citation is the cheapest claim a doc can make and the only one that
+rots **without anyone touching the document**: one import added at the top of a
+module invalidates every citation below it, everywhere.
+
+What makes it a trap rather than a nuisance is that **a rotted line number still
+resolves.** `capabilities.py:187` lands on `return entry.entity_id` — real code, in
+the right file, plausible. A broken link announces itself; this reads as correct.
+
+Measured across `docs/` on 2026-08-15:
+
+| | |
+|---|--:|
+| `file.py:N` citations | **664** |
+| `file.py::symbol` citations | 6 |
+| line citations that could be verified (a symbol was named beside them) | 41 |
+| …of those, **wrong** | **36 (88%)** |
+| line citations with nothing naming what they point at — unverifiable | **623** |
+
+Three of the failures were broken that same morning, by commits to the code the doc
+describes.
+
+So the rule is the form, not the correctness: **prose cites symbols, never line
+numbers.** `file.py::symbol` survives any refactor that does not rename the thing,
+and the checker prints the replacement for every citation it can resolve. Where
+nothing names the target, degrade to the bare `file.py` rather than reverse-engineer
+a pointer that may already be wrong — a file-level citation cannot rot, and the
+precision being given up was fictional.
+
+```bash
+python scripts/check_doc_citations.py --summary
+```
+
 ### Testing a generator: assert on the DOCUMENT
 
 `EVT-1`..`EVT-3` in the same file cover `scripts/gen_event_docs.py`, and they read
