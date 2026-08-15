@@ -103,6 +103,14 @@ _LOGGER = logging.getLogger(__name__)
 # hassfest's CONFIG_SCHEMA requirement for integrations that implement async_setup.
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
+# battery_rebaseline's call schema. A module-level CONSTANT, not the inline
+# vol.Schema({...}) literal it used to be, because tests/unit/
+# test_service_declaration_parity.py can only field-check a schema it can resolve
+# by name — an inline literal made this the ONE documented service its
+# services.yaml-vs-schema parity assertion had to skip, and a services.yaml field
+# the schema rejects then lived in that skip for twelve days.
+_BATTERY_REBASELINE_SCHEMA = vol.Schema({vol.Required("vacuum_entity_id"): cv.entity_id})
+
 
 PLATFORMS: list[str] = [
     "binary_sensor",
@@ -550,7 +558,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             DOMAIN,
             "battery_rebaseline",
             _handle_rebaseline,
-            schema=vol.Schema({vol.Required("vacuum_entity_id"): cv.entity_id}),
+            schema=_BATTERY_REBASELINE_SCHEMA,
         )
         _unwind_stack.append(lambda: hass.services.async_remove(DOMAIN, "battery_rebaseline"))
 

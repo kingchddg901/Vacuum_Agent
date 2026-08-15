@@ -719,7 +719,7 @@ Persists (or clears) a saved per-room viewport `{cx, cy, zoom}` (percentage floa
 
 ## State Inspection
 
-Read-only services that return current integration state. All support response.
+Services that read current integration state, plus the few that reset it (`clear_queue`, `clear_active_job`) or write a setting (`set_pause_timeout_settings`). All support response except `clear_active_job`, which returns nothing.
 
 ### `get_queue_state`
 
@@ -760,6 +760,8 @@ Clears the active job record without sending any command to the vacuum. Persists
 | `map_id` | No |
 
 Use this to recover from a stuck or orphaned job state when `cancel_active_job` is not appropriate (for example, when the vacuum has already finished but the integration still shows an active job). This service does not finalize or archive the job — it only removes the in-memory record.
+
+Does not support response — it is the one service in this section that returns nothing, so `response_variable` has nothing to capture.
 
 ### `get_active_job`
 

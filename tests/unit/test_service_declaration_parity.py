@@ -44,14 +44,25 @@ by answering this, not by pattern-matching an existing entry):
 
 KNOWN GAP (transparent, not silent): field-parity (assertion 3) only covers
 registrations whose `schema=` argument is a plain named reference (e.g.
-`schema=_MY_SCHEMA`). Six registrations pass an INLINE `vol.Schema({...})`
-literal directly in the call (five in services/adapter_config.py, one in
-__init__.py's battery_rebaseline) -- these still count for assertions 1/2,
-but are skipped for 3 since resolving an arbitrary inline AST expression to a
-live object is out of scope for this gate. None of RP-032's known findings
-touch those six. (The five in adapter_config.py are INTERNAL_SERVICES, so
-they never reach the schema step at all; battery_rebaseline is the only
-DOCUMENTED service the schema step itself has to skip.)
+`schema=_MY_SCHEMA`). Five registrations pass an INLINE `vol.Schema({...})`
+literal directly in the call, all in services/adapter_config.py -- these still
+count for assertions 1/2, but are skipped for 3 since resolving an arbitrary
+inline AST expression to a live object is out of scope for this gate. All five
+are INTERNAL_SERVICES, so they never reach the schema step at all, and
+**assertion 3 now covers every DOCUMENTED service with no exceptions.**
+
+THAT WAS NOT ALWAYS TRUE, AND THE GAP COST SOMETHING (2026-08-15).
+battery_rebaseline used to be the sixth inline literal and the ONE documented
+service this assertion had to skip. The EXPECTED_FAILURES note below records
+`pause_timeout_minutes_override` being MOVED off it -- but only the "add to
+start_selected_rooms" half ever happened. The field stayed on
+battery_rebaseline in services.yaml for twelve days, offering a slider that
+made the call fail with `extra keys not allowed`, and this gate could not see
+it because battery_rebaseline was the exact entry its own
+FIELD_PARITY_UNRESOLVED list excused. A guard that EXISTS reads as complete;
+the bug lived in the shoulder just past where its window closed. Fixed by
+hoisting the schema to `_BATTERY_REBASELINE_SCHEMA` in __init__.py -- which is
+what the FIELD_PARITY_UNRESOLVED comment below already told us to prefer.
 
 THE GAP IS PINNED, NOT TOLERATED (2026-08-07): assertion 3 used to `continue`
 past every skip silently and assert only on the violations it found, so a
@@ -142,12 +153,12 @@ INTERNAL_SERVICES: dict[str, str] = {
 # assertion in this file -- prefer hoisting the schema to a module-level
 # constant, which makes it checkable, over adding a line here.
 # ---------------------------------------------------------------------------
-FIELD_PARITY_UNRESOLVED: dict[str, str] = {
-    "battery_rebaseline": (
-        "__init__.py: schema= is an inline vol.Schema({...}) literal in the "
-        "register call, so there is no named constant to resolve."
-    ),
-}
+# EMPTY as of 2026-08-15, and that is the point: every documented service is
+# field-checked. The one entry this list ever held (battery_rebaseline) was
+# retired by hoisting its inline schema to a module-level constant rather than
+# by excusing it -- see "THAT WAS NOT ALWAYS TRUE" in the module docstring for
+# what living in this list cost.
+FIELD_PARITY_UNRESOLVED: dict[str, str] = {}
 
 # ---------------------------------------------------------------------------
 # EXPECTED_FAILURES -- seeded 2026-08-02 (RP-032 commit a) with everything
@@ -214,6 +225,12 @@ EXPECTED_FAILURES: dict[tuple[str, str], str] = {
     # was attached to battery_rebaseline (whose real inline schema is
     # vacuum_entity_id only -- documenting a field it doesn't accept) instead
     # of start_selected_rooms (whose schema does have it); moved, not added.
+    #
+    # CORRECTION 2026-08-15: it was ADDED, not moved. The copy on
+    # battery_rebaseline was never deleted and shipped for twelve more days,
+    # offering a 0-1440 slider whose only effect was to make the call fail.
+    # Removed now, along with the FIELD_PARITY_UNRESOLVED entry that left this
+    # file structurally unable to notice -- see the module docstring.
 
     # SERVIC-7 fixed: all 19 unreferenced schema constants deleted from
     # mapping_services.py (they were never used by any registration call).
