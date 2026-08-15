@@ -1429,7 +1429,15 @@ are dropped, and at least one `room_group` is required):
 
 # wait — dock and hold for a fixed time, then continue (e.g. a mop-dry pause)
 { "type": "wait", "wait_minutes": int }                    # clamped 1..1440
+
+# zone — clean one or more SAVED ZONES as their own phase, then continue
+{ "type": "zone", "zone_ids": list[str] }                  # de-duplicated, order kept
 ```
+
+A `zone` step is a CLEAN phase, not a break: it dispatches `dispatch_zone_clean`
+and completes on the clean-complete signal. Normalization (`profiles/manager.py`)
+drops the step entirely if `zone_ids` is not a list or contains no usable id —
+`zone_ids_not_a_list` / `no_valid_zone_ids` in the drop report.
 
 The SAME room may appear in two `room_group` steps with different per-group
 settings (e.g. vacuum one group, mop the next); the group's fields overlay the
@@ -1445,7 +1453,7 @@ The served/enriched profile (`_enrich_saved_run_profile`, returned by the
 ```
   "steps":            list[RunProfileStep]   # normalized (back-filled for legacy)
   "has_charge_steps": bool                   # True when any step is a charge_wait
-  "has_stops":        bool                   # SEQUENCED run: any charge_wait/wait step OR >1 room_group
+  "has_stops":        bool                   # SEQUENCED run: any charge_wait/wait/ZONE step OR >1 room_group
   "room_count":       int
   "room_ids":         list[int]
   "room_names":       list[str]
@@ -1462,9 +1470,23 @@ unchanged.
 `has_stops` is the backend flag the card reads to drive the stepped-run UI — the
 Start-routing (`pendingStepRunProfileId`) and the stepped preview / chips /
 "Runs as" summary all gate on it. It is DISTINCT from the charge-only
-`has_charge_steps`: `has_stops` is `True` for any break step (`charge_wait` /
-`wait`) OR more than one `room_group`, so a mop-then-vacuum multi-group run with
-no charge/wait step still routes as a sequenced run.
+`has_charge_steps`: `has_stops` is `True` for any stepped step (`charge_wait` /
+`wait` / **`zone`**) OR more than one `room_group`, so a mop-then-vacuum
+multi-group run with no charge/wait step still routes as a sequenced run.
+
+> ⚠ **TWO vocabularies, and they are not the same question** (`step_types.py`).
+> `STEPPED_STEP_TYPES` = `charge_wait` / `wait` / **`zone`** answers *"does this
+> make the run SEQUENCED?"* — a zone belongs, because it is a distinct phase the
+> run must stop and perform. `DOCK_POLLED_PHASE_TYPES` = `charge_wait` / `wait`
+> answers *"is this phase driven by the DOCK POLLER?"* and **deliberately excludes
+> `zone`**: a zone is a CLEAN phase that completes on the clean-complete signal, so
+> adding it there would make the phase wait for a dock condition that never arrives
+> and **the run would hang**.
+>
+> The omission of `zone` has now been found in five copies of the tuple in code and
+> four in these docs. Use the `step_types.py` helpers rather than writing the set
+> out; a caller that reaches for the bare frozenset is one `and` clause away from
+> re-creating the drift that module exists to remove.
 
 ---
 

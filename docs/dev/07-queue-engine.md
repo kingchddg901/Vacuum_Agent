@@ -741,8 +741,8 @@ display) rather than a fabricated estimate.
 - The enriched profile snapshot (`_enrich_saved_run_profile`, `profiles/manager.py`)
   carries two distinct flags. **`has_charge_steps`** is charge-only (any
   `charge_wait` step). **`has_stops`** means "this is a **sequenced** run, not a
-  plain queue" — any break step (`charge_wait` / `wait`) **or** more than one
-  `room_group` — and it is what the card's Start-routing gates on
+  plain queue" — any stepped step (`charge_wait` / `wait` / **`zone`**) **or** more
+  than one `room_group` — and it is what the card's Start-routing gates on
   (`pendingStepRunProfileId`, `src/state/run-profiles.js`), routing an applied
   sequenced profile through the stepped dispatch instead of a plain Start.
   `_enrich_saved_run_profile` also derives `room_count` / `room_ids` / `room_names`

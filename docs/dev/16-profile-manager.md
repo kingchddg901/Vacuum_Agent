@@ -475,7 +475,7 @@ Each `library` entry is passed through `_enrich_saved_run_profile()`, which deri
 
 - `steps` — the normalized ordered steps via `run_profile_steps()`, back-filling a legacy rooms-only profile as one `room_group`.
 - `has_charge_steps` — `True` if any step is a `charge_wait`.
-- `has_stops` — `True` if the profile is a **sequenced** run rather than a plain queue: any break step (`charge_wait` **or** `wait`) **OR** more than one `room_group`. This is **distinct** from the charge-only `has_charge_steps`. The frontend gates the stepped preview/chips, the "Runs as" summary, and Start-routing (`pendingStepRunProfileId`) on `has_stops` (a shared contract with the card lane) — **not** on `has_charge_steps`.
+- `has_stops` — `True` if the profile is a **sequenced** run rather than a plain queue: any stepped step (`charge_wait`, `wait` **or `zone`**) **OR** more than one `room_group`. Computed via `plan_requires_stepped_execution` (`step_types.py`), never a hand-written tuple — see the warning under [03 — Data model → Derived: enriched run-profile view](03-data-model.md#derived-enriched-run-profile-view). This is **distinct** from the charge-only `has_charge_steps`. The frontend gates the stepped preview/chips, the "Runs as" summary, and Start-routing (`pendingStepRunProfileId`) on `has_stops` (a shared contract with the card lane) — **not** on `has_charge_steps`.
 
 ### 7.2 `save_run_profile`
 
