@@ -49,6 +49,7 @@ from ..adapters.entity_resolve import (
     build_suffix_universe,
     claimed_by,
     rescue_by_suffix,
+    sweep_siblings,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -205,26 +206,9 @@ def _sweep_siblings(registry: Any, entry: Any) -> tuple[list[str], int]:
     Returns ``(siblings, device_count)`` so a caller can report the split — the
     two numbers side by side are what tell you WHICH scope is failing.
     """
-    siblings: list[str] = []
-    seen: set[str] = set()
-
-    if getattr(entry, "device_id", None):
-        for item in er.async_entries_for_device(
-            registry, entry.device_id, include_disabled_entities=True
-        ):
-            if item.entity_id not in seen:
-                siblings.append(item.entity_id)
-                seen.add(item.entity_id)
-    device_count = len(siblings)
-
-    config_entry_id = getattr(entry, "config_entry_id", None)
-    if config_entry_id:
-        for item in er.async_entries_for_config_entry(registry, config_entry_id):
-            if item.entity_id not in seen:
-                siblings.append(item.entity_id)
-                seen.add(item.entity_id)
-
-    return siblings, device_count
+    # ONE COPY — adapters.entity_resolve.sweep_siblings. This was the third
+    # duplicated primitive (scope, alongside the two predicate copies).
+    return sweep_siblings(registry, entry)
 
 
 def _rescue_maintenance_source(

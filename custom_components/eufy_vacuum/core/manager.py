@@ -15,6 +15,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
+from ..adapters.entity_resolve import sweep_siblings
 from ..adapters.registry import (
     adapter_honors_clean_order,
     get_adapter_config as _get_adapter_config,
@@ -1229,15 +1230,69 @@ class EufyVacuumManager:
         object_id: str,
         required_tokens: list[str],
     ) -> str | None:
-        """Find a button entity for one vacuum by required tokens."""
+        """Find a button entity for one vacuum by required tokens.
+
+        THE FIFTH COPY of the naming assumption, and the one that looked immune.
+        This is the FALLBACK for when the derived-suffix path misses — and it used
+        to scope itself with ``startswith(f"button.{object_id}_")``, i.e. it
+        carried the exact assumption it exists to rescue. Both paths therefore
+        failed together on any install whose companions are not named after the
+        vacuum, which is issue #49's dock actions reading unavailable while MQTT
+        plainly exposes them, and the maintenance RESET buttons with them.
+
+        It now asks the two-scope sibling question FIRST (the vacuum's own device,
+        then its config entry — the same scopes every other rescue uses), and
+        falls back to the original prefix scan. Additive, not a replacement: the
+        sibling scopes are the better question but they are not a superset, and an
+        install whose button is correctly named yet attached to neither scope
+        works today. Verified against the maintainer's live registry before
+        shipping — every reset button on both vacuums resolves identically.
+
+        The sibling path also cannot make the mistake the prefix scan can: Vacuum
+        Agent's own reset buttons sit on ITS service device and config entry, so
+        neither scope reaches them. That is what the maintenance caller's
+        ``"maintenance" not in entity_id`` substring filter is compensating for —
+        a hack that exists because the registry-wide scan can see our own buttons
+        and bind one as if it were upstream.
+        """
         registry = er.async_get(self.hass)
+
+        # 1. SIBLINGS FIRST — the rescue, and it is PURELY ADDITIVE.
+        #
+        # Exactly-one or nothing: token matching is loose ("all tokens appear
+        # anywhere in the id"), so a widened scope without an abstention rule
+        # would make a wrong bind MORE likely, not less. Two matches means we
+        # cannot tell, and a confident wrong answer here presses the wrong button.
+        try:
+            entry = registry.async_get(f"vacuum.{object_id}")
+            if entry is not None:
+                siblings, _ = sweep_siblings(registry, entry)
+                matches = [
+                    sibling
+                    for sibling in siblings
+                    if sibling.lower().startswith("button.")
+                    and all(token in sibling.lower() for token in required_tokens)
+                ]
+                if len(matches) == 1:
+                    return matches[0]
+        except Exception:  # pragma: no cover - defensive
+            # Failing to ADD a fallback must never remove one.
+            pass
+
+        # 2. THE ORIGINAL PREFIX SCAN, unchanged.
+        #
+        # Kept deliberately rather than replaced. The sibling scopes are the
+        # better question, but they are not a superset: an integration that
+        # registers a correctly-named button without attaching it to the vacuum's
+        # device OR config entry is found by name here and by nothing above. That
+        # install works today, and a scope change alone would silently break it.
         prefix = f"button.{object_id}_".lower()
-        for entry in registry.entities.values():
-            entity_id = str(entry.entity_id).lower()
+        for entry_ in registry.entities.values():
+            entity_id = str(entry_.entity_id).lower()
             if not entity_id.startswith(prefix):
                 continue
             if all(token in entity_id for token in required_tokens):
-                return entry.entity_id
+                return entry_.entity_id
         return None
 
     def _get_registry_model_code(

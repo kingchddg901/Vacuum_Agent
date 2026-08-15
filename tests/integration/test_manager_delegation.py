@@ -261,3 +261,50 @@ async def test_async_job_control_delegations(mgr, method, flag, reason):
     assert out["vacuum_entity_id"] == _VAC
     assert out["map_id"] == _MAP
     assert isinstance(out["active_job"], dict)
+
+
+def test_find_button_by_tokens_rescues_a_sibling_the_prefix_cannot_see(manager, monkeypatch):
+    """[CMR-1b] The hostile-naming rescue: found by SIBLING scope, not by name.
+
+    The prefix scan is the FALLBACK now, not the only path. It carried the same
+    naming assumption as the derived-suffix lookup it exists to rescue --
+    `button.{object_id}_...` -- so on an install whose companions are not named
+    after the vacuum, BOTH failed together. That is issue #49's dock actions
+    reading unavailable while MQTT plainly exposes them, and the maintenance reset
+    buttons with them.
+
+    The sibling SCOPE itself is HA's registry and is exercised elsewhere; what is
+    pinned here is the DECISION made over it.
+    """
+    from custom_components.eufy_vacuum.core import manager as _mgr
+
+    monkeypatch.setattr(_mgr, "sweep_siblings", lambda reg, entry: (
+        ["sensor.living_room_dock_status",
+         "button.living_room_dock_main_brush_reset"], 2))
+    monkeypatch.setattr(
+        er.async_get(manager.hass), "async_get", lambda eid: object(), raising=False)
+
+    assert manager._find_button_entity_by_tokens(
+        object_id="alfred", required_tokens=["main_brush", "reset"],
+    ) == "button.living_room_dock_main_brush_reset"
+
+
+def test_find_button_by_tokens_abstains_when_two_siblings_match(manager, monkeypatch):
+    """[CMR-1c] Exactly-one or nothing.
+
+    Token matching is loose -- "all tokens appear anywhere in the id" -- so a
+    widened scope without an abstention rule makes a wrong bind MORE likely, not
+    less. Two candidates means we cannot tell which is right, and a confident
+    wrong answer here presses the wrong button. Falls through to the prefix scan,
+    which finds nothing for these ids, so the answer is None rather than a guess.
+    """
+    from custom_components.eufy_vacuum.core import manager as _mgr
+
+    monkeypatch.setattr(_mgr, "sweep_siblings", lambda reg, entry: (
+        ["button.dock_a_main_brush_reset", "button.dock_b_main_brush_reset"], 2))
+    monkeypatch.setattr(
+        er.async_get(manager.hass), "async_get", lambda eid: object(), raising=False)
+
+    assert manager._find_button_entity_by_tokens(
+        object_id="alfred", required_tokens=["main_brush", "reset"],
+    ) is None

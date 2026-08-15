@@ -52,6 +52,45 @@ from homeassistant.helpers import entity_registry as er
 _LOGGER = logging.getLogger(__name__)
 
 
+def sweep_siblings(registry: Any, entry: Any) -> "tuple[list[str], int]":
+    """The two sibling SCOPES, in order: the vacuum's device, then its config entry.
+
+    Returns ``(siblings, device_count)`` so a caller can report the split — the two
+    numbers side by side are what tell you which scope is failing.
+
+    live:ENT-5. One scope was proven and the other was the suspect: the candidate
+    path searched only the DEVICE while the declared path searched only the CONFIG
+    ENTRY, and on issue #49 the config-entry search rescued battery and the dock
+    counters on the very same install where the device search found nothing —
+    Eufy's dock is a separate DEVICE but the same config entry.
+
+    Shared so every rescue asks the same question. It is also what makes a
+    substring hack unnecessary in the button path: Vacuum Agent's own entities sit
+    on ITS service device and config entry, so neither scope can reach them and no
+    search can accidentally bind our own button as if it were upstream.
+    """
+    siblings: list[str] = []
+    seen: set[str] = set()
+
+    if getattr(entry, "device_id", None):
+        for item in er.async_entries_for_device(
+            registry, entry.device_id, include_disabled_entities=True
+        ):
+            if item.entity_id not in seen:
+                siblings.append(item.entity_id)
+                seen.add(item.entity_id)
+    device_count = len(siblings)
+
+    config_entry_id = getattr(entry, "config_entry_id", None)
+    if config_entry_id:
+        for item in er.async_entries_for_config_entry(registry, config_entry_id):
+            if item.entity_id not in seen:
+                siblings.append(item.entity_id)
+                seen.add(item.entity_id)
+
+    return siblings, device_count
+
+
 def build_suffix_universe(
     declared_ids: "Iterable[str]",
     vacuum_object_id: str,
