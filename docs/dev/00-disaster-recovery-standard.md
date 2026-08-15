@@ -203,6 +203,22 @@ Grouped by the failure modes above; use as a checklist.
    for any phrase: would it still serve a competent reader who has never seen the
    project's conversations and does not care who discovered the rule? If not, it
    belongs in the audit record.
+6. **A doc that no index reaches is a doc the corpus does not have — check the
+   index when you commit docs.** An index fails by OMISSION, and omission is
+   invisible in prose: a missing table row leaves a hole you can see, a missing
+   clause reads as a complete sentence. The whole of `design/` was unreachable
+   from [the reading order](README.md) until 2026-08-15 — five files named in
+   backticks inside one bullet, none of them linked, two of them created that
+   same week. Under the §0 availability contract an unreachable doc is worse than
+   a missing one: the corpus claims completeness it does not have. Run
+   `python scripts/check_docs_index.py` (naming a file in backticks does **not**
+   count as reaching it).
+
+   > **This is a doc-commit rule, NOT a CI gate — deliberately.** Wiring it into
+   > `tests.yml` would fail every push that adds a doc before the doc pass runs,
+   > which is exactly the friction the 2026-06-12 ruling keeps
+   > `scripts/check_legend_drift.py` manual to avoid. It fires where the cost is
+   > already being paid: when docs are committed, and at the release doc pass.
 
 ## 6. Acceptance test
 

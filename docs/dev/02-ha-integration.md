@@ -33,7 +33,7 @@ Called once when the domain is first loaded. It:
   `index.json` itself and never a symlink) — the directory is served
   statically, so keeping the index that narrow means a stray symlink placed
   there is never advertised or auto-loaded by the card.
-- Registers **five** static HTTP paths via `hass.http.async_register_static_paths`:
+- Registers **six** static HTTP paths via `hass.http.async_register_static_paths`:
   - `/eufy_vacuum/maps` → persisted map image files (`cache_headers=False`)
   - `/eufy_vacuum/textures` → shipped floor-texture assets (`cache_headers=True`)
   - `/eufy_vacuum/frontend` → the compiled card JS bundle (`cache_headers=False`)
@@ -42,6 +42,11 @@ Called once when the domain is first loaded. It:
     deliberately disables caching so a redeploy is picked up, while a woff2
     never changes between releases and must not be re-fetched on every page
     load
+  - `/eufy_vacuum/user_fonts` → user drop-in webfonts (`cache_headers=False`) —
+    cache OFF like the other drop-in directories, because a user iterating on a
+    descriptor must see the edit on refresh; the woff2 files themselves ride
+    heuristic caching, acceptable churn for a user-supplied asset that can
+    change under the same name
   - `/eufy_vacuum/locales` → user-supplied drop-in translation JSON files (from
     `config/eufy_vacuum/locales/`, `cache_headers=False`)
 - Registers the cards bundle as a **global frontend module**

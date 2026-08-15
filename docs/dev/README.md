@@ -118,7 +118,16 @@ Cross-cutting features that span several subsystems.
 
 Not in the numbered reading order — design rationale the subsystem docs point to.
 
-- **[design/](design/map-state-source.md)** — design/proposal references: `map-state-source` (the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)), `eufy-native-transition` (native current-room detection design + validation; its pose/attribution track shipped in 1.8.0), `entity-resolution-reliability` (the contest ladder and its rulings), `room-bounds-from-traces` (retired; kept for the revival criterion), `core-minimality` (the irreducible-core map — analysis, not a changelog; the atom + rings MODEL is stated in [01 §2](01-architecture-overview.md)), `voice-assist-wizard` (design-only, not yet implemented).
+**`design/`** — one file per entry, each LINKED. A design doc named in prose but not
+linked is unreachable from here, which is how this whole set went missing until
+2026-08-15; `scripts/check_docs_index.py` now fails on it.
+
+- [map-state-source](design/map-state-source.md) — the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)
+- [eufy-native-transition](design/eufy-native-transition.md) — native current-room detection design + validation; its pose/attribution track shipped in 1.8.0
+- [entity-resolution-reliability](design/entity-resolution-reliability.md) — the contest ladder, its rungs, and the rulings behind them
+- [core-minimality](design/core-minimality.md) — the irreducible-core map (analysis, not a changelog). The atom + rings **model** is stated normatively in [01 §2](01-architecture-overview.md); this is the measurement behind it and the refactor plan on top of it
+- [room-bounds-from-traces](design/room-bounds-from-traces.md) — retired; kept for the revival criterion (residual vs tolerance), not as live design
+- [voice-assist-wizard](design/voice-assist-wizard.md) — design-only, not yet implemented
 
 *(The battery-accounting and external-run-robustness follow-up trackers were folded into their subsystem docs — [12 §9](12-battery-system.md) and [28 §11](28-external-run-ingestion.md) — and removed 2026-07-29 once their items were closed.)*
 
