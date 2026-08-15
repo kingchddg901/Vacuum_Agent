@@ -3008,6 +3008,7 @@
     "source_config_entry_sibling": "Gevonden in de integratie van de stofzuiger",
     "source_declared_rescue": "Hernoemd — gekoppeld op achtervoegsel",
     "col_change": "Wijzigen",
-    "pick_auto": "Automatisch"
+    "pick_auto": "Automatisch",
+    "pick_clear": "Wissen — terug naar Automatisch"
   }
 }

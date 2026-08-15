@@ -3028,6 +3028,7 @@
     "source_config_entry_sibling": "Trouvé dans l'intégration de l'aspirateur",
     "source_declared_rescue": "Renommé — associé par suffixe",
     "col_change": "Modifier",
-    "pick_auto": "Automatique"
+    "pick_auto": "Automatique",
+    "pick_clear": "Effacer — revenir à Automatique"
   }
 }

@@ -3008,6 +3008,7 @@
     "source_config_entry_sibling": "In der Integration des Saugers gefunden",
     "source_declared_rescue": "Umbenannt — über die Endung zugeordnet",
     "col_change": "Ändern",
-    "pick_auto": "Automatisch"
+    "pick_auto": "Automatisch",
+    "pick_clear": "Zurücksetzen — wieder automatisch"
   }
 }

@@ -2965,6 +2965,7 @@
     "source_config_entry_sibling": "在掃地機的整合中找到",
     "source_declared_rescue": "已重新命名 — 依後綴比對",
     "col_change": "變更",
-    "pick_auto": "自動"
+    "pick_auto": "自動",
+    "pick_clear": "清除 — 恢復自動"
   }
 }

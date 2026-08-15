@@ -3014,6 +3014,7 @@
     "source_config_entry_sibling": "Trovato nell'integrazione dell'aspirapolvere",
     "source_declared_rescue": "Rinominato — abbinato per suffisso",
     "col_change": "Modifica",
-    "pick_auto": "Automatico"
+    "pick_auto": "Automatico",
+    "pick_clear": "Cancella — torna ad Automatico"
   }
 }

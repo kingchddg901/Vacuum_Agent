@@ -5253,10 +5253,13 @@ class EufyVacuumManager:
             )
             if isinstance(caps, dict):
                 reasons = caps.get("entity_resolution_reasons") or {}
-                sources = caps.get("entity_sources") or {}
+                # COPIES: the block below augments both, and these are live
+                # references into the stored capabilities snapshot — mutating them
+                # would write a presentation detail back into persisted state.
+                sources = dict(caps.get("entity_sources") or {})
                 augmentation = caps.get("entity_augmentation") or {}
                 decisions = augmentation.get("decisions") or {}
-                overrides_applied = augmentation.get("overrides_applied") or {}
+                overrides_applied = dict(augmentation.get("overrides_applied") or {})
                 # A role the adapter probes rather than declares still belongs in
                 # the table — otherwise task_status, the role that tells the card
                 # what the vacuum is DOING, would be missing from the one screen
@@ -5268,6 +5271,22 @@ class EufyVacuumManager:
                 "entity bindings: capabilities unavailable for %s",
                 vacuum_entity_id, exc_info=True,
             )
+
+        # `overrides_applied` above only ever mentions CANDIDATE roles, because it
+        # is written by the candidate-augmentation pass. A declared-only role —
+        # battery, the totals, dock_firmware_version, scene_select, and every role
+        # on a brand that probes few — is overridden in `entities` and absent from
+        # that report. Reading only the report therefore produced a row showing the
+        # user's entity while labelling it "Name match" and leaving the picker on
+        # "Automatic": the binding right, the explanation wrong, on the one screen
+        # built to be trusted about exactly this.
+        #
+        # The adapter's stored map is the authority on what the user asked for; the
+        # equality check keeps the label honest when a stale override did NOT win.
+        for _role, _chosen in (config.get("_entity_overrides") or {}).items():
+            if isinstance(_chosen, str) and entities.get(_role) == _chosen:
+                overrides_applied.setdefault(_role, _chosen)
+                sources.setdefault(_role, "override")
 
         # live:ENT-13 — the picker's options: everything on the vacuum's CONFIG
         # ENTRY, narrowed to the role's domain.

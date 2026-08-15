@@ -3016,6 +3016,7 @@
     "source_config_entry_sibling": "Znaleziono w integracji odkurzacza",
     "source_declared_rescue": "Zmieniono nazwę — dopasowano po końcówce",
     "col_change": "Zmień",
-    "pick_auto": "Automatycznie"
+    "pick_auto": "Automatycznie",
+    "pick_clear": "Wyczyść — wróć do trybu automatycznego"
   }
 }

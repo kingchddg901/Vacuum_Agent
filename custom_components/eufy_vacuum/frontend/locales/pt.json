@@ -3026,6 +3026,7 @@
     "source_config_entry_sibling": "Encontrado na integração do aspirador",
     "source_declared_rescue": "Renomeado — associado pelo sufixo",
     "col_change": "Alterar",
-    "pick_auto": "Automático"
+    "pick_auto": "Automático",
+    "pick_clear": "Limpar — voltar a Automático"
   }
 }

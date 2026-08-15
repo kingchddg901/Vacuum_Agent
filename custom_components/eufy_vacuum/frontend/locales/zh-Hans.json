@@ -2965,6 +2965,7 @@
     "source_config_entry_sibling": "在扫地机的集成中找到",
     "source_declared_rescue": "已重命名 — 按后缀匹配",
     "col_change": "更改",
-    "pick_auto": "自动"
+    "pick_auto": "自动",
+    "pick_clear": "清除 — 恢复自动"
   }
 }

@@ -1219,3 +1219,70 @@ async def test_entity_bindings_carry_decisions_and_overrides(hass, manager, monk
         "the picker would not pre-select the user's saved choice — they reopen "
         "the panel and see 'Automatic'"
     )
+
+
+def test_binding_table_credits_an_override_on_a_declared_only_role(hass, manager):
+    """[CAP-10d] A DECLARED-ONLY role that the user overrode must read as their
+    choice, not as a name match.
+
+    `overrides_applied` is written by the candidate-augmentation pass, so it only
+    ever mentions roles in `entity_candidates` — 14 on Eufy, 5 on Roborock. Every
+    other role (battery, the totals, dock_firmware_version, scene_select…) is
+    overridden in `entities` and absent from that report. Reading only the report
+    produced a row that showed the user's entity while labelling it "Name match"
+    and leaving the picker on "Automatic": binding right, explanation wrong, on
+    the one screen built to be trusted about exactly this.
+
+    Verified live before it was fixed: overriding total_cleaning_count on a real
+    Roborock moved `config["entities"]` but left `entity_augmentation` mentioning
+    only the five candidate roles."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {
+            "vacuum": _VAC,
+            # Declared-only: not in _entity_candidates below.
+            "total_cleaning_count": "sensor.picked_by_the_user",
+        },
+        "_entity_candidates": {"cleaning_area": ["sensor.alfred_cleaning_area"]},
+        "_entity_overrides": {"total_cleaning_count": "sensor.picked_by_the_user"},
+    })
+    hass.states.async_set("sensor.picked_by_the_user", "12")
+    hass.states.async_set(_VAC, "docked", {})
+
+    rows = {r["role"]: r for r in manager._entity_bindings(vacuum_entity_id=_VAC)}
+    row = rows["total_cleaning_count"]
+
+    assert row["entity_id"] == "sensor.picked_by_the_user"
+    assert row["overridden"] is True, (
+        "the picker will render 'Automatic' for a role the user explicitly pinned"
+    )
+    assert row["chosen_by"] == "override", (
+        "the Source column will claim 'Name match' for an entity chosen by hand "
+        f"(got {row['chosen_by']!r})"
+    )
+
+
+def test_binding_table_does_not_credit_an_override_that_lost(hass, manager):
+    """[CAP-10e] The other side of CAP-10d: a STALE override must not be credited.
+
+    If the stored choice no longer matches what is actually bound, saying "Your
+    choice" would be a plain falsehood — the user would read the row as proof
+    their pick took effect while the runtime uses something else. Equality is the
+    whole guard, so it gets its own test rather than riding on the one above."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {
+            "vacuum": _VAC,
+            "total_cleaning_count": "sensor.what_actually_won",
+        },
+        "_entity_overrides": {"total_cleaning_count": "sensor.long_gone"},
+    })
+    hass.states.async_set("sensor.what_actually_won", "12")
+    hass.states.async_set(_VAC, "docked", {})
+
+    rows = {r["role"]: r for r in manager._entity_bindings(vacuum_entity_id=_VAC)}
+    row = rows["total_cleaning_count"]
+
+    assert row["entity_id"] == "sensor.what_actually_won"
+    assert row["overridden"] is False
+    assert row["chosen_by"] != "override"

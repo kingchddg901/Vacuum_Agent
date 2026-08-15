@@ -3239,6 +3239,7 @@
     "source_config_entry_sibling": "عُثر عليه في تكامل المكنسة",
     "source_declared_rescue": "أُعيدت تسميته — طوبق باللاحقة",
     "col_change": "تغيير",
-    "pick_auto": "تلقائي"
+    "pick_auto": "تلقائي",
+    "pick_clear": "مسح — العودة إلى التلقائي"
   }
 }

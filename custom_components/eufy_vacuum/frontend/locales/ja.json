@@ -2965,6 +2965,7 @@
     "source_config_entry_sibling": "掃除機の統合内で発見",
     "source_declared_rescue": "名称変更 — 接尾辞で照合",
     "col_change": "変更",
-    "pick_auto": "自動"
+    "pick_auto": "自動",
+    "pick_clear": "クリア — 自動に戻す"
   }
 }

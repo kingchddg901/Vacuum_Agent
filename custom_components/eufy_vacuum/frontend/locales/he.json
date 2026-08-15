@@ -3131,6 +3131,7 @@
     "source_config_entry_sibling": "נמצא באינטגרציה של השואב",
     "source_declared_rescue": "שונה שם — הותאם לפי סיומת",
     "col_change": "שינוי",
-    "pick_auto": "אוטומטי"
+    "pick_auto": "אוטומטי",
+    "pick_clear": "נקה — חזרה לאוטומטי"
   }
 }

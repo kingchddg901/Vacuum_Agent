@@ -194,6 +194,12 @@ export const en = {
   "system.col_source": "Chosen by",
   "system.col_change": "Change",
   "system.pick_auto": "Automatic",
+  // Same <option> as pick_auto, worded for a row that ALREADY carries a choice.
+  // "Automatic" describes a state, which reads as a label rather than an action
+  // once something is pinned — a user who has set an override and wants out has
+  // to infer that picking the state they don't want is how they leave. This one
+  // names the action and its result.
+  "system.pick_clear": "Clear — back to automatic",
   "system.no_value": "no reading",
   "system.unresolved": "not found",
   "system.rejected": "Also matched",

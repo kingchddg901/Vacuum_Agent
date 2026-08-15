@@ -945,7 +945,11 @@ export function applySetupRenderers(proto) {
       const picker = options.length
         ? `<select class="evcc-system-picker" data-action="set-entity-override"
                    data-role="${this.escapeHtml(String(row?.role ?? ""))}">
-             <option value="">${this.t("system.pick_auto")}</option>
+             <option value="">${
+               row?.overridden
+                 ? this.t("system.pick_clear")
+                 : this.t("system.pick_auto")
+             }</option>
              ${options.map((id) => `
                <option value="${this.escapeHtml(id)}" ${row?.overridden && id === entityId ? "selected" : ""}>
                  ${this.escapeHtml(id)}

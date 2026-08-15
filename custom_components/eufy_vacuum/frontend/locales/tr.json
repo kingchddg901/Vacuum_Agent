@@ -3007,6 +3007,7 @@
     "source_config_entry_sibling": "Süpürgenin entegrasyonunda bulundu",
     "source_declared_rescue": "Yeniden adlandırıldı — son ekle eşleşti",
     "col_change": "Değiştir",
-    "pick_auto": "Otomatik"
+    "pick_auto": "Otomatik",
+    "pick_clear": "Temizle — otomatiğe dön"
   }
 }

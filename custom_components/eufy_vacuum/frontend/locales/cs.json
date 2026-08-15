@@ -3015,6 +3015,7 @@
     "source_config_entry_sibling": "Nalezeno v integraci vysavače",
     "source_declared_rescue": "Přejmenováno — spárováno podle přípony",
     "col_change": "Změnit",
-    "pick_auto": "Automaticky"
+    "pick_auto": "Automaticky",
+    "pick_clear": "Zrušit — zpět na automatické"
   }
 }
