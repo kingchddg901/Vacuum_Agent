@@ -350,7 +350,7 @@ These keys are not written at the fire site. The firing helper extends its paylo
 |---|---|---|---|
 | `custom_components/eufy_vacuum/core/manager.py:4772` | `EufyVacuumManager._fire_stuck_event` | local `payload`: dict literal at line 4764; extended by the caller via `detail=` | — |
 | `custom_components/eufy_vacuum/jobs/active_job.py:1160` | `ActiveJobTracker.detect_run_anomalies` | dict literal at the call site | `_stall_threshold > 0 and current_room_elapsed_minutes >= _stall_threshold * _STALL_RATIO` ⟶ `emit` ⟶ `current_room_id not in _notified` |
-| `custom_components/eufy_vacuum/services/stall_capture.py:151` | `_dev_inject_stall` | local `payload`: dict literal at line 129 | — |
+| `custom_components/eufy_vacuum/services/stall_capture.py:152` | `_dev_inject_stall` | local `payload`: dict literal at line 129 | — |
 
 > **Line numbers here are current by construction.** They are regenerated from
 > source and CI fails when this file disagrees with the generator, which is the
