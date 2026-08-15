@@ -94,10 +94,10 @@ invisible for as long as a fallback existed to answer for them.
 | Site | Catalog source |
 |---|---|
 | Dispatch — `queue/queue_engine.py:build_room_clean_payload` | adapter, threaded into `resolve_room_profile_for_room` + `apply_capability_gate` |
-| Bulk apply — `manager.py:apply_room_profile` | adapter, so a brand fills omitted fields from ITS `normalize_defaults` (§5.5) |
-| Room CRUD — `manager.py:_finalize_room_update` / `_match_profile_from_fields` / `_protected_room_config` | adapter, via the required `vacuum_entity_id` parameter |
-| Effective details — `manager.py:get_effective_room_details` | adapter |
-| Profile library — `manager.py:get_room_profiles` | adapter when `vacuum_entity_id` is given; otherwise the SAVED library alone, flagged `built_ins_included: false` |
+| Bulk apply — `profiles/manager.py:apply_room_profile` | adapter, so a brand fills omitted fields from ITS `normalize_defaults` (§5.5) |
+| Room CRUD — `profiles/manager.py:_finalize_room_update` / `_match_profile_from_fields` / `_protected_room_config` | adapter, via the required `vacuum_entity_id` parameter |
+| Effective details — `profiles/manager.py:get_effective_room_details` | adapter |
+| Profile library — `profiles/manager.py:get_room_profiles` | adapter when `vacuum_entity_id` is given; otherwise the SAVED library alone, flagged `built_ins_included: false` |
 
 `get_room_profiles` is the one that cannot simply require a vacuum: it backs a shipped
 service that callers already invoke with no arguments. Rather than defaulting to a brand,

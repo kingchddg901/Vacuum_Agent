@@ -58,6 +58,10 @@ SOURCE_ROOTS = ("custom_components", "scripts", "tests", "harness")
 
 DOC_ROOTS = ("docs",)
 
+# Illustrative paths used when DOCUMENTING the citation rule itself. They are not
+# claims about this repo and must not be reported as broken ones.
+PLACEHOLDERS = {"file.py", "path/to/file.py", "module.py"}
+
 # Tallied by form, because the ban is on the FORM, not on being currently wrong.
 FORMS = {"line": 0, "symbol": 0, "strong": 0, "weak": 0}
 
@@ -160,9 +164,17 @@ class Index:
         self._syms: dict[pathlib.Path, dict[str, list[tuple[int, int]]]] = {}
         self._lines: dict[pathlib.Path, int] = {}
 
+    # A bare `__init__.py` means the integration's own entry point. That is the
+    # docs' established convention — `02-ha-integration.md` writes it that way eight
+    # times — and it is unambiguous to a reader even though 35 files share the name.
+    # Teaching the resolver the convention beats rewriting the prose to suit the tool.
+    PACKAGE_ROOT = "custom_components/eufy_vacuum"
+
     def resolve(self, cited: str) -> tuple[pathlib.Path | None, str]:
         """Cited path → file on disk. Returns (path, note); note explains a miss."""
         cited = cited.lstrip("./")
+        if cited == "__init__.py":
+            cited = f"{self.PACKAGE_ROOT}/__init__.py"
         if cited in self._by_rel:
             return self._by_rel[cited], ""
         # a partial path like `adapters/eufy/adapter.py`
@@ -215,6 +227,8 @@ def check_doc(doc: pathlib.Path, idx: Index) -> tuple[list[Problem], int]:
     for lineno, line in enumerate(text.splitlines(), 1):
         for m in CITE_RE.finditer(line):
             cited = m.group("path")
+            if cited in PLACEHOLDERS:
+                continue  # illustrative, in the doc that explains this rule
             py, note = idx.resolve(cited)
             if py is None:
                 problems.append(Problem(rel, lineno, "UNRESOLVED", f"`{cited}` — {note}"))

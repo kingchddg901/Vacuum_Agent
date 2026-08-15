@@ -577,7 +577,7 @@ custom_components/eufy_vacuum/frontend/animal-svg/
 > The animal list above is illustrative — current as of writing, not exhaustive. Because `index.json` is auto-generated at startup from whatever `.js` files exist in `animals/`, the shipped set can change without this tree being updated.
 
 `animals/index.json` is **not** hand-maintained — the integration regenerates it at
-startup from whatever `.js` files exist in `animals/` (`__init__.py:129-137`, a sorted
+startup from whatever `.js` files exist in `animals/` (`sensor/__init__.py:129-137`, a sorted
 `os.listdir` filtered to `.js`), and `manifest.js` `fetch`es it to decide which animal
 files to load.
 

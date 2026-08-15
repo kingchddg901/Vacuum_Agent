@@ -294,7 +294,7 @@ orchestrate multiple subsystems or span too many data keys to belong to one.
 
 ### `update_room_fields`
 
-The most cross-cutting write in the system (`manager.py:1553`). Accepts a room
+The most cross-cutting write in the system (`core/manager.py:1553`). Accepts a room
 update (`enabled`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`,
 `clean_passes`, `edge_mopping`, `color`, `is_dock_room`, `is_transition`,
 `grants_access_to`, `rules` — keyword-only, all optional), applies it to
@@ -343,8 +343,8 @@ defaults to the module-level `_UNSET = object()` sentinel because `None` is
 meaningful for this field: `_UNSET` leaves the existing override untouched,
 `None` or an empty string clears the override (empty string coalesces to `None`
 so a cleared field is never stored as `""`), and any other value stores the
-schema-canonicalized hex. Ref: `manager.py:1566` (param), `manager.py:60`
-(`_UNSET` sentinel), `manager.py:1627-1628` (three-way apply logic).
+schema-canonicalized hex. Ref: `core/manager.py:1566` (param), `core/manager.py:60`
+(`_UNSET` sentinel), `core/manager.py:1627-1628` (three-way apply logic).
 
 ### `start_selected_rooms` (and the `start_run_profile` delegator)
 

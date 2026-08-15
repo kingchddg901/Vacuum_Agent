@@ -1966,7 +1966,7 @@ supports_room_profiles     supports_zone_clean
 >
 > **`supports_base_station` / `supports_map_bounds` are not capability flags —
 > they are snapshot-DERIVED** in `core/manager.py::get_dashboard_snapshot`
-> (`manager.py:3949-3963` — base_station at `:3950`, map_bounds at `:3961`), not
+> (`core/manager.py:3949-3963` — base_station at `:3950`, map_bounds at `:3961`), not
 > read from the `capabilities` block (no adapter declares them):
 >
 > - `supports_base_station` = `bool(dock_events.enabled)` OR any of

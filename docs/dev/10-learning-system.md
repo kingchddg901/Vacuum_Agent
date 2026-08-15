@@ -816,7 +816,7 @@ baseline to exist before protecting one.
 
 Separate from `used_for_learning`, each job carries an `outcome.sanity_passed` /
 `outcome.sanity_flags` pair used only by the **history snapshot** the card renders
-(`manager.py::get_learning_history_snapshot`), not by the aggregation gate above. The snapshot
+(`learning/manager.py::get_learning_history_snapshot`), not by the aggregation gate above. The snapshot
 maps known sanity flags (e.g. `invalid_room_count` → an invalid room count was detected) to display text and contributes to the per-job `outlier_score` / the
 "suggest exclude" hint.
 
