@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/09-room-rules-system.md](../../dev/09-room-rul
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `run_plan.py` | 603 | 93% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit), `test_water_vocabulary_boundary.py` (unit) | int + unit | **bare x1** |
+| `run_plan.py` | 604 | 93% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit), `test_water_vocabulary_boundary.py` (unit) | int + unit | **bare x1** |
 
 ---
 

@@ -230,7 +230,16 @@ def collect_doc_testfiles(by_base: dict[str, list[str]]) -> dict[str, set[str]]:
 # file**" (may wrap a line). The two irregular headers (15-adapters' framework/
 # Eufy split, 18-platforms' "many files") don't match and are flagged for a
 # hand-fix.
-HEADER_RE = re.compile(r"\*\*\s*~?\d+\s+tests\s+(?:across|in)\s+\d+\s+files?\s*\*\*")
+# Qualifiers in these headers are EDITORIAL and load-bearing: "94 **framework**
+# tests", "167 tests across 7 **integration** files", "114 tests across **the** 4
+# **core** files" each say something the bare count does not. They are captured and
+# replayed, never flattened — an earlier form of this regex matched only the plain
+# shape, so four subsystem docs fell to "irregular, fix by hand" and their numbers
+# then rotted untouched for as long as the qualifier survived.
+HEADER_RE = re.compile(
+    r"\*\*\s*~?\d+\s+(?P<tq>\w+\s+)?tests\s+(?:across|in)\s+"
+    r"(?P<the>the\s+)?\d+\s+(?P<fq>\w+\s+)?files?\s*\*\*"
+)
 FUNC_NOTE_RE = re.compile(r"\(\d+ test functions")
 
 
@@ -252,13 +261,21 @@ def update_subsystem_headers(
         joiner = "in" if m == 1 else "across"
         print(f"  {stem}: {n_cases} cases / {n_funcs} funcs / {m} files")
         text = doc.read_text(encoding="utf-8")
-        if HEADER_RE.search(text):
+        match = HEADER_RE.search(text)
+        if match:
+            # Replay whatever qualifiers the sentence carried; only the NUMBERS
+            # are ours to own.
+            tq = match.group("tq") or ""
+            the = match.group("the") or ""
+            fq = match.group("fq") or ""
             editor.sub(doc, HEADER_RE.pattern,
-                       f"**{n_cases} tests {joiner} {m} {word}**",
+                       f"**{n_cases} {tq}tests {joiner} {the}{m} {fq}{word}**",
                        label="header count")
         else:
-            print(f"  WARN [{doc.name}] no regular '**N tests across M files**' "
-                  f"header — irregular, fix by hand")
+            print(f"  WARN [{doc.name}] NO test-count header at all — this doc's "
+                  f"count can never be regenerated. Add one reading "
+                  f"'**{n_cases} tests {joiner} {m} {word}**' and it becomes "
+                  f"self-maintaining.")
         if FUNC_NOTE_RE.search(text):
             editor.sub(doc, FUNC_NOTE_RE.pattern,
                        f"({n_funcs} test functions", label="func note")
@@ -321,16 +338,47 @@ def subsystem_totals(
     return out
 
 
+#: A module below this many statements is not worth a coverage row of its own —
+#: package __init__ files, tiny constant modules. Above it, an absent row means a
+#: published subsystem percentage is computed over a set that excludes real code.
+UNCLAIMED_STMT_FLOOR = 20
+
+
 def report_unclaimed(claimed: dict[str, set[str]], index: dict[str, dict]) -> None:
     """Source modules counted in the grand total but absent from every
-    subsystem table — a doc-drift signal."""
+    subsystem table — a doc-drift signal.
+
+    SPLIT BY SUBSTANCE ON PURPOSE. A flat list of 80 names reads as noise and gets
+    skipped, which is how ``adapters/entity_resolve.py`` (72 stmts, 85%) and
+    ``services/stall_capture.py`` (43 stmts, 37%) stayed unlisted while the
+    Adapters and Services percentages were published over tables that excluded
+    them. This tool never ADDS a row — a row needs a test-file column and a
+    mocking verdict only a human can supply — so the least it can do is make the
+    handful that matter impossible to miss.
+    """
     everywhere = set().union(*claimed.values()) if claimed else set()
     missing = sorted(rel for rel in index if rel not in everywhere)
-    if missing:
-        print(f"\n  note: {len(missing)} source module(s) not listed in any "
-              f"subsystem table (counted in the grand total only):")
-        for rel in missing:
-            print(f"        {rel}  ({index[rel]['percent_covered_display']}%)")
+    if not missing:
+        return
+
+    def _stmts(rel: str) -> int:
+        return int(index[rel].get("num_statements") or 0)
+
+    substantive = [
+        rel for rel in missing
+        if not rel.endswith("__init__.py") and _stmts(rel) >= UNCLAIMED_STMT_FLOOR
+    ]
+    trivial = [rel for rel in missing if rel not in substantive]
+    if substantive:
+        print(f"\n  ==> {len(substantive)} SUBSTANTIVE module(s) missing a coverage "
+              f"row (>= {UNCLAIMED_STMT_FLOOR} stmts). Any subsystem % that omits "
+              f"them is published over an incomplete table:")
+        for rel in sorted(substantive, key=lambda r: -_stmts(r)):
+            print(f"        {rel}  ({_stmts(rel)} stmts, "
+                  f"{index[rel]['percent_covered_display']}%)")
+    if trivial:
+        print(f"\n  note: {len(trivial)} further unlisted module(s) below the floor "
+              f"(package __init__ / tiny constants) — usually fine.")
 
 
 def update_subsystem_index(per_sub: dict[str, str], totals: dict, editor: Editor) -> None:

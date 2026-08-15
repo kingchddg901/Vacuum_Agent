@@ -3,8 +3,8 @@
 How the test suite is built, how to run it, and how to add to it without
 rebuilding the scaffolding every time.
 
-The suite currently has **3,369 test functions** across **176 test files**
-(60 unit, 103 integration, 13 adapter) — 3,859 cases after parametrization —
+The suite currently has **3,627 test functions** across **200 test files**
+(78 unit, 104 integration, 18 adapter) — 4,259 cases after parametrization —
 running on Python 3.14 inside a Linux container. The CI behavior gate
 (`pytest tests --no-cov`, which also collects the fourth `tests/replay/`
 directory below — **3,869 cases** total) is all green. Prefer that number and
@@ -14,8 +14,8 @@ been observed to fail one adapter test
 (`tests/adapters/test_brand_selection.py::test_register_brand_adapter_falls_back_and_says_so`,
 passes in isolation and under the full `tests` gate — see
 [bug signals](#known-test-suite-issues)) via an apparent cross-test state leak,
-not a real regression. Those 3,369/3,859 exercise the **205 source modules**
-under `custom_components/eufy_vacuum/` to **94.4% coverage** (93% combined
+not a real regression. Those 3,369/3,859 exercise the **217 source modules**
+under `custom_components/eufy_vacuum/` to **93.9% coverage** (92% combined
 with branch coverage, adapters included); see the
 [subsystems index](subsystems/README.md) for the per-subsystem breakdown. A
 separate fourth track, the **recorder-replay harness** (`tests/replay/` — real

@@ -4,7 +4,7 @@ The core package is the orchestrator: `EufyVacuumManager` ties every subsystem
 together and owns the live read surfaces the dashboard polls (lifecycle, job
 progress, start-status), plus the storage layer, capability cache, error-tracker
 latch, the post-job water amendment, and the brand-agnostic charging /
-low-battery-return reads. Covered by **317 tests across 16 files**.
+low-battery-return reads. Covered by **341 tests across 16 files**.
 
 Source: `custom_components/eufy_vacuum/core/`
 Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.md), [docs/dev/23-error-tracker.md](../../dev/23-error-tracker.md)
@@ -79,9 +79,9 @@ unconditionally.
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `manager.py` | 2113 | 94% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit | **bare x10** |
-| `error_tracker.py` | 451 | 87% | `test_core_error_tracker.py` | integration | **bare x1** |
-| `capabilities.py` | 157 | 95% | `test_core_capabilities.py` | integration | clean |
+| `manager.py` | 2225 | 91% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit | **bare x10** |
+| `error_tracker.py` | 458 | 87% | `test_core_error_tracker.py` | integration | **bare x1** |
+| `capabilities.py` | 353 | 91% | `test_core_capabilities.py` | integration | clean |
 | `charging.py` | 42 | 100% | `test_charging.py` (unit) | unit | clean |
 | `run_state.py` | 15 | 100% | `test_core_run_state.py` (unit) | unit | clean |
 | `water_amendment.py` | 123 | 92% | `test_core_water_amendment.py` | integration | clean |

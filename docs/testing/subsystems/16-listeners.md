@@ -5,7 +5,7 @@ lifecycle (auto-finalize), job-progress ticks, job-metrics watch maps,
 dock-events, path-blockers (mid-job rule re-evaluation), discovery passes,
 pause-timeout escalation, and pose sampling (external-run pose time-series
 capture for room auto-attribution) — plus the registration/teardown plumbing.
-Covered by **167 tests across 7 integration files**, with the pose sampler
+Covered by **234 tests across 12 integration files**, with the pose sampler
 covered separately by `tests/unit/test_pose_sampler.py` (24 tests) — 191
 cases total.
 
@@ -21,17 +21,17 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `lifecycle.py` | 144 | 94% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration | **bare x28** |
+| `lifecycle.py` | 145 | 94% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration | **bare x28** |
 | `path_blockers.py` | 142 | 95% | `test_listeners_state_driven.py`, `test_listeners_path_blockers.py` | integration | spec'd |
 | `job_metrics.py` | 98 | 94% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration | **bare x28** |
-| `stall_capture.py` | new | — | `tests/unit/test_stall_capture_listener.py`, `tests/unit/test_receipts_criterion.py`, `tests/unit/test_receipts_happy_path.py`, `tests/unit/test_receipts_concurrency.py` | unit (pure helpers, the decline paths, the whole chain, and two chains at once) | clean |
+| `stall_capture.py` | 152 | 83% | `tests/unit/test_stall_capture_listener.py`, `tests/unit/test_receipts_criterion.py`, `tests/unit/test_receipts_happy_path.py`, `tests/unit/test_receipts_concurrency.py` | unit (pure helpers, the decline paths, the whole chain, and two chains at once) | clean |
 | `receipts/` | new | — | `tests/unit/test_receipts.py` | unit | clean |
 | `dock_events.py` | 65 | 92% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration | **bare x28** |
 | `discovery.py` | 81 | 99% | `test_listeners_timers.py` | integration | clean |
-| `pause_timeout.py` | 74 | 92% | `test_listeners_timers.py` | integration | clean |
-| `_common.py` | 80 | 93% | `test_listeners_common.py` | integration | clean |
-| `job_progress.py` | 44 | 95% | `test_listeners_active.py` | integration | **bare x28** |
-| `pose_sampler.py` | 159 | 89% | `test_pose_sampler.py` (unit) | unit | **bare x5** |
+| `pause_timeout.py` | 89 | 95% | `test_listeners_timers.py` | integration | clean |
+| `_common.py` | 80 | 91% | `test_listeners_common.py` | integration | clean |
+| `job_progress.py` | 48 | 92% | `test_listeners_active.py` | integration | **bare x28** |
+| `pose_sampler.py` | 165 | 90% | `test_pose_sampler.py` (unit) | unit | **bare x5** |
 
 **Two gates, and neither alone is sufficient — demonstrated, not assumed.**
 `scripts/check_receipts.py` is a static AST scan: it proves a receipt's call site EXISTS and

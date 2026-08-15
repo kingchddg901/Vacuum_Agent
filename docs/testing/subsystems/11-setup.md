@@ -13,7 +13,7 @@ Architecture reference: [docs/dev/15-setup-system.md](../../dev/15-setup-system.
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `drift.py` | 305 | 84% | `test_setup_drift.py`, `test_setup_drift_deep.py` | integration | clean |
+| `drift.py` | 311 | 83% | `test_setup_drift.py`, `test_setup_drift_deep.py` | integration | clean |
 | `workflow.py` | 67 | 91% | `test_setup_workflow.py`, `test_setup_workflow_deep.py` | integration | **bare x1** |
 | `status.py` | 82 | 96% | `test_setup_status.py` | integration | clean |
 | `delete.py` | 59 | 95% | `test_setup_delete.py` | integration | clean |

@@ -7,7 +7,7 @@
 
 The learning subsystem records cleaning runs, rebuilds per-room/per-profile
 stats, estimates ETAs with a confidence model, and finalizes completed jobs. It
-is exercised by **624 tests across 17 files** (605 test functions, expanded by
+is exercised by **631 tests across 18 files** (612 test functions, expanded by
 parametrization).
 
 Source: `custom_components/eufy_vacuum/learning/`
@@ -58,12 +58,12 @@ Mirrors the dispatch side, where `queue_engine` only writes `water_level` /
 
 | Source module | Stmts | Cov | Test file(s) | Layer | Mocking |
 |---------------|------:|----:|--------------|-------|-------|
-| `utils.py` | 109 | 94% | `tests/unit/test_learning_utils.py` | unit (pure) | clean |
+| `utils.py` | 108 | 92% | `tests/unit/test_learning_utils.py` | unit (pure) | clean |
 | `estimator.py` | 535 | 93% | `tests/unit/test_learning_estimator.py` | unit (pure + class) | **bare x1** |
 | `history_store.py` | 733 | 91% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) | **bare x1** |
-| `stats_rebuilder.py` | 501 | 95% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) | **bare x1** |
+| `stats_rebuilder.py` | 503 | 95% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) | **bare x1** |
 | `job_finalizer.py` | 631 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration | **bare x8** |
-| `manager.py` | 939 | 93% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` + `tests/unit/test_profile_name_filter.py` | integration | clean |
+| `manager.py` | 959 | 93% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` + `tests/unit/test_profile_name_filter.py` | integration | clean |
 | `services.py` | 268 | 91% | `tests/integration/test_learning_services.py` | integration | clean |
 | `external_ingest.py` | 433 | 96% | `tests/unit/test_learning_external_ingest.py` | unit (pure) | **bare x1** |
 | `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) | clean |
