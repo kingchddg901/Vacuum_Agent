@@ -418,3 +418,20 @@ as the `generated docs` job in `tests.yml`.
 makes them safe. The standing rule that prose cites symbols rather than line numbers
 exists because prose has no mechanism to stay current. A generator does — provided
 something runs it.
+
+### Testing a generator: assert on the DOCUMENT
+
+`EVT-1`..`EVT-3` in the same file cover `scripts/gen_event_docs.py`, and they read
+the emitted markdown rather than anything the generator printed about itself. That
+distinction is the whole point. The bug they pin had reached the output: where two
+fire sites built a payload key differently, only the first expression survived, so
+17 slots printed one expression as though it were the only one — `source` and
+`trigger` among them, the keys an automation actually branches on. Every count the
+generator reported was correct while the document was wrong, so no stdout assertion
+could have seen it.
+
+They run against a synthetic three-file package via `EVCC_EVT_ROOT`, not the real
+integration, so ordinary churn cannot fail them for an unrelated reason. `EVT-3`
+asserts the blind-spot ledger is present **and non-empty**: a generated page that
+declares no blind spots reads as one that has none, which is how
+`THEME_TOKEN_USAGE.md` once reported 135 live theme tokens as dead.

@@ -508,6 +508,14 @@ constants live in `const.py`; the two exceptions are `EVENT_ROOM_COMPLETED`
 (defined locally in `mapping/tracker.py`) and `EVENT_STALL_CAPTURED` (defined
 locally in `listeners/stall_capture.py`).
 
+> The table below is the orientation view — the events worth knowing and the
+> payload fields worth branching on. The complete set, with every fire site, every
+> payload key and the expression each one is built from, is generated into
+> [reference/EVENTS.md](reference/EVENTS.md) directly from the `async_fire` call
+> sites. Note that the event names are **built**, not literal
+> (`EVENT_JOB_FINISHED = f"{DOMAIN}_job_finished"`), which is why a grep for the
+> string values finds almost none of them.
+
 | Event constant | String value | Fired from | Key payload fields |
 |---|---|---|---|
 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | `core/manager.py` (job start, `source="job_start"`) + `ActiveJobTracker` (`jobs/active_job.py`, timing rollover **and** native-signal path) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `started_at`, `source`, **`completed_room_ids`** (all three fire sites include it — see 06 §10) |

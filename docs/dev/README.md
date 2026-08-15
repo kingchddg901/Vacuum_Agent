@@ -146,12 +146,17 @@ set in **[frontend/](frontend/architecture-overview.md)**. Start with the **arch
 
 Not in the numbered reading order.
 
-- **[reference/](reference/ai-theme-authoring.md)** — theme-token references:
-  [THEME_TOKEN_MAP](reference/THEME_TOKEN_MAP.md) + [THEME_TOKEN_USAGE](reference/THEME_TOKEN_USAGE.md)
-  (both **generated** — regenerate with `node scripts/gen-theme-token-docs.mjs`, never hand-edit;
-  CI fails if the tree's copy is not what the generator emits, see
-  [the staleness gate](../testing/04-patterns-and-conventions.md#generated-documentation--the-staleness-gate)) and
-  [ai-theme-authoring](reference/ai-theme-authoring.md) (theming the card with an AI assistant).
+- **[reference/](reference/ai-theme-authoring.md)** — the **generated** half of the docs: facts
+  derived from source, never hand-edited. CI fails if any of them is not what its generator emits
+  now — see [the staleness gate](../testing/04-patterns-and-conventions.md#generated-documentation--the-staleness-gate),
+  or run `python scripts/check_generated_docs.py --fix`.
+    - [EVENTS](reference/EVENTS.md) — every event on `hass.bus`, its payload keys and its fire
+      sites (`python scripts/gen_event_docs.py`). The *reasons* stay in
+      [02-ha-integration §7](02-ha-integration.md) and [06-job-lifecycle §10](06-job-lifecycle.md).
+    - [THEME_TOKEN_MAP](reference/THEME_TOKEN_MAP.md) + [THEME_TOKEN_USAGE](reference/THEME_TOKEN_USAGE.md)
+      — the token catalog and its CSS-usage trace (`node scripts/gen-theme-token-docs.mjs`).
+    - [ai-theme-authoring](reference/ai-theme-authoring.md) — hand-written: theming the card with
+      an AI assistant.
 - **`dev/maintenance/`** — the hostile-audit working ledger
   (`highly-aggressive-audit.md`): what each subsystem audit found, what is fixed, what is still open.
   **Repo-only** — excluded from the published docs site (`exclude_docs` in `mkdocs.yml`), so it is

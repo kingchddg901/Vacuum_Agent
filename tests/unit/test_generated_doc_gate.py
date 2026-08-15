@@ -251,6 +251,100 @@ def test_gdg12_real_registry_is_well_formed():
             assert (REPO / rel).is_file(), f"{gen.id} names a file not in the tree: {rel}"
 
 
+# ---------------------------------------------------------------------------
+# The event-reference generator. These assert on the EMITTED DOCUMENT rather than
+# on a count the generator printed about itself — a defect that reaches the
+# deliverable is invisible to a harness that only ever reads stdout.
+#
+# Driven against a synthetic three-file package via EVCC_EVT_ROOT, so ordinary
+# churn in the real integration cannot make them fail for an unrelated reason.
+# ---------------------------------------------------------------------------
+
+FAKE_PKG = {
+    "const.py": '''
+DOMAIN = "eufy_vacuum"
+EVENT_THING = f"{DOMAIN}_thing"
+EVENT_NEVER = f"{DOMAIN}_never_fired"
+''',
+    "a.py": '''
+from .const import EVENT_THING
+
+
+async def from_the_manager(hass, vacuum_entity_id, seen_at):
+    hass.bus.async_fire(EVENT_THING, {"who": vacuum_entity_id, "at": seen_at})
+
+
+async def from_a_service(hass, call):
+    hass.bus.async_fire(EVENT_THING, {"who": call.data["who"], "at": call.data["at"]})
+''',
+}
+
+
+def _run_events_generator(tmp_path: Path) -> str:
+    """Render the event reference for a synthetic package; return the document."""
+    import os
+    import subprocess
+
+    pkg = tmp_path / "custom_components" / "eufy_vacuum"
+    pkg.mkdir(parents=True)
+    for name, body in FAKE_PKG.items():
+        (pkg / name).write_text(body, encoding="utf-8")
+
+    out = tmp_path / "out"
+    env = dict(os.environ)
+    env["EVCC_EVT_ROOT"] = str(tmp_path)
+    env["EVCC_GENDOC_OUT"] = str(out)
+    proc = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "gen_event_docs.py")],
+        cwd=REPO, env=env, capture_output=True, text=True, timeout=300,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return (out / "EVENTS.md").read_text(encoding="utf-8")
+
+
+def test_evt1_every_value_expression_reaches_the_document(tmp_path):
+    """[EVT-1] Two sites build `who` differently. BOTH expressions must be printed.
+
+    The regression this pins: an earlier draft kept the first expression it saw and
+    dropped the rest, so 17 payload slots printed one expression as though it were
+    the only one — `source` and `trigger` among them, which are exactly the keys an
+    automation branches on. Nothing about the output looked wrong.
+    """
+    doc = _run_events_generator(tmp_path)
+
+    row = next(ln for ln in doc.splitlines() if ln.startswith("| `who` |"))
+    assert "vacuum_entity_id" in row, row
+    assert "call.data['who']" in row, row
+
+
+def test_evt2_the_event_name_is_resolved_not_read(tmp_path):
+    """[EVT-2] Names are BUILT (`f"{DOMAIN}_thing"`). A literal-only scan finds none.
+
+    Also pins the unfired-constant table: `EVENT_NEVER` exists and nothing fires it,
+    which is a fact about the code, not an omission by the generator.
+    """
+    doc = _run_events_generator(tmp_path)
+
+    assert "eufy_vacuum_thing" in doc
+    assert "EVENT_NEVER" in doc and "eufy_vacuum_never_fired" in doc
+
+
+def test_evt3_the_document_declares_its_blind_spots(tmp_path):
+    """[EVT-3] The ledger is IN the reference, and never silently empty.
+
+    A generated page that lists no blind spots reads as one that has none. That is
+    how this repo's theme-token trace once reported 135 live tokens as dead: the
+    tracer could not see three dynamic families and said nothing about it.
+    """
+    doc = _run_events_generator(tmp_path)
+
+    assert "## What this reference cannot see" in doc
+    body = doc.split("## What this reference cannot see", 1)[1]
+    assert "| Blind spot | n |" in body
+    kinds = [ln for ln in body.splitlines() if ln.startswith("| `")]
+    assert kinds, "the blind-spot table rendered with no rows"
+
+
 def test_gdg13_region_generator_clean(tmp_path):
     """[GDG-13] A region generator whose own check exits 0 reports nothing."""
     root = _fake_root(tmp_path, rc=0)

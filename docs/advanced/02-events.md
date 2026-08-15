@@ -2,6 +2,8 @@
 
 The integration fires events on the Home Assistant event bus at specific points in a cleaning job's lifecycle. You can listen to any of these events in an automation using the `event` trigger platform. All payloads are plain dictionaries — no custom objects to unwrap.
 
+This page explains **when** each event fires and **why** you would listen for it. For the exhaustive machine-derived list — every event, every payload key, which fire sites write it, and where each one lives in source — see the generated [Event Reference](../dev/reference/EVENTS.md). It is regenerated from the fire sites themselves and CI fails if it falls behind, so where the two disagree on a *fact*, that one is right.
+
 ---
 
 ## eufy_vacuum_job_finished

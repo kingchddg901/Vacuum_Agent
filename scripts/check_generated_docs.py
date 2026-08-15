@@ -142,6 +142,13 @@ GENERATORS: tuple[Generator, ...] = (
         ),
         note="theme editor registry + card CSS",
     ),
+    Generator(
+        id="events",
+        cmd=(sys.executable, "scripts/gen_event_docs.py"),
+        out_env="EVCC_GENDOC_OUT",
+        files=("docs/dev/reference/EVENTS.md",),
+        note="every hass.bus.async_fire call site",
+    ),
     # The Mocking column in every subsystem coverage table. A region generator: it
     # rewrites cells inside hand-written pages, so there is no whole file to diff.
     # It shipped with a --check mode and a docstring calling it "CI: fail if stale",
