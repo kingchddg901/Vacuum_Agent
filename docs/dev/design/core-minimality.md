@@ -2,9 +2,20 @@
 
 *What is the irreducible core, and how much can be removed while the system still cleans a room?*
 
-This is the measured answer to that question — the second axis of the doc-as-spec / deconstruction work (see [`10-learning-system.md` §9.3](10-learning-system.md) for the same exercise scoped to one subsystem). It is a **map, not a changelog**: nothing here has been refactored. It records where the real waterline sits so that a "make the core stand alone" refactor (called **B** below) can be scoped honestly — or deliberately declined.
+This is the measured answer to that question — the second axis of the doc-as-spec / deconstruction work (see [`10-learning-system.md` §9.3](../10-learning-system.md) for the same exercise scoped to one subsystem). It is a **map, not a changelog**: nothing here has been refactored. It records where the real waterline sits so that a "make the core stand alone" refactor (called **B** below) can be scoped honestly — or deliberately declined.
 
 Method: an AST subsystem-dependency map plus a runtime trace of a single `room_clean` from its service entry to the adapter wire call. Line anchors are as of this audit (2026-07-11) — cite the **method names**, which are stable; the line numbers drift.
+
+> **Where this lives, and why.** Moved out of the numbered reading order on
+> 2026-08-15 (it was `32-core-minimality-and-deconstruction.md`, sitting between two
+> real subsystem references and asserting a peerage it does not have). It is a dated
+> audit plus a blueprint for work deliberately not done, which is what `design/`
+> holds. The **atom + rings model itself is architecture, not proposal** — it is
+> stated normatively in [`01-architecture-overview.md`](../01-architecture-overview.md)
+> §2 and relied on by the [disaster-recovery standard](../00-disaster-recovery-standard.md);
+> this document is the *measurement* behind it and the refactor plan on top of it.
+> Re-measured 2026-08-15: 13 of the 14 §9 reach-in counts still exact five weeks on;
+> `active_job` had moved 39 → 43 and is corrected below.
 
 ---
 
@@ -117,7 +128,7 @@ For each subsystem, ask in order — the first "yes" sets the verdict:
 1. **Dead coupling?** Vestigial import/alias core never uses → **CLIP** (see the maintenance clip, 3dc2a06).
 2. **Mis-homed atom-logic?** Does core reach in for a *primitive* it should own (a payload/identity builder, not a feature)? → **RELOCATE** the primitive to core; the ring *augments* when present.
 3. **Self-satisfiable gate?** Does it block on VA-owned state the adapter never provides? → **DEFAULT** it (see onboarding).
-4. **Portable engine?** Is it read-a-lot / write-a-little logic reused elsewhere (learning, battery, water)? → **EXTRACT** behind a host contract (see §9.3 of [`10-learning-system.md`](10-learning-system.md)).
+4. **Portable engine?** Is it read-a-lot / write-a-little logic reused elsewhere (learning, battery, water)? → **EXTRACT** behind a host contract (see §9.3 of [`10-learning-system.md`](../10-learning-system.md)).
 5. **Already clean?** Lazy import, low reach-in count, no core-owned logic inside → **LEAVE** (it's a proper ring today).
 6. **Mechanism, not fit?** The core needs it to fire/track a clean → **KEEP** (atom member).
 
@@ -127,7 +138,7 @@ Signals to score it on: **import** (hard = spine candidate / lazy = ring candida
 
 | Subsystem | Imp | Ctor | Reach-ins | Verdict / status |
 |---|---|---|---|---|
-| `active_job` | lazy | mgr | 39 | **KEEP** — run tracking (paused-gate + live settings). Atom member. ✅ walked |
+| `active_job` | lazy | mgr | 43 | **KEEP** — run tracking (paused-gate + live settings). Atom member. ✅ walked |
 | `profiles` | lazy | mgr | 26 | **SPLIT (relocate 4 / leave 22)** — relocate the effective-room shaper (`_protected_room_config` :1545, `_match_profile_from_fields` :1548, `_finalize_room_update` :1551, `get_effective_room_details` :1513) to core; leave the rest as profile/run CRUD + `start_run_profile` orchestration in the ring. Shaper is live on **two** atom paths (`build_room_payload` :3159, `run_plan.py:1442-1443`) + the room-write path (`update_room_fields` :1553). ✅ walked |
 | `themes` | lazy | data | 14 | **LEAVE** — the cleanest ring; **no manager back-ref at all** (ctor `data` only), owns `data["theme"]` + its own callback list. The reference for a fully detached ring. ✅ walked |
 | `access_graph` | lazy | data+hass | 14 | **RELOCATE** — `_normalized_managed_rooms_with_automation` (room-normalizer, `core/manager.py:2557`) belongs in core; graph augments with rules/grants. ✅ walked |
@@ -178,4 +189,4 @@ Onboarding began as data hygiene — it kept Eufy's phantom **0 m² "non-room"**
 
 ---
 
-**See also:** [`01-architecture-overview.md`](01-architecture-overview.md) · [`05-core-manager.md`](05-core-manager.md) · [`10-learning-system.md`](10-learning-system.md) (§9.3, the same host-contract exercise scoped to learning) · [`21-adapter-system.md`](21-adapter-system.md).
+**See also:** [`01-architecture-overview.md`](../01-architecture-overview.md) · [`05-core-manager.md`](../05-core-manager.md) · [`10-learning-system.md`](../10-learning-system.md) (§9.3, the same host-contract exercise scoped to learning) · [`21-adapter-system.md`](../21-adapter-system.md).

@@ -118,8 +118,7 @@ Cross-cutting features that span several subsystems.
 
 Not in the numbered reading order — design rationale the subsystem docs point to.
 
-- **[design/](design/map-state-source.md)** — design/proposal references: `map-state-source` (the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)), `eufy-native-transition` (native current-room detection design + validation; its pose/attribution track shipped in 1.8.0), `voice-assist-wizard` (design-only, not yet implemented).
-- **[32-core-minimality-and-deconstruction](32-core-minimality-and-deconstruction.md)** — the irreducible-core map (analysis, not a changelog).
+- **[design/](design/map-state-source.md)** — design/proposal references: `map-state-source` (the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)), `eufy-native-transition` (native current-room detection design + validation; its pose/attribution track shipped in 1.8.0), `entity-resolution-reliability` (the contest ladder and its rulings), `room-bounds-from-traces` (retired; kept for the revival criterion), `core-minimality` (the irreducible-core map — analysis, not a changelog; the atom + rings MODEL is stated in [01 §2](01-architecture-overview.md)), `voice-assist-wizard` (design-only, not yet implemented).
 
 *(The battery-accounting and external-run-robustness follow-up trackers were folded into their subsystem docs — [12 §9](12-battery-system.md) and [28 §11](28-external-run-ingestion.md) — and removed 2026-07-29 once their items were closed.)*
 

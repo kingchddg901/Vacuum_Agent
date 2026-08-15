@@ -216,11 +216,29 @@ module (flat file) or a subsystem package. Here is the full map:
    An `async_initialize()` failure raises `ConfigEntryNotReady` (HA retries).
 
    > **All subsystems are constructed unconditionally here — but only a few are
-   > load-bearing to actually fire a room clean.** For which of these are the
-   > irreducible *atom* (adapter + dispatch + rooms + spine + run tracking) versus
-   > optional *rings*, where the room-definition primitives are mis-homed, and what
-   > a "core stands alone" refactor would entail, see
-   > [32-core-minimality-and-deconstruction](32-core-minimality-and-deconstruction.md).
+   > load-bearing to actually fire a room clean.** The architecture is **atom +
+   > rings**:
+   >
+   > - The **atom** — `adapters` + `dispatch` + `rooms` + the spine (`hass`,
+   >   `storage`, `data`) + `active_job` — is what fires a clean. It is
+   >   structurally unchanged since the integration's origin as a ~118-line HA
+   >   script: assemble rooms, gate, `room_clean`, reset. The wire send is still
+   >   one `hass.services.async_call`.
+   > - Everything else is a **ring**, added for *fit* rather than for the call.
+   >   `themes`, `maintenance`, `dock`, `room_map`, `map_source` and
+   >   `live_room_refresh` are never touched on the room-clean path at all.
+   > - A ring should attach through an **absence-tolerant seam** — `learning` is
+   >   the model to copy, guarded `if learning is None: …` at every reach-in, so
+   >   the core tolerates its *nonexistence* rather than merely its stubbing. That
+   >   property is what the [disaster-recovery standard](00-disaster-recovery-standard.md)
+   >   rebuilds against, atom-out.
+   >
+   > Three rings do **not** yet meet that bar: `access_graph` and `profiles` hold
+   > room-definition primitives the core reaches in for, and `onboarding` gates the
+   > start on VA-owned state. Those are mis-homed mechanism, not features the core
+   > depends on — the measured map, the reach-in counts, and the refactor that would
+   > close them are in
+   > [design/core-minimality](design/core-minimality.md).
 
 3. **Orphaned entity cleanup** — removes legacy `eufy_vacuum_icon_*` entities
    from the entity registry if found (silent no-op on clean installs).
