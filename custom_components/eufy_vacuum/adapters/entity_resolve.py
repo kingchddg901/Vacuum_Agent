@@ -43,12 +43,102 @@ declared ID unchanged for that case, which is correct and is why it is not a fix
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def build_suffix_universe(
+    declared_ids: "Iterable[str]",
+    vacuum_object_id: str,
+    reserved_suffixes: "Iterable[str] | None" = None,
+) -> set[str]:
+    """Every naming suffix that already has a rightful owner.
+
+    THE ONE COPY. This predicate previously existed three times, written at three
+    different moments, and the copies drifted exactly as you would expect:
+
+      1. ``resolve_declared_entities`` (this file)          — had the guard
+      2. ``augment_candidates_from_device`` (capabilities)  — had the guard
+      3. ``_rescue_maintenance_source`` (capabilities)      — had NO guard at all
+
+    live:ENT-4 records what the guard is for, and it is not a nicety: ``endswith``
+    is unsafe when one declared suffix is a substring of another, so
+    ``_cleaning_area`` also matches ``..._total_cleaning_area`` and a per-run
+    metric binds to a LIFETIME TOTAL. That is wrong data, not missing data — it
+    reads as working. Found live at 17,975 ft² against a real sensor reading 0.0,
+    feeding the learning store, counter segmentation and battery metrics.
+
+    Copy 1 and copy 2 diverged once already (the guard was added to one and not
+    its twin, which ``entity_resolve.py`` called "the shape that keeps producing
+    these"), and arming it on the second brand was a third separate commit. One
+    function, one guard set, called from every site is the only version of this
+    that stops.
+    """
+    universe: set[str] = set()
+    for declared in declared_ids or ():
+        if not isinstance(declared, str) or "." not in declared:
+            continue
+        suffix = _suffix_of(declared, vacuum_object_id)
+        if suffix:
+            universe.add(suffix)
+    for reserved in reserved_suffixes or ():
+        if isinstance(reserved, str) and reserved:
+            universe.add(reserved)
+    return universe
+
+
+def claimed_by(sibling_object_id: str, universe: "Iterable[str]") -> str | None:
+    """The LONGEST declared suffix this id ends with — its rightful owner.
+
+    Longest wins because that is what separates a collision pair: an id ending
+    ``_total_cleaning_area`` is claimed by ``_total_cleaning_area``, never by the
+    shorter ``_cleaning_area`` it also happens to end with.
+    """
+    best: str | None = None
+    for known in universe or ():
+        if sibling_object_id.endswith(known) and (best is None or len(known) > len(best)):
+            best = known
+    return best
+
+
+def rescue_by_suffix(
+    siblings: "Iterable[str]",
+    *,
+    wanted_suffix: str,
+    domain: str,
+    universe: "Iterable[str]",
+    exclude: "Iterable[str]" = (),
+) -> str | None:
+    """The one sibling that rightfully owns ``wanted_suffix``, or None.
+
+    EXACTLY ONE OR NOTHING (live:ENT-6). Two matches means we cannot tell which is
+    right, and a confident wrong answer is worse than an absent one — a component
+    resolved to the wrong consumable reports wrong remaining life without erroring.
+
+    ``universe`` arms the exclusivity guard: a sibling whose rightful owner is a
+    DIFFERENT (longer) suffix is not a match for this one.
+    """
+    skip = set(exclude)
+    matches: list[str] = []
+    for sibling in siblings or ():
+        if not isinstance(sibling, str) or "." not in sibling:
+            continue
+        if sibling in skip:
+            continue
+        sib_domain, _, sib_object = sibling.partition(".")
+        if sib_domain != domain:
+            continue
+        if not sib_object.endswith(wanted_suffix):
+            continue
+        if claimed_by(sib_object, universe) != wanted_suffix:
+            continue
+        matches.append(sibling)
+    return matches[0] if len(matches) == 1 else None
 
 
 def _suffix_of(declared: str, vacuum_object_id: str) -> str | None:
@@ -145,13 +235,14 @@ def resolve_declared_entities(
     # The exclusivity guard was added to augment_candidates_from_device and NOT
     # here — a fix applied to one copy of a predicate and not its twin, which is
     # the shape that keeps producing these.
-    declared_suffixes: set[str] = set()
-    for _declared in entities.values():
-        if not isinstance(_declared, str) or "." not in _declared:
-            continue
-        _suffix = _suffix_of(_declared, vacuum_object_id)
-        if _suffix:
-            declared_suffixes.add(_suffix)
+    # ONE COPY NOW — see build_suffix_universe. This block and its twin in
+    # capabilities.augment_candidates_from_device were the same predicate written
+    # twice; keeping them literally the same function is the point.
+    declared_suffixes = build_suffix_universe(
+        [v for v in entities.values() if isinstance(v, str)],
+        vacuum_object_id,
+        reserved_suffixes,
+    )
 
     # Deriving the universe from `entities` ALONE makes this guard depend on the
     # caller having declared BOTH halves of a collision — and Roborock declares
@@ -162,18 +253,11 @@ def resolve_declared_entities(
     # and it is the argument rather than a longer `entities` map because a brand
     # should not have to BIND a role merely to be protected from it. A brand that
     # still omits a suffix now degrades to "no rescue" instead of "wrong rescue".
-    if reserved_suffixes:
-        for _reserved in reserved_suffixes:
-            if isinstance(_reserved, str) and _reserved:
-                declared_suffixes.add(_reserved)
+    # (both the reserved-suffix merge and the longest-suffix ownership test now
+    # live in build_suffix_universe / claimed_by, above.)
 
     def _claimed_by(object_id: str) -> str | None:
-        """The LONGEST declared suffix this id ends with — its rightful owner."""
-        best: str | None = None
-        for known in declared_suffixes:
-            if object_id.endswith(known) and (best is None or len(known) > len(best)):
-                best = known
-        return best
+        return claimed_by(object_id, declared_suffixes)
 
     for role, declared in list(entities.items()):
         if not isinstance(declared, str) or "." not in declared:

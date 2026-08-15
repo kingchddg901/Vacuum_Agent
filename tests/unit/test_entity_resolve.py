@@ -188,3 +188,141 @@ def test_er9_non_derived_ids_are_left_alone(monkeypatch):
     )
     assert out["battery"] == "sensor.handwritten_thing"
     assert report == {}
+
+
+# ---------------------------------------------------------------------------
+# The SHARED suffix predicate (2026-08-15). It existed three times -- here, in
+# capabilities.augment_candidates_from_device, and a weaker third copy in
+# _rescue_maintenance_source with NO exclusivity guard at all. Fixes landed in
+# one copy at a time (live:ENT-1, ENT-4, ENT-5, ENT-8, then arming ENT-4 on a
+# second brand as its own commit), which is why the same hostile install kept
+# finding the next unrepaired copy.
+#
+# These pin the SEMANTICS the copies must share, so a fifth consumer inherits
+# every scar already paid for instead of inventing recovery slightly differently.
+# ---------------------------------------------------------------------------
+
+from custom_components.eufy_vacuum.adapters.entity_resolve import (  # noqa: E402
+    build_suffix_universe,
+    claimed_by,
+    rescue_by_suffix,
+)
+
+
+def test_er10_longest_suffix_owns_the_id():
+    """[ER-10] The collision that made this necessary: per-run vs lifetime.
+
+    `_cleaning_area` also ends `..._total_cleaning_area`. Without longest-wins,
+    a per-run metric binds to a LIFETIME TOTAL -- wrong data, not missing data,
+    and it reads as working. Found live at 17,975 ft2 against a real sensor
+    reading 0.0, feeding the learning store and battery metrics.
+    """
+    universe = {"_cleaning_area", "_total_cleaning_area"}
+    assert claimed_by("alfred_total_cleaning_area", universe) == "_total_cleaning_area"
+    assert claimed_by("alfred_cleaning_area", universe) == "_cleaning_area"
+
+
+def test_er11_rescue_abstains_when_the_match_belongs_to_another_role():
+    """[ER-11] A sibling whose rightful owner is a LONGER suffix is not a match."""
+    siblings = ["sensor.dining_room_alfred_total_cleaning_area"]
+    universe = {"_cleaning_area", "_total_cleaning_area"}
+    assert rescue_by_suffix(
+        siblings, wanted_suffix="_cleaning_area", domain="sensor", universe=universe
+    ) is None
+
+
+def test_er12_rescue_finds_the_single_safe_sibling():
+    """[ER-12] The whole point: a renamed/dock-owned entity is recovered."""
+    siblings = ["sensor.dining_room_alfred_dock_status", "sensor.other_thing"]
+    assert rescue_by_suffix(
+        siblings, wanted_suffix="_dock_status", domain="sensor",
+        universe={"_dock_status"},
+    ) == "sensor.dining_room_alfred_dock_status"
+
+
+def test_er13_zero_and_multiple_matches_both_abstain():
+    """[ER-13] Exactly-one or nothing (live:ENT-6).
+
+    Two matches means we cannot tell which is right, and a confident wrong answer
+    is worse than an absent one -- a component bound to the wrong consumable
+    reports wrong remaining life without ever erroring.
+    """
+    universe = {"_dock_status"}
+    assert rescue_by_suffix([], wanted_suffix="_dock_status", domain="sensor",
+                            universe=universe) is None
+    two = ["sensor.a_dock_status", "sensor.b_dock_status"]
+    assert rescue_by_suffix(two, wanted_suffix="_dock_status", domain="sensor",
+                            universe=universe) is None
+
+
+def test_er14_domain_is_part_of_the_match():
+    """[ER-14] A button never satisfies a sensor role, however well the name fits."""
+    siblings = ["button.dining_room_alfred_dock_status"]
+    assert rescue_by_suffix(
+        siblings, wanted_suffix="_dock_status", domain="sensor",
+        universe={"_dock_status"},
+    ) is None
+
+
+def test_er15_reserved_suffixes_protect_a_role_the_brand_never_binds():
+    """[ER-15] A brand should not have to BIND a role to be protected from it.
+
+    Roborock declares `_cleaning_area` and binds no lifetime role at all, so a
+    universe derived from its bindings alone let the lifetime counter be accepted
+    as the per-run sensor. The brand's full vocabulary closes it.
+    """
+    declared = ["sensor.ivy_cleaning_area"]
+    universe = build_suffix_universe(
+        declared, "ivy", reserved_suffixes=["_total_cleaning_area"]
+    )
+    assert universe == {"_cleaning_area", "_total_cleaning_area"}
+    assert rescue_by_suffix(
+        ["sensor.ivy_total_cleaning_area"], wanted_suffix="_cleaning_area",
+        domain="sensor", universe=universe,
+    ) is None
+
+
+def test_er16_the_two_copies_now_agree_by_construction(monkeypatch):
+    """[ER-16] The regression this refactor exists to prevent.
+
+    capabilities.augment_candidates_from_device held an independently-written
+    twin of this predicate. They are the SAME FUNCTION now; this asserts the
+    import identity so a future 'local copy for convenience' fails loudly rather
+    than drifting silently for months.
+    """
+    from custom_components.eufy_vacuum.core import capabilities
+
+    assert capabilities.build_suffix_universe is build_suffix_universe
+    assert capabilities.claimed_by is claimed_by
+    assert capabilities.rescue_by_suffix is rescue_by_suffix
+
+
+def test_er17_a_working_install_never_consults_the_rescue(monkeypatch):
+    """[ER-17] THE NO-OP INVARIANT, asserted structurally rather than inferred.
+
+    Chris: "a good test of the no op will be my own system i work now this cant
+    break me." An unchanged suite is necessary evidence and not sufficient -- this
+    pins the property directly: when every declared id resolves, the sibling
+    search is never even reached, so there is no path by which a healthy install
+    can be altered.
+    """
+    calls: list[str] = []
+
+    def _boom(*a, **k):  # pragma: no cover - must never run
+        calls.append("sibling_search")
+        raise AssertionError("the rescue was consulted on a healthy install")
+
+    monkeypatch.setattr(entity_resolve.er, "async_entries_for_config_entry", _boom)
+
+    entities = {
+        "battery": "sensor.alfred_battery",
+        "dock_status": "sensor.alfred_dock_status",
+    }
+    hass = SimpleNamespace(
+        states=SimpleNamespace(get=lambda eid: object()),   # everything resolves
+    )
+    out, report = resolve_declared_entities(hass, "vacuum.alfred", dict(entities))
+
+    assert out == entities, "a healthy install must resolve byte-identically"
+    assert report == {}, "nothing was rescued, so nothing is reported"
+    assert not calls

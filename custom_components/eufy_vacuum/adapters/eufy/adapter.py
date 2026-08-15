@@ -330,6 +330,45 @@ def register_eufy_adapter_for_vacuum(
         reserved_suffixes=ALL_SUFFIXES,
     )
 
+    def _rescue_select_block(block: dict[str, Any]) -> dict[str, Any]:
+        """Run `settings_selects`-shaped ids through the SAME rescue as `entities`.
+
+        THE FOURTH COPY OF THE NAMING ASSUMPTION, and the only one that had no
+        rescue of any kind. These are not just the external-run capture: the
+        dashboard snapshot's `setting_entities` is built from this block and
+        existence-checked (core/manager.py), and it IS the zone-clean panel's live
+        controls -- an ad-hoc zone clean runs off the device's CURRENT settings, so
+        the panel edits these real selects rather than holding a parallel store.
+
+        So on a hostile-naming install every id here resolved to nothing,
+        `setting_entities` came back empty, and the zone panel had no controls at
+        all -- while the matching *sensors* (which live in `entities`, and are
+        rescued) read fine. That is issue #49's "water level not showing" exactly:
+        `sensor..._water_level` bound at 82, `select..._water_level` missing.
+
+        Deliberate behaviour change, and the only one in this pass: a broken
+        install starts working. A healthy one cannot be altered --
+        resolve_declared_entities returns a resolvable id untouched and never even
+        reaches the sibling search (pinned by ER-17).
+        """
+        ids = {
+            key: cfg["entity_id"]
+            for key, cfg in block.items()
+            if isinstance(cfg, dict) and isinstance(cfg.get("entity_id"), str)
+        }
+        if not ids:
+            return block
+        repaired, _ = resolve_declared_entities(
+            hass, vacuum_entity_id, ids,
+            overrides=None,          # overrides address ROLES, not setting selects
+            reserved_suffixes=ALL_SUFFIXES,
+        )
+        return {
+            key: ({**cfg, "entity_id": repaired.get(key, cfg.get("entity_id"))}
+                  if isinstance(cfg, dict) else cfg)
+            for key, cfg in block.items()
+        }
+
     config = {
         "adapter_id": ADAPTER_ID,
         "source": "code",
@@ -359,7 +398,7 @@ def register_eufy_adapter_for_vacuum(
         # water/intensity are stored raw and normalized downstream). edge_mopping
         # has no readback entity, so it is absent here (the user supplies it in
         # review). Entries whose entity_id is None are skipped by the capture.
-        "settings_selects": {
+        "settings_selects": _rescue_select_block({
             "clean_mode": {
                 "entity_id": f"select.{object_id}_cleaning_mode",
                 "value_map": {
@@ -373,7 +412,7 @@ def register_eufy_adapter_for_vacuum(
             "water_level":     {"entity_id": f"select.{object_id}_water_level",        "value_map": None},
             "clean_intensity": {"entity_id": f"select.{object_id}_cleaning_intensity", "value_map": None},
             "mop_intensity":   {"entity_id": f"select.{object_id}_mop_intensity",      "value_map": None},
-        },
+        }),
 
         # task_status values that mean "docked mid-run, will resume" (mop prewash,
         # dust empty, recharge-resume). The external-run finalizer HOLDS the run open

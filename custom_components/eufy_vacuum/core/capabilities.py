@@ -42,6 +42,15 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
+# THE suffix predicate — one copy, shared with adapters.entity_resolve, which
+# used to hold an independently-written twin of it. entity_resolve imports
+# nothing from here, so this direction carries no cycle.
+from ..adapters.entity_resolve import (
+    build_suffix_universe,
+    claimed_by,
+    rescue_by_suffix,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 #: Resolution outcomes reported alongside each role (live:ENT-2).
@@ -221,6 +230,7 @@ def _sweep_siblings(registry: Any, entry: Any) -> tuple[list[str], int]:
 def _rescue_maintenance_source(
     siblings: Iterable[str],
     suffix: str,
+    universe: Iterable[str] = (),
 ) -> str | None:
     """Find a companion ending in ``_{suffix}`` when the derived name missed.
 
@@ -236,14 +246,20 @@ def _rescue_maintenance_source(
 
     Exactly-one or nothing, matching live:ENT-6 — a component resolving to the
     wrong consumable would report confident, wrong remaining life.
+
+    THE EXCLUSIVITY GUARD WAS MISSING HERE (2026-08-15). This was the THIRD copy
+    of the suffix predicate and the only one with no live:ENT-4 guard, so a
+    maintenance suffix that is a substring of a longer declared one could bind to
+    the longer entity — the same shape that put a lifetime counter into a per-run
+    role at 17,975 ft². It shares the guard now; an empty ``universe`` degrades to
+    the previous behaviour rather than refusing everything.
     """
-    wanted = f"_{suffix}"
-    matches = [
-        sibling
-        for sibling in siblings
-        if sibling.startswith("sensor.") and sibling.partition(".")[2].endswith(wanted)
-    ]
-    return matches[0] if len(matches) == 1 else None
+    return rescue_by_suffix(
+        siblings,
+        wanted_suffix=f"_{suffix}",
+        domain="sensor",
+        universe=universe or (f"_{suffix}",),
+    )
 
 
 def _detect_maintenance_sources(
@@ -612,28 +628,19 @@ def augment_candidates_from_device(
     # two halves cannot see each other, so the adapter passes its full suffix
     # vocabulary in. Omit it and this degrades to candidate-vs-candidate
     # exclusivity, which is still strictly better than today.
-    universe: set[str] = set()
-    for _declared in cands.values():
-        for _candidate in _declared or []:
-            if not isinstance(_candidate, str) or "." not in _candidate:
-                continue
-            _, _, _cand_object = _candidate.partition(".")
-            if not _cand_object.startswith(object_id):
-                continue
-            _suffix = _cand_object[len(object_id):]
-            if _suffix:
-                universe.add(_suffix)
-    for _reserved in reserved_suffixes or ():
-        if isinstance(_reserved, str) and _reserved:
-            universe.add(_reserved)
+    # ONE COPY NOW — the universe build and the ownership test are shared with
+    # adapters.entity_resolve, which held the identical predicate written
+    # separately. Keeping them the same FUNCTION rather than the same shape is
+    # the whole point: the guard below was added here and not to its twin, and
+    # arming it on a second brand was a third separate commit.
+    universe = build_suffix_universe(
+        [c for _declared in cands.values() for c in (_declared or [])],
+        object_id,
+        reserved_suffixes,
+    )
 
     def _claimed_by(sib_object: str) -> str | None:
-        """The LONGEST declared suffix this sibling ends with — its rightful owner."""
-        best: str | None = None
-        for known in universe:
-            if sib_object.endswith(known) and (best is None or len(known) > len(best)):
-                best = known
-        return best
+        return claimed_by(sib_object, universe)
 
 
     ambiguous: dict[str, list[str]] = {}
