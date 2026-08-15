@@ -66,7 +66,7 @@ else:         → "good"
 _hours_summary(value: Any, suffix: str) -> str | None
 ```
 
-Builds the `remaining_summary` / `usage_summary` strings (`"<hours label> <suffix>"`). It guards the **result** of `_hours_text`, not the input: `_hours_text` returns `None` not only for `None` input but also for **negative** numbers and non-numerics. The four snapshot call sites used to read `_hours_text(v) + " suffix" if v is not None else None` — an **overdue consumable reports negative remaining hours**, passed the `is not None` guard, and landed on `None + str` → `TypeError` that took out `get_upkeep_snapshot` entirely (and with it `get_dashboard_snapshot`'s whole data source; found in a Roborock Q5 user's diagnostics, issue #46 thread — `upkeep_snapshot_error: TypeError(...)`). Now: no hours label → the summary is `None`, never a crash. (`maintenance/manager.py:103-124`.)
+Builds the `remaining_summary` / `usage_summary` strings (`"<hours label> <suffix>"`). It guards the **result** of `_hours_text`, not the input: `_hours_text` returns `None` not only for `None` input but also for **negative** numbers and non-numerics. The four snapshot call sites used to read `_hours_text(v) + " suffix" if v is not None else None` — an **overdue consumable reports negative remaining hours**, passed the `is not None` guard, and landed on `None + str` → `TypeError` that took out `get_upkeep_snapshot` entirely (and with it `get_dashboard_snapshot`'s whole data source; found in a Roborock Q5 user's diagnostics, issue #46 thread — `upkeep_snapshot_error: TypeError(...)`). Now: no hours label → the summary is `None`, never a crash. (`maintenance/manager.py::_hours_summary`.)
 
 ---
 
