@@ -1286,9 +1286,15 @@ ${fontPresets}
   proto._renderThemeFooter = function (state) {
     const hasDraft = !!state.draftDirty;
     const hasActiveTheme = !!state.activeThemeId;
-    // The floor-preset and draft (Save/Discard) controls belong to the token editor,
-    // which is reachable at every width — so they ship at every width too. A token
-    // editor you cannot Save is worse than none.
+    // The draft (Save/Discard) controls belong to the token editor, which is
+    // reachable at every width — so they ship at every width too. A token editor
+    // you cannot Save is worse than none.
+    //
+    // The FLOOR-preset controls are rendered here but hidden by CSS on a narrow
+    // OR short viewport (styles/mobile.js, inside @media (max-width: 600px),
+    // (max-height: 500px)) — so a landscape phone drops them as well. They are
+    // display:none rather than unrendered, which also removes them from the
+    // accessibility tree.
 
     return `
       <div class="evcc-view-footer">

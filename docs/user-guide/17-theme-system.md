@@ -90,9 +90,11 @@ The Theme tab's footer always has four transport buttons:
 - **Download** / **Upload** — save a theme to, or load one from, a `.json` file
   (backups, sharing as a file attachment, moving between Home Assistant installs).
 
-On a desktop-width screen the footer adds two more: a floor-type picker with
+On a wide *and* tall screen the footer adds two more: a floor-type picker with
 **Download Floor** (export just one floor-texture type as a shareable preset)
-and a marble-preset picker with **Apply Preset**.
+and a marble-preset picker with **Apply Preset**. Both are dropped when the
+window is narrow **or** short — so a phone in landscape loses them too, not just
+a phone held upright.
 
 A downloaded theme is a plain file with no reference to your rooms or vacuum, so
 it loads cleanly anywhere. The mechanics — and the floor-only "just my marble"
@@ -106,7 +108,11 @@ To pull a theme from, or publish one to, the **public gallery**, see
 Two tabs beside Themes — **Palette** (four headline tokens) and **Tokens**
 (everything else) — let you build a theme from any starting point and save it.
 Both editors work at every width, a phone included. What a narrow or short
-screen changes is the chrome around them: the search row and the
+screen changes is mostly the chrome around them — and, in the token rows, two
+duplicate inputs: a colour row drops its hex text field (the colour rail is
+still there) and a numeric row drops its number box (the slider is still
+there). Where the text field is the ONLY input for a token, it is kept. Nothing
+becomes uneditable. The chrome part: the search row and the
 Themes/Palette/Tokens strip start folded behind a caret that names the tab
 you're standing in, so the strip is out of the way rather than gone — one tap
 on the caret brings it back, and that choice holds for the session. See

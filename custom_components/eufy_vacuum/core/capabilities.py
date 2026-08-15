@@ -690,11 +690,17 @@ def augment_candidates_from_device(
             # entity_resolve.resolve_declared_entities already refuses to guess
             # in the same situation; this now matches that discipline.
             #
-            # Two narrowings are tried, cheapest evidence first: a sibling still
-            # carrying the vacuum's own object_id, then one matching the majority
-            # stem. Neither yielding exactly one leaves the role UNRESOLVED and
-            # recorded as ambiguous — which is the signal the options UI needs to
-            # pre-fill a choice rather than invent one.
+            # _narrow_competing walks FOUR rungs, strongest evidence first, and
+            # each must be DECISIVE (exactly one survivor) or the next is tried:
+            # object_id, translation_key, state_class, magnitude. The first three
+            # read the entity REGISTRY, so they work during setup before any
+            # state exists. No rung deciding leaves the role UNRESOLVED and
+            # recorded as ambiguous — the signal the options UI needs to pre-fill
+            # a choice rather than invent one.
+            #
+            # (This comment described a two-narrowing "majority stem" scheme that
+            # 2c1d847f deleted — the last surviving copy of it, sitting directly
+            # above the call to its replacement.)
             if len(matches) > 1:
                 chosen, decided_by, rejected = _narrow_competing(
                     hass,

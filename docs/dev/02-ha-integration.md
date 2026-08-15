@@ -192,9 +192,13 @@ one config entry per HA instance is permitted.
 `CONF_NOTES` for editing after initial setup.
 
 `config_entry.data` can contain `{"vacuum_entity_id": str, "tested_model": str,
-"notes": str}`. `__init__.py` reads `vacuum_entity_id` to register the panel; all
-other operational configuration (map IDs, room settings) lives in the storage
-layer, not the config entry.
+"notes": str}`. `__init__.py` reads `vacuum_entity_id` to register the panel. Bulk
+operational state (map IDs, room settings) lives in the storage layer rather
+than the config entry — with one deliberate exception: `entity_overrides` is
+written to the entry's **options** by the options flow, because that flow is the
+rescue path that still works when the panel does not. It is merged with the
+storage copy at setup and **entry options win**; see
+[03 — Data model](03-data-model.md).
 
 ---
 

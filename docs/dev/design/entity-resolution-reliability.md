@@ -126,6 +126,19 @@ today.** Three cases, and the boundaries are what matter:
 > (live:ENT-6). It never synthesises an entity id — a majority vote is evidence about naming, not
 > proof that an entity exists.
 
+> ⚠ **SUPERSEDED — the majority-stem vote was never shipped, and `2c1d847f` deleted it.**
+> Competing candidates are settled by the FOUR-RUNG CONTEST LADDER instead
+> (`_narrow_competing`, `capabilities.py:365`): `object_id` → `translation_key` →
+> `state_class` → `magnitude`, strongest evidence first, each rung DECISIVE or the next is
+> tried, and no rung deciding leaves the role unresolved. §4.5.1 of this same document
+> describes the ladder; this section is kept for the reasoning that led there — the
+> tie-is-not-a-majority insight below is what became "an undecidable contest leaves the
+> role UNRESOLVED rather than guessing". Do not implement the paragraph that follows.
+>
+> Why the ladder won: a stem vote is evidence about NAMING, and the first three ladder
+> rungs read the entity REGISTRY (`translation_key`, `state_class`), which is the upstream
+> integration's own declaration and is available before any entity has a state.
+
 Derive the companion stem by majority vote across the sibling object_ids (strip each one's owning
 suffix; what remains is its stem), and use it ONLY to rank competing candidates. **A tie is not a
 majority** — two vacuums on one config entry produce a dead heat, and that must stay ambiguous
@@ -379,7 +392,7 @@ stem cases belong in `tests/adapters/eufy/`. `pytest tests --no-cov` is the beha
 | # | Question | Ruling |
 |---|---|---|
 | 1 | §4.4 precedence | **Override wins** — "it's a user choice". Consulted first, ahead of all derived and sibling candidates. Falls through if unresolvable, but reports `override_unresolved` rather than failing silently. |
-| 2 | §3 stem: automatic or suggested | **Pre-fill ONLY for ambiguous roles that do not resolve today.** A role that works is never touched; an unresolved role with exactly one candidate auto-applies (self-heals); only competing candidates prompt. "Unambiguous" is the three-part predicate in §3.1, not a confidence call. |
+| 2 | §3 stem: automatic or suggested | *(The RULING stands; the MECHANISM it ruled on does not — the stem vote was replaced by the contest ladder, see the banner in §3.)* **Pre-fill ONLY for ambiguous roles that do not resolve today.** A role that works is never touched; an unresolved role with exactly one candidate auto-applies (self-heals); only competing candidates prompt. "Unambiguous" is the three-part predicate in §3.1, not a confidence call. |
 | 3 | Stage gate | **Ship as one set.** P0 + P1 + P2 + §5 census enrichment release together; P0 does NOT go out alone. P3 stays blocked. |
 
 ### 8.1 Consequences of ruling 3
