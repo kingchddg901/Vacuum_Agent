@@ -111,7 +111,7 @@ This is the gentle, earlier tier below the stall notice below. It simply means "
 
 A brand-new room the integration has not yet learned a time for does **not** trigger this warning — with no real baseline to judge against, it would otherwise flag every room on a fresh setup. The warning only appears once the room has a learned estimate to overrun.
 
-Both this warning and the stall notice below depend on strict room-order tracking, so they only appear on order-honoring brands (Eufy). On path-optimizing brands (the Roborock S6), where the robot's actual room sequence isn't tracked the same way, neither one appears — a Strict-order run doesn't change this.
+This **running-long** warning depends on strict room-order tracking, so it only appears on order-honoring brands (Eufy). On path-optimizing brands (the Roborock S6), where the robot's actual room sequence isn't tracked the same way, it does not appear. **The stall notice below is different — it appears on every brand, path-optimizing ones included**, because being stuck in a room is about elapsed time, not about the order the rooms were sent in — a Strict-order run doesn't change this.
 
 ---
 
@@ -175,7 +175,7 @@ config/eufy_vacuum/learning/<vacuum>/stall/<map id>.png
 
 ### When no capture appears
 
-- Capture rides on the same stall detection as the notice above, so it only happens on order-honoring brands (Eufy), and only once per room per job. Turning capture off does **not** disable stall detection — the notice, the queue-chip warning, and the run's anomaly record all carry on regardless.
+- Capture rides on the same stall detection as the notice above, so it happens on **any** brand — including path-optimizing ones — and only once per room per job. Turning capture off does **not** disable stall detection — the notice, the queue-chip warning, and the run's anomaly record all carry on regardless.
 - Drawing the image needs an optional Python imaging package that isn't present on every Home Assistant install — one of the same set [Auto (CV) segmentation](16-making-your-own-maps.md#option-a-auto-cv--detect-rooms-from-a-screenshot) relies on. Without it there is no picture; nothing else is affected.
 - If the map has no room outline to draw, no image is written.
 - The trail is only drawn when the vacuum reported enough distinct positions around the stall to describe a real route. With fewer, the dot is shown on its own rather than a straight line the robot never drove.

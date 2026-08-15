@@ -720,7 +720,13 @@ def adapter_honors_clean_order(vacuum_entity_id: str) -> bool:
 
       - ``core/manager.py`` — clears the bounds-exit gate, and exports the flag
         into the dashboard snapshot the card reads.
-      - ``jobs/active_job.py`` — gates stall / running-long / skipped anomalies.
+      - ``jobs/active_job.py`` — gates RUNNING-LONG (:1185) and SKIPPED (:1223).
+        NOT stall: the hard-zero that used to gate it was removed in ``26c4b2d7``
+        (see the note at ``core/manager.py``'s current_room_overdue block). Whether a
+        robot honours dispatched ROOM ORDER has nothing to do with whether it is
+        stuck, and gating stall on it meant the detector could never fire on a
+        path-optimising brand. This docstring said "stall / running-long / skipped"
+        for months afterwards and is where at least six doc sites copied it from.
       - ``jobs/phase_runner.py`` — gates whether a multi-room group phase's
         per-room timings are SEGMENTED (admitted to learning) or apportioned
         evenly (excluded).

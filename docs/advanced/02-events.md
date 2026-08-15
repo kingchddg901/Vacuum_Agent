@@ -322,7 +322,7 @@ Fires from `ActiveJobTracker.detect_run_anomalies` (in `jobs/active_job.py`). Th
 
 The event fires when all of the following are true:
 
-1. The vacuum's adapter honors dispatched clean order (`adapter_honors_clean_order`) — true for Eufy; false for a path-optimizing brand (Roborock). This is a static per-adapter capability declaration (`capabilities.honors_clean_order` in the adapter config) — a job's `strict_order` flag does not change it. The whole stall/`running_long` branch below is skipped for an adapter that doesn't honor order — such a run never fires this event.
+1. ~~The vacuum's adapter honors dispatched clean order.~~ **No longer a condition for a stall** — `26c4b2d7` removed that gate, so `eufy_vacuum_stall_detected` fires on path-optimizing brands (Roborock) too. `adapter_honors_clean_order` still gates the `running_long` and `skipped` anomalies, which are queue-order arithmetic; it is a static per-adapter capability declaration (`capabilities.honors_clean_order` in the adapter config) — a job's `strict_order` flag does not change it. The whole stall/`running_long` branch below is skipped for an adapter that doesn't honor order — such a run never fires this event.
 2. The integration is already in `current_room_overdue` state for the current room — meaning the room's timing threshold was met but it has not yet rolled over (no counter plateau or native-signal completion has advanced past it)
 3. The robot has been in the room for **at least the stall ratio × the learned timing threshold** for that room — the ratio comes from the adapter's `anomaly.stall_ratio`, default **2.0×**
 

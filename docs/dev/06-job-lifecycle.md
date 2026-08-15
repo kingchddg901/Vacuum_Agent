@@ -372,9 +372,10 @@ not on however often a card happens to be polling. Each call:
 9. **Bounds-exit detection** (`current_room_overdue`) — the threshold is the
    **sum over `current_room_ids`** of each member's timing-completion threshold
    (a single-room threshold would engage almost immediately on a multi-room group
-   and hold for the whole phase), and the flag is **forced `False` for
-   path-optimizing brands** (`adapter_honors_clean_order(...)` is `False` — timing
-   order is meaningless there).
+   and hold for the whole phase). It is **no longer forced `False` for
+   path-optimizing brands** — that hard-zero was removed in `26c4b2d7`, because it
+   zeroed the input the stall detector requires and so made stall undetectable on
+   Roborock regardless of what the detector said.
 10. **Anomaly detection** — `stall` (hard), `running_long` (soft), and
     `skipped` (conservative). See below.
 
@@ -387,8 +388,9 @@ above — a single-room member sum reduces to the plain per-room threshold, so a
 atomic run is unaffected). If so, `current_room_overdue = True`. This signals the
 card to switch to a short poll interval (~5 s) because the robot is still
 physically inside the room/group and the rollover gate is blocked by bounds.
-Forced `False` outright for a path-optimizing brand (`adapter_honors_clean_order`
-is `False`), since timing order is meaningless there.
+It is **not** forced `False` on a path-optimizing brand. It once was; `26c4b2d7`
+removed that, since being overdue in a room is a statement about elapsed time, not
+about the order rooms were dispatched in.
 
 ### Anomaly detection
 
@@ -398,9 +400,12 @@ The three disjoint anomaly tiers (and the one-shot `EVENT_STALL_DETECTED` /
 `get_job_progress_snapshot` calls with `emit=apply_side_effects` (`manager.py`)
 and whose returned fields it merges into the snapshot — the fields are always
 computed; the event fire + dedup-set persistence happen only when `emit=True`
-(the 5s ticker, SNAP-2 above). **All three tiers are additionally gated on
-`adapter_honors_clean_order`** — a path-optimizing brand (Roborock) reports no
-anomalies from this heuristic at all; `detect_run_anomalies` receives
+(the 5s ticker, SNAP-2 above). **Two of the three tiers are additionally gated on `adapter_honors_clean_order`** —
+`running_long` (`active_job.py:1185`) and `skipped` (`:1223`), both of which are
+queue-ORDER arithmetic and would be meaningless on a path-optimizing brand. **Stall
+is NOT gated** (`26c4b2d7`): whether a robot honours dispatched room order has
+nothing to do with whether it is stuck, so a path-optimizing brand (Roborock) DOES
+report stalls; `detect_run_anomalies` receives
 `current_room_ids` and uses it the same way the bounds-exit check does: the stall
 threshold sums `_timing_completion_threshold_minutes` over every id in
 `current_room_ids` (members with no timeline entry contribute nothing, which
@@ -415,8 +420,8 @@ _STALL_RATIO        = anomaly.stall_ratio        or 2.0
 _RUNNING_LONG_RATIO = anomaly.running_long_ratio  or 1.5
 ```
 
-**Stall (hard).** Gated on `_honors_clean_order` (no-op for a path-optimizing
-brand). A stall is detected when:
+**Stall (hard).** NOT gated on `_honors_clean_order` — it fires on every brand,
+including path-optimizing ones. A stall is detected when:
 - `current_room_overdue` is already `True` (timing threshold exceeded), **and**
 - `current_room_elapsed_minutes >= threshold * _STALL_RATIO` (≥2× by default),
   where `threshold` is the **sum of `_timing_completion_threshold_minutes` over
