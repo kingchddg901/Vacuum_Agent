@@ -1,51 +1,68 @@
 #!/usr/bin/env python3
-"""Mint and verify documentation anchors — a stable name for a place in the code.
+"""Anchor IDs — permanent identity for a place in the code, citable from a document.
 
-    # anchor: clean-mode-options-3W18QZ6B                    <- in source
-    `adapters/eufy/adapter.py#clean-mode-options-3W18QZ6B`   <- in a doc
+    # anchor: CN7K3M9Q  injected stall flag        <- source
+    `services/stall_capture.py#CN7K3M9Q`           <- doc
+    rg CN7K3M9Q                                    <- the human fallback, always
 
-WHY NOT JUST A LINE NUMBER. Measured on this repo, 2026-08-15: 88% of the line
-citations that could be verified were wrong, and three broke the same morning from
-commits to the code they described. A line number rots without anyone touching the
-document, and a rotted one still RESOLVES — it lands on plausible code and reads as
-correct.
+THE SHAPE. Eight characters. The first two are a TYPE PREFIX, the remaining six are
+opaque identity drawn from Crockford Base32.
 
-WHY NOT JUST THE SEMANTIC NAME. `file.py#clean_mode_options` was the first fix and
-it has two flaws. Renaming the concept breaks every citation, so the docs punish a
-rename. And a semantic name can become MISLEADING while still resolving — a key
-called `clean_mode_options` that no longer holds options points somewhere real and
-says something false. That is the line-number failure again, one level up.
+    CNxxxxxx   code/document notation anchor
+    STxxxxxx   semantic trace site
 
-SO THE ANCHOR IS BOTH. The human half (`clean-mode-options`) is a hint and may be
-re-worded freely. The machine half (`7Q9K2M4X`, 8 characters of Crockford Base32) is
-identity and never changes. 32^8 ≈ 1.1e12, so with a few thousand anchors a
-collision is not a practical concern — and the minter checks anyway, because it is
-free.
+The prefix works like an IIN: it tells tooling what CLASS of identifier this is, not
+what the anchored rule means. More prefixes get reserved when a genuinely distinct
+class appears, not before.
 
-THE ID IS UNIQUE REPO-WIDE, WHICH MAKES THE PATH ADVISORY. `::symbol` and a bare
-semantic anchor both break when code moves between files. An anchor does not: the
-checker finds the ID wherever it now lives and reports the stale path as a fixable
-finding rather than a broken citation.
+THE SUFFIX IS RANDOM AND MEANS NOTHING. Not a content hash — deliberately, because a
+hash changes when the content does, and the whole point is an identity that survives
+the thing being edited, moved, renamed, or substantially rewritten. `ST7K3M9Q` says
+"semantic-trace object 7K3M9Q" and nothing else: not the brand, not the subsystem,
+not the version, not what it is for.
 
-THIS IS NOT A NEW CONVENTION HERE, only a checked one. Sixty distinct rule ids
-(`RP-033/RF-32`, `live:ENT-4`, `SETUP-6`) already live in source comments and thirty
-are cited in the docs. Nothing ever verified them; six are dangling. Those keep
-working — any string in the file is a valid anchor — and new ones get an ID.
+FIVE LAYERS, DELIBERATELY SEPARATE:
+
+    prefix            identifier class
+    opaque suffix     permanent identity
+    descriptive name  current taxonomy — `live:ENT-13`, mutable, may be re-cut freely
+    prose             the claimed meaning and contract
+    code              the current implementation
+
+`live:ENT-13` can evolve into something entirely different, or be retired. `CN7K3M9Q`
+does not care. That separation is what makes the anchor a DRIFT-REVIEW SEAM: grep the
+key, read the anchored prose beside the anchored code, and judge in one sitting
+whether they still describe the same behaviour.
+
+VERDICTS, and the distinctions matter:
+
+    DUPLICATE   the same id in two places — a HARD ERROR. An id used twice is not an
+                identity, and every other guarantee here rests on this one.
+    DANGLING    cited, and in no source file. A broken citation.
+    MOVED       cited against the wrong file, but the id was found elsewhere. NOT a
+                break and NOT silently resolved either — the citation still works and
+                the path is stale, so it is reported with the new home.
+
+AN ANCHOR MUST BE DECLARED, never pattern-matched. Eight-character words drawn from
+this alphabet occur in ordinary English — `STANDARD` and `STRANDED` are both valid
+ST-prefixed tokens, and an earlier draft without the marker reported `auto-DETECTED`
+and `runtime-DETECTED` as one colliding id. The `anchor:` marker is what makes a
+token an anchor in source, and it makes every anchor greppable in one pattern.
 
 Run:
-  python scripts/doc_anchor.py --mint clean-mode-options   # a fresh anchor token
-      -> paste into source as:   # anchor: clean-mode-options-3W18QZ6B
-  python scripts/doc_anchor.py --check                     # unique, cited, resolving
-  python scripts/doc_anchor.py --orphans                   # anchors no doc cites
+  python scripts/doc_anchor.py --mint CN         # a fresh id to paste into source
+  python scripts/doc_anchor.py --check           # unique · cited · resolving
+  python scripts/doc_anchor.py --show CN7K3M9Q   # the drift seam: code beside prose
+  python scripts/doc_anchor.py --orphans         # anchors no document cites
 
 Exit code: 0 = every anchor unique and every citation resolves, 1 = otherwise.
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
 import pathlib
 import re
+import secrets
 import sys
 from collections import defaultdict
 
@@ -54,26 +71,28 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-# Crockford Base32: no I, L, O or U — the four that get misread or mistyped when a
+# Crockford Base32 — no I, L, O or U, the four that get misread or mistyped when a
 # human copies an id out of a comment and into a document.
 ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-ID_LEN = 8
+SUFFIX_LEN = 6
+
+# Identifier CLASS, not meaning. Reserve a new one only for a genuinely distinct
+# class of thing; "another subsystem" is not a class.
+PREFIXES = {
+    "CN": "code/document notation anchor",
+    "ST": "semantic trace site",
+}
 
 SOURCE_ROOTS = ("custom_components", "scripts", "src", "harness")
 DOC_ROOTS = ("docs",)
 
-# An anchor must be DECLARED, never pattern-matched. Eight-letter uppercase English
-# words are valid Crockford Base32 — the first run of this script reported
-# `auto-DETECTED` and `runtime-DETECTED` as one colliding id, and RESOLVED, DISABLED
-# and RECORDED would all have done the same. The `anchor:` marker is what makes a
-# token an anchor. It also makes every anchor greppable in one pattern.
 MARKER = "anchor:"
-ANCHOR_RE = re.compile(
-    MARKER + r"\s*([a-z][a-z0-9-]*[a-z0-9])-([" + ALPHABET + r"]{%d})\b" % ID_LEN
-)
-# A citation carries only the token, so validating one needs the bare shape too.
-TOKEN_RE = re.compile(r"^([a-z][a-z0-9-]*[a-z0-9])-([" + ALPHABET + r"]{%d})$" % ID_LEN)
-CITE_ANCHOR_RE = re.compile(r"`[\w./-]+\.py#([\w-]+)`")
+TOKEN = r"(?:" + "|".join(PREFIXES) + r")[" + ALPHABET + r"]{%d}" % SUFFIX_LEN
+TOKEN_RE = re.compile(r"^" + TOKEN + r"$")
+# In SOURCE an anchor is only an anchor after the marker. A trailing descriptive
+# label is encouraged and ignored — it is taxonomy, not identity.
+DECL_RE = re.compile(MARKER + r"\s*(" + TOKEN + r")\b")
+CITE_RE = re.compile(r"`(?P<path>[\w./-]+\.(?:py|js|mjs))#(?P<token>[\w:-]+)`")
 
 
 def source_files() -> list[pathlib.Path]:
@@ -83,129 +102,140 @@ def source_files() -> list[pathlib.Path]:
         if not base.is_dir():
             continue
         for p in base.rglob("*"):
-            if p.suffix not in {".py", ".js", ".mjs"} or "__pycache__" in p.parts:
+            if p.suffix not in {".py", ".js", ".mjs"}:
                 continue
-            if "node_modules" in p.parts:
+            if "__pycache__" in p.parts or "node_modules" in p.parts:
                 continue
             if p.name == "doc_anchor.py":
-                continue  # its docstring shows the FORM; those are not anchors
-
+                continue  # its docstring shows the FORM; those are not declarations
             out.append(p)
     return out
 
 
-def scan_anchors() -> dict[str, list[tuple[pathlib.Path, str]]]:
-    """id -> [(file, full token)]. Keyed on the ID, because that is the identity."""
-    found: dict[str, list[tuple[pathlib.Path, str]]] = defaultdict(list)
+def scan() -> dict[str, list[tuple[pathlib.Path, int, str]]]:
+    """token -> [(file, line, the whole declaration line)]."""
+    found: dict[str, list[tuple[pathlib.Path, int, str]]] = defaultdict(list)
     for p in source_files():
         try:
-            text = p.read_text(encoding="utf-8", errors="replace")
+            lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError:
             continue
-        for slug, ident in ANCHOR_RE.findall(text):
-            found[ident].append((p, f"{slug}-{ident}"))
+        for i, line in enumerate(lines, 1):
+            for tok in DECL_RE.findall(line):
+                found[tok].append((p, i, line.strip()))
     return found
 
 
-def mint(slug: str, taken: set[str]) -> str:
-    """A deterministic-but-unpredictable id for `slug`, salted until it is free.
-
-    Derived from the slug rather than from randomness so that a re-run for the same
-    name is reproducible in a test, and salted on collision so it is still unique.
-    """
-    slug = re.sub(r"[^a-z0-9]+", "-", slug.lower()).strip("-")
-    if not slug:
-        raise SystemExit("a slug needs at least one alphanumeric character")
-    for salt in range(10_000):
-        digest = hashlib.blake2b(f"{slug}:{salt}".encode(), digest_size=8).digest()
-        n = int.from_bytes(digest, "big")
-        ident = "".join(ALPHABET[(n >> (5 * i)) & 31] for i in range(ID_LEN))
-        if ident not in taken:
-            return f"{slug}-{ident}"
-    raise SystemExit("could not find a free id — that should be impossible")
-
-
-def cited_anchors() -> dict[str, list[tuple[str, int, str]]]:
-    """anchor token -> [(doc, line, cited path)] for every `file.py#anchor` in docs."""
-    out: dict[str, list[tuple[str, int, str]]] = defaultdict(list)
+def cites() -> dict[str, list[tuple[str, int, str, str]]]:
+    """token -> [(doc, line, cited path, the sentence)]."""
+    out: dict[str, list[tuple[str, int, str, str]]] = defaultdict(list)
     for root in DOC_ROOTS:
         for doc in sorted((ROOT / root).rglob("*.md")):
             rel = doc.relative_to(ROOT).as_posix()
             for i, line in enumerate(
                 doc.read_text(encoding="utf-8", errors="replace").splitlines(), 1
             ):
-                for m in CITE_ANCHOR_RE.finditer(line):
-                    path = re.match(r"`([\w./-]+\.py)#", m.group(0)).group(1)
-                    out[m.group(1)].append((rel, i, path))
+                for m in CITE_RE.finditer(line):
+                    out[m.group("token")].append(
+                        (rel, i, m.group("path"), line.strip()))
     return out
+
+
+def mint(prefix: str, taken: set[str]) -> str:
+    """A fresh id. RANDOM, never derived — an id derived from content would change
+    when the content did, which is the one thing this must never do."""
+    prefix = prefix.upper()
+    if prefix not in PREFIXES:
+        raise SystemExit(
+            f"unknown prefix {prefix!r} — reserved classes are: "
+            + ", ".join(f"{k} ({v})" for k, v in PREFIXES.items()))
+    for _ in range(1000):
+        tok = prefix + "".join(secrets.choice(ALPHABET) for _ in range(SUFFIX_LEN))
+        if tok not in taken:
+            return tok
+    raise SystemExit("could not find a free id — that should be impossible")
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--mint", metavar="SLUG", help="print a fresh anchor token")
+    ap.add_argument("--mint", metavar="PREFIX", help="CN or ST")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--show", metavar="TOKEN", help="code beside the prose citing it")
     ap.add_argument("--orphans", action="store_true")
     args = ap.parse_args()
 
-    anchors = scan_anchors()
+    anchors = scan()
 
     if args.mint:
         print(mint(args.mint, set(anchors)))
         return 0
 
-    problems: list[str] = []
+    citations = cites()
 
-    # 1 — an id used twice is not an identity. The whole design rests on this.
-    for ident, places in sorted(anchors.items()):
-        distinct = {tok for _, tok in places}
-        files = {p for p, _ in places}
-        if len(distinct) > 1:
-            problems.append(
-                f"COLLIDING  id {ident} carries {len(distinct)} different names: "
-                + ", ".join(sorted(distinct))
-            )
-        elif len(files) > 1:
-            problems.append(
-                f"DUPLICATED {ident} appears in {len(files)} files: "
-                + ", ".join(sorted(f.relative_to(ROOT).as_posix() for f in files))
-            )
-
-    cites = cited_anchors()
-    by_token = {tok: p for places in anchors.values() for p, tok in places}
-
-    for token, uses in sorted(cites.items()):
-        m = TOKEN_RE.match(token)
-        if not m:
-            continue  # a legacy semantic anchor; checked by check_doc_citations.py
-        ident = m.group(2)
-        if ident not in anchors:
-            for doc, line, _ in uses:
-                problems.append(
-                    f"DANGLING   {doc}:{line} cites {token}, which is in no source file")
-            continue
-        home = by_token.get(token)
-        if home is None:
-            continue
-        home_rel = home.relative_to(ROOT).as_posix()
-        for doc, line, path in uses:
-            # The PATH IS ADVISORY. The id resolved, so the citation is not broken —
-            # the code moved and the human-readable half is now stale.
-            if not home_rel.endswith("/" + path.lstrip("./")) and not home_rel.endswith(path):
-                problems.append(
-                    f"MOVED      {doc}:{line} cites {path}#…, but {token} now lives in "
-                    f"{home_rel}")
+    if args.show:
+        tok = args.show.upper()
+        print(f"=== {tok} — {PREFIXES.get(tok[:2], 'unknown class')} ===\n")
+        print("CODE")
+        for p, ln, text in anchors.get(tok, []):
+            rel = p.relative_to(ROOT).as_posix()
+            body = p.read_text(encoding="utf-8", errors="replace").splitlines()
+            print(f"  {rel}:{ln}")
+            for j in range(ln - 1, min(ln + 6, len(body))):
+                print(f"    {j + 1:5d} | {body[j]}")
+        if not anchors.get(tok):
+            print("  (declared nowhere in source)")
+        print("\nPROSE")
+        for doc, ln, _path, sentence in citations.get(tok, []):
+            print(f"  {doc}:{ln}\n    {sentence[:300]}")
+        if not citations.get(tok):
+            print("  (cited by no document)")
+        return 0
 
     if args.orphans:
-        uncited = {tok for places in anchors.values() for _, tok in places} - set(cites)
+        uncited = set(anchors) - set(citations)
         print(f"{len(uncited)} anchors in source that no document cites")
         for tok in sorted(uncited):
-            print(f"  {tok}  ({by_token[tok].relative_to(ROOT).as_posix()})")
+            p, ln, _ = anchors[tok][0]
+            print(f"  {tok}  {p.relative_to(ROOT).as_posix()}:{ln}")
         return 0
+
+    problems: list[str] = []
+
+    # DUPLICATE is a hard error: an id used twice is not an identity, and every
+    # other guarantee in this scheme rests on this one holding.
+    for tok, places in sorted(anchors.items()):
+        if len(places) > 1:
+            where = ", ".join(f"{p.relative_to(ROOT).as_posix()}:{ln}"
+                              for p, ln, _ in places)
+            problems.append(f"DUPLICATE  {tok} declared {len(places)} times: {where}")
+
+    for tok, uses in sorted(citations.items()):
+        if not TOKEN_RE.match(tok):
+            continue  # a legacy descriptive anchor; check_doc_citations.py covers it
+        homes = anchors.get(tok)
+        if not homes:
+            for doc, ln, _p, _s in uses:
+                problems.append(
+                    f"DANGLING   {doc}:{ln} cites {tok}, declared in no source file")
+            continue
+        if len(homes) > 1:
+            # Already reported as DUPLICATE. Picking one of them as "the" home would
+            # then emit a MOVED against the other — a phantom second finding
+            # manufactured by the first, and the noisier one would be the lie.
+            continue
+        home = homes[0][0].relative_to(ROOT).as_posix()
+        for doc, ln, path, _s in uses:
+            # Found, but not where the citation says. NOT a break — and not silently
+            # resolved either. The citation works; the path is stale.
+            if not home.endswith("/" + path.lstrip("./")) and home != path:
+                problems.append(
+                    f"MOVED      {doc}:{ln} cites {path}#{tok}, "
+                    f"but {tok} now lives in {home}")
 
     for p in problems:
         print(p)
     print()
-    print(f"{len(anchors)} anchor ids in source · {len(cites)} cited in docs · "
+    print(f"{len(anchors)} anchors declared · {len(citations)} cited · "
           f"{len(problems)} problem(s)")
     return 1 if problems else 0
 

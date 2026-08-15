@@ -134,7 +134,7 @@ def register(hass: HomeAssistant) -> None:
             "elapsed_minutes": None,
             "expected_minutes": None,
             "stall_ratio": None,
-            # anchor: injected-stall-flag-M8T99DMQ
+            # anchor: CN9BGGJ6  injected stall flag (live:STALL-INJ)
             "injected": True,
         }
         # PROVENANCE IS A SECTION, NEVER A BRANCH: nothing downstream reads it or behaves

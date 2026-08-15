@@ -62,6 +62,10 @@ DOC_ROOTS = ("docs",)
 # claims about this repo and must not be reported as broken ones.
 PLACEHOLDERS = {"file.py", "path/to/file.py", "module.py"}
 
+# An ID-form anchor: two-character class prefix + six Crockford Base32 characters.
+# Owned by scripts/doc_anchor.py — see the note at its use below.
+ANCHOR_ID_RE = re.compile(r"^(?:CN|ST)[0-9A-HJKMNP-TV-Z]{6}$")
+
 # Tallied by form, because the ban is on the FORM, not on being currently wrong.
 FORMS = {"line": 0, "symbol": 0, "anchor": 0, "strong": 0, "weak": 0}
 
@@ -252,6 +256,13 @@ def check_doc(doc: pathlib.Path, idx: Index) -> tuple[list[Problem], int]:
 
             if (anchor := m.group("anchor")):
                 FORMS["anchor"] += 1
+                # An ID-form anchor (CN…/ST…) is owned by scripts/doc_anchor.py, which
+                # resolves it repo-wide and distinguishes MOVED from DANGLING. Judging
+                # it here on "is the string in THIS file" would call a moved-but-valid
+                # citation broken, and two tools disagreeing about the same citation is
+                # worse than one of them staying quiet.
+                if ANCHOR_ID_RE.match(anchor):
+                    continue
                 body = py.read_text(encoding="utf-8", errors="replace")
                 hits = body.count(anchor)
                 if hits == 0:
