@@ -3003,6 +3003,7 @@
     "unresolved": "nie znaleziono",
     "rejected": "Pasowało również",
     "source_derived": "Dopasowanie nazwy",
+    "source_unknown": "Nie zapisano",
     "source_object_id": "Nazwa odkurzacza",
     "source_translation_key": "Dostarczone przez integrację",
     "source_state_class": "Typ pomiaru",

@@ -921,9 +921,13 @@ export function applySetupRenderers(proto) {
       // `chosen_by` is only set when the role was CONTESTED. Absent means it
       // was never contested — NOT that nothing decided it — so it must not
       // render as though a rung fired.
+      // The comment above is the RULE; this line used to break it. Falling back
+      // to `source_derived` renders "Name match" -- a positive claim that a
+      // specific rung fired -- for a role whose source was never recorded. On a
+      // capabilities snapshot written before live:ENT-12 that is every row.
       const source = row?.chosen_by
         ? this.t(`system.source_${row.chosen_by}`)
-        : this.t("system.source_derived");
+        : this.t("system.source_unknown");
 
       const reason = row?.reason && row.reason !== "resolved"
         ? `<span class="evcc-system-flag">${this.t(`system.reason_${row.reason}`)}</span>`

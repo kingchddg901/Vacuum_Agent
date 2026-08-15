@@ -2995,6 +2995,7 @@
     "unresolved": "niet gevonden",
     "rejected": "Kwam ook overeen",
     "source_derived": "Naamovereenkomst",
+    "source_unknown": "Niet vastgelegd",
     "source_object_id": "Naam van de stofzuiger",
     "source_translation_key": "Geleverd door de integratie",
     "source_state_class": "Meettype",

@@ -204,6 +204,11 @@ export const en = {
   "system.unresolved": "not found",
   "system.rejected": "Also matched",
   "system.source_derived": "Name match",
+  // NOT a rung. Shown when `chosen_by` is absent, which means no source was
+  // recorded -- never that a name match happened. Claiming "Name match" there
+  // asserts a specific rung fired, and on a stored snapshot predating
+  // live:ENT-12 that was EVERY row on the screen built to be trusted.
+  "system.source_unknown": "Not recorded",
   "system.source_object_id": "Vacuum name",
   "system.source_translation_key": "Provided by the integration",
   "system.source_state_class": "Measurement type",

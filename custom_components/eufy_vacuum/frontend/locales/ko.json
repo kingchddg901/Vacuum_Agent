@@ -2952,6 +2952,7 @@
     "unresolved": "찾을 수 없음",
     "rejected": "함께 일치함",
     "source_derived": "이름 일치",
+    "source_unknown": "기록되지 않음",
     "source_object_id": "청소기 이름",
     "source_translation_key": "통합에서 제공",
     "source_state_class": "측정 유형",

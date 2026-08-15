@@ -3226,6 +3226,7 @@
     "unresolved": "غير موجود",
     "rejected": "تطابق أيضاً",
     "source_derived": "تطابق الاسم",
+    "source_unknown": "غير مسجَّل",
     "source_object_id": "اسم المكنسة",
     "source_translation_key": "مقدَّم من التكامل",
     "source_state_class": "نوع القياس",

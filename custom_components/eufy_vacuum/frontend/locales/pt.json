@@ -3013,6 +3013,7 @@
     "unresolved": "não encontrada",
     "rejected": "Também correspondeu",
     "source_derived": "Correspondência de nome",
+    "source_unknown": "Não registado",
     "source_object_id": "Nome do aspirador",
     "source_translation_key": "Fornecido pela integração",
     "source_state_class": "Tipo de medição",

@@ -3001,6 +3001,7 @@
     "unresolved": "non trovata",
     "rejected": "Corrispondeva anche",
     "source_derived": "Corrispondenza del nome",
+    "source_unknown": "Non registrato",
     "source_object_id": "Nome dell'aspirapolvere",
     "source_translation_key": "Fornito dall'integrazione",
     "source_state_class": "Tipo di misura",

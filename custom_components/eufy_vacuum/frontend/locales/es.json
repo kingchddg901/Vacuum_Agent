@@ -3014,6 +3014,7 @@
     "unresolved": "no encontrada",
     "rejected": "También coincidió",
     "source_derived": "Coincidencia de nombre",
+    "source_unknown": "Sin registrar",
     "source_object_id": "Nombre de la aspiradora",
     "source_translation_key": "Proporcionado por la integración",
     "source_state_class": "Tipo de medición",

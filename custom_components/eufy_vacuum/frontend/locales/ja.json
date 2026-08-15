@@ -2952,6 +2952,7 @@
     "unresolved": "見つかりません",
     "rejected": "一致した候補",
     "source_derived": "名前の一致",
+    "source_unknown": "記録なし",
     "source_object_id": "掃除機の名前",
     "source_translation_key": "統合が提供",
     "source_state_class": "測定の種類",

@@ -2995,6 +2995,7 @@
     "unresolved": "nicht gefunden",
     "rejected": "Ebenfalls passend",
     "source_derived": "Namensübereinstimmung",
+    "source_unknown": "Nicht erfasst",
     "source_object_id": "Saugername",
     "source_translation_key": "Von der Integration bereitgestellt",
     "source_state_class": "Messtyp",

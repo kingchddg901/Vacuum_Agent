@@ -975,6 +975,7 @@
     "unresolved": "not found",
     "rejected": "Also matched",
     "source_derived": "Name match",
+    "source_unknown": "Not recorded",
     "source_object_id": "Vacuum name",
     "source_translation_key": "Provided by the integration",
     "source_state_class": "Measurement type",

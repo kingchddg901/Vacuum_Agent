@@ -2991,6 +2991,7 @@
     "unresolved": "tidak ditemukan",
     "rejected": "Juga cocok",
     "source_derived": "Kecocokan nama",
+    "source_unknown": "Tidak tercatat",
     "source_object_id": "Nama penyedot debu",
     "source_translation_key": "Disediakan oleh integrasi",
     "source_state_class": "Jenis pengukuran",

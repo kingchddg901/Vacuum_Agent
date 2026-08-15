@@ -253,6 +253,7 @@ def _detect_maintenance_sources(
     maintenance_components: dict[str, Any],
     siblings: Iterable[str] = (),
     overrides: dict[str, str] | None = None,
+    universe: Iterable[str] = (),
 ) -> dict[str, str | None]:
     """Return a component → source entity_id map for maintenance tracking.
 
@@ -272,7 +273,7 @@ def _detect_maintenance_sources(
         if _state_exists(hass, candidate) or _registry_entry_exists(hass, candidate):
             return candidate
         # live:ENT-8 — the derived name missed; look for the real companion.
-        return _rescue_maintenance_source(siblings, str(suffix))
+        return _rescue_maintenance_source(siblings, str(suffix), universe)
 
     user_choices = overrides if isinstance(overrides, dict) else {}
     sources: dict[str, str | None] = {}
@@ -957,12 +958,32 @@ def detect_capabilities(
                 exc_info=True,
             )
 
+        # THE EXCLUSIVITY GUARD, ARMED (live:ENT-4 applied to the third copy).
+        #
+        # The universe is every maintenance suffix this brand declares PLUS its
+        # full role vocabulary, because a component sensor can collide with a
+        # ROLE sensor as easily as with another component — and a brand should not
+        # have to bind a role merely to be protected from it (the same argument
+        # that made reserved_suffixes an argument rather than a longer map).
+        #
+        # Deliberate behaviour change: this can now REFUSE a rescue that used to
+        # be accepted, which is correct — an ambiguous or mis-claimed entity
+        # should read unresolved rather than report confident, wrong remaining
+        # life. Verified against the live registry before arming: identical for
+        # all 7 Eufy components and all 4 Roborock ones.
+        _maint_universe = {
+            f"_{meta['sensor_suffix']}"
+            for meta in maintenance_components.values()
+            if isinstance(meta, dict) and meta.get("sensor_suffix")
+        } | {s for s in (reserved_suffixes or ()) if isinstance(s, str) and s}
+
         maintenance_sources = _detect_maintenance_sources(
             hass,
             object_id=object_id,
             maintenance_components=maintenance_components,
             siblings=_maint_siblings,
             overrides=_overrides,
+            universe=_maint_universe,
         )
 
     # --- live state values --------------------------------------------------

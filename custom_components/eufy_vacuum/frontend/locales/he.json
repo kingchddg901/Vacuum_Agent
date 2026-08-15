@@ -3118,6 +3118,7 @@
     "unresolved": "לא נמצא",
     "rejected": "התאים גם",
     "source_derived": "התאמת שם",
+    "source_unknown": "לא נרשם",
     "source_object_id": "שם השואב",
     "source_translation_key": "סופק על ידי האינטגרציה",
     "source_state_class": "סוג מדידה",

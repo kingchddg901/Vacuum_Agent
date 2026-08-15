@@ -3002,6 +3002,7 @@
     "unresolved": "nenalezeno",
     "rejected": "Odpovídalo také",
     "source_derived": "Shoda názvu",
+    "source_unknown": "Nezaznamenáno",
     "source_object_id": "Název vysavače",
     "source_translation_key": "Poskytnuto integrací",
     "source_state_class": "Typ měření",

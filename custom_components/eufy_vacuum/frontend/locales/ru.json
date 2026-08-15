@@ -3109,6 +3109,7 @@
     "unresolved": "не найдено",
     "rejected": "Также подошло",
     "source_derived": "Совпадение имени",
+    "source_unknown": "Не записано",
     "source_object_id": "Имя пылесоса",
     "source_translation_key": "Предоставлено интеграцией",
     "source_state_class": "Тип измерения",

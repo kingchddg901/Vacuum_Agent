@@ -2952,6 +2952,7 @@
     "unresolved": "找不到",
     "rejected": "也符合",
     "source_derived": "名稱比對",
+    "source_unknown": "未記錄",
     "source_object_id": "掃地機名稱",
     "source_translation_key": "由整合提供",
     "source_state_class": "測量類型",

@@ -3015,6 +3015,7 @@
     "unresolved": "introuvable",
     "rejected": "Correspondait aussi",
     "source_derived": "Correspondance de nom",
+    "source_unknown": "Non enregistré",
     "source_object_id": "Nom de l'aspirateur",
     "source_translation_key": "Fourni par l'intégration",
     "source_state_class": "Type de mesure",

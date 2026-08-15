@@ -2952,6 +2952,7 @@
     "unresolved": "未找到",
     "rejected": "也匹配",
     "source_derived": "名称匹配",
+    "source_unknown": "未记录",
     "source_object_id": "扫地机名称",
     "source_translation_key": "由集成提供",
     "source_state_class": "测量类型",

@@ -2994,6 +2994,7 @@
     "unresolved": "bulunamadı",
     "rejected": "Ayrıca eşleşti",
     "source_derived": "Ad eşleşmesi",
+    "source_unknown": "Kaydedilmedi",
     "source_object_id": "Süpürge adı",
     "source_translation_key": "Entegrasyon tarafından sağlandı",
     "source_state_class": "Ölçüm türü",
