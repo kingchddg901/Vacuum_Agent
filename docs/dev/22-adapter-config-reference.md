@@ -508,17 +508,17 @@ values.
 
 Eufy **derives** `evidence_invalidating_error_codes` as
 `EUFY_ROBOT_SOURCED_ERROR_CODES - EUFY_EVIDENCE_SAFE_ROBOT_CODES`
-(`adapters/eufy/vocabulary.py:576-577`) because Eufy's source table is
+(`adapters/eufy/vocabulary.py::EUFY_EVIDENCE_INVALIDATING_ERROR_CODES`) because Eufy's source table is
 *closed* (the full `ErrorCode` proto was captured). Roborock instead
-**hand-declares** its invalidating set (`adapters/roborock/vocabulary.py:265`)
+**hand-declares** its invalidating set (`adapters/roborock/vocabulary.py::ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES`)
 rather than deriving it the same way, because Roborock's source tables are a
 *partial, open* classification of a vendor enum — several states are left
 out on purpose as ambiguous (see `adapters/roborock/vocabulary.py:289-297`),
 so `ROBOT - SAFE_ROBOT` would wrongly widen the invalidating set to every
 un-vetted robot code. Both brands' `evidence_safe_error_codes` **are**
 derived as `dock_sourced_error_codes | <a separate safe-robot set>`
-(`adapters/eufy/vocabulary.py:582-583`,
-`adapters/roborock/vocabulary.py:285-287`) — a brand's dock codes never need
+(`adapters/eufy/vocabulary.py::EUFY_EVIDENCE_SAFE_ERROR_CODES`,
+`adapters/roborock/vocabulary.py::ROBOROCK_EVIDENCE_SAFE_ERROR_CODES`) — a brand's dock codes never need
 transcribing twice.
 
 ### Where the framework reads it

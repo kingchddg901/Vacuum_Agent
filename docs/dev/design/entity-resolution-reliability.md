@@ -22,7 +22,7 @@ one device.** Twelve roles unresolved.
 **The diagnosis this project carried was wrong.** It said the per-candidate rescue "was never
 wired into `entity_candidates`". It is wired in:
 
-- `augment_candidates_from_device` (`core/capabilities.py:182`), called by
+- `augment_candidates_from_device` (`core/capabilities.py::augment_candidates_from_device`), called by
   `detect_capabilities` at `:310` — already documented at
   [21-adapter-system](../21-adapter-system.md) §5.2 step 4.
 - Landed in `9a37ad6c` (2026-08-04); **in v2.0.0** by `git merge-base --is-ancestor`. The
@@ -35,14 +35,14 @@ Eliminated, each by a specific check — **do not re-walk these**:
 | theory | killed by |
 |---|---|
 | not shipped / older build | commit is an ancestor of both v2.0.0 and v2.0.1 |
-| load-order between the two rescues | both run in ONE function, `adapters/eufy/adapter.py:237` and `:314` |
+| load-order between the two rescues | both run in ONE function, `adapters/eufy/adapter.py::register_eufy_adapter_for_vacuum` and `:314` |
 | vacuum absent from registry at setup | `resolve_declared_entities` read `config_entry_id` off the SAME lookup and succeeded |
-| diagnostics recomputing one half | both halves are stored setup-time state, `diagnostics.py:485-497` |
-| stale caps surviving the upgrade | adapter registration runs from `async_setup_entry` (`brands.py:189`); caps rebuild every start |
+| diagnostics recomputing one half | both halves are stored setup-time state, `diagnostics.py::_vacuum_diagnostics` |
+| stale caps surviving the upgrade | adapter registration runs from `async_setup_entry` (`brands.py::register_brand_adapter`); caps rebuild every start |
 | the failing entities are disabled | census says `disabled=false` for all ten — but see §2.2 |
 
 **Still unknown:** `entry.device_id` empty at setup, no siblings at that instant, or the bare
-`except Exception` (`capabilities.py:232`) swallowing on **HA 2026.8.1** (we pin 2026.5.3 and
+`except Exception` (`capabilities.py::augment_candidates_from_device`) swallowing on **HA 2026.8.1** (we pin 2026.5.3 and
 cannot introspect theirs). P0-3 exists to make this answerable instead of inferable.
 
 Battery — the issue's headline — **is** resolved on their 2.0.1 dump
@@ -90,7 +90,7 @@ is user-actionable immediately and costs us nothing to report.
 
 ### 2.3 Break the silence in the swallow
 
-`except Exception: return dict(cands)` (`capabilities.py:232`) logs nothing, so a field rescue
+`except Exception: return dict(cands)` (`capabilities.py::augment_candidates_from_device`) logs nothing, so a field rescue
 failure is indistinguishable from "ran and found nothing" — the exact silent-failure shape the
 function's own docstring calls the worst outcome. Log at WARNING with the exception, and record
 in diagnostics: `augmentation: {ran, siblings_seen, merged, error}`.
@@ -128,7 +128,7 @@ today.** Three cases, and the boundaries are what matter:
 
 > ⚠ **SUPERSEDED — the majority-stem vote was never shipped, and `2c1d847f` deleted it.**
 > Competing candidates are settled by the FOUR-RUNG CONTEST LADDER instead
-> (`_narrow_competing`, `capabilities.py:365`): `object_id` → `translation_key` →
+> (`_narrow_competing`, `capabilities.py::_narrow_competing`): `object_id` → `translation_key` →
 > `state_class` → `magnitude`, strongest evidence first, each rung DECISIVE or the next is
 > tried, and no rung deciding leaves the role unresolved. §4.5.1 of this same document
 > describes the ladder; this section is kept for the reasoning that led there — the
@@ -182,7 +182,7 @@ mismatch, not a stem one) and a companion on a **different device**.
 
 ### 4.1 Mirror the existing precedent — do not invent a mechanism
 
-`brand_overrides` already establishes the shape (`adapters/brands.py:56`,
+`brand_overrides` already establishes the shape (`adapters/brands.py::BRAND_OVERRIDES_KEY`,
 [21-adapter-system](../21-adapter-system.md) §6.1): a per-vacuum user override in config-entry
 `data`, read by core, *"nothing writes this key yet; the read path exists so the planned UI has
 somewhere to land."* This is the same pattern one level down:
@@ -221,7 +221,7 @@ their stated intent would reintroduce exactly the failure mode being fixed.
 
 ### 4.5 UI
 
-A step on the existing `EufyVacuumOptionsFlow` (`config_flow.py:82` — today a single
+A step on the existing `EufyVacuumOptionsFlow` (`config_flow.py::EufyVacuumOptionsFlow` — today a single
 `async_step_init`, already using `selector.EntitySelector`). Add a step, not a subsystem.
 
 Default the screen to the **unresolved roles only** (already computed as
@@ -350,7 +350,7 @@ brand supplies only its vocabulary. One mechanism, three jobs — auto-resolve w
 rank the P2 picker when not, and P2's record scores the scorer.
 
 **BLOCKER — build the census enrichment first, and let it ship alone.**
-`_device_entity_census` (`diagnostics.py:406`) records only `entity_id`, `disabled`, `platform`.
+`_device_entity_census` (`diagnostics.py::_device_entity_census`) records only `entity_id`, `disabled`, `platform`.
 None of the traits above are in any dump we hold, so a scorer built today would be tuned against
 Alfred and called general. Add device_class, unit, select options and state to the census, then
 validate against dumps that come back.
@@ -375,11 +375,11 @@ That record is also P0-3's instrumentation — **one artifact, both jobs.**
 |---|---|
 | Exclusive longest-suffix matching | `core/capabilities.py` `augment_candidates_from_device` |
 | absent/disabled/resolved reason | `core/capabilities.py` `_find*` + `diagnostics.py` `entity_resolution` |
-| Augmentation telemetry + WARNING | `core/capabilities.py:232` + `diagnostics.py` |
+| Augmentation telemetry + WARNING | `core/capabilities.py::augment_candidates_from_device` + `diagnostics.py` |
 | Companion-stem derivation | `core/capabilities.py` (new helper, brand-agnostic) |
-| Override read path | `augment_candidates_from_device`, key mirroring `adapters/brands.py:56` |
+| Override read path | `augment_candidates_from_device`, key mirroring `adapters/brands.py::BRAND_OVERRIDES_KEY` |
 | Override UI step | `config_flow.py` `EufyVacuumOptionsFlow` + 18 locale files |
-| Census enrichment | `diagnostics.py:406` `_device_entity_census` |
+| Census enrichment | `diagnostics.py::_device_entity_census` `_device_entity_census` |
 | Trait scorer | core (traits) + `adapters/*/vocabulary.py` (vocabularies) |
 
 **Testing:** core tests stay engine-agnostic with a fake/stub adapter; the real Eufy collision and

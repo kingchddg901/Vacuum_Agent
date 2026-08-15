@@ -97,7 +97,7 @@ Each entry in `adapter_config["maintenance_components"]` defines one trackable c
 | Field | Type | Description |
 |---|---|---|
 | `sensor_suffix` | str \| None | Full suffix appended to `sensor.{object_id}_` to form the counter entity ID (e.g. `"filter_remaining"` → `sensor.{object_id}_filter_remaining`). May be `None`, **or present alongside `proxy_for`** as the fallback source (e.g. `swivel_wheel` has both). |
-| `proxy_for` | str \| None | If set, this component prefers that component's sensor when present, **falling back to its own `sensor_suffix`** (`core/capabilities.py:137-146`: `_resolve(proxy.sensor_suffix) or own`) |
+| `proxy_for` | str \| None | If set, this component prefers that component's sensor when present, **falling back to its own `sensor_suffix`** (`core/capabilities.py::_detect_maintenance_sources`: `_resolve(proxy.sensor_suffix) or own`) |
 | `maintenance_only` | bool | (absent → `False`) Suppresses the component's **Replacement** row entirely and excludes it from the attention roll-up; subject to the family gate (§4.3) |
 | `reset_button` | dict \| None | Resolves the component's reset button: `entity_suffixes` (appended to `button.{object_id}_`) tried first, then `token_sets` as all-tokens-must-match fallbacks. Since 2.1.0-beta.2 the token search looks at the vacuum's **device and config entry** siblings first (accepting only an unambiguous single match) before the original registry-wide `button.{object_id}_` prefix scan — see the note below. A `token_sets` match is additionally rejected if its resolved `entity_id` contains the substring `"maintenance"`. Absent → no reset button. |
 | `default_interval_hours` | float | Factory-default cleaning/replacement interval |

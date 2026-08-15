@@ -112,7 +112,7 @@ The spatial pipeline is now covered (see the `AJS` integration suite below); the
 remaining ~8% is defensive guards and edge branches — see **Known gaps**.
 
 ### `phase_runner.py` — strict-order phase execution (prefix `SOPT`, integration)
-`PhaseRunner` (`phase_runner.py:59`) owns the two halves of strict-order
+`PhaseRunner` (`phase_runner.py::PhaseRunner`) owns the two halves of strict-order
 (sequenced, one-room-per-phase) cleaning, extracted from `core/manager.py`:
 - **Per-phase timing capture** — `maybe_advance_phase` (the public entry point,
   called by the completion hook via the manager delegator) snapshots each

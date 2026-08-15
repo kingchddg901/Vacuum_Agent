@@ -22,7 +22,7 @@ and must be re-confirmed at implementation time (verify-vs-code rule).
 > Roborock declares `True` (`adapters/roborock/adapter.py:521`). Two structural moves since the
 > anchors were taken: external-run finalize is now owned by `ExternalRunManager` in
 > `learning/external_run.py` (the W5c bullet's `core/manager.py::_finalize_external_run` anchor
-> still resolves — `core/manager.py:3795` — but as a thin delegator; the substance is
+> still resolves — `core/manager.py::_finalize_external_run` — but as a thin delegator; the substance is
 > `learning/external_run.py::_finalize_external_run`), and the throwaway `debug_log_live_room` probe **handler** has
 > been removed (`listeners/pose_sampler.py` is its production successor) — though its orphaned
 > `services.yaml` block remains (`services.yaml:3168`).
@@ -45,9 +45,9 @@ today, and it is itself an inference** — so the answer is a *hybrid*, not a fl
 Two facts shape the whole design:
 
 1. **Shape mismatch.** The seam consumes a live room-**NAME** entity (slug-matched to job targets,
-   `_resolve_native_target_room_id` at `jobs/active_job.py:1048`) wired as
+   `_resolve_native_target_room_id` at `jobs/active_job.py::_resolve_native_target_room_id`) wired as
    `entities.active_cleaning_target`. Eufy's `current_room` is an inferred raster-lookup room **ID**
-   (`mapping/map_source.py:231-260`, surfaced at `sensor/map_overlays.py:72-84`), and Eufy already
+   (`mapping/map_source.py::current_room_for_pixel`, surfaced at `sensor/map_overlays.py::native_value`), and Eufy already
    uses `active_cleaning_target` as a completion **sentinel** (`adapters/eufy/adapter.py:353`). So a
    name-surfacing + slug-reconciliation shim and a completion-path migration are prerequisites.
 2. **It's inference, not an upstream signal.** Our "prefer dedicated upstream signals over inferred
@@ -63,16 +63,16 @@ Three collaborators (`jobs/active_job.py`, `_maybe_roll_current_room_by_timing` 
 - `live_transition.native_transition_source: True` — Eufy is currently `False` (`adapters/eufy/adapter.py:632`).
 - `entities.active_cleaning_target` → a **live room-NAME** sensor.
 - the ~5s tick caller `_maybe_roll_current_room_by_timing` — a `**kwargs` delegator on the manager
-  (`core/manager.py:843`) called from the tick at `core/manager.py:3139`, whose real implementation is
-  `jobs/active_job.py:814` — short-circuits into the native branch
-  `_maybe_roll_current_room_by_native_signal` (`jobs/active_job.py:1096`) when the flag is set.
+  (`core/manager.py::_maybe_roll_current_room_by_timing`) called from the tick at `core/manager.py::get_job_progress_snapshot`, whose real implementation is
+  `jobs/active_job.py::_maybe_roll_current_room_by_timing` — short-circuits into the native branch
+  `_maybe_roll_current_room_by_native_signal` (`jobs/active_job.py::_maybe_roll_current_room_by_native_signal`) when the flag is set.
 
 Native rollover logic is **order-agnostic and idempotent**
-(`_maybe_roll_current_room_by_native_signal`, `jobs/active_job.py:1096`):
+(`_maybe_roll_current_room_by_native_signal`, `jobs/active_job.py::_maybe_roll_current_room_by_native_signal`):
 first-confirmed target is *adopted* with no completion (queue order was a guess); a move to a
 different target *completes only the previously-confirmed* target; same-target is a no-op. Unknown /
 transit / non-job-target names resolve to `None` and are ignored (in
-`_resolve_native_target_room_id`, `jobs/active_job.py:1048`) — this is the built-in
+`_resolve_native_target_room_id`, `jobs/active_job.py::_resolve_native_target_room_id`) — this is the built-in
 transit + dock filter. Roborock proves coordinate drift is irrelevant here: its rollover is
 purely name-driven and uses no position/bounds (`position_lock_reliable` is also `False`).
 
@@ -105,9 +105,9 @@ attributed (see below).
   phase watchdog `PhaseRunner._run_advanced_phase`, `jobs/phase_runner.py::PhaseRunner._spawn_dock_poller`, with the re-dispatch at
   `_dispatch_active_phase`, `jobs/phase_runner.py::maybe_advance_phase` — **not** in grouped-job rollover). The watchdog
   moved out of `core/manager.py` to `jobs/phase_runner.py` in the `feat/zone-clean` re-bundle;
-  `core/manager.py` keeps only a `maybe_advance_phase` delegator (`core/manager.py:4206`) and spawns
-  the initial phase via `self.phase_runner._run_advanced_phase` (`core/manager.py:4403`). The `_PHASE_*`
-  timing constants (`core/manager.py:85-110`) and the `_phase_timing` resolver (`core/manager.py:4220`)
+  `core/manager.py` keeps only a `maybe_advance_phase` delegator (`core/manager.py::maybe_advance_phase`) and spawns
+  the initial phase via `self.phase_runner._run_advanced_phase` (`core/manager.py::start_selected_rooms`). The `_PHASE_*`
+  timing constants (`core/manager.py:85-110`) and the `_phase_timing` resolver (`core/manager.py::_phase_timing`)
   stayed on the manager.
 
 This captures most of the better-grounded-signal win while the heuristic covers the inference's
@@ -117,11 +117,11 @@ blind spots.
 
 | # | Shim | Why | Anchor |
 |---|---|---|---|
-| 1 | Live current-room-**NAME** sensor (rid → `room.number` → managed name, slug-reconciled) | seam matches by slug, not id | `mapping/map_source.py:201,:259`, `sensor/map_overlays.py:82` |
+| 1 | Live current-room-**NAME** sensor (rid → `room.number` → managed name, slug-reconciled) | seam matches by slug, not id | `mapping/map_source.py:201,:259`, `sensor/map_overlays.py::native_value` |
 | 2 | Migrate Eufy completion off the `active_cleaning_target` sentinel → adopt `require_job_active_clear: True` | frees the entity to carry the live name (Roborock's approach) | `adapters/eufy/adapter.py:353`, `adapters/roborock/adapter.py:201` |
 | 3 | **Server-side** refresh of the rid/name during a run, independent of the map tab | the 2s freshness is UI-poll-coupled (`src/cards/main.js:600-625`) and does NOT run when the tab is backgrounded | new periodic task |
-| 4 | N-frame settle on the native rollover for non-phased jobs | no built-in debounce; doorway cells can flicker the rid for one frame | `_maybe_roll_current_room_by_native_signal`, `jobs/active_job.py:1096` |
-| 5 | Re-map reconciliation: re-resolve rid→name when the raster version changes | rid raster is content-versioned (`eufy_version_of`, sha1) | `mapping/map_source.py:449-456`, cf. `adapters/roborock/adapter.py:274` |
+| 4 | N-frame settle on the native rollover for non-phased jobs | no built-in debounce; doorway cells can flicker the rid for one frame | `_maybe_roll_current_room_by_native_signal`, `jobs/active_job.py::_maybe_roll_current_room_by_native_signal` |
+| 5 | Re-map reconciliation: re-resolve rid→name when the raster version changes | rid raster is content-versioned (`eufy_version_of`, sha1) | `mapping/map_source.py::eufy_version_of`, cf. `adapters/roborock/adapter.py:274` |
 | 6 | Contract tests mirroring `NR-1..NR-11` for the Eufy adapter | parity with Roborock's native-rollover suite | `tests/integration/test_native_rollover.py` |
 
 The flag flip + per-room-live-settings reuse are nearly free; shims 1–4 are the real work.
@@ -319,12 +319,12 @@ plays today, but grounded in observed position + device area.
   - **W5d (later)** — opt-in auto-confirm for proven high-confidence robust runs.
 
   **W5 gating + adapter discipline.** The native path rides `current_room`, which is *derived from
-  map data* (`current_room_for_pixel` over eufy-clean's in-memory `MapData` raster — `map_source.py:231`;
+  map data* (`current_room_for_pixel` over eufy-clean's in-memory `MapData` raster — `map_source.py::current_room_for_pixel`;
   no map → `async_get_map_live_pose` returns `{present:false, reason:"no_geom"}`. That method moved to
   `mapping/map_source_coordinator.py` (class `MapSourceCoordinator`); the `no_geom` return is at
-  `mapping/map_source_coordinator.py::MapSourceCoordinator.get_live_mapdata_obj`. `core/manager.py:3742` keeps only a thin delegator that calls
+  `mapping/map_source_coordinator.py::MapSourceCoordinator.get_live_mapdata_obj`. `core/manager.py::async_get_map_live_pose` keeps only a thin delegator that calls
   `self.map_source.async_get_map_live_pose` — the manager's `MapSourceCoordinator` instance is held on
-  the `self.map_source` attribute, constructed at `core/manager.py:398`).
+  the `self.map_source` attribute, constructed at `core/manager.py::async_initialize`).
   So: no map → `current_room` is `None` → the engine returns an empty cleaned set → **W5c's
   availability gate falls back to today's manual wizard** (and the in-job track falls back to the
   map-independent counter-plateau heuristic). W5 is therefore **purely additive** — with the live map
@@ -369,7 +369,7 @@ The native-attribution path is live for **Eufy and Roborock**, on **app-started 
 ## Open unknowns (honest)
 
 - No in-code assertion that the live `_robot_pixel` frame is stable mid-run — inferred from eufy-clean's
-  behavior, not proven here (`mapping/map_source.py:407-415`).
+  behavior, not proven here (`mapping/map_source.py::live_pose_overlay`).
 - Device→eufy-clean→render latency rides on top of our freshness guarantee and is outside this repo; the
   seam's idempotency absorbs a coarse cadence, but the settle value (N) must come from W0 data.
 

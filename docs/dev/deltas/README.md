@@ -141,7 +141,7 @@ because `total_cleaning_area` also ends in `_cleaning_area`.
 
 *Corrected 2026-08-14 — the Known limit above is FALSE at HEAD.* It is kept, not deleted,
 because it is the reasoning that predicted the shape of the fix. `_claimed_by`
-(`adapters/entity_resolve.py:170-176`, applied inside the candidate filter at `:198`) now awards
+(`adapters/entity_resolve.py::claimed_by`, applied inside the candidate filter at `:198`) now awards
 a sibling to the role whose declared suffix explains the **most** of its name, so
 `..._total_cleaning_area` never enters `cleaning_area`'s candidate list at all: there is no
 ambiguity left for the tie-break to lose, and `cleaning_area` is rescuable. That is `live:ENT-4`,

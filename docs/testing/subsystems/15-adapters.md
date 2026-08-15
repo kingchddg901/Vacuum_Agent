@@ -205,7 +205,7 @@ trusted the schema as the whole truth:
   landed at registration instead of at save, which is the exact outcome
   `registry._validate_adapter`'s own docstring says it exists to prevent. Code adapters
   never noticed: they bypass the schema walk.
-- **`low_clean_water_margin_ml`** was read at `planning/run_plan.py:539` and documented
+- **`low_clean_water_margin_ml`** was read at `planning/run_plan.py::estimate_job_water_usage` and documented
   in doc 22 with a worked example, while absent from `water_model_configs.entry_fields`.
   `entry_fields` IS enforced, unknown-key rejection included — so a porter following the
   doc wrote that key and got "key(s) not declared in the schema" on save.

@@ -70,7 +70,7 @@ different generations of code encoded two different beliefs about whether that's
     emits (`map_source.py::rooms_from_room_pixels`, `"number": rid`); the function's own docstring says "Keyed by
     device room number (== managed room id)" (`renderers/map.js:654`).
   - `current_room_for_pixel` returns the raw raster `rid` (`map_source.py::current_room_for_pixel`), and
-    `learning/room_attribution_engines.py:61-62` documents that return value as **"the MANAGED
+    `learning/room_attribution_engines.py::PoseSample` documents that return value as **"the MANAGED
     room id"** outright.
 - **Treats them as POSSIBLY DIFFERENT spaces, and bridges defensively (newer, Phase-2 palette
   code):** `_drawVaRender`'s per-room override resolves a raster pixel's `rid` → `rd.room_names[rid]`
@@ -83,7 +83,7 @@ different generations of code encoded two different beliefs about whether that's
 - **RESOLUTION (R2-BUG-5, 2026-08-06): the identity-assuming paths are the supported reading;
   the divergence claim has no dataset behind it.** Two facts settle it:
   1. **The raster `rid` space is Eufy-only.** `rooms_from_room_pixels` is the *"Eufy storage
-     backend"* by its own docstring, and `map_source.py:373` states that Roborock has no
+     backend"* by its own docstring, and `map_source.py::zone_membership` states that Roborock has no
      per-pixel raster (`room_number` stays `None` there). So "DIFFERENT id spaces **on real
      devices**" cannot be describing Roborock — there is no Roborock `rid` to differ. The only
      brand with a raster is the one brand where all three ids were *observed* to coincide.

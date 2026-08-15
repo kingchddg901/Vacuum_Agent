@@ -79,7 +79,7 @@ First candidate present in the HA state machine or entity registry wins.
 ### 5.2 Token fallback — `_find_button_entity_by_tokens`
 
 If no named candidate is found, the `token_sets` for the action are tried
-(`_find_button_entity_by_tokens`, `core/manager.py:1127-1142`): the manager scans
+(`_find_button_entity_by_tokens`, `core/manager.py::_find_button_entity_by_tokens`): the manager scans
 **registry entities whose id starts with `button.{object_id}_`** (this vacuum only,
 lowercased) — **not** all `button.*` — and an entity matches a token set when
 **every token is a case-insensitive substring of the full entity_id string**
