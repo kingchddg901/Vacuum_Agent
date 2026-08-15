@@ -34,6 +34,22 @@ does not care. That separation is what makes the anchor a DRIFT-REVIEW SEAM: gre
 key, read the anchored prose beside the anchored code, and judge in one sitting
 whether they still describe the same behaviour.
 
+THE INVARIANT, and everything else is subordinate to it:
+
+    Definitions are unique. References are many.
+    Minting retries collisions. VALIDATION NEVER CHANGES AN EXISTING KEY.
+
+The last clause is a ban, not a description. This script has no write path and must
+never grow one that touches a key. The tempting "improvement" is auto-fixing a
+DUPLICATE by re-minting one of the pair — which silently changes an identity and
+breaks every citation pointing at it, in a way that looks like a cleanup. Rewriting
+a stale PATH would be safe, because the path is advisory; rewriting a KEY is not,
+ever. Pinned by ANC-1..3 in tests/unit/test_generated_doc_gate.py.
+
+A corollary worth stating: a key may be cited before it is declared (minted, pasted
+into a document, source edit still to come). Minting therefore treats cited keys as
+taken too, or it could hand out an id that is already spoken for.
+
 VERDICTS, and the distinctions matter:
 
     DUPLICATE   the same id in two places — a HARD ERROR. An id used twice is not an
@@ -165,12 +181,14 @@ def main() -> int:
     args = ap.parse_args()
 
     anchors = scan()
+    citations = cites()
 
     if args.mint:
-        print(mint(args.mint, set(anchors)))
+        # Cited keys count as taken. A key is routinely minted, pasted into a
+        # document, and only then written into source; handing the same id out twice
+        # in that window would manufacture a DUPLICATE out of correct work.
+        print(mint(args.mint, set(anchors) | set(citations)))
         return 0
-
-    citations = cites()
 
     if args.show:
         tok = args.show.upper()

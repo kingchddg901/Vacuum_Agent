@@ -345,6 +345,125 @@ def test_evt3_the_document_declares_its_blind_spots(tmp_path):
     assert kinds, "the blind-spot table rendered with no rows"
 
 
+def test_anc1_validation_never_writes(tmp_path):
+    """[ANC-1] `--check` must not touch a single byte of the tree.
+
+    The invariant is *validation never changes an existing key*, and the tempting
+    future "fix" is auto-resolving a DUPLICATE by re-minting one of the pair — which
+    silently changes an identity, breaks every citation pointing at it, and looks
+    like a cleanup in the diff. This asserts the property behaviourally rather than
+    trusting that nobody adds a write path: run the checker over a tree containing a
+    duplicate, and every file must be byte-identical afterwards.
+    """
+    import hashlib
+    import subprocess
+
+    pkg = tmp_path / "custom_components" / "eufy_vacuum"
+    pkg.mkdir(parents=True)
+    (pkg / "a.py").write_text("# anchor: CN9BGGJ6  first\nX = 1\n", encoding="utf-8")
+    (pkg / "b.py").write_text("# anchor: CN9BGGJ6  second\nY = 2\n", encoding="utf-8")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "d.md").write_text("see `a.py#CN9BGGJ6`\n", encoding="utf-8")
+
+    def fingerprint() -> dict[str, str]:
+        return {
+            p.relative_to(tmp_path).as_posix():
+                hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(tmp_path.rglob("*")) if p.is_file()
+        }
+
+    before = fingerprint()
+    script = REPO / "scripts" / "doc_anchor.py"
+    src = script.read_text(encoding="utf-8").replace(
+        'ROOT = pathlib.Path(__file__).resolve().parent.parent',
+        f'ROOT = pathlib.Path(r"{tmp_path}")')
+    local = tmp_path / "doc_anchor_local.py"
+    local.write_text(src, encoding="utf-8")
+    before = fingerprint()  # after planting the copy, so it is covered too
+
+    proc = subprocess.run([sys.executable, str(local), "--check"],
+                          capture_output=True, text=True, timeout=120)
+
+    assert proc.returncode == 1, "a duplicated key must fail the check"
+    assert "DUPLICATE" in proc.stdout
+    assert fingerprint() == before, "validation modified the tree"
+
+
+def test_anc2_duplicate_does_not_cascade_into_moved(tmp_path):
+    """[ANC-2] One defect must not manufacture a second, louder, false one.
+
+    With two homes for a key, naming either one "the" home emits a MOVED against the
+    other — a finding invented by the first finding, and the invented one reads as
+    the more actionable of the two.
+    """
+    import subprocess
+
+    pkg = tmp_path / "custom_components" / "eufy_vacuum"
+    pkg.mkdir(parents=True)
+    (pkg / "a.py").write_text("# anchor: CN9BGGJ6  first\n", encoding="utf-8")
+    (pkg / "b.py").write_text("# anchor: CN9BGGJ6  second\n", encoding="utf-8")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "d.md").write_text("see `a.py#CN9BGGJ6`\n", encoding="utf-8")
+
+    script = REPO / "scripts" / "doc_anchor.py"
+    src = script.read_text(encoding="utf-8").replace(
+        'ROOT = pathlib.Path(__file__).resolve().parent.parent',
+        f'ROOT = pathlib.Path(r"{tmp_path}")')
+    local = tmp_path / "doc_anchor_local.py"
+    local.write_text(src, encoding="utf-8")
+
+    out = subprocess.run([sys.executable, str(local), "--check"],
+                         capture_output=True, text=True, timeout=120).stdout
+
+    assert "DUPLICATE" in out
+    assert "MOVED" not in out, "the duplicate manufactured a phantom MOVED"
+
+
+def test_anc3_minting_treats_cited_keys_as_taken(tmp_path):
+    """[ANC-3] A key cited but not yet declared is spoken for.
+
+    Mint → paste into a document → edit source is the normal order, and during that
+    window the key exists only in prose. Handing it out again would manufacture a
+    DUPLICATE out of correct work.
+    """
+    import re as _re
+    import subprocess
+
+    pkg = tmp_path / "custom_components" / "eufy_vacuum"
+    pkg.mkdir(parents=True)
+    (pkg / "a.py").write_text("X = 1\n", encoding="utf-8")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+
+    script = REPO / "scripts" / "doc_anchor.py"
+    src = script.read_text(encoding="utf-8").replace(
+        'ROOT = pathlib.Path(__file__).resolve().parent.parent',
+        f'ROOT = pathlib.Path(r"{tmp_path}")')
+    # Force every mint attempt onto one value, so "is it taken" is the only variable.
+    src = src.replace('tok = prefix + "".join(secrets.choice(ALPHABET) '
+                      'for _ in range(SUFFIX_LEN))',
+                      'tok = prefix + "ZZZZZZ"')
+    local = tmp_path / "doc_anchor_local.py"
+    local.write_text(src, encoding="utf-8")
+
+    def run() -> subprocess.CompletedProcess:
+        return subprocess.run([sys.executable, str(local), "--mint", "CN"],
+                              capture_output=True, text=True, timeout=120)
+
+    first = run()
+    assert first.returncode == 0 and first.stdout.strip() == "CNZZZZZZ"
+
+    # now cite it in a doc without declaring it anywhere in source
+    (docs / "d.md").write_text("see `a.py#CNZZZZZZ`\n", encoding="utf-8")
+    second = run()
+
+    assert second.returncode != 0, (
+        "the only available id was already cited; minting must refuse rather than "
+        f"hand it out twice (got {second.stdout.strip()!r})")
+
+
 def test_gdg13_region_generator_clean(tmp_path):
     """[GDG-13] A region generator whose own check exits 0 reports nothing."""
     root = _fake_root(tmp_path, rc=0)
