@@ -561,23 +561,38 @@ def _vacuum_diagnostics(
     # NOT DROPPED, MOVED: gated roles are reported as `roles_not_applicable` below.
     # Silently omitting them would make this dump indistinguishable from one where
     # the probe never ran.
+    # THE KEY IS `_entity_candidates`, WITH THE UNDERSCORE. Both adapters store it
+    # that way (`adapters/*/adapter.py`, the `_entity_candidates` config entry).
+    # Reading `entity_candidates` returned {} on every install, so this gate ran on
+    # the declared-map check alone — and then went inert the moment the adapter
+    # finished registering, because a role declared as None counts as "declared".
+    #
+    # Caught by watching the live box rather than by a test: Ivy's five roles were
+    # correctly gated seconds after a restart and had reappeared by the next
+    # snapshot, with no deploy in between. A gate whose behaviour depends on how
+    # far through setup you look is not a gate.
     try:
-        _candidates = (_get_cfg_for_entities(vacuum_entity_id) or {}).get(
-            "entity_candidates"
-        ) or {}
+        _cfg_for_gate = _get_cfg_for_entities(vacuum_entity_id) or {}
+        _candidates = _cfg_for_gate.get("_entity_candidates") or {}
     except Exception:  # pragma: no cover - defensive
         _candidates = {}
     if not isinstance(_candidates, dict):
         _candidates = {}
+    # GATE THE MERGED RESULT, not one half of it. The first version filtered
+    # `entities_map` and then spread `declared_map` WHOLE, so a role the adapter
+    # carries as None walked straight back in — `roles_not_applicable` listed it
+    # and `unresolved` counted it at the same time, on the same install.
+    #
+    # A role is not-applicable when it resolves to NOTHING and the brand offers no
+    # candidates for it. Where the empty value came from is irrelevant; a declared
+    # id that simply does not resolve is a real miss and still reports as one.
+    _merged_all = {**declared_map, **entities_map}
     _gated = {
         role: entity_id
-        for role, entity_id in entities_map.items()
-        if not entity_id and role not in declared_map and role not in _candidates
+        for role, entity_id in _merged_all.items()
+        if not entity_id and role not in _candidates
     }
-    merged_map = {
-        **declared_map,
-        **{k: v for k, v in entities_map.items() if k not in _gated},
-    }
+    merged_map = {k: v for k, v in _merged_all.items() if k not in _gated}
     if _gated:
         out["roles_not_applicable"] = sorted(_gated)
     # live:ENT-2 — carry WHY, not just what. A bare `null` per role cannot
@@ -629,8 +644,16 @@ def _vacuum_diagnostics(
         # what let this hide behind a manual repair.
         "unresolved": _unresolved + _pattern_unresolved,
         "device_entity_count": _sibling_count,
+        # A PATTERN role alone must not flip this verdict. Patterns are
+        # best-effort by design: the Eufy adapter ships `camera.{object_id}_map`
+        # so a default-named install auto-resolves, and an install without the
+        # fork's map camera legitimately has none. Counting that as evidence of a
+        # naming mismatch reported "your entities exist under names we did not
+        # derive" on a healthy Eufy whose only unresolved role was that pattern.
+        # It stays listed in `unresolved` — it IS unresolved — it just is not the
+        # signal. A DECLARED role failing is.
         "likely_naming_mismatch": bool(
-            (_unresolved or _pattern_unresolved)
+            _unresolved
             and isinstance(_sibling_count, int)
             and _sibling_count > 0
         ),

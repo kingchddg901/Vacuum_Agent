@@ -308,3 +308,54 @@ def test_find_button_by_tokens_abstains_when_two_siblings_match(manager, monkeyp
     assert manager._find_button_entity_by_tokens(
         object_id="alfred", required_tokens=["main_brush", "reset"],
     ) is None
+
+
+def test_bindings_report_derived_for_a_role_that_resolved_on_its_own(manager):
+    """[CMR-2] live:ENT-13 — a declared role that resolved records WHY.
+
+    `entity_sources` only ever recorded a PROBE-resolved role, so a role from the
+    adapter's declared map carried no provenance and the card fell back to
+    "Name match" regardless — a positive claim that a rung fired, on a row where
+    nothing was recorded. Measured on a live install before this landed: 21 of 21
+    rows on one vacuum, 12 of 17 on the other.
+
+    "Name match" is the right words; it just has to be EARNED. A declared id that
+    resolves on its own is exactly that.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"battery": "sensor.alfred_battery"},
+        "room_profiles": {"builtins": {}},
+    })
+    manager.hass.states.async_set("sensor.alfred_battery", "100")
+
+    rows = {r["role"]: r for r in manager._entity_bindings(_VAC)}
+    assert rows["battery"]["entity_id"] == "sensor.alfred_battery"
+    assert rows["battery"]["chosen_by"] == "derived", (
+        "a declared role that resolved on its own must record derivation, not "
+        "leave the card to assume it"
+    )
+
+
+def test_bindings_do_not_invent_provenance_for_an_unresolved_role(manager):
+    """[CMR-2b] The over-correction guard.
+
+    Annotating must not become "assert a rung fired for everything". A role whose
+    entity does not resolve has no provenance to report, and saying "Name match"
+    about a binding that is not working would be the original defect wearing a
+    new hat.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"battery": "sensor.alfred_does_not_exist"},
+        "room_profiles": {"builtins": {}},
+    })
+
+    rows = {r["role"]: r for r in manager._entity_bindings(_VAC)}
+    assert rows["battery"]["chosen_by"] is None, (
+        "an unresolved role must report no provenance at all"
+    )

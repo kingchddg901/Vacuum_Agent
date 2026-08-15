@@ -16,6 +16,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from ..adapters.entity_resolve import sweep_siblings
+from .capabilities import FROM_DERIVED
 from ..adapters.registry import (
     adapter_honors_clean_order,
     get_adapter_config as _get_adapter_config,
@@ -5398,6 +5399,29 @@ class EufyVacuumManager:
                     decision.get("by")
                     or sources.get(role)
                     or ("declared_rescue" if role in remaps else None)
+                    # live:ENT-13 — the LAST rung, and the one that was missing.
+                    #
+                    # `entity_sources` only ever records a PROBE-resolved role, so a
+                    # role that came from the adapter's declared map carried no
+                    # provenance at all. The card then fell back to "Name match"
+                    # regardless — a positive claim that a rung fired, on rows where
+                    # nothing had been recorded. Measured on a live install: 21 of 21
+                    # rows on one vacuum, 12 of 17 on the other.
+                    #
+                    # `resolve_declared_entities` already answers this exactly: it
+                    # reports every id it had to REPAIR, so a declared role absent
+                    # from that report is one whose derived name resolved on its own.
+                    # That IS a name match — the original wording was right, it was
+                    # simply being asserted without evidence. Annotation only: this
+                    # reads `entities`, which resolution has already finished with,
+                    # and changes no binding.
+                    or (
+                        FROM_DERIVED
+                        if isinstance(entity_id, str)
+                        and entity_id
+                        and self.hass.states.get(entity_id) is not None
+                        else None
+                    )
                 ),
                 # The alternatives and why each lost. Only the rungs actually
                 # RUN appear: the ladder short-circuits, so anything below the

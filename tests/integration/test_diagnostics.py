@@ -889,7 +889,7 @@ async def test_probe_roles_a_brand_never_offers_are_not_counted_as_unresolved(ha
     register_adapter_config(VACUUM, {
         "adapter_id": "t", "source": "t",
         "entities": {},
-        "entity_candidates": {"battery": ["sensor.alfred_battery"]},
+        "_entity_candidates": {"battery": ["sensor.alfred_battery"]},
         # REQUIRED or registration refuses the config and this test silently
         # exercises the fallback instead of the config under test.
         "room_profiles": {"builtins": {}},
@@ -938,7 +938,7 @@ async def test_a_role_the_brand_does_offer_still_reports_when_it_misses(hass):
         "adapter_id": "t", "source": "t",
         "entities": {},
         # This brand DOES offer candidates for work_mode -- none of them resolved.
-        "entity_candidates": {"work_mode": ["sensor.alfred_work_mode"]},
+        "_entity_candidates": {"work_mode": ["sensor.alfred_work_mode"]},
         "room_profiles": {"builtins": {}},
     })
     caps = {"entities": {"vacuum": VACUUM, "work_mode": None}}
