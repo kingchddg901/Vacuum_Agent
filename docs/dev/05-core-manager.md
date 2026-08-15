@@ -553,13 +553,27 @@ wrong one by ~4000x — and that screen looks healthy.
 }
 ```
 
-`chosen_by` is resolved in precedence order (`live:ENT-12`): the ladder rung that
-settled a **contest** (`object_id`, `translation_key`, `state_class`,
-`magnitude` — the `BY_*` constants in `core/capabilities.py`), else where the
-winning candidate came from (`derived`, `override`, `device_sibling`,
-`config_entry_sibling`), else `declared_rescue` when the adapter remapped the
-role, else `None`. `None` means no rung and no origin were recorded for this
-role — NOT that nothing decided it.
+`chosen_by` is resolved in precedence order (`live:ENT-12`, extended by
+`live:ENT-13`): the ladder rung that settled a **contest** (`object_id`,
+`translation_key`, `state_class`, `magnitude` — the `BY_*` constants in
+`core/capabilities.py`), else where the winning candidate came from (`derived`,
+`override`, `device_sibling`, `config_entry_sibling`), else `declared_rescue`
+when the adapter remapped the role, else **`derived`** when the role's declared
+id resolves in the state machine on its own.
+
+That last rung (`live:ENT-13`) closes a gap that made the whole field
+untrustworthy. `entity_sources` only ever records a role resolved through the
+CANDIDATE probe, so a role coming from the adapter's declared map carried no
+origin at all and fell through to `None` — and the card then rendered a positive
+claim anyway. Measured before it was added: **0 of 21** rows on a live Eufy
+carried an origin, so every row was reporting a rung that had never fired.
+`resolve_declared_entities` already answers it, because it reports every id it
+had to REPAIR — so a declared role absent from that report is one whose derived
+name resolved unaided, which is precisely a name match.
+
+`None` now means the role's entity is not currently providing a reading — an
+unresolved role, or one registered without state. A BOUND, reading role always
+carries an origin.
 
 `rejected` carries only the rungs that actually RAN. The ladder short-circuits on
 the first decisive rung, so a role decided by `translation_key` never evaluated

@@ -406,6 +406,12 @@ what settled the row when the obvious answer wasn't available — either
 because several entities fitted the row, or because nothing with the
 expected name existed at all.
 
+Every label is a record of something that actually happened. Until
+2.1.0-beta.2 that wasn't quite true — a row we couldn't account for
+still showed **Name match**, which read as a finding and was really a
+default. Those rows now say **Not recorded**, and in practice that
+means the row isn't giving a reading at all.
+
 Where several fitted, four tests run in order — **Vacuum name**, then
 **Provided by the integration**, then **Measurement type**, then
 **Value comparison** — strongest evidence first, stopping at the first
@@ -423,6 +429,7 @@ install, not that they agreed.
 | **Your choice** | You pinned this row yourself. |
 | **Found on the vacuum's device** | The expected name didn't exist, so the entity was found on the same device as the vacuum. |
 | **Found in the vacuum's integration** | Same, but found elsewhere in the vacuum's integration rather than on its device — a dock is often a device of its own. |
+| **Not recorded** | Nothing is reading on this row, so there is nothing to explain — the entity is missing, or it exists but is switched off. Check the **Reads** and **Now** columns on that row rather than this one. |
 | **Renamed — matched by suffix** | The expected name didn't exist (a renamed vacuum, or a dock named for itself), so an entity in the same integration whose name ends the same way was used instead. |
 
 ### Changing what a row reads

@@ -80,10 +80,10 @@ shared.
     "job_segmenter": { ... },    # optional — pluggable JOB/run segmenter engine + threshold tuning
     "room_attribution": { ... }, # optional — pluggable ROOM-ATTRIBUTION engine (external-run room recovery)
     "live_transition": { ... },  # optional — live current-room rollover orchestration
-    "room_profiles": { ... },    # adapter-sourced room-profile vocabulary — see §13d; effectively REQUIRED for a non-Eufy brand
+    "room_profiles": { ... },    # adapter-sourced room-profile vocabulary — see §13d; REQUIRED for every brand (registration fails without it)
     "anomaly": { ... },          # optional — live anomaly ratios (running-long / stall)
     "wash_frequency_bounds": { ... },    # optional — mop-wash interval clamp
-    "settings_selects": { ... },         # optional — external-run per-room setting recovery
+    "settings_selects": { ... },         # optional — live setting selects: external-run recovery AND the zone panel (§14b)
     "external_mid_run_statuses": [...],  # optional — task_status values = docked mid-run, hold run open
     "cleaning_time_unit": str,           # optional — "min" when the cleaning_time sensor is bare minutes
 
@@ -2000,12 +2000,28 @@ the user filled in) and let the user override if they know better.
 
 ---
 
-## 14b. `settings_selects` — external-run setting recovery
+## 14b. `settings_selects` — the device's live setting entities
 
 The global `select` entities that mirror the **current room's** per-room settings
-while a job runs. We dispatch these for internal jobs but never read them back;
-for an **app-started (external) run** they are the only window into what was set
-per room (see [28-external-run-ingestion](28-external-run-ingestion.md)).
+while a job runs. They have **two consumers**, and this section documented only the
+first until 2.1.0-beta.2:
+
+1. **External-run recovery.** We dispatch these for internal jobs but never read
+   them back; for an **app-started (external) run** they are the only window into
+   what was set per room (see [28-external-run-ingestion](28-external-run-ingestion.md)).
+2. **The zone-clean panel's live controls.** `get_dashboard_snapshot` publishes them
+   as `setting_entities` (existence-checked), and the card edits those real entities
+   with `select.select_option` rather than holding a parallel store — because an
+   ad-hoc zone clean runs off whatever the device is currently set to.
+
+**Why the second one matters more than a doc nit.** Reading this block as
+capture-only is what let its ids ship with no naming rescue while every other
+surface got one: an install whose entities are not named after the vacuum resolved
+none of them, `setting_entities` came back empty, and the zone panel had no controls
+at all — while the matching *sensors* (which live in `entities`, and are rescued)
+read fine. Issue #49's "water level not showing" was exactly that: the sensor bound
+and reading, the select absent. Since 2.1.0-beta.2 these run through
+`resolve_declared_entities`, the same rescue `entities` uses.
 
 Optional. Maps a canonical setting key to `{entity_id, value_map}`:
 

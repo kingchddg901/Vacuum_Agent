@@ -148,7 +148,7 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 | `capabilities` | Detected capability flags |
 | `live_transition` | Live room-rollover orchestration (`enabled` / `rollover_kinds` / `native_transition_source`) |
 | `external_mid_run_statuses` | `task_status` strings = robot docked mid-run and will resume (holds the external run open instead of closing at the dock) |
-| `settings_selects` | Global select entities for recovering per-room settings on external (app-started) runs — canonical key → `{entity_id, value_map}` |
+| `settings_selects` | Global select entities for the device's live per-room settings — canonical key → `{entity_id, value_map}`. TWO consumers: external (app-started) run recovery, and the zone-clean panel's live controls via `get_dashboard_snapshot.setting_entities` ([22 §14b](22-adapter-config-reference.md)) |
 | `maintenance_components` | Consumable component definitions |
 | `upkeep_catalog` | Per-model upkeep guide library |
 | `water_model_configs` | Tank capacity and water usage constants |

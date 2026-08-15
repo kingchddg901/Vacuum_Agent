@@ -99,13 +99,34 @@ Each entry in `adapter_config["maintenance_components"]` defines one trackable c
 | `sensor_suffix` | str \| None | Full suffix appended to `sensor.{object_id}_` to form the counter entity ID (e.g. `"filter_remaining"` → `sensor.{object_id}_filter_remaining`). May be `None`, **or present alongside `proxy_for`** as the fallback source (e.g. `swivel_wheel` has both). |
 | `proxy_for` | str \| None | If set, this component prefers that component's sensor when present, **falling back to its own `sensor_suffix`** (`core/capabilities.py:137-146`: `_resolve(proxy.sensor_suffix) or own`) |
 | `maintenance_only` | bool | (absent → `False`) Suppresses the component's **Replacement** row entirely and excludes it from the attention roll-up; subject to the family gate (§4.3) |
-| `reset_button` | dict \| None | Resolves the component's reset button: `entity_suffixes` (appended to `button.{object_id}_`) tried first, then `token_sets` as all-tokens-must-match registry fallbacks. A `token_sets` match is additionally rejected if its resolved `entity_id` contains the substring `"maintenance"` (see note below). Absent → no reset button. |
+| `reset_button` | dict \| None | Resolves the component's reset button: `entity_suffixes` (appended to `button.{object_id}_`) tried first, then `token_sets` as all-tokens-must-match fallbacks. Since 2.1.0-beta.2 the token search looks at the vacuum's **device and config entry** siblings first (accepting only an unambiguous single match) before the original registry-wide `button.{object_id}_` prefix scan — see the note below. A `token_sets` match is additionally rejected if its resolved `entity_id` contains the substring `"maintenance"`. Absent → no reset button. |
 | `default_interval_hours` | float | Factory-default cleaning/replacement interval |
 | `max_interval_hours` | float | Maximum allowed interval override |
 | `label` | str | Display name shown in panel |
 | `icon` | str | MDI icon name |
 
-> **`token_sets` `"maintenance"` exclusion guard.** `_get_replacement_reset_entity()` resolves the **upstream** reset button. After trying `entity_suffixes`, it falls back to `token_sets` (all required tokens must match an entity in the registry). A token-matched button is accepted **only if** its `entity_id` does **not** contain the substring `"maintenance"` (`"maintenance" not in entity_id.lower()`). This guard exists so the integration's own `number.{object_id}_{component}_maintenance_interval` interval-override entities (`translation_key: "maintenance_interval"`) are never mis-resolved as the upstream counter-reset button. `entity_suffixes` matches are not subject to this guard.
+> **`token_sets` resolution, and why the `"maintenance"` guard exists.**
+> `_get_replacement_reset_entity()` resolves the **upstream** reset button. After
+> trying `entity_suffixes` it falls back to `token_sets` (all required tokens must
+> match), and that fallback used to scope itself by `button.{object_id}_` — the SAME
+> derived name it exists to rescue, so on an install whose entities are not named
+> after the vacuum both halves failed together and the reset buttons were simply
+> absent. Since 2.1.0-beta.2 it asks the vacuum's **device then config-entry**
+> siblings first, accepting a match only when exactly one qualifies (token matching
+> is loose — all tokens appearing anywhere in the id — so a widened scope without an
+> abstention rule would make a WRONG bind likelier, not rarer). The registry-wide
+> prefix scan is kept after it, because an integration that names a button correctly
+> while attaching it to neither scope is found by name and by nothing else.
+>
+> A token-matched button is accepted **only if** its `entity_id` does not contain
+> `"maintenance"`, so the integration's OWN `button.{object_id}_{component}_maintenance`
+> reset entities are never mis-resolved as the upstream counter-reset. That guard is a
+> substring hack compensating for the prefix scan's scope: on a live install the only
+> `button.alfred_*` match for `swivel_wheel` is Vacuum Agent's own button, because
+> eufy-clean exposes no swivel-wheel reset at all. The sibling path needs no such
+> filter — our entities live on our own service device and config entry, which neither
+> scope reaches — but the prefix fallback still does. `entity_suffixes` matches are not
+> subject to the guard.
 
 ### 4.2 `upkeep_catalog` block
 
