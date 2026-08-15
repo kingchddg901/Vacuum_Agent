@@ -616,10 +616,27 @@ manager.set_run_profile_steps(
     steps: list,
 ) -> dict
 # → {"saved": True, "profile_id": str, "profile": {enriched}}
-#   or {"saved": False, "reason": "profile_not_found" | "no_room_group"}
+#   or {"saved": False, "reason": "profile_not_found" | "no_room_group"
+#                        | "invalid_steps", "rejected_steps": [...]}
 ```
 
-Replaces the profile's stored `steps`. Requires at least one `room_group` (a run must clean something) — otherwise `reason="no_room_group"`. The list is passed through `normalize_run_profile_steps()`, a static method that coerces/validates each entry and **drops** invalid or empty ones (a `room_group` with no rooms, a `charge_wait`/`wait` whose numeric field won't parse). Each `room_group` room is coerced to a well-formed `{room_id: int, ...}` dict via a safe-int (a bare int is wrapped; a room whose `room_id` doesn't parse to a positive int is dropped; a group left with no valid room is dropped entirely), so dispatch never sees an unparseable `room_id`. Phase materialization (`planning/run_plan.py:_build_steps_phases`) also reads each `room_id` through the same safe-int, so a bad id no longer crashes dispatch. The service wrapper is `set_run_profile_steps` in `services/run_profiles.py` (schema requires `steps: list`); it raises `ServiceValidationError` when `saved` is `False`.
+Replaces the profile's stored `steps`. Requires at least one `room_group` (a run must clean something) — otherwise `reason="no_room_group"`.
+
+> ⚠ **THE WRITE PATH IS STRICT; only READS are tolerant.** This save does **not** drop
+> bad steps and succeed. `_normalize_steps_reporting()` returns `(normalized, rejected)`,
+> and a non-empty `rejected` REFUSES the save with
+> `{"saved": False, "reason": "invalid_steps", "rejected_steps": [...]}`, naming every
+> step it would not take. `_reject_unbracketed_break` can additionally refuse with
+> `reason=err.translation_key`.
+>
+> The asymmetry is deliberate (RP-021b). Reads stay tolerant because a legacy profile
+> must never fail to START. But a SAVE that silently discards a step returns
+> `saved: True` for a profile that has quietly lost its charge stop — and the robot
+> then runs the whole sequence in one go and can strand mid-run. Refusing names the
+> offending line to the YAML author instead of leaving them to diff the saved profile
+> against what they wrote.
+
+Within a step that IS accepted, each `room_group` room is still coerced to a well-formed `{room_id: int, ...}` dict via a safe-int (a bare int is wrapped; a room whose `room_id` doesn't parse to a positive int is dropped; a group left with no valid room is dropped).
 
 **Read helper — `run_profile_steps(profile)`** (static): returns a profile's ordered steps, back-filling a legacy rooms-only profile as a single `room_group` of its `rooms`. This is the single read path — `apply_run_profile` (§7.6), `_enrich_saved_run_profile` (`steps` / `has_charge_steps` / `has_stops`, §7.1), and phase materialization all go through it, so legacy profiles stay byte-identical.
 

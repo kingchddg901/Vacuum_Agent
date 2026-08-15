@@ -990,13 +990,29 @@ Replaces a saved run profile's ordered **steps** list — the sequence of room g
 | `profile_id` | Yes | ID of the saved run profile whose steps to replace. |
 | `steps` | Yes | Ordered list of step objects. See below. |
 
-Each step is one of three types:
+Each step is one of four types:
 
 - `{"type": "room_group", "rooms": [...]}` — a batch of rooms cleaned together. `rooms` is a list of per-room setting objects (`room_id`, `clean_mode`, `fan_speed`, `water_level`, …); the group's fields overlay the global room view at dispatch, so the **same** room can appear in two groups with different settings (vacuum in one, mop in the next).
 - `{"type": "charge_wait", "target_battery_percent": <1–100>}` — dock and poll the battery until it reaches the target, then continue. The percent is clamped to `1–100`.
 - `{"type": "wait", "wait_minutes": <1–1440>}` — dock and hold for a fixed number of minutes (for example a mop-dry pause), then continue. The minutes are clamped to `1–1440`.
+- `{"type": "zone", "zone_ids": ["…"]}` — clean one or more saved zones as their own phase. Unlike the two stops above this is a **clean** phase, not a dock, so it may sit at the tail of a profile.
 
-Invalid or empty entries are dropped during normalization; a legacy profile with only a `rooms` snapshot and no `steps` is treated as a single implicit `room_group`.
+**A malformed step is REFUSED, not dropped.** The call returns
+`{"saved": false, "reason": "invalid_steps", "rejected_steps": [...]}` and the profile is
+left untouched, with every rejected step named so you can see which line of your YAML was
+wrong. Earlier behaviour dropped what it could not read and still reported success — which
+returned `saved: true` for a profile that had quietly lost its charge stop, so the robot ran
+the whole sequence in one go and could strand mid-run.
+
+Two layers do this: the service schema validates each step's shape at the boundary, where the
+error still points at your own YAML, and the manager reports what it rejected (it is also
+reachable from the card and the websocket API). Out-of-range NUMBERS are the exception — they
+are clamped and reported rather than schema-rejected, because "`target_battery_percent` was
+120, clamped to 100" is a better error than a schema traceback.
+
+A legacy profile with only a `rooms` snapshot and no `steps` is treated as a single implicit
+`room_group` — **reads stay tolerant** so an old profile never fails to start. Only the write
+path is strict.
 
 Supports response. Returns `{"saved": true, "profile_id", "profile": {...}}` — the enriched profile now carries its normalized `steps` and a `has_charge_steps` flag (the backend signal the card uses to drive the stepped-run UI). Returns `{"saved": false, "reason": "profile_not_found"}` for an unknown profile ID, or `{"saved": false, "reason": "no_room_group"}` when the supplied steps contain no room group.
 
