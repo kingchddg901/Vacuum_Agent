@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
@@ -120,6 +121,67 @@ def unique_ids_for_map(
                 room_id=rid, suffix=suffix,
             ))
     return out
+
+
+def active_job_unique_id(*, vacuum_entity_id: str, map_id: str) -> str:
+    """The one formula for a per-map active-job sensor's unique_id.
+
+    Lives beside the matcher below for the same reason as make_room_unique_id:
+    ownership is answered by RE-BUILDING ids from stored facts, never by taking
+    a registry id apart.
+    """
+    return f"{vacuum_entity_id.replace('.', '_')}_active_job_{map_id}"
+
+
+def orphaned_active_job_unique_ids(
+    *,
+    known_unique_ids: "Iterable[str]",
+    managed_vacuum_ids: "Iterable[str]",
+    live_pairs: "Iterable[tuple[str, str]]",
+) -> set[str]:
+    """Active-job unique_ids whose map no longer exists.
+
+    ``live_pairs`` is the (vacuum, map) set actually built this run — the FORWARD
+    reconstruction. Anything carrying a managed vacuum's active-job shape and
+    absent from it is stale by construction.
+
+    WHY THIS IS NOT A PREFIX SCAN, despite starting from one. RP-009/RF-04
+    records the cost of the naive version: a prefix scan in setup/delete was
+    PROVEN to registry-delete every entity of a SIBLING vacuum whose entity_id
+    was the scanned prefix plus a suffix -- ``vacuum.alfred`` deleting map "2"
+    swept ``vacuum.alfred_2``'s entities (DR-SETUP-1). Two things keep that from
+    recurring here:
+
+    1. the deletion set is the COMPLEMENT of a forward-built set, so a live
+       entity can only be selected if this run failed to build it at all; and
+    2. the remainder after the prefix must not itself contain ``active_job_``,
+       which is the only way one managed vacuum's prefix can swallow another's
+       id (a vacuum literally named ``<x>_active_job``). Note the missing leading
+       underscore: the prefix has already consumed it, so ``vacuum.alfred``
+       matching ``vacuum_alfred_active_job_active_job_5`` leaves the remainder
+       ``active_job_5``. Testing for ``_active_job_`` there matches nothing and
+       the guard silently does not fire -- caught by OAJ-3, not by review.
+
+    Pure and side-effect free so the adversarial cases are testable without a
+    registry -- see tests/unit/test_orphan_active_job_sweep.py.
+    """
+    live = {
+        active_job_unique_id(vacuum_entity_id=v, map_id=str(m))
+        for v, m in live_pairs
+    }
+    known = list(known_unique_ids)
+    orphans: set[str] = set()
+    for vacuum_entity_id in managed_vacuum_ids:
+        prefix = f"{vacuum_entity_id.replace('.', '_')}_active_job_"
+        for unique_id in known:
+            if not unique_id.startswith(prefix):
+                continue
+            if "active_job_" in unique_id[len(prefix):]:
+                continue
+            if unique_id in live:
+                continue
+            orphans.add(unique_id)
+    return orphans
 
 
 def entity_belongs_to(entity: Any, *, vacuum_entity_id: str, map_id: str) -> bool:

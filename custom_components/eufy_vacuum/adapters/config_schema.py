@@ -1733,6 +1733,23 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Omit to use the generic table. Read by planning/run_plan.py."
                 ),
             },
+            # Undeclared until 2026-08-15 while being READ by run_plan.py:539 and
+            # DOCUMENTED at doc 22 §... with a worked example. entry_fields IS
+            # enforced (validate_against_schema recurses into it, unknown-key
+            # rejection included), so a porter following the doc wrote this key,
+            # hit save_adapter_config, and got "key(s) not declared in the schema".
+            # Our own code adapters never hit it -- they bypass the schema walk.
+            "low_clean_water_margin_ml": {
+                "type": "float",
+                "required": False,
+                "description": (
+                    "Dock clean-tank remaining, in ml, at or below which the run plan "
+                    "raises the 'low clean water' margin warning. Default 300.0 (Eufy "
+                    "dock tuning) -- the one water key that truly defaults rather than "
+                    "falling back to flow-rate-only. Read in planning/run_plan.py "
+                    "(_build_effective_start_plan, the water block)."
+                ),
+            },
         },
     },
 
@@ -1802,10 +1819,28 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
 
     "room_profiles": {
         "type": "dict",
-        "required": False,
+        # REQUIRED, and it always was in effect: registry._validate_adapter rejects
+        # an absent (or empty) block outright, deliberately, since 2026-08-07 -- an
+        # adapter that declares nothing used to inherit the framework catalog, which
+        # was Eufy's vocabulary, and a Roborock room then stored `fan_speed: "Max"`
+        # and applied NO SUCTION AT ALL.
+        #
+        # This flag said False until 2026-08-15, and the gap only bit the CONFIG
+        # path: validate_adapter_config() (the save_adapter_config service) honoured
+        # the flag and saved happily, then registration refused the stored config --
+        # landing the failure exactly where registry's own docstring says it must
+        # not ("fails here rather than at the first clean"). Code adapters never
+        # noticed because they do not go through the schema walk.
+        #
+        # The schema still cannot express the whole rule: `{}` is also rejected, and
+        # `required` has no way to say non-empty. The schema is a FLOOR, not the
+        # contract -- see tests/unit/test_adapter_config_parity.py.
+        "required": True,
         "description": (
             "Adapter-declared room profile catalog / overrides (doc 22 §13d). "
-            "Validated at registration by registry._validate_adapter."
+            "REQUIRED: registration fails without it, and an empty dict fails too "
+            "-- a brand with zero profile vocabulary can resolve nothing. "
+            "Enforced in full by registry._validate_adapter."
         ),
     },
 

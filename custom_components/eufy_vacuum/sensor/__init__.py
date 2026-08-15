@@ -55,7 +55,11 @@ from ..adapters.registry import get_adapter_config
 from ..battery.sensors import build_battery_sensors
 from ..const import DATA_BATTERY, DATA_ERROR_TRACKER, DOMAIN, EVENT_JOB_FINISHED
 from ..core.error_tracker import ErrorTracker
-from ..entity_helpers import entity_belongs_to, sort_room_items
+from ..entity_helpers import (
+    entity_belongs_to,
+    orphaned_active_job_unique_ids,
+    sort_room_items,
+)
 from .dock_event import EufyVacuumDockEventSensor
 from .error import EufyVacuumActiveRunErrorSensor, EufyVacuumLastDeviceErrorSensor
 from .lifecycle import EufyVacuumActiveJobSensor
@@ -249,6 +253,48 @@ async def async_setup_entry(
                 )
                 entities.append(rule_entity)
                 room_rule_status_entities[rule_entity.unique_id] = rule_entity
+
+    # --- ORPHANED PER-MAP ACTIVE-JOB SENSORS (live:ENT-ORPHAN-1) ---------------
+    #
+    # The room-entity sweep further down is scoped PER MAP: it walks the rooms of
+    # each map that EXISTS and drops entities that map no longer wants. It is
+    # therefore structurally unable to reach a map that is gone — nothing iterates
+    # a deleted map, so its active-job sensor stays in the registry forever,
+    # permanently `unavailable`. A guard that exists reads as complete; this is the
+    # shoulder just past where its window closes.
+    #
+    # Found on 2026-08-15 with two orphans on the maintainer's box (maps 6 and 99
+    # of five active-job entities), and independently reported from the 2.1.0 beta
+    # by the #49 reporter as "2nd is 'no longer reporting' — not sure where/how
+    # that's appeared".
+    #
+    # FORWARD RECONSTRUCTION, never a prefix scan of the registry. RP-009/RF-04
+    # records why: a prefix scan in setup/delete was PROVEN to registry-delete
+    # every entity of a SIBLING vacuum whose entity_id was the scanned prefix plus
+    # a suffix — `vacuum.alfred` deleting map "2" swept `vacuum.alfred_2`'s
+    # entities (DR-SETUP-1). `built_active_job_map_ids` is the exact set this run
+    # built, so anything else carrying this vacuum's active-job shape is stale by
+    # construction.
+    #
+    # The `_active_job_` remainder check closes the same collision class one more
+    # time: a vacuum literally named `<x>_active_job` would otherwise have ITS
+    # sensors matched by `<x>`'s prefix.
+    _reg = er.async_get(hass)
+    _known = list(er.async_entries_for_config_entry(_reg, entry.entry_id))
+    _orphans = orphaned_active_job_unique_ids(
+        known_unique_ids=[e.unique_id or "" for e in _known],
+        managed_vacuum_ids=list(vacuums),
+        live_pairs=built_active_job_map_ids,
+    )
+    for _entry in _known:
+        if (_entry.unique_id or "") not in _orphans:
+            continue
+        _LOGGER.info(
+            "removing orphaned active-job sensor %s (unique_id %s): its map is no "
+            "longer present",
+            _entry.entity_id, _entry.unique_id,
+        )
+        _reg.async_remove(_entry.entity_id)
 
     async_add_entities(entities)
 

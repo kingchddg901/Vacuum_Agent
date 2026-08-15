@@ -72,6 +72,49 @@ Pure helpers (`timestamp_utils`, `models`, `map_manager`) are unit-tested.
 
 ---
 
+## `../unit/test_orphan_active_job_sweep.py` — the sweep that reaches past a deleted map
+
+8 tests, added 2026-08-15, all against the pure helper
+`entity_helpers.orphaned_active_job_unique_ids()`.
+
+The room-entity sync described under **Known gaps** below is scoped PER MAP: it
+walks the rooms of each map that exists and drops what that map no longer wants.
+Nothing iterates a map that is **gone**, so a deleted map's per-map active-job
+sensor stayed in the registry forever, permanently `unavailable` — a guard that is
+complete inside its window and blind one step past it. Found with two orphans on
+the maintainer's box (maps `6` and `99`, of five active-job entities on one
+vacuum) and independently reported against the 2.1.0 beta on issue #49
+(*"2nd is 'no longer reporting' — so not sure where/how that's appeared"*).
+
+**Most of this file is about what must SURVIVE**, because the sweep deletes
+registry entries and the naive version of it has already done damage here:
+RP-009/RF-04 records a prefix scan in setup/delete that was PROVEN to
+registry-delete every entity of a *sibling* vacuum whose entity_id was the scanned
+prefix plus a suffix (DR-SETUP-1).
+
+| id | holds |
+|---|---|
+| `OAJ-1` | an orphan of a deleted map IS selected — the point of the sweep |
+| `OAJ-2` | **DR-SETUP-1**: `vacuum.alfred` never selects `vacuum.alfred_2`'s entities |
+| `OAJ-3` | a vacuum literally named `<x>_active_job` does not have its ids swallowed by `<x>`'s prefix |
+| `OAJ-4` | room switches, orders and per-vacuum sensors are out of scope entirely |
+| `OAJ-5` | non-numeric map ids survive — Ivy's real map is `Main floor` |
+| `OAJ-6` | a healthy install loses nothing |
+| `OAJ-7` | an UNMANAGED vacuum's orphan is left alone — that is teardown's job, and this sweep cannot tell "removed" from "temporarily absent" |
+| `OAJ-8` | the measured live-registry input, pinned: exactly 2 of 161 selected |
+
+`OAJ-3` earned its place by failing on first run. The guard tested the remainder
+for `_active_job_`, but the prefix has already consumed that underscore — the
+remainder is `active_job_5`, so the check matched nothing and the guard silently
+did not fire. Review did not catch it; the adversarial case did.
+
+The deletion set is the **complement of a forward-built set** (`built_active_job_map_ids`,
+the pairs this run actually constructed), never a parse of a registry id — the rule
+`make_room_unique_id` states: ownership is answered by re-building ids from stored
+facts, never by string dissection.
+
+---
+
 ## Known gaps
 
 The remaining misses across the platform layer fall into two families.

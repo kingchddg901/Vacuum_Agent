@@ -182,6 +182,47 @@ added 2026-08-07) pins what happens when a brand DECLARES — or fails to.
 | `DC-4` | — | the same validator that rejects the bad ACCEPTS every shipped brand |
 | `DC-5` | — | end to end: the REGISTERED config is what resolution actually reads |
 
+### `../unit/test_adapter_config_parity.py` — the schema is a FLOOR, not the contract
+
+3 tests, added 2026-08-15. `test_declaration_contract.py` above pins what happens
+when a brand declares or fails to. This one pins something one level up: that
+`ADAPTER_CONFIG_SCHEMA` **agrees with the other two authorities on the same config**,
+because it is not the only one.
+
+| id | holds |
+|---|---|
+| `ACP-1` | a key `registry._validate_adapter` rejects the ABSENCE of must not read `required: False` in the schema |
+| `ACP-2` | a config field documented in a doc-22 field table must exist in the schema |
+| `ACP-3` | the `SCHEMA_ABSENT_BY_DESIGN` allowlist does not rot in either direction |
+
+Both directions were live defects, found on 2026-08-15 by a doc generator that
+trusted the schema as the whole truth:
+
+- **`room_profiles`** was `required: False` in the schema while `_validate_room_profiles`
+  rejected its absence outright (`DC-2c` above is that rejection). Only the CONFIG path
+  was bitten — `validate_adapter_config()`, behind the `save_adapter_config` service,
+  honoured the flag and SAVED, then registration refused the stored config. The failure
+  landed at registration instead of at save, which is the exact outcome
+  `registry._validate_adapter`'s own docstring says it exists to prevent. Code adapters
+  never noticed: they bypass the schema walk.
+- **`low_clean_water_margin_ml`** was read at `planning/run_plan.py:539` and documented
+  in doc 22 with a worked example, while absent from `water_model_configs.entry_fields`.
+  `entry_fields` IS enforced, unknown-key rejection included — so a porter following the
+  doc wrote that key and got "key(s) not declared in the schema" on save.
+
+**What it deliberately does NOT check**, and why the limit is in the file rather than
+in someone's memory: "every key the code reads is declared" was *measured* before it was
+designed — a scan of `.get("literal")` on receivers named `config`/`cfg`/`model_config`
+finds 141 distinct keys, 61 of them undeclared, and nearly all 61 are room configs,
+estimator internals or map-source sub-dicts rather than adapter config. A gate needing a
+61-entry allowlist hides real findings instead of surfacing them. Doc 22's field tables
+are the tractable proxy, and they caught the real one.
+
+Sibling: `tests/unit/test_service_declaration_parity.py` does the same job for the
+service surface.
+
+---
+
 State 2 is the one a normal suite never reaches, and it is why this file exists.
 Before the fallback was removed it was indistinguishable from state 1 — an adapter
 declaring nothing silently received Eufy's catalog. DC-5 closes the original

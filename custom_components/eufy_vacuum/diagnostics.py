@@ -582,6 +582,26 @@ def _vacuum_diagnostics(
         ),
     }
 
+    # live:ENT-11 — the Setup -> System binding table, verbatim.
+    #
+    # `entity_resolution_summary` above answers "did anything fail to resolve".
+    # That is structurally blind to the defect the System tab exists for: a
+    # COLLISION resolves successfully, to a real enabled entity, just the wrong
+    # one — a per-run cleaning-area role bound to a lifetime counter reads
+    # thousands of times too high and never errors. A summary of failures reports
+    # that install as healthy.
+    #
+    # Shipping the same rows here means a reporter attaches ONE diagnostics file
+    # instead of being asked to find a screen and screenshot it — the round trip
+    # that has cost issue #49 several exchanges. Same builder as the card's, so
+    # the two can never drift into disagreeing about what we read.
+    try:
+        out["entity_bindings"] = manager._entity_bindings(vacuum_entity_id)
+    except Exception:  # pragma: no cover - defensive
+        # Best-effort, exactly like the rest of this file: a diagnostics dump that
+        # raises is worth less than one missing a section.
+        out["entity_bindings"] = {"error": "unavailable"}
+
     # Capability flags (the entities sub-dict is already expanded above).
     if isinstance(caps, dict):
         out["capabilities"] = {k: v for k, v in caps.items() if k != "entities"}
