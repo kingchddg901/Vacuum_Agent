@@ -10,7 +10,7 @@ Most services require at least `vacuum_entity_id`. Services that operate on a sp
 
 ## Job Control
 
-These services start, pause, resume, and cancel the integration-managed active job.
+These services start, pause, resume, and cancel the integration-managed active job. All of them support response — pass `response_variable` to read the outcome rather than inferring it from entity state afterwards.
 
 ### `start_selected_rooms`
 
@@ -158,7 +158,7 @@ Supports response. Returns `{"cleaned": true, "zone_ids", "zone_count", "dispatc
 
 ## Queue Building
 
-Use these services to configure which rooms are cleaned and in what order, then call `start_selected_rooms` to launch the job.
+Use these services to configure which rooms are cleaned and in what order, then call `start_selected_rooms` to launch the job. All of them support response. The four break services and `add_queue_zone` merge the resulting queue state into their own result, so a read-modify-write round trip needs no separate read afterwards.
 
 ### `build_queue`
 
@@ -843,12 +843,18 @@ This is a vacuum-level (not map-level) service — `map_id` is not required. The
 
 Surface app-started (external) cleans for review and fold confirmed runs into the
 learned baselines. See the [external-run ingestion dev doc](../dev/28-external-run-ingestion.md).
+All of them support response, and the review flow depends on it: `get_external_pending_runs`
+is the only source of the `pending_job_id` the other three require.
 
 ### `get_external_pending_runs`
 
 Return the pending external records awaiting review (newest first). Response:
 `{pending: [...], count}`; each record carries a `pending_job_id` used to confirm,
-discard, or re-segment it. Only needs `vacuum_entity_id`.
+discard, or re-segment it.
+
+| Field | Required | Description |
+|---|---|---|
+| `vacuum_entity_id` | yes | The vacuum. |
 
 Each served record also carries `resegmentable` (bool): `true` when the record
 embeds the raw counter samples needed to re-run segmentation (schema v2), `false`
@@ -914,8 +920,12 @@ record is missing (`pending_not_found`), is a v1 record with no embedded samples
 
 ### `discard_external_run`
 
-Delete a pending external record (a junk or false-start run). Needs
-`vacuum_entity_id` + `pending_job_id`.
+Delete a pending external record (a junk or false-start run).
+
+| Field | Required | Description |
+|---|---|---|
+| `vacuum_entity_id` | yes | The vacuum. |
+| `pending_job_id` | yes | From `get_external_pending_runs`. |
 
 ---
 
@@ -924,6 +934,8 @@ Delete a pending external record (a junk or false-start run). Needs
 ### Run Profiles
 
 Run profiles capture the full room selection, order, and per-room settings for a map so you can replay a cleaning configuration on demand. A profile can also carry an ordered **steps** list — room groups broken up by mid-run **charge** and **wait** stops (see [`set_run_profile_steps`](#set_run_profile_steps)). A profile without steps runs as a plain queue; a profile with steps runs as a sequence.
+
+All of them support response. That matters more here than elsewhere: several of these refuse by RETURNING a reason rather than raising, so an automation that ignores the response cannot tell a completed write from a refused one. The per-service sections below give each returned shape.
 
 #### `save_run_profile`
 
@@ -1037,7 +1049,7 @@ Supports response.
 
 ### Room Profiles
 
-Room profiles define cleaning settings (fan speed, water level, clean mode, etc.) that can be applied to one or more rooms at once.
+Room profiles define cleaning settings (fan speed, water level, clean mode, etc.) that can be applied to one or more rooms at once. All of them support response.
 
 #### `apply_room_profile`
 
@@ -1226,6 +1238,9 @@ to this integration's logger only, keeps a bounded ring in memory, and never tou
 main log file — so you can leave it running, reproduce the fault, and dump only the
 window that matters.
 
+All of them support response — that is how the captured log reaches you, since `debug_capture_dump`
+returns the records rather than only writing a file.
+
 > **Support tooling, not an automation surface.** These are for diagnosing a problem you
 > are going to report. Nothing about their output shape is promised, and an automation
 > built on it will break without notice.
@@ -1408,6 +1423,8 @@ data:
 
 The learning system records completed job history to build per-room timing estimates. Most of these services run automatically — the ones below are the ones you would call explicitly from an automation or script.
 
+Every service in this section supports response except `finalize_learning_job`, which returns nothing.
+
 ### `retry_missed_rooms`
 
 Re-queues only the rooms that were skipped in the last incomplete run and starts cleaning immediately. Reads the stored incomplete run log to determine which rooms were missed, enables only those rooms, builds the queue, and fires `start_selected_rooms`.
@@ -1545,6 +1562,8 @@ Fires `eufy_vacuum_job_finished` on completion. Also fires `eufy_vacuum_run_inco
 | `rebuild_csv` | No | Also rebuild CSV exports. Default `false`. |
 | `forced_outcome_status` | No | Override the inferred outcome status (e.g. to force `completed`/`cancelled`) for internal or forced-status finalization. Omit to let the integration infer it. |
 
+Does not support response — the one service in this section that returns nothing. Watch for the `eufy_vacuum_job_finished` event above instead of a `response_variable`.
+
 ### `exclude_learning_job`
 
 Excludes one archived completed job from learned stats without deleting the JSON record. Rebuilds learned stats immediately so the bad run stops affecting future estimates.
@@ -1629,7 +1648,7 @@ Returns the last incomplete-run log for a vacuum — the payload recorded when a
 
 ## Dock Actions
 
-These services gate on dock and vacuum state before issuing the upstream command. If the dock is not in a valid state the service raises a `ServiceValidationError` with a human-readable reason — it does **not** fail silently. The error surfaces in the HA service call UI and will propagate to automations that do not suppress errors. Use `get_dock_action_status` first to check availability before calling these from automations.
+These services gate on dock and vacuum state before issuing the upstream command. If the dock is not in a valid state the service raises a `ServiceValidationError` with a human-readable reason — it does **not** fail silently. The error surfaces in the HA service call UI and will propagate to automations that do not suppress errors. Use `get_dock_action_status` first to check availability before calling these from automations. All of them support response, so the dispatch result is readable with `response_variable` — the raised error covers the refused case, the response covers the accepted one.
 
 ### `wash_mop`
 
@@ -1866,7 +1885,7 @@ The overrides are stored per vacuum as `entity_overrides` — a `{role: entity_i
 
 ## Adapter Configuration
 
-These services manage the brand-adapter config layer. Under normal operation the panel calls them automatically. Call them directly when building or debugging a custom adapter for a non-Eufy brand.
+These services manage the brand-adapter config layer. Under normal operation the panel calls them automatically. Call them directly when building or debugging a custom adapter for a non-Eufy brand. All of them support response, which is the whole point of the discovery ones — `discover_adapter_entities` and `observe_entity_states` exist only to return what they found.
 
 ### `get_adapter_config`
 
