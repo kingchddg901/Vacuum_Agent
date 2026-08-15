@@ -88,7 +88,7 @@ The whole module is pure, so coverage is near-total:
   `record_active_lifecycle_observed`, `record_active_job_sensor_value`,
   `add_update_listener`/`_notify`, and `update_active_job_recharge_observation`.
 
-`ActiveJobTracker` also owns **`detect_run_anomalies`** (`active_job.py:1013`) —
+`ActiveJobTracker` also owns **`detect_run_anomalies`** (`active_job.py::ActiveJobTracker._pose_says_still_in_room`) —
 the live stall / running-long / skipped detection that emits
 `EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED` (once per room per job) for the
 progress snapshot, moved out of the manager snapshot composer because the tracker

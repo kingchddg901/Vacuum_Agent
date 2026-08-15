@@ -641,7 +641,7 @@ vacuum's dock-status entity **only when both** hold: the adapter's
 with no enforced default (its `description` documents the intent, "Default:
 False", but the schema has no `"default"` key for it); the actual default is
 the call-site `get_adapter_value(..., "dock_events", "enabled", fallback=False)`
-(`listeners/dock_events.py:58`, REG-4), checked first, before anything else
+(`listeners/dock_events.py::register`, REG-4), checked first, before anything else
 runs for that vacuum — **and** the adapter declares `entities.dock_status`. Declaring
 `entities.dock_status` alone is not sufficient — an adapter that declares the
 entity but leaves `dock_events.enabled` unset gets no listener at all. The

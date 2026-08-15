@@ -457,7 +457,7 @@ Configures the active-run error tracker (`core/error_tracker.py`).
 
 **Code-key type is brand-dependent, not fixed to `int`.** Every code in the
 five fields above is normalized through `core/error_tracker.py::_code_key()`
-(`core/error_tracker.py:270-307`): an `int` passes through as-is, a numeric
+(`core/error_tracker.py::_code_key`): an `int` passes through as-is, a numeric
 *string* still resolves to an `int` (so a stored adapter config that
 round-tripped through JSON keeps matching), and anything else non-empty
 becomes a lowercased, stripped string key. **Eufy's tables are `int`**
@@ -523,16 +523,16 @@ transcribing twice.
 
 ### Where the framework reads it
 
-- `classify_error_code(vacuum_entity_id, code)` (`core/error_tracker.py:161`)
+- `classify_error_code(vacuum_entity_id, code)` (`core/error_tracker.py::classify_error_code`)
   — returns `"invalidating"` / `"safe"` / `"unclassified"` from the two
   evidence lists; drives the `cleaning_time_seconds` deduction.
-- `error_source_for_code(vacuum_entity_id, code)` (`core/error_tracker.py:192`)
+- `error_source_for_code(vacuum_entity_id, code)` (`core/error_tracker.py::error_source_for_code`)
   — returns `"dock"` / `"robot"` / `"unknown"` from the two source lists;
   reported only, never affects arithmetic.
-- `error_label_key(vacuum_entity_id, code)` (`core/error_tracker.py:227`)
+- `error_label_key(vacuum_entity_id, code)` (`core/error_tracker.py::error_label_key`)
   — returns the i18n key or `None`; feeds the card's fault label.
 - All three resolve their config through the private
-  `_error_tracking_cfg(vacuum_entity_id)` (`core/error_tracker.py:143`),
+  `_error_tracking_cfg(vacuum_entity_id)` (`core/error_tracker.py::_error_tracking_cfg`),
   which reads `adapter_config["error_tracking"]` and returns `{}` (never
   raises) for a vacuum with no adapter or no block — every consumer then
   falls back to its own documented default (nothing deducted, `"unknown"`

@@ -23,7 +23,7 @@ and must be re-confirmed at implementation time (verify-vs-code rule).
 > anchors were taken: external-run finalize is now owned by `ExternalRunManager` in
 > `learning/external_run.py` (the W5c bullet's `core/manager.py::_finalize_external_run` anchor
 > still resolves — `core/manager.py:3795` — but as a thin delegator; the substance is
-> `learning/external_run.py:351`), and the throwaway `debug_log_live_room` probe **handler** has
+> `learning/external_run.py::_finalize_external_run`), and the throwaway `debug_log_live_room` probe **handler** has
 > been removed (`listeners/pose_sampler.py` is its production successor) — though its orphaned
 > `services.yaml` block remains (`services.yaml:3168`).
 
@@ -77,12 +77,12 @@ transit + dock filter. Roborock proves coordinate drift is irrelevant here: its 
 purely name-driven and uses no position/bounds (`position_lock_reliable` is also `False`).
 
 Sequenced/strict-order jobs bypass both paths (the `if active_job.get("phases")` guard,
-`jobs/active_job.py:852`) and instead read the same native signal through the strict-order phase
+`jobs/active_job.py::ActiveJobTracker._accumulate_current_room_noncleaning`) and instead read the same native signal through the strict-order phase
 watchdog. That watchdog now lives in `jobs/phase_runner.py` (class `PhaseRunner`), **not**
 `core/manager.py` (it moved out in the `feat/zone-clean` re-bundle); it calls the
 `native_current_room_target_id` accessor — a method of `ActiveJobTracker`
-(`jobs/active_job.py:1039`) — via `self._manager.active_job.native_current_room_target_id(...)` at
-`jobs/phase_runner.py:450`.
+(`jobs/active_job.py::ActiveJobTracker._live_transition_config`) — via `self._manager.active_job.native_current_room_target_id(...)` at
+`jobs/phase_runner.py::PhaseRunner.maybe_advance_phase`.
 
 **Dock-start phantom is already handled (not a new edge case).** When the dock sits *inside a queued
 room*, `current_room` reads that room while parked, then changes as the robot leaves — naively
@@ -102,8 +102,8 @@ attributed (see below).
   counter-plateau engine (kept wired at `adapters/eufy/adapter.py:613`, `counter_segmentation.py`).
 - The settle requirement replaces the smoothing the plateau logic gave for free — the native
   rollover path has **no debounce of its own** (settle/verify/retry lives only in the strict-order
-  phase watchdog `PhaseRunner._run_advanced_phase`, `jobs/phase_runner.py:287`, with the re-dispatch at
-  `_dispatch_active_phase`, `jobs/phase_runner.py:486` — **not** in grouped-job rollover). The watchdog
+  phase watchdog `PhaseRunner._run_advanced_phase`, `jobs/phase_runner.py::PhaseRunner._spawn_dock_poller`, with the re-dispatch at
+  `_dispatch_active_phase`, `jobs/phase_runner.py::maybe_advance_phase` — **not** in grouped-job rollover). The watchdog
   moved out of `core/manager.py` to `jobs/phase_runner.py` in the `feat/zone-clean` re-bundle;
   `core/manager.py` keeps only a `maybe_advance_phase` delegator (`core/manager.py:4206`) and spawns
   the initial phase via `self.phase_runner._run_advanced_phase` (`core/manager.py:4403`). The `_PHASE_*`
@@ -322,7 +322,7 @@ plays today, but grounded in observed position + device area.
   map data* (`current_room_for_pixel` over eufy-clean's in-memory `MapData` raster — `map_source.py:231`;
   no map → `async_get_map_live_pose` returns `{present:false, reason:"no_geom"}`. That method moved to
   `mapping/map_source_coordinator.py` (class `MapSourceCoordinator`); the `no_geom` return is at
-  `mapping/map_source_coordinator.py:412`. `core/manager.py:3742` keeps only a thin delegator that calls
+  `mapping/map_source_coordinator.py::MapSourceCoordinator.get_live_mapdata_obj`. `core/manager.py:3742` keeps only a thin delegator that calls
   `self.map_source.async_get_map_live_pose` — the manager's `MapSourceCoordinator` instance is held on
   the `self.map_source` attribute, constructed at `core/manager.py:398`).
   So: no map → `current_room` is `None` → the engine returns an empty cleaned set → **W5c's

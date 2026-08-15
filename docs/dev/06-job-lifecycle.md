@@ -401,7 +401,7 @@ The three disjoint anomaly tiers (and the one-shot `EVENT_STALL_DETECTED` /
 and whose returned fields it merges into the snapshot — the fields are always
 computed; the event fire + dedup-set persistence happen only when `emit=True`
 (the 5s ticker, SNAP-2 above). **Two of the three tiers are additionally gated on `adapter_honors_clean_order`** —
-`running_long` (`active_job.py:1185`) and `skipped` (`:1223`), both of which are
+`running_long` (`active_job.py::detect_run_anomalies`) and `skipped` (`:1223`), both of which are
 queue-ORDER arithmetic and would be meaningless on a path-optimizing brand. **Stall
 is NOT gated** (`26c4b2d7`): whether a robot honours dispatched room order has
 nothing to do with whether it is stuck, so a path-optimizing brand (Roborock) DOES

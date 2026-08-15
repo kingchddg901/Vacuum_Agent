@@ -61,12 +61,20 @@ DOC_ROOTS = ("docs",)
 # Tallied by form, because the ban is on the FORM, not on being currently wrong.
 FORMS = {"line": 0, "symbol": 0, "strong": 0, "weak": 0}
 
-# `path/to/file.py:120` / `:120-140` / `file.py::symbol`, inside backticks.
+# `path/to/file.py::symbol` / `file.py:symbol` / `file.py:120` / `:120-140`.
+#
+# The `::` branch MUST come first and MUST be spelled with two colons. The original
+# pattern had one, so it matched `file.py:symbol` and never `file.py::symbol` — the
+# very form this script exists to encourage. Every `::` citation in the corpus was
+# skipped silently, which meant NO-SYMBOL reported zero findings because it had never
+# been shown a single candidate. A detector that cannot see its target reads exactly
+# like a clean one.
 CITE_RE = re.compile(
     r"`(?P<path>[\w./-]+\.py)"
-    r"(?::(?P<sym>[A-Za-z_][\w.]*)"          # ::symbol
-    r"|:~?(?P<line>\d+)(?:-(?P<end>\d+))?)"  # :N or :N-M  (a leading ~ is used
-    r"`"                                     # in a few places for "about here")
+    r"(?:::(?P<sym>[A-Za-z_][\w.]*)"          # ::symbol — preferred, refactor-proof
+    r"|:(?P<sym1>[A-Za-z_][\w.]*)"            # :symbol  — older spelling, still valid
+    r"|:~?(?P<line>\d+)(?:-(?P<end>\d+))?)"   # :N / :N-M (a leading ~ means "about")
+    r"`"
 )
 
 # A symbol named near the citation: the last backticked identifier before it on
@@ -83,25 +91,51 @@ class Problem:
 
 
 def symbol_ranges(py: pathlib.Path) -> dict[str, list[tuple[int, int]]]:
-    """Every def/class in a module → its line span. Methods appear under both
-    their bare name and `Class.method`, because the docs cite both forms."""
+    """Every citable symbol in a module → its line span.
+
+    Includes module-level ASSIGNMENTS, not just def/class: `ADAPTER_CONFIG_SCHEMA`
+    is a 1,900-line dict literal and the single most-cited thing in the adapter
+    docs, and a citation landing inside it is pointing at a real, nameable target.
+    Restricting this to callables was the reason a third of the corpus looked
+    unrecoverable. Methods appear under both their bare name and `Class.method`,
+    because the docs cite both forms.
+    """
     try:
         tree = ast.parse(py.read_text(encoding="utf-8", errors="replace"))
     except (OSError, SyntaxError):
         return {}
     out: dict[str, list[tuple[int, int]]] = defaultdict(list)
 
-    def walk(node: ast.AST, prefix: str = "") -> None:
+    def record(name: str, start: int, end: int, prefix: str = "") -> None:
+        out[name].append((start, end))
+        if prefix:
+            out[f"{prefix}.{name}"].append((start, end))
+
+    def walk(node: ast.AST, prefix: str = "", in_func: bool = False) -> None:
         for child in ast.iter_child_nodes(node):
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 start = min([child.lineno] + [d.lineno for d in child.decorator_list])
-                end = getattr(child, "end_lineno", child.lineno)
-                out[child.name].append((start, end))
-                if prefix:
-                    out[f"{prefix}.{child.name}"].append((start, end))
-                walk(child, child.name if isinstance(child, ast.ClassDef) else prefix)
-            else:
-                walk(child, prefix)
+                record(child.name, start, getattr(child, "end_lineno", child.lineno), prefix)
+                is_cls = isinstance(child, ast.ClassDef)
+                walk(child, child.name if is_cls else prefix, in_func or not is_cls)
+                continue
+            if isinstance(child, (ast.Assign, ast.AnnAssign)):
+                # Module- and class-level only. A LOCAL inside a function body is not
+                # a citable symbol, and admitting them was actively harmful: the
+                # paragraph describing `register_adapter_config`'s issues list matched
+                # a local named `issues`, and the citation converted to
+                # `registry.py::issues` — a wrong pointer in a form that looks
+                # permanently right. Caught by reading the applied diff, not by any
+                # count the tool reported about itself.
+                if in_func:
+                    continue
+                targets = child.targets if isinstance(child, ast.Assign) else [child.target]
+                span = (child.lineno, getattr(child, "end_lineno", child.lineno))
+                for t in targets:
+                    if isinstance(t, ast.Name):
+                        record(t.id, *span, prefix)
+                continue
+            walk(child, prefix, in_func)
 
     walk(tree)
     return out
@@ -189,9 +223,10 @@ def check_doc(doc: pathlib.Path, idx: Index) -> tuple[list[Problem], int]:
             syms = idx.symbols(py)
             checked += 1
 
-            if m.group("sym"):
+            sym = m.group("sym") or m.group("sym1")
+            if sym:
                 FORMS["symbol"] += 1
-                name = m.group("sym").rstrip("()")
+                name = sym.rstrip("()")
                 if name not in syms and name.rsplit(".", 1)[-1] not in syms:
                     problems.append(Problem(
                         rel, lineno, "NO-SYMBOL",

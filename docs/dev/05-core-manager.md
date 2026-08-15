@@ -366,7 +366,7 @@ It applies the profile, builds queue/payload, and calls `start_selected_rooms`.
 It also stashes the profile's ordered `steps` sequence into
 `data["_pending_run_steps"]` before starting — gated on
 `step_requires_stepped_execution` over `STEPPED_STEP_TYPES =
-{"charge_wait", "wait", "zone"}` (`step_types.py:38`): a **zone** step counts
+{"charge_wait", "wait", "zone"}` (`step_types.py::STEPPED_STEP_TYPES`): a **zone** step counts
 too, because a rooms→zone profile is a real multi-phase run (only
 `charge_wait`/`wait` are *dock-polled*, a distinct vocabulary). The plan
 builder (`run_plan._build_effective_start_plan`) consumes that stash and

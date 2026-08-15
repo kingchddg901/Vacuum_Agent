@@ -67,9 +67,9 @@ different generations of code encoded two different beliefs about whether that's
     rooms.
   - `_renderRoomSelection`'s clean-order badges look up `order.get(Number(room.number))`, where
     `order` is keyed by `Number(r.id)` and `room.number` is the raw `rid` `rooms_from_room_pixels`
-    emits (`map_source.py:336`, `"number": rid`); the function's own docstring says "Keyed by
+    emits (`map_source.py::rooms_from_room_pixels`, `"number": rid`); the function's own docstring says "Keyed by
     device room number (== managed room id)" (`renderers/map.js:654`).
-  - `current_room_for_pixel` returns the raw raster `rid` (`map_source.py:473-502`), and
+  - `current_room_for_pixel` returns the raw raster `rid` (`map_source.py::current_room_for_pixel`), and
     `learning/room_attribution_engines.py:61-62` documents that return value as **"the MANAGED
     room id"** outright.
 - **Treats them as POSSIBLY DIFFERENT spaces, and bridges defensively (newer, Phase-2 palette

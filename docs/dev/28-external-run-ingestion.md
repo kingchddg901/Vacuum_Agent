@@ -224,7 +224,7 @@ cold-start, `None` once a learned area exists).
 
 `_finalize_external_run` calls `_extract_return_overhead(vacuum_entity_id,
 detection_ts, last_counter_sample_t)` before `build_pending_record` and stamps
-the result onto the built record afterward (`external_run.py:425-426`):
+the result onto the built record afterward (`external_run.py::_finalize_external_run`):
 `record["return_overhead_s"]` / `record["return_intervals"]`. It reads the HA
 **recorder**'s `state_changes_during_period` for the vacuum entity over the run
 window, sums the wall time spent in any of `{returning, returning_to_dock,

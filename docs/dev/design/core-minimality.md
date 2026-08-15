@@ -49,7 +49,7 @@ start_selected_rooms                       core/manager.py     ── entry
   build_active_job_state       ──▶ queue     (post-wire bookkeeping)
 ```
 
-**The caller never grew.** The wire send is one line — `dispatch/manager.py:84`, `command` defaulting to the literal `"room_clean"` at `:67` — structurally the same call ALFRED ended on. The `DispatchManager` reads only adapter config + `hass`; it touches **no** feature ring.
+**The caller never grew.** The wire send is one line — `dispatch/manager.py::DispatchManager._dispatch_clean_payload`, `command` defaulting to the literal `"room_clean"` at `:67` — structurally the same call ALFRED ended on. The `DispatchManager` reads only adapter config + `hass`; it touches **no** feature ring.
 
 The set that **must** exist to fire that one send:
 
@@ -79,7 +79,7 @@ Five rings *are* load-bearing on the current path. Decoded, they are not five de
 | **run_plan** | `_build_effective_start_plan` → `run_plan._build_effective_start_plan` | **IS "the input for dispatch."** The dispatch engine is invoked *through* it. Atom-adjacent. |
 | **access_graph** | `core/manager.py:2557` `_normalized_managed_rooms_with_automation` → `self.access_graph.*` | the **room-config normalizer** that feeds the payload. A dumb vac has no access rules — but the normalizing *primitive* was housed in the graph ring. |
 | **profiles** | `core/manager.py:1545`/`:1548` `_protected_room_config` / `_match_profile_from_fields` → `self.profiles.*` | the **effective-room shaper**. A dumb vac has no profiles — but the shaping *primitive* was housed in the profiles ring. |
-| **onboarding** | `core/manager.py:3481` `if not onboarding["floor_types_complete"]:` → blocks start `onboarding_required` | a **self-satisfiable VA gate**, *not a weld*. Floor type is pure VA state — `floor_types_confirmed` is a VA-owned dict in `data["onboarding"]` (`onboarding/manager.py:38`, `_default_map_onboarding`), `confirm_floor_type` just flips a boolean; **the adapter is never consulted.** VA owns the room list *and* the flags, so it can always complete this itself. It blocks today only because it waits for a human confirm — a step that earns its keep for **mopping** (don't mop an unclassified carpet), and is cosmetic for a non-mopping vac. |
+| **onboarding** | `core/manager.py:3481` `if not onboarding["floor_types_complete"]:` → blocks start `onboarding_required` | a **self-satisfiable VA gate**, *not a weld*. Floor type is pure VA state — `floor_types_confirmed` is a VA-owned dict in `data["onboarding"]` (`onboarding/manager.py::_default_map_onboarding`, `_default_map_onboarding`), `confirm_floor_type` just flips a boolean; **the adapter is never consulted.** VA owns the room list *and* the flags, so it can always complete this itself. It blocks today only because it waits for a human confirm — a step that earns its keep for **mopping** (don't mop an unclassified carpet), and is cosmetic for a non-mopping vac. |
 | **active_job** | `jobs/` paused-gate + post-wire live settings | run tracking. **Legit atom member — keep.** |
 
 **The verb stayed tiny; the noun got rich.** The *calling* is unchanged (one `async_call`). What inflated is *"which rooms, shaped how"* — ALFRED's helper-string became `run_plan → access_graph → profiles`. Every mis-homed weld is room-**definition**; the onboarding gate is about **when** a room may be called — and since floor type is VA-owned, VA can answer that itself. None of them is about the call.
@@ -151,7 +151,7 @@ Signals to score it on: **import** (hard = spine candidate / lazy = ring candida
 | `map_source` | lazy | mgr | 5 | **LEAVE** — live-map backdrop reader (provider segmentation + live-pose), off the room-clean path. Reaches back via **two deliberate shared seams** (`_map_state_source_cache`, `_resolve_live_map_image_entity`) — formalize as host contract, don't dissolve the ring. ✅ walked |
 | `dispatch` | lazy | mgr | 4 | **KEEP** — the caller; reads only adapter cfg + `hass`. Ring-free (`dispatch_zone_clean` is the one dispatch entry point that also reaches into `map_source` for zone-rect resolution — a room-clean path never touches it). ✅ walked |
 | `phase_runner` | lazy | mgr | 4 | **KEEP (conditional)** — needed only for strict-order / charge-step runs; atomic path never enters it. ✅ walked |
-| `live_room_refresh` | lazy | mgr | 1 | **LEAVE** — the cleanest: one reach-in (`maybe_pulse_live_room_refresh` → `maybe_pulse`, `core/manager.py:5959`), reaches back only for `hass`; all config/rate-limit/local-gate self-contained. No-op for Eufy. Already extracted from core for this reason. ✅ walked |
+| `live_room_refresh` | lazy | mgr | 1 | **LEAVE** — the cleanest: one reach-in (`maybe_pulse_live_room_refresh` → `maybe_pulse`, `core/manager.py::_resolve_live_map_image_entity`), reaches back only for `hass`; all config/rate-limit/local-gate self-contained. No-op for Eufy. Already extracted from core for this reason. ✅ walked |
 
 ### Out of the ring set
 
