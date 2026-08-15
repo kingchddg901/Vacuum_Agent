@@ -56,9 +56,17 @@ const DELIBERATE_OVERHANG = [
   "token-alpha-shell",
 ];
 
-for (const width of [390, 500]) {
-  test.describe(`theme editor layout @${width}px`, () => {
-    test.use({ viewport: { width, height: 900 } });
+/* LANDSCAPE is a viewport this gate could not see. Every case ran at height 900,
+   so the SHORT-viewport rules — the ones that decide whether a phone held
+   sideways can edit anything — were ungated by construction. That is how the
+   filter band came to cost a fixed 74px of a 116px pane on a real device while
+   this suite stayed green, and it is the same shape as the guard-with-no-caller
+   that produced issue #49: a check that exists reads as a check that covers.
+
+   720x344 is the geometry the band was measured at, not a round number. */
+for (const [width, height] of [[390, 900], [500, 900], [720, 344]]) {
+  test.describe(`theme editor layout @${width}x${height}`, () => {
+    test.use({ viewport: { width, height } });
 
     for (const tab of ["tokens", "palette"]) {
       test(`theme/${tab} fits the card`, async ({ page }) => {

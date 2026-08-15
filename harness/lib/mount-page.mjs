@@ -216,6 +216,16 @@ export function probeLayout(page, { tol = 2 } = {}) {
  *
  * Form controls are excluded — an <input> reports an intrinsic scrollWidth
  * regardless of its container, which is noise for this question.
+ *
+ * So is anything inside a HORIZONTAL SCROLLER. A box that sits past the card
+ * edge because you have not scrolled to it yet is not bleeding — it is clipped
+ * by its scroll container and reachable by the gesture that container exists
+ * for. Without this, the landscape filter band (a deliberate one-row chip
+ * strip) reported eleven "bleed origins" that no user can see, which is the
+ * same false positive probeLayout already avoids by skipping any box whose own
+ * overflow-x is not visible. The difference here is that this probe measures
+ * DESCENDANTS against the shell, so the scroller is an ancestor rather than the
+ * element itself.
  */
 export function probeBleed(page) {
   return page.evaluate(() => {
@@ -229,6 +239,13 @@ export function probeBleed(page) {
       if (/^(INPUT|TEXTAREA|SELECT|OPTION)$/.test(el.tagName) || el.closest("svg")) continue;
       const r = el.getBoundingClientRect();
       if (!r.width || r.right <= sr.right + 0.5) continue;
+      // Inside a horizontal scroller? Then this is scrollable content, not bleed.
+      let scrolled = false;
+      for (let p = el.parentElement; p && p !== shell; p = p.parentElement) {
+        const ox = getComputedStyle(p).overflowX;
+        if (ox === "auto" || ox === "scroll") { scrolled = true; break; }
+      }
+      if (scrolled) continue;
       past.push(el);
     }
     const origins = past
