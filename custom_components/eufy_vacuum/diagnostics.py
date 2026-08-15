@@ -26,6 +26,7 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.device_registry import DeviceEntry
 
 from .core.capabilities import _sweep_siblings
 
@@ -525,7 +526,60 @@ def _vacuum_diagnostics(
         declared_map = (_get_cfg_for_entities(vacuum_entity_id) or {}).get("entities") or {}
     except Exception:  # pragma: no cover - defensive
         declared_map = {}
-    merged_map = {**declared_map, **entities_map} if isinstance(declared_map, dict) else entities_map
+    if not isinstance(declared_map, dict):
+        declared_map = {}
+
+    # live:ENT-BRAND-1 — GATE THE PROBE'S VOCABULARY TO THIS ADAPTER.
+    #
+    # `detect_capabilities()` returns a FIXED `entities` dict and emits every key
+    # unconditionally, `None` where the probe found nothing. That vocabulary is
+    # EUFY'S: work_mode, dock_status, water_level, robot_position_x/y. A Roborock
+    # vacuum declares none of them, so all five arrived here as None, counted as
+    # unresolved, and flipped `likely_naming_mismatch` to True on a completely
+    # healthy S6 — which has no dock station, no settable water, and for which
+    # robot_position_x/y is a Eufy-only concept by design.
+    #
+    # Both vacuums on the maintainer's box reported "likely naming mismatch" while
+    # nothing was wrong. That is the single most decision-shaping field in a dump:
+    # it is what tells a reporter "your entities exist under names we did not
+    # derive" versus "your device genuinely lacks this".
+    #
+    # THE DISCRIMINATOR IS `entity_candidates`, NOT "did the adapter declare it".
+    #
+    # The first version of this gate keyed on `declared_map` alone and was WRONG in
+    # the more dangerous direction: the Eufy adapter declares ZERO roles in
+    # `entities` (they are all probe-resolved), so a genuine Eufy work_mode miss
+    # would have been gated away silently. Hiding a real failure is worse than the
+    # false alarm being fixed.
+    #
+    # `entity_candidates` is the right question, and capabilities.py says so in its
+    # own module docstring: "{key: [entity_id, ...]} — entity IDs to probe per key",
+    # and "a port to a different brand supplies its own entity_candidates". A brand
+    # that offers NO candidates for a role does not have that role. A brand that
+    # offers candidates and resolved none has a real miss, and still reports it.
+    #
+    # NOT DROPPED, MOVED: gated roles are reported as `roles_not_applicable` below.
+    # Silently omitting them would make this dump indistinguishable from one where
+    # the probe never ran.
+    try:
+        _candidates = (_get_cfg_for_entities(vacuum_entity_id) or {}).get(
+            "entity_candidates"
+        ) or {}
+    except Exception:  # pragma: no cover - defensive
+        _candidates = {}
+    if not isinstance(_candidates, dict):
+        _candidates = {}
+    _gated = {
+        role: entity_id
+        for role, entity_id in entities_map.items()
+        if not entity_id and role not in declared_map and role not in _candidates
+    }
+    merged_map = {
+        **declared_map,
+        **{k: v for k, v in entities_map.items() if k not in _gated},
+    }
+    if _gated:
+        out["roles_not_applicable"] = sorted(_gated)
     # live:ENT-2 — carry WHY, not just what. A bare `null` per role cannot
     # distinguish "no such entity" from "present but disabled", and those need
     # opposite fixes: one is ours, the other is a toggle in the user's own UI.
@@ -854,6 +908,43 @@ def _vacuum_diagnostics(
         if key != "vacuum_entity_id":
             ordered[key] = value
     return ordered
+
+
+async def async_get_device_diagnostics(
+    hass: HomeAssistant, entry: ConfigEntry, device: DeviceEntry
+) -> dict[str, Any]:
+    """Return diagnostics for ONE vacuum — the device page's Download button.
+
+    Without this hook HA falls back to the config-entry dump, so pressing
+    "Download diagnostics" on Alfred's device page hands you every vacuum on the
+    install. The button is per-device; the file should be too. On a two-vacuum box
+    that is half the noise, and the irrelevant half is the half a reporter has to
+    be told to ignore.
+
+    The device is resolved back to its vacuum by the SAME identifier
+    `build_vacuum_device_info` builds it from, never by matching on the device
+    NAME — that name is derived from the vacuum's object_id at creation time and
+    does not track a later rename (it is why one box shows both
+    `sensor.alfred_active_job` and `sensor.other_alfred_active_job`).
+    """
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    wanted = {ident for domain, ident in device.identifiers if domain == DOMAIN}
+    if not wanted or not isinstance(diag.get("vacuums"), list):
+        # Unknown shape: hand back the whole entry rather than an empty file.
+        # A dump that is merely broad is still usable; one that is empty is not.
+        return diag
+    scoped = [
+        v for v in diag["vacuums"]
+        if str(v.get("vacuum_entity_id", "")).replace(".", "_") in wanted
+    ]
+    # Same reasoning: if the match finds nothing, the identifier convention has
+    # drifted and a silent empty list would read as "this vacuum has no data".
+    if scoped:
+        diag["vacuums"] = scoped
+        diag["scope"] = "device"
+    else:
+        diag["scope"] = "entry (device match found nothing)"
+    return diag
 
 
 async def async_get_config_entry_diagnostics(

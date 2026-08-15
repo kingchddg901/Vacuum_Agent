@@ -865,3 +865,147 @@ async def test_device_entity_census_never_costs_the_dump(hass):
     assert any(k in census for k in ("entities", "reason", "error")), census
     # ...and the rest of the dump is intact.
     assert diag["vacuums"][0]["entity_resolution"]
+
+
+async def test_probe_roles_a_brand_never_offers_are_not_counted_as_unresolved(hass):
+    """[DIAG-22] A role this brand does not have is not a failure to resolve.
+
+    `detect_capabilities()` returns a FIXED `entities` dict and emits every key
+    unconditionally, `None` where the probe found nothing. That vocabulary is
+    EUFY'S -- work_mode, dock_status, water_level, robot_position_x/y. A Roborock
+    S6 declares none of them (no dock station, no settable water, and robot
+    position is a Eufy-only concept), so all five arrived as None, were counted as
+    unresolved, and flipped `likely_naming_mismatch` to True on a healthy device.
+
+    Measured on the maintainer's box 2026-08-15: BOTH vacuums reported "likely
+    naming mismatch" while nothing was wrong. That field is the one that tells a
+    reporter "your entities exist under names we did not derive" rather than "your
+    device genuinely lacks this", so a false positive there sends them hunting.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    from custom_components.eufy_vacuum.diagnostics import _vacuum_diagnostics
+
+    # A brand offering candidates for ONE role only.
+    register_adapter_config(VACUUM, {
+        "adapter_id": "t", "source": "t",
+        "entities": {},
+        "entity_candidates": {"battery": ["sensor.alfred_battery"]},
+        # REQUIRED or registration refuses the config and this test silently
+        # exercises the fallback instead of the config under test.
+        "room_profiles": {"builtins": {}},
+    })
+    caps = {
+        "entities": {
+            "vacuum": VACUUM,
+            "battery": "sensor.alfred_battery",   # offered AND found
+            "work_mode": None,                    # Eufy vocabulary, not this brand
+            "dock_status": None,
+            "water_level": None,
+        },
+    }
+    manager = _FakeManager(caps=caps, maps={}, rooms={}, upkeep={}, dashboard={})
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+    hass.states.async_set("sensor.alfred_battery", "100")
+
+    out = _vacuum_diagnostics(hass, manager, VACUUM)
+
+    assert out["roles_not_applicable"] == ["dock_status", "water_level", "work_mode"], (
+        "roles the brand offers no candidates for must be MOVED to "
+        "roles_not_applicable, not silently dropped and not counted as failures"
+    )
+    for role in ("work_mode", "dock_status", "water_level"):
+        assert role not in out["entity_resolution"]
+    assert out["entity_resolution_summary"]["unresolved"] == []
+    assert out["entity_resolution_summary"]["likely_naming_mismatch"] is False
+
+
+async def test_a_role_the_brand_does_offer_still_reports_when_it_misses(hass):
+    """[DIAG-22b] The over-correction guard, and it is the one that matters.
+
+    The first version of this gate keyed on the adapter's `entities` map alone.
+    The Eufy adapter declares ZERO roles there -- every one is probe-resolved --
+    so a genuine Eufy work_mode miss would have been gated away SILENTLY. Hiding a
+    real failure is strictly worse than the false alarm being fixed.
+
+    The discriminator is `entity_candidates`: capabilities.py's own docstring
+    defines it as "entity IDs to probe per key", supplied per brand. Offered and
+    not found is a MISS; never offered is a role that does not apply.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    from custom_components.eufy_vacuum.diagnostics import _vacuum_diagnostics
+
+    register_adapter_config(VACUUM, {
+        "adapter_id": "t", "source": "t",
+        "entities": {},
+        # This brand DOES offer candidates for work_mode -- none of them resolved.
+        "entity_candidates": {"work_mode": ["sensor.alfred_work_mode"]},
+        "room_profiles": {"builtins": {}},
+    })
+    caps = {"entities": {"vacuum": VACUUM, "work_mode": None}}
+    manager = _FakeManager(caps=caps, maps={}, rooms={}, upkeep={}, dashboard={})
+
+    out = _vacuum_diagnostics(hass, manager, VACUUM)
+
+    assert "work_mode" not in out.get("roles_not_applicable", []), (
+        "a role the brand OFFERS candidates for was gated away -- this is the "
+        "silent-failure regression DIAG-22b exists to catch"
+    )
+    assert "work_mode" in out["entity_resolution"]
+    assert "work_mode" in out["entity_resolution_summary"]["unresolved"]
+
+
+async def test_device_diagnostics_scopes_to_one_vacuum(hass):
+    """[DIAG-23] The device page's Download button is per-device; the file should be.
+
+    Without async_get_device_diagnostics HA falls back to the config-entry dump,
+    so pressing Download on Alfred's page hands you every vacuum on the install --
+    and the irrelevant half is the half a reporter must be told to ignore.
+    """
+    from types import SimpleNamespace
+
+    from custom_components.eufy_vacuum.diagnostics import async_get_device_diagnostics
+
+    manager = _FakeManager(caps=_caps(), maps={}, rooms={}, upkeep={}, dashboard={})
+    manager.get_known_vacuum_ids = lambda: [VACUUM, "vacuum.ivy"]
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+    hass.states.async_set("vacuum.ivy", "docked", {"segments": []})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    full = await async_get_config_entry_diagnostics(hass, entry)
+    assert len(full["vacuums"]) == 2, "premise: the entry dump carries both"
+
+    device = SimpleNamespace(identifiers={(DOMAIN, "vacuum_alfred")})
+    scoped = await async_get_device_diagnostics(hass, entry, device)
+
+    assert scoped["scope"] == "device"
+    assert [v["vacuum_entity_id"] for v in scoped["vacuums"]] == [VACUUM]
+    # The entry-level context (redacted title/data) must survive the scoping.
+    assert "entry" in scoped
+
+
+async def test_device_diagnostics_falls_back_rather_than_returning_nothing(hass):
+    """[DIAG-23b] An unmatched device yields the FULL dump, never an empty one.
+
+    If the identifier convention ever drifts, a silent empty list reads as "this
+    vacuum has no data" -- the same failure class as a doc omitting a section. A
+    dump that is merely too broad is still usable.
+    """
+    from types import SimpleNamespace
+
+    from custom_components.eufy_vacuum.diagnostics import async_get_device_diagnostics
+
+    manager = _FakeManager(caps=_caps(), maps={}, rooms={}, upkeep={}, dashboard={})
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    device = SimpleNamespace(identifiers={(DOMAIN, "vacuum_does_not_exist")})
+    out = await async_get_device_diagnostics(hass, entry, device)
+
+    assert out["vacuums"], "an unmatched device must not produce an empty dump"
+    assert out["scope"].startswith("entry")
