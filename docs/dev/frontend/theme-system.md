@@ -62,6 +62,10 @@ The static groups below are the fixed editor order. Between **Modals & Overlays*
 > **[Theme Token CSS-Usage Trace](../reference/THEME_TOKEN_USAGE.md)** traces where each token is
 > consumed in the card CSS (and flags any token that nothing reads). Both regenerate with
 > `node scripts/gen-theme-token-docs.mjs` — run it after adding, removing, or renaming a token.
+> You do not have to remember: `tests.yml`'s **generated docs** job fails when the tree's copy
+> is not what the generator emits now. It exists because the usage trace once sat 651 lines
+> stale across 31 commits to `src/styles/`, with every `file:line` citation pointing at the
+> wrong line — see [the staleness gate](../../testing/04-patterns-and-conventions.md#generated-documentation--the-staleness-gate).
 
 ### Token object shape
 

@@ -357,3 +357,64 @@ python scripts/mock_docs.py --check    # CI-style staleness check, writes nothin
 
 Both ratchets and the column live in `tests/test_mock_ratchet.py`,
 `tests/test_docs_ratchet.py`, `scripts/mock_census.py` and `scripts/mock_docs.py`.
+
+## Generated documentation — the staleness gate
+
+A generated document cannot drift the way prose does. It drifts by **not being
+regenerated**, and that is indistinguishable from being correct: the file is
+well-formed, the numbers are specific, and nothing about it looks old.
+
+Both generated surfaces in this repo were stale when the gate was written, and
+neither had ever failed anything:
+
+| surface | state found | why nothing caught it |
+|---|---|---|
+| `docs/dev/reference/THEME_TOKEN_USAGE.md` | 651 lines out of date after 31 commits to `src/styles/`; **every `file:line` citation wrong** (`index.js:324` had become `:393`) | the generator was run by hand, last on 2026-08-11 |
+| the `Mocking` column in `subsystems/15-adapters.md`, `17-services.md` | two rows stale | `mock_docs.py --check` existed, documented as *"CI: fail if stale"*, and was wired into nothing |
+
+The second one is the sharper lesson: the check was already written and already
+correct. Writing a checker is not the same as running one.
+
+`scripts/check_generated_docs.py` holds a registry of every generator and compares
+what is in the tree against what the generator emits **now**.
+
+```bash
+python scripts/check_generated_docs.py          # check
+python scripts/check_generated_docs.py --fix    # regenerate everything, then re-check
+```
+
+Five findings, each ablated in `tests/unit/test_generated_doc_gate.py` (`GDG-1`..`GDG-16`)
+— a clean run against a clean tree proves nothing about a detector that is silently
+dead:
+
+| | |
+|---|---|
+| `STALE` | the generator now emits something else |
+| `MISSING` | a registered file is not in the tree |
+| `SILENT` | the generator exited 0 and wrote nothing, or wrote the wrong name |
+| `BROKEN` | it could not be run, timed out, or failed |
+| `UNGATED` | a file carrying the `GENERATED FILE` banner that no registry entry claims — the omission failure, so adding a generator and forgetting to register it fails here rather than nowhere |
+
+Entries come in two shapes. **Whole-file** generators write complete documents and
+name an env var this gate sets to redirect them into a scratch tree, so the check
+never touches the working copy — one that wrote over the tracked files and restored
+them would leave the tree dirty on exactly the run that failed. **Region** generators
+rewrite a block inside a hand-written page (the `Mocking` column), so there is
+nothing to redirect; they bring their own `--check` and a non-zero exit means stale.
+A command that cannot be run at all is `BROKEN`, never `STALE` — those are opposite
+instructions, and reporting a missing `node` as "your docs are stale" sends the
+reader to regenerate a document that was already current.
+
+**This one IS a CI gate**, unlike [`check_docs_index.py`](../dev/README.md), and the
+difference is not an inconsistency. That script is a doc-commit rule because a new
+document legitimately lands before the index pass that files it, so gating on it
+would fail pushes for work that is not yet due — the 2026-06-12 `check_legend_drift.py`
+ruling. Staleness here is the opposite shape: it is caused by a **code** change, the
+fix is one command with no editorial judgement in it, and there is no later pass
+that is supposed to catch up. Same reason `check-styles.mjs` gates the build. It runs
+as the `generated docs` job in `tests.yml`.
+
+**Line-precise citations are what a generated doc is FOR**, and this gate is what
+makes them safe. The standing rule that prose cites symbols rather than line numbers
+exists because prose has no mechanism to stay current. A generator does — provided
+something runs it.

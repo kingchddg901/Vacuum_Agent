@@ -246,7 +246,7 @@ non-SDK import and a planted `hass._private_thing` each turn their own check red
 | `config_loader.py` | 33 | 100% | `test_adapters.py` | integration | clean |
 | `config_schema.py` | 64 | 94% | `test_adapters.py` | integration | clean |
 | `brands.py` | 60 | 100% | `test_brand_selection.py` | integration | clean |
-| `entity_resolve.py` | 72 | 85% | `test_entity_resolve.py` | integration | clean |
+| `entity_resolve.py` | 72 | 85% | `tests/unit/test_entity_resolve.py` + `tests/adapters/test_entity_resolve.py` | unit + adapter | clean |
 | `eufy/segmentor.py` | 866 | 92% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/adapter.py` | 55 | 86% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/entities.py` | 29 | 100% | `test_buttons_entities.py` + `test_suffix_vocabulary.py` | adapter | clean |

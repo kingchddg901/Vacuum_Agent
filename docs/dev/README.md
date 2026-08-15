@@ -148,7 +148,9 @@ Not in the numbered reading order.
 
 - **[reference/](reference/ai-theme-authoring.md)** — theme-token references:
   [THEME_TOKEN_MAP](reference/THEME_TOKEN_MAP.md) + [THEME_TOKEN_USAGE](reference/THEME_TOKEN_USAGE.md)
-  (both **generated** — regenerate with `node scripts/gen-theme-token-docs.mjs`, never hand-edit) and
+  (both **generated** — regenerate with `node scripts/gen-theme-token-docs.mjs`, never hand-edit;
+  CI fails if the tree's copy is not what the generator emits, see
+  [the staleness gate](../testing/04-patterns-and-conventions.md#generated-documentation--the-staleness-gate)) and
   [ai-theme-authoring](reference/ai-theme-authoring.md) (theming the card with an AI assistant).
 - **`dev/maintenance/`** — the hostile-audit working ledger
   (`highly-aggressive-audit.md`): what each subsystem audit found, what is fixed, what is still open.

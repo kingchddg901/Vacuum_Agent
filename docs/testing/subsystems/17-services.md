@@ -39,7 +39,7 @@ docs, not here:
 | `errors.py` | 37 | 95% | `test_services_errors_setup.py` | **bare x2** |
 | `access_graph.py` | 34 | 88% | `test_services_access_graph.py` | clean |
 | `_common.py` | 43 | 96% | `test_services_common.py`, `test_services_misc.py` | clean |
-| `stall_capture.py` | 43 | 37% | — | — |
+| `stall_capture.py` | 43 | 37% | — | - |
 | `debug.py` | 8 | 100% | `test_services_misc.py` | clean |
 
 ---

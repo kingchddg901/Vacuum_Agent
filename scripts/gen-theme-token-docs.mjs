@@ -29,7 +29,10 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const OUT = join(ROOT, "docs", "dev", "reference");
+// EVCC_GENDOC_OUT lets the staleness gate (scripts/check_generated_docs.py) render
+// into a scratch directory and diff, instead of writing over the tracked files and
+// restoring them — a check that mutates the tree leaves it dirty when it fails.
+const OUT = process.env.EVCC_GENDOC_OUT || join(ROOT, "docs", "dev", "reference");
 mkdirSync(OUT, { recursive: true });
 
 const BANNER =

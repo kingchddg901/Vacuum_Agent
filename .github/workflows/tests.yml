@@ -46,3 +46,24 @@ jobs:
       # has no deps (just the theme-tags core), so no install step is needed.
       - name: Run script tests
         run: node --test scripts/process-submission.test.mjs harness/lib/gallery-html.test.mjs
+
+  # A generated doc drifts by NOT BEING REGENERATED, and that looks exactly like
+  # being correct. THEME_TOKEN_USAGE.md sat stale for four days across 31 commits to
+  # src/styles/ — 651 lines out of date, every file:line citation wrong — because
+  # nothing ran the generator. Unlike check_docs_index.py (a doc-commit rule by the
+  # 2026-06-12 ruling), staleness here is caused by a CODE change and the fix has no
+  # editorial judgement in it, so it belongs in CI. Both generators are
+  # dependency-free — they import src/ directly — so neither npm ci nor pip is needed.
+  generated-docs:
+    name: generated docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Check every generated doc is current
+        run: python scripts/check_generated_docs.py
