@@ -403,11 +403,18 @@ so they're config scalars, not core constants. See
 ### `room_profiles`
 The room-profile vocabulary — the built-in profiles, the custom-profile template,
 legacy aliases, the default profile name, and the floor-type fan/water default
-maps. Eufy declares the whole block **by reference** to the in-code constants in
-`profiles/room_profiles.py` (`BUILT_IN_ROOM_PROFILES`, `DEFAULT_CUSTOM_ROOM_PROFILE`,
-`LEGACY_PROFILE_ALIASES`, `DEFAULT_ROOM_PROFILE_NAME`, `FLOOR_TYPE_*_DEFAULTS`) — no
-duplication, byte-identical. Those in-code constants stay the framework **default**
-source of the four protected profile KEYS; this block is **resolution-only**.
+maps. Eufy declares the whole block **by reference** to its OWN constants in
+`adapters/eufy/room_profiles.py` (`BUILT_IN_ROOM_PROFILES`,
+`DEFAULT_CUSTOM_ROOM_PROFILE`, `LEGACY_PROFILE_ALIASES`,
+`FLOOR_TYPE_*_DEFAULTS`) — no duplication, byte-identical.
+
+**They are not a framework default and nothing inherits them.** `ad8c074c` moved
+the VALUES out of core to the brand that owns them; `profiles/room_profiles.py`
+now keeps only the key space and the resolution machinery
+(`PROTECTED_ROOM_PROFILE_NAMES`, `DEFAULT_ROOM_PROFILE_NAME`,
+`resolve_profile_catalog`, `normalize_room_profile`). Importing the value
+constants from core is an `ImportError` — five of the six names are simply not
+there any more.
 `resolve_profile_catalog()` carries exactly what the adapter declared — there is no
 merge and no in-code default, and an undeclared key resolves EMPTY. Eufy's values
 live in `adapters/eufy/room_profiles.py`, not in core. The catalog is threaded
@@ -417,9 +424,21 @@ through the per-room resolvers (`resolve_room_profile_for_room`,
 are adapter-catalog-sourced.
 > **Honest boundary.** The *global* profile-editor (`profiles/manager.py`) and the
 > pure room-builder defaults (`rooms/room_manager.py`) have no per-vacuum context,
-> so they resolve against the framework **default** catalog (`catalog=None`).
-> Byte-identical for Eufy; a second brand's editor UI would show framework defaults
-> until those call sites are threaded — a documented follow-up.
+> so they call `resolve_profile_catalog(None)` — which since `ad8c074c` resolves
+> every vocabulary key **EMPTY**, not to a framework default. There is no default
+> catalog to fall back to.
+>
+> That is deliberate rather than a gap: an empty answer is honest, where the old
+> behaviour handed a second brand Eufy's `"Max"` and `"Boost"`, matched no option in
+> the card, and applied no suction at all to an unedited room. The one key that still
+> carries a framework value is `default_profile`, and it is key space, not
+> vocabulary — it names WHICH profile a new room starts on, never what is inside it.
+>
+> The consequence is unchanged and still a documented follow-up: those call sites
+> need threading with a vacuum context before a per-brand editor can show that
+> brand's presets. (This passage previously read "byte-identical for Eufy; a second
+> brand would show framework defaults" — true before the move, false after it in
+> both halves.)
 
 **Pattern:** ship the room vocabulary as adapter config (by reference to the
 framework defaults, so there's nothing to maintain twice); a future brand inlines

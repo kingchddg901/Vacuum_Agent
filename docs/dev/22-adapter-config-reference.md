@@ -95,9 +95,13 @@ shared.
 }
 ```
 
-Every section except `entities` and `dispatch` is optional. Absent
-sections produce graceful degradation — the corresponding subsystem
-disables itself rather than erroring. The degradation behavior is
+Every section except `entities`, `dispatch` and **`room_profiles`** is optional.
+Absent sections produce graceful degradation — the corresponding subsystem
+disables itself rather than erroring. `room_profiles` is the exception that does
+NOT degrade: it must be declared, because there is no framework catalog to fall
+back to and a brand with no profile vocabulary can resolve no room at all
+(`ad8c074c`). Declaring it EMPTY is also rejected — state emptiness per key
+(`legacy_aliases: {}`) so the keys the brand does supply stay visible. The degradation behavior is
 called out in each section below.
 
 ---
@@ -1766,8 +1770,15 @@ absent one resolves EMPTY — there is no in-code default to inherit. Declare a 
 empty (`{}`) to state that this brand supplies none, which is a different thing
 from omitting it.
 
-| Field | Type | In-code default | Purpose |
-|-------|------|-----------------|---------|
+> ⚠ The **"Eufy declares"** column below is NOT a default. There is no framework
+> catalog and nothing is inherited (`ad8c074c`, "core owns the key space, not a
+> brand's words"). The constants named there live in
+> `adapters/eufy/room_profiles.py` — they are one brand's vocabulary, shown so you
+> can see the shape of a filled-in block, and a port that copies them inherits
+> Eufy's words rather than declaring its own.
+
+| Field | Type | Eufy declares | Purpose |
+|-------|------|---------------|---------|
 | `default_profile` | `str` | `DEFAULT_ROOM_PROFILE_NAME` (`"vacuum_quick"`) | Profile name a newly-discovered room gets, and the fallback when a requested name is unknown. |
 | `builtins` | `dict[str, ProfileRecord]` | `BUILT_IN_ROOM_PROFILES` | The built-in profile presets (`vacuum_quick`, `vacuum_deep`, `vacuum_mop_quick`, `vacuum_mop_deep`), each a `ProfileRecord`. |
 | `custom_template` | `dict` | `DEFAULT_CUSTOM_ROOM_PROFILE` | Template for the editable user profile slot (`user_1`). |
@@ -1811,11 +1822,13 @@ both consistently until they are merged.
 
 ### Example (from the Eufy adapter)
 
-The Eufy adapter declares the block **by reference** to the in-code
-constants (no duplication, byte-identical):
+The Eufy adapter declares the block **by reference** to ITS OWN constants — note
+the import is the adapter's sibling module, not the framework. `core` holds the
+key space and the resolution machinery (`resolve_profile_catalog`,
+`normalize_room_profile`); the VALUES are the brand's:
 
 ```python
-from ...profiles.room_profiles import (
+from .room_profiles import (   # adapters/eufy/room_profiles.py — NOT core
     BUILT_IN_ROOM_PROFILES, DEFAULT_CUSTOM_ROOM_PROFILE,
     DEFAULT_ROOM_PROFILE_NAME, FLOOR_TYPE_FAN_DEFAULTS,
     FLOOR_TYPE_WATER_DEFAULTS, LEGACY_PROFILE_ALIASES,
@@ -1862,8 +1875,9 @@ from ...profiles.room_profiles import (
 > `normalize_defaults` a dict when present. Schema entries are a deferred
 > follow-up.
 
-**UI builder notes:** Advanced section — most ports inherit the framework
-defaults and declare nothing here. A `ProfileRecord` editor (the same one
+**UI builder notes:** Advanced section — but **not optional**: a port MUST declare
+this block, stating emptiness per key (`legacy_aliases: {}`) for whatever it does
+not supply. There is nothing to inherit. A `ProfileRecord` editor (the same one
 the room editor uses) seeds `builtins` / `custom_template`; the two
 floor-type maps are key-value editors keyed by the canonical floor types
 (`hardwood`, `laminate`, `tile`, `marble`, `granite`, `concrete`,
@@ -2308,6 +2322,19 @@ just room dispatch):
         "template": "generic_room_ids",
         "service_domain": "vacuum",
         "service_name": "send_command",
+    },
+    # REQUIRED even when the brand supplies no vocabulary of its own. There is no
+    # framework catalog to inherit, and an absent OR empty block is a validation
+    # failure — so state emptiness per key. A brand that later gains presets fills
+    # these in; the shape does not change.
+    "room_profiles": {
+        "default_profile": "",
+        "builtins": {},
+        "custom_template": {},
+        "legacy_aliases": {},
+        "normalize_defaults": {},
+        "floor_type_water_defaults": {},
+        "floor_type_fan_defaults": {},
     },
 }
 ```

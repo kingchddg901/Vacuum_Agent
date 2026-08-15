@@ -11,6 +11,9 @@ Applies to the whole suite.
 | Fixture | Scope | What it gives you |
 |---------|-------|-------------------|
 | `auto_enable_custom_integrations` | autouse | Wraps phac's `enable_custom_integrations` so HA's loader can see `custom_components/eufy_vacuum`. Without it, phac blocks custom integrations for isolation. You never call this — it just runs. |
+| `brand` | function, **parametrized** | One run per declared brand catalog (`tests/brand_catalogs.py`), returning the catalog post-`resolve_profile_catalog` — what core consumers actually receive. **A test using it must assert RELATIONSHIPS, never a literal**: a literal passes for one brand and fails for the rest, which is the leak the parametrization exists to catch. |
+| `synthetic_catalog` | function | A catalog whose words belong to **no real brand**. For tests that need *a* catalog but are not about vocabulary — dispatch, queueing, planning. If one fails only because a real brand's word is missing, that word is load-bearing somewhere it should not be. |
+| `synthetic_adapter` | function | Registers the synthetic brand for `vacuum.alfred` and **unregisters on teardown**. For code that resolves its own catalog from the registry rather than taking one as a parameter — "a dispatch test that only passes against Eufy is testing Eufy". Teardown is not optional: the registry is global and a leftover entry silently satisfies a later test that should have failed. |
 | `mock_config_entry` | function | A `MockConfigEntry` for the typical first-time setup: `vacuum.alfred` + a tested model + notes, empty options, `unique_id = DOMAIN`. |
 | `mock_entry_no_vacuum` | function | Entry where the user skipped the vacuum entity (model only). For setup-flow edge cases. |
 | `mock_options_entry` | function | Entry where `vacuum_entity_id` was set via the options flow instead of initial data. |

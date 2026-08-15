@@ -325,7 +325,7 @@ When `preserve_existing_settings=True` (default), user settings (fan speed, clea
 | `clean_intensity` | `str` | brand default (Eufy: `"Quick"`) or `""` (Roborock declares none) | |
 | `clean_passes` | `int` | brand default (Eufy: `1`) | |
 | `edge_mopping` | `bool` | brand default (Eufy: `False`) | |
-| `path_type` | `Any \| None` | brand default (Eufy: `"wide"`) or `None` | existing value wins first; **no coercion** |
+| `path_type` | `str` | brand default (Eufy: `"wide"`), else `""` | existing value wins first, then `str(... or "")` — it IS coerced, and the `or ""` deliberately neutralises a carried-forward `None` from data written before `RoomConfig` stopped defaulting this axis (`str(None)` is `"None"`, truthy everywhere and declared by no brand) |
 | `is_dock_room` | `bool` | `False` | `previous.get(...)` only — never brand-sourced |
 | `is_transition` | `bool` | `False` | **Is** a `RoomConfig` field (`previous.get(...)`) — the earlier drift where this writer alone preserved it is closed; both writers carry it now |
 | `is_configured` | `bool` | `False` for a genuinely new room; `previous.get("is_configured", True)` for a carried-forward room (`True` covers pre-field legacy data) | setup-approval flag; **gates HA entity creation** (`entity_helpers.py` `sort_room_items(..., configured_only=True)`) and the drift-tracker "removed" signal. A rebuilt room **preserves** whatever approval already existed rather than unconditionally reading `True` — a rebuild must neither un-approve a room nor silently auto-approve a brand-new one |

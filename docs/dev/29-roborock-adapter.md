@@ -215,7 +215,11 @@ reconciliation review surfaces ambiguous shifts. See
   `jobs/active_job.py` skipped the `set_fan_speed` call entirely and the room ran on
   whatever fan was last set — the `options_key` filter in that block was a workaround for
   exactly this. The framework catalog was removed on 2026-08-07 and the block is now
-  REQUIRED; a brand declaring none fails registration. Same four profile KEYS as every
+  REQUIRED. Note what "required" means here: `register_adapter_config` HARD-RAISES
+  only for `source: "config"` adapters; a shipped brand adapter sets
+  `source: "code"`, so an undeclared block is LOGGED as a validation issue and
+  registration still proceeds. The room resolution it needed is simply absent at
+  runtime — a warning you have to be reading the log to see, not a failed start. Same four profile KEYS as every
   other brand so stored rooms and the profile picker survive a brand switch; only the
   VALUES differ.
 - **`error_tracking`** — `task_status_error_value: "error"`, `grace_window_seconds: 5`,
