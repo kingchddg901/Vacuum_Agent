@@ -318,7 +318,44 @@ action:
 
 ### When it fires
 
-Fires from `ActiveJobTracker.detect_run_anomalies` (in `jobs/active_job.py`). The anomaly fields (`stall_detected`, `elapsed_minutes`, `expected_minutes`, `stall_ratio`) are recomputed fresh on **every** call to this method — including a pure `get_job_progress_snapshot()` read triggered by a card poll — but the event fire and the per-room dedup bookkeeping only happen when the caller passes `emit=True`. The **only** caller that does is `EufyVacuumManager.apply_job_progress_tick`, invoked once per vacuum/map by the 5-second [`eufy_vacuum_job_progress_tick`](#eufy_vacuum_job_progress_tick) ticker — a card polling `get_job_progress_snapshot` directly sees the same computed fields but fires nothing and persists no dedup state.
+**There are THREE independent triggers, not one.** All three fire this same event, and a
+`trigger` field says which noticed — so a consumer can word the notification for what
+actually happened, and [stall capture](#eufy_vacuum_stall_captured) stays a single
+subscriber.
+
+| `trigger` | noticed by | means |
+|---|---|---|
+| `"timing"` | `ActiveJobTracker.detect_run_anomalies` (`jobs/active_job.py`) | the robot has been in one room far longer than that room's learned estimate |
+| `"error"` | `apply_stuck_watch_tick` (`core/manager.py`) | the device itself reported a fault that has not recovered — the robot is telling you it is stuck |
+| `"area"` | `apply_stuck_watch_tick` (`core/manager.py`) | the robot is still running but has **stopped covering floor** — cleaned area barely moved over a whole window |
+
+The `error` and `area` triggers ride the same 5-second progress tick as the timing one
+(`listeners/job_progress.py`), so all three share one cadence contract.
+
+**Their dedup guarantees are NOT the same** — this matters if you automate on the event:
+
+- **`timing`** — at most **once per room per job** (`_stall_notified_room_ids` on the
+  active job).
+- **`error`** — **edge-triggered**: fires when an error episode OPENS and not again until
+  it closes and re-opens. A fault that persists for an hour fires once.
+- **`area`** — fires once per window; the window is then **restarted**, so a robot that
+  keeps making no progress fires again after each further window.
+
+**The `area` and `error` limits are framework defaults, deliberately not per-brand**
+(`jobs/stuck_watch.py`): `window_minutes` **15.0**, `min_progress_m2` **2.0**,
+`max_unreadable_fraction` **0.5**. An adapter may override them with a `stuck_watch`
+block, and neither shipped adapter does — a value defaulted only on Eufy would be
+inherited by every other brand as somebody else's number.
+
+The `error` trigger deliberately treats **every** un-recovered fault as stuck rather than
+matching a list of known-stuck codes, and it fires even when the code is `None` (the Eufy
+path for a trapped robot leaves the message empty). A brand may silence specific codes via
+`error_tracking.stuck_silence_codes` — an opt-out list, not an opt-in one.
+
+---
+
+The **timing** trigger specifically fires from `ActiveJobTracker.detect_run_anomalies`
+(in `jobs/active_job.py`). The anomaly fields (`stall_detected`, `elapsed_minutes`, `expected_minutes`, `stall_ratio`) are recomputed fresh on **every** call to this method — including a pure `get_job_progress_snapshot()` read triggered by a card poll — but the event fire and the per-room dedup bookkeeping only happen when the caller passes `emit=True`. The **only** caller that does is `EufyVacuumManager.apply_job_progress_tick`, invoked once per vacuum/map by the 5-second [`eufy_vacuum_job_progress_tick`](#eufy_vacuum_job_progress_tick) ticker — a card polling `get_job_progress_snapshot` directly sees the same computed fields but fires nothing and persists no dedup state.
 
 The event fires when all of the following are true:
 
@@ -328,7 +365,7 @@ The event fires when all of the following are true:
 
 On a **grouped** phase (multiple rooms dispatched together as one phase, with no per-room rollover), the threshold in condition 3 is the **sum** of the group members' individual learned thresholds rather than just the current room's — a group's first room stays "current" for the whole phase, so comparing it against a single-room threshold would false-positive by an order of magnitude. Members with no timing entry contribute nothing to the sum.
 
-The tracker records which rooms have already triggered this event per job via `_stall_notified_room_ids` on the active job, so **it fires at most once per room per job** regardless of how many ticks occur while it stays stalled.
+The tracker records which rooms have already triggered the TIMING trigger per job via `_stall_notified_room_ids` on the active job, so **the timing trigger fires at most once per room per job** regardless of how many ticks occur while it stays stalled.
 
 This event does **not** require learned timing data — an unlearned room still gets a timeline entry via the ~6-minute default estimate (`source: "default"`), and the threshold calculation runs the same either way. The stall check is skipped only when the current room (or, for a grouped phase, every member of the group) has no timeline entry at all — i.e. it isn't part of the active job's resolved rooms.
 
@@ -344,9 +381,19 @@ The maintainer-only [`eufy_vacuum.dev_inject_stall`](03-services.md#dev_inject_s
 | `map_id` | `str` | Map ID the job is running on |
 | `room_id` | `int` | ID of the stalled room (integer, not a string) |
 | `room_name` | `str` | Human-readable name of the stalled room |
+| `trigger` | `str` | Which watcher noticed: `"timing"`, `"error"` or `"area"`. **The remaining fields depend on this** — a consumer must branch on it rather than assume the timing shape. |
+| **— `trigger: "timing"` only —** | | |
 | `elapsed_minutes` | `float` | How long the robot has been in the room, rounded to 1 decimal place |
 | `expected_minutes` | `float` | The learned timing threshold for the room, rounded to 1 decimal place. On a grouped phase this is the **sum** of the group members' thresholds, not one room's — see above. |
 | `stall_ratio` | `float` | `elapsed_minutes / expected_minutes`, rounded to 2 decimal places — always >= the configured stall ratio (default 2.0) when this event fires |
+| **— `trigger: "error"` only —** | | |
+| `error_code` | `str \| None` | The device's fault code on the open episode. **May be `None`** — the Eufy path for a trapped robot records no code, and that case still fires. |
+| `error_message` | `str \| None` | The device's fault message, likewise possibly empty. |
+| **— `trigger: "area"` only —** | | |
+| `window_minutes` | `float` | Length of the measuring window that elapsed with no progress (default 15.0). |
+| `progress_m2` | `float` | Cleaned area gained across that window, 2 dp — the number that fell short. |
+| `min_progress_m2` | `float` | The floor it had to clear (default 2.0). |
+| **— all triggers —** | | |
 | `injected` | `bool` | Present **only** on a synthetic stall fired by the maintainer-only `eufy_vacuum.dev_inject_stall` service, where it is `true`. A real detection omits the key entirely, and an injected one carries `null` for `elapsed_minutes`, `expected_minutes`, and `stall_ratio` — there is no real timing behind it. Guard on `trigger.event.data.injected is not defined` if an automation must ignore synthetic stalls. |
 
 ### Example trigger

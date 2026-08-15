@@ -117,11 +117,25 @@ This **running-long** warning depends on strict room-order tracking, so it only 
 
 ## Stall detection warning
 
-If the vacuum has been cleaning a single room for significantly longer than expected, the card shows a stall notice:
+The integration watches for a stuck robot in **three different ways**, any of which
+raises the stall notice:
+
+- **It is taking far too long.** The room has run well past its learned estimate — the
+  original check, and the one the notice below describes.
+- **The vacuum reported a fault.** The robot itself says something is wrong and has not
+  recovered. Any un-recovered fault counts, including ones that arrive with no error
+  code at all, which is what a trapped Eufy typically does.
+- **It stopped covering floor.** The robot is still running, but the area it has cleaned
+  has barely moved for a quarter of an hour — spinning on a rug edge, wedged under
+  furniture, or wheels turning with nothing happening. This one catches a robot that is
+  stuck *early in* a room, where the timing check would not fire for a long while yet.
+
+The last two watch every run, on every brand, and do not depend on room order.
 
 > **Robot may be stuck in current room** *(X min elapsed, expected Y min)*
 
-The elapsed time and expected time are shown in parentheses when available. "Stuck" here means the room is taking much longer than the learned average — it does not always mean the vacuum is physically stuck.
+The elapsed time and expected time are shown in parentheses when available, on the
+timing check. "Stuck" here means the room is taking much longer than the learned average — it does not always mean the vacuum is physically stuck.
 
 **What to do:**
 
