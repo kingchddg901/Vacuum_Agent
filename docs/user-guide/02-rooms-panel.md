@@ -8,7 +8,7 @@ The panel is divided into two main areas, with a side column alongside them:
 
 - **Action bar** — at the top, showing the queue summary, primary action buttons, and the ordered list of queued rooms.
 - **Room grid** — below the action bar, showing a card for every room on your active map.
-- **Side column** — to the right of the room grid (or below it on narrow screens), holding the [Run Profiles panel](#run-profiles-panel) and, below it, the [Saved Zones panel](#saved-zones-panel).
+- **Side column** — to the right of the room grid (or below it on narrow screens), holding the [Run Profiles panel](#run-profiles-panel), the [Saved Zones panel](#saved-zones-panel) and the [Pause Timeout control](#pause-timeout).
 
 ### The Rooms toolbar
 
@@ -258,3 +258,25 @@ Below the Run Profiles panel (in the same side column) is the Saved Zones panel 
 - A **Clean N selected** action cleans your selected zones using those shared settings.
 - Per-zone controls let you **rename** a zone, **delete** it, or **re-file** it under a different room (or leave it Unassigned).
 - A **+ Draw a zone** button lets you draw a box on the map to capture a new saved zone; while drawing, a **Save zone** button commits it.
+
+---
+
+## Pause Timeout
+
+Sets how long a run may sit **paused** before it is automatically **cancelled** — not
+resumed. When the timeout elapses a background watchdog (checked once a minute)
+cancels the active job and finalizes it with cancellation metadata; it never resumes
+the paused run.
+
+Five choices: **Off**, **15 min**, **30 min**, **45 min** and **60 min**. **Off**
+means a paused run sits indefinitely. The active value is highlighted, and clicking a
+different one saves immediately.
+
+It lives here, in the side column, rather than on the Base Station tab where it
+started. That tab is capability-gated on the dock, so on a vacuum without a settable
+base station the control never appeared and the setting sat at whatever default it
+had been given, with nothing in the interface to reveal it — found on a live install
+where a Roborock sat at no timeout. A pause timeout governs the job lifecycle, not
+the dock, so it belongs somewhere every vacuum can reach. One home rather than two:
+showing it here for some vacuums and there for others would leave you learning one
+location and not finding it on your other robot.

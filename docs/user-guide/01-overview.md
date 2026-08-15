@@ -62,7 +62,7 @@ Below the header is a navigation bar with tabs that switch between panels:
 |---|---|
 | **Rooms** | Select rooms, adjust their settings, and start a cleaning run. This is the main day-to-day panel. |
 | **Maintenance** | Track consumable lifespans (brushes, filter, etc.) and trigger upkeep actions. |
-| **Base Station** | Control base station functions — wash mop, dry mop, empty dust bin — and configure pause timeout settings. |
+| **Base Station** | Control base station functions — wash mop, dry mop, empty dust bin. |
 | **Metrics** | Browse historical run data with filters by room, profile, and status. |
 | **Learning Review** | Review what the learning system has recorded about each room's cleaning history. |
 | **Room Rules** | Set up automation rules that apply to rooms (for example, automatically adjusting settings based on time of day or other conditions). |

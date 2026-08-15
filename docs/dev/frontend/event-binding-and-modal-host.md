@@ -23,7 +23,7 @@ portal, and the trigger surface that drives re-renders outside the `hass` setter
 shadow-root HTML has been (conditionally) swapped and after `_updateModalHost()`. Why re-binding
 from scratch is safe is [render-cycle.md](render-cycle.md)'s invariant — not repeated here.
 
-`bindEvents()` is a flat fan-out: 21 `_bind*` calls in a fixed order (`bindings/index.js:121-141`).
+`bindEvents()` is a flat fan-out: 22 `_bind*` calls in a fixed order (`bindings/index.js`, `bindEvents()`). Note 22 calls against 21 mixed-in feature modules — `_bindToasts` has no `apply*Bindings` module of its own.
 Each `_bind*` lives in its own module, mixed onto `VacuumCardBindings.prototype` by the
 `apply*Bindings(...)` calls at `bindings/index.js:407-426` — with **one exception**: `_bindToasts` is
 defined **inline** in `index.js:149` (there is no `toasts.js` module and no `applyToastsBindings`

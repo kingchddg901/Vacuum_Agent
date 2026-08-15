@@ -1,6 +1,6 @@
 # 09 — Base Station
 
-The Base Station tab shows you the current state of the dock and lets you trigger dock-side actions such as washing the mop, drying the mop, and emptying the dust bin. It also lets you set the default pause timeout used when a cleaning run is paused.
+The Base Station tab shows you the current state of the dock and lets you trigger dock-side actions such as washing the mop, drying the mop, and emptying the dust bin.
 
 !!! note "Roborock (S6): no Base Station tab"
 
@@ -38,9 +38,15 @@ The **Recent Dock Activity** panel shows the last known timestamps and recorded 
 
 If an event has never been recorded, the time field shows "No activity yet".
 
-### Pause Timeout
+### Pause Timeout — moved
 
-The **Pause Timeout** section lets you set the default number of minutes a run may remain paused before it is automatically **cancelled** — not resumed. When the timeout elapses, a background watchdog (checked once a minute) cancels the active job and finalizes it with cancellation metadata; it never resumes the paused run. Four options are available: **15 min**, **30 min**, **45 min**, and **60 min**. The currently active value is highlighted. Clicking a different value saves the change to the backend immediately.
+The pause-timeout control is **not on this tab**. It lives in the **Rooms** panel's
+sidebar, beside Run Profiles and Saved Zones — see
+[Rooms Panel → Pause Timeout](02-rooms-panel.md#pause-timeout).
+
+It was moved because this tab is capability-gated on the dock: a vacuum without a
+settable base station never rendered it, so the setting existed with no reachable
+UI. A pause timeout governs the job lifecycle, not the dock.
 
 ### Dock Actions
 
