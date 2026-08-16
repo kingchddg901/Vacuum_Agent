@@ -92,7 +92,7 @@ coverage. Highlights:
   the suite that mutates it — a run ordering where a capture is left active
   (or restored to the wrong prior value) would silently swallow this test's
   `caplog` records. Not confirmed as the exact mechanism; flagged as a
-  **bug signal** per the disaster-recovery standard §5.2 rather than patched
+  **bug signal** per [00 §3](../dev/00-documentation-standard.md) rather than patched
   here. Consequence: `scripts/update_test_docs.py`'s own coverage run
   (`subprocess.run(..., check=True)`) raises on this path set, so a doc
   regen currently needs `--no-run` against a `coverage.json` produced by a

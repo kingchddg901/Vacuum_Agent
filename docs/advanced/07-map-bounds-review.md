@@ -30,7 +30,7 @@ nothing for a review surface to operate on.
 To review what a run cleaned, see the run review panels in
 [User Guide — Review Panels](../user-guide/06-review-panels.md).
 
-For the retired design itself — the trace→bounds algorithm, preserved verbatim as a
-disaster-recovery reference — see [Dev 11 — Mapping System §3](../dev/11-mapping-system.md),
+For the retired design itself — the trace→bounds algorithm, preserved verbatim so the
+approach is not proposed again — see [Dev 11 — Mapping System §3](../dev/11-mapping-system.md),
 and for the current attribution path see
 [Eufy Native Current-Room Transition](../dev/design/shipped/eufy-native-transition.md).

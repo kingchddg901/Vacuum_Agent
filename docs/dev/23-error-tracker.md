@@ -1,12 +1,11 @@
 # 23 — Error Tracker
 
-> **Scope:** Behavioral specification for `core/error_tracker.py`. States what must be
-> true — storage shapes, edge-detection rules, timing, and the public API — so the
-> module can be rebuilt, **functionally identical**, from this document plus the
-> interfaces the neighbouring sections' docs state (the self-hosting availability
-> contract, [00 §0](history/disaster-recovery-standard.md)). Blind reconstruction evidence:
-> CAL-23, 2-of-2 (2026-08-07), under the source-assisted harness — necessary, not yet
-> the docs-only drill.
+> **Scope:** Behavioral specification for `core/error_tracker.py` — the storage shapes,
+> the edge-detection rules, the timing, and the public API. Error tracking is mostly
+> *edges*: what counts as an error starting, what counts as it ending, and what a
+> restart is allowed to assume about the run it woke up in the middle of. Those are
+> hard to recover by reading the module, because each one is a decision rather than a
+> mechanism, which is what this doc is for.
 
 ---
 

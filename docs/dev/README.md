@@ -1,21 +1,21 @@
 # Developer Docs — Reading Order
 
-These are the **Disaster-Recovery baseline** docs — they answer **"this is how it works."**
-The other three questions live elsewhere: **why** → [design/](design/shipped/map-state-source.md) ·
-**what I'm changing right now** → [deltas/](deltas/README.md) · **what happened and what it
-cost to learn** → the audit record. If a passage answers a different question than the
-document it lives in, it belongs somewhere else — that's the whole routing rule.
+This is the **NOW shelf** — it answers **"this is how it works."** The other questions
+live elsewhere: **why it is built this way** → [design/](design/shipped/map-state-source.md) ·
+**what must stay true** → [00b invariants](00b-invariants.md) · **what we tried and what
+it cost to learn** → [history/](history/disaster-recovery-standard.md) and the audit
+record. If a passage answers a different question than the document it lives in, it
+belongs somewhere else — that's the whole routing rule, and
+[00](00-documentation-standard.md) states it in full.
 
-**Reading rule:** read the DR section first, then check [deltas/](deltas/README.md) for a
-matching delta. No delta file for a subsystem means the DR baseline is authoritative,
-full stop.
+**Every doc here is a claim about the present.** There is no baseline, and nothing is
+authoritative "pending a delta": a NOW doc that no longer matches the code is not out of
+date, it is *wrong*, and it is corrected in place. When a doc and the code disagree,
+read [00 §3](00-documentation-standard.md) before deciding which one is stale — more
+than once it has been the code.
 
-Under the availability contract ([00 §0](history/disaster-recovery-standard.md)) the corpus
-rebuilds a functionally identical integration from total source loss — **two-phase**:
-every doc-stated interface first as skeletons, then each section implemented against
-them. The reading order below is the COMPREHENSION order, not a dependency order (the
-subsystem graph is mutually recursive; no topological order exists) — read top-down,
-rebuild by interfaces.
+The reading order below is the COMPREHENSION order, not a dependency order: the
+subsystem graph is mutually recursive, so no topological order exists. Read top-down.
 
 The backend integration's architecture, subsystems, and porting contract, in reading order.
 The **frontend / Lovelace-card** docs are their own set — see **[frontend/](frontend/architecture-overview.md)**.
@@ -164,6 +164,7 @@ maintained against the code; each carries a banner saying what it was and why it
 | [disaster-recovery-standard](history/disaster-recovery-standard.md) | The doc standard from ~2026-06 to 2026-08: could a subsystem be rebuilt from its doc alone? Retired because the premise (total source loss) was not the risk this project runs, while the real failure — a doc confidently describing behaviour the code no longer has — is one it did not address. Its precision rules were carried into [00](00-documentation-standard.md) |
 | [documentation-epoch-lifecycle](history/documentation-epoch-lifecycle.md) | The DR-baseline / dev-delta / audit-record model. **Epochs are a good idea for audits and a dangerous one for documentation** — an epoch licenses a doc to be out of date between reconciliations while it still reads as current, so drift becomes compliance rather than a defect |
 | [room-bounds-from-traces](history/room-bounds-from-traces.md) | Deriving room boundaries from movement traces, plus the bounds-review flow. **The code is deleted** (`494c6f6`); room tracking reads the device's native current-room signal instead — see [11 §1](11-mapping-system.md). Moved here from `design/` on 2026-08-16: it declared itself history in its own first line while sitting on the design shelf |
+| [deltas/](deltas/README.md) | The delta ledger that model ran on — each dev doc a baseline, each change a diff filed beside it. **Dead, kept as the record of what the epochs actually cost.** Its own coverage note is the argument against it: the ledger enumerated 19 of 92 commits and read as complete, because a doc that is silent about a subsystem looks exactly like a doc that has nothing to say about it |
 
 ---
 

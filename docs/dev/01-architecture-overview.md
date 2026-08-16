@@ -102,7 +102,7 @@ No third-party Python packages are required (`requirements` is empty).
    │           │          │                    │                   │
    ▼           ▼          ▼                    ▼                   ▼
 battery/   mapping/  learning/            listeners/         HA entities
-manager    manager   manager              (8 modules)        (sensor/,
+manager    manager   manager              (9 modules)        (sensor/,
 BatteryH   Mapping   LearningM            each owns          switch/,
 ealthMgr   Manager   anager               its listener       button/,
                                           lifecycle)         number/,
@@ -110,11 +110,21 @@ ealthMgr   Manager   anager               its listener       button/,
                                                              binary_sensor)
 ```
 
-The key insight: **`EufyVacuumManager` is the only writer to `self.data`**, but
-it delegates the logic of what to write to subsystem manager objects. Subsystem
-managers hold a `self._manager` back-reference and call
-`self._manager.data[key]` directly — they are trusted collaborators, not
-external consumers.
+The key insight: **`EufyVacuumManager` owns `self.data`, and `async_save()` is the
+only way anything reaches disk** — but it is not the only thing that writes the dict.
+Subsystem managers hold a `self._manager` back-reference and write
+`self._manager.data[key]` directly. They are trusted collaborators rather than external
+consumers, and treating every write as a manager method would be ceremony.
+
+The boundary is looser than that description implies, and it is worth knowing before
+you go looking for where a value is set. **Two entity classes write the store
+directly:** `MaintenanceIntervalNumber.async_set_native_value` (`number.py`) builds the
+`maintenance` path and assigns `interval_hours` without going through
+`maintenance/manager.py`, and `EufyVacuumRoomEntity._async_update_room`
+(`room_entities.py`) merges room fields into `data["maps"]`. Three service modules do
+the same. So "who writes this key?" has more answers than the layer diagram suggests,
+and the maintenance bucket in particular has a second writer sitting outside the
+subsystem that owns it.
 
 ---
 
