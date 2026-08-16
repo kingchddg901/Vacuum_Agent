@@ -51,9 +51,12 @@ body:
       label: Diagnostics download
       description: >
         **Settings → Devices & Services → Vacuum Agent → ⋮ → Download diagnostics**,
-        then drag the downloaded `.json` file into this box (or paste its contents).
-        Credentials are redacted automatically.
-      placeholder: Drag the diagnostics .json file here.
+        then **drag the downloaded `.json` file straight into this box** — GitHub accepts
+        `.json` attachments up to 25 MB, so there's no need to rename or zip it.
+        Please attach the file rather than pasting its contents: the paste is thousands of
+        lines long, it buries your actual description, and it's harder for us to search
+        than the file is. Credentials are redacted automatically.
+      placeholder: Drag the diagnostics .json file here — don't paste the contents.
     validations:
       required: true
   - type: textarea
