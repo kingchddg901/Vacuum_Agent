@@ -15,11 +15,19 @@ classifying; roughly half the divergence in this repo is deliberate.
 `STATUS`: ` ` unclassified · `OBLIGED` · `COUSIN` · `VIOLATED` (obliged and
 currently diverged — a defect with an owner, not a category) · `PHANTOM`.
 
-**`PHANTOM` was added by the walk itself.** A notice can name a twin that does not
-exist and never did — no replica, but not nothing either: the comment asserts a
-relationship and a reader believes it. It is the doc-level form of *a guard that
-exists in prose reads as complete*. Worth more attention than a `COUSIN`, because a
-cousin is merely not a family while a phantom is a false claim about the system.
+**`PHANTOM` and `STALE` were added by the walk itself.** A notice can name a twin
+that does not exist (`PHANTOM` — a false claim about the system, worth more attention
+than a `COUSIN`, since a cousin is merely not a family), or name a REAL thing at a
+path it no longer occupies (`STALE`).
+
+> ⚠ **The first PHANTOM call was WRONG, and the mistake is the useful part.** I searched
+> for the file NAME (`cvd`) across the repo, found nothing, checked git history for a
+> deletion, found nothing, and concluded the gate had never existed. It exists — as
+> `src/theme-tags/colorblind.mjs`, under the *mechanism's* name rather than the
+> feature's. **Absence of a NAME is not absence of a THING.** Search for the mechanism
+> (`Machado`, `protan`, `deutan`) before ruling something fictional; the same shape as
+> a curated diagnostics view, where what is missing from the dump is present in the
+> system.
 
 **71 files** carry a replica notice and no `RN` anchor; **14** hold a STRONG one.
 
@@ -28,7 +36,7 @@ cousin is merely not a family while a phantom is a false claim about the system.
 | STATUS | File | S/total | Notice |
 |---|---|---|---|
 | **OBLIGED** -> `RNWQ82XZ` | `src/bindings/room-editor.js`:405 | 4/4 | * The room editor's Save button is bound in TWO places, on two different |
-| **PHANTOM** | `custom_components/eufy_vacuum/themes/preloaded.py`:470 | 1/1 | # dichromat severity). Keep in sync with harness/bundles/cvd-safe.mjs, -- names `harness/bundles/cvd-safe.mjs`, `harness/tests/cvd.spec.mjs` and `badge-marks.js`; NONE exist, and `cvd-safe` appears in NO commit ever. The block asserts a validated CVD property (dE2000>=15 across 10 pairs, Machado 2009 + Brettel 1997) and locates the gate in a file never written, so nothing re-checks the palette. The colours may be right; the enforcement is fiction. |
+| **STALE** | `custom_components/eufy_vacuum/themes/preloaded.py`:470 | 1/1 | Cites `harness/bundles/cvd-safe.mjs` + `harness/tests/cvd.spec.mjs`, neither of which exists -- but the CVD gate is REAL and lives at `src/theme-tags/colorblind.mjs` (Machado 2009 matrices) with `derive.mjs` computing `cvdMin` into `themeMetrics`. Right mechanism, wrong path. One nuance the comment still gets wrong: it reads as though a gate re-validates automatically, whereas `colorblind-safe` is a DELIBERATELY manual verified tag -- derive.mjs:175, "a crude palette metric over-claims ... a false safety claim is worse than none." So nothing auto-re-checks the palette, BY DESIGN. |
 | **OBLIGED** -> `RNWQ82XZ` | `src/bindings/index.js`:323 | 1/1 | // the SHARED helper in bindings/room-editor.js — not a second copy. |
 |  | `src/theme-tokens/map.js`:56 | 1/1 | // lands in Phase 2. Count = ROOM_FILL_N in cards/map-room-color.js — keep them in sync. |
 |  | `src/bindings/map.js`:1803 | 1/7 | // than adding a second copy of the panel's guard for the next host to forget. |
