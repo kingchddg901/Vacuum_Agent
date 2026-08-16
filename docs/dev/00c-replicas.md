@@ -96,6 +96,46 @@ button id, so it matched two siblings, abstained, and a user lost a working cont
 
 ---
 
+## Observational vs MUTATION replicas
+
+A replica set that decides **what to display or bind** is bad when it diverges: someone
+sees a wrong answer. A replica set that decides **what to write** is worse: the copies
+produce divergent STATE, permanently, and no test sees it because each copy is
+self-consistent with its own.
+
+Both sets recorded above are observational — they decide which entity a role binds to.
+The dangerous kind is under Candidates below, and it has already cost real data.
+
+## The one question the register has to answer
+
+The families have useful names — twins, semi-twins, adopted family, cousins — but naming
+is vocabulary for talking, not a field to fill in. The tooling needs one distinction with
+consequences:
+
+> **Does changing one member OBLIGE changing the others?**
+
+Twins, semi-twins and adopted family all answer yes; cousins answer no. "Estranged twins"
+is not a category — it is *obliged and currently violated*, which is a defect with an owner,
+not a classification.
+
+## Census first. Helpers later, and only if they earn it
+
+When mapping a suspected family, agents describe **behaviour and relationships** and are
+forbidden from proposing unification. Asking twenty agents to "find places that want a
+helper" returns twenty helpers; the search designs the answer.
+
+> ⚠ This was violated on 2026-08-16, in the run that produced `resolve_action_entity`. The
+> mapping lane was told "propose the smallest seam, and do NOT propose a fourth copy" —
+> which pre-loaded the conclusion. It happened to be right, and that is the problem: there
+> was no way for that agent to tell me otherwise. The two lanes framed as open questions
+> both returned findings that contradicted the brief, and one refuted the maintainer's
+> hypothesis and mine together.
+
+Roughly half the divergence in this repo is deliberate ([[feedback_centralize_question_not_vocabulary]]),
+so a syntactic duplicate-finder gets this almost exactly backwards: two 90%-identical
+functions are often cousins, while two that look nothing alike are twins because both
+enforce "change X while preserving Y".
+
 ## Candidates — not yet recorded
 
 Suspected replica sets. Each needs confirming as *deliberate* before it earns an anchor;
@@ -106,6 +146,20 @@ an accidental duplicate wants a helper, not an entry here.
   the sibling problem surviving inside the scheme meant to fix it.
 - **Brand vocabulary tables** — every adapter declares its own state sets. Almost certainly
   correct divergence rather than a replica set, but unverified.
+- 🔴 **MUTATION — "did this run cover these rooms?"** Decided independently at
+  `job_finalizer._detect_cancel_likely_run`, `job_finalizer._write_incomplete_run_log` and
+  `_update_trouble_rooms_log`. They disagreed on 2026-08-16: a three-room run aborted from
+  the vendor app archived as `completed` / `used_for_learning: True`, credited EVERY queued
+  room with a fresh `last_cleaned_at`, and trained the learning store on a 30-second
+  "clean". Divergent state, not a wrong display — and the strongest candidate here.
+- **"does this item need attention?"** — `maintenance/manager.py` counts
+  `{warning, replace_soon, replace_now}` into `attention_count`; the card's
+  `_maintenanceItemNeedsAttention` adds a `remaining_percent <= 20` rule the backend does
+  not have. Issue #51 showed both halves of the contradiction on one screen: "ATTENTION 0 /
+  No upkeep items need attention" above a populated Needs Attention list.
+- **"is the job_active signal real?"** — `is_job_active` (state is `on`) vs
+  `completion_secondary_satisfied` (which tested only that the KEY was declared, until #51).
+  Same question, two answers, and the weaker one gated completion.
 
 Adding one is cheap. Leaving one here is also fine — a listed candidate is honest; an
 anchored set nobody verified is not.
