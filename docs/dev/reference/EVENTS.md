@@ -253,7 +253,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 
 | Location | Enclosing | Payload built by | Nearest guards |
 |---|---|---|---|
-| `custom_components/eufy_vacuum/core/manager.py:6768` | `EufyVacuumManager.start_selected_rooms` | dict literal at the call site | `active_job.get('current_room_id') not in (None, '')` |
+| `custom_components/eufy_vacuum/core/manager.py:6793` | `EufyVacuumManager.start_selected_rooms` | dict literal at the call site | `active_job.get('current_room_id') not in (None, '')` |
 | `custom_components/eufy_vacuum/jobs/active_job.py:1571` | `ActiveJobTracker._apply_room_rollover` | dict literal at the call site | `next_room_id >= 0` |
 | `custom_components/eufy_vacuum/jobs/active_job.py:1784` | `ActiveJobTracker._set_native_current_room` | dict literal at the call site | — |
 
@@ -341,14 +341,14 @@ These keys are not written at the fire site. The firing helper extends its paylo
 
 | Discriminator | Keys | Passed at |
 |---|---|---|
-| `trigger='area'` | `window_minutes`, `progress_m2`, `min_progress_m2` | `custom_components/eufy_vacuum/core/manager.py:4661` |
-| `trigger='error'` | `error_code`, `error_message` | `custom_components/eufy_vacuum/core/manager.py:4620` |
+| `trigger='area'` | `window_minutes`, `progress_m2`, `min_progress_m2` | `custom_components/eufy_vacuum/core/manager.py:4686` |
+| `trigger='error'` | `error_code`, `error_message` | `custom_components/eufy_vacuum/core/manager.py:4645` |
 
 ### Fire sites
 
 | Location | Enclosing | Payload built by | Nearest guards |
 |---|---|---|---|
-| `custom_components/eufy_vacuum/core/manager.py:4772` | `EufyVacuumManager._fire_stuck_event` | local `payload`: dict literal at line 4764; extended by the caller via `detail=` | — |
+| `custom_components/eufy_vacuum/core/manager.py:4797` | `EufyVacuumManager._fire_stuck_event` | local `payload`: dict literal at line 4789; extended by the caller via `detail=` | — |
 | `custom_components/eufy_vacuum/jobs/active_job.py:1160` | `ActiveJobTracker.detect_run_anomalies` | dict literal at the call site | `_stall_threshold > 0 and current_room_elapsed_minutes >= _stall_threshold * _STALL_RATIO` ⟶ `emit` ⟶ `current_room_id not in _notified` |
 | `custom_components/eufy_vacuum/services/stall_capture.py:152` | `_dev_inject_stall` | local `payload`: dict literal at line 129 | — |
 
