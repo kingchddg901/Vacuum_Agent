@@ -16,6 +16,10 @@ Coverage targets
 Mixed-batch safe water (mixed_mode_water_policy="safest"):
 [GPC-6] a MIXED mop + vacuum-only batch picks the SAFEST (lowest) water, not the strongest,
         so a dry room is never wet-mopped by the device-global select.
+[GPC-6b] an ALL-VACUUM batch forces water OFF (issue #51) -- the old guard only fired on a
+        MIXED batch, so zero mop rooms fell through to max-wins and pushed the room's
+        STORED water level, because resolved_rooms keeps it on a dry room.
+[GPC-6c] ...same across several dry rooms, one of them asking for HIGH.
 [GPC-7] an ALL-MOP batch keeps max-wins even with the safest marker (single-mode).
 [GPC-8] the safest marker does NOT touch a fan_speed entry (suction stays max-wins).
 [GPC-9] chosen "off" but the target select has no "off" option -> lower to the select's
@@ -163,6 +167,48 @@ async def test_mixed_batch_picks_safest_water(hass, manager):
         resolved_rooms=[
             {"clean_mode": "vacuum", "water_level": "off"},          # vacuum-only (dry)
             {"clean_mode": "vacuum_mop", "water_level": "high"},     # mop, high water
+        ],
+    )
+    assert sel == [{"entity_id": _MOP, "option": "off"}]
+
+
+async def test_all_vacuum_batch_forces_water_off(hass, manager):
+    """[GPC-6b] issue #51: an ALL-VACUUM batch must push water OFF, not the room's
+    stored level.
+
+    The mixed-batch guard read `0 < mop_rooms < len(rooms)`, so a batch with NO mop
+    rooms — the plainest "vacuum only" request there is — was not "mixed" and fell
+    through to max-wins. Max-wins then FINDS a level, because `resolved_rooms` is the
+    framework's internal record and keeps `water_level` on a dry room; only the wire
+    payload drops it. So a single vacuum-only room pushed its stored water to the
+    device-global mop select and the robot mopped.
+
+    Reported on a Qrevo Curv: "I set up one room for vacuum only ... and it ran it as
+    normal with mopping." His run was exactly this shape — Scope: Single Room, one
+    room, vacuum profile.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[{"clean_mode": "vacuum", "water_level": "medium"}],
+    )
+    assert sel == [{"entity_id": _MOP, "option": "off"}]
+
+
+async def test_all_vacuum_multi_room_forces_water_off(hass, manager):
+    """[GPC-6c] the same for several dry rooms, including one asking for HIGH water.
+
+    A stored water level on a room the user set to vacuum-only is stale intent, not a
+    request. Max-wins would have picked 'high' here and wet-mopped every dry room.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[
+            {"clean_mode": "vacuum", "water_level": "high"},
+            {"clean_mode": "vacuum", "water_level": "low"},
         ],
     )
     assert sel == [{"entity_id": _MOP, "option": "off"}]

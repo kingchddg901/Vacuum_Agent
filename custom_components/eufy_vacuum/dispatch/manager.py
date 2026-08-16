@@ -487,16 +487,36 @@ class DispatchManager:
                 1 for r in resolved_rooms
                 if may_wet_floor(r.get("clean_mode"))
             )
-            _mixed_batch = 0 < _mop_rooms < len(resolved_rooms)
+            # ANY DRY ROOM, not merely a MIXED batch (issue #51).
+            #
+            # This read `0 < _mop_rooms < len(resolved_rooms)`, so a batch with NO mop
+            # rooms at all — the plainest possible "vacuum only" request — fell straight
+            # through to max-wins. And max-wins finds a water level there, because
+            # `resolved_rooms` is the framework's INTERNAL record and carries
+            # `water_level` unconditionally; it is the WIRE payload that omits it for a
+            # dry room (`queue_engine`: `if supports_water and is_mop`). So a single
+            # room set to vacuum-only still had its stored water level pushed to the
+            # device-global mop select, and the robot mopped. Reported on a Qrevo Curv:
+            # "I set up one room for vacuum only ... and it ran it as normal with mopping."
+            #
+            # The mixed case was reasoned about carefully and the all-dry case sits one
+            # step outside the window it closed. A dry room is the signal either way, and
+            # zero mop rooms is more certain, not less.
+            _any_dry_room = _mop_rooms < len(resolved_rooms)
             _use_safest = (
                 str(entry.get("mixed_mode_water_policy") or "").strip().lower() == "safest"
-                and _mixed_batch
+                and bool(resolved_rooms)
+                and _any_dry_room
             )
 
             if _use_safest:
                 # Only push a safe water if SOMETHING in the batch was rankable at all
                 # (mirrors the max-wins "nothing rankable -> leave untouched" contract); a
                 # mixed batch always has rankable mop rooms, so this normally targets rank[0].
+                # An ALL-DRY batch reaches here too now, and passes for the same reason the
+                # bug existed: `resolved_rooms` keeps `water_level` on a vacuum-only room.
+                # A room carrying no rankable value at all still leaves the device alone,
+                # which is the honest answer — we were told nothing about water.
                 _any_rankable = any(
                     str(room.get(field) or "").strip().lower() in rank
                     for room in resolved_rooms
