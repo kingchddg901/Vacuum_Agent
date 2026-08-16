@@ -136,6 +136,29 @@ so a syntactic duplicate-finder gets this almost exactly backwards: two 90%-iden
 functions are often cousins, while two that look nothing alike are twins because both
 enforce "change X while preserving Y".
 
+## The harvest — 71 unclassified candidates
+
+`python scripts/replica_census.py` reads back the replica notices ALREADY WRITTEN in
+source comments — "its twin", "the same predicate written twice", "these two handlers
+already drifted apart once". **114 notices across 73 files, 71 of them carrying no `RN`
+anchor at all**, 14 with a strong notice.
+
+That is why populating this register was never really a bootstrap problem. The noticing
+had already happened, dozens of times, by whoever was standing there when a fix landed in
+one copy and not its twin — it was simply never indexed. The first census needed no new
+insight, only a harvest.
+
+The pile lives in **[00c-h — replica harvest](00c-h-replica-harvest.md)**, deliberately a
+separate file: this one is the REGISTER (confirmed sets, each anchored in source), that
+one is the working list it gets reduced from. A suspicion filed next to a ruling starts
+looking like one.
+
+> ⚠ **The tool finds RECORDED knowledge, not unrecorded structure.** A family nobody ever
+> remarked on is invisible to it and stays that way until a bug convicts it — which is the
+> argument for recording one AT THE FIX, where the evidence is strongest and the mental
+> model is already built. The three candidates below all came from fixing bugs, not from
+> reading code.
+
 ## Candidates — not yet recorded
 
 Suspected replica sets. Each needs confirming as *deliberate* before it earns an anchor;
