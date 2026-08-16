@@ -60,6 +60,14 @@ only.
   lose its navigation with no gesture available to bring it back.
 
 ### Fixed
+- **A dock action no longer goes missing because another one describes it too well.** Where
+  a vacuum's buttons are not named after the vacuum itself, Vacuum Agent identifies them by
+  the words in their names, and refuses to act when two buttons fit equally — pressing the
+  wrong one is worse than reporting none. `Dry Mop` and `Stop Dry Mop` share both of the
+  words we looked for, so on a device carrying both, Dry Mop was reported unavailable while
+  the button sat there working. A button that another action already describes *more*
+  precisely no longer counts as a candidate, so Dry Mop resolves; the refusal rule itself is
+  unchanged, and a genuine tie is still declined rather than guessed.
 - **Vacuums with non-English entity names now work.** Home Assistant builds an entity's ID
   from its *translated* name the first time it sees it, and never rebuilds it — so on a
   German install the map selector is `select.<vacuum>_ausgewahlte_karte`, and every name
