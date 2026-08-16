@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers import entity_registry as er
 
+from ..adapters.entity_resolve import resolve_action_entity
+
 # RP-014: the owned in-flight predicates. `run_is_in_flight` covers dispatched
 # AND app-started runs; its docstring explains why that distinction is
 # load-bearing and must not collapse into one helper.
@@ -91,12 +93,32 @@ class DockManager:
         action_cfg = all_actions.get(action, {})
 
         registry = er.async_get(self._hass)
-        for suffix in action_cfg.get("entity_suffixes", []):
-            entity_id = f"button.{object_id}_{suffix}"
-            if self._hass.states.get(entity_id) is not None:
-                return entity_id
-            if registry.async_get(entity_id) is not None:
-                return entity_id
+
+        # THE SHARED ACT-PATH LADDER (issue #51): derived id -> sibling suffix ->
+        # upstream translation_key. The last rung is the one this path never had, and
+        # without it a localized install resolves every dock SENSOR and none of the
+        # four dock BUTTONS — the prefix `button.<object_id>_` is correct there, so
+        # the token fallback below cannot help either; the rest of the id is in
+        # another language.
+        _resolved, _status = resolve_action_entity(
+            self._hass, registry,
+            vacuum_entity_id=vacuum_entity_id,
+            domain="button",
+            suffixes=action_cfg.get("entity_suffixes", []),
+        )
+        if _resolved is not None and _status == "resolved":
+            return _resolved
+        if _status == "disabled":
+            # Deliberately NOT returned. Pressing a disabled entity is the silent
+            # log_missing no-op that hid the mop-intensity failure; reporting the
+            # action unavailable is the honest answer, and the log names the entity
+            # so the user can enable it.
+            _LOGGER.warning(
+                "%s: the %s dock button resolved to %s, which is DISABLED in the "
+                "entity registry — enable it to use this action",
+                vacuum_entity_id, action, _resolved,
+            )
+            return None
 
         # Every OTHER action's tokens, so a button one of them already owns is not
         # a candidate for this one (issue #49: `dry_mop` vs `stop_dry_mop`). Only

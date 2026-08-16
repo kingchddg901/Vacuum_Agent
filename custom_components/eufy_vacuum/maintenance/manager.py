@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers import entity_registry as er
 
+from ..adapters.entity_resolve import resolve_action_entity
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..timestamp_utils import utc_now_iso
 
@@ -306,12 +307,32 @@ class MaintenanceManager:
         reset_cfg = (all_components.get(component, {}) or {}).get("reset_button") or {}
 
         registry = er.async_get(self._manager.hass)
-        for suffix in reset_cfg.get("entity_suffixes", []):
-            entity_id = f"button.{object_id}_{suffix}"
-            if self._manager.hass.states.get(entity_id) is not None:
-                return entity_id
-            if registry.async_get(entity_id) is not None:
-                return entity_id
+
+        # THE SHARED ACT-PATH LADDER (issue #51). The third rung — upstream
+        # translation_key — needs NO new vocabulary here: Roborock's declared reset
+        # suffixes are byte-identical to its upstream keys
+        # (`reset_main_brush_consumable` and friends). Without it a localized install
+        # reported `can_reset: false` on every consumable while the buttons plainly
+        # existed as `..._hauptbursten_verbrauchsmaterial_zurucksetzen`, which no
+        # English token set can reach.
+        _resolved, _status = resolve_action_entity(
+            self._manager.hass, registry,
+            vacuum_entity_id=vacuum_entity_id,
+            domain="button",
+            suffixes=reset_cfg.get("entity_suffixes", []),
+        )
+        if _resolved is not None and _status == "resolved":
+            return _resolved
+        if _status == "disabled":
+            # DISABLED IS NOT MISSING, and it is the common case here: all four of the
+            # reporter's reset buttons are disabled in the registry. Returning it would
+            # put a Reset control on the card that silently does nothing when pressed.
+            _LOGGER.warning(
+                "%s: the %s reset button resolved to %s, which is DISABLED in the "
+                "entity registry — enable it to reset this consumable from here",
+                vacuum_entity_id, component, _resolved,
+            )
+            return None
 
         # The same ownership guard the dock actions use. No reset component
         # currently dominates another on either brand, so this arms nothing today —

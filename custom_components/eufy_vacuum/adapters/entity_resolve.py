@@ -265,6 +265,104 @@ def sibling_translation_keys(registry: Any, siblings: "Iterable[str]") -> dict[s
 # caught by renaming a live vacuum's entities to German.
 #
 # `python scripts/doc_anchor.py --show RNF2RCXP` lists every site.
+def resolve_action_entity(
+    hass: HomeAssistant,
+    registry: Any,
+    *,
+    vacuum_entity_id: str,
+    domain: str,
+    suffixes: "Iterable[str]",
+) -> "tuple[str | None, str]":
+    """The concrete entity id for something we intend to PRESS, and its status.
+
+    Returns ``(entity_id, status)`` where status is ``"resolved"``, ``"disabled"``
+    or ``"missing"``. ``entity_id`` is None only when missing.
+
+    WHY THIS EXISTS. The translation_key rescue was built on the READ path and never
+    reached the ACT path, so on a localized install we could read a device perfectly
+    and press nothing on it: issue #51's German Roborock resolved every maintenance
+    SENSOR and reported ``can_reset: false`` on all four consumables, with all four
+    dock action buttons ``exists: false``. The act-path resolvers stopped at a derived
+    id and English token matching, and a localized id defeats both by construction —
+    the prefix ``button.<object_id>_`` is CORRECT there, so widening the scope buys
+    nothing; the discriminating half of the id is in another language.
+
+    This is deliberately a CALLER of the existing primitives rather than a fourth copy
+    of the rescue decision. RNF2RCXP is already a three-copy replica set because that
+    decision keeps getting rewritten; adding a fourth is how it becomes four.
+
+    The ladder, in order — the first rung that answers wins:
+
+    1. the derived id ``<domain>.<object_id>_<suffix>``, when it has state;
+    2. a sibling whose object id ENDS with the suffix (a renamed or separate device);
+    3. a sibling whose upstream ``translation_key`` IS the suffix — the rung the act
+       path never had, and the one that speaks German.
+
+    Rung 3 needs NO new vocabulary for the case that motivated it: Roborock's declared
+    reset suffixes are byte-identical to its upstream keys (``reset_main_brush_consumable``
+    and friends), which is exactly why the declaration doubles as the wanted key
+    everywhere else in this module.
+
+    DISABLED IS NOT MISSING, and the distinction is load-bearing. All four of the
+    reporter's reset buttons are disabled in the registry, and
+    ``er.async_entries_for_config_entry`` RETURNS disabled entries — so a rescue that
+    ignored the flag would bind one, and ``button.press`` would hit the same silent
+    ``log_missing`` no-op that made the mop-intensity failure invisible. A caller can
+    tell the user "this exists but is disabled", which is actionable, instead of
+    "not found", which is not.
+    """
+    object_id = vacuum_entity_id.split(".", 1)[1]
+    wanted = [str(s).strip().lstrip("_") for s in (suffixes or ()) if str(s).strip()]
+    if not wanted:
+        return None, "missing"
+
+    def _status(entity_id: str) -> str:
+        entry_ = registry.async_get(entity_id) if registry is not None else None
+        if entry_ is not None and getattr(entry_, "disabled_by", None):
+            return "disabled"
+        return "resolved"
+
+    # 1. THE DERIVED ID. Unchanged behaviour for every install that already works.
+    for suffix in wanted:
+        derived = f"{domain}.{object_id}_{suffix}"
+        if hass.states.get(derived) is not None:
+            return derived, "resolved"
+
+    entry = registry.async_get(vacuum_entity_id) if registry is not None else None
+    if entry is None:
+        for suffix in wanted:
+            derived = f"{domain}.{object_id}_{suffix}"
+            if registry is not None and registry.async_get(derived) is not None:
+                return derived, _status(derived)
+        return None, "missing"
+
+    siblings, _ = sweep_siblings(registry, entry)
+    scoped = [s for s in siblings if s.startswith(f"{domain}.")]
+
+    # 2. SUFFIX among siblings — a renamed vacuum, or a companion on another device.
+    for suffix in wanted:
+        hits = [s for s in scoped if s.split(".", 1)[1].endswith(suffix)]
+        if len(hits) == 1:
+            return hits[0], _status(hits[0])
+
+    # 3. TRANSLATION KEY — the localized case, and the reason this function exists.
+    tk_map = sibling_translation_keys(registry, scoped)
+    for suffix in wanted:
+        by_key = rescue_by_translation_key(
+            scoped, translation_keys=tk_map, wanted_key=suffix, domain=domain
+        )
+        if by_key:
+            _LOGGER.info(
+                "%s: %s action entity did not resolve by name; using %s, whose "
+                "upstream translation_key is %r (a localized entity id cannot be "
+                "matched by suffix or by English tokens)",
+                vacuum_entity_id, domain, by_key, suffix,
+            )
+            return by_key, _status(by_key)
+
+    return None, "missing"
+
+
 def rescue_by_translation_key(
     siblings: "Iterable[str]",
     *,

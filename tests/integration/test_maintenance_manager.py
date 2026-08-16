@@ -507,6 +507,89 @@ def test_reset_entity_token_fallback(mnt, hass):
     ) == "button.alfred_reset_main_brush_counter"
 
 
+def test_reset_entity_rescued_by_translation_key_on_a_localized_install(
+    mnt, hass, mock_config_entry
+):
+    """[MNT-14b] issue #51: a German reset button, reached by its upstream key.
+
+    The act path had two rungs and both are English: the derived suffix, then token
+    sets like ["reset","main","brush"]. On a German install the button is
+    `..._hauptbursten_verbrauchsmaterial_zurucksetzen` — it contains no "reset" — so
+    every consumable reported `can_reset: false` while the buttons plainly existed.
+    Widening the scope buys nothing: the PREFIX is correct there, the rest is German.
+
+    No new vocabulary is needed. Roborock's declared entity_suffixes are
+    byte-identical to its upstream translation_keys, which is the same assumption the
+    read path already rests on.
+    """
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {"main_brush": {"reset_button": {
+            "entity_suffixes": ["reset_main_brush_consumable"],
+            "token_sets": [["reset", "main", "brush"]],
+        }}},
+    })
+    mock_config_entry.add_to_hass(hass)
+    reg = er.async_get(hass)
+    # The vacuum and its button share a config entry — the sibling scope the rescue
+    # searches. Without the vacuum's own entry there are no siblings to search.
+    reg.async_get_or_create(
+        "vacuum", "roborock", "uid_vac",
+        suggested_object_id="alfred", config_entry=mock_config_entry,
+    )
+    reg.async_get_or_create(
+        "button", "roborock", "uid_reset_main",
+        suggested_object_id="alfred_hauptbursten_verbrauchsmaterial_zurucksetzen",
+        translation_key="reset_main_brush_consumable",
+        config_entry=mock_config_entry,
+    )
+
+    assert mnt._get_replacement_reset_entity(
+        vacuum_entity_id=_VAC, component="main_brush",
+    ) == "button.alfred_hauptbursten_verbrauchsmaterial_zurucksetzen"
+
+
+def test_reset_entity_disabled_is_not_offered(mnt, hass, mock_config_entry):
+    """[MNT-14c] DISABLED is not MISSING, and must not be offered as pressable.
+
+    All four of the reporter's reset buttons are disabled in the registry, and
+    `er.async_entries_for_config_entry` RETURNS disabled entries — so a rescue that
+    ignored the flag would bind one and `button.press` would hit the silent
+    log_missing no-op that made the mop-intensity failure invisible. Reporting the
+    control unavailable is the honest answer; the warning names the entity so the
+    user can enable it.
+    """
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.helpers.entity_registry import RegistryEntryDisabler
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {"main_brush": {"reset_button": {
+            "entity_suffixes": ["reset_main_brush_consumable"],
+            "token_sets": [],
+        }}},
+    })
+    mock_config_entry.add_to_hass(hass)
+    reg = er.async_get(hass)
+    reg.async_get_or_create(
+        "vacuum", "roborock", "uid_vac2",
+        suggested_object_id="alfred", config_entry=mock_config_entry,
+    )
+    reg.async_get_or_create(
+        "button", "roborock", "uid_reset_disabled",
+        suggested_object_id="alfred_hauptbursten_verbrauchsmaterial_zurucksetzen",
+        translation_key="reset_main_brush_consumable",
+        config_entry=mock_config_entry,
+        disabled_by=RegistryEntryDisabler.USER,
+    )
+
+    assert mnt._get_replacement_reset_entity(
+        vacuum_entity_id=_VAC, component="main_brush",
+    ) is None
+
+
 def test_reset_entity_maintenance_filter_excludes(mnt, hass):
     """[MNT-14b] a token match whose id contains 'maintenance' is excluded
     (the reset button is the upstream counter-reset, not our own sensor)."""
