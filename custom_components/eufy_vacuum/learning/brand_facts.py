@@ -102,8 +102,17 @@ class EufyBrandFacts:
 def brand_facts_for(vacuum_entity_id: str) -> BrandFacts:
     """Resolve the ``BrandFacts`` for a vacuum.
 
-    Default: adapter-registry-backed ``EufyBrandFacts``. This is the single seam a host
-    swaps to re-host the learning engine on a different brand source — learning calls
-    ``brand_facts_for(...)`` rather than reading the adapter directly.
+    Backed by the adapter registry. This is the single seam a host swaps to re-host the
+    learning engine on a different brand source — learning calls ``brand_facts_for(...)``
+    rather than reading the adapter directly.
+
+    ⚠ NAMING LEAK, NOT A BEHAVIOURAL ONE. The concrete class is still called
+    ``EufyBrandFacts`` and every brand goes through it, including Roborock — it reads
+    whatever the adapter config declares and has nothing Eufy-specific in it. The name is
+    a brand's WORD sitting in core, which is the same invariant the brand-dispatch default
+    arm violated; core owns the keys, never a brand's words. Renaming it is a separate
+    change (the class is referenced across the learning package) and is deliberately not
+    bundled with brand dispatch. Do not read "Eufy" here as a default or a fallback:
+    there is no longer any such thing.
     """
     return EufyBrandFacts(get_adapter_config(vacuum_entity_id))

@@ -90,6 +90,32 @@ def _patch_frontend():
     ]
 
 
+@pytest.fixture(autouse=True)
+def _vacuum_registered_as_a_real_eufy(hass):
+    """MODULE-SCOPED: put `vacuum.alfred` in the entity registry, owned by `robovac_mqtt`.
+
+    A real Eufy vacuum entity is created by that integration and carries its `platform`.
+    Brand resolution matches on platform, so without a registry entry the vacuum is
+    UNSUPPORTED, no adapter registers, and the number/button platforms this module
+    asserts on are never constructed. That used to be invisible: resolution ended at a
+    Eufy default arm, so an unregistered fixture vacuum behaved like a real one.
+
+    ⚠ MUST RUN BEFORE THE STATE IS SET. HA's registry will not generate an entity_id
+    that already exists in `hass.states`, so registering after
+    `hass.states.async_set("vacuum.alfred", ...)` silently yields `vacuum.alfred_2` and
+    the vacuum under test stays unregistered. Hence a fixture rather than a call inside
+    `_setup`, which the tests reach only after seeding states.
+
+    Autouse is scoped to THIS MODULE deliberately — `test_core_capabilities` builds its
+    own registry entries and a second `vacuum.alfred` underneath it would rename them.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    er.async_get(hass).async_get_or_create(
+        "vacuum", "robovac_mqtt", "alfred_unique_id", suggested_object_id="alfred"
+    )
+
+
 async def _setup(hass, entry):
     await async_setup_component(hass, "http", {})
     entry.add_to_hass(hass)

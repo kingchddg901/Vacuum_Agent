@@ -70,6 +70,28 @@ TEST_ADAPTER_CONFIG = {
 }
 
 
+def register_eufy_vacuum_entity(hass, object_id: str = "alfred") -> str:
+    """Put the vacuum in the entity registry as a REAL Eufy install has it.
+
+    A real Eufy vacuum entity is created by the `robovac_mqtt` integration and therefore
+    carries that `platform`. Tests that drive `async_setup_entry` need this now: brand
+    resolution matches on platform, and an entity with no registry entry has none, so it
+    resolves as UNSUPPORTED and gets no adapter.
+
+    That used to be invisible — resolution ended at a Eufy default arm, so an
+    unregistered fixture vacuum was indistinguishable from a real one. NOT autouse: tests
+    that build their own registry entries (test_core_capabilities) must not have a second
+    `vacuum.alfred` created underneath them, which silently renames theirs to
+    `vacuum.alfred_2`.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    return er.async_get(hass).async_get_or_create(
+        "vacuum", "robovac_mqtt", f"{object_id}_unique_id",
+        suggested_object_id=object_id,
+    ).entity_id
+
+
 @pytest.fixture
 async def manager(hass, mock_config_entry):
     """Fully initialized EufyVacuumManager with no entity states required.

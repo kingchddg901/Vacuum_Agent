@@ -171,8 +171,18 @@ async def test_delete_adapter_config_removes_registration(hass, manager_with_ser
     adapter at all until the next full HA restart (register_brand_adapter is the
     exact function async_setup_entry calls per managed vacuum, so this makes
     delete's restore byte-identical to what a restart would already produce).
-    _VAC ("vacuum.alfred") has no device-registry entry, so brand resolution
-    falls through to the declared default arm (Eufy)."""
+
+    _VAC is registered as a REAL Eufy install would be — in the entity registry, owned
+    by `robovac_mqtt`. The previous version of this docstring said it "has no
+    device-registry entry, so brand resolution falls through to the declared default arm
+    (Eufy)", which described the leak: an unidentified vacuum was silently driven as a
+    Eufy. There is no default arm now, so a vacuum with no platform would be UNSUPPORTED
+    and delete would restore nothing."""
+    from homeassistant.helpers import entity_registry as er
+
+    er.async_get(hass).async_get_or_create(
+        "vacuum", "robovac_mqtt", "alfred_unique_id", suggested_object_id="alfred"
+    )
     # Save via the service so the config is persisted in manager.data (not
     # just in-memory), which is what delete_adapter_config checks.
     await hass.services.async_call(

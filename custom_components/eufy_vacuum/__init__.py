@@ -383,9 +383,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Register the brand code adapter for each managed vacuum. This overwrites any
         # stored config for the same vacuum. Which brand runs is decided by the registrar
-        # table in adapters/brands.py — an explicit per-vacuum override, else positive
-        # detection, else the declared default arm. Adding a brand is a row in that table,
-        # not an edit here. (No unwind: this writes into the AdapterCoordinator
+        # table in adapters/brands.py — an explicit per-vacuum override, else a match on
+        # the vacuum's entity-registry `platform` against the platforms each adapter
+        # declares about ITSELF, else UNSUPPORTED (no adapter, and a warning naming the
+        # platform and the override key). There is no default arm: support is a positive
+        # statement. Adding a brand is a row in that table, not an edit here. (No unwind: this writes into the AdapterCoordinator
         # constructed just above async_initialize, outside this stretch — a failed
         # attempt's coordinator is simply replaced by a fresh one on the next
         # attempt, never referenced again.)

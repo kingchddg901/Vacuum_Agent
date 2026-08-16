@@ -12,8 +12,8 @@ live entity presence (``detect_capabilities``), so one adapter covers the S6 tod
 and future Roborock models. See README.md for the Wave 1 scope + deferrals.
 
 Called once per managed vacuum at startup from ``async_setup_entry`` in
-``__init__.py`` via the brand-dispatch loop (``is_roborock_vacuum`` selects this
-registrar over the Eufy one).
+``__init__.py`` via the brand-dispatch loop, which selects this registrar by matching
+the vacuum's entity-registry ``platform`` against ``const.UPSTREAM_PLATFORMS``.
 """
 
 from __future__ import annotations
@@ -47,6 +47,7 @@ from .entities import (
     DOMAIN_BINARY_SENSOR,
     DOMAIN_SELECT,
 )
+from .dock import dock_profile
 from .maintenance_components import MAINTENANCE_COMPONENTS
 from .model_catalog import profile_for_model
 from .upkeep_catalog import (
@@ -87,22 +88,18 @@ def _device_for_vacuum(hass: HomeAssistant, vacuum_entity_id: str):
     return dr.async_get(hass).async_get(entry.device_id)
 
 
-def is_roborock_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> bool:
-    """True if the vacuum's HA device is a Roborock.
-
-    Used by the integration's brand-dispatch wiring to pick this registrar over
-    the Eufy one. Auto-detects from the public device registry (manufacturer
-    ``Roborock`` or a ``roborock.`` model prefix) — no private coordinator data.
-    A future UI brand selector can override this.
-    """
-    device = _device_for_vacuum(hass, vacuum_entity_id)
-    if device is None:
-        return False
-    if device.manufacturer and device.manufacturer.strip().lower() == "roborock":
-        return True
-    if device.model and str(device.model).lower().startswith("roborock."):
-        return True
-    return False
+# REMOVED — ``is_roborock_vacuum``. It answered "is this vacuum mine?" from the device
+# registry (manufacturer ``Roborock``, or a ``roborock.`` model prefix) and core called
+# it, along with every other brand's equivalent, in table order. That is ``if brand:``
+# with a function pointer, and moving brand knowledge back into core's control flow is
+# the arrangement the adapter seam exists to remove.
+#
+# Identity is now DATA: this package declares ``UPSTREAM_PLATFORMS`` in const.py and
+# core compares it against the entity registry's ``platform``. A brand can no longer
+# express "probably me" because core no longer asks. It is also strictly better
+# evidence — ``platform`` is set by HA from the providing integration's domain and is
+# never blank, whereas the device-registry strings it replaced are free text and were
+# routinely empty on real installs (which is why Eufy never had a detector at all).
 
 
 def register_roborock_adapter_for_vacuum(
@@ -178,11 +175,42 @@ def register_roborock_adapter_for_vacuum(
         "cleaning_time": [build_entity_id(vid, SUFFIX_CLEANING_TIME)],
         "cleaning_area": [build_entity_id(vid, SUFFIX_CLEANING_AREA)],
     }
+    # --- dock identity (the SECOND device in this config entry) ---------------
+    # `has_dock` is NOT a per-model constant. Roborock reports the dock separately, and
+    # the same robot model ships with different stations, so the model catalog cannot
+    # know — every profile there declares False and always did. The live answer is the
+    # dock device's `model_id` run through the vendor's own truth table; see dock.py for
+    # why the three cheaper tests are all wrong.
+    #
+    # `dock_profile` returning None means UNDETERMINED, not "no dock" — fall back to the
+    # catalog's conservative default so a missing library can never enable a control for
+    # hardware that is not there. Offering a control that does nothing is the worse
+    # failure (the same reasoning model_catalog gives for has_path_control).
+    dock = dock_profile(hass, vid)
+    if dock is None:
+        has_dock = bool(profile["has_dock"])
+        dock_washable = dock_dryable = dock_collectable = has_dock
+    else:
+        has_dock = bool(dock["has_dock"])
+        # Each control asks the vendor the question it actually depends on rather than
+        # riding one blanket flag: an o1/oc auto-empty dock collects but cannot wash, and
+        # an o2 washes but cannot collect. Keying all three off has_dock would offer a
+        # mop wash on a dock with no water in it.
+        dock_washable = bool(dock.get("is_washable", has_dock))
+        dock_dryable = bool(dock.get("is_dryable", has_dock))
+        dock_collectable = bool(dock.get("is_collectable", has_dock))
+        _LOGGER.debug(
+            "%s: dock resolved for %s — type=%s (%s) has_dock=%s wash=%s dry=%s collect=%s%s",
+            ADAPTER_ID, vid, dock.get("dock_type"), dock.get("dock_type_name"),
+            has_dock, dock_washable, dock_dryable, dock_collectable,
+            f" reason={dock['reason']}" if dock.get("reason") else "",
+        )
+
     capability_hints: dict[str, bool] = {
         "supports_mop_features": profile["has_mop"],
-        "supports_mop_wash": profile["has_dock"],
-        "supports_mop_dry": profile["has_dock"],
-        "supports_empty_dust": profile["has_dock"],
+        "supports_mop_wash": dock_washable,
+        "supports_mop_dry": dock_dryable,
+        "supports_empty_dust": dock_collectable,
         # Per-model, not brand-wide: the S6 has no path/route axis, but better models
         # do — see model_catalog.has_path_control for why every entry is False today.
         "supports_path_control": profile.get("has_path_control", False),

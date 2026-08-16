@@ -79,6 +79,72 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
         "label": "Sensor",
         "icon": "mdi:eye-outline",
     },
+    # ---- Dock consumables (wash-dock tiers only) ---------------------------
+    # MEASURED, not guessed — see .claude/notes/REFERENCE-roborock-dock-detection.md.
+    # These two live on the DOCK device, which is a second device in the same config
+    # entry, so they are only reachable through the CONFIG-ENTRY scope of the sibling
+    # sweep; a device-scoped sweep alone will never see them.
+    #
+    # They are SELF-GATING and need no capability check. `_resolve` yields None when
+    # the sensor is absent, `button.py` skips any component whose source is None, and
+    # the manager renders no row — so on a charger-only S6 these two entries are inert.
+    # HA creates them exactly when `wash_towel_mode is not None`, i.e. when the vendor's
+    # `RoborockDockFeatures.is_washable` is true: every dock type EXCEPT
+    # {unknown(-9999), o0(0), o1(1), oc(5)}.
+    #
+    # ⚠ THE SUFFIX IS THE TRANSLATION KEY, AND THAT IS DELIBERATE. HA derives an
+    # entity id from the DISPLAY NAME, not the translation key, and the two diverge
+    # here — the real ids measured against HA 2026.8.1 are
+    # `..._dock_maintenance_brush_time_left` and `..._dock_strainer_time_left`. So:
+    #   * `strainer` resolves on the SUFFIX rung   (`endswith("_strainer_time_left")`)
+    #   * `cleaning_brush` CANNOT — "cleaning_brush" never appears in its id at all,
+    #     and it resolves only on the TRANSLATION_KEY rung (live:ENT-9), because
+    #     `_rescue_maintenance_source` passes the declared suffix through as the wanted
+    #     translation key.
+    # Declaring the vendor's translation key is therefore the only value that works for
+    # BOTH rungs, and it is the only one that survives a localized install — a display
+    # name is translated, a translation_key never is.
+    "cleaning_brush": {
+        "sensor_suffix": "cleaning_brush_time_left",
+        "reset_button": {
+            # Registry-DISABLED by default upstream (`entity_registry_enabled_default
+            # =False`), which is fine: `_replacement_reset_entity` falls through to
+            # `registry.async_get` after `states.get` misses, so a disabled button
+            # still resolves. It just cannot be pressed until the user enables it.
+            "entity_suffixes": ["dock_reset_cleaning_brush_consumable"],
+            "token_sets": [["reset", "cleaning", "brush"]],
+        },
+        # CLEANING_BRUSH_REPLACE_TIME, already in HOURS (see the unit note below).
+        "default_interval_hours": 300.0,
+        "max_interval_hours": 450.0,
+        "label": "Dock Cleaning Brush",
+        "icon": "mdi:brush",
+    },
+    "strainer": {
+        "sensor_suffix": "strainer_time_left",
+        "reset_button": {
+            "entity_suffixes": ["dock_reset_strainer_consumable"],
+            "token_sets": [["reset", "strainer"]],
+        },
+        # STRAINER_REPLACE_TIME, already in HOURS.
+        "default_interval_hours": 150.0,
+        "max_interval_hours": 200.0,
+        "label": "Dock Strainer",
+        "icon": "mdi:filter-variant",
+    },
+    # ⚠ UNIT DISCONTINUITY WITHIN THE BRAND. The four robot consumables above are
+    # `native_unit_of_measurement=SECONDS` with `suggested=HOURS`; these two dock
+    # sensors are `native=HOURS` with NO suggestion. The displayed state is hours
+    # either way — but only because HA converts on one side and not the other. Do not
+    # "simplify" by assuming one native unit across the brand, and note that a user who
+    # overrides the display unit on one of the four changes what our reader sees while
+    # these two cannot be overridden the same way.
+    #
+    # NOT DECLARED — `dust_collection`. The vendor tracks it
+    # (`DUST_COLLECTION_REPLACE_TIME`) but HA publishes no `dust_collection_time_left`
+    # sensor for it, so a component here would have nothing to resolve against. It is
+    # absent because there is no source, not because it was overlooked.
+
     # ---- Guide-only cleanables --------------------------------------------
     # Physical parts the user cleans on a schedule but that Roborock does NOT
     # life-track (no ``*_time_left`` sensor, no reset button). Marked

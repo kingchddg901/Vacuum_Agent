@@ -21,6 +21,7 @@ from custom_components.eufy_vacuum.adapters.registry import (
     get_adapter_config,
 )
 from custom_components.eufy_vacuum.adapters.roborock import adapter as rb
+from custom_components.eufy_vacuum.adapters.roborock import dock as rb_dock
 from custom_components.eufy_vacuum.adapters.roborock import model_catalog
 from custom_components.eufy_vacuum.adapters.roborock import vocabulary as rbv
 from custom_components.eufy_vacuum.adapters.roborock.entities import build_entity_id
@@ -68,28 +69,39 @@ def test_build_entity_id():
     )
 
 
-# --- brand auto-detect ------------------------------------------------------
+# --- brand identity is DATA, not a detector ---------------------------------
+#
+# The four tests that lived here exercised `is_roborock_vacuum`, which asked the device
+# registry "is this vacuum a Roborock?" and which core called once per brand. That is
+# `if brand:` with a function pointer — brand knowledge back inside core's control flow,
+# the exact arrangement the adapter seam exists to remove. The function is gone; this
+# package now DECLARES which integration provides it and core compares.
+#
+# The resolution rules themselves are tested in tests/adapters/test_brand_selection.py.
+# What belongs here is only this package's own claim.
 
 
-def test_is_roborock_by_manufacturer(monkeypatch, hass):
-    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.s6")
-    assert rb.is_roborock_vacuum(hass, _RVAC) is True
+def test_this_package_declares_the_integration_that_provides_it():
+    from custom_components.eufy_vacuum.adapters.roborock.const import UPSTREAM_PLATFORMS
+
+    assert UPSTREAM_PLATFORMS == ("roborock",), (
+        "Roborock ships in HA core under the `roborock` domain; `vacuum.ivy` reports "
+        "exactly this as its entity-registry platform"
+    )
+    assert isinstance(UPSTREAM_PLATFORMS, tuple), (
+        "declared as a tuple so an upstream rename or a second providing integration "
+        "lands as DATA rather than as a code change"
+    )
 
 
-def test_is_roborock_by_model_prefix(monkeypatch, hass):
-    # Manufacturer differs (rebadged), model prefix still identifies the brand.
-    _patch_device(monkeypatch, manufacturer="Xiaomi", model="roborock.vacuum.a01")
-    assert rb.is_roborock_vacuum(hass, _RVAC) is True
+def test_the_detector_stays_deleted():
+    """A regression pin, because re-adding it would look like a helpful convenience."""
+    from custom_components.eufy_vacuum.adapters.roborock import adapter as _rb
 
-
-def test_is_not_roborock(monkeypatch, hass):
-    _patch_device(monkeypatch, manufacturer="Eufy", model="T2351")
-    assert rb.is_roborock_vacuum(hass, _RVAC) is False
-
-
-def test_is_not_roborock_when_no_device(monkeypatch, hass):
-    monkeypatch.setattr(rb, "_device_for_vacuum", lambda h, v: None)
-    assert rb.is_roborock_vacuum(hass, _RVAC) is False
+    assert not hasattr(_rb, "is_roborock_vacuum"), (
+        "is_roborock_vacuum is back. Identity is declared in const.UPSTREAM_PLATFORMS; "
+        "a per-brand detector puts core in the business of judging brands again."
+    )
 
 
 # --- assembled config (S6 model) --------------------------------------------
@@ -251,10 +263,12 @@ def test_no_dock(s6_config):
 
 def test_maintenance_components(s6_config):
     mc = s6_config["maintenance_components"]
-    # 4 life-tracked consumables + 5 base guide-only cleanables + 3 dock/station
-    # cleanables (the station ones are family-gated at render time by the manager).
+    # 4 robot life-tracked consumables + 2 DOCK life-tracked consumables
+    # + 5 base guide-only cleanables + 3 dock/station guide-only cleanables
+    # (the guide-only station ones are family-gated at render time by the manager).
     assert set(mc) == {
         "main_brush", "side_brush", "filter", "sensor",
+        "cleaning_brush", "strainer",
         "dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
         "dock_dust_bag", "clean_water_tank", "dirty_water_tank",
     }
@@ -277,6 +291,52 @@ def test_maintenance_components(s6_config):
     for comp in mc.values():
         # label + icon are bare-deref'd by the platform consumers.
         assert comp["label"] and comp["icon"]
+
+
+def test_dock_consumables_declare_the_translation_key_not_the_id_suffix(s6_config):
+    """The dock two are keyed by TRANSLATION KEY, and that is load-bearing.
+
+    HA derives a dock entity id from the DISPLAY NAME, not the translation key, and for
+    these two the names diverge — measured against HA 2026.8.1 the real ids end
+    `_dock_maintenance_brush_time_left` and `_dock_strainer_time_left`. So:
+
+      * `strainer` also happens to resolve on the SUFFIX rung, since its id really does
+        end `_strainer_time_left`;
+      * `cleaning_brush` CANNOT — the string "cleaning_brush" appears nowhere in its
+        entity id — and resolves only on the TRANSLATION_KEY rung.
+
+    Declaring the vendor's translation key is the one value that serves both rungs and
+    survives a localized install, because a display name is translated and a
+    translation_key never is. Anyone "correcting" these to the observed id suffix
+    silently breaks cleaning_brush on every install and both of them on every
+    non-English one, so the check is spelled out rather than implied.
+    """
+    mc = s6_config["maintenance_components"]
+
+    assert mc["cleaning_brush"]["sensor_suffix"] == "cleaning_brush_time_left"
+    assert mc["strainer"]["sensor_suffix"] == "strainer_time_left"
+
+    # The measured ids, and the asymmetry between them.
+    measured_brush = "sensor.ivy_dock_maintenance_brush_time_left"
+    measured_strainer = "sensor.ivy_dock_strainer_time_left"
+    assert measured_strainer.endswith("_" + mc["strainer"]["sensor_suffix"]), (
+        "strainer should still be reachable by plain suffix match"
+    )
+    assert not measured_brush.endswith("_" + mc["cleaning_brush"]["sensor_suffix"]), (
+        "if this ever passes, cleaning_brush became suffix-reachable and the comment "
+        "above is stale — re-measure before trusting it"
+    )
+    assert "cleaning_brush" not in measured_brush
+
+    # Both are real life-tracked components, not guide-only, and carry a reset button.
+    for comp in ("cleaning_brush", "strainer"):
+        assert mc[comp].get("maintenance_only") is not True
+        assert mc[comp]["default_interval_hours"] > 0
+        suffixes = mc[comp]["reset_button"]["entity_suffixes"]
+        # The reset buttons live on the DOCK device, so the suffix must carry the
+        # `dock_` infix — `_replacement_reset_entity` builds `button.{vacuum}_{suffix}`
+        # from the VACUUM's object_id and would otherwise never reach them.
+        assert all(s.startswith("dock_") for s in suffixes), suffixes
 
 
 def test_upkeep_catalog(s6_config):
@@ -571,3 +631,151 @@ def test_s7_mop_global_pre_call(s7_config):
     assert entry["service"]["target_entity_id"] == "select.ivy_mop_intensity"
     # No value_map: canonical values already match the select's wire options.
     assert "value_map" not in entry
+
+
+# --- dock identification (dock.py) ------------------------------------------
+#
+# The vendor TRUTH TABLE itself is not re-asserted here. It was measured by driving all
+# 27 dock types through the real HA integration against python-roborock's own simulator
+# (`.claude/notes/harness/roborock-dock-sweep/`), and re-stating its outputs from a
+# hand-written fake would only prove the fake agrees with whoever wrote it. What IS
+# tested here is our side of the seam: reading the registry value, and — the part that
+# actually protects users — degrading safely when the vendor library is not importable.
+
+
+class _FakeDockDevice:
+    def __init__(self, model_id):
+        self.model_id = model_id
+
+
+def test_dock_type_value_reads_the_integer():
+    assert rb_dock.dock_type_value(_FakeDockDevice("7")) == 7
+    assert rb_dock.dock_type_value(_FakeDockDevice(" 17 ")) == 17
+    assert rb_dock.dock_type_value(_FakeDockDevice("0")) == 0
+
+
+def test_dock_type_value_treats_unidentifiable_as_no_dock():
+    """`"Unknown"` is what the coordinator writes when status has no dock_type at all.
+
+    Chris's S6 reports exactly this — NOT `"0"` — which is why a `!= "0"` test was one of
+    the three hypotheses that died on real hardware.
+    """
+    assert rb_dock.dock_type_value(None) is None
+    assert rb_dock.dock_type_value(_FakeDockDevice("Unknown")) is None
+    assert rb_dock.dock_type_value(_FakeDockDevice(None)) is None
+    assert rb_dock.dock_type_value(_FakeDockDevice("o4_dock")) is None
+    assert rb_dock.dock_type_value(_FakeDockDevice("")) is None
+
+
+def test_dock_profile_reports_no_dock_without_needing_the_vendor_library(monkeypatch):
+    """The no-dock answers resolve before the import, so they hold on every install."""
+    monkeypatch.setattr(rb_dock, "find_dock_device", lambda h, v: None)
+    prof = rb_dock.dock_profile(None, _RVAC)
+    assert prof == {
+        "has_dock": False, "dock_type": None,
+        "dock_type_name": None, "reason": "no_dock_device",
+    }
+
+    monkeypatch.setattr(
+        rb_dock, "find_dock_device", lambda h, v: _FakeDockDevice("Unknown")
+    )
+    prof = rb_dock.dock_profile(None, _RVAC)
+    assert prof["has_dock"] is False
+    assert prof["reason"] == "model_id_unknown"
+
+
+def test_dock_profile_returns_undetermined_when_vendor_library_is_absent(monkeypatch):
+    """A real dock code with no python-roborock must yield None — NOT a guess.
+
+    None means "could not determine", and the adapter falls back to the model catalog's
+    conservative default. This is the branch the repo suite actually runs: our manifest
+    deliberately does not require python-roborock (the upstream Roborock integration
+    pins it), so it is absent from the test image. If someone later vendors a copy of
+    `_NO_DOCK_TYPES` to "fix" this, that copy goes stale silently the next time the
+    vendor edits the set — which is the whole reason dock.py refuses to hold one.
+    """
+    pytest.importorskip  # noqa: B018 — documents the deliberate NON-use of importorskip
+    monkeypatch.setattr(
+        rb_dock, "find_dock_device", lambda h, v: _FakeDockDevice("7")
+    )
+    try:
+        import roborock  # noqa: F401
+    except ImportError:
+        assert rb_dock.dock_profile(None, _RVAC) is None
+    else:
+        prof = rb_dock.dock_profile(None, _RVAC)
+        assert prof is not None and prof["has_dock"] is True
+        assert prof["dock_type"] == 7 and prof["dock_type_name"] == "o4_dock"
+
+
+def _capture_hints(monkeypatch, hass, dock_result):
+    """Register the adapter and return the capability_hints it handed the detector.
+
+    The hints are not stored on the config (only `_entity_candidates` is), so the seam
+    itself is the observable: intercept `detect_capabilities` and keep what it was
+    called with. That tests the wiring this change actually touched, rather than
+    re-deriving the detector's output.
+    """
+    seen: dict = {}
+
+    def _spy(hass_, **kwargs):
+        seen.update(kwargs.get("capability_hints") or {})
+        return {}
+
+    _patch_device(monkeypatch)
+    monkeypatch.setattr(rb, "dock_profile", lambda h, v: dock_result)
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.core.capabilities.detect_capabilities", _spy
+    )
+    clear_registry()
+    hass.states.async_set(
+        _RVAC, "cleaning", {"supported_features": 30524, "fan_speed": "max"}
+    )
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    assert seen, (
+        "capability_hints were never captured — the spy did not intercept "
+        "detect_capabilities, so every assertion downstream of this would pass "
+        "vacuously on an empty dict"
+    )
+    return seen
+
+
+def test_adapter_keeps_dock_controls_off_when_dock_is_undetermined(monkeypatch, hass):
+    """The safety property: undetermined must never OFFER a control.
+
+    Offering a mop wash on a dock that cannot wash is the worse failure — the same
+    reasoning model_catalog gives for defaulting has_path_control to False.
+    """
+    hints = _capture_hints(monkeypatch, hass, None)
+    assert hints["supports_mop_wash"] is False
+    assert hints["supports_mop_dry"] is False
+    assert hints["supports_empty_dust"] is False
+
+
+def test_adapter_asks_the_vendor_a_separate_question_per_control(monkeypatch, hass):
+    """wash / dry / collect are distinct vendor flags and must not ride one has_dock.
+
+    An o1/oc auto-empty dock collects but cannot wash; an o2 washes but cannot collect.
+    Keying all three off has_dock would offer a mop wash on a dock with no water — so a
+    single blanket flag is not a simplification, it is a wrong answer on two dock types.
+    """
+    hints = _capture_hints(monkeypatch, hass, {
+        "has_dock": True, "dock_type": 1, "dock_type_name": "o1_dock",
+        "is_washable": False, "is_collectable": True, "is_dryable": False,
+        "reason": None,
+    })
+    assert hints["supports_empty_dust"] is True
+    assert hints["supports_mop_wash"] is False
+    assert hints["supports_mop_dry"] is False
+
+
+def test_adapter_enables_all_three_on_a_full_station(monkeypatch, hass):
+    """The mirror of the test above — without it, "always False" would also pass."""
+    hints = _capture_hints(monkeypatch, hass, {
+        "has_dock": True, "dock_type": 7, "dock_type_name": "o4_dock",
+        "is_washable": True, "is_collectable": True, "is_dryable": True,
+        "reason": None,
+    })
+    assert hints["supports_mop_wash"] is True
+    assert hints["supports_mop_dry"] is True
+    assert hints["supports_empty_dust"] is True

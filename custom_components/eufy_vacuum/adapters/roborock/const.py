@@ -22,6 +22,18 @@ SUPPORTED_TESTED_MODEL = "Roborock S6"
 # entities + the model catalog, NOT a per-model adapter_id.
 ADAPTER_ID = "roborock"
 
+# The HA integration domain(s) that PROVIDE this brand's vacuum entity — read from
+# the ENTITY registry (`entry.platform`), which is canonical and always populated,
+# unlike the device registry's free-text manufacturer/model. This is the adapter's
+# own identity claim: brand selection matches a vacuum's platform against this tuple
+# rather than core sniffing strings on the brand's behalf. Roborock ships in HA core,
+# so the domain is stable.
+#
+# A TUPLE by design, though exactly one entry is planned per brand. It costs nothing
+# today and absorbs an upstream rename or a second providing integration as DATA
+# rather than as a code change — the seam stays open, the shipped surface stays one.
+UPSTREAM_PLATFORMS: tuple[str, ...] = ("roborock",)
+
 # Roborock firmware auto-returns to the dock at this battery floor (observed:
 # ``returning_home`` fires the same tick battery hits 19%). The framework uses
 # this ONLY to classify a low-battery return vs a user/finish return — the device

@@ -247,9 +247,10 @@ module (flat file) or a subsystem package. Here is the full map:
    `data["adapters"]` (user-built stored configs); then `register_brand_adapter`
    (the ordered `BRAND_REGISTRARS` table in `adapters/brands.py`) registers the
    matching brand's code adapter for each known vacuum — resolution order:
-   explicit per-vacuum override (`data["brand_overrides"]`) → first positive
-   `detect` (Roborock's `is_roborock_vacuum`) → the declared default arm (Eufy,
-   which carries no `detect`). Code adapters always win over stored.
+   explicit per-vacuum override (`data["brand_overrides"]`) → **platform match**
+   (the vacuum's entity-registry `platform` against each adapter's declared
+   `UPSTREAM_PLATFORMS`) → the declared default arm (Eufy). Code adapters always
+   win over stored.
 
    > **From immediately before this step onward** (the ledger is created just
    > before it, in `__init__.async_setup_entry`), every resource this and the
@@ -490,12 +491,14 @@ The coordinator's registry is populated in two ways:
 - **Code adapters** — `register_brand_adapter` (`adapters/brands.py`) resolves
   and runs one brand's registrar for each known vacuum, per the ordered
   `BRAND_REGISTRARS` table: an explicit per-vacuum override
-  (`data["brand_overrides"]`, read-path only today — no writer yet) → the
-  first registrar whose `detect` returns `True` (Roborock's
-  `is_roborock_vacuum`) → the declared default arm (Eufy, which carries no
-  `detect` at all — there is no honest positive test for it, so an
-  unidentified vacuum resolves via `default` and `resolve_brand` reports
-  which of the three routes was taken).
+  (`data["brand_overrides"]`, read-path only today — no writer yet) → the first
+  registrar whose declared `platforms` contains the vacuum's entity-registry
+  `platform` → the declared default arm (Eufy). `resolve_brand` reports which of
+  the three routes was taken. Identity is DATA: each brand names the integration
+  that provides it in its own `const.py`, and there is no `detect` callable —
+  core compares, it never asks a brand to judge itself.
+  ⚠ The default arm remains a leak: an unmatched vacuum is still registered as a
+  Eufy. See [21-adapter-system §6.1](21-adapter-system.md).
 - **Stored adapters** — `adapters/config_loader.py` reads `data["adapters"]`
   and registers user-built configs. Code adapters always win if both exist for
   the same vacuum.
@@ -504,18 +507,22 @@ The coordinator's registry is populated in two ways:
 
 Roborock is already shipped as a worked second-brand adapter
 (`adapters/roborock/`, a `BrandRegistrar` row pairing
-`register_roborock_adapter_for_vacuum` with `is_roborock_vacuum`) — see
+`register_roborock_adapter_for_vacuum` with the `UPSTREAM_PLATFORMS` it declares
+in `const.py`) — see
 [29-roborock-adapter](29-roborock-adapter.md) for that walkthrough.
 
 To add a *third* brand (e.g. Dreame), you would:
 
 1. Create `adapters/dreame/` with `adapter.py`, `const.py`, and vocabulary
    files mirroring the Eufy / Roborock structure.
-2. Add one `BrandRegistrar` row to `BRAND_REGISTRARS` in `adapters/brands.py`
-   (`register_dreame_adapter_for_vacuum` + a positive `detect`). Integration
-   core (`__init__.py`) is untouched — this is the whole point of the
-   registrar table.
-3. The rest of the codebase calls `get_adapter_config(vacuum_entity_id)` — no
+2. Declare `UPSTREAM_PLATFORMS` in `adapters/dreame/const.py` — the HA
+   integration domain that provides that brand's vacuum entity (for Dreame,
+   `dreame_vacuum`). This is the adapter's identity claim about itself.
+3. Add one `BrandRegistrar` row to `BRAND_REGISTRARS` in `adapters/brands.py`
+   (`register_dreame_adapter_for_vacuum` + that tuple). Integration core
+   (`__init__.py`) is untouched — this is the whole point of the registrar
+   table, and why identity is data rather than a per-brand callable.
+4. The rest of the codebase calls `get_adapter_config(vacuum_entity_id)` — no
    other files change.
 
 See the [porting guide](../contributing/porting-guide.md) for the complete porting checklist.

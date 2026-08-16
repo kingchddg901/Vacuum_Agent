@@ -464,20 +464,39 @@ not deleted — it persists for reference and is used if the code adapter is rem
 
 Which registrar runs is decided by an ordered table, **not** by a branch in
 `__init__.py`. `BRAND_REGISTRARS` holds one `BrandRegistrar` per brand
-(`brand_id`, `detect`, `register`, `is_default`), and `resolve_brand` returns both the
+(`brand_id`, `register`, `platforms`, `is_default`), and `resolve_brand` returns both the
 registrar and **how** it was chosen:
 
 | `source` | Meaning |
 |---|---|
-| `"override"` | An explicit per-vacuum choice in `data["brand_overrides"][vacuum_entity_id]`. A user's stated brand outranks auto-detection — that is the point of a selector. **Nothing writes this key yet**; the read path exists so the planned UI has somewhere to land. |
-| `"detected"` | The first registrar whose `detect` returned True, in table order. `detect` is *positive identification only* and may be `None` for a brand with no honest test. |
-| `"default"` | No override and no positive match — the terminal `is_default` arm. Exactly one entry declares it. |
+| `"override"` | An explicit per-vacuum choice in `data["brand_overrides"][vacuum_entity_id]`. A user's stated brand outranks identification — that is the point of a selector. **Nothing writes this key yet**; the read path exists so the planned UI has somewhere to land. |
+| `"platform"` | The vacuum's **entity-registry `platform`** appears in a registrar's declared `platforms`, first match in table order. |
+| `"default"` | No override and no platform match — the terminal `is_default` arm. Exactly one entry declares it. |
 
-**The default arm is Eufy, and that is a declared decision rather than a leftover.**
-`is_roborock_vacuum` reads the device registry, which is sparse or absent on real installs,
-so a Eufy with a blank `manufacturer` has always resolved this way and must keep working.
-Refusing an unidentified brand would be a regression, not a fix, while there is no UI
-selector to recover with.
+**Identity is DATA, declared by the adapter about itself.** Each brand package names the
+HA integration domain(s) that provide its vacuum entity in its own `const.py`
+(`UPSTREAM_PLATFORMS`), and core does nothing but compare strings — see
+`adapters/roborock/const.py::UPSTREAM_PLATFORMS`.
+
+There is deliberately **no `detect` callable and no `is_X_brand` function**. An earlier
+version had one per brand and core called each in turn; that is `if brand:` wearing a
+function pointer, and putting brand knowledge back inside core's control flow is the
+arrangement this whole seam exists to remove. A brand cannot express "probably me",
+because core no longer asks.
+
+The platform is also strictly better evidence than what it replaced. The previous
+detector read `manufacturer` and a model prefix — vendor-controlled free text that is
+routinely blank on real installs, which is why Eufy never had a detector at all.
+`platform` is set by HA from the providing integration's domain and is never blank, so
+Eufy is now positively identified (`robovac_mqtt`) rather than assumed.
+
+> ⚠ **The default arm is still Eufy, and it is still a leak.** Anything unmatched is
+> registered as a Eufy — which is how a Dreame (`vacuum.robin`, platform
+> `dreame_vacuum`) currently runs on Eufy's vocabulary and binds 2 of ~10 roles by
+> coincidence of naming. Removing the arm is a separate change: it is a guard newly
+> activating over existing installs, so a Eufy user on a differently-named fork would go
+> from working to unsupported. The intended end state is no default arm and an explicit
+> "not supported" path, with `brand_overrides` as the escape hatch.
 
 What changed is that reaching it is no longer silent: `register_brand_adapter` logs at INFO
 when the default was reached by *no-match* rather than by detection. "This is a Eufy" and

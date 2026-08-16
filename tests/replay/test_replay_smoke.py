@@ -51,6 +51,13 @@ async def test_replay_pj_group_phase_drives_external_capture(hass, mock_config_e
     # empty state machine, so the integration's own entities register under their
     # canonical ids — the registry then tells us which bundle entities are OURS.
     await async_setup_component(hass, "http", {})
+    # Real Eufy installs have the vacuum in the entity registry owned by `robovac_mqtt`;
+    # brand resolution matches on that platform, so without it no adapter registers.
+    from homeassistant.helpers import entity_registry as er
+
+    er.async_get(hass).async_get_or_create(
+        "vacuum", "robovac_mqtt", "alfred_unique_id", suggested_object_id="alfred"
+    )
     mock_config_entry.add_to_hass(hass)
     with (
         patch("homeassistant.components.panel_custom.async_register_panel", AsyncMock()),

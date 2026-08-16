@@ -73,6 +73,16 @@ MODEL_PROFILES: dict[str, dict] = {
     },
 }
 
+# ``has_dock`` IS NOT A LIVE VALUE — it is a FALLBACK, and it is False everywhere on
+# purpose. The dock is a separate device that the same robot model ships with in several
+# tiers, so a per-model table cannot answer the question; the live answer comes from the
+# dock device's ``model_id`` run through the vendor's own capability table (``dock.py``).
+# This entry is consulted only when that resolution returns None — "undetermined", e.g.
+# python-roborock not importable — where a conservative False is the right degradation.
+# Do NOT "fill these in" per model: a hand-maintained dock column would silently diverge
+# from the hardware the moment a model ships with a different station, which is exactly
+# the failure the vendor lookup exists to prevent.
+
 # ``has_path_control`` — the per-room path/route axis (``path_type``: wide | narrow).
 # The S6 does not have it; better models do, which is why the axis stays declared in
 # ROOM_PROFILES rather than being deleted brand-wide. It is False on every entry above
