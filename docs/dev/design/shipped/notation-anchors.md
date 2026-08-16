@@ -1,7 +1,8 @@
 # Notation Anchors
 
-> **Status: SPECIFICATION — partially built.** `CN` is in use (9 anchors). `SN`,
-> `HN`, `PN` and `IN` are reserved and unused. Tooling: `scripts/doc_anchor.py`
+> **Status: SPECIFICATION — partially built.** `CN` in use (9 anchors), `IN` in use
+> (1, indexed by [00b](../../00b-invariants.md)), `RN` in use (2, indexed by
+> [00c](../../00c-replicas.md)). `SN`, `HN` and `PN` remain reserved and unused. Tooling: `scripts/doc_anchor.py`
 > (`--mint` / `--check` / `--show` / `--orphans`), enforced by `ANC-1..3` in
 > `tests/unit/test_generated_doc_gate.py`.
 
@@ -161,7 +162,15 @@ SN  runtime semantic translation
 HN  historical provenance
 PN  deep prose/design
 IN  invariant
+RN  replica set — one rule, several deliberate copies
 ```
+
+`RN` was added 2026-08-16. Its shape differs from the others in one way worth stating: an
+`RN` is inherently multi-site, but the scheme's rule is *definitions are unique, references
+are many*. So an `RN` is declared once at the set's natural primary — the shared artifact
+the copies revolve around, or the copy carrying the reasoning — and referenced from every
+other member. The listing of sets lives in [00c](../../00c-replicas.md); the declaration
+cannot, because declarations are scanned in source only.
 
 This makes the prefix function as a small type system for repository knowledge rather than as a filing scheme.
 

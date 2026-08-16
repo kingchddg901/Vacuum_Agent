@@ -102,10 +102,16 @@ PREFIXES = {
     "HN": "historical notation — provenance: how or why this came to exist",
     "PN": "prose notation — the deep canonical explanation lives here",
     "IN": "invariant notation — something the system must preserve across refactors",
+    "RN": "replica notation — one rule deliberately implemented in more than one place; "
+          "the copies must agree, and changing one means checking the others",
 }
 
 # Letters only, and only Crockford's unambiguous 22. 22 x 22 = 484 namespaces, each
 # holding 32^6 = 1,073,741,824 identities. Exhaustion is deliberately not a concern.
+#
+# ⚠ Descriptive of the SPACE, not a validator: `IN` uses "I", which Crockford excludes.
+# The suffix alphabet is what must stay unambiguous — a prefix is read, never transcribed
+# from a glance at a screen. Left as-is rather than renaming a live class.
 PREFIX_LETTERS = "ABCDEFGHJKMNPQRSTVWXYZ"
 
 SOURCE_ROOTS = ("custom_components", "scripts", "src", "harness")

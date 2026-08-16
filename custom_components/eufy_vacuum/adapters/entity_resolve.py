@@ -201,6 +201,25 @@ def sibling_translation_keys(registry: Any, siblings: "Iterable[str]") -> dict[s
     return out
 
 
+# anchor: RNF2RCXP  translation_key rescue — the replica set
+#
+# REPLICA SET. This function is shared, but the DECISION TO CALL IT is written out
+# separately at three call sites, and that decision is what must agree:
+#
+#   entity_resolve.resolve_declared_entities        the declared `entities` map
+#   capabilities._rescue_maintenance_source         maintenance sources
+#   capabilities.augment_candidates_from_device     the roles detect_capabilities probes
+#
+# They are NOT unified into one caller: each feeds a different consumer and derives its
+# wanted-key differently, and roughly half of such divergence in this repo is deliberate
+# (see the ladder in 00b). A helper would force agreement that is not always wanted.
+#
+# ⚠ CHANGING ONE MEANS CHECKING THE OTHER TWO. The first fix (`ef810519`) landed in two
+# of the three, and 4381 green tests said nothing — each copy carries its own passing
+# tests, so a green suite proves only that each copy is self-consistent. The third was
+# caught by renaming a live vacuum's entities to German.
+#
+# `python scripts/doc_anchor.py --show RNF2RCXP` lists every site.
 def rescue_by_translation_key(
     siblings: "Iterable[str]",
     *,
@@ -365,6 +384,12 @@ def resolve_declared_entities(
     # (both the reserved-suffix merge and the longest-suffix ownership test now
     # live in build_suffix_universe / claimed_by, above.)
 
+    # anchor: RNZM4AYY  longest-suffix ownership test — the replica set
+    #
+    # REPLICA. The same longest-declared-suffix rule is implemented separately in
+    # `capabilities.py::augment_candidates_from_device`. Both must agree, or a role
+    # resolves one way through the declared map and another way through the probe.
+    # See 00c. `python scripts/doc_anchor.py --show RNZM4AYY` lists both.
     def _claimed_by(object_id: str) -> str | None:
         return claimed_by(object_id, declared_suffixes)
 
@@ -410,6 +435,19 @@ def resolve_declared_entities(
             # written from, so this needs no new brand vocabulary. A brand whose key
             # differs from its slug can declare one explicitly later — the seam is the
             # argument, not this default.
+            # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree
+            #
+            # REPLICA — the same rescue runs in THREE places, deliberately: this one, plus
+            # `entity_resolve.resolve_declared_entities` (the declared `entities` map) and
+            # `capabilities.augment_candidates_from_device` (the roles `detect_capabilities`
+            # probes). They are not unified because each feeds a different consumer and takes
+            # its wanted-key from a different place; ~half of such divergence in this repo is
+            # deliberate, so a helper would force agreement that is not always wanted.
+            #
+            # ⚠ CHANGING ONE MEANS CHECKING THE OTHER TWO. The first fix (`ef810519`) landed in
+            # two of the three and 4381 green tests said nothing — each copy had its own passing
+            # tests. The third was caught only by renaming a live vacuum's entities to German.
+            # `python scripts/doc_anchor.py --show RNF2RCXP` lists every site.
             by_key = rescue_by_translation_key(
                 _sibling_ids,
                 translation_keys=_tk_map,

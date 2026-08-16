@@ -423,7 +423,7 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
    `cleaning_route`) **eleven times each** — global plus one per room — so a key is not
    unique per entity on every brand, and an ambiguous key must decline rather than pick.
 
-   ⚠ **THE PREDICATE EXISTS IN THREE PLACES AND TWO IS NOT ENOUGH.**
+   ⚠ **THE PREDICATE EXISTS IN THREE PLACES AND TWO IS NOT ENOUGH — `RNF2RCXP`.**
    `resolve_declared_entities` (the declared `entities` map),
    `capabilities._rescue_maintenance_source` (maintenance sources) and
    `capabilities.augment_candidates_from_device` (the roles `detect_capabilities` probes)

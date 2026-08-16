@@ -255,6 +255,19 @@ def _rescue_maintenance_source(
     # `translation_key` is the provider's own untranslated word, so it survives both
     # the language and the split dock device. Runs only after the suffix path has
     # failed, so an install that resolves today is untouched.
+    # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree
+    #
+    # REPLICA — the same rescue runs in THREE places, deliberately: this one, plus
+    # `entity_resolve.resolve_declared_entities` (the declared `entities` map) and
+    # `capabilities.augment_candidates_from_device` (the roles `detect_capabilities`
+    # probes). They are not unified because each feeds a different consumer and takes
+    # its wanted-key from a different place; ~half of such divergence in this repo is
+    # deliberate, so a helper would force agreement that is not always wanted.
+    #
+    # ⚠ CHANGING ONE MEANS CHECKING THE OTHER TWO. The first fix (`ef810519`) landed in
+    # two of the three and 4381 green tests said nothing — each copy had its own passing
+    # tests. The third was caught only by renaming a live vacuum's entities to German.
+    # `python scripts/doc_anchor.py --show RNF2RCXP` lists every site.
     return rescue_by_translation_key(
         siblings,
         translation_keys=translation_keys or {},
@@ -644,6 +657,8 @@ def augment_candidates_from_device(
         reserved_suffixes,
     )
 
+    # REPLICA RNZM4AYY — the twin of this rule lives in
+    # `entity_resolve.py::resolve_declared_entities`. Changing one means checking it.
     def _claimed_by(sib_object: str) -> str | None:
         return claimed_by(sib_object, universe)
 
@@ -701,6 +716,19 @@ def augment_candidates_from_device(
                 # absent, because THIS is the path detect_capabilities probes with.
                 # Fixing one copy of a predicate and not its twins is the exact
                 # shape live:ENT-4 was, and it happened again here.
+                # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree
+                #
+                # REPLICA — the same rescue runs in THREE places, deliberately: this one, plus
+                # `entity_resolve.resolve_declared_entities` (the declared `entities` map) and
+                # `capabilities.augment_candidates_from_device` (the roles `detect_capabilities`
+                # probes). They are not unified because each feeds a different consumer and takes
+                # its wanted-key from a different place; ~half of such divergence in this repo is
+                # deliberate, so a helper would force agreement that is not always wanted.
+                #
+                # ⚠ CHANGING ONE MEANS CHECKING THE OTHER TWO. The first fix (`ef810519`) landed in
+                # two of the three and 4381 green tests said nothing — each copy had its own passing
+                # tests. The third was caught only by renaming a live vacuum's entities to German.
+                # `python scripts/doc_anchor.py --show RNF2RCXP` lists every site.
                 by_key = rescue_by_translation_key(
                     [s for s in siblings if s not in seen],
                     translation_keys={
