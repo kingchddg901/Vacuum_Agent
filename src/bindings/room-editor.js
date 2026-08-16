@@ -415,6 +415,23 @@ export function applyRoomEditorBindings(proto) {
    * setSkipRefreshOnClose), and a second copy of a predicate is how the shorter
    * one becomes the bug.
    *
+   * anchor: RNWQ82XZ  consult the save-refusal check before closing — the replica set
+   *
+   * The CHECK is shared and lives here. What is replicated is the OBLIGATION TO
+   * CALL IT: two save handlers on two different roots, each of which must ask
+   * before closing the modal. Same shape as RNF2RCXP, where the rescue function
+   * is shared and the decision to invoke it is written out three times — and the
+   * same failure mode, because a handler that forgets to ask looks exactly like
+   * one that asked and got a yes.
+   *
+   * Members: `_bindRoomEditorSave` (below, main shadow root) and
+   * `bindModalHostEvents` (bindings/index.js, detached modal host). A THIRD save
+   * path added anywhere joins this set — it is not optional plumbing, it is the
+   * difference between a refused save that says so and one that silently reverts
+   * on the next snapshot.
+   *
+   * `python scripts/doc_anchor.py --show RNWQ82XZ` lists every site.
+   *
    * @returns {boolean} true when the save was REFUSED — caller must return
    *   without closing the modal.
    */
@@ -442,6 +459,9 @@ export function applyRoomEditorBindings(proto) {
     return false;
   };
 
+  // REPLICA RNWQ82XZ — save-refusal obligation, 2 handlers. The twin is
+  // `bindModalHostEvents` in bindings/index.js. Both must consult
+  // `_roomEditorSaveWasRejected` before closing; see its anchor for why.
   proto._bindRoomEditorSave = function () {
     this.card._on(
       this.card.$("[data-action='save-room-editor']"),

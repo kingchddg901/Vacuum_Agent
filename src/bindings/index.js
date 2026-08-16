@@ -319,6 +319,10 @@ export class VacuumCardBindings {
             fields
           );
 
+          // REPLICA RNWQ82XZ — save-refusal obligation, 2 handlers. The twin is
+          // `_bindRoomEditorSave` in bindings/room-editor.js, where the anchor and
+          // the reasoning live.
+          //
           // A6-AGX-2 Half B: same refusal check as the main-root binding, via
           // the SHARED helper in bindings/room-editor.js — not a second copy.
           // These two handlers already drifted once (this one never gained
