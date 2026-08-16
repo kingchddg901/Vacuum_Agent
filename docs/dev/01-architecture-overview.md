@@ -179,6 +179,22 @@ module (flat file) or a subsystem package. Here is the full map:
 | `jobs/job_monitor.py` | Lifecycle state machine (pure function) |
 | `timestamp_utils.py` | `parse_timestamp`, `utc_now_iso` |
 
+### Observability — how a run explains itself afterwards
+
+A separate concern from the job pipeline, and the reason the integration can be debugged
+from a user's dump rather than from a reproduction. These are what turn "it did something
+odd" into evidence.
+
+| Package / file | Role |
+|---|---|
+| `debug_capture.py` | The silent **flight recorder**. HA's own DEBUG toggle floods the log and is useless in a report; this captures a bounded ring of structured events with no log noise, so a user can hand over what actually happened |
+| `decision_log.py` | A machine-readable record at each **decision point** — a run makes dozens of choices and normally records none, so a wrong fallback is invisible after the fact |
+| `pose_store.py` | 24-hour rolling chunked JSONL of **where the robot was**. The pose sampler's live buffer is for attribution during a run; this outlives it |
+| `receipts/` | Semantic receipts — radio-discipline logging for the stall-capture pilot |
+| `counter_segmentation.py` | Brand-agnostic room segmentation from the cumulative `cleaning_time` / `cleaning_area` counters — the fallback for brands with no native per-room signal |
+| `job_active_signal.py` | Presence probe + passive observation trace for `binary_sensor.<vac>_cleaning`, which HA 2026.7 stopped creating on some devices (issue #46) |
+| `contract_versions.py` | Mechanism-contract versions for mechanism-sensitive reproducers. ⚠ **Currently has zero importers** — either wire it or drop it |
+
 ### HA platform modules
 
 `binary_sensor.py`, `button.py`, `number.py`, `sensor/`,
