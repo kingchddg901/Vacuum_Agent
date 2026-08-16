@@ -299,13 +299,11 @@ class MaintenanceManager:
         from ..adapters.registry import get_adapter_config as _get_adapter_config
 
         object_id = vacuum_entity_id.split(".", 1)[1]
-        reset_cfg = (
+        all_components = (
             (_get_adapter_config(vacuum_entity_id) or {})
             .get("maintenance_components", {})
-            .get(component, {})
-            .get("reset_button")
-            or {}
         )
+        reset_cfg = (all_components.get(component, {}) or {}).get("reset_button") or {}
 
         registry = er.async_get(self._manager.hass)
         for suffix in reset_cfg.get("entity_suffixes", []):
@@ -315,10 +313,22 @@ class MaintenanceManager:
             if registry.async_get(entity_id) is not None:
                 return entity_id
 
+        # The same ownership guard the dock actions use. No reset component
+        # currently dominates another on either brand, so this arms nothing today —
+        # it is here because the reset tokens are the SAME shape as the dock ones
+        # and the next brand's vocabulary is not ours to predict.
+        rival_token_sets = [
+            tokens
+            for other, cfg in all_components.items()
+            if other != component
+            for tokens in ((cfg or {}).get("reset_button") or {}).get("token_sets", [])
+        ]
+
         for tokens in reset_cfg.get("token_sets", []):
             entity_id = self._manager._find_button_entity_by_tokens(
                 object_id=object_id,
                 required_tokens=tokens,
+                rival_token_sets=rival_token_sets,
             )
             if entity_id is not None and "maintenance" not in entity_id.lower():
                 return entity_id

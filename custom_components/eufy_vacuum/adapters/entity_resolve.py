@@ -145,6 +145,51 @@ def claimed_by(sibling_object_id: str, universe: "Iterable[str]") -> str | None:
     return best
 
 
+# REPLICA RNZM4AYY — the same ownership rule as `claimed_by` above, in the other
+# vocabulary. Suffix resolution asks "does a LONGER declared suffix also fit?";
+# token resolution has to ask "does a MORE SPECIFIC declared token set also fit?".
+# The two cannot share an implementation — one is string containment, the other is
+# set containment — so they are a replica set, not a helper. See 00c.
+def tokens_owned_elsewhere(
+    entity_id: str,
+    required_tokens: "Iterable[str]",
+    rival_token_sets: "Iterable[Iterable[str]]",
+) -> bool:
+    """True if a strictly MORE SPECIFIC declared token set also matches this id.
+
+    Token matching is loose — every token merely has to appear somewhere in the id
+    — so one action's tokens can be a SUBSET of another's and match the other's
+    button as well as its own. That is issue #49: ``dry_mop`` declares
+    ``["dry", "mop"]``, ``stop_dry_mop`` declares ``["stop", "dry", "mop"]``, and
+    on a device carrying both buttons ``dry_mop`` matches two ids, abstains, and
+    the user loses a control that plainly exists. The abstention is right; the
+    candidate list was wrong.
+
+    PROPER SUPERSET, not "larger". A rival only claims the id when it explains
+    everything ours does AND more, so the exclusion is provably justified rather
+    than a tiebreak: with ``{dry, mop} < {stop, dry, mop}`` the longer set matches
+    strictly fewer ids, and any id it matches it matches for a better reason. A
+    merely-different rival of the same size (``["stop", "dry"]``) leaves the
+    ambiguity in place, which is correct — we genuinely cannot tell.
+
+    Only rivals from OTHER keys should be passed in. An action whose own second
+    token set dominates its first (Eufy's ``swivel_wheel`` declares both
+    ``["reset", "swivel", "replacement"]`` and ``["reset", "swivel"]``) is not a
+    collision — the longer one is tried first and returns the same entity.
+    """
+    wanted = set(required_tokens or ())
+    if not wanted:
+        return False
+    lowered = entity_id.lower()
+    for rival in rival_token_sets or ():
+        rival_set = set(rival or ())
+        if not (wanted < rival_set):
+            continue
+        if all(token in lowered for token in rival_set):
+            return True
+    return False
+
+
 def rescue_by_suffix(
     siblings: "Iterable[str]",
     *,
@@ -386,10 +431,13 @@ def resolve_declared_entities(
 
     # anchor: RNZM4AYY  longest-suffix ownership test — the replica set
     #
-    # REPLICA. The same longest-declared-suffix rule is implemented separately in
-    # `capabilities.py::augment_candidates_from_device`. Both must agree, or a role
-    # resolves one way through the declared map and another way through the probe.
-    # See 00c. `python scripts/doc_anchor.py --show RNZM4AYY` lists both.
+    # REPLICA, three copies. The same rule — a candidate belongs to the declaration
+    # that explains the MOST of its name — is implemented separately in
+    # `capabilities.py::augment_candidates_from_device` (the probe's suffix universe)
+    # and in `tokens_owned_elsewhere` above (the button token sets). All three must
+    # agree, or a role resolves one way through the declared map and another way
+    # through the probe, and a button binds to a sibling that already has an owner.
+    # See 00c. `python scripts/doc_anchor.py --show RNZM4AYY` lists all three.
     def _claimed_by(object_id: str) -> str | None:
         return claimed_by(object_id, declared_suffixes)
 

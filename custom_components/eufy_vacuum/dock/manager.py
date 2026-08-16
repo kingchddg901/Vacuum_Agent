@@ -83,12 +83,12 @@ class DockManager:
         from ..adapters.registry import get_adapter_config as _get_adapter_config
 
         object_id = vacuum_entity_id.split(".", 1)[1]
-        action_cfg = (
+        all_actions = (
             (_get_adapter_config(vacuum_entity_id) or {})
             .get("dock_events", {})
             .get("action_buttons", {})
-            .get(action, {})
         )
+        action_cfg = all_actions.get(action, {})
 
         registry = er.async_get(self._hass)
         for suffix in action_cfg.get("entity_suffixes", []):
@@ -98,10 +98,22 @@ class DockManager:
             if registry.async_get(entity_id) is not None:
                 return entity_id
 
+        # Every OTHER action's tokens, so a button one of them already owns is not
+        # a candidate for this one (issue #49: `dry_mop` vs `stop_dry_mop`). Only
+        # other actions — a key whose own second token set dominates its first is
+        # not a collision, it is a fallback, and the longer one is tried first.
+        rival_token_sets = [
+            tokens
+            for other, cfg in all_actions.items()
+            if other != action
+            for tokens in (cfg or {}).get("token_sets", [])
+        ]
+
         for tokens in action_cfg.get("token_sets", []):
             entity_id = self._manager._find_button_entity_by_tokens(
                 object_id=object_id,
                 required_tokens=tokens,
+                rival_token_sets=rival_token_sets,
             )
             if entity_id is not None:
                 return entity_id

@@ -15,7 +15,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from ..adapters.entity_resolve import sweep_siblings
+from ..adapters.entity_resolve import sweep_siblings, tokens_owned_elsewhere
 from .capabilities import FROM_DERIVED
 from ..adapters.registry import (
     adapter_honors_clean_order,
@@ -1230,6 +1230,7 @@ class EufyVacuumManager:
         *,
         object_id: str,
         required_tokens: list[str],
+        rival_token_sets: "list[list[str]] | tuple[tuple[str, ...], ...]" = (),
     ) -> str | None:
         """Find a button entity for one vacuum by required tokens.
 
@@ -1255,6 +1256,11 @@ class EufyVacuumManager:
         ``"maintenance" not in entity_id`` substring filter is compensating for —
         a hack that exists because the registry-wide scan can see our own buttons
         and bind one as if it were upstream.
+
+        ``rival_token_sets`` carries the token sets declared by the caller's OTHER
+        actions, and arms the ownership guard (issue #49): a button already
+        explained by a strictly more specific declaration is not a candidate here.
+        Callers that pass nothing keep the old behaviour exactly.
         """
         registry = er.async_get(self.hass)
 
@@ -1264,6 +1270,12 @@ class EufyVacuumManager:
         # anywhere in the id"), so a widened scope without an abstention rule
         # would make a wrong bind MORE likely, not less. Two matches means we
         # cannot tell, and a confident wrong answer here presses the wrong button.
+        #
+        # OWNERSHIP FIRST, abstention second (issue #49). The abstention above was
+        # doing its job and still cost a user a working button: `dry_mop` matched
+        # both `_dry_mop` and `_stop_dry_mop`, so it correctly refused to guess.
+        # Dropping siblings that a more specific declaration already owns leaves
+        # exactly one, and the abstention rule is untouched.
         try:
             entry = registry.async_get(f"vacuum.{object_id}")
             if entry is not None:
@@ -1273,6 +1285,9 @@ class EufyVacuumManager:
                     for sibling in siblings
                     if sibling.lower().startswith("button.")
                     and all(token in sibling.lower() for token in required_tokens)
+                    and not tokens_owned_elsewhere(
+                        sibling, required_tokens, rival_token_sets
+                    )
                 ]
                 if len(matches) == 1:
                     return matches[0]
@@ -1287,13 +1302,23 @@ class EufyVacuumManager:
         # registers a correctly-named button without attaching it to the vacuum's
         # device OR config entry is found by name here and by nothing above. That
         # install works today, and a scope change alone would silently break it.
+        #
+        # The ownership guard matters MORE here than above, not less: this scan has
+        # no abstention at all — it returns the FIRST registry hit. Without the
+        # guard, a `dry_mop` lookup on a correctly-named install can return
+        # `_stop_dry_mop` outright, and which one wins depends on registry
+        # insertion order. Live installs are spared only because the exact-suffix
+        # lookup in the caller resolves first and this path never runs.
         prefix = f"button.{object_id}_".lower()
         for entry_ in registry.entities.values():
             entity_id = str(entry_.entity_id).lower()
             if not entity_id.startswith(prefix):
                 continue
-            if all(token in entity_id for token in required_tokens):
-                return entry_.entity_id
+            if not all(token in entity_id for token in required_tokens):
+                continue
+            if tokens_owned_elsewhere(entity_id, required_tokens, rival_token_sets):
+                continue
+            return entry_.entity_id
         return None
 
     def _get_registry_model_code(

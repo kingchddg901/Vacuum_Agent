@@ -69,19 +69,28 @@ consumer. **Declared at** `adapters/entity_resolve.py::rescue_by_translation_key
 
 *History: `ef810519` fixed two; `35ce560f` fixed the third, ten hours later.*
 
-### `RNZM4AYY` — longest-suffix ownership test · **2 copies**
+### `RNZM4AYY` — most-specific-declaration ownership test · **3 copies**
 
-The rule that the longest declared suffix claims a sibling exclusively, so `_cleaning_area`
-cannot swallow `_total_cleaning_area`.
+One rule: **a candidate belongs to the declaration that explains the most of its name.**
+The longest declared suffix claims a sibling exclusively, so `_cleaning_area` cannot
+swallow `_total_cleaning_area`.
 
-| Copy | Applies to |
-|---|---|
-| `entity_resolve.py` (inside `resolve_declared_entities`) | the declared entity map |
-| `capabilities.py` (inside `augment_candidates_from_device`) | the probe candidate lists |
+| Copy | Applies to | "Most" means |
+|---|---|---|
+| `entity_resolve.py` (inside `resolve_declared_entities`) | the declared entity map | longest suffix |
+| `capabilities.py` (inside `augment_candidates_from_device`) | the probe candidate lists | longest suffix |
+| `entity_resolve.py::tokens_owned_elsewhere` | the button token sets | proper superset |
 
-If they disagree, a role resolves one way through the declared map and another through the
-probe — and the wrong one binds a **lifetime counter** where a per-run value belongs. On
-live hardware that is 2.9 m² against 11,814 m², and nothing throws.
+The third copy is the one that shows why this is a replica set rather than a helper: it is
+the identical rule over a different vocabulary — **set** containment where the others use
+**string** containment — so no single function can serve all three, and the failure is not
+that they duplicate but that they can silently disagree.
+
+If the first two disagree, a role resolves one way through the declared map and another
+through the probe, and the wrong one binds a **lifetime counter** where a per-run value
+belongs. On live hardware that is 2.9 m² against 11,814 m², and nothing throws. The third
+was missing entirely until issue #49: `dry_mop`'s tokens are a subset of `stop_dry_mop`'s
+button id, so it matched two siblings, abstained, and a user lost a working control.
 
 **Declared at** `adapters/entity_resolve.py` (the copy whose comment carries the reasoning).
 

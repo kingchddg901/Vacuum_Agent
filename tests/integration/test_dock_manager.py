@@ -30,6 +30,9 @@ Coverage targets
 [DK-16] async_dry_mop / async_empty_dust / async_stop_dry_mop delegate.
 [DK-17] _get_dock_action_entity: token_sets fallback resolves a drift-named button.
 [DK-18] gating: job_active also covers an app-started (external) run.
+[DK-19] _get_dock_action_entity: all four actions resolve on a device whose buttons
+        do not share the vacuum's stem, including dry_mop against the stop_dry_mop
+        token collision (issue #49) -- the CALLER arms the ownership guard.
 """
 
 from __future__ import annotations
@@ -365,6 +368,56 @@ def test_get_action_entity_token_fallback(dock, hass):
     )
     assert dock._get_dock_action_entity(
         vacuum_entity_id=_VAC, action="wash_mop") == "button.alfred_station_wash_mop_now"
+
+
+def test_get_action_entity_dry_mop_survives_the_stop_dry_mop_collision(
+    dock, hass, manager, monkeypatch
+):
+    """[DK-19] issue #49, reproduced at ptruman's shape and through the real caller.
+
+    His vacuum is `vacuum.robovac_x10_pro_omni` while its buttons carry the
+    `living_room_eufy_clean_x10_pro_omni` stem, so the derived-suffix lookup misses
+    every action and the token fallback is what resolves them. Three resolved.
+    `dry_mop` did not -- its `["dry", "mop"]` also matches `_stop_dry_mop`, two
+    siblings matched, and it abstained. The button existed and was enabled the
+    whole time.
+
+    The vocabulary here is the REAL `buttons.py` data through the REAL adapter
+    builder, not a hand-written block: this bug IS the vocabulary, so a fixture
+    that invents its own tokens can only prove the guard runs, never that it
+    covers the shipped token sets.
+    """
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    from custom_components.eufy_vacuum.adapters.eufy.adapter import _build_button_blocks
+    from custom_components.eufy_vacuum.adapters.eufy.buttons import (
+        DOCK_ACTION_CANDIDATES,
+        DOCK_ACTION_TOKENS,
+    )
+    from custom_components.eufy_vacuum.core import manager as _mgr
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy_test", "source": "code",
+        "dock_events": {"action_buttons": _build_button_blocks(
+            DOCK_ACTION_CANDIDATES, DOCK_ACTION_TOKENS)},
+    })
+
+    stem = "button.living_room_eufy_clean_x10_pro_omni"
+    siblings = [f"{stem}_wash_mop", f"{stem}_dry_mop",
+                f"{stem}_stop_dry_mop", f"{stem}_empty_dust_bin"]
+    monkeypatch.setattr(_mgr, "sweep_siblings", lambda reg, entry: (siblings, 1))
+    # Faithful to his registry: the vacuum resolves, `button.alfred_*` does not --
+    # which is precisely why the token fallback is reached at all.
+    monkeypatch.setattr(
+        er.async_get(manager.hass), "async_get",
+        lambda eid: object() if eid == _VAC else None, raising=False)
+
+    assert dock.get_dock_action_entities(vacuum_entity_id=_VAC) == {
+        "wash_mop": f"{stem}_wash_mop",
+        "dry_mop": f"{stem}_dry_mop",
+        "stop_dry_mop": f"{stem}_stop_dry_mop",
+        "empty_dust": f"{stem}_empty_dust_bin",
+    }
 
 
 @pytest.mark.parametrize("method,action", [

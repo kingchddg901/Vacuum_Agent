@@ -22,6 +22,10 @@ Coverage targets
 [MD-8]  remaining manager seams + async job-control delegations forward without AttributeError.
 [MD-9]  async dock-action delegations forward to DockManager.
 [CMR-1] _find_button_entity_by_tokens: prefix-skip + all-tokens match + None miss.
+[CMR-1d] _find_button_entity_by_tokens: a sibling a MORE SPECIFIC declaration owns is
+        not a candidate here (issue #49, dry_mop vs stop_dry_mop).
+[CMR-1e] ...and the ownership rule is proper-superset only, so a merely-different
+        rival still abstains rather than being resolved by tiebreak.
 """
 
 from __future__ import annotations
@@ -307,6 +311,67 @@ def test_find_button_by_tokens_abstains_when_two_siblings_match(manager, monkeyp
 
     assert manager._find_button_entity_by_tokens(
         object_id="alfred", required_tokens=["main_brush", "reset"],
+    ) is None
+
+
+def test_find_button_by_tokens_skips_a_sibling_a_longer_declaration_owns(manager, monkeypatch):
+    """[CMR-1d] issue #49: the abstention was right, the candidate list was wrong.
+
+    ptruman's device carries BOTH `_dry_mop` and `_stop_dry_mop`. `dry_mop`
+    declares `["dry", "mop"]`, which is a SUBSET of `stop_dry_mop`'s
+    `["stop", "dry", "mop"]`, so it matched two siblings and refused to guess --
+    correctly, by [CMR-1c]. The user lost a button that exists and works.
+
+    `_stop_dry_mop` already has a rightful owner, so it is not a candidate here.
+    One match remains and the abstention rule is untouched.
+    """
+    from custom_components.eufy_vacuum.core import manager as _mgr
+
+    monkeypatch.setattr(_mgr, "sweep_siblings", lambda reg, entry: (
+        ["button.living_room_eufy_clean_x10_pro_omni_dry_mop",
+         "button.living_room_eufy_clean_x10_pro_omni_stop_dry_mop"], 2))
+    monkeypatch.setattr(
+        er.async_get(manager.hass), "async_get", lambda eid: object(), raising=False)
+
+    # Unarmed -- the shipped behaviour before the fix, pinned so the guard is
+    # shown to be what changes the answer rather than the fixture.
+    assert manager._find_button_entity_by_tokens(
+        object_id="alfred", required_tokens=["dry", "mop"],
+    ) is None
+
+    assert manager._find_button_entity_by_tokens(
+        object_id="alfred", required_tokens=["dry", "mop"],
+        rival_token_sets=[["stop", "dry", "mop"]],
+    ) == "button.living_room_eufy_clean_x10_pro_omni_dry_mop"
+
+    # The owner itself is unaffected: nothing is more specific than it.
+    assert manager._find_button_entity_by_tokens(
+        object_id="alfred", required_tokens=["stop", "dry", "mop"],
+        rival_token_sets=[["dry", "mop"]],
+    ) == "button.living_room_eufy_clean_x10_pro_omni_stop_dry_mop"
+
+
+def test_find_button_by_tokens_still_abstains_for_a_rival_that_is_merely_different(
+    manager, monkeypatch
+):
+    """[CMR-1e] PROPER SUPERSET, not "bigger" -- the guard does not become a tiebreak.
+
+    A rival of equal or unrelated specificity explains no more of the id than we
+    do, so the ambiguity is real and abstaining is still the right answer. Without
+    this, the fix for [CMR-1d] would quietly convert every two-way collision into
+    a confident guess -- the exact failure [CMR-1c] exists to prevent.
+    """
+    from custom_components.eufy_vacuum.core import manager as _mgr
+
+    monkeypatch.setattr(_mgr, "sweep_siblings", lambda reg, entry: (
+        ["button.dock_a_stop_dry_mop", "button.dock_b_stop_dry_mop"], 2))
+    monkeypatch.setattr(
+        er.async_get(manager.hass), "async_get", lambda eid: object(), raising=False)
+
+    assert manager._find_button_entity_by_tokens(
+        object_id="alfred", required_tokens=["dry", "mop"],
+        # overlapping and larger, but NOT a superset of ["dry", "mop"]
+        rival_token_sets=[["stop", "dry"], ["dry", "mop"]],
     ) is None
 
 
