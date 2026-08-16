@@ -35,6 +35,7 @@ from custom_components.eufy_vacuum.const import (
     EVENT_JOB_FINISHED,
     EVENT_RUN_INCOMPLETE,
 )
+from custom_components.eufy_vacuum.core.manager import _INFLIGHT_LIFECYCLE_STATES
 from custom_components.eufy_vacuum.services.job_control import (
     _handle_cancel_active_job,
     _handle_clear_active_job,
@@ -149,22 +150,30 @@ def _call(**extra):
 
 
 # ---------------------------------------------------------------------------
-# RP-010/RF-06 (JOB-2): start_zone_clean consults get_start_status first
+# RP-010/RF-06 (JOB-2): start_zone_clean must not stack a second dispatch
 # ---------------------------------------------------------------------------
 
-_INFLIGHT_REASONS = ["job_paused", "active_job_running", "mid_job_service", "vacuum_busy"]
+# DERIVED, never hand-copied. The previous version of this list was four literal
+# strings typed out beside a production frozenset of the same four strings, fed
+# into a MagicMock. Fixture and implementation agreed with each other, and NEITHER
+# was ever compared against the real producer -- which is how a guard that never
+# fired during a real run passed a parametrized test for every reason it accepts.
+_INFLIGHT_REASONS = sorted(_INFLIGHT_LIFECYCLE_STATES | {"job_paused"})
 
 
 @pytest.mark.parametrize("reason", _INFLIGHT_REASONS)
 async def test_zone_clean_refuses_when_job_in_progress(jc, reason):
-    """[JCW-12] start_zone_clean bypassed every lifecycle gate before RP-010 -- a
-    job already running/paused/being-serviced let a zone clean stack a second
-    dispatch on top of it. Refuses (Q9-shaped: flags, not a raised exception)
-    for each of the four in-flight reasons get_start_status can report."""
+    """[JCW-12] a job already running/paused/being-serviced must not let a zone
+    clean stack a second dispatch on top of it. Refuses Q9-shaped (flags, not a
+    raised exception) for every in-flight reason the manager can report."""
     hass, mgr = jc
-    mgr.get_start_status = MagicMock(
-        return_value={"blocked": True, "reason": reason, "message": "busy"}
-    )
+    # `.return_value` on the SPEC'd attribute, not a bare MagicMock assignment:
+    # spec_manager() is autospec'd from the real manager, so this also proves
+    # get_job_inflight_state exists there with this signature. A bare mock would
+    # happily stand in for a method that had been renamed out from under it --
+    # which is the same class of blindness that hid this bug in the first place.
+    mgr.get_job_inflight_state.return_value = {
+        "in_flight": True, "reason": reason, "message": "busy"}
     mgr.dispatch_zone_clean.return_value = {"success": True}
 
     result = await _handle_start_zone_clean(
@@ -180,15 +189,16 @@ async def test_zone_clean_refuses_when_job_in_progress(jc, reason):
     mgr.dispatch_zone_clean.assert_not_awaited()
 
 
-async def test_zone_clean_ignores_non_inflight_block_reasons(jc):
-    """[JCW-13] a blocked-but-not-in-flight reason (onboarding_required,
-    no_target_map, etc. -- ROOM-QUEUE readiness that never applied to a
-    zones-based dispatch) must NOT newly block zone clean; only the four
-    in-flight reasons do."""
+async def test_zone_clean_ignores_room_queue_readiness(jc):
+    """[JCW-13] ROOM-QUEUE readiness (onboarding, no target map, nothing selected)
+    never applied to a zones-based dispatch and must not newly block it. The zone
+    path asks the in-flight question ONLY, so a not-in-flight answer dispatches
+    however unready the room queue is."""
     hass, mgr = jc
-    mgr.get_start_status = MagicMock(
-        return_value={"blocked": True, "reason": "onboarding_required", "message": "x"}
-    )
+    mgr.get_job_inflight_state.return_value = {
+        "in_flight": False, "reason": "", "message": ""}
+    mgr.get_start_status.return_value = {
+        "blocked": True, "reason": "onboarding_required", "message": "x"}
     mgr.dispatch_zone_clean.return_value = {"success": True, "zones_dispatched": 1}
 
     result = await _handle_start_zone_clean(
@@ -197,13 +207,54 @@ async def test_zone_clean_ignores_non_inflight_block_reasons(jc):
 
     mgr.dispatch_zone_clean.assert_awaited_once()
     assert result == {"success": True, "zones_dispatched": 1}
+    # The refusal ladder is not consulted at all any more: it answers a different
+    # question, and reading its message as a control signal is what broke this.
+    mgr.get_start_status.assert_not_called()
+
+
+async def test_inflight_state_sees_a_started_job_that_start_status_reports_as_empty(
+    manager,
+):
+    """[JCW-15] THE REGRESSION. Drives the REAL producer, no MagicMock anywhere.
+
+    A tracked run is in flight the moment its record says `started`. The old guard
+    could not see that, because it read `get_start_status`'s refusal STRING, and
+    `start_selected_rooms` clears the room selection right after dispatching --
+    so during a run the ladder answers `no_rooms_selected` (queue readiness) from
+    above every lifecycle branch, and `active_job_running` is nearly unreachable.
+
+    Both halves are asserted together deliberately. The first pins the shadowing
+    that made the old approach unsound, so nobody "fixes" it back to reading the
+    reason string; the second is the guarantee the zone-clean guard now rests on.
+    """
+    manager.data.setdefault("active_jobs", {})[_VAC] = {
+        _MAP: {"status": "started", "map_id": _MAP, "vacuum_entity_id": _VAC}
+    }
+
+    # The old signal, still shadowed -- this is the bug, pinned.
+    start_status = manager.get_start_status(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert start_status.get("reason") != "active_job_running"
+
+    # The new signal, which asks the question it actually means.
+    inflight = manager.get_job_inflight_state(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert inflight["in_flight"] is True
+    assert inflight["reason"] == "active_job_running"
+
+
+async def test_inflight_state_is_false_with_no_job(manager):
+    """[JCW-16] the other direction: no active job and an idle vacuum is not in
+    flight, so a zone clean is never refused on a quiet system."""
+    inflight = manager.get_job_inflight_state(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert inflight["in_flight"] is False
+    assert inflight["reason"] == ""
 
 
 async def test_zone_clean_proceeds_when_ready(jc):
-    """[JCW-14] sanity: a ready (not blocked) start status dispatches normally --
-    the documented no-tracking/fire-and-forget semantics are unchanged."""
+    """[JCW-14] sanity: nothing in flight dispatches normally -- the documented
+    no-tracking/fire-and-forget semantics are unchanged."""
     hass, mgr = jc
-    mgr.get_start_status.return_value = {"blocked": False, "reason": "ready"}
+    mgr.get_job_inflight_state.return_value = {
+        "in_flight": False, "reason": "", "message": ""}
     mgr.dispatch_zone_clean.return_value = {"success": True, "zones_dispatched": 1}
 
     result = await _handle_start_zone_clean(

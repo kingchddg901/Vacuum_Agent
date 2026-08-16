@@ -1536,8 +1536,25 @@ class LearningJobFinalizer:
 
         duration_minutes = max((ended_dt - started_dt).total_seconds() / 60.0, 0.0)
         resolved_rooms = active_job_state.get("resolved_rooms", [])
-        if not isinstance(resolved_rooms, list) or len(resolved_rooms) != 1:
+        if not isinstance(resolved_rooms, list) or not resolved_rooms:
             return {"cancel_likely": False, "reason": "not_single_room"}
+        room_count = len(resolved_rooms)
+        # THE ROOM-COUNT GATE MOVED DOWN, to just above the estimate comparison.
+        #
+        # It used to sit here and bail on anything but one room, which meant a
+        # multi-room queue aborted from the vendor app was never examined at all:
+        # archived `completed`, `used_for_learning: True`, and
+        # `_update_trouble_rooms_log` then credited EVERY queued room with a fresh
+        # `last_cleaned_at`. The more rooms the user aborted, the more confidently
+        # the system recorded them as cleaned. The narrow case was the only one
+        # defended, and the wide one caused the most damage.
+        #
+        # Only the ESTIMATE comparison is genuinely single-room: it reads
+        # `room_timeline[0]` and compares the WHOLE run against that ONE room's
+        # expected minutes, which for a multi-room queue is not a threshold that
+        # means anything. The absolute floor below needs no estimate, and it gets
+        # STRONGER with room count, not weaker — more rooms is more reason to
+        # disbelieve a 30-second clean, never less.
 
         transitions = [
             dict(entry)
@@ -1632,6 +1649,7 @@ class LearningJobFinalizer:
                 "cancel_likely": True,
                 "reason": "floor_time_too_short",
                 "source": source,
+                "room_count": room_count,
                 "duration_minutes": round(duration_minutes, 2),
                 "actual_cleaning_minutes": round(actual_cleaning_minutes, 2),
                 "floor_threshold_minutes": _MIN_FLOOR_MINUTES,
@@ -1639,6 +1657,21 @@ class LearningJobFinalizer:
                     f"Actual floor time ({actual_cleaning_minutes:.2f} min) is below the "
                     f"minimum credible clean ({_MIN_FLOOR_MINUTES} min) — likely a false start."
                 ),
+            }
+
+        # Past the floor, and the only remaining test is the estimate comparison,
+        # which reads room_timeline[0] — one room's expected minutes. Comparing a
+        # multi-room run's duration against that would flag ordinary runs as
+        # cancels, so a multi-room run that survived the floor is left alone.
+        # `not_single_room` keeps its existing meaning ("detection currently only
+        # applies to single-room jobs") and its existing translations in all 18
+        # locale packs; this path deliberately introduces no new user-facing string.
+        if room_count != 1:
+            return {
+                "cancel_likely": False,
+                "reason": "not_single_room",
+                "room_count": room_count,
+                "duration_minutes": round(duration_minutes, 2),
             }
 
         expected_room_minutes = 0.0

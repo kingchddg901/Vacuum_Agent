@@ -46,7 +46,13 @@ Coverage targets
 [LS-38] used_for_learning=False filter prunes results (manager line 927-928).
 [LS-39] async_preload_learning_stats is a no-op when stats are already cached (lines 311-312).
 [LS-40] _detect_cancel_likely_run: unparseable timestamps → missing_timestamps.
-[LS-41] _detect_cancel_likely_run: multi-room job → not_single_room.
+[LS-41] _detect_cancel_likely_run: multi-room past the floor → not_single_room
+        (only the ESTIMATE comparison is single-room; it reads room_timeline[0]).
+[LS-41b] _detect_cancel_likely_run: MULTI-ROOM aborted under the absolute floor is
+        now caught — it used to bail before any test and archive as a clean
+        completion, crediting every queued room with a fresh last_cleaned_at.
+[LS-41c] ...and the service-return exclusion still wins for multi-room, so a mid-run
+        mop wash or low-battery dock is not newly archived as a cancel.
 [LS-42] _detect_cancel_likely_run: no state_transitions → no_transition_history.
 [LS-43] _detect_cancel_likely_run: adapter without task_status entity → no_task_status_entity.
 [LS-44] _detect_cancel_likely_run: exclusion-vocab to_state → service_state_explains_return.
@@ -2915,15 +2921,99 @@ async def test_cancel_detection_missing_timestamps(hass, learning_services):
     assert result["reason"] == "missing_timestamps"
 
 
-async def test_cancel_detection_not_single_room(hass, learning_services):
-    """[LS-41] A job with more than one resolved room is ineligible."""
+async def test_cancel_detection_multi_room_is_ineligible_for_the_ESTIMATE_test(
+    hass, learning_services
+):
+    """[LS-41] Multi-room is ineligible for the ESTIMATE comparison only.
+
+    The estimate reads `room_timeline[0]` -- ONE room's expected minutes -- so
+    comparing a whole multi-room run against it is not a threshold that means
+    anything. A multi-room run that clears the absolute floor is therefore left
+    alone, and keeps the `not_single_room` reason it has always reported (whose
+    text and 18 translations stay accurate).
+    """
+    _register_cancel_adapter()
     result = _run_cancel_detection(
         hass, learning_services,
-        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:00:30+00:00",
-        active_job_state={"resolved_rooms": [{"room_id": 1}, {"room_id": 2}]},
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:05:00+00:00",
+        active_job_state={
+            "resolved_rooms": [{"room_id": 1}, {"room_id": 2}],
+            "state_transitions": [
+                {"entity_id": _TASK_STATUS_ENTITY, "from_state": "cleaning",
+                 "to_state": "returning", "changed_at": "2026-01-01T09:03:00+00:00"},
+            ],
+        },
     )
     assert result["cancel_likely"] is False
     assert result["reason"] == "not_single_room"
+    assert result["room_count"] == 2
+
+
+async def test_cancel_detection_multi_room_aborted_under_the_floor_is_caught(
+    hass, learning_services
+):
+    """[LS-41b] THE REGRESSION: a multi-room queue aborted seconds after dispatch.
+
+    This used to bail on `len(resolved_rooms) != 1` before any test ran, so the
+    run archived `completed` / `used_for_learning: True` -- and
+    `_update_trouble_rooms_log` then credited EVERY queued room with a fresh
+    `last_cleaned_at`. The more rooms the user aborted, the more confidently the
+    system recorded them as cleaned, and the learning store trained on a
+    30-second "clean" of a full queue. The single-room case was the only one
+    defended and it was the one that did least harm.
+
+    The absolute floor needs no estimate, and three rooms in 10 seconds is MORE
+    absurd than one room in 10 seconds, not less.
+    """
+    _register_cancel_adapter()
+    result = _run_cancel_detection(
+        hass, learning_services,
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:00:30+00:00",
+        active_job_state={
+            "resolved_rooms": [{"room_id": 1}, {"room_id": 2}, {"room_id": 3}],
+            "state_transitions": [
+                {"entity_id": _TASK_STATUS_ENTITY, "from_state": "cleaning",
+                 "to_state": "returning", "changed_at": "2026-01-01T09:00:10+00:00"},
+            ],
+        },
+    )
+    assert result["cancel_likely"] is True
+    assert result["reason"] == "floor_time_too_short"
+    assert result["source"] == "app_or_manual_return"
+    assert result["room_count"] == 3
+
+
+async def test_cancel_detection_multi_room_service_return_is_still_excluded(
+    hass, learning_services
+):
+    """[LS-41c] Widening the gate must not swallow the service-return exclusion.
+
+    A multi-room run that goes to dock for a mop wash or low battery is NOT a
+    cancel, and that exclusion sits above the floor check. If letting multi-room
+    runs through had bypassed it, every mid-run service dock on a multi-room
+    queue would newly archive as cancelled -- the exact over-correction this
+    guards against.
+    """
+    # `mop_washing` is declared into the adapter's OWN exclusion vocabulary, the
+    # same way [LS-44] does it -- not invented here. An exclusion state the
+    # adapter does not declare is just an unrecognised string, and the test would
+    # pass through `no_cancel_like_transition` while appearing to prove exclusion.
+    _register_cancel_adapter(exclusions=["mop_washing"])
+    result = _run_cancel_detection(
+        hass, learning_services,
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:00:30+00:00",
+        active_job_state={
+            "resolved_rooms": [{"room_id": 1}, {"room_id": 2}],
+            "state_transitions": [
+                {"entity_id": _TASK_STATUS_ENTITY, "from_state": "cleaning",
+                 "to_state": "mop_washing", "changed_at": "2026-01-01T09:00:05+00:00"},
+                {"entity_id": _TASK_STATUS_ENTITY, "from_state": "cleaning",
+                 "to_state": "returning", "changed_at": "2026-01-01T09:00:10+00:00"},
+            ],
+        },
+    )
+    assert result["cancel_likely"] is False
+    assert result["reason"] == "service_state_explains_return"
 
 
 async def test_cancel_detection_no_transition_history(hass, learning_services):

@@ -92,7 +92,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 | `custom_components/eufy_vacuum/listeners/path_blockers.py:208` | `_process` | builder `job_finished_event_data()` | `path_block_action == 'cancel_and_event'` ⟶ `bool((action_result or {}).get('cancelled'))` |
 | `custom_components/eufy_vacuum/listeners/pause_timeout.py:125` | `_reap_one_slot` | builder `job_finished_event_data()` | `isinstance(timeout_report, dict)` ⟶ `bool(result.get('cancelled'))` |
 | `custom_components/eufy_vacuum/listeners/pause_timeout.py:164` | `_reap_one_slot` | builder `job_finished_event_data()` | `isinstance(stranded_report, dict)` ⟶ `bool(result.get('finalized'))` |
-| `custom_components/eufy_vacuum/services/job_control.py:265` | `_handle_cancel_active_job` | builder `job_finished_event_payload()` | `payload.get('cancelled')` |
+| `custom_components/eufy_vacuum/services/job_control.py:270` | `_handle_cancel_active_job` | builder `job_finished_event_payload()` | `payload.get('cancelled')` |
 
 ## eufy_vacuum_job_progress_tick
 
@@ -253,7 +253,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 
 | Location | Enclosing | Payload built by | Nearest guards |
 |---|---|---|---|
-| `custom_components/eufy_vacuum/core/manager.py:6793` | `EufyVacuumManager.start_selected_rooms` | dict literal at the call site | `active_job.get('current_room_id') not in (None, '')` |
+| `custom_components/eufy_vacuum/core/manager.py:6874` | `EufyVacuumManager.start_selected_rooms` | dict literal at the call site | `active_job.get('current_room_id') not in (None, '')` |
 | `custom_components/eufy_vacuum/jobs/active_job.py:1571` | `ActiveJobTracker._apply_room_rollover` | dict literal at the call site | `next_room_id >= 0` |
 | `custom_components/eufy_vacuum/jobs/active_job.py:1784` | `ActiveJobTracker._set_native_current_room` | dict literal at the call site | — |
 
@@ -283,7 +283,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 | `custom_components/eufy_vacuum/listeners/path_blockers.py:223` | `_process` | local `run_incomplete`: builder `run_incomplete_event_data()` | `path_block_action == 'cancel_and_event'` ⟶ `bool((action_result or {}).get('cancelled'))` ⟶ `run_incomplete is not None` |
 | `custom_components/eufy_vacuum/listeners/pause_timeout.py:140` | `_reap_one_slot` | local `run_incomplete`: builder `run_incomplete_event_data()` | `isinstance(timeout_report, dict)` ⟶ `bool(result.get('cancelled'))` ⟶ `run_incomplete is not None` |
 | `custom_components/eufy_vacuum/listeners/pause_timeout.py:181` | `_reap_one_slot` | local `run_incomplete`: builder `run_incomplete_event_data()` | `isinstance(stranded_report, dict)` ⟶ `bool(result.get('finalized'))` ⟶ `run_incomplete is not None` |
-| `custom_components/eufy_vacuum/services/job_control.py:281` | `_handle_cancel_active_job` | local `run_incomplete`: builder `run_incomplete_event_payload()` | `payload.get('cancelled')` ⟶ `run_incomplete is not None` |
+| `custom_components/eufy_vacuum/services/job_control.py:286` | `_handle_cancel_active_job` | local `run_incomplete`: builder `run_incomplete_event_payload()` | `payload.get('cancelled')` ⟶ `run_incomplete is not None` |
 
 ## eufy_vacuum_stall_captured
 
@@ -341,14 +341,14 @@ These keys are not written at the fire site. The firing helper extends its paylo
 
 | Discriminator | Keys | Passed at |
 |---|---|---|
-| `trigger='area'` | `window_minutes`, `progress_m2`, `min_progress_m2` | `custom_components/eufy_vacuum/core/manager.py:4686` |
-| `trigger='error'` | `error_code`, `error_message` | `custom_components/eufy_vacuum/core/manager.py:4645` |
+| `trigger='area'` | `window_minutes`, `progress_m2`, `min_progress_m2` | `custom_components/eufy_vacuum/core/manager.py:4767` |
+| `trigger='error'` | `error_code`, `error_message` | `custom_components/eufy_vacuum/core/manager.py:4726` |
 
 ### Fire sites
 
 | Location | Enclosing | Payload built by | Nearest guards |
 |---|---|---|---|
-| `custom_components/eufy_vacuum/core/manager.py:4797` | `EufyVacuumManager._fire_stuck_event` | local `payload`: dict literal at line 4789; extended by the caller via `detail=` | — |
+| `custom_components/eufy_vacuum/core/manager.py:4878` | `EufyVacuumManager._fire_stuck_event` | local `payload`: dict literal at line 4870; extended by the caller via `detail=` | — |
 | `custom_components/eufy_vacuum/jobs/active_job.py:1160` | `ActiveJobTracker.detect_run_anomalies` | dict literal at the call site | `_stall_threshold > 0 and current_room_elapsed_minutes >= _stall_threshold * _STALL_RATIO` ⟶ `emit` ⟶ `current_room_id not in _notified` |
 | `custom_components/eufy_vacuum/services/stall_capture.py:152` | `_dev_inject_stall` | local `payload`: dict literal at line 129 | — |
 

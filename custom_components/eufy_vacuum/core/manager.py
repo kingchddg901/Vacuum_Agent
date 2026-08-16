@@ -126,6 +126,20 @@ _HA_ACTIVE_VACUUM_STATES: frozenset[str] = frozenset({
     "paused",     # HA standard
     "error",      # HA standard
 })
+#: The two halves of "a job is already happening here" — see
+#: ``EufyVacuumManager.get_job_inflight_state``. A TRACKED run is in flight by its
+#: own status regardless of the robot's posture; an UNTRACKED (app-started) run has
+#: no record, so the vacuum's lifecycle is the only thing that sees it.
+#:
+#: ``dock_drying`` is deliberately absent: drying is not a job, and treating it as
+#: one would refuse for hours after a run. ``ready`` and ``map_mismatch`` are not
+#: in-flight conditions at all.
+_INFLIGHT_ACTIVE_JOB_STATUSES: frozenset[str] = frozenset({"started", "paused"})
+_INFLIGHT_LIFECYCLE_STATES: frozenset[str] = frozenset({
+    "active_job_running",
+    "mid_job_service",
+    "vacuum_busy",
+})
 _PATH_BLOCK_ACTIONS = frozenset(
     {"event_only", "pause_and_event", "cancel_and_event"}
 )
@@ -3626,6 +3640,73 @@ class EufyVacuumManager:
                 else False
             ),
         }
+
+    def get_job_inflight_state(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> dict[str, Any]:
+        """Is a job ALREADY HAPPENING on this vacuum? A control signal, not a message.
+
+        Separate from ``get_start_status`` on purpose. That answers "may the user
+        start a room clean from here?", which is mostly QUEUE READINESS — is a map
+        selected, are rooms enabled, is the payload sane — and it answers with a
+        string written for a human to read.
+
+        Reusing that string as an in-flight test was wrong, and wrong in the
+        dangerous direction. ``start_selected_rooms`` clears the room selection
+        after dispatching (``_clear_room_selections_after_start``), and
+        ``get_start_status`` re-derives the queue from live ``enabled`` flags on
+        every call — so the moment a run begins, the queue is EMPTY and the ladder
+        in ``build_start_blocker_from_lifecycle`` returns ``no_rooms_selected``
+        from above every lifecycle branch. A caller matching on
+        ``active_job_running`` therefore saw the one reason that a running job can
+        almost never produce, and let a second dispatch through to a moving robot.
+
+        Reordering that ladder is NOT the fix: during a mid-run ``dock_drying``
+        the reordered version returns ``blocked: False``, i.e. start would read as
+        ALLOWED mid-run. The refusal ladder and the in-flight question want
+        different answers, so they get different functions.
+
+        A TRACKED run counts by its own status, whatever posture the robot is in —
+        a mid-run recharge or inter-phase dock reads ``ready`` through
+        ``evaluate_job_lifecycle`` while the job is very much still in flight.
+        An UNTRACKED run (started from the vendor app) has no record, so the
+        vacuum's own lifecycle is what sees it.
+
+        ``dock_drying`` is deliberately NOT in flight: drying is not a job, and
+        blocking on it would refuse a zone clean for up to a few hours after a run.
+        """
+        active_job = self.get_active_job(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+        status = str(active_job.get("status") or "").strip().lower()
+        if status in _INFLIGHT_ACTIVE_JOB_STATUSES:
+            return {
+                "in_flight": True,
+                "reason": "job_paused" if status == "paused" else "active_job_running",
+                "message": (
+                    "A room-clean job is paused on this vacuum."
+                    if status == "paused"
+                    else "A room-clean job is currently active on this vacuum."
+                ),
+            }
+
+        lifecycle = self.get_lifecycle_state(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+        state = str(lifecycle.get("lifecycle_state") or "").strip().lower()
+        if state in _INFLIGHT_LIFECYCLE_STATES:
+            return {
+                "in_flight": True,
+                "reason": state,
+                "message": str(lifecycle.get("message") or ""),
+            }
+
+        return {"in_flight": False, "reason": "", "message": ""}
 
     def get_start_status(
         self,

@@ -183,15 +183,23 @@ async def _handle_start_run_profile(hass: HomeAssistant, call: ServiceCall) -> d
     return payload
 
 
-#: RP-010/RF-06 (JOB-2): get_start_status's blocker evaluation covers a lot of
-#: ROOM-QUEUE readiness (no_target_map, onboarding, all_selected_rooms_blocked)
-#: that a zone clean's own zones-based dispatch never depended on and must not
-#: newly acquire. Only these reasons mean "a job is already happening on this
-#: vacuum" — the in-flight condition a zone clean must not stack a second
-#: dispatch on top of.
-_ZONE_CLEAN_INFLIGHT_BLOCK_REASONS = frozenset(
-    {"job_paused", "active_job_running", "mid_job_service", "vacuum_busy"}
-)
+#: RP-010/RF-06 (JOB-2): a zone clean must not stack a second dispatch on a job
+#: already in flight, but it must NOT newly acquire the room-queue readiness gates
+#: (no_target_map, onboarding, all_selected_rooms_blocked) that its own zones-based
+#: dispatch never depended on.
+#:
+#: This was a whitelist of get_start_status REASON STRINGS, and it did not work.
+#: Those strings answer "may the user start a room clean?", and the very first
+#: thing start_selected_rooms does after dispatching is CLEAR the room selection —
+#: so during a run the reason is `no_rooms_selected`, not `active_job_running`, and
+#: this guard let the second dispatch straight through to a moving robot. The
+#: parametrized test could not see it: it MagicMocked get_start_status and fed the
+#: four strings in from a hand-copied list, so fixture and implementation agreed
+#: with each other and neither was ever checked against the real producer.
+#:
+#: The in-flight question now has its own answer:
+#: `EufyVacuumManager.get_job_inflight_state`. Ask a question, don't parse a
+#: sentence written for a human.
 
 
 async def _handle_start_zone_clean(hass: HomeAssistant, call: ServiceCall) -> dict:
@@ -209,19 +217,16 @@ async def _handle_start_zone_clean(hass: HomeAssistant, call: ServiceCall) -> di
     fire-and-forget semantics are unchanged.
     """
     resolved = resolved_call_data(hass, call)
-    start_status = get_manager(hass).get_start_status(
+    inflight = get_manager(hass).get_job_inflight_state(
         vacuum_entity_id=resolved.get("vacuum_entity_id"),
         map_id=resolved.get("map_id"),
     )
-    if (
-        start_status.get("blocked")
-        and start_status.get("reason") in _ZONE_CLEAN_INFLIGHT_BLOCK_REASONS
-    ):
+    if inflight.get("in_flight"):
         return {
             "success": False,
             "reason": "job_in_progress",
-            "start_status_reason": start_status.get("reason"),
-            "message": start_status.get("message"),
+            "start_status_reason": inflight.get("reason"),
+            "message": inflight.get("message"),
         }
 
     try:
