@@ -371,6 +371,75 @@ def test_tk1_a_localized_id_is_rescued_by_its_translation_key(monkeypatch):
     assert report["filter_time_left"]["via"] == "translation_key"
 
 
+def test_tk1b_a_role_whose_upstream_key_is_not_its_slug(monkeypatch):
+    """[TK-1b] issue #51: the wanted key may be DECLARED when it differs from the suffix.
+
+    The rescue derives its wanted key from the declared suffix, on the reasoning that
+    for every provider that sets one, the key IS the English slug we wrote the
+    declaration from. Roborock's job_active breaks that by one word: we declare
+    `_cleaning`, deriving `cleaning`; upstream publishes `in_cleaning`. On a localized
+    install the id is `binary_sensor.<vid>_reinigen`, so no suffix reaches it either
+    and the role resolves to nothing.
+
+    It is not a missing sensor. `require_job_active_clear` makes that entity the single
+    signal that arms completion, so unresolved it meant every run was reaped as
+    `interrupted` about ten minutes after dispatch, sometimes mid-clean.
+
+    The seam was anticipated in the source comment ("a brand whose key differs from its
+    slug can declare one explicitly later") and never built. This is it.
+    """
+    ids = ["binary_sensor.rq_reinigen"]
+    hass = _install(
+        monkeypatch,
+        present=set(ids),
+        registry_ids=ids,
+        keys={"binary_sensor.rq_reinigen": "in_cleaning"},
+    )
+    entities = {"job_active": "binary_sensor.alfred_cleaning"}
+
+    # Without the declaration the derived key is "cleaning" -> no match, role unrescued.
+    unrescued, _ = resolve_declared_entities(hass, "vacuum.alfred", dict(entities))
+    assert unrescued["job_active"] == "binary_sensor.alfred_cleaning"
+
+    # With it, the role binds to the German entity.
+    resolved, report = resolve_declared_entities(
+        hass, "vacuum.alfred", dict(entities),
+        translation_keys={"job_active": "in_cleaning"},
+    )
+    assert resolved["job_active"] == "binary_sensor.rq_reinigen"
+    assert report["job_active"]["via"] == "translation_key"
+
+
+def test_tk1c_a_declared_key_only_covers_its_own_role(monkeypatch):
+    """[TK-1c] the override is per-ROLE, and every other role keeps the suffix default.
+
+    A blanket key would be worse than none: it would let one brand's exception rewrite
+    the wanted key for roles that were resolving correctly.
+    """
+    ids = ["binary_sensor.rq_reinigen", "sensor.rq_verbleibende_filterzeit"]
+    hass = _install(
+        monkeypatch,
+        present=set(ids),
+        registry_ids=ids,
+        keys={
+            "binary_sensor.rq_reinigen": "in_cleaning",
+            "sensor.rq_verbleibende_filterzeit": "filter_time_left",
+        },
+    )
+    entities = {
+        "job_active": "binary_sensor.alfred_cleaning",
+        "filter_time_left": "sensor.alfred_filter_time_left",
+    }
+
+    resolved, _ = resolve_declared_entities(
+        hass, "vacuum.alfred", entities,
+        translation_keys={"job_active": "in_cleaning"},
+    )
+    assert resolved["job_active"] == "binary_sensor.rq_reinigen"
+    # Untouched by the override, rescued by its own suffix-derived key.
+    assert resolved["filter_time_left"] == "sensor.rq_verbleibende_filterzeit"
+
+
 def test_tk2_the_suffix_path_still_wins(monkeypatch):
     """[TK-2] Ordering is the safety property: only a role that would resolve to
     NOTHING may reach the translation-key path, so no working install can move."""

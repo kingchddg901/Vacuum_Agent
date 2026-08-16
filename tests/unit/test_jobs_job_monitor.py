@@ -441,6 +441,42 @@ def test_not_stranded_when_not_armed():
     assert is_stranded_started(**_stranded_kwargs(has_observed_active_lifecycle=False)) is False
 
 
+def test_unarmed_but_completed_is_not_stranded():
+    """[JM-35b] issue #51: an unarmed run that plainly FINISHED must not be reaped.
+
+    The never-armed branch returned before every "is the run actually over?" test —
+    including the completion escape at the bottom — so a run that never armed could
+    not be rescued by actually completing. Fine while arming is reliable; on a
+    localized install Roborock's `job_active` role did not resolve, arming never
+    happened, and EVERY run was reaped as `interrupted` at the 10-minute mark,
+    sometimes mid-clean.
+
+    The root cause is fixed in the adapter (it now declares the upstream
+    translation_key). This is defence in depth: arming can fail for reasons we have
+    not met, and the reaper must not turn "we did not see the start" into "the run
+    was interrupted" while the robot sits reporting completion.
+    """
+    assert is_stranded_started(**_stranded_kwargs(
+        has_observed_active_lifecycle=False,
+        task_status="completed",              # the brand's completion value
+        dispatched_seconds_ago=99_999,        # long past NEVER_STARTED_SECONDS
+    )) is False
+
+
+def test_unarmed_and_not_completed_is_still_stranded():
+    """[JM-35c] the escape is narrow — a genuinely never-started run still reaps.
+
+    Same shape as JM-35b but task_status never reached the completion value, which is
+    the case the never-started rule exists for. Without this the fix would be a
+    licence for stale dispatched records to live forever.
+    """
+    assert is_stranded_started(**_stranded_kwargs(
+        has_observed_active_lifecycle=False,
+        task_status="charging",               # NOT the completion value
+        dispatched_seconds_ago=99_999,
+    )) is True
+
+
 def test_not_stranded_when_paused():
     """[JM-36] paused is owned by the pause-timeout reaper, not this."""
     assert is_stranded_started(**_stranded_kwargs(status="paused")) is False

@@ -246,7 +246,49 @@ def test_completion_secondary_require_job_active_clear_bypasses(manager):
         },
     })
     assert completion_secondary_satisfied(
+        _VAC, {"active_target": "Dining Room", "job_active_present": True}, _SENTINELS
+    ) is True
+
+
+def test_completion_secondary_requires_the_job_active_entity_to_EXIST(manager):
+    """[COMMON-2b] issue #51: DECLARED is not PRESENT.
+
+    RP-033/COMMON-2 tightened the bypass from "flag set" to "entity declared", one
+    step short of what the flag actually promises. A declared id that resolves to no
+    entity -- the normal state of a localized install, where Roborock's job_active is
+    `binary_sensor.<vid>_reinigen` and our declaration is `_cleaning` -- still
+    short-circuited to True. The gate reported its secondary satisfied on the strength
+    of an entity that does not exist.
+
+    That is not a cosmetic wrong answer. `require_job_active_clear` makes this entity
+    the SINGLE arming signal, so with it unresolved every run on that install was
+    reaped as `interrupted` about ten minutes after dispatch, sometimes mid-clean.
+
+    Absent -> fall through to the sentinel check, which is what the docstring already
+    promised for the un-declared case. Here the target reads a dock-room name rather
+    than a sentinel, so the honest answer is False.
+    """
+    register_adapter_config(_VAC, {
+        **_MINIMAL_ADAPTER,
+        "entities": {
+            **_MINIMAL_ADAPTER["entities"],
+            "job_active": "binary_sensor.alfred_cleaning",
+        },
+        "completion": {
+            "task_status_value": "charging",
+            "require_job_active_clear": True,
+        },
+    })
+    # No `job_active_present` -- build_completion_signals reports "" for an entity that
+    # is absent or unavailable, so this is the shape a localized install produces.
+    assert completion_secondary_satisfied(
         _VAC, {"active_target": "Dining Room"}, _SENTINELS
+    ) is False
+
+    # ...and with the entity genuinely gone, a real clear sentinel still finalizes:
+    # losing the bypass must not cost a run that the default check can settle.
+    assert completion_secondary_satisfied(
+        _VAC, {"active_target": ""}, _SENTINELS
     ) is True
 
 

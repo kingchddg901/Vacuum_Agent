@@ -336,6 +336,7 @@ def resolve_declared_entities(
     entities: dict[str, Any],
     overrides: dict[str, Any] | None = None,
     reserved_suffixes: Any = None,
+    translation_keys: dict[str, str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
     """Return ``(entities, report)`` with unresolvable IDs repaired where unambiguous.
 
@@ -483,6 +484,15 @@ def resolve_declared_entities(
             # written from, so this needs no new brand vocabulary. A brand whose key
             # differs from its slug can declare one explicitly later — the seam is the
             # argument, not this default.
+            #
+            # THAT LATER IS NOW, and the default cost more than a missing sensor.
+            # Roborock's job_active is declared `_cleaning`, deriving the wanted key
+            # `cleaning`, while the upstream key is `in_cleaning` — a miss by one word.
+            # On a localized install that role never resolves, so the completion gate
+            # never arms and EVERY run is reaped as `interrupted` ~15 min after
+            # dispatch, possibly mid-clean (issue #51). A role whose upstream key is
+            # not its slug now says so, and the suffix stays the default for the
+            # overwhelming majority that need nothing.
             # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree
             #
             # REPLICA — the same rescue runs in THREE places, deliberately: this one, plus
@@ -496,10 +506,13 @@ def resolve_declared_entities(
             # two of the three and 4381 green tests said nothing — each copy had its own passing
             # tests. The third was caught only by renaming a live vacuum's entities to German.
             # `python scripts/doc_anchor.py --show RNF2RCXP` lists every site.
+            _wanted_key = str(
+                (translation_keys or {}).get(role) or suffix.lstrip("_")
+            ).strip().lower()
             by_key = rescue_by_translation_key(
                 _sibling_ids,
                 translation_keys=_tk_map,
-                wanted_key=suffix.lstrip("_"),
+                wanted_key=_wanted_key,
                 domain=domain,
                 exclude=(declared,),
             )

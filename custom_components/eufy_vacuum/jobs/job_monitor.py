@@ -444,6 +444,26 @@ def is_stranded_started(
     if str(status or "").strip().lower() != "started":
         return False
     if not has_observed_active_lifecycle:
+        # NEVER-ARMED, but a run that plainly FINISHED is not a never-started run.
+        #
+        # This branch returned before every "is the run actually over?" test below —
+        # including the completion escape at the bottom — so an unarmed run could not
+        # be rescued by actually completing. That is fine when arming is reliable and
+        # catastrophic when it is not: on a localized install Roborock's `job_active`
+        # role did not resolve, arming never happened, and EVERY run was reaped as
+        # `interrupted` at the 10-minute mark, sometimes mid-clean, with nothing
+        # reaching learning (issue #51).
+        #
+        # The resolution bug is fixed at its root (the adapter now declares the
+        # upstream key), and this stays as defence in depth: arming can fail for
+        # reasons we have not met yet — a provider that renames the key, a cold start
+        # where the entity is late — and the reaper should not be the thing that
+        # turns "we did not see the start" into "the run was interrupted" when the
+        # robot is sitting docked reporting completion.
+        if str(task_status or "").strip().lower() == str(
+            completion_task_status_value or ""
+        ).strip().lower() and completion_task_status_value:
+            return False
         return (
             dispatched_seconds_ago is not None
             and dispatched_seconds_ago >= NEVER_STARTED_SECONDS

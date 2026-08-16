@@ -283,6 +283,21 @@ def register_roborock_adapter_for_vacuum(
         hass, vid, entities,
         overrides=entity_overrides,
         reserved_suffixes=ALL_SUFFIXES,
+        # ROLES WHOSE UPSTREAM translation_key IS NOT THEIR SLUG.
+        #
+        # Only job_active, and it earns the whole seam. We declare the suffix
+        # `_cleaning`, from which the rescue derives the wanted key `cleaning`;
+        # Roborock publishes `in_cleaning`. One word, and on any install whose
+        # entity ids are localized the role never resolves — the German id is
+        # `binary_sensor.<vid>_reinigen`, which no suffix can reach either.
+        #
+        # It is not a missing sensor. Roborock declares
+        # `completion.require_job_active_clear`, so this entity is the SINGLE signal
+        # that arms completion; unresolved, `has_observed_active_lifecycle` stays
+        # False for the whole run and `is_stranded_started` reaps it as `interrupted`
+        # ~15 minutes after dispatch, possibly mid-clean, with nothing reaching
+        # learning (issue #51).
+        translation_keys={"job_active": "in_cleaning"},
     )
 
     config = {

@@ -211,6 +211,13 @@ def completed_finalize_signals(
         "task_status": _state(entities.get("task_status")),
         "dock_status": _state(entities.get("dock_status")),
         "active_target": _state(entities.get("active_cleaning_target")),
+        # PRESENCE, not value. `completion_secondary_satisfied` used to accept a
+        # DECLARED job_active key as proof the signal existed; on a localized install
+        # the declared id resolves to nothing and the gate reported "satisfied" about
+        # an entity that was not there (issue #51). An entity that is absent or
+        # unavailable reads "" above, so this is False exactly when there is no
+        # signal to trust.
+        "job_active_present": bool(_state(entities.get("job_active"))),
     }
 
 
@@ -244,7 +251,19 @@ def completion_secondary_satisfied(
     if bool(get_adapter_value(
         vacuum_entity_id, "completion", "require_job_active_clear", fallback=False
     )):
-        if get_adapter_value(vacuum_entity_id, "entities", "job_active", fallback=None):
+        # DECLARED IS NOT PRESENT (issue #51). RP-033/COMMON-2 tightened this from
+        # "flag set" to "entity declared", which is one step short: a declared id that
+        # resolves to no entity — the normal state of a localized install before the
+        # translation_key rescue reaches it — still short-circuited to True. The gate
+        # then reported the secondary satisfied on the strength of an entity that does
+        # not exist, which is the worst shape a gate can have: confident and empty.
+        #
+        # Falling through to the sentinel check is the honest degradation and matches
+        # what the docstring already promised for the un-declared case.
+        if (
+            get_adapter_value(vacuum_entity_id, "entities", "job_active", fallback=None)
+            and completion_signals.get("job_active_present")
+        ):
             return True
     return (
         str(completion_signals.get("active_target", "")).strip().lower()
