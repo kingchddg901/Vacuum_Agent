@@ -692,6 +692,36 @@ def augment_candidates_from_device(
                 matches.append(sibling)
 
             if not matches:
+                # SUFFIX EXHAUSTED — the id may be in another language. THE THIRD
+                # COPY of this predicate (issue #51). `resolve_declared_entities`
+                # and `_rescue_maintenance_source` got this fallback first and this
+                # one did not, which a live German rename on real hardware caught
+                # immediately: the four maintenance sources recovered and
+                # `cleaning_area` / `cleaning_time` / `active_cleaning_target` went
+                # absent, because THIS is the path detect_capabilities probes with.
+                # Fixing one copy of a predicate and not its twins is the exact
+                # shape live:ENT-4 was, and it happened again here.
+                by_key = rescue_by_translation_key(
+                    [s for s in siblings if s not in seen],
+                    translation_keys={
+                        eid: (traits or {}).get("translation_key")
+                        for eid, traits in (sibling_traits or {}).items()
+                        if isinstance((traits or {}).get("translation_key"), str)
+                        and (traits or {}).get("translation_key")
+                    },
+                    wanted_key=suffix.lstrip("_"),
+                    domain=domain,
+                )
+                if by_key:
+                    merged.append(by_key)
+                    seen.add(by_key)
+                    origins.setdefault(role, {})[by_key] = (
+                        FROM_DEVICE_SIBLING
+                        if by_key in device_scoped
+                        else FROM_CONFIG_ENTRY_SIBLING
+                    )
+                    rpt["merged"] = int(rpt.get("merged") or 0) + 1
+                    decisions[role] = {"by": BY_TRANSLATION_KEY, "winner": by_key}
                 continue
 
             # live:ENT-6 — WHEN CANDIDATES COMPETE, DO NOT GUESS.
