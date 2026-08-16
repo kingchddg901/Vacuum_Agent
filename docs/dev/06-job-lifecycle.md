@@ -483,6 +483,20 @@ indicates the robot is actively cleaning (not at the dock). This flag is the
 mandatory pre-condition for auto-finalization. Without it, a stale pre-run dock
 state (e.g. `dock_drying`) could complete the job before it actually started.
 
+**On a brand that declares `completion.require_job_active_clear` (Roborock), ONE
+entity arms this** — `entities.job_active`. That single dependency is what makes
+the flag's failure mode so wide: if that role does not resolve, arming never
+happens, completion can never fire, the room tracker never starts, and the
+stranded reaper closes every run as `interrupted`. One unresolved entity, and the
+whole run record is empty — no transitions, no room timings, no completed rooms.
+
+That is not hypothetical. The role was declared with the suffix `_cleaning`, from
+which the rescue derives the wanted translation key `cleaning`, while Roborock
+publishes `in_cleaning`. A miss by one word, invisible on any English install
+because the derived id happens to be right there. See §7 and
+[21-adapter-system](21-adapter-system.md) for the per-role key declaration that
+fixes it.
+
 ---
 
 ## 4. Room Transitions
@@ -1053,6 +1067,22 @@ ended-looking checks entirely:
   docked/idle + secondary-satisfied checks below (they all assume a real run
   happened) — it's reapable once `dispatched_seconds_ago >= NEVER_STARTED_SECONDS`
   (600s / 10 min), independent of vacuum_state or docked signals.
+
+  **Except when it plainly finished.** This branch used to return before every
+  other test *including* the completion escape at the bottom, so an unarmed run
+  could not be rescued by actually completing. That is fine while arming is
+  reliable and catastrophic when it is not: on a localized install Roborock's
+  `job_active` role did not resolve, arming never happened, and **every** run was
+  reaped as `interrupted` at the 10-minute mark — sometimes mid-clean, always with
+  nothing reaching learning (issue #51). An unarmed run whose `task_status` HAS
+  reached the brand's completion value is now left alone. The escape is narrow on
+  purpose: a run that never reached it still reaps, so a genuinely stale dispatched
+  record does not live forever.
+
+  > The root cause was fixed at its source — see §7's note on the arming signal —
+  > and this remains as defence in depth. Arming can fail for reasons we have not
+  > met yet, and the reaper must not be the thing that turns "we did not see the
+  > start" into "the run was interrupted".
 - **A sequenced phase mid-dispatch.** `_phase_dispatch_pending` set is **no
   longer an unconditional exclusion** (RP-011/RF-07 WD-2/STR-3) — it only
   excludes the reaper while the per-phase watchdog is presumed live; a watchdog

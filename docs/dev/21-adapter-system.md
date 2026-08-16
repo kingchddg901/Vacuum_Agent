@@ -423,6 +423,28 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
    `cleaning_route`) **eleven times each** — global plus one per room — so a key is not
    unique per entity on every brand, and an ambiguous key must decline rather than pick.
 
+   **The wanted key is the declared suffix, unless the brand says otherwise.** For every
+   provider that sets one, the key IS the English slug the declaration was written from, so
+   the default needs no brand vocabulary. Where it differs, the adapter declares it:
+   `resolve_declared_entities(..., translation_keys={role: key})`. Exactly one role needs
+   this today, and it earned the seam — Roborock's `job_active` is declared `_cleaning`,
+   deriving `cleaning`, while upstream publishes **`in_cleaning`**. A miss by one word, and
+   because that entity is the sole arming signal under
+   `completion.require_job_active_clear`, it meant **every run on a localized install was
+   reaped as `interrupted` ten minutes after dispatch** — see
+   [06 — job lifecycle](06-job-lifecycle.md).
+
+   **The ACT path is a caller, not a copy — `INR2F03P`.** Everything above serves READING.
+   Anything we intend to PRESS resolves through
+   `entity_resolve.py::resolve_action_entity`, which walks the same ladder and returns
+   **resolved / disabled / missing**. It was added because the rescue reached only readers:
+   on a localized install every maintenance sensor bound correctly while all four dock
+   buttons, all four consumable reset buttons, and the mop-intensity dispatch target were
+   dead — silently, because HA logs rather than raises when a service names a missing
+   entity. Disabled is reported separately since
+   `er.async_entries_for_config_entry` returns disabled entries, and pressing one is a
+   no-op.
+
    ⚠ **THE PREDICATE EXISTS IN THREE PLACES AND TWO IS NOT ENOUGH — `RNF2RCXP`.**
    `resolve_declared_entities` (the declared `entities` map),
    `capabilities._rescue_maintenance_source` (maintenance sources) and

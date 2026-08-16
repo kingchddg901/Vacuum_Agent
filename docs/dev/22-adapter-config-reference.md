@@ -1132,8 +1132,24 @@ cover both timings:
   `select.cleaning_mode`). Each entry picks the run value from the
   selected rooms' canonical field by **max-wins over `rank`**, maps it via
   optional `value_map`, and calls the declared `service`. Best-effort (a
-  failed pre-call never aborts the run). Run by
-  `core/manager.py::_run_global_pre_calls`.
+  failed pre-call never aborts the run) **except** for a
+  `mixed_mode_water_policy: "safest"` entry, which aborts rather than risk
+  wet-mopping a dry room. Run by `core/manager.py::_run_global_pre_calls`.
+
+  > **Name the target by ROLE, not by id.** Use `service.target_role` — a key in
+  > the `entities` map, resolved at CALL time. A `target_entity_id` is frozen at
+  > registration, and these blocks are built **before**
+  > `resolve_declared_entities` runs, so a baked-in id is the *pre-rescue guess*:
+  > it stays wrong forever on an install whose entity ids are localized or
+  > renamed, and no user override reaches it either (overrides apply to
+  > `entities`). Roborock's mop-intensity target was frozen this way and named an
+  > entity that does not exist on a German install (issue #51).
+  >
+  > **A target that does not exist is a REFUSAL, not a warning.** Home Assistant
+  > does *not* raise when a service call names a missing entity — it collects the
+  > ids and logs `log_missing()`. So the abort above could never fire: the call
+  > no-opped, `except` never ran, and the run proceeded with whatever the device
+  > already had. Existence is checked before the call now.
 - `dispatch.per_room_live_settings` — pushed **mid-run** as the robot
   enters each room (driven by the native current-room rollover, so the
   device keeps one path-optimized run — no per-room re-dispatch). Each

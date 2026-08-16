@@ -311,6 +311,7 @@ def resolve_action_entity(
     tell the user "this exists but is disabled", which is actionable, instead of
     "not found", which is not.
     """
+    # anchor: INR2F03P  an entity id we intend to ACT on goes through the ladder
     object_id = vacuum_entity_id.split(".", 1)[1]
     wanted = [str(s).strip().lstrip("_") for s in (suffixes or ()) if str(s).strip()]
     if not wanted:

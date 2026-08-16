@@ -53,6 +53,40 @@ resolves; `--orphans` finds anchors nothing references.
 
 ## The registry
 
+### `INR2F03P` — an entity id we intend to ACT on is resolved through the ladder, never derived and frozen
+
+Anything we will press, set, or call a service on goes through
+`adapters/entity_resolve.py::resolve_action_entity` (derived id → sibling suffix →
+upstream `translation_key`), and the result is one of **resolved / disabled / missing**.
+
+**Why it is not obvious.** The rescue ladder was built for the READ path, where the failure
+is loud-ish: a sensor reads nothing and someone notices. On the ACT path the same failure is
+silent in a way that has bitten three separate times, because **Home Assistant does not
+raise when a service call names a missing entity** — it logs `log_missing()` and returns.
+So the call succeeds, nothing happens, and every guard wrapped in `except` is dead code.
+
+**The counterfactual.** *You localize a Home Assistant install. Which breaks first, reading
+the vacuum or controlling it?* The naive answer is "both, equally". The real answer on
+2026-08-16 was that every maintenance **sensor** resolved to its German id while all four
+dock **buttons** and all four consumable **reset buttons** were dead, and the mop-intensity
+push named an entity that had never existed — silently, for the whole life of the feature.
+
+- **Why:** [21 — adapter system](21-adapter-system.md);
+  [22 — adapter config reference](22-adapter-config-reference.md) for `service.target_role`.
+- **Enforced:** `dock/manager.py::_get_dock_action_entity`,
+  `maintenance/manager.py::_get_replacement_reset_entity`,
+  `dispatch/manager.py::_run_global_pre_calls` (which also refuses a missing target
+  rather than warning).
+- **Corollaries.** A frozen `target_entity_id` is the *pre-rescue guess*: these blocks are
+  built before `resolve_declared_entities` runs, and no user override reaches them.
+  **Disabled is not missing** — `er.async_entries_for_config_entry` returns disabled
+  entries, so binding one offers a control that silently does nothing.
+- **Cite `INR2F03P`** from any new site that needs a concrete entity id in order to act.
+
+> Related but distinct: [[RNF2RCXP]] is the translation_key *decision*, deliberately
+> written three times for three read consumers. `resolve_action_entity` is a CALLER of
+> that decision, not a fourth copy — which is the whole point of keeping the set at three.
+
 ### `INKR1TW7` — an operation that reads another integration's entities must not assume they exist during setup
 
 Defer it to `async_at_started`, or tolerate late availability. Otherwise it reads an empty
