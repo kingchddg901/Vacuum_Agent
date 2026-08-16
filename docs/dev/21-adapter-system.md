@@ -398,6 +398,44 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
 
    **Two scopes are searched, device first (live:ENT-5).** Companion lookup used to consult only the vacuum's DEVICE, while `adapters/entity_resolve.resolve_declared_entities` consulted its CONFIG ENTRY. On issue #49 the config-entry search rescued battery and the dock counters on the same install at the same instant that the device search rescued nothing — so config-entry scope is the half with field evidence, and device scope is where the failure lives. Both are now searched, device first because it is the tighter scope and order is priority. A vacuum with **no `device_id` at all** is no longer an instant give-up.
 
+   **A LOCALIZED entity id is rescued by the provider's own word (live:ENT-14).** HA slugs
+   an entity id from the **translated** name at creation and then never revisits it
+   (`async_get_or_create` looks the entity up by `unique_id` and takes the update path), so
+   the id is a fossil of whatever language was active when the entity was first seen.
+   Switching HA's language afterwards renames **nothing** — which also means an affected
+   user cannot self-heal. On a German install the Roborock map select is
+   `select.<obj>_ausgewahlte_karte`, and every derived name and every `endswith` suffix
+   test misses it, so `active_map` resolves to nothing and `supports_rooms` /
+   `supports_segments` come back False — an install where the integration does essentially
+   nothing (GitHub issue #51).
+
+   `rescue_by_translation_key` (`adapters/entity_resolve.py::rescue_by_translation_key`)
+   closes it. `translation_key` is the **upstream integration's own untranslated word** for
+   the concept: set in code, never localized, and it survives both a rename and a move to
+   another device — so one mechanism covers localized ids *and* Roborock's split dock,
+   whose consumables live on a second device entirely.
+
+   Ordering is the safety property. It runs only **after** the derived id and the suffix
+   match have both failed, so an install where naming already works resolves
+   byte-identically and only a role heading for **nothing** can newly bind. It is
+   exactly-one-or-nothing for the same reason the contest ladder is: Dreame publishes five
+   keys (`wetness_level`, `suction_level`, `cleaning_mode`, `mop_pad_humidity`,
+   `cleaning_route`) **eleven times each** — global plus one per room — so a key is not
+   unique per entity on every brand, and an ambiguous key must decline rather than pick.
+
+   ⚠ **THE PREDICATE EXISTS IN THREE PLACES AND TWO IS NOT ENOUGH.**
+   `resolve_declared_entities` (the declared `entities` map),
+   `capabilities._rescue_maintenance_source` (maintenance sources) and
+   `capabilities.augment_candidates_from_device` (the roles `detect_capabilities` probes)
+   each perform this rescue. The first fix landed in two of them and a full green suite said
+   nothing — the third was only caught by renaming a live vacuum's entities to German and
+   watching the counts fail to match. Count the copies before believing a fix.
+
+   Blast radius, for anyone weighing whether this is niche: HA localizes entity ids for
+   **41** languages (`generated/languages.py` `NATIVE_ENTITY_IDS`); Roborock ships **48**
+   translation packs, **32** of them in that set. Non-Latin scripts are unaffected only
+   because they are absent from the native set, not by design.
+
    **Competing candidates are refused, not ranked by luck (live:ENT-6).** When more than one sibling matches a role, appending them all and taking the first that exists makes entity-registry INSERTION ORDER the tiebreaker — which nobody chose, and which can bind a card to the wrong machine when two vacuums share a config entry. The colliding pair is almost always per-run against lifetime — `cleaning_area` against `total_cleaning_area` — and those are not two spellings of one quantity: on live hardware the per-run figure reads 2.9 m² while the lifetime counter reads 11,814.2 m². Binding the wrong one never throws, because a cumulative counter simply looks like a vacuum making no progress, so a ~4000x error goes quietly into the learning store, counter segmentation and battery metrics.
 
    **The contest ladder decides it, or nobody does (live:ENT-9).** `_narrow_competing` (`capabilities.py::_narrow_competing`) walks four rungs, strongest evidence first, and each rung must be DECISIVE — exactly one survivor — or the next is tried. The rung that decided is recorded under `entity_augmentation.decisions[role]["by"]` (`decided_by` is only the local name inside `_narrow_competing`) and surfaced to the card as `chosen_by`. **`object_id`**: the only competitor whose entity ID still carries the vacuum's own object_id (Eufy's dock entities are named `<area>_<vacuum>_<suffix>`, so they survive it). **`translation_key`**: the only competitor whose registry `translation_key` equals the role name — the upstream integration's own word for the concept, independent of what anyone named the entity. **`state_class`**: drop every competitor declaring a cumulative one. The test EXCLUDES `total` and `total_increasing` rather than REQUIRING `measurement`, because Dreame marks its lifetime sensor `total_increasing` and leaves the per-run one unset, so a rule demanding `measurement` finds zero survivors on the very hardware it was written for. **`magnitude`**: the smallest reading wins, and only when the runner-up is non-zero and at least `_MAGNITUDE_RATIO` (`10.0`) times larger — a brand-new vacuum reads 0 for both, and 0 against 0 is not evidence.
