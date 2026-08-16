@@ -247,10 +247,10 @@ module (flat file) or a subsystem package. Here is the full map:
    `data["adapters"]` (user-built stored configs); then `register_brand_adapter`
    (the ordered `BRAND_REGISTRARS` table in `adapters/brands.py`) registers the
    matching brand's code adapter for each known vacuum — resolution order:
-   explicit per-vacuum override (`data["brand_overrides"]`) → **platform match**
-   (the vacuum's entity-registry `platform` against each adapter's declared
-   `UPSTREAM_PLATFORMS`) → the declared default arm (Eufy). Code adapters always
-   win over stored.
+   **platform match** (the vacuum's entity-registry `platform` against each
+   adapter's declared `UPSTREAM_PLATFORMS`) → **unsupported** (no adapter, and a
+   warning naming the providing integration). Code adapters always win over
+   stored.
 
    > **From immediately before this step onward** (the ledger is created just
    > before it, in `__init__.async_setup_entry`), every resource this and the
@@ -415,7 +415,6 @@ Top-level keys in `manager.data`:
 | `"discovery"` | Raw discovery cache per vacuum per map |
 | `"setup_progress"` | Per-vacuum setup state machine (completed steps, rejections, drift history) |
 | `"adapters"` | User-built adapter overrides (stored adapter configs) |
-| `"brand_overrides"` | Explicit per-vacuum brand choice, read by the brand registrar; no writer yet |
 | `"battery"` | Battery-health records, nested one level down per vacuum under `battery.vacuums` (written by `battery/manager.py`) |
 | `"dock_events"` | Recent dock event log per vacuum |
 | `"error_tracker"` | Per-vacuum error state (`active_run_error`, `last_device_error`, `recent_errors`); in the storage default, backfilled unconditionally on load (`core/storage.py`) |
@@ -490,15 +489,14 @@ lookup chain is:
 The coordinator's registry is populated in two ways:
 - **Code adapters** — `register_brand_adapter` (`adapters/brands.py`) resolves
   and runs one brand's registrar for each known vacuum, per the ordered
-  `BRAND_REGISTRARS` table: an explicit per-vacuum override
-  (`data["brand_overrides"]`, read-path only today — no writer yet) → the first
-  registrar whose declared `platforms` contains the vacuum's entity-registry
-  `platform` → the declared default arm (Eufy). `resolve_brand` reports which of
-  the three routes was taken. Identity is DATA: each brand names the integration
-  that provides it in its own `const.py`, and there is no `detect` callable —
-  core compares, it never asks a brand to judge itself.
-  ⚠ The default arm remains a leak: an unmatched vacuum is still registered as a
-  Eufy. See [21-adapter-system §6.1](21-adapter-system.md).
+  `BRAND_REGISTRARS` table: the first registrar whose declared `platforms`
+  contains the vacuum's entity-registry `platform` → otherwise **unsupported**,
+  meaning no adapter and a warning naming the providing integration.
+  `resolve_brand` reports which route was taken. Identity is DATA: each brand
+  names the integration that provides it in its own `const.py`, and there is no
+  `detect` callable and no per-user brand override — core compares, and never
+  asks a brand to judge itself. See
+  [21-adapter-system §6.1](21-adapter-system.md).
 - **Stored adapters** — `adapters/config_loader.py` reads `data["adapters"]`
   and registers user-built configs. Code adapters always win if both exist for
   the same vacuum.

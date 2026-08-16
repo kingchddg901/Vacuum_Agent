@@ -39,7 +39,7 @@ An `EVENT_*` constant that nothing fires is listed here rather than above — th
 
 ## eufy_vacuum_external_run_pending
 
-Constant: `EVENT_EXTERNAL_RUN_PENDING` — `custom_components/eufy_vacuum/const.py:291`, f-string `f'{DOMAIN}_external_run_pending'`
+Constant: `EVENT_EXTERNAL_RUN_PENDING` — `custom_components/eufy_vacuum/const.py::EVENT_EXTERNAL_RUN_PENDING`, f-string `f'{DOMAIN}_external_run_pending'`
 
 Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/learning/external_run.py`
 
@@ -61,7 +61,7 @@ Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/learnin
 
 ## eufy_vacuum_job_finished
 
-Constant: `EVENT_JOB_FINISHED` — `custom_components/eufy_vacuum/const.py:282`, f-string `f'{DOMAIN}_job_finished'`
+Constant: `EVENT_JOB_FINISHED` — `custom_components/eufy_vacuum/const.py::EVENT_JOB_FINISHED`, f-string `f'{DOMAIN}_job_finished'`
 
 Fired from 6 call site(s) in 5 module(s): `custom_components/eufy_vacuum/learning/services.py`, `custom_components/eufy_vacuum/listeners/lifecycle.py`, `custom_components/eufy_vacuum/listeners/path_blockers.py`, `custom_components/eufy_vacuum/listeners/pause_timeout.py`, `custom_components/eufy_vacuum/services/job_control.py`
 
@@ -96,7 +96,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 
 ## eufy_vacuum_job_progress_tick
 
-Constant: `EVENT_JOB_PROGRESS_TICK` — `custom_components/eufy_vacuum/const.py:299`, f-string `f'{DOMAIN}_job_progress_tick'`
+Constant: `EVENT_JOB_PROGRESS_TICK` — `custom_components/eufy_vacuum/const.py::EVENT_JOB_PROGRESS_TICK`, f-string `f'{DOMAIN}_job_progress_tick'`
 
 Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/listeners/job_progress.py`
 
@@ -115,7 +115,7 @@ Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/listene
 
 ## eufy_vacuum_path_blocked
 
-Constant: `EVENT_PATH_BLOCKED` — `custom_components/eufy_vacuum/const.py:285`, f-string `f'{DOMAIN}_path_blocked'`
+Constant: `EVENT_PATH_BLOCKED` — `custom_components/eufy_vacuum/const.py::EVENT_PATH_BLOCKED`, f-string `f'{DOMAIN}_path_blocked'`
 
 Fired from 2 call site(s) in 1 module(s): `custom_components/eufy_vacuum/listeners/path_blockers.py`
 
@@ -153,7 +153,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 
 ## eufy_vacuum_room_completed
 
-Constant: `EVENT_ROOM_COMPLETED` — `custom_components/eufy_vacuum/mapping/tracker.py:40`, string literal `'eufy_vacuum_room_completed'`
+Constant: `EVENT_ROOM_COMPLETED` — `custom_components/eufy_vacuum/mapping/tracker.py::EVENT_ROOM_COMPLETED`, string literal `'eufy_vacuum_room_completed'`
 
 Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/mapping/tracker.py`
 
@@ -177,7 +177,7 @@ Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/mapping
 
 ## eufy_vacuum_room_finished
 
-Constant: `EVENT_ROOM_FINISHED` — `custom_components/eufy_vacuum/const.py:284`, f-string `f'{DOMAIN}_room_finished'`
+Constant: `EVENT_ROOM_FINISHED` — `custom_components/eufy_vacuum/const.py::EVENT_ROOM_FINISHED`, f-string `f'{DOMAIN}_room_finished'`
 
 Fired from 2 call site(s) in 1 module(s): `custom_components/eufy_vacuum/jobs/active_job.py`
 
@@ -207,7 +207,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 
 ## eufy_vacuum_room_skipped
 
-Constant: `EVENT_ROOM_SKIPPED` — `custom_components/eufy_vacuum/const.py:320`, f-string `f'{DOMAIN}_room_skipped'`
+Constant: `EVENT_ROOM_SKIPPED` — `custom_components/eufy_vacuum/const.py::EVENT_ROOM_SKIPPED`, f-string `f'{DOMAIN}_room_skipped'`
 
 Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/jobs/active_job.py`
 
@@ -230,7 +230,7 @@ Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/jobs/ac
 
 ## eufy_vacuum_room_started
 
-Constant: `EVENT_ROOM_STARTED` — `custom_components/eufy_vacuum/const.py:283`, f-string `f'{DOMAIN}_room_started'`
+Constant: `EVENT_ROOM_STARTED` — `custom_components/eufy_vacuum/const.py::EVENT_ROOM_STARTED`, f-string `f'{DOMAIN}_room_started'`
 
 Fired from 3 call site(s) in 2 module(s): `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/jobs/active_job.py`
 
@@ -259,7 +259,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 
 ## eufy_vacuum_run_incomplete
 
-Constant: `EVENT_RUN_INCOMPLETE` — `custom_components/eufy_vacuum/const.py:313`, f-string `f'{DOMAIN}_run_incomplete'`
+Constant: `EVENT_RUN_INCOMPLETE` — `custom_components/eufy_vacuum/const.py::EVENT_RUN_INCOMPLETE`, f-string `f'{DOMAIN}_run_incomplete'`
 
 Fired from 5 call site(s) in 4 module(s): `custom_components/eufy_vacuum/learning/services.py`, `custom_components/eufy_vacuum/listeners/path_blockers.py`, `custom_components/eufy_vacuum/listeners/pause_timeout.py`, `custom_components/eufy_vacuum/services/job_control.py`
 
@@ -287,7 +287,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 
 ## eufy_vacuum_stall_captured
 
-Constant: `EVENT_STALL_CAPTURED` — `custom_components/eufy_vacuum/listeners/stall_capture.py:62`, f-string `f'{DOMAIN}_stall_captured'`
+Constant: `EVENT_STALL_CAPTURED` — `custom_components/eufy_vacuum/listeners/stall_capture.py::EVENT_STALL_CAPTURED`, f-string `f'{DOMAIN}_stall_captured'`
 
 Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/listeners/stall_capture.py`
 
@@ -310,7 +310,7 @@ Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/listene
 
 ## eufy_vacuum_stall_detected
 
-Constant: `EVENT_STALL_DETECTED` — `custom_components/eufy_vacuum/const.py:306`, f-string `f'{DOMAIN}_stall_detected'`
+Constant: `EVENT_STALL_DETECTED` — `custom_components/eufy_vacuum/const.py::EVENT_STALL_DETECTED`, f-string `f'{DOMAIN}_stall_detected'`
 
 Fired from 3 call site(s) in 3 module(s): `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/jobs/active_job.py`, `custom_components/eufy_vacuum/services/stall_capture.py`
 

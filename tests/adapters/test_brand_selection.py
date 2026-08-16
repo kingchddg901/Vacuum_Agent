@@ -12,8 +12,9 @@ Coverage targets
 [BR-2]  positive detection wins, in table order.
 [BR-3]  no match is UNSUPPORTED and says so — support is a positive statement, and an
         unclaimed vacuum is left unconfigured rather than driven as a Eufy.
-[BR-4]  an explicit per-vacuum override outranks detection (the UI-selector seam).
-[BR-5]  a malformed / unknown / absent override degrades to detection, never raises.
+[BR-4]  REMOVED — there is no per-user brand override. Support is a statement about a
+        tested upstream integration; a rename is ours to follow and an unsupported
+        system wants an adapter, not a switch. See adapters/brands.py.
 [BR-6]  a detector that throws is skipped rather than taking setup down.
 [BR-7]  register_brand_adapter actually calls the resolved brand's registrar.
 """
@@ -24,7 +25,6 @@ import pytest
 
 from custom_components.eufy_vacuum.adapters import brands
 from custom_components.eufy_vacuum.adapters.brands import (
-    BRAND_OVERRIDES_KEY,
     BRAND_REGISTRARS,
     BrandRegistrar,
     get_registrar,
@@ -158,49 +158,6 @@ def test_no_match_is_unsupported(table, hass):
     assert source == "unsupported"
 
 
-def test_an_explicit_override_outranks_detection(table, hass):
-    """[BR-4] The UI-selector seam. A user's stated choice beats auto-detection."""
-    data = {BRAND_OVERRIDES_KEY: {"vacuum.alpha_one": "beta"}}
-    registrar, source = resolve_brand(hass, "vacuum.alpha_one", data=data)
-    assert (registrar.brand_id, source) == ("beta", "override")
-
-    # ...including forcing a brand onto a vacuum nothing would have detected.
-    data = {BRAND_OVERRIDES_KEY: {"vacuum.mystery": "ALPHA"}}   # case-normalized
-    registrar, source = resolve_brand(hass, "vacuum.mystery", data=data)
-    assert (registrar.brand_id, source) == ("alpha", "override")
-
-
-@pytest.mark.parametrize("data", [
-    None,
-    {},
-    {BRAND_OVERRIDES_KEY: None},
-    {BRAND_OVERRIDES_KEY: "not-a-dict"},
-    {BRAND_OVERRIDES_KEY: {}},
-    {BRAND_OVERRIDES_KEY: {"vacuum.alpha_one": ""}},
-    {BRAND_OVERRIDES_KEY: {"vacuum.alpha_one": "   "}},
-    {BRAND_OVERRIDES_KEY: {"vacuum.alpha_one": 7}},
-    {BRAND_OVERRIDES_KEY: {"other.vacuum": "beta"}},
-])
-def test_an_unusable_override_degrades_to_the_platform_match(table, hass, data):
-    """[BR-5] Brand resolution runs for every vacuum during setup.
-
-    One hand-edited or stale stored value must not take the integration down, and must
-    not silently change which brand a DIFFERENT vacuum gets.
-    """
-    registrar, source = resolve_brand(hass, "vacuum.alpha_one", data=data)
-    assert (registrar.brand_id, source) == ("alpha", "platform")
-
-
-def test_an_unknown_override_id_falls_through_loudly(table, hass, caplog):
-    """[BR-5] An unknown id is ignored — but never silently: the user's stated intent
-    is being overruled, which is exactly the class of thing this campaign kept finding
-    happening without a log line."""
-    data = {BRAND_OVERRIDES_KEY: {"vacuum.alpha_one": "dreame"}}
-    registrar, source = resolve_brand(hass, "vacuum.alpha_one", data=data)
-    assert (registrar.brand_id, source) == ("alpha", "platform")
-    assert "dreame" in caplog.text
-
-
 def test_an_unreadable_entity_registry_is_not_fatal(monkeypatch, hass):
     """[BR-6] The old version of this test guarded a throwing DETECTOR.
 
@@ -253,9 +210,14 @@ def test_register_brand_adapter_refuses_loudly(table, hass, caplog):
     brand_id, source = register_brand_adapter(hass, "vacuum.mystery")
     assert (brand_id, source) == (None, "unsupported")
     assert table == [], "no registrar may run for an unsupported vacuum"
-    assert "not a supported vacuum" in caplog.text
-    assert "brand_overrides" in caplog.text, (
-        "the refusal must name the escape hatch, or a wrongly-refused user is stuck"
+    assert "is not supported" in caplog.text
+    # The supported list must not repeat an integration two brands both declare.
+    _supported = caplog.text.split("Vacuum Agent supports ", 1)[1].split(".")[0]
+    _names = [x.strip() for x in _supported.split(",")]
+    assert len(_names) == len(set(_names)), f"duplicate integration listed: {_names}"
+    assert "please open an issue" in caplog.text, (
+        "the refusal is the only recovery route there is — it must tell the user how to "
+        "reach us, and carry the platform string we need to act on it"
     )
 
 
@@ -382,19 +344,6 @@ def test_a_vacuum_absent_from_the_registry_falls_through(hass, monkeypatch):
     monkeypatch.setattr(rb, "_device_for_vacuum", lambda h, v: _Blank())
     registrar, source = resolve_brand(hass, "vacuum.never_registered")
     assert (registrar, source) == (None, "unsupported")
-
-
-def test_an_override_still_outranks_the_platform(hass):
-    """[BR-12] Order matters: override → platform → detect → default.
-
-    The escape hatch has to beat a positive platform match, or a user on a renamed fork
-    could never correct us.
-    """
-    vid = _register_vacuum(hass, "robovac_mqtt", "alfred_override")
-    registrar, source = resolve_brand(
-        hass, vid, data={BRAND_OVERRIDES_KEY: {vid: "roborock"}}
-    )
-    assert (registrar.brand_id, source) == ("roborock", "override")
 
 
 def test_every_shipped_registrar_declares_its_platforms(hass):

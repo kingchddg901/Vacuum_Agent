@@ -11,7 +11,7 @@ directory below — **3,869 cases** total) is all green. Prefer that number and
 that command when you need "is the suite green": running the doc-tool's
 narrower `tests/unit tests/integration tests/adapters` path set on its own has
 been observed to fail one adapter test
-(`tests/adapters/test_brand_selection.py::test_register_brand_adapter_falls_back_and_says_so`,
+(`tests/adapters/test_brand_selection.py::test_register_brand_adapter_refuses_loudly`,
 passes in isolation and under the full `tests` gate — see
 [bug signals](#known-test-suite-issues)) via an apparent cross-test state leak,
 not a real regression. Those 3,369/3,859 exercise the **217 source modules**
@@ -78,7 +78,7 @@ coverage. Highlights:
 
 ## Known test-suite issues
 
-- **`tests/adapters/test_brand_selection.py::test_register_brand_adapter_falls_back_and_says_so`**
+- **`tests/adapters/test_brand_selection.py::test_register_brand_adapter_refuses_loudly`**
   can fail with `AssertionError: assert 'not identified as any supported brand'
   in ''` when the suite is run as exactly `tests/unit tests/integration
   tests/adapters` (the path set `scripts/update_test_docs.py` uses) — the

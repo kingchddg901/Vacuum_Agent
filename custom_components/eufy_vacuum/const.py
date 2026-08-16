@@ -25,10 +25,15 @@ CONF_VACUUM_ENTITY_ID = "vacuum_entity_id"
 #:
 #:     data[ENTITY_OVERRIDES_KEY][vacuum_entity_id] = {role: entity_id}
 #:
-#: Shape deliberately mirrors ``brand_overrides`` (adapters/brands.py) — a
-#: per-vacuum user choice living in config-entry data, read by core. Same idea
-#: one level down: there, the user names the BRAND we guessed wrong; here, the
-#: ENTITY.
+#: A per-vacuum user choice living in config-entry data, read by core.
+#:
+#: This used to say the shape "deliberately mirrors ``brand_overrides``". That key is
+#: GONE (removed 2026-08-16): brand support is a statement about a tested upstream
+#: integration, so a rename is ours to follow and an unsupported system wants an adapter
+#: — there was never going to be a writer for it. Entity overrides are different and DO
+#: have writers: which entity fills a role is genuinely install-specific (two device
+#: slugs on one vacuum, a renamed companion), and no amount of adapter maintenance can
+#: know that from here.
 #:
 #: It is the CONTRACT between two surfaces, which is why it lives here rather
 #: than beside either of them: the options flow (reachable even when the

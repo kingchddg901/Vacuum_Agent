@@ -469,7 +469,6 @@ registrar and **how** it was chosen:
 
 | `source` | Meaning |
 |---|---|
-| `"override"` | An explicit per-vacuum choice in `data["brand_overrides"][vacuum_entity_id]`. A user's stated brand outranks identification — that is the point of a selector. **Nothing writes this key yet**; the read path exists so the planned UI has somewhere to land. |
 | `"platform"` | The vacuum's **entity-registry `platform`** appears in a registrar's declared `platforms`, first match in table order. |
 | `"default"` | No override and no platform match — the terminal `is_default` arm. Exactly one entry declares it. |
 
@@ -490,13 +489,21 @@ routinely blank on real installs, which is why Eufy never had a detector at all.
 `platform` is set by HA from the providing integration's domain and is never blank, so
 Eufy is now positively identified (`robovac_mqtt`) rather than assumed.
 
-> ⚠ **The default arm is still Eufy, and it is still a leak.** Anything unmatched is
-> registered as a Eufy — which is how a Dreame (`vacuum.robin`, platform
-> `dreame_vacuum`) currently runs on Eufy's vocabulary and binds 2 of ~10 roles by
-> coincidence of naming. Removing the arm is a separate change: it is a guard newly
-> activating over existing installs, so a Eufy user on a differently-named fork would go
-> from working to unsupported. The intended end state is no default arm and an explicit
-> "not supported" path, with `brand_overrides` as the escape hatch.
+**There is no default arm and no per-user brand override.** An unmatched vacuum is
+UNSUPPORTED: it stays managed, gets no adapter config (which every consumer of
+`get_adapter_config` already tolerates), and a warning names the providing integration.
+
+What is supported is a **tested upstream integration**, not a brand in the abstract —
+"Vacuum Agent supports `robovac_mqtt`" is the precise claim. So a rename is **ours to
+follow** and ships as a one-line data change, and an unsupported system wants an
+**adapter**, not a switch pointing an existing brand's vocabulary at hardware it was
+never written for.
+
+> ⚠ This guard activates over existing installs and the only recovery is a release from
+> us. The refusal is therefore written as a **diagnosis**: it carries the providing
+> integration's name, which is exactly what an issue needs. Before this, a Dreame
+> (`vacuum.robin`) was silently registered as a Eufy and bound 2 of ~10 roles by
+> coincidence of naming — configured-looking, and wrong.
 
 What changed is that reaching it is no longer silent: `register_brand_adapter` logs at INFO
 when the default was reached by *no-match* rather than by detection. "This is a Eufy" and

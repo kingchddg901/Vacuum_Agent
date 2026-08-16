@@ -182,10 +182,22 @@ mismatch, not a stem one) and a companion on a **different device**.
 
 ### 4.1 Mirror the existing precedent — do not invent a mechanism
 
-`brand_overrides` already establishes the shape (`adapters/brands.py::BRAND_OVERRIDES_KEY`,
-[21-adapter-system](../21-adapter-system.md) §6.1): a per-vacuum user override in config-entry
-`data`, read by core, *"nothing writes this key yet; the read path exists so the planned UI has
-somewhere to land."* This is the same pattern one level down:
+> ⚠ **PRECEDENT WITHDRAWN, 2026-08-16.** This section rested on `brand_overrides` as an
+> established shape. That key has been **removed**: brand support is a statement about a
+> tested upstream integration, so a rename is ours to follow and an unsupported system
+> wants an adapter — there was never going to be a writer for it, and a read path with no
+> writer is a declaration defended by a comment rather than by a reader.
+>
+> The design below is **unaffected in substance**: entity overrides are a genuinely
+> different question. Which entity fills a role IS install-specific (two device slugs on
+> one vacuum, a renamed companion) and no amount of adapter maintenance can know it from
+> here — which is exactly why `entity_overrides` has writers and `brand_overrides` never
+> would have. Read "mirror the existing precedent" below as "this is the shape we chose",
+> not as "another key already does it".
+
+The shape is a per-vacuum user override in config-entry `data`, read by core
+(see [21-adapter-system](../21-adapter-system.md) §6.1 for how brand selection resolves
+now that no such override exists):
 
 ```
 data["entity_overrides"][vacuum_entity_id] = {role: entity_id}
@@ -270,8 +282,8 @@ This also carries the removal path the options flow cannot offer (§4.5: that sc
 never clears, because its fields disappear once a role is fixed).
 
 Per-vacuum, inheriting the Setup tab's existing per-vacuum iteration. The container name is
-deliberately broad so brand override can land beside it later — `brand_overrides` has had a read
-path and no writer since the brands table was written.
+deliberately broad. (It was originally worded so a *brand* override could land beside it
+later; that idea has since been ruled out — see the §4.1 note.)
 
 #### Two levels, and the CURRENT VALUE on the summary row
 
@@ -377,7 +389,7 @@ That record is also P0-3's instrumentation — **one artifact, both jobs.**
 | absent/disabled/resolved reason | `core/capabilities.py` `_find*` + `diagnostics.py` `entity_resolution` |
 | Augmentation telemetry + WARNING | `core/capabilities.py::augment_candidates_from_device` + `diagnostics.py` |
 | Companion-stem derivation | `core/capabilities.py` (new helper, brand-agnostic) |
-| Override read path | `augment_candidates_from_device`, key mirroring `adapters/brands.py::BRAND_OVERRIDES_KEY` |
+| Override read path | `augment_candidates_from_device`, keyed by `custom_components/eufy_vacuum/const.py::ENTITY_OVERRIDES_KEY` |
 | Override UI step | `config_flow.py` `EufyVacuumOptionsFlow` + 18 locale files |
 | Census enrichment | `diagnostics.py::_device_entity_census` `_device_entity_census` |
 | Trait scorer | core (traits) + `adapters/*/vocabulary.py` (vocabularies) |

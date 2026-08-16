@@ -701,7 +701,14 @@ for evt in EVENTS:
     for c in EVENT_CONSTS.values():
         if c["value"] != evt:
             continue
-        cbits.append(f"`{c['const']}` — `{c['file']}:{c['line']}`, {c['how']} `{md_escape(c['expr'])}`")
+        # SYMBOL, never a line number. The generator knows the constant's NAME, so
+        # emitting `file:123` throws that away and produces a citation that rots on any
+        # unrelated edit above it: adding five lines of comment to const.py once made
+        # NINE citations in this file wrong at a stroke, and the staleness gate then
+        # reported the whole document as drifted. `file.py::SYMBOL` survives every edit
+        # that does not rename the symbol — and if it IS renamed, check_doc_citations
+        # says so instead of silently pointing at whatever now occupies that line.
+        cbits.append(f"`{c['const']}` — `{c['file']}::{c['const']}`, {c['how']} `{md_escape(c['expr'])}`")
     L += ["Constant: " + "; ".join(sorted(cbits)), ""]
     L += [f"Fired from {len(m['sites'])} call site(s) in {len(m['modules'])} module(s): "
           + ", ".join(f"`{x}`" for x in m["modules"]), ""]
