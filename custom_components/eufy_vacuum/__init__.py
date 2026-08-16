@@ -22,6 +22,7 @@ import json
 import logging
 import os
 from collections.abc import Callable
+from copy import deepcopy
 from typing import Any
 
 import voluptuous as vol
@@ -418,6 +419,87 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     _vacuum_entity_id,
                 )
 
+        # anchor: INKR1TW7  cold-start provider readiness
+        #
+        # INVARIANT — an operation that reads entities owned by ANOTHER integration
+        # must not assume they exist during cold-start setup. Defer it to
+        # `async_at_started`, or tolerate late availability. Otherwise it reads an
+        # empty registry and a stateless vacuum, caches that answer, and never looks
+        # again — and a restart repeats the same race rather than repairing it.
+        #
+        # The failure here was not that nobody knew. `_schedule_vocabulary_migration`
+        # below states this exact constraint, correctly, in a comment: adapters "are
+        # registered from vacuum entities owned by OTHER integrations" and at raw
+        # setup time "on a cold boot they often have not" set up. That knowledge was
+        # true of ADAPTER REGISTRATION ITSELF and was never applied to it. A local
+        # comment is not a system property; this anchor is the attempt to make it one.
+        #
+        # Cite `INKR1TW7` from any site that takes the same dependency.
+        #
+        # AND AGAIN ONCE HA HAS FINISHED STARTING — the registration above reads a
+        # provider that may not have published anything yet.
+        #
+        # Everything an adapter derives comes from the vacuum's OWN integration: the
+        # `segments` attribute that decides `has_attribute_rooms`, and the entity
+        # registry the companion sweep searches. On a cold boot that provider has
+        # often not finished, so we read an empty registry and a stateless vacuum,
+        # cache the answer, and never look again. A restart repeats the same race.
+        #
+        # Measured on a user's install (issue #49): 65 companion entities present,
+        # every one of the seven `maintenance_sources` recorded as null, and
+        # `supports_rooms: false` beside a self-check reporting five readable rooms.
+        # Replaying the sibling list through the resolver by hand resolved 6 of 6 —
+        # the matching was never wrong, the list was empty when it ran.
+        #
+        # This is the SAME reasoning, and the same primitive, the vocabulary
+        # migration below already documents for the same reason. That comment says
+        # adapters "are registered from vacuum entities owned by OTHER integrations"
+        # and that at raw setup time "on a cold boot they often have not" set up —
+        # true of the registration itself, and never applied to it.
+        #
+        # Both halves are needed and they fix different things. Re-registering the
+        # adapter re-derives the HINTS from live state (`has_attribute_rooms`);
+        # refreshing capabilities re-runs the live registry sweep (maintenance
+        # sources, entity resolution). The capability refresh alone cannot fix rooms,
+        # because it deliberately replays the adapter's stored hints.
+        #
+        # Writes only on a real change, so a healthy install pays one detection pass
+        # and no storage write, and a heal is visible in the log rather than silent.
+        @callback
+        def _redetect_when_providers_are_up(_hass: HomeAssistant) -> None:
+            async def _do() -> None:
+                healed: list[str] = []
+                for _vid in manager.get_known_vacuum_ids():
+                    try:
+                        _before = deepcopy(
+                            (manager.data.get("capabilities") or {}).get(_vid)
+                        )
+                        register_brand_adapter(hass, _vid, data=_brand_data)
+                        _after = manager.refresh_vacuum_capabilities(
+                            vacuum_entity_id=_vid
+                        )
+                        if _before != _after:
+                            healed.append(_vid)
+                    except Exception:  # pragma: no cover - never block startup
+                        _LOGGER.exception(
+                            "eufy_vacuum: post-start re-detection failed for %s; "
+                            "keeping the capabilities detected at setup",
+                            _vid,
+                        )
+                if healed:
+                    _LOGGER.info(
+                        "eufy_vacuum: re-detected capabilities after startup for %s "
+                        "— the provider had not finished publishing at setup time",
+                        ", ".join(healed),
+                    )
+                    await manager.async_save()
+
+            hass.async_create_task(_do())
+
+        entry.async_on_unload(
+            async_at_started(hass, _redetect_when_providers_are_up)
+        )
+
         # One-shot repair of rooms written under the framework's former Eufy default
         # (see rooms/vocabulary_migration.py). Rooms are only rewritten when edited, so
         # without this an untouched room keeps a value its device cannot accept
@@ -425,7 +507,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # ones. Failure here must never block setup; an unrepaired room behaves exactly
         # as it did before.
         #
-        # DEFERRED TO HA-STARTED, not run inline here. The rules are driven entirely by
+        # DEFERRED TO HA-STARTED, not run inline here — the same constraint as
+        # `INKR1TW7` above, which this comment originally stated and which nobody
+        # promoted past this one call site.
+        #
+        # The rules are driven entirely by
         # what each brand DECLARES, and adapters are registered from vacuum entities
         # owned by OTHER integrations. Running at raw setup time only works if those
         # happened to set up first: on a cold boot they often have not, every vacuum is
