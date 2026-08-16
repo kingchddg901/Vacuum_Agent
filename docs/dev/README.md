@@ -10,7 +10,7 @@ document it lives in, it belongs somewhere else — that's the whole routing rul
 matching delta. No delta file for a subsystem means the DR baseline is authoritative,
 full stop.
 
-Under the availability contract ([00 §0](00-disaster-recovery-standard.md)) the corpus
+Under the availability contract ([00 §0](history/disaster-recovery-standard.md)) the corpus
 rebuilds a functionally identical integration from total source loss — **two-phase**:
 every doc-stated interface first as skeletons, then each section implemented against
 them. The reading order below is the COMPREHENSION order, not a dependency order (the
@@ -30,8 +30,7 @@ files that give you the mental model you need before reading anything else.
 
 | # | File | What it covers |
 |---|---|---|
-| 00 | [disaster-recovery-standard](00-disaster-recovery-standard.md) | The disaster-recovery doc standard: the availability contract (§0 — total source loss, functional identity, self-hosting corpus), the DR-grade rubric, meta-rules, and the per-subsystem audit-status table |
-| 00a | [documentation-epoch-lifecycle](00a-documentation-epoch-lifecycle.md) | The documentation model itself: DR baseline / dev deltas / audit record, epoch open-and-close, the plain-language key, epoch-edge fix rules |
+| 00 | [documentation-standard](00-documentation-standard.md) | **How these docs work.** The three shelves (NOW / DESIGN / HISTORY), what an invariant must state, adjudicating a design doc against the code, what a subsystem doc must specify, the meta-rules, citation form, and the release gate |
 | 01 | [architecture-overview](01-architecture-overview.md) | The big picture: adapter pattern, data flow, concurrency rules, subsystem map |
 | 02 | [ha-integration](02-ha-integration.md) | Config entry lifecycle, platform setup, entity registration, coordinator pattern |
 | 03 | [data-model](03-data-model.md) | The persistent store schema — every top-level key and what lives under it |
@@ -139,6 +138,18 @@ The Lovelace panel card — the render cycle, event binding, styles, state, the 
 contract, theming, i18n, the standalone cards, and every card feature — is documented as its own
 set in **[frontend/](frontend/architecture-overview.md)**. Start with the **architecture overview**
 (the hub), which maps the whole set.
+
+---
+
+## History — retired approaches
+
+Kept so a retired idea is not proposed again in six months, confidently. Nothing here is
+maintained against the code; each carries a banner saying what it was and why it went.
+
+| File | What it was, and why it was retired |
+|---|---|
+| [disaster-recovery-standard](history/disaster-recovery-standard.md) | The doc standard from ~2026-06 to 2026-08: could a subsystem be rebuilt from its doc alone? Retired because the premise (total source loss) was not the risk this project runs, while the real failure — a doc confidently describing behaviour the code no longer has — is one it did not address. Its precision rules were carried into [00](00-documentation-standard.md) |
+| [documentation-epoch-lifecycle](history/documentation-epoch-lifecycle.md) | The DR-baseline / dev-delta / audit-record model. **Epochs are a good idea for audits and a dangerous one for documentation** — an epoch licenses a doc to be out of date between reconciliations while it still reads as current, so drift becomes compliance rather than a defect |
 
 ---
 

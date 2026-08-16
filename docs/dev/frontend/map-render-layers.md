@@ -96,7 +96,7 @@ different generations of code encoded two different beliefs about whether that's
   unsourced assertion. **No code changed.** The three identity paths (scrim, clean-order badges,
   current-room attribution) are consistent with all available evidence, and rewriting working
   code to satisfy an unsourced comment is the exact failure
-  [00a §9](../00a-documentation-epoch-lifecycle.md) warns about — docs are part of the
+  [00a §9](../history/documentation-epoch-lifecycle.md) warns about — docs are part of the
   measurement apparatus, and a wrong one makes an auditor "fix" correct code.
 
   The name-bridge is **kept**, relabelled defensive-not-required: it costs one lookup, it can

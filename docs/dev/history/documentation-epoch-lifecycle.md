@@ -1,3 +1,56 @@
+> # ⚠ RETIRED — kept as HISTORY, not as guidance
+>
+> **Retired 2026-08-16**, with its companion
+> [`disaster-recovery-standard.md`](disaster-recovery-standard.md). The live standard is
+> [`../00-documentation-standard.md`](../00-documentation-standard.md).
+>
+> ## Why it was retired
+>
+> **The epoch idea is sound — for AUDITS. It is dangerous applied to documentation.**
+> That distinction is the whole reason for this retirement, so take it before the detail.
+>
+> An epoch is a point-in-time claim: *this was true, and audited, as of here*. That is
+> exactly what an audit IS, and epoch boundaries are what make "what was checked, and
+> when" answerable at all. **Epochs remain in use for the audit campaign and should stay
+> there.**
+>
+> Documentation is not a point-in-time claim. It is consumed as a statement about the
+> system *now*, by a reader who has no way to know which epoch they are standing in. Give
+> a doc an epoch and you have licensed it to be out of date between reconciliations —
+> legitimately, by the model's own rules — while it still reads as current to anyone who
+> opens it. That is not staleness caught late; it is staleness made policy. The danger is
+> not that the doc drifts, it is that drifting is *compliant*.
+>
+> The mechanics below are the shape that danger took:
+>
+> This doc defined a three-tier model: a canonical **DR baseline**, development docs as a
+> **diff** against it, and an **audit record** for provenance. The replacement is also three
+> shelves — NOW, DESIGN, HISTORY — but they divide the corpus differently, and the
+> difference is the reason for the change.
+>
+> **The diff tier never existed in practice.** §3.1 called dev docs "diff-oriented" and
+> §3.3 insisted they were "not another canonical specification". Meanwhile
+> `13-maintenance-manager.md` opened by claiming a developer should be able to
+> re-implement the manager from it alone. The docs were canonical the whole time; only the
+> model said otherwise, and a model contradicted by the artifacts it governs is a model
+> that costs effort and returns nothing.
+>
+> **Two canonical tiers is one too many.** A baseline plus a diff means every fact has two
+> homes and can disagree with itself — precisely the normative collision the standard's own
+> §5.4 forbids. The replacement keeps exactly one shelf that describes the present.
+>
+> **Epochs served the grading, and the grading is gone.** Reconciliation passes existed to
+> promote dev deltas into the DR baseline. With no baseline, there is nothing to promote
+> to, and a NOW doc is simply corrected when it drifts.
+>
+> ## What was carried forward
+>
+> The separation of *provenance* from *specification* survives, in a different shape: the
+> audit record's job — how we found it, what failed — is now the HISTORY shelf, and this
+> file is its first resident.
+
+---
+
 # Documentation Epoch and Reconciliation Model
 
 **Status:** Working documentation doctrine  

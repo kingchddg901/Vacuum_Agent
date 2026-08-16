@@ -4,7 +4,7 @@
 > true — storage shapes, edge-detection rules, timing, and the public API — so the
 > module can be rebuilt, **functionally identical**, from this document plus the
 > interfaces the neighbouring sections' docs state (the self-hosting availability
-> contract, [00 §0](00-disaster-recovery-standard.md)). Blind reconstruction evidence:
+> contract, [00 §0](history/disaster-recovery-standard.md)). Blind reconstruction evidence:
 > CAL-23, 2-of-2 (2026-08-07), under the source-assisted harness — necessary, not yet
 > the docs-only drill.
 

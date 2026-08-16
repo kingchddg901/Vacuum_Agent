@@ -12,7 +12,7 @@ Method: an AST subsystem-dependency map plus a runtime trace of a single `room_c
 > audit plus a blueprint for work deliberately not done, which is what `design/`
 > holds. The **atom + rings model itself is architecture, not proposal** — it is
 > stated normatively in [`01-architecture-overview.md`](../01-architecture-overview.md)
-> §2 and relied on by the [disaster-recovery standard](../00-disaster-recovery-standard.md);
+> §2 and relied on by the [disaster-recovery standard](../history/disaster-recovery-standard.md);
 > this document is the *measurement* behind it and the refactor plan on top of it.
 > Re-measured 2026-08-15: 13 of the 14 §9 reach-in counts still exact five weeks on;
 > `active_job` had moved 39 → 43 and is corrected below.

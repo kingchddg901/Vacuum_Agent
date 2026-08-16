@@ -230,7 +230,7 @@ module (flat file) or a subsystem package. Here is the full map:
    > - A ring should attach through an **absence-tolerant seam** — `learning` is
    >   the model to copy, guarded `if learning is None: …` at every reach-in, so
    >   the core tolerates its *nonexistence* rather than merely its stubbing. That
-   >   property is what the [disaster-recovery standard](00-disaster-recovery-standard.md)
+   >   property is what the [disaster-recovery standard](history/disaster-recovery-standard.md)
    >   rebuilds against, atom-out.
    >
    > Three rings do **not** yet meet that bar: `access_graph` and `profiles` hold

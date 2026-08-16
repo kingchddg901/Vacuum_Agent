@@ -109,7 +109,7 @@ landed, and the complete list of what remains open with the specific thing that 
 each item — is public:
 
 - **[AUDIT-1 Closeout](audit-1-closeout.md)** — the campaign in full, with every number regenerated from the ledgers at close.
-- **[The disaster-recovery standard](dev/00-disaster-recovery-standard.md)** — every backend subsystem graded, held to the rule that a precise-but-unverified statement is worse than silence.
+- **[The disaster-recovery standard](dev/history/disaster-recovery-standard.md)** — every backend subsystem graded, held to the rule that a precise-but-unverified statement is worse than silence.
 
 A second campaign is chartered, and its target is this one's output: every repaired seam,
 every fix, everything written since. The audit that tore the system down gets audited by

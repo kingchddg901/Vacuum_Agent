@@ -1,6 +1,35 @@
-# Development deltas — the current epoch's diff against the DR baseline
+> # ⚠ THE MODEL THIS DIRECTORY IMPLEMENTS WAS RETIRED — 2026-08-16
+>
+> **This file straddles a line that was drawn after it was written.** Read this before
+> acting on anything below it. The live standard is
+> [`../00-documentation-standard.md`](../00-documentation-standard.md).
+>
+> **The epoch idea is good for AUDITS and dangerous for DOCUMENTATION.** An epoch is a
+> point-in-time claim — exactly what an audit is, and what makes "what was checked, and
+> when" answerable. But a *document* is read as a statement about the system now, by
+> someone with no way to know which epoch they are standing in. An epoch gives a doc
+> permission to be out of date between reconciliations, legitimately, while still reading
+> as current. Drift stops being a defect and becomes compliance.
+>
+> **So the two halves of this file now have different standing:**
+>
+> | Content | Standing |
+> |---|---|
+> | The **delta mechanism** — dev docs as a diff, "no delta file means the DR baseline is authoritative" | **RETIRED.** There is no baseline. The numbered docs in `docs/dev/` are the truth about the present, and a stale one is simply corrected. |
+> | The **epoch ledger** and the recorded delta sets — what was audited, when, and what was found | **VALID.** This is audit provenance, and epochs are the right frame for it. |
+>
+> Do **not** read "no delta file for a subsystem means the baseline is authoritative".
+> That rule died with the baseline. Read the subsystem doc.
+>
+> ⚠ **The Epoch 2 ledger row below is known stale** — it says "no known code-vs-DR deltas
+> at open" and is many commits behind, including a shipped release. Treat the recorded
+> delta sets as a historical record of particular audits, not as a current inventory.
 
-Per [00a — Documentation Epoch and Reconciliation Model](../00a-documentation-epoch-lifecycle.md):
+---
+
+# Development deltas — audit record of the epoch delta sets
+
+Per [00a — Documentation Epoch and Reconciliation Model](../history/documentation-epoch-lifecycle.md):
 the numbered docs in `docs/dev/` are the **Disaster-Recovery baseline** — the reconciled,
 present-tense rebuild truth as of the last epoch close. Files in THIS directory are the
 current epoch's **deltas** against that baseline.
@@ -20,7 +49,7 @@ enough for the next epoch-closing audit to adjudicate it.
 | epoch | closed | closing operation |
 |---|---|---|
 | **Epoch 1** | **2026-08-08** (v2.0.0, the Phoenix Release — the audit closes the epoch, the release ships it) | The hostile-audit campaign — **516 corpus records / 484 verified findings / 22 killed**, collapsed into 33 accepted repair families (6 candidates rejected) and landed as 60 packets (figures from `corpus/audit-findings-canonical.jsonl`, the frozen corpus; the `464 / 67` pair quoted elsewhere is the AUDIT-2 *gate rebase* from `49e6e3b`, a different measure — do not mix them) + the DR reconciliation passes that established this baseline: batch 1 (`5940830` + siblings) and the 17-cluster adversarially-verified workflow pass (runs `wf_c3085752-b7b` + `wf_16fa0e1a-3f3`, applied 2026-08-06). Includes the rebuilt Phased Jobs (docs 06/30 reconciled + Opus-verified in `6a87c13`, per the §13 epoch-edge ruling) and the full `live:FONT-1` resolution (fix `ecbe77f`/`d3f81e6`, user-confirmed; typeface mechanism + drop-in fonts documented same-commit, styles-system §4/§4b). Provenance: the audit record (`.claude/notes/synthesis/`, closure ledgers, the postmortem corpus). |
-| Epoch 2 | open | Accumulating. **92 commits since v2.0.0 as of 2026-08-14. The delta set below enumerates the first 19 of them (`v2.0.0..5779188e`), 8 of which carry a DR delta; the 73 after that — effectively the whole 2.1.0 line — are NOT enumerated.** See the coverage note under the delta set before reading any silence there as evidence. The row previously read *"No known code-vs-DR deltas at open"*; that was written on 2026-08-09 at `3d04ff4f` and was already false by 2026-08-13, having gone unrevisited across sixteen further commits including a shipped release (2.0.1). It was then corrected to *"19 commits since v2.0.0, of which 8 carry a DR delta"* — which was accurate for one day. Both corrections were made in place rather than appended, per [00 §5.4](../00-disaster-recovery-standard.md) — a superseded normative statement is edited in place. The recurring defect is the same both times and is worth naming rather than fixing quietly a third time: **a commit count is a claim with a timestamp on it, and nothing in this file revisits it.** |
+| Epoch 2 | open | Accumulating. **92 commits since v2.0.0 as of 2026-08-14. The delta set below enumerates the first 19 of them (`v2.0.0..5779188e`), 8 of which carry a DR delta; the 73 after that — effectively the whole 2.1.0 line — are NOT enumerated.** See the coverage note under the delta set before reading any silence there as evidence. The row previously read *"No known code-vs-DR deltas at open"*; that was written on 2026-08-09 at `3d04ff4f` and was already false by 2026-08-13, having gone unrevisited across sixteen further commits including a shipped release (2.0.1). It was then corrected to *"19 commits since v2.0.0, of which 8 carry a DR delta"* — which was accurate for one day. Both corrections were made in place rather than appended, per [00 §5.4](../history/disaster-recovery-standard.md) — a superseded normative statement is edited in place. The recurring defect is the same both times and is worth naming rather than fixing quietly a third time: **a commit count is a claim with a timestamp on it, and nothing in this file revisits it.** |
 
 ### Epoch 2 delta candidates — detail
 
@@ -132,7 +161,7 @@ domain+suffix match and remaps. **DR edit required in 21 and 22:** doc 22 alread
 *different* registry fallback — per-role `token_sets` ("all-tokens-must-match") for dock
 `action_buttons` and maintenance `reset_button`. There are now two rescue mechanisms with
 different scopes, one declared per-role and one global and implicit, and no document states
-which runs first. That is capability/adapter semantics, which [00 §2.2](../00-disaster-recovery-standard.md)
+which runs first. That is capability/adapter semantics, which [00 §2.2](../history/disaster-recovery-standard.md)
 puts in DR.
 *Known limit:* the rescue refuses when a suffix matches more than one sibling and breaks the
 tie with `vacuum_object_id in candidate` — which can never succeed on the naming-mismatch
@@ -262,7 +291,7 @@ unverifiable claim (VIEW_ORDER-mismatch frame reset) since confirmed at `main.js
 **The former residual — RECONCILED 2026-08-07, closed:**
 
 All three were walked statement-by-statement against source per
-[00 §4–§5](../00-disaster-recovery-standard.md), source-only (no commit messages), and the
+[00 §4–§5](../history/disaster-recovery-standard.md), source-only (no commit messages), and the
 pass is gated by a green `mkdocs build --strict`.
 
 | doc | evidence |
@@ -274,7 +303,7 @@ pass is gated by a green `mkdocs build --strict`.
 Four doc-vs-code disagreements where the **code** was the wrong side were surfaced rather
 than papered over, filed as `R3-BUG-1..3` / `R3-STALE-1` in
 `.claude/notes/synthesis/DOC-PASS-TRIAGE.md`, and **all four have since been fixed** — the
-docs above describe the post-fix system, per the [00a §13](../00a-documentation-epoch-lifecycle.md)
+docs above describe the post-fix system, per the [00a §13](../history/documentation-epoch-lifecycle.md)
 same-commit rule:
 
 | id | defect | resolution |
@@ -290,7 +319,7 @@ ruling makes the phased-job record schema DR material, which also decides whethe
 drift-checker's queue-break exempt list gets retired by documenting those services.
 
 Why this is logged in the ledger and not just a TODO: per
-[00a §9](../00a-documentation-epoch-lifecycle.md), the documentation is part of the
+[00a §9](../history/documentation-epoch-lifecycle.md), the documentation is part of the
 measurement apparatus. An epoch row that overstates its own coverage tells the next
 auditor that a stale region is trustworthy prose — which is the same failure class as a
 confidently-wrong DR statement, one level up. The named residual is the honest baseline.
