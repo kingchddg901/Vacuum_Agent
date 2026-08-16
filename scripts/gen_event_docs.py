@@ -381,10 +381,22 @@ def indirect_variants(fnode, param: str, fname: str) -> list[Variant]:
             # `trigger="error"` is exactly the discriminator a consumer branches on
             bits = [f"{k}={v.value!r}" for k, v in sorted(kws.items())
                     if k != param and isinstance(v, ast.Constant) and isinstance(v.value, str)]
+            # SYMBOL for the origin, like every other citation this generator emits.
+            # These two rows were the last line-based ones in the document, and they
+            # point into core/manager.py — the single most-edited file in the repo — so
+            # they went stale on commits that never touched an event. Parent links are
+            # set on every tree (see the loader), so the same `enclosing()` the fire-site
+            # scanner uses works here. Falls back to the line only when a call somehow
+            # sits outside any function, where there is no symbol to name.
+            _cfn = enclosing(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            _ccls = enclosing(node, (ast.ClassDef,))
+            _csym = (f"{_ccls.name}.{_cfn.name}" if _ccls and _cfn
+                     else _cfn.name if _cfn else None)
+            _corigin = f"{cfile}::{_csym}" if _csym else f"{cfile}:{node.lineno}"
             out.append(Variant(
-                label=", ".join(bits) or f"{cfile}:{node.lineno}",
+                label=", ".join(bits) or _corigin,
                 keys=_dict_keys(val, cfile, f"{target}({param}=) @{node.lineno}"),
-                origin=f"{cfile}:{node.lineno}",
+                origin=_corigin,
             ))
     if not out:
         blind("indirect-payload-unresolved", fname,
@@ -426,7 +438,15 @@ def resolve_payload(node: ast.expr, fname: str, fnode, site_line: int) -> tuple[
                     if isinstance(stmt.value, ast.Dict):
                         for k, v in _dict_keys(stmt.value, fname, where):
                             keys.setdefault(k, v)
-                        how.append(f"dict literal at line {stmt.lineno}")
+                        # NO LINE NUMBER. The variable is already named ("local
+                        # `payload`") and the enclosing symbol is in the Location
+                        # column, so the line added nothing except a citation that
+                        # rots. This one survived the first migration pass and was
+                        # caught only by a probe: 12 comment lines inserted at the top
+                        # of core/manager.py, regenerate, and the gate still failed on
+                        # this single row. A doc that cites 40 symbols and one line
+                        # number breaks exactly as often as one citing 41 lines.
+                        how.append("dict literal")
                     elif isinstance(stmt.value, ast.Call):
                         got, chow = resolve_call_keys(stmt.value, fname, where)
                         if got:
@@ -598,7 +618,9 @@ for evt in EVENTS:
     consts = sorted({c["const"] for c in EVENT_CONSTS.values() if c["value"] == evt})
     MODEL[evt] = {
         "constants": consts,
-        "const_sites": sorted(f"{c['file']}:{c['line']}" for c in EVENT_CONSTS.values() if c["value"] == evt),
+        # SYMBOL form here too: this feeds the JSON model, and a consumer that
+        # round-trips a line number inherits the same staleness.
+        "const_sites": sorted(f"{c['file']}::{c['const']}" for c in EVENT_CONSTS.values() if c["value"] == evt),
         "keys": sorted(everywhere),
         "keys_on_every_site": sorted(always),
         "keys_conditional": sorted(conditional),
@@ -690,7 +712,8 @@ if UNFIRED_CONSTS:
         "|---|---|---|",
     ]
     for c in UNFIRED_CONSTS:
-        L.append(f"| `{c['const']}` | `{c['file']}:{c['line']}` | `{c['value']}` |")
+        # SYMBOL, not a line — same reason as the fired-constant block below.
+        L.append(f"| `{c['const']}` | `{c['file']}::{c['const']}` | `{c['value']}` |")
     L.append("")
 L += ["---", ""]
 
@@ -750,11 +773,22 @@ for evt in EVENTS:
                 L.append(f"| `{md_escape(v.label)}` | {', '.join(f'`{k}`' for k, _ in v.keys)} | `{v.origin}` |")
         L.append("")
 
-    L += ["### Fire sites", "", "| Location | Enclosing | Payload built by | Nearest guards |", "|---|---|---|---|"]
+    # No separate "Enclosing" column: since the location became `file::symbol` it
+    # ENDS with that symbol, and a generated table should not print the same string
+    # twice. Two fires in one function are still told apart by their guards, which is
+    # the distinction that matters — the line number that used to separate them was
+    # the thing rotting.
+    L += ["### Fire sites", "", "| Location | Payload built by | Nearest guards |", "|---|---|---|"]
     for s in BY_EVENT[evt]:
         encl = f"{s.cls}.{s.func}" if s.cls else s.func
         g = " ⟶ ".join(f"`{md_escape(x)}`" for x in s.guards) or "—"
-        L.append(f"| `{s.file}:{s.line}` | `{encl}` | {md_escape(s.payload_how)} | {g} |")
+        # The fire site's stable name is its ENCLOSING function, which is already the
+        # next column — so the location cites that rather than a line that moves every
+        # time anything above it changes. This table was the last holdout: 29 of the 40
+        # citations in this document were still line-based, and an edit anywhere in
+        # core/manager.py shifted four of them at once and failed check_generated_docs
+        # on a commit that had nothing to do with events.
+        L.append(f"| `{s.file}::{encl}` | {md_escape(s.payload_how)} | {g} |")
     L.append("")
 
 L += [
