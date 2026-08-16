@@ -224,6 +224,85 @@ def test_upkeep_snapshot_with_component(mnt, manager, hass, monkeypatch):
     assert snap["highest_priority_status"] in {"warning", "replace_soon", "replace_now"}
 
 
+def test_replacement_life_falls_back_to_the_declared_interval(mnt, manager, hass, monkeypatch):
+    """[MNT-12c] issue #51: no `total_life_hours` attribute -> use the adapter's own.
+
+    `total_life_hours` is a robovac_mqtt attribute. Roborock's consumable sensors
+    publish the remaining hours and nothing else, so `remaining_percent` stayed
+    None on EVERY Roborock part and `replacement_status` returned "unknown" for
+    all of them -- 6 items, 6 "attention", 0 healthy, with "232.3 hours
+    remaining" printed next to the word Unknown.
+
+    The numbers here are the reporter's, from his vendor dump:
+    `mainBrushWorkTime` 243607 s = 67.67 h used, against the 300 h life this
+    adapter declares -- and 300 - 67.67 = 232.33, exactly what his card showed.
+    77% is comfortably "good", which is the whole point: nothing was ever wrong
+    with the part.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {
+            "main_brush": {"label": "Main Brush", "default_interval_hours": 300.0},
+        },
+    })
+    _caps(manager, monkeypatch, {"main_brush": _SRC})
+    hass.states.async_set(_SRC, "232.3")  # no attributes at all, as Roborock sends
+
+    items = {i["component"]: i
+             for i in mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)["replacement_items"]}
+    assert items["main_brush"]["total_life_hours"] == 300.0
+    assert items["main_brush"]["remaining_percent"] == 77.43
+    assert items["main_brush"]["status"] == "good"
+
+
+def test_replacement_life_prefers_the_attribute_over_the_declaration(
+    mnt, manager, hass, monkeypatch
+):
+    """[MNT-12d] the fallback is a fallback -- a published attribute still wins.
+
+    Eufy publishes `total_life_hours`, so it must be untouched by MNT-12c. Uses a
+    declared interval that DISAGREES with the attribute, because agreeing values
+    cannot tell the two paths apart.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {
+            "main_brush": {"label": "Main Brush", "default_interval_hours": 999.0},
+        },
+    })
+    _caps(manager, monkeypatch, {"main_brush": _SRC})
+    hass.states.async_set(_SRC, "40", {"usage_hours": 260, "total_life_hours": 300})
+
+    items = {i["component"]: i
+             for i in mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)["replacement_items"]}
+    assert items["main_brush"]["total_life_hours"] == 300.0
+    assert items["main_brush"]["status"] == "warning"
+
+
+def test_replacement_with_no_life_anywhere_stays_unknown(mnt, manager, hass, monkeypatch):
+    """[MNT-12e] no attribute AND no declared interval -> still "unknown".
+
+    The fallback must not manufacture a denominator. An item nothing can measure
+    is unknown, and unknown is what the card needs in order to say so instead of
+    printing "0% remaining".
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {"main_brush": {"label": "Main Brush"}},
+    })
+    _caps(manager, monkeypatch, {"main_brush": _SRC})
+    hass.states.async_set(_SRC, "232.3")
+
+    items = {i["component"]: i
+             for i in mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)["replacement_items"]}
+    assert items["main_brush"]["total_life_hours"] is None
+    assert items["main_brush"]["remaining_percent"] is None
+    assert items["main_brush"]["status"] == "unknown"
+
+
 def test_maintenance_only_component_excluded_from_replacements(mnt, manager, hass, monkeypatch):
     """[MNT-12b] a maintenance_only component is surfaced ONLY as a Maintenance item,
     never a Replacement row, and contributes no Replacement status (issue #38 tray)."""

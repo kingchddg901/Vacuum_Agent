@@ -781,6 +781,21 @@ export function applyMaintenanceRenderers(proto) {
       return true;
     }
 
+    // UNKNOWN IS NOT ATTENTION (issue #51). The percent fallback below is a
+    // safety net for a payload that carries a percentage but no status; it must
+    // not fire on an item whose status is unknown, because there the percentage
+    // is 0 for want of DATA, not for want of service life.
+    //
+    // On a Roborock the untracked items (dustbin, wheels, tanks, dust bag) have
+    // no telemetry to have — the vendor exposes five consumables and nothing
+    // else — so they arrive at 0 hours of 0 hours, scored 0%, and every one of
+    // them was listed as needing attention. The backend never agreed: its own
+    // `attention_count` counts only {warning, replace_soon, replace_now}, so the
+    // same screen showed "ATTENTION 0 / No upkeep items need attention" above a
+    // full Needs Attention list. Two predicates for one question, and the
+    // louder one was the wrong one.
+    if (status === "unknown") return false;
+
     const remainingPercent = Number(item.remaining_percent);
     if (Number.isFinite(remainingPercent) && remainingPercent <= 20) {
       return true;
@@ -853,6 +868,25 @@ export function applyMaintenanceRenderers(proto) {
     // the card's language. The backend's pre-formatted English `remaining_summary`
     // is only a last resort for shapes we can't compose. tRaw (not t): the render
     // sinks escapeHtml this, so returning raw keeps it single-escaped.
+    // NO DATA IS NOT ZERO (issue #51). An item this device does not track arrives
+    // as 0 hours of 0 hours, scored 0%, and rendered "0% remaining" — which reads
+    // as "replace immediately" when it means "we have no reading". A Roborock has
+    // no dustbin/wheel/tank telemetry to give, so eight items shouted for service
+    // that were never in danger.
+    //
+    // Deliberately narrow: it needs BOTH an unknown status AND no positive life
+    // to measure against. An item with a genuine hours figure and merely no
+    // status still falls through and shows its hours, which is information.
+    const _status = String(item?.status ?? "").trim().toLowerCase();
+    const _life = Number(
+      item?.kind === "replacement"
+        ? (item?.max_life_hours ?? item?.total_life_hours)
+        : item?.interval_hours
+    );
+    if (_status === "unknown" && !(Number.isFinite(_life) && _life > 0)) {
+      return this.tRaw("maintenance.unknown_remaining_life");
+    }
+
     const percent = this._maintenanceRemainingPercent(item);
     if (Number.isFinite(percent)) {
       return this.tRaw("maintenance.percent_remaining", { percent: Math.round(percent) });

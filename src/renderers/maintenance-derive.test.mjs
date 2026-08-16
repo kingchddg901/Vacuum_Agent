@@ -31,7 +31,13 @@ const t = (key, vars) => (vars && "count" in vars ? `${key}:${vars.count}` : key
 function makeRenderers() {
   const proto = {};
   applyMaintenanceRenderers(proto);
-  return Object.create(proto);
+  const inst = Object.create(proto);
+  // Echo resolver, same idea as `t` above: _maintenancePrimaryValue composes its
+  // answer from i18n KEYS, so returning the key makes "which branch fired" the
+  // thing under assertion rather than any particular English wording.
+  inst.tRaw = (key) => key;
+  inst._formatMaintenanceHours = (h) => String(h);
+  return inst;
 }
 
 /* ============================================================
@@ -151,6 +157,69 @@ test("[ATT-2] status allowlist (warning/replace_soon/replace_now), case/space-in
   // a status NOT on the allowlist and no other trigger -> false
   assert.equal(r._maintenanceItemNeedsAttention({ status: "good" }), false);
   assert.equal(r._maintenanceItemNeedsAttention({ status: "unknown" }), false);
+});
+
+test("[ATT-4] an UNKNOWN item is not attention, even at 0% (issue #51)", () => {
+  const r = makeRenderers();
+  // A Roborock exposes five consumables; dustbin/wheels/tanks have no telemetry to
+  // give, so they arrive 0 hours of 0 hours and score 0%. The percent fallback used
+  // to flag all eight, while the backend's own attention_count -- which counts only
+  // {warning, replace_soon, replace_now} -- said zero. The same screen therefore read
+  // "ATTENTION 0 / No upkeep items need attention" above a full Needs Attention list.
+  assert.equal(
+    r._maintenanceItemNeedsAttention({ status: "unknown", remaining_percent: 0 }), false);
+  assert.equal(
+    r._maintenanceItemNeedsAttention({
+      status: "unknown", remaining_percent: 0, remaining_hours: 0, interval_hours: 0,
+    }), false);
+
+  // The status allowlist still wins over the unknown short-circuit ordering, and an
+  // explicit backend flag still wins over everything -- an unknown STATUS must not
+  // become a way to silence a real signal.
+  assert.equal(
+    r._maintenanceItemNeedsAttention({ status: "replace_now", remaining_percent: 0 }), true);
+  assert.equal(
+    r._maintenanceItemNeedsAttention({ status: "unknown", needs_attention: true }), true);
+
+  // A KNOWN item at 0% is still attention -- that is a worn part, not a missing one.
+  assert.equal(
+    r._maintenanceItemNeedsAttention({ status: "good", remaining_percent: 0 }), true);
+});
+
+test("[PV-1] no data renders UNKNOWN, not '0% remaining' (issue #51)", () => {
+  const r = makeRenderers();
+  // Untracked maintenance item: unknown status AND no interval to measure against.
+  assert.equal(
+    r._maintenancePrimaryValue({
+      kind: "maintenance", status: "unknown",
+      remaining_percent: 0, remaining_hours: 0, interval_hours: 0,
+    }),
+    "maintenance.unknown_remaining_life");
+
+  // Untracked replacement: same, via max_life_hours.
+  assert.equal(
+    r._maintenancePrimaryValue({
+      kind: "replacement", status: "unknown",
+      remaining_percent: 0, remaining_hours: 0, max_life_hours: 0,
+    }),
+    "maintenance.unknown_remaining_life");
+
+  // NARROW: unknown status but a real life to measure against still reports its
+  // percentage. Suppressing that would throw away information we actually have.
+  assert.equal(
+    r._maintenancePrimaryValue({
+      kind: "replacement", status: "unknown",
+      remaining_percent: 77, remaining_hours: 232.3, max_life_hours: 300,
+    }),
+    "maintenance.percent_remaining");
+
+  // A known item at 0% still says 0% -- worn, not missing.
+  assert.equal(
+    r._maintenancePrimaryValue({
+      kind: "maintenance", status: "replace_now",
+      remaining_percent: 0, remaining_hours: 0, interval_hours: 300,
+    }),
+    "maintenance.percent_remaining");
 });
 
 test("[ATT-3] remaining_percent <= 20 qualifies; > 20 does not; boundary at 20", () => {

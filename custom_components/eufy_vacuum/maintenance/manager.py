@@ -414,6 +414,28 @@ class MaintenanceManager:
                     total_life_hours = float(replacement_state.attributes.get("total_life_hours"))
                 except (TypeError, ValueError):
                     total_life_hours = None
+
+                # THE ATTRIBUTE IS AN EUFY-ISM. robovac_mqtt publishes
+                # `total_life_hours` on its consumable sensors; Roborock's carry the
+                # remaining hours and nothing else. Reading only the attribute meant
+                # `remaining_percent` stayed None on every Roborock part, so
+                # `replacement_status` returned "unknown" for all of them — issue #51
+                # showed 6 items, 6 "attention", 0 healthy, with perfectly good values
+                # like "232.3 hours remaining" sitting right next to the word Unknown.
+                #
+                # The adapter already declares the service life we need, and the
+                # MAINTENANCE half of this very loop has been reading it all along
+                # (that is why the same screen showed "300 hours left of 300 hours"
+                # while the replacement row said Unknown). Verified against the
+                # reporter's own vendor dump: mainBrushWorkTime 243607 s = 67.67 h used,
+                # and 300 - 67.67 = 232.33, exactly the figure on his card. Same for
+                # side brush (200), filter (150), sensor (30) and strainer (150).
+                #
+                # Attribute wins when present, so Eufy is untouched.
+                if total_life_hours is None:
+                    _declared_life = float(meta.get("default_interval_hours", 0.0) or 0.0)
+                    if _declared_life > 0:
+                        total_life_hours = _declared_life
                 try:
                     remaining_hours = float(replacement_state.state)
                 except (TypeError, ValueError):
