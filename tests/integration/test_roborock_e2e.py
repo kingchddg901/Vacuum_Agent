@@ -54,6 +54,14 @@ def _setup(hass, manager, monkeypatch, model="roborock.vacuum.s6"):
     hass.states.async_set("binary_sensor.ivy_charging", "on")
     hass.states.async_set("sensor.ivy_battery", "100")
     hass.states.async_set("sensor.ivy_current_room", "Dining Room")
+    # The mop-intensity select must EXIST, as it does on real hardware: a global
+    # pre-call whose target is missing now refuses rather than silently no-opping
+    # (issue #51 — HA warns instead of raising on a missing service target, so the
+    # safety abort could never fire and the robot kept the vendor app's water).
+    hass.states.async_set(
+        "select.ivy_mop_intensity", "off",
+        {"options": ["off", "low", "medium", "high"]},
+    )
     rb.register_roborock_adapter_for_vacuum(hass, _VAC)
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
 

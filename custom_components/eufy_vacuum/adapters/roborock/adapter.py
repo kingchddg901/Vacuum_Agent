@@ -158,7 +158,12 @@ def register_roborock_adapter_for_vacuum(
                     "domain": DOMAIN_SELECT,
                     "service": "select_option",
                     "value_key": "option",
-                    "target_entity_id": build_entity_id(vid, SUFFIX_MOP_INTENSITY, DOMAIN_SELECT),
+                    # BY ROLE, not by frozen id. These pre-calls are built BEFORE
+                    # `resolve_declared_entities` runs, so any id baked in here is the
+                    # pre-rescue guess and stays wrong forever on an install whose
+                    # entity ids are localized or renamed. Naming the role instead
+                    # makes the dispatcher read the RESOLVED entity at call time.
+                    "target_role": "mop_intensity",
                 },
             },
         ]
@@ -273,6 +278,17 @@ def register_roborock_adapter_for_vacuum(
         # physical water tank. The card reads this (via snapshot.mop_active) to
         # surface mop state + the water-level field only when the tank is attached.
         "mop_active": build_entity_id(vid, SUFFIX_WATER_BOX, DOMAIN_BINARY_SENSOR),
+        # DECLARED so the rescue can reach it (issue #51). This select is the target
+        # of the mop global_pre_call, and it used to exist ONLY as a frozen literal
+        # inside dispatch.global_pre_calls — a place `resolve_declared_entities` never
+        # looks and no user override can reach. On a localized install the real select
+        # is `select.<vid>_wisch_intensitat`, so every water push named an entity that
+        # does not exist. Declared here it is rescued like any other role (its upstream
+        # translation_key IS `mop_intensity`, so the suffix-derived key already
+        # matches), it shows up on the System binding screen, and it becomes
+        # overridable. Declared on EVERY model, including the S6 whose mop is
+        # observe-only: the entity exists there too, and reading it is not setting it.
+        "mop_intensity": build_entity_id(vid, SUFFIX_MOP_INTENSITY, DOMAIN_SELECT),
     }
 
     # Rescue derived IDs that do not match this install (renamed device/entity, or a

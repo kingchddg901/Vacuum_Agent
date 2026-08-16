@@ -565,7 +565,48 @@ class DispatchManager:
                 else value_map.get(canonical_value, canonical_value)
             )
 
-            target_entity = service.get("target_entity_id") or vacuum_entity_id
+            # RESOLVE BY ROLE when the entry names one. An id frozen into the adapter
+            # config is the PRE-RESCUE guess — these blocks are built before
+            # `resolve_declared_entities` runs — so on a localized or renamed install
+            # it names an entity that does not exist. The role is read from the
+            # RESOLVED entities map at call time.
+            _role = entry.get("service", {}).get("target_role")
+            _by_role = (
+                (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get(_role)
+                if _role else None
+            )
+            target_entity = (
+                _by_role or service.get("target_entity_id") or vacuum_entity_id
+            )
+
+            # A MISSING TARGET MUST REFUSE, NOT WARN (issue #51).
+            #
+            # The abort below could never fire. Home Assistant does NOT raise when a
+            # service call names an entity that does not exist: it collects the
+            # missing ids and calls log_missing(), a WARNING. So the call no-opped,
+            # `except Exception` never ran, the safety abort never happened, and the
+            # run proceeded with whatever water the vendor app had last set — the
+            # exact wet-mop this guard exists to prevent, with no error anywhere.
+            #
+            # Checking existence FIRST turns that silence into the same refusal a
+            # genuine failure gets. Best-effort entries (fan, single-mode water) keep
+            # degrading quietly, as before, but say so at WARNING rather than nothing.
+            if self._manager.hass.states.get(target_entity) is None:
+                _msg = (
+                    f"{vacuum_entity_id}: global pre-call target {target_entity!r} "
+                    f"does not exist"
+                    + (f" (role {_role!r})" if _role else "")
+                    + " — the device's global setting cannot be applied"
+                )
+                if _use_safest:
+                    raise HomeAssistantError(
+                        f"could not apply the safe water setting before a run with "
+                        f"vacuum-only rooms: {_msg}; dispatch aborted to avoid "
+                        f"wet-mopping dry rooms"
+                    )
+                _LOGGER.warning("%s; leaving it as the device has it", _msg)
+                continue
+
             try:
                 await self._manager.hass.services.async_call(
                     domain,

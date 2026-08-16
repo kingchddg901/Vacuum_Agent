@@ -20,6 +20,11 @@ Mixed-batch safe water (mixed_mode_water_policy="safest"):
         MIXED batch, so zero mop rooms fell through to max-wins and pushed the room's
         STORED water level, because resolved_rooms keeps it on a dry room.
 [GPC-6c] ...same across several dry rooms, one of them asking for HIGH.
+[GPC-6d] a safest-water target that does NOT EXIST aborts the dispatch (issue #51) --
+        HA warns rather than raises on a missing service target, so the abort could
+        never fire and the run silently kept the vendor app's water.
+[GPC-6e] `target_role` resolves the entity at CALL time, so a rescued (localized)
+        entity receives the push -- pre_calls are built before the rescue runs.
 [GPC-7] an ALL-MOP batch keeps max-wins even with the safest marker (single-mode).
 [GPC-8] the safest marker does NOT touch a fan_speed entry (suction stays max-wins).
 [GPC-9] chosen "off" but the target select has no "off" option -> lower to the select's
@@ -33,6 +38,8 @@ Mixed-batch safe water (mixed_mode_water_policy="safest"):
 from __future__ import annotations
 
 import pytest
+
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 
@@ -67,8 +74,20 @@ def _register(hass, *, pre_calls=_PRE_CALLS):
     })
 
 
-def _capture(hass):
-    """Register stub fan + select services that record their call data."""
+def _capture(hass, *, targets_exist=True):
+    """Register stub fan + select services that record their call data.
+
+    ``targets_exist`` also puts the TARGET ENTITIES in the state machine, which is
+    what production looks like and what these tests previously omitted. It matters
+    because a pre-call now refuses when its target does not exist: HA does not raise
+    on a service call naming a missing entity, it logs a warning, so the old
+    behaviour was a silent no-op that the safety abort could never catch (issue #51).
+    Pass False to model exactly that install.
+    """
+    if targets_exist:
+        hass.states.async_set(_VAC, "docked")
+        hass.states.async_set(_MOP, "off", {"options": ["off", "low", "medium", "high"]})
+
     fan: list[dict] = []
     sel: list[dict] = []
 
@@ -212,6 +231,66 @@ async def test_all_vacuum_multi_room_forces_water_off(hass, manager):
         ],
     )
     assert sel == [{"entity_id": _MOP, "option": "off"}]
+
+
+async def test_missing_safest_target_aborts_instead_of_silently_no_opping(hass, manager):
+    """[GPC-6d] issue #51: a target that does not exist must REFUSE, not warn.
+
+    The abort below this line could never fire. Home Assistant does not raise when a
+    service call names a missing entity — it collects the ids and calls log_missing(),
+    a WARNING. So on an install whose mop select is `..._wisch_intensitat` while we
+    aimed at `..._mop_intensity`, the water push no-opped, `except Exception` never
+    ran, the safety abort never happened, and the run proceeded with whatever water
+    the vendor app had last set. Silent, and exactly the wet-mop this guard exists to
+    prevent.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass, targets_exist=False)   # the localized install
+
+    with pytest.raises(HomeAssistantError, match="dispatch aborted"):
+        await manager._run_global_pre_calls(
+            vacuum_entity_id=_VAC,
+            resolved_rooms=[{"clean_mode": "vacuum", "water_level": "off"}],
+        )
+    assert sel == []
+
+
+async def test_pre_call_target_resolves_by_role_not_frozen_id(hass, manager):
+    """[GPC-6e] a `target_role` reads the RESOLVED entity at call time.
+
+    global_pre_calls are built BEFORE resolve_declared_entities runs, so any id baked
+    into them is the pre-rescue guess. Naming the role instead lets the rescued
+    entity — here a German one — receive the call.
+    """
+    _GERMAN = "select.ivy_wisch_intensitat"
+    dispatch = {
+        "template": "roborock_segment_clean", "service_domain": "vacuum",
+        "service_name": "send_command", "command": "app_segment_clean",
+        "global_pre_calls": [{
+            "field": "water_level",
+            "rank": ["off", "low", "medium", "high"],
+            "mixed_mode_water_policy": "safest",
+            "service": {
+                "domain": "select", "service": "select_option",
+                "value_key": "option", "target_role": "mop_intensity",
+            },
+        }],
+    }
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        # What the resolver produced: the role bound to the localized entity.
+        "entities": {"mop_intensity": _GERMAN},
+        "dispatch": dispatch,
+    })
+    _fan, sel = _capture(hass, targets_exist=False)
+    hass.states.async_set(_VAC, "docked")
+    hass.states.async_set(_GERMAN, "off", {"options": ["off", "low", "medium", "high"]})
+
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[{"clean_mode": "vacuum", "water_level": "off"}],
+    )
+    assert sel == [{"entity_id": _GERMAN, "option": "off"}]
 
 
 async def test_all_mop_batch_keeps_max_wins(hass, manager):

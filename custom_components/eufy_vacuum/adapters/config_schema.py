@@ -92,6 +92,17 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "required": False,
                 "description": "Binary sensor reporting the mop is attached/active. Roborock only.",
             },
+            "mop_intensity": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Device-GLOBAL mop/water intensity select. Declared as a ROLE so the "
+                    "entity rescue can reach it and a user can override it; the mop "
+                    "global_pre_call names it via service.target_role rather than freezing "
+                    "an id, because pre-calls are built BEFORE the rescue runs and a frozen "
+                    "id stays wrong on a localized install (issue #51). Roborock only."
+                ),
+            },
             "dock_firmware_version": {
                 "type": "str",
                 "required": False,
@@ -1293,8 +1304,13 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                         "required": True,
                         "description": (
                             "{'domain', 'service', 'value_key', optional "
-                            "'target_entity_id'}. The service is called with "
-                            "{entity_id: target_entity_id or the vacuum, "
+                            "'target_role' or 'target_entity_id'}. PREFER target_role: "
+                            "it names an entities-map role resolved at CALL time, so a "
+                            "rescued (localized or renamed) entity receives the push. A "
+                            "frozen target_entity_id is the PRE-RESCUE guess, because "
+                            "these blocks are built before resolve_declared_entities runs. "
+                            "The service is called with "
+                            "{entity_id: resolved target_role or target_entity_id or the vacuum, "
                             "value_key: <wire value>}. Example: vacuum.set_fan_speed "
                             "with value_key='fan_speed'; select.select_option targeting "
                             "the mop-intensity select with value_key='option'."

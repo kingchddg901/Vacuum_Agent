@@ -628,7 +628,18 @@ def test_s7_mop_global_pre_call(s7_config):
     assert entry["service"]["domain"] == "select"
     assert entry["service"]["service"] == "select_option"
     assert entry["service"]["value_key"] == "option"
-    assert entry["service"]["target_entity_id"] == "select.ivy_mop_intensity"
+    # BY ROLE, not a frozen id (issue #51). These blocks are built BEFORE
+    # resolve_declared_entities runs, so an id baked in here is the PRE-RESCUE guess
+    # and stays wrong forever on an install whose entity ids are localized: the real
+    # select is `select.<vid>_wisch_intensitat`, the push named an entity that does
+    # not exist, and HA logs a warning rather than raising — so it failed silently and
+    # the robot mopped a room the user set to vacuum-only.
+    assert entry["service"]["target_role"] == "mop_intensity"
+    assert "target_entity_id" not in entry["service"]
+    # ...and the role is DECLARED, so the rescue can reach it and the System screen
+    # can show it. A role named by a pre-call but absent from `entities` would
+    # resolve to nothing at dispatch time.
+    assert s7_config["entities"]["mop_intensity"] == "select.ivy_mop_intensity"
     # No value_map: canonical values already match the select's wire options.
     assert "value_map" not in entry
 
