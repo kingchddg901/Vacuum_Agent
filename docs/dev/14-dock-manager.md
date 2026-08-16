@@ -55,6 +55,33 @@ Four actions are gated and dispatchable:
 
 Full capability→action gate map (§6 step 1): `wash_mop → supports_mop_wash`, `dry_mop` **and** `stop_dry_mop → supports_mop_dry`, `empty_dust → supports_empty_dust`.
 
+### 4.1 Brand dependence — the table above is EUFY's shape
+
+The four action keys are framework-canonical. **The button names are not** — they are the
+Eufy adapter's, resolved from `dock_events.action_buttons` (§5), and a brand that declares
+no `dock_events` block has no dock action entities at all.
+
+**Roborock declares none, deliberately and permanently.** Its integration exposes no
+wash, dry, or empty button anywhere: the vendor library has the commands
+(`APP_START_WASH`, `SET_WASH_TOWEL_MODE`, `SET_SMART_WASH_PARAMS`) and the HA integration
+surfaces none of them — its only dock buttons are the two consumable-life resets. Roborock
+drives those behaviours through the vacuum entity instead. So on Roborock all four actions
+resolve to `None`, and always will until upstream adds buttons.
+
+> ⚠ **This became user-visible on 2026-08-16 and the reason changed underneath it.**
+> Roborock's `supports_mop_wash` / `_mop_dry` / `_empty_dust` used to be hardcoded False,
+> so §6 **step 1** (`unsupported_feature`) fired and step 2 was never reached. Those flags
+> now come from the dock's real type via the vendor capability table, so a Roborock with a
+> wash dock reports `supports_mop_wash = True`, step 1 passes, and **step 2
+> (`missing_action_entity`) fires instead.**
+>
+> The action is still correctly blocked. But the reason a user sees moved from *"this
+> vacuum does not support that dock action"* to *"the upstream dock control entity was not
+> found"* — which reads as a fault on their install when the truth is that the brand
+> provides no such control. **`missing_action_entity` is the normal, permanent state for a
+> Roborock with a working dock**, not a discovery failure. The message wording is a known
+> defect; see the note in §6.
+
 ---
 
 ## 5. Entity Discovery
@@ -109,6 +136,10 @@ Resolves each action's button entity (via the §5.1/§5.2 discovery) **independe
 
 1. **`unsupported_feature`** — adapter capability flag `supports_{...}` is False.
 2. **`missing_action_entity`** — no button entity found via discovery.
+   ⚠ Reached in two very different situations, and the message does not distinguish them:
+   a discovery *failure* on a brand that has such buttons, and a brand that has none at
+   all (Roborock — see §4.1). The wording *"the upstream dock control entity was not
+   found"* suits the first and misleads on the second. Known defect, not yet fixed.
 3. **`job_active`** — **any run is in flight** (`run_is_in_flight(active_job)`, `jobs/active_job.py`): status `started`, `paused`, **or `external`**. RP-014 / #14:A6-VAC-1 — this used to ask the *dispatched* question (`{started, paused}`), so an app-started run (which holds the slot at `status="external"` for its whole capture) was invisible: every dock action read `allowed=True` during a mid-run dock (recharge / mop prewash — the case `external_run.py` deliberately holds the slot open through), the card offered Wash Mop, and the resulting dock event bumped `mop_wash_count`, which `water_amendment` consumes as `mop_wash_count_at_finalization` — poisoning the captured run's water actuals.
 4. **`not_docked`** — vacuum state is not `docked`.
 5. **action-specific state check** —

@@ -306,7 +306,7 @@ The engine wrapper `EufyCVSegmenter.segment_map_image(*, image_path, tuning, con
 > were a smear. Room tracking now reads the device's native current-room signal (§1).
 >
 > **The full design is preserved verbatim in
-> [design/room-bounds-from-traces.md](design/room-bounds-from-traces.md)**, together
+> [history/room-bounds-from-traces.md](history/room-bounds-from-traces.md)**, together
 > with what it got right (it was calibration-immune — CV pixels and vacuum coordinates
 > were never converted into each other; the user tied them by identity) and the two
 > requirements a brand would have to meet to revive it. Moved out of this document
@@ -449,7 +449,7 @@ Image metadata (width, height, path, browser_url) is recorded in the map bucket'
 ## 7. Excluded History Entries — RETIRED
 
 > Removed with the bounds store it belonged to. Preserved in
-> [design/room-bounds-from-traces.md](design/room-bounds-from-traces.md).
+> [history/room-bounds-from-traces.md](history/room-bounds-from-traces.md).
 
 ## 8. File Layout
 

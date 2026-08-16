@@ -306,6 +306,30 @@ def check_doc(doc: pathlib.Path, idx: Index) -> tuple[list[Problem], int]:
     return problems, checked
 
 
+
+#: Directories whose citations are AS-OF THEIR DATE and must not be "corrected".
+#:
+#: `docs/dev/maintenance/` holds completed audit records — dated findings, ticked off,
+#: naming the file and line as they were when the audit ran. `docs/dev/history/` holds
+#: retired approaches. Both are HISTORY under `docs/dev/00-documentation-standard.md` §1:
+#: a record of what was true then, which is never "wrong".
+#:
+#: Rewriting those citations so they resolve against today's tree would falsify the
+#: record. A finding that says `repairs.py:1` is CORRECT — `repairs.py` existed when the
+#: finding was filed, and its deletion is part of what the record documents. Pointing it
+#: at some surviving file would erase exactly the fact worth keeping.
+#:
+#: `check_docs_index.py` already excludes `maintenance/` for a related reason (it is not
+#: published to the site at all — `exclude_docs` in mkdocs.yml).
+HISTORICAL_DIRS: tuple[str, ...] = ("dev/maintenance/", "dev/history/")
+
+
+def _is_historical_record(path: pathlib.Path) -> bool:
+    """True for a doc whose citations are a dated record, not a live claim."""
+    rel = path.resolve().as_posix()
+    return any(f"docs/{d}" in rel for d in HISTORICAL_DIRS)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("docs", nargs="*", help="docs to check (default: all under docs/)")
@@ -316,7 +340,10 @@ def main() -> int:
         targets = [pathlib.Path(d).resolve() for d in args.docs]
     else:
         targets = sorted(
-            p for root in DOC_ROOTS for p in (ROOT / root).rglob("*.md")
+            p
+            for root in DOC_ROOTS
+            for p in (ROOT / root).rglob("*.md")
+            if not _is_historical_record(p)
         )
 
     idx = Index()

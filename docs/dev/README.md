@@ -125,7 +125,7 @@ linked is unreachable from here, which is how this whole set went missing until
 - [eufy-native-transition](design/eufy-native-transition.md) — native current-room detection design + validation; its pose/attribution track shipped in 1.8.0
 - [entity-resolution-reliability](design/entity-resolution-reliability.md) — the contest ladder, its rungs, and the rulings behind them
 - [core-minimality](design/core-minimality.md) — the irreducible-core map (analysis, not a changelog). The atom + rings **model** is stated normatively in [01 §2](01-architecture-overview.md); this is the measurement behind it and the refactor plan on top of it
-- [room-bounds-from-traces](design/room-bounds-from-traces.md) — retired; kept for the revival criterion (residual vs tolerance), not as live design
+- [room-bounds-from-traces](history/room-bounds-from-traces.md) — retired; kept for the revival criterion (residual vs tolerance), not as live design
 - [voice-assist-wizard](design/voice-assist-wizard.md) — design-only, not yet implemented
 
 *(The battery-accounting and external-run-robustness follow-up trackers were folded into their subsystem docs — [12 §9](12-battery-system.md) and [28 §11](28-external-run-ingestion.md) — and removed 2026-07-29 once their items were closed.)*
@@ -150,6 +150,7 @@ maintained against the code; each carries a banner saying what it was and why it
 |---|---|
 | [disaster-recovery-standard](history/disaster-recovery-standard.md) | The doc standard from ~2026-06 to 2026-08: could a subsystem be rebuilt from its doc alone? Retired because the premise (total source loss) was not the risk this project runs, while the real failure — a doc confidently describing behaviour the code no longer has — is one it did not address. Its precision rules were carried into [00](00-documentation-standard.md) |
 | [documentation-epoch-lifecycle](history/documentation-epoch-lifecycle.md) | The DR-baseline / dev-delta / audit-record model. **Epochs are a good idea for audits and a dangerous one for documentation** — an epoch licenses a doc to be out of date between reconciliations while it still reads as current, so drift becomes compliance rather than a defect |
+| [room-bounds-from-traces](history/room-bounds-from-traces.md) | Deriving room boundaries from movement traces, plus the bounds-review flow. **The code is deleted** (`494c6f6`); room tracking reads the device's native current-room signal instead — see [11 §1](11-mapping-system.md). Moved here from `design/` on 2026-08-16: it declared itself history in its own first line while sitting on the design shelf |
 
 ---
 

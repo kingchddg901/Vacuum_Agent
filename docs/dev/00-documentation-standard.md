@@ -34,6 +34,8 @@ fix is to correct the doc.
 > canonical Disaster-Recovery baseline, and said explicitly that they were "not another
 > canonical specification". In practice they were never written that way — most open with
 > "Complete implementation reference" — so the declaration was the part that was wrong.
+> The deeper reason it could not hold is §5a: these docs are sediment, and a diff needs
+> two coherent states to sit between.
 
 ### 1.2 Invariants — *"do this, or this happens"*
 
@@ -62,6 +64,22 @@ was ruled out and why. **Failures belong here explicitly.** A retired approach w
 recorded reason gets proposed again in six months, confidently.
 
 Nothing here is maintained against the code. It is dated and left alone.
+
+**This shelf fills as a by-product of fixing NOW docs — it is not stocked deliberately.**
+Resolving a stack (§5a) leaves displaced strata: a paragraph that was true, is no longer,
+and is worth keeping. That is history, and this is where it lands. So the shelf grows in
+step with the corpus being repaired, which is the right rate — an empty history shelf
+means nothing has been excavated yet, not that nothing was ever tried.
+
+It was already happening before the shelf existed. `room-bounds-from-traces.md` was cut
+out of [11 — Mapping system](11-mapping-system.md) on 2026-08-14 because it was four
+pages of present-tense algorithm describing deleted code; with no history shelf to put it
+on it went to `design/`, where it sat declaring "This is HISTORY" in its own first line
+until 2026-08-16. The excavation was right; only the destination was missing.
+
+> **Corollary:** do not go hunting through private notes for things to promote here. If a
+> fact never surfaces while repairing a doc, it was not load-bearing for a reader of that
+> doc.
 
 ---
 
@@ -137,6 +155,43 @@ for.
 
 ---
 
+## 5a. Do not stack strata
+
+The characteristic defect of this corpus is not a wrong sentence. It is a **stack**: two
+or three claims accreted into one line over months, each true when it was added, with
+nothing marking which layer is which.
+
+A real example, found 2026-08-16 in `05-core-manager.md`:
+
+> Ref: `core/manager.py` line 1566 (param), `core/manager.py` line 60 (`_UNSET`
+> sentinel), `core/manager.py` lines 1627-1628 (three-way apply logic).
+
+Three citations. **All three wrong.** `_UNSET` had moved to 73; the other two now landed
+inside `refresh_vacuum_capabilities` and `get_vacuum_capabilities`, neither of which has
+anything to do with the field being described. Every one pointed confidently at real code
+that was not the code. The whole thing collapses to one honest citation:
+`core/manager.py::update_room_fields`.
+
+**This is why the two previous models could not hold**, and it is worth understanding
+before writing anything here:
+
+- **DR asked "could someone rebuild this from the doc alone?"** — unanswerable against a
+  stack, because the reader cannot tell which stratum is current. The doc is not wrong
+  enough to fail and not right enough to follow.
+- **Epochs asked "what changed since the baseline?"** — undiffable against a stack,
+  because the layers are not dated. Accretion has no epoch boundary; it is deposited
+  continuously by people adding a true thing next to an older true thing.
+
+Neither model was defeated by carelessness. Both assumed a document is a single coherent
+statement, and these documents are **sediment**.
+
+**So: when you touch a line, resolve it to one claim.** If an older layer still matters, it
+belongs in `history/` or in git — not stacked beside the live one. This is §5.3 (no
+normative collisions) applied at the line rather than the document, and it is the more
+common form by far.
+
+---
+
 ## 6. Citations — symbols, never line numbers
 
 A line-number citation rots on the next unrelated edit above it, silently, and then points
@@ -150,6 +205,12 @@ confidently at the wrong thing.
 
 Gated by `python scripts/check_doc_citations.py`, which also catches a `::symbol` that no
 longer exists — the failure a line number cannot report.
+
+**This is what makes §5a tractable.** A stale line number is silent: it resolves to
+*something*, and the something looks plausible. A stale `::symbol` is loud — it fails the
+gate by name. Migrating a citation therefore does not merely future-proof it; it converts
+every buried stratum from invisible to reported. That is the point of the migration, not
+tidiness.
 
 > Not theoretical: adding five comment lines to `const.py` once invalidated **nine**
 > citations at a stroke and reported an entire generated document as drifted.
@@ -195,6 +256,15 @@ Before a release: §6 citations, §7 generated docs, `check_docs_index`, and
 > ⚠ `mkdocs --strict` is a **link** gate and nothing more. It has passed clean through
 > eleven false sentences. It can never be the freshness gate.
 
+> **QUOTING A CITATION — the convention.** When you need to show a citation (an example, a
+> defect being described, a rule being illustrated), write the line number **in prose**:
+> `` `core/manager.py` line 1566 ``, never `` `‹file›.py:1566` `` with the number inside
+> the code span. The checker
+> cannot tell an illustration from a claim, so an example written in the live form is
+> counted as a live citation — it inflates the migration backlog with instances of the
+> thing being argued against. This bit three times in one session before the convention
+> was written down.
+>
 > **Why the placeholders above use `‹ ›`:** a realistic-looking filename in a code span,
 > followed by `::` and a symbol, is indistinguishable from a real citation —
 > `check_doc_citations.py` duly reports it as pointing at a file that does not exist. The

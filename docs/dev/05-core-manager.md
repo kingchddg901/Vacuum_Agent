@@ -343,8 +343,8 @@ defaults to the module-level `_UNSET = object()` sentinel because `None` is
 meaningful for this field: `_UNSET` leaves the existing override untouched,
 `None` or an empty string clears the override (empty string coalesces to `None`
 so a cleared field is never stored as `""`), and any other value stores the
-schema-canonicalized hex. Ref: `core/manager.py:1566` (param), `core/manager.py:60`
-(`_UNSET` sentinel), `core/manager.py:1627-1628` (three-way apply logic).
+schema-canonicalized hex. Ref: `core/manager.py::update_room_fields` (the `color`
+parameter and the three-way apply) and `core/manager.py::_UNSET` (the sentinel).
 
 ### `start_selected_rooms` (and the `start_run_profile` delegator)
 
