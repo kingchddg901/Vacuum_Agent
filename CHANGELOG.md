@@ -60,6 +60,37 @@ only.
   lose its navigation with no gesture available to bring it back.
 
 ### Fixed
+- **Vacuums on a non-English Home Assistant can be CONTROLLED, not just read.** The repair
+  that made non-English installs readable in an earlier beta only ever reached the parts
+  that *read* your vacuum. Everything that *presses* something was still looking for
+  English names, so on a German system every sensor was found and none of the buttons
+  were: the four dock controls, the reset button on every consumable, and the setting we
+  use to turn the mop off. All of it silently — Home Assistant does not report an error
+  when something tries to press a button that isn't there, so nothing in your log said so.
+- **Runs on a non-English system are no longer marked "Interrupted" after finishing.**
+  This is the big one, and it was not cosmetic. On those installs one signal we rely on to
+  notice the vacuum has *started* was never found, so about ten minutes after each run
+  began — sometimes while it was still cleaning — the run was closed and filed as
+  interrupted. It also meant none of those runs taught the system anything, so estimates
+  never improved. Both the cause and two of the ways it stayed hidden are fixed.
+- **A room set to vacuum-only is no longer mopped.** On Roborock the water level is a
+  single device-wide setting rather than something we can send per room, and a run made up
+  entirely of vacuum-only rooms was leaving that setting exactly as the vendor app had left
+  it. It is now explicitly turned off, and if the control cannot be found at all the run
+  refuses to start rather than quietly mopping your dry floors.
+- **Maintenance items no longer all shout for attention.** Consumables now show a real
+  status (`Good`, `Replace Soon`) rather than `Unknown`, because their service life is
+  taken from what your vacuum's integration reports instead of a field only some brands
+  publish. Items your model does not track at all — dust bin, wheels, water tanks — now say
+  `Unknown` instead of `0% remaining`, which read as "replace this immediately" and meant
+  the opposite.
+- **A zone clean can no longer be started on top of a running job.** The check meant to
+  prevent that was reading a message written for a different question, and during a run it
+  never matched — so drawing a zone mid-clean sent a second command to a moving robot.
+- **A multi-room run cancelled from the vendor app is no longer recorded as a completed
+  clean.** Cancel detection only ever examined single-room runs, so aborting a queue of
+  rooms filed it as finished, marked every room in it as cleaned, and fed the whole thing
+  into learning.
 - **A dock action no longer goes missing because another one describes it too well.** Where
   a vacuum's buttons are not named after the vacuum itself, Vacuum Agent identifies them by
   the words in their names, and refuses to act when two buttons fit equally — pressing the
