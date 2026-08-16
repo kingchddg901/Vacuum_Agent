@@ -166,11 +166,19 @@ def resolve_brand(
 ) -> tuple[BrandRegistrar | None, str]:
     """Return ``(registrar, source)`` for one vacuum; registrar is None if unsupported.
 
-    ``source`` is ``"override"`` / ``"platform"`` / ``"unsupported"`` — see the module
-    docstring. Never raises for a bad override or an unreadable registry: brand
-    resolution runs during setup for every managed vacuum, and one malformed stored
-    value must not take the integration down. Each step degrades to the next with a
-    log line.
+    ``source`` is ``"platform"`` or ``"unsupported"`` — TWO values, matching the two
+    arms in the module docstring. It said ``"override"`` as well until 2026-08-16, long
+    after the override arm was deliberately removed; a documented return value the
+    function cannot produce is worse than an undocumented one, because a caller can
+    branch on it and the branch is simply dead.
+
+    Never raises on an unreadable entity registry: brand resolution runs during setup
+    for every managed vacuum, and one bad read must not take the integration down — it
+    degrades to ``unsupported`` with a log line.
+
+    FLAGGED, not fixed: ``data`` is no longer read. It carried the removed
+    ``brand_overrides`` lookup, and callers still pass it. Dropping it is a signature
+    change with call sites, so it is recorded here rather than done in passing.
     """
     platform = _vacuum_platform(hass, vacuum_entity_id)
     if platform is not None:
@@ -191,11 +199,12 @@ def _vacuum_platform(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
 
     None means the vacuum is not in the entity registry at all (a YAML/template vacuum,
     or a lookup during teardown). That is a real answer and must fall through to the
-    remaining arms rather than being treated as "no brand".
+    ``unsupported`` arm rather than being treated as "no brand" — the two are the same
+    outcome today, but only because ``unsupported`` is currently the only arm left.
     """
     try:
         entry = er.async_get(hass).async_get(vacuum_entity_id)
-    except Exception:  # pragma: no cover - defensive, mirrors the detect arm
+    except Exception:  # pragma: no cover - defensive
         _LOGGER.debug(
             "brands: entity-registry read failed for %s", vacuum_entity_id, exc_info=True
         )

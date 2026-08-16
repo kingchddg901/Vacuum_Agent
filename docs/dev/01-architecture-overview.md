@@ -245,9 +245,11 @@ odd" into evidence.
    >   `live_room_refresh` are never touched on the room-clean path at all.
    > - A ring should attach through an **absence-tolerant seam** — `learning` is
    >   the model to copy, guarded `if learning is None: …` at every reach-in, so
-   >   the core tolerates its *nonexistence* rather than merely its stubbing. That
-   >   property is what the [disaster-recovery standard](history/disaster-recovery-standard.md)
-   >   rebuilds against, atom-out.
+   >   the core tolerates its *nonexistence* rather than merely its stubbing. The
+   >   test that property has to pass is stated in
+   >   [design/core-minimality](design/core-minimality.md): a manager with
+   >   `access_graph`, `profiles`, `onboarding`, `learning`, `maps` and
+   >   `maintenance` **absent** still fires one `room_clean`.
    >
    > Three rings do **not** yet meet that bar: `access_graph` and `profiles` hold
    > room-definition primitives the core reaches in for, and `onboarding` gates the
@@ -560,7 +562,7 @@ any private constants. None of them hold persistent state — they read from
 | `path_blockers.py` | Rule trigger entities | Mid-job blocker rule evaluation |
 | `pause_timeout.py` | HA time + vacuum state | **Two reaps** on one 1-minute tick: auto-cancel on overlong pause, and finalize a stranded `started` run (including a robot trapped in `error`) |
 | `stall_capture.py` | `EVENT_STALL_DETECTED` | Opt-in per vacuum: render the stalled room to disk, notify, fire `eufy_vacuum_stall_captured` |
-| `job_progress.py` | `EVENT_JOB_PROGRESS_TICK` | Job progress snapshot trigger |
+| `job_progress.py` | HA time (5 s) | Takes a progress snapshot, then **fires** `EVENT_JOB_PROGRESS_TICK` for the card. It produces that event; it does not subscribe to one |
 | `pose_sampler.py` | HA time + vacuum state | Buffers the per-tick pose time-series (`pose_samples`) during an external (app-started) or dispatched run for room auto-attribution, via the adapter-declared `room_attribution.source`; attribution-capable vacuums only |
 | `discovery.py` | Vacuum entity state | Auto-discovery once **docked** (map-safe: run over, pose settled) + map-change/reload/6h timer — see [04 §discovery](04-listeners.md) |
 
@@ -610,6 +612,7 @@ Service modules in `services/` are split by domain:
 | `errors.py` | acknowledge error, get recent errors |
 | `snapshots.py` | dashboard snapshot, progress snapshot, job control state |
 | `debug.py` | debug flight-recorder capture (start/stop/status) — backs the `select.py` capture target (§10) |
+| `stall_capture.py` | `set_stall_capture` — the rooms-card switch; the consumer treats absent as off, so without this the feature is correct and unreachable. Plus `dev_inject_stall`, the one maintainer-only service: it fires the canonical `EVENT_STALL_DETECTED` from the vacuum's real state so every downstream consumer runs for real |
 
 All service handlers follow a three-step pattern:
 1. Extract and validate `call.data` fields
@@ -644,6 +647,12 @@ Rooms").
 `sensor/`" rule: they are defined in `battery/sensors.py` and injected into the
 sensor platform via `build_battery_sensors`, not as classes under `sensor/`.
 
+`DebugTargetSelect` is the same arrangement one platform over — defined in
+`debug_capture.py` and built by `build_debug_target_select`, so `select.py`
+declares no entity class at all. The rule both follow: **an entity whose state
+belongs to a subsystem is defined with that subsystem**, and the platform module
+only publishes it. Reading `select.py` or `sensor/` alone will not find them.
+
 Room entities inherit from `EufyVacuumRoomEntity` (`room_entities.py`), which
 provides `_get_room_data()`, `_async_update_room()`, `available`, and
 `extra_state_attributes`.
@@ -659,10 +668,22 @@ each platform's callback adds new entities and removes stale ones.
 ## 11. Concurrency & Thread Safety
 
 HA's event loop is single-threaded. All manager methods run on the event loop
-and do not need locking. The one exception is learning history I/O:
-`_load_room_history_cache_sync` runs in an executor thread via
-`async_add_executor_job`. That method is stateless — it returns a local dict and
-the caller writes the result back to `self.data` on the event loop.
+and do not need locking.
+
+Blocking I/O is pushed to executor threads via `async_add_executor_job`, and
+that is **not rare** — learning history and stats, map rendering and the
+map-source coordinator, debug capture, stall capture, battery, diagnostics and
+pose sampling all use it. Safety therefore cannot rest on it being exceptional.
+It rests on a rule:
+
+> **The function that runs off-loop takes its inputs as arguments, returns a
+> value, and mutates nothing shared. The caller writes the result into
+> `self.data` back on the event loop.**
+
+`_load_room_history_cache_sync` (`core/manager.py`) is the shape to copy: it
+builds a local dict and hands it back. An executor function that read or wrote
+`self.data` directly would be a genuine data race — and one that almost never
+reproduces under test, because the loop is usually idle while it runs.
 
 Callback lists (`_room_update_callbacks`, etc.) are mutated only from the event
 loop. Manager methods called from `hass.loop.call_soon_threadsafe` (the
@@ -687,6 +708,13 @@ loop. Manager methods called from `hass.loop.call_soon_threadsafe` (the
 1. Add a constant to `const.py`.
 2. Add a handler to the appropriate `services/*.py` file.
 3. Register it in `async_register_services` (or the relevant group function).
+4. Declare it in `services.yaml` — or add it to the documented exception list in
+   `tests/unit/test_service_declaration_parity.py`. That gate asserts both
+   directions (every registered service is declared; every declared field exists
+   in the schema with a matching type), so skipping this step fails the suite
+   rather than shipping an undeclared service. An inline schema built by hand
+   rather than through the group pattern is how one service escaped the gate for
+   twelve days — see the note above `_BATTERY_REBASELINE_SCHEMA` in `__init__.py`.
 
 ### Adding a subsystem manager
 
@@ -699,7 +727,14 @@ loop. Manager methods called from `hass.loop.call_soon_threadsafe` (the
 ### Porting to a new brand
 
 The adapter pattern means the only brand-specific files are:
-- `adapters/<brand>/` — entity IDs, vocabulary, maintenance components
-- `__init__.py` — one call to `register_<brand>_adapter_for_vacuum`
+- `adapters/<brand>/` — entity IDs, vocabulary, maintenance components, and the
+  `UPSTREAM_PLATFORMS` identity claim in its own `const.py`
+- `adapters/brands.py` — one `BrandRegistrar` row in `BRAND_REGISTRARS`
+
+**Integration core (`__init__.py`) is not touched.** It used to hold a
+`register_<brand>_adapter_for_vacuum` call per brand; moving that into the
+registrar table is exactly what turned adding a brand from an edit to core into
+an addition beside it (§7). If a port makes you reach for `__init__.py`, the
+thing you are adding is not brand knowledge.
 
 See the [porting guide](../contributing/porting-guide.md) for the detailed walkthrough.
