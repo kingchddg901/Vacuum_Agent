@@ -14,7 +14,7 @@ The mapping system has three subsystems that address different aspects of knowin
 
 **Room tracking** (`tracker.py`) answers: *which room is the robot in right now?* The tracker reads the device's **native current-room** signal (the adapter's `active_cleaning_target`), resolves it to a managed room, and — through a confidence/dwell debounce — fires `eufy_vacuum_room_completed` with each room's dwell duration as the robot moves between rooms. The earlier learned bounding-box approach (run-derived, in vacuum coordinates) was **removed**: the device re-bases its coordinate origin every session, so cross-session bounds drifted (see §3, kept as historical reference).
 
-**Provider map source** (`map_state_source`) answers: *what room layout does the provider's own firmware already know?* Rather than deriving rooms from pixels (image analysis) — or, as the retired trace-bounds learning once did (§3), inferring them from drifting robot samples — this reader normalises the device's authoritative segmentation — per-room bbox/name plus dock/robot anchors and (later waves) area, current room, and overlay layers — into VA-owned room data in a single rendered-image-normalised (0–1) coordinate space. It is covered in §11 and documented in full in the design reference [`dev/map-state-source.md`](design/map-state-source.md).
+**Provider map source** (`map_state_source`) answers: *what room layout does the provider's own firmware already know?* Rather than deriving rooms from pixels (image analysis) — or, as the retired trace-bounds learning once did (§3), inferring them from drifting robot samples — this reader normalises the device's authoritative segmentation — per-room bbox/name plus dock/robot anchors and (later waves) area, current room, and overlay layers — into VA-owned room data in a single rendered-image-normalised (0–1) coordinate space. It is covered in §11 and documented in full in the design reference [`dev/map-state-source.md`](design/shipped/map-state-source.md).
 
 The image-segment pipeline and the native-current-room tracker are **independent**. There is no runtime transform between pixel space and vacuum space: the legacy "System A" affine vacuum↔pixel transform was removed along with the bounds derivation.
 
@@ -501,7 +501,7 @@ Note that `segment_room_links` and `companion_anchors` are **not** part of this 
 > **Retired (mapping split).** The in-flight sample temp file (`_samples_active.json`,
 > `SAMPLES_FLUSH_INTERVAL`, mid-job recovery) belonged to `RoomBoundsStore` (§3) and
 > is gone. Run-active pose sampling for native attribution instead buffers into the
-> run's `.storage` slot — see [`eufy-native-transition.md`](design/eufy-native-transition.md).
+> run's `.storage` slot — see [`eufy-native-transition.md`](design/shipped/eufy-native-transition.md).
 
 ---
 
@@ -734,7 +734,7 @@ Two adjacent toolbar concerns share the same map view:
 
 The local subsystems above derive room data differently — image analysis reads room *shape* from map pixels (§2), and the tracker reads *which room the robot is in* from the device's native current-room signal (§1; the trace-bounds learning it replaced is retired, §3). The **provider map source** is a third reader that instead normalises the room layout the device's *own* firmware already knows. Where image analysis is a best-effort pixel inference, this reads the provider's authoritative segmentation directly, so room tap-regions, current-room, and anchors are *auto-derived* rather than hand-composed.
 
-This section is an orientation only; the full design — wave scope, both brand backends, the normalisation transform, and overlay-layer details — lives in the authoritative design reference [`dev/map-state-source.md`](design/map-state-source.md).
+This section is an orientation only; the full design — wave scope, both brand backends, the normalisation transform, and overlay-layer details — lives in the authoritative design reference [`dev/map-state-source.md`](design/shipped/map-state-source.md).
 
 ### 11.1 Modules
 

@@ -1,6 +1,6 @@
 # 31 — MapSourceCoordinator
 
-> **Scope:** Implementation reference for `mapping/map_source_coordinator.py` — the bundled subsystem that owns the **`map_state_source`** backend dispatch (the VA's read of the *provider's own* room segmentation + live pose). It is the runtime brain behind the seam; the pure decode/normalization lives in `mapping/map_source.py` and `mapping/map_source_runtime.py`, and the *design* rationale lives in [map-state-source](design/map-state-source.md). This doc is the ownership anchor — several older docs still attribute these four `async_*` readers to `core/manager.py`; they are **delegators**, the work is here.
+> **Scope:** Implementation reference for `mapping/map_source_coordinator.py` — the bundled subsystem that owns the **`map_state_source`** backend dispatch (the VA's read of the *provider's own* room segmentation + live pose). It is the runtime brain behind the seam; the pure decode/normalization lives in `mapping/map_source.py` and `mapping/map_source_runtime.py`, and the *design* rationale lives in [map-state-source](design/shipped/map-state-source.md). This doc is the ownership anchor — several older docs still attribute these four `async_*` readers to `core/manager.py`; they are **delegators**, the work is here.
 
 ---
 
@@ -207,7 +207,7 @@ The manager's **five** delegators (`async_refresh_map_state_source`, `async_get_
 ## 7. Cross-links
 
 - [11-mapping-system](11-mapping-system.md) — the CV segmentor, image variants, trace-bounds path, and the map bucket this subsystem is distinct from.
-- [map-state-source](design/map-state-source.md) — the **design** doc for the seam (goal, brand reality, wave plan, the pure-vs-runtime split). This doc is the implementation reference for the coordinator; that one is the rationale.
+- [map-state-source](design/shipped/map-state-source.md) — the **design** doc for the seam (goal, brand reality, wave plan, the pure-vs-runtime split). This doc is the implementation reference for the coordinator; that one is the rationale.
 - [22-adapter-config-reference](22-adapter-config-reference.md#13a2-map_state_source--read-the-providers-own-map-segmentation) — the `map_state_source` / [`map_render`](22-adapter-config-reference.md#13a3-map_render--va-owned-client-side-map-render) adapter-config schema (backend, identifier_domain, store_key, store_version, presence gate, `live_pose`, `memory`, render `format`).
 - [25-eufy-adapter](25-eufy-adapter.md#map_state_source) — the Eufy adapter's concrete `map_state_source` / `map_render` values (storage backend, `live_pose` attr paths, the in-memory `MapData` source).
 - [26-eufy-segmentor](26-eufy-segmentor.md) — the CV segmentor (inferred rooms from an uploaded image), the *other* source of room geometry this one is contrasted with.

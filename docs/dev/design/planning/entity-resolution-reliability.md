@@ -1,14 +1,27 @@
 # Entity Resolution Reliability — recognise, don't derive
 
 **Status:** design **APPROVED 2026-08-14** (Chris ruled all three open decisions — see §8).
-Not built yet. Written after issue
+**PARTLY BUILT** as of 2026-08-16 — see the table below before reading anything here as
+outstanding.
+
+| Part | State |
+|---|---|
+| User entity override (`entity_overrides`) | **SHIPPED.** Live in `brands.py`, both adapters, `const.py`, `capabilities.py`; written by the System tab and the options flow |
+| The contest ladder (`_narrow_competing`, four rungs) | **SHIPPED.** `object_id` → `translation_key` → `state_class` → `magnitude`, documented in [21 §5.2](../../21-adapter-system.md) |
+| Localized-id rescue by upstream `translation_key` | **SHIPPED** (`ef810519`, `35ce560f`) — not in the original design; it emerged from issue #51 |
+| Trait scorer — recognise entities instead of deriving names | **NOT BUILT.** The one substantial item left, and the only mechanism that can separate the `cleaning_area` / `total_cleaning_area` collision, which name matching provably cannot |
+| Census enrichment (device_class, unit, options, state) | **NOT BUILT.** Prerequisite for validating any scorer against hardware other than the maintainer's |
+
+⚠ **This file was reading as wholly unbuilt while three of its five parts had shipped.**
+That is the §5a stack forming at document scale: a status line true when written, left
+beside work that overtook it. The table is the fix — one live statement per part. Written after issue
 [#49](https://github.com/kingchddg901/Vacuum_Agent/issues/49) field data disproved the diagnosis
 this project was carrying. Staged deliberately: *"features are nice, working system is better"*.
 
 **SHIPS AS ONE SET** — P0 + P1 + P2 + the §5 census enrichment go out together, not
 incrementally. P3 remains blocked and out of scope for this release.
 
-> **Scope note.** This is a delta on [21-adapter-system](../21-adapter-system.md) §5.2 step 4
+> **Scope note.** This is a delta on [21-adapter-system](../../21-adapter-system.md) §5.2 step 4
 > and §6, not a parallel design. Every seam it uses already exists.
 
 ---
@@ -24,7 +37,7 @@ wired into `entity_candidates`". It is wired in:
 
 - `augment_candidates_from_device` (`core/capabilities.py::augment_candidates_from_device`), called by
   `detect_capabilities` at `:310` — already documented at
-  [21-adapter-system](../21-adapter-system.md) §5.2 step 4.
+  [21-adapter-system](../../21-adapter-system.md) §5.2 step 4.
 - Landed in `9a37ad6c` (2026-08-04); **in v2.0.0** by `git merge-base --is-ancestor`. The
   reporter runs 2.0.1, so they have it.
 - Run against the reporter's exact ids it rescues **every probed role**. The matcher is
@@ -62,7 +75,7 @@ declared suffix is a substring of another.
 disabled, including both `..._robot_position_x_raw` and `..._robot_position_y_raw`. They exist
 with exactly the ids we derive; a disabled entity has no state, so `_find` returns `None` and the
 role reads as missing. Same output, opposite fixes — one is our bug, the other is a toggle in the
-user's UI. This is [21-adapter-system](../21-adapter-system.md) §5.2's DIAG-1 argument one level
+user's UI. This is [21-adapter-system](../../21-adapter-system.md) §5.2's DIAG-1 argument one level
 deeper.
 
 ---
@@ -196,7 +209,7 @@ mismatch, not a stem one) and a companion on a **different device**.
 > not as "another key already does it".
 
 The shape is a per-vacuum user override in config-entry `data`, read by core
-(see [21-adapter-system](../21-adapter-system.md) §6.1 for how brand selection resolves
+(see [21-adapter-system](../../21-adapter-system.md) §6.1 for how brand selection resolves
 now that no such override exists):
 
 ```
@@ -205,7 +218,7 @@ data["entity_overrides"][vacuum_entity_id] = {role: entity_id}
 
 ### 4.2 THE TRAP — do not store this as an adapter config
 
-[21-adapter-system](../21-adapter-system.md) §6: stored configs load first, then
+[21-adapter-system](../../21-adapter-system.md) §6: stored configs load first, then
 `register_brand_adapter` **overwrites** them — *"code adapters always win"*. An override
 persisted as a stored adapter config would be silently clobbered at every startup. It must be
 read **inside** the code-adapter path.

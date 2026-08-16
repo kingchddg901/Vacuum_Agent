@@ -1216,7 +1216,7 @@ No pose / anchor-only / a window the pose can't name → that timing is byte-ide
 to the positional path. Strict-order (phased) jobs never reach this — they already
 capture accurate per-phase timings. The app-started (external) sibling of this path
 is `_apply_pose_identity` / `build_attributed_job` (§9 note); see
-[eufy-native-transition.md](design/eufy-native-transition.md) for the shared attribution
+[eufy-native-transition.md](design/shipped/eufy-native-transition.md) for the shared attribution
 model and [28-external-run-ingestion](28-external-run-ingestion.md) for the external flow.
 
 ### Cold-start idle-wall guard (`_apply_idle_wall_hold`)

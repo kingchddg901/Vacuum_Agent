@@ -9,7 +9,7 @@ verified exact by hand against the raw room coords). No consumer wiring yet (Wav
 changes required.
 
 > **Current state (2026-08-06).** This file is the design + build log; the shipped coordinator is
-> documented in [31-map-source-coordinator](../31-map-source-coordinator.md). Wave 3 consumer wiring
+> documented in [31-map-source-coordinator](../../31-map-source-coordinator.md). Wave 3 consumer wiring
 > has since landed: the card overlay layers + "Map Layers" panel and the
 > `sensor.<vac>_map_overlays` mirror (both below), and the live room signal now drives room
 > attribution on both brands (shipped 1.8.0 — see
@@ -198,8 +198,8 @@ live-map-camera crop). Adapter-driven, brand-agnostic core + card.
   > blob's segment layer to a per-pixel room-id raster), so `supports_va_render` is now `True`
   > for **both** brands (gated on `isinstance(_adapter_cfg.get("map_render"), dict)` in
   > `core/manager.py::get_dashboard_snapshot`). The "Roborock omits it" line above records the
-  > Wave-1 (2026-06-19) state. Details: [22 §13a.3](../22-adapter-config-reference.md) /
-  > [29](../29-roborock-adapter.md).
+  > Wave-1 (2026-06-19) state. Details: [22 §13a.3](../../22-adapter-config-reference.md) /
+  > [29](../../29-roborock-adapter.md).
 - **Service** `get_map_render_data` → `manager.async_get_map_render_data` (a thin delegator to
   `MapSourceCoordinator.async_get_map_render_data` in `mapping/map_source_coordinator.py`)
   dispatches by `map_render.format`, executor-reads `.storage`, returns the raster (`room_pixels`

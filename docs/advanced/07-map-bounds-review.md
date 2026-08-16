@@ -33,4 +33,4 @@ To review what a run cleaned, see the run review panels in
 For the retired design itself — the trace→bounds algorithm, preserved verbatim as a
 disaster-recovery reference — see [Dev 11 — Mapping System §3](../dev/11-mapping-system.md),
 and for the current attribution path see
-[Eufy Native Current-Room Transition](../dev/design/eufy-native-transition.md).
+[Eufy Native Current-Room Transition](../dev/design/shipped/eufy-native-transition.md).

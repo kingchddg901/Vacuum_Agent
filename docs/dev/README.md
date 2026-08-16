@@ -1,7 +1,7 @@
 # Developer Docs — Reading Order
 
 These are the **Disaster-Recovery baseline** docs — they answer **"this is how it works."**
-The other three questions live elsewhere: **why** → [design/](design/map-state-source.md) ·
+The other three questions live elsewhere: **why** → [design/](design/shipped/map-state-source.md) ·
 **what I'm changing right now** → [deltas/](deltas/README.md) · **what happened and what it
 cost to learn** → the audit record. If a passage answers a different question than the
 document it lives in, it belongs somewhere else — that's the whole routing rule.
@@ -121,12 +121,22 @@ Not in the numbered reading order — design rationale the subsystem docs point 
 linked is unreachable from here, which is how this whole set went missing until
 2026-08-15; `scripts/check_docs_index.py` now fails on it.
 
-- [map-state-source](design/map-state-source.md) — the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)
-- [eufy-native-transition](design/eufy-native-transition.md) — native current-room detection design + validation; its pose/attribution track shipped in 1.8.0
-- [entity-resolution-reliability](design/entity-resolution-reliability.md) — the contest ladder, its rungs, and the rulings behind them
-- [core-minimality](design/core-minimality.md) — the irreducible-core map (analysis, not a changelog). The atom + rings **model** is stated normatively in [01 §2](01-architecture-overview.md); this is the measurement behind it and the refactor plan on top of it
-- [room-bounds-from-traces](history/room-bounds-from-traces.md) — retired; kept for the revival criterion (residual vs tolerance), not as live design
-- [voice-assist-wizard](design/voice-assist-wizard.md) — design-only, not yet implemented
+**`design/shipped/` — built. Kept because they still answer *"why is it like this?"***,
+which the subsystem docs actively cite. Not history: history is what we stopped doing,
+shipped design is why we do what we do.
+
+- [map-state-source](design/shipped/map-state-source.md) — the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)
+- [eufy-native-transition](design/shipped/eufy-native-transition.md) — native current-room detection design + validation; its pose/attribution track shipped in 1.8.0
+- [notation-anchors](design/shipped/notation-anchors.md) — the `PP` + 6-Crockford-char anchor scheme. `CN` live (9 anchors), tooling in `scripts/doc_anchor.py`, gated by `ANC-1..3`; `SN`/`HN`/`PN`/`IN` reserved and unused
+
+**`design/planning/` — decided, not built.** A reader could pick these up and implement them.
+
+- [entity-resolution-reliability](design/planning/entity-resolution-reliability.md) — the contest ladder, its rungs, and the rulings behind them. ⚠ Approved 2026-08-14; its §4 user-override item has since SHIPPED (`entity_overrides`), the rest has not
+- [voice-assist-wizard](design/planning/voice-assist-wizard.md) — design-only, not yet implemented; back-burnered
+
+**Unplaced** — neither a plan nor built, pending a ruling on where measurements live:
+
+- [core-minimality](design/core-minimality.md) — the irreducible-core map. Says of itself *"a map, not a changelog… nothing here has been refactored"*, and the refactor it scopes may be *"deliberately declined"*. The atom + rings **model** is stated normatively in [01 §2](01-architecture-overview.md); this is the dated measurement behind it
 
 *(The battery-accounting and external-run-robustness follow-up trackers were folded into their subsystem docs — [12 §9](12-battery-system.md) and [28 §11](28-external-run-ingestion.md) — and removed 2026-07-29 once their items were closed.)*
 
@@ -169,7 +179,7 @@ Not in the numbered reading order.
       — the token catalog and its CSS-usage trace (`node scripts/gen-theme-token-docs.mjs`).
     - [ai-theme-authoring](reference/ai-theme-authoring.md) — hand-written: theming the card with
       an AI assistant.
-- **[design/notation-anchors](design/notation-anchors.md)** — the stable-reference scheme:
+- **[design/notation-anchors](design/shipped/notation-anchors.md)** — the stable-reference scheme:
   an eight-character key (`CN` `SN` `HN` `PN` `IN` + six opaque Crockford characters) that
   separates **identity from meaning**, so a reference survives a rename, a refactor or a
   file move. Mint and check with `python scripts/doc_anchor.py`; `rg CN9BGGJ6` is the

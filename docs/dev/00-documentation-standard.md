@@ -57,6 +57,22 @@ If you cannot name what goes wrong, you have a convention, not an invariant. Say
 nothing decided — it is *pre-design* and stays out of the repo. The test is whether a
 reader could act on it.
 
+**Two sub-shelves, because a design does not stop being useful when it is built:**
+
+| | |
+|---|---|
+| `design/planning/` | Decided, not built. A reader could pick it up and implement it. |
+| `design/shipped/` | Built. Kept because it still answers *"why is it like this?"* — a question that stays live long after the work lands. |
+
+A shipped design does **not** go to `history/`. History is unmaintained and left alone,
+whereas NOW docs actively cite these as rationale — `31-map-source-coordinator.md` calls
+`map-state-source` "the design rationale", and `11-mapping-system.md` §11 defers to it as
+the authoritative reference. Burying that on an unmaintained shelf would strand the live
+docs' own explanation.
+
+The distinction is: **history is what we stopped doing; shipped design is why we do what we
+do.** A design that was abandoned rather than built belongs in `history/`.
+
 ### 1.4 HISTORY — what we tried, and what failed
 
 `docs/dev/history/` holds the record: how a rule was discovered, what was attempted, what
@@ -200,7 +216,7 @@ confidently at the wrong thing.
 | Form | Use |
 |---|---|
 | `‹path›/‹file›.py::symbol` | **Preferred.** Survives every edit that does not rename the symbol. |
-| `‹path›/‹file›.py#ANCHOR` | For a place with no symbol — see [design/notation-anchors.md](design/notation-anchors.md). |
+| `‹path›/‹file›.py#ANCHOR` | For a place with no symbol — see [design/shipped/notation-anchors.md](design/shipped/notation-anchors.md). |
 | `‹path›/‹file›.py:123` | **Banned.** |
 
 Gated by `python scripts/check_doc_citations.py`, which also catches a `::symbol` that no

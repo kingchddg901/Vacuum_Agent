@@ -30,7 +30,7 @@ them and adds only persistence + UI:
 
 | Need | Already provides it | Source |
 |---|---|---|
-| Stable, drift-immune frame | `map_state_source` normalized 0–1 (provider's own segmentation, **not** the drifting pose) | [map-state-source.md](../design/map-state-source.md), [map-source-coordinator.md](../31-map-source-coordinator.md) |
+| Stable, drift-immune frame | `map_state_source` normalized 0–1 (provider's own segmentation, **not** the drifting pose) | [map-state-source.md](../design/shipped/map-state-source.md), [map-source-coordinator.md](../31-map-source-coordinator.md) |
 | Zone **size** (m²) | per-room `area_m2` / `width_m` / `height_m` from map resolution — same math for a drawn box | `map_source.build_map_source_result` |
 | Named, per-map, user-authored **collection** storage | `custom_layouts: dict[id, CustomLayout]` on the map bucket + `_migrate_custom_layouts` + summaries + `create/rename/delete_custom_layout` services | [data-model.md §Segment stores](../03-data-model.md), `mapping/mapping_services.py:2299+` |
 | Room-membership of a point/region | the `room_pixels` room-id raster (decoded with `map_render` `rid_shift`/`catch_all_rid`) that backs `current_room`; per-point analog = the fork's `room_at_point` (#139) | `map_source.py`, fork `room_id_at_normalized` |
@@ -279,5 +279,5 @@ but the guard makes it correct-by-construction.)
 
 ## Cross-links
 
-- [map-state-source.md](../design/map-state-source.md) / [map-source-coordinator.md](../31-map-source-coordinator.md) — the frame + size + room-mask this reuses.
+- [map-state-source.md](../design/shipped/map-state-source.md) / [map-source-coordinator.md](../31-map-source-coordinator.md) — the frame + size + room-mask this reuses.
 - [data-model.md](../03-data-model.md) — the map bucket + the `custom_layouts` pattern this mirrors.

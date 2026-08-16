@@ -290,7 +290,7 @@ in-memory** state: `live_pose` (the `EufyCleanCoordinator`'s `_robot_pixel` /
 `_dock_pixel` / `_robot_trail` for the moving overlays, ~2 s fresh vs the
 save-throttled `.storage`) and `memory` (the in-memory `_map_data` MapData, fresher
 and loop-safe vs a file read), each listing the attr names to try in order with
-absence ⇒ stay on `.storage`. See [map-state-source](design/map-state-source.md).
+absence ⇒ stay on `.storage`. See [map-state-source](design/shipped/map-state-source.md).
 **Pattern:** declare *where* the authoritative map state lives (a store key, a
 presence gate) and *which* in-memory holders supersede it; core owns the read.
 
@@ -362,7 +362,7 @@ satisfies the capture-source gate `_can_sample()` checks. The buffered
 `pose_samples` are then read back off the active-job slot
 (`learning/external_run.py#CN3M87RG`) and passed into `build_pending_record` (W5c,
 [28-external-run-ingestion §11](28-external-run-ingestion.md)) on every external
-finalize. See [eufy-native-transition](design/eufy-native-transition.md).
+finalize. See [eufy-native-transition](design/shipped/eufy-native-transition.md).
 **Pattern:** room-identity recovery for external runs is its own pluggable engine.
 
 ### `live_transition`
