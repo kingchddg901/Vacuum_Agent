@@ -30,7 +30,7 @@ class _FakeRegistry:
         return self._vacuum_entry if entity_id == "vacuum.alfred" else None
 
 
-def _install(monkeypatch, *, present, registry_ids, config_entry_id="CE1"):
+def _install(monkeypatch, *, present, registry_ids, config_entry_id="CE1", keys=None):
     """Wire a fake state machine + entity registry into the module under test."""
     hass = SimpleNamespace(
         states=SimpleNamespace(get=lambda eid: object() if eid in present else None)
@@ -40,7 +40,8 @@ def _install(monkeypatch, *, present, registry_ids, config_entry_id="CE1"):
     monkeypatch.setattr(entity_resolve, "er", SimpleNamespace(
         async_get=lambda _h: reg,
         async_entries_for_config_entry=lambda _r, _ce: [
-            SimpleNamespace(entity_id=e) for e in registry_ids
+            SimpleNamespace(entity_id=e, translation_key=(keys or {}).get(e))
+            for e in registry_ids
         ],
     ))
     return hass
@@ -79,6 +80,12 @@ def test_er2_dock_owned_entity_is_rescued(monkeypatch):
     assert report["total_cleaning_area"] == {
         "declared": "sensor.alfred_total_cleaning_area",
         "resolved": "sensor.dining_room_alfred_total_cleaning_area",
+        # `via` records WHICH path rescued it. Additive (every consumer tests
+        # `role in remaps`, none destructures), and it exists so a "why did this
+        # bind?" surface can stop saying "matched by suffix" about a role that was
+        # matched by an upstream translation key instead — the same manufactured
+        # confidence the System tab was carrying before live:ENT-9.
+        "via": "suffix",
     }, "a remap must be REPORTED, never silently applied"
 
 
@@ -326,3 +333,112 @@ def test_er17_a_working_install_never_consults_the_rescue(monkeypatch):
     assert out == entities, "a healthy install must resolve byte-identically"
     assert report == {}, "nothing was rescued, so nothing is reported"
     assert not calls
+
+
+# ---------------------------------------------------------------------------
+# [TK] A LOCALIZED entity id cannot be matched by suffix.
+#
+# Home Assistant slugs an entity id from the TRANSLATED name at creation time, so a
+# German install names the Roborock filter sensor `..._verbleibende_filterzeit` where
+# the adapter declares `filter_time_left`. There is no shared suffix to find — this is
+# a different failure from ER-2, where the prefix is wrong and the suffix still
+# matches. Issue #51.
+#
+# `translation_key` is the provider's own untranslated word for the concept. Measured
+# on the maintainer's install: ivy 29/32 entities carry one, robin 215/216, alfred
+# 0/65 — so this is inert on Eufy by construction, which TK-4 pins.
+# ---------------------------------------------------------------------------
+
+_DE = {
+    "sensor.rq_verbleibende_filterzeit": "filter_time_left",
+    "sensor.rq_reinigungsbereich": "cleaning_area",
+}
+
+
+def test_tk1_a_localized_id_is_rescued_by_its_translation_key(monkeypatch):
+    """[TK-1] The German id shares no suffix with the declaration, and still binds."""
+    hass = _install(
+        monkeypatch,
+        present={"sensor.rq_verbleibende_filterzeit"},
+        registry_ids=list(_DE),
+        keys=_DE,
+    )
+    entities = {"filter_time_left": "sensor.alfred_filter_time_left"}
+
+    resolved, report = resolve_declared_entities(hass, "vacuum.alfred", entities)
+
+    assert resolved["filter_time_left"] == "sensor.rq_verbleibende_filterzeit"
+    assert report["filter_time_left"]["via"] == "translation_key"
+
+
+def test_tk2_the_suffix_path_still_wins(monkeypatch):
+    """[TK-2] Ordering is the safety property: only a role that would resolve to
+    NOTHING may reach the translation-key path, so no working install can move."""
+    ids = ["sensor.dock_alfred_filter_time_left", "sensor.rq_verbleibende_filterzeit"]
+    hass = _install(
+        monkeypatch,
+        present=set(ids),
+        registry_ids=ids,
+        keys={"sensor.rq_verbleibende_filterzeit": "filter_time_left"},
+    )
+    entities = {"filter_time_left": "sensor.alfred_filter_time_left"}
+
+    resolved, report = resolve_declared_entities(hass, "vacuum.alfred", entities)
+
+    assert resolved["filter_time_left"] == "sensor.dock_alfred_filter_time_left"
+    assert report["filter_time_left"]["via"] == "suffix"
+
+
+def test_tk3_two_entities_sharing_a_key_refuse(monkeypatch):
+    """[TK-3] Exactly-one-or-nothing, as everywhere else. A wrong consumable reports
+    confident, wrong remaining life and never errors."""
+    ids = ["sensor.a_thing", "sensor.b_thing"]
+    hass = _install(
+        monkeypatch,
+        present=set(ids),
+        registry_ids=ids,
+        keys={"sensor.a_thing": "filter_time_left", "sensor.b_thing": "filter_time_left"},
+    )
+    entities = {"filter_time_left": "sensor.alfred_filter_time_left"}
+
+    resolved, report = resolve_declared_entities(hass, "vacuum.alfred", entities)
+
+    assert resolved["filter_time_left"] == "sensor.alfred_filter_time_left"
+    assert report == {}
+
+
+def test_tk4_a_provider_setting_no_keys_is_untouched(monkeypatch):
+    """[TK-4] Eufy sets no translation_key on any of 65 entities. The whole path must
+    be inert there rather than degrading Eufy resolution in any way."""
+    hass = _install(
+        monkeypatch,
+        present={"sensor.rq_verbleibende_filterzeit"},
+        registry_ids=["sensor.rq_verbleibende_filterzeit"],
+        keys={},
+    )
+    entities = {"filter_time_left": "sensor.alfred_filter_time_left"}
+
+    resolved, report = resolve_declared_entities(hass, "vacuum.alfred", entities)
+
+    assert resolved["filter_time_left"] == "sensor.alfred_filter_time_left"
+    assert report == {}
+
+
+def test_tk5_domain_is_part_of_the_match():
+    """[TK-5] A button carrying the same key is not a sensor."""
+    sibs = ["button.rq_filter_zurucksetzen"]
+    keys = {"button.rq_filter_zurucksetzen": "filter_time_left"}
+
+    assert entity_resolve.rescue_by_translation_key(
+        sibs, translation_keys=keys, wanted_key="filter_time_left", domain="sensor"
+    ) is None
+    assert entity_resolve.rescue_by_translation_key(
+        sibs, translation_keys=keys, wanted_key="filter_time_left", domain="button"
+    ) == "button.rq_filter_zurucksetzen"
+
+
+def test_tk6_an_empty_key_never_matches():
+    """[TK-6] A role with no key must not bind every keyless sibling."""
+    assert entity_resolve.rescue_by_translation_key(
+        ["sensor.x"], translation_keys={"sensor.x": ""}, wanted_key="", domain="sensor"
+    ) is None

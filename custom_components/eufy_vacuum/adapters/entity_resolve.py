@@ -180,6 +180,76 @@ def rescue_by_suffix(
     return matches[0] if len(matches) == 1 else None
 
 
+def sibling_translation_keys(registry: Any, siblings: "Iterable[str]") -> dict[str, str]:
+    """entity_id -> ``translation_key``, for the siblings that declare one.
+
+    The maintenance path carries siblings as bare entity ids, so the key has to be
+    looked up. ``resolve_declared_entities`` already holds registry entries and reads
+    it directly.
+    """
+    out: dict[str, str] = {}
+    for eid in siblings or ():
+        if not isinstance(eid, str):
+            continue
+        try:
+            entry = registry.async_get(eid)
+        except Exception:  # pragma: no cover - defensive
+            continue
+        key = getattr(entry, "translation_key", None) if entry is not None else None
+        if isinstance(key, str) and key:
+            out[eid] = key
+    return out
+
+
+def rescue_by_translation_key(
+    siblings: "Iterable[str]",
+    *,
+    translation_keys: dict[str, str],
+    wanted_key: str,
+    domain: str,
+    exclude: "Iterable[str]" = (),
+) -> str | None:
+    """The one sibling whose upstream ``translation_key`` IS this role, or None.
+
+    WHY THIS EXISTS. Every other path here matches on the entity id, and an entity id
+    is LOCALIZED: Home Assistant slugs it from the translated name at creation time.
+    On a German install the Roborock filter sensor is
+    ``sensor.<vac>_verbleibende_filterzeit`` while we declare ``filter_time_left`` —
+    zero overlap, so suffix rescue cannot help. It is not a naming mismatch of the
+    kind live:ENT-1 repairs, where the PREFIX is wrong and the suffix still matches;
+    the suffix itself is in another language (issue #51).
+
+    ``translation_key`` is the upstream integration's own word for the concept. It is
+    set from the code, never translated, and it does not move when the entity is
+    renamed or when the device it sits on changes — so this recovers a localized
+    install and a split dock device with one mechanism.
+
+    Measured on the maintainer's install: ivy 29/32 entities carry one, robin 215/216,
+    alfred 0/65. Eufy's provider sets none, so this is inert there and Eufy keeps
+    resolving exactly as before.
+
+    EXACTLY ONE OR NOTHING, matching ``rescue_by_suffix`` — two matches means we
+    cannot tell which is right, and a confident wrong answer is worse than an absent
+    one.
+    """
+    if not wanted_key:
+        return None
+    skip = set(exclude)
+    matches: list[str] = []
+    for sibling in siblings or ():
+        if not isinstance(sibling, str) or "." not in sibling:
+            continue
+        if sibling in skip:
+            continue
+        sib_domain, _, _ = sibling.partition(".")
+        if sib_domain != domain:
+            continue
+        if translation_keys.get(sibling) != wanted_key:
+            continue
+        matches.append(sibling)
+    return matches[0] if len(matches) == 1 else None
+
+
 def _suffix_of(declared: str, vacuum_object_id: str) -> str | None:
     """The naming suffix a declared ID was built from, e.g. ``_total_cleaning_area``.
 
@@ -298,6 +368,15 @@ def resolve_declared_entities(
     def _claimed_by(object_id: str) -> str | None:
         return claimed_by(object_id, declared_suffixes)
 
+    # Built once, not per role. Empty on a provider that sets no keys (Eufy), which
+    # makes the whole translation-key path inert there.
+    _tk_map = {
+        e.entity_id: e.translation_key
+        for e in siblings
+        if isinstance(getattr(e, "translation_key", None), str) and e.translation_key
+    }
+    _sibling_ids = [e.entity_id for e in siblings]
+
     for role, declared in list(entities.items()):
         if not isinstance(declared, str) or "." not in declared:
             continue
@@ -321,6 +400,40 @@ def resolve_declared_entities(
             and _claimed_by(e.entity_id.split(".", 1)[1]) == suffix
         ]
         if not candidates:
+            # SUFFIX EXHAUSTED — the id may simply be in another language.
+            # HA slugs an entity id from the TRANSLATED name, so on a German install
+            # the Roborock filter sensor is `..._verbleibende_filterzeit` where we
+            # declare `filter_time_left`. No suffix can bridge that (issue #51).
+            #
+            # The declared suffix doubles as the wanted key deliberately: for every
+            # provider that sets one, the key IS the English slug our declaration was
+            # written from, so this needs no new brand vocabulary. A brand whose key
+            # differs from its slug can declare one explicitly later — the seam is the
+            # argument, not this default.
+            by_key = rescue_by_translation_key(
+                _sibling_ids,
+                translation_keys=_tk_map,
+                wanted_key=suffix.lstrip("_"),
+                domain=domain,
+                exclude=(declared,),
+            )
+            if not by_key:
+                continue
+            entities[role] = by_key
+            report[role] = {
+                "declared": declared,
+                "resolved": by_key,
+                # Additive: consumers ignore unknown keys today, and it is what a
+                # "why did this bind?" surface would need to say something truer than
+                # "matched by suffix" — which this did NOT do.
+                "via": "translation_key",
+            }
+            _LOGGER.info(
+                "%s: entity role %r did not resolve as %s and no sibling suffix "
+                "matched; using %s, whose upstream translation_key is %r (a localized "
+                "entity id cannot be matched by suffix)",
+                vacuum_entity_id, role, declared, by_key, suffix.lstrip("_"),
+            )
             continue
 
         if len(candidates) > 1:
@@ -338,7 +451,7 @@ def resolve_declared_entities(
 
         resolved = candidates[0]
         entities[role] = resolved
-        report[role] = {"declared": declared, "resolved": resolved}
+        report[role] = {"declared": declared, "resolved": resolved, "via": "suffix"}
         _LOGGER.info(
             "%s: entity role %r did not resolve as %s; using %s from the same config "
             "entry (derived-ID naming did not match this install)",

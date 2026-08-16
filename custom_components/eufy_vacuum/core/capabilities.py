@@ -49,6 +49,8 @@ from ..adapters.entity_resolve import (
     build_suffix_universe,
     claimed_by,
     rescue_by_suffix,
+    rescue_by_translation_key,
+    sibling_translation_keys,
     sweep_siblings,
 )
 
@@ -215,6 +217,7 @@ def _rescue_maintenance_source(
     siblings: Iterable[str],
     suffix: str,
     universe: Iterable[str] = (),
+    translation_keys: dict[str, str] | None = None,
 ) -> str | None:
     """Find a companion ending in ``_{suffix}`` when the derived name missed.
 
@@ -238,11 +241,25 @@ def _rescue_maintenance_source(
     role at 17,975 ft². It shares the guard now; an empty ``universe`` degrades to
     the previous behaviour rather than refusing everything.
     """
-    return rescue_by_suffix(
+    by_suffix = rescue_by_suffix(
         siblings,
         wanted_suffix=f"_{suffix}",
         domain="sensor",
         universe=universe or (f"_{suffix}",),
+    )
+    if by_suffix:
+        return by_suffix
+    # LOCALIZED IDS (issue #51). A German install names this sensor
+    # `..._verbleibende_filterzeit` while the adapter declares `filter_time_left`;
+    # no suffix bridges that, and the consumables read Unknown for every component.
+    # `translation_key` is the provider's own untranslated word, so it survives both
+    # the language and the split dock device. Runs only after the suffix path has
+    # failed, so an install that resolves today is untouched.
+    return rescue_by_translation_key(
+        siblings,
+        translation_keys=translation_keys or {},
+        wanted_key=suffix,
+        domain="sensor",
     )
 
 
@@ -254,6 +271,7 @@ def _detect_maintenance_sources(
     siblings: Iterable[str] = (),
     overrides: dict[str, str] | None = None,
     universe: Iterable[str] = (),
+    translation_keys: dict[str, str] | None = None,
 ) -> dict[str, str | None]:
     """Return a component → source entity_id map for maintenance tracking.
 
@@ -273,7 +291,9 @@ def _detect_maintenance_sources(
         if _state_exists(hass, candidate) or _registry_entry_exists(hass, candidate):
             return candidate
         # live:ENT-8 — the derived name missed; look for the real companion.
-        return _rescue_maintenance_source(siblings, str(suffix), universe)
+        return _rescue_maintenance_source(
+            siblings, str(suffix), universe, translation_keys
+        )
 
     user_choices = overrides if isinstance(overrides, dict) else {}
     sources: dict[str, str | None] = {}
@@ -947,11 +967,13 @@ def detect_capabilities(
         # Derived-first still wins inside, so an install where the names already
         # match resolves byte-identically and never consults this.
         _maint_siblings: list[str] = []
+        _maint_tkeys: dict[str, str] = {}
         try:
             _registry = er.async_get(hass)
             _entry = _registry.async_get(vacuum_entity_id)
             if _entry is not None:
                 _maint_siblings, _ = _sweep_siblings(_registry, _entry)
+                _maint_tkeys = sibling_translation_keys(_registry, _maint_siblings)
         except Exception:  # pragma: no cover - defensive
             _LOGGER.debug(
                 "maintenance sibling sweep failed for %s", vacuum_entity_id,
@@ -984,6 +1006,7 @@ def detect_capabilities(
             siblings=_maint_siblings,
             overrides=_overrides,
             universe=_maint_universe,
+            translation_keys=_maint_tkeys,
         )
 
     # --- live state values --------------------------------------------------
