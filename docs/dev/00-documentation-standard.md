@@ -129,8 +129,10 @@ that quietly does something else, is a *code* defect wearing a doc's clothes.
 
 ## 4. What a NOW doc must specify
 
-Retained from the retired standard, because the collapse zones are the same whatever the
-shelf is called. Audit §4.2–§4.4 hardest; §4.1 usually survives on its own.
+Retained from the retired standard, but **re-weighted by §8**: these are the areas where
+a reader most often goes wrong, so they are where the doc earns its place. State the part
+a reader would misjudge — not the part they can read. "Clamped `>= 0`" restates; "clamped
+`>= 0` because a negative here silently zeroes a productive run" is the doc's job.
 
 1. **Algorithm and rules** — the actual logic, not a summary of its purpose.
 2. **Data shapes and serialization** — *the number-one collapse zone.* Spell out keys,
@@ -153,9 +155,16 @@ for.
 1. **Never be confidently wrong.** A precise but unverified statement is *worse than
    silence* — it misleads with authority. If you have not checked it against source, mark
    it unverified or leave it out. Hedge, don't harden.
-2. **Depth is intentional — do not trim it as "over-documentation".** The clamps, exact
-   columns and kwarg lists are the load-bearing parts. A normal doc glosses precisely what
-   a reader most needs.
+2. **Depth where the code cannot speak CLEARLY — not restatement.** The reader has the
+   source, so spelling out what is plainly readable buys nothing and costs a great deal:
+   every restated clamp, column and kwarg list is an independent claim that can rot on its
+   own, which is where the sediment in §5a came from. The retired standard said the
+   opposite ("depth is intentional — do not trim it"), and it was right *for a corpus that
+   had to survive losing the source*. That premise is gone.
+
+   ⚠ **But "the source contains it" is the wrong test — see §8.** Duplicate truth is not
+   duplicate cognition. Go deep wherever a second representation makes an important
+   inference cheap; go shallow on anything a reader can already see for themselves.
 3. **No normative collisions. Amendments edit the superseded text in place — never merely
    append an override.** Two authoritative statements, each individually followable and
    jointly unsatisfiable, are a defect class of their own (see §2). One live statement per
@@ -249,15 +258,50 @@ authoritative than prose.
 
 ---
 
-## 8. Acceptance test
+## 8. Acceptance test — what does this doc ADD?
 
-**Pragmatic (per-doc):** run §4 against the doc. It passes when nothing in the collapse
-zones is missing, hand-wavy, or unverified.
+The retired standard tested for **omission**: a blind agent rebuilt the module from the doc
+alone, and every miss was a doc failure. That was the right test when the premise was total
+source loss. With the source in hand it measures the wrong thing — it rewards restatement,
+which §5.2 now says is the defect.
 
-**Full (measured):** a blind agent rebuilds the module from the doc alone; diff against
-source; classify each miss as `DOC_GAP` or `AGENT_MISS`. The `DOC_GAP`s are the doc's
-failures. Re-verify each proposed fix against source before applying — and remember §3: the
-mismatch may be a code bug.
+**The test is not "does the source already contain this?" — it is:**
+
+> **Does the document transform that information into a representation that makes something
+> important substantially easier to understand or reason about?**
+
+That distinction matters more than it first appears. `5 × 5`, `5+5+5+5+5`, and "five groups
+of five" encode the same fact and expose different relationships: compact notation, repeated
+addition, the conceptual model. **Duplicate truth is not duplicate cognition.** A naive
+"delete anything recoverable from source" rule optimises the corpus down to *"read the
+source"* — technically complete, practically useless.
+
+So, three criteria:
+
+1. **Everything it claims must be TRUE.** A wrong statement is worse than a missing one,
+   because the reader has no reason to doubt it (§5.1). Check every claim against source.
+2. **It must pay for its length in comprehension.** Ask what a reader gets here that they
+   would not get *clearly, cheaply, and at the right level of abstraction* from the code.
+3. **Where the answer is "nothing", cut it.** Where the answer is "a mental model of
+   something the implementation scatters", keep it — that is the doc's real content.
+
+The line, concretely:
+
+| Code | Doc | Verdict |
+|---|---|---|
+| `if A and B: finalize()` | "If A and B, finalize is called." | **Restatement.** Contributes nothing; rots independently. |
+| Completion spread across six functions and three guards | "Completion requires two independent claims because either signal alone can be stale. Once accepted, it is irreversible for that run." | **Keep.** The code contains it; the prose compresses a distributed implementation into a model. |
+
+**Examples survive under the same rule.** A concrete example may add zero derivable
+information and still reveal what a rule *means* in thirty seconds rather than twenty
+minutes. That is a real reduction in cost, and cost is what this test measures.
+
+A doc can therefore FAIL by being too long — an accurate, exhaustive restatement scores
+zero on (2) — and can equally fail by being too terse to be understood. Neither is a
+paradox; both follow from measuring comprehension rather than completeness.
+
+**Where a disagreement appears, remember §3: the mismatch may be a code bug.** Investigate
+which side is wrong before patching the doc.
 
 ---
 

@@ -30,6 +30,7 @@ files that give you the mental model you need before reading anything else.
 
 | # | File | What it covers |
 |---|---|---|
+| 00b | [invariants](00b-invariants.md) | **The invariant registry** — every system-wide rule that must remain true, one sentence each, with pointers to the explanation and the enforcement site. Read this before a change, not the whole subsystem doc |
 | 00 | [documentation-standard](00-documentation-standard.md) | **How these docs work.** The three shelves (NOW / DESIGN / HISTORY), what an invariant must state, adjudicating a design doc against the code, what a subsystem doc must specify, the meta-rules, citation form, and the release gate |
 | 01 | [architecture-overview](01-architecture-overview.md) | The big picture: adapter pattern, data flow, concurrency rules, subsystem map |
 | 02 | [ha-integration](02-ha-integration.md) | Config entry lifecycle, platform setup, entity registration, coordinator pattern |
