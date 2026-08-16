@@ -13,6 +13,18 @@ only.
 ## [2.1.0] - 2026-08-14
 
 ### Added
+- **Roborock wash docks now surface their two dock consumables.** `Dock Cleaning Brush`
+  and `Dock Strainer` appear on any Roborock whose dock can wash — they live on the dock,
+  which Roborock exposes as a *second device*, so they were previously invisible to us.
+  They are self-gating: on a dockless unit they resolve to nothing and produce no row and
+  no button, so a bare charger is unchanged.
+- **Roborock dock capabilities are read from the dock itself.** Whether a dock can wash,
+  dry, or empty is now taken from its reported dock type and run through the vendor's own
+  capability table, instead of a hardcoded "no dock" for every model. Each of the three is
+  asked separately, because they genuinely differ: an auto-empty dock collects but cannot
+  wash, and some docks wash and empty but cannot dry. A dock we cannot identify stays
+  conservative rather than guessing.
+
 - **Setup → System: a screen showing every value Vacuum Agent reads from your vacuum.** Each
   row names the role, the entity behind it, what that entity currently reads, and *how it was
   chosen* — name match, found on the device, found in the integration, declared by the
@@ -48,6 +60,21 @@ only.
   lose its navigation with no gesture available to bring it back.
 
 ### Fixed
+- **Vacuums with non-English entity names now work.** Home Assistant builds an entity's ID
+  from its *translated* name the first time it sees it, and never rebuilds it — so on a
+  German install the map selector is `select.<vacuum>_ausgewahlte_karte`, and every name
+  we derived missed it. The effect was not subtle: with no map, rooms and per-room cleaning
+  were simply unavailable, and changing Home Assistant's language afterwards fixes nothing
+  because the IDs never change. We now fall back to the word the vacuum's own integration
+  uses internally, which is never translated. This also covers a companion that has been
+  renamed or moved to another device. It only ever *adds* — a role that already resolves is
+  untouched — and where a brand reuses the same internal word for many entities (a per-room
+  setting, say) it declines rather than guessing.
+- **Capabilities are re-checked once Home Assistant has finished starting.** Detection ran
+  during setup, when the vacuum's own integration may not have created its entities yet, so
+  a cold start could conclude a feature was missing and store that. It now re-runs after
+  startup completes and writes only if something actually changed.
+
 - **Companion entities are found when they are not named after the vacuum.** Vacuum Agent
   derives names from the vacuum (`vacuum.alfred` → `sensor.alfred_battery`), which Home
   Assistant does not guarantee: an area prefix, a rename, or an integration that names after
@@ -125,6 +152,16 @@ only.
   and was simply unreachable.
 
 ### Changed
+- **Vacuum Agent now says plainly when it does not support a vacuum.** Previously anything
+  it could not identify was quietly driven with Eufy's settings — which meant, for example,
+  a Dreame appearing to be configured while almost nothing about it was actually read. A
+  vacuum is now matched to a brand by *which integration provides it*, and if no adapter
+  claims that integration it is left alone with a log line naming it. Supported today:
+  `robovac_mqtt` (Eufy) and `roborock`.
+  > If a vacuum you were using stops being managed after this update, please open an issue
+  > and include the integration name from that log line — that is exactly what we need to
+  > add support for it.
+
 - **Releases now ship an installable `eufy_vacuum.zip` asset, and HACS installs that.**
   Previously HACS pulled the integration's files straight from the tag — a path GitHub does
   not meter, so this project reported no download count at all, which reads as zero installs
