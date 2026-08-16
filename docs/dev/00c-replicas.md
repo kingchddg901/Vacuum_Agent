@@ -94,6 +94,47 @@ button id, so it matched two siblings, abstained, and a user lost a working cont
 
 **Declared at** `adapters/entity_resolve.py` (the copy whose comment carries the reasoning).
 
+### `RNWQ82XZ` — consult the save-refusal check before closing · **2 handlers**
+
+The room editor's Save is bound on two different roots, and each must ask
+`_roomEditorSaveWasRejected` before closing the modal.
+
+| Copy | Root |
+|---|---|
+| `src/bindings/room-editor.js::_bindRoomEditorSave` | the main shadow root |
+| `src/bindings/index.js::bindModalHostEvents` | the detached modal host |
+
+**The check itself is already shared** — this set is the OBLIGATION TO CALL IT, the same
+shape as `RNF2RCXP`, where the rescue is one function and the decision to invoke it is
+written out three times. A handler that forgets to ask is indistinguishable from one that
+asked and got a yes: the modal closes, and a backend refusal (`invalid_access_graph`)
+reverts silently on the next snapshot.
+
+**Already drifted once** before it was marked — the modal-host copy never gained
+`setSkipRefreshOnClose`. That is what moved it from suspected to confirmed.
+
+**Declared at** `src/bindings/room-editor.js::_roomEditorSaveWasRejected`.
+
+### `RNXX8X11` — the room-fill palette SIZE · **2 copies** (of 3 sites)
+
+How many room-fill colours exist. Three places care; only two can drift.
+
+| Site | Kind |
+|---|---|
+| `src/cards/map-room-color.js::ROOM_FILL_N` | **derived** — `ROOM_FILL_PALETTE.length`, cannot be wrong |
+| `src/theme-tokens/map.js` | **hand-enumerated** `--evcc-room-fill-N` token list — the copy |
+| `src/state/theme.js` | derived: imports the palette and seeds in a loop — **NOT a member** |
+
+The third row is the instructive one: it faces the same obligation and is immune to it,
+because it imports rather than restates — which is what the second row could have done.
+Currently 12 and 12.
+
+**The failure is silent in both directions.** A 13th colour renders on the map with no
+picker in the theme editor, so it can never be themed; a removed one leaves a swatch for a
+token nothing reads. Neither errors, and nothing compares the counts.
+
+**Declared at** `src/cards/map-room-color.js::ROOM_FILL_N` (the source of truth).
+
 ---
 
 ## Observational vs MUTATION replicas

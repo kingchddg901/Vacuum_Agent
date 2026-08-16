@@ -54,6 +54,11 @@ export const MAP_TOKENS = [
   // tokens, the defaults are NOT in the styles/index.js :host block; state/theme.js resolvedTheme
   // seeds the same palette so the editor's colour picker has a value to open. A per-room override
   // lands in Phase 2. Count = ROOM_FILL_N in cards/map-room-color.js — keep them in sync.
+  //
+  // REPLICA RNXX8X11 — the room-fill palette SIZE. This hand-enumerated list is the
+  // copy that can drift; `cards/map-room-color.js` derives N from the palette and
+  // `state/theme.js` seeds from the same import. Adding a colour there without
+  // adding a token here leaves it unthemeable, silently.
   mapToken.color("--evcc-room-fill-1",  "Map Room Color 1"),
   mapToken.color("--evcc-room-fill-2",  "Map Room Color 2"),
   mapToken.color("--evcc-room-fill-3",  "Map Room Color 3"),

@@ -38,7 +38,7 @@ path it no longer occupies (`STALE`).
 | **OBLIGED** -> `RNWQ82XZ` | `src/bindings/room-editor.js`:405 | 4/4 | * The room editor's Save button is bound in TWO places, on two different |
 | **STALE** | `custom_components/eufy_vacuum/themes/preloaded.py`:470 | 1/1 | Cites `harness/bundles/cvd-safe.mjs` + `harness/tests/cvd.spec.mjs`, neither of which exists -- but the CVD gate is REAL and lives at `src/theme-tags/colorblind.mjs` (Machado 2009 matrices) with `derive.mjs` computing `cvdMin` into `themeMetrics`. Right mechanism, wrong path. One nuance the comment still gets wrong: it reads as though a gate re-validates automatically, whereas `colorblind-safe` is a DELIBERATELY manual verified tag -- derive.mjs:175, "a crude palette metric over-claims ... a false safety claim is worse than none." So nothing auto-re-checks the palette, BY DESIGN. |
 | **OBLIGED** -> `RNWQ82XZ` | `src/bindings/index.js`:323 | 1/1 | // the SHARED helper in bindings/room-editor.js — not a second copy. |
-|  | `src/theme-tokens/map.js`:56 | 1/1 | // lands in Phase 2. Count = ROOM_FILL_N in cards/map-room-color.js — keep them in sync. |
+| **OBLIGED** -> `RNXX8X11` | `src/theme-tokens/map.js`:56 | 1/1 | // lands in Phase 2. Count = ROOM_FILL_N in cards/map-room-color.js — keep them in sync. |
 |  | `src/bindings/map.js`:1803 | 1/7 | // than adding a second copy of the panel's guard for the next host to forget. |
 |  | `custom_components/eufy_vacuum/core/manager.py`:1604 | 1/3 | # deriving either in core would be a second copy of a brand's or a flow's |
 |  | `custom_components/eufy_vacuum/jobs/active_job.py`:2286 | 1/2 | # imports in turn. Reusing their conversions rather than writing a third copy |

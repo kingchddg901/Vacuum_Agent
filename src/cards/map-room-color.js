@@ -22,6 +22,22 @@ export const ROOM_FILL_PALETTE = [
   "#60a5fa", "#f472b6", "#4ade80", "#f97316",
 ];
 
+// anchor: RNXX8X11  the room-fill palette SIZE — the replica set
+//
+// This length is the obligation. Three places care how many room-fill colours
+// exist, and only TWO of them can drift, because the third derives:
+//
+//   * HERE — the palette itself; N is `.length`, so it cannot be wrong.
+//   * `src/state/theme.js` — imports ROOM_FILL_PALETTE and seeds
+//     `--evcc-room-fill-${i+1}` in a loop. DERIVED, therefore not a member.
+//     It is what the right pattern looks like.
+//   * `src/theme-tokens/map.js` — a HAND-ENUMERATED list of
+//     `mapToken.color("--evcc-room-fill-N", ...)` declarations. This is the copy.
+//
+// Currently 12 and 12. The failure is silent in both directions: add a 13th colour
+// and the map renders it while the theme editor has no picker for it, so it can
+// never be themed; remove one and the editor offers a swatch for a token nothing
+// reads. Neither errors, and no test compares the two counts.
 export const ROOM_FILL_N = ROOM_FILL_PALETTE.length;
 
 /** Wrap any (possibly negative / fractional) index into a 0..N-1 palette slot. */
