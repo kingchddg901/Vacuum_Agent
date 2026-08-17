@@ -1431,7 +1431,7 @@ One of the names registered in `learning/job_segmenter_engines.py`
 | Name | What it does |
 |---|---|
 | `eufy_counter_v1` | Counter-plateau detection over `cleaning_time` / `cleaning_area`. Delegates verbatim to the `counter_segmentation` primitives, so the Eufy path is byte-for-byte identical to the pre-engine code. Default for adapters with no native room-transition telemetry. |
-| `noop_job_fallback` | Every stage returns `[]` — no boundaries. For a future brand that emits no segmentable signal. Registered for completeness; **not** the fallback. |
+| `noop_job_fallback` | Every stage returns `[]` — no boundaries. **Roborock declares this today** (`adapters/roborock/adapter.py`, `job_segmenter.engine`), deliberately: the only area plateaus in its run traces were obstacle stalls, not room boundaries, so the counter engine would fabricate boundaries and write them into learned history. See [29 §Roborock](29-roborock-adapter.md). **Not** the fallback — it must be declared explicitly. |
 
 **Fallback is the Eufy engine, not noop** — unlike [§13a
 `mapping`](#13a-mapping--pluggable-map-segmenter-engine-selection),

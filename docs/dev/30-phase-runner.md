@@ -7,10 +7,13 @@
 > this document alone.
 >
 > **Ownership note:** this subsystem was extracted from `core/manager.py` in the
-> manager re-bundle. The orchestration now lives entirely in
-> `jobs/phase_runner.py` (`class PhaseRunner`). What **stays** on the manager is a
-> single 1-line delegator (`maybe_advance_phase`) plus the brand-tunable watchdog
-> *timing* (`_phase_timing` + the `_PHASE_*` module constants). If you find a doc
+> manager re-bundle. The orchestration lives in `jobs/phase_runner.py`
+> (`class PhaseRunner`). What **stays** on the manager is the 1-line delegator
+> (`maybe_advance_phase`), the brand-tunable watchdog *timing* (`_phase_timing` +
+> the `_PHASE_*` module constants), and **three call sites into the phase machine
+> that are not delegators** — enumerated in [§9](#9-integration-points). One of
+> them is a teardown seam a port will not discover by reading `phase_runner.py`
+> alone. If you find a doc
 > that attributes the phase machine to `core/manager.py`, this page is the
 > correct owner.
 
@@ -837,6 +840,7 @@ See
 |---|---|---|
 | `listeners/lifecycle.py` (completion hook) | `manager.maybe_advance_phase()` → `PhaseRunner.maybe_advance_phase()` | A phase's room set finished; decide advance vs finalize |
 | `core/manager.py::start_selected_rooms` | `phase_runner._run_advanced_phase(..., initial=True)` | A sequenced job starts (verify phase 0) |
+| `core/manager.py::async_shutdown` | **`phase_runner.cancel_all()`** | **Teardown — unload, reload, or HA stop.** The only seam here that a port cannot discover from `phase_runner.py` alone: miss it and every live dock poller (`charge_wait` / `wait`) leaks on each unload, and a reload accumulates them. Pairs with `rearm_dock_phase_if_needed` below, which re-creates on the way back up what this cancels on the way down. |
 | `PhaseRunner.maybe_advance_phase` | `phase_runner._run_advanced_phase(...)` directly (clean phase) / `_spawn_dock_poller(...)` (stop phase) | The next phase is dispatched, routed on its `phase_type` |
 | `core/manager.py::async_initialize` (on load) | `phase_runner.rearm_dock_phase_if_needed(...)` | Re-arm a stop phase whose in-memory poller the restart lost |
 | `jobs/active_job.py::async_resume_active_job` (on resume) | `phase_runner.rearm_dock_phase_if_needed(...)` | Re-arm a stop phase after a pause+resume re-armed nothing |

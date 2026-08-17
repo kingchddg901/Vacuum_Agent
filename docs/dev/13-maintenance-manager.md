@@ -10,9 +10,26 @@ The maintenance manager tracks two parallel data sources that together describe 
 
 1. **Upstream replacement sensors** — percentage-remaining sensors exposed by the upstream integration (e.g. robovac_mqtt). The adapter declares these via the `maintenance_components` block in its config. These reflect the firmware's own tracking.
 
-2. **Integration maintenance intervals** — usage-hour counters maintained by the integration itself, tracking elapsed hours since the last user-confirmed reset. These parallel the upstream sensors and provide an independent check that survives firmware resets.
+2. **Integration maintenance intervals** — elapsed hours since the last user-confirmed reset. The integration does **not** maintain a usage-hour counter of its own: it stores a baseline (`reset_at_usage_hours`) and subtracts it from `usage_hours` read as an **attribute of the same upstream entity** as row 1.
 
-Both sources feed into the **upkeep snapshot** — a composite view consumed by the panel's maintenance tab and by the learning system when it computes job health context.
+> **The two rows are not independent, and this is a single point of failure.** They are
+> labelled `source: "upstream"` and `source: "integration"` in the code, which makes "two
+> sources" natural vocabulary — but `maintenance_sources` is `dict[str, str | None]`, one
+> entity per component, and `proxy_for` only chooses *which* entity, never two. So one
+> unresolved or unavailable entity takes out **both** halves: `current_usage` falls to
+> `0.0`, `remaining` becomes the full interval, and the row freezes at 100% while looking
+> healthy. `core/capabilities.py` states it plainly — *"the integration's own maintenance
+> row decrements off `usage_hours` on the very same entity. One unresolved source kills
+> both halves."* That is the failure behind issue #49 (`live:ENT-8`).
+>
+> This section claimed the integration row "provides an independent check that survives
+> firmware resets" until 2026-08-16. *Independent* was false — see above. *Survives
+> firmware resets* was **unverifiable**: it turns on whether Eufy's `usage_hours` is a
+> lifetime accumulator or a since-firmware-reset counter, a firmware fact recorded
+> nowhere in this tree, and the phrase appeared exactly once — here — with nothing
+> corroborating it. Dropped rather than carried as an unsourced claim.
+
+Both feed the **upkeep snapshot** — a composite view consumed by the panel's maintenance tab and by the learning system when it computes job health context.
 
 **Module:** `custom_components/eufy_vacuum/maintenance/manager.py`
 

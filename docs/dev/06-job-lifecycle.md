@@ -1193,8 +1193,31 @@ caller-supplied forced lifecycle name or the cancel-detection heuristic (the
 old live `get_lifecycle_state()` read was removed — its readiness values never
 mapped to cancelled/failed/interrupted anyway). Reads `last_cleaning_time_seconds`,
 `last_cleaning_area_m2`, and `last_station_water_percent` from `active_job` — the
-`last_*`-prefixed live keys the job-metrics listener wrote during the run (§5),
-falling back to a live sensor read only on the first run after a cold start. (The
+`last_*`-prefixed live keys the job-metrics listener wrote during the run (§5).
+
+> **Three tiers, and a PHASED run never reaches the first one.** The `last_*` read
+> above is only the atomic-run path.
+>
+> 1. **Phased/stepped runs bypass `last_cleaning_time_seconds` entirely.** When
+>    `active_job` carries a non-empty `phases` list, `cleaning_time_seconds` is
+>    `_phase_sum` — `room_timing.cleaning_seconds` plus `zone_timing.wall_seconds`
+>    summed across phases — and the `last_*` key is never read
+>    (`learning/job_finalizer.py::_collect_finalization_inputs`). **This is a guard,
+>    not an optimisation** (RP-013f/REC-A, `ed1a953f`): reading the live counter
+>    recorded 302 s against 255+302 = 557 s actually measured, **46% short**, because
+>    the counter resets between dispatches. Do not remove it as redundant — that is
+>    exactly the regression it was added to fix.
+> 2. Only when no phase captured anything does it fall through to `last_*`.
+> 3. A **wall-clock derivation** (wall minus paused minus recharge minus commanded
+>    breaks, REC-B) fires whenever the sensor read is still unavailable. Its own
+>    comment calls this "common on normal completions" — it is **not** a cold-start
+>    edge case.
+>
+> This paragraph said "falling back to a live sensor read only on the first run after
+> a cold start" until 2026-08-16. The phase-sum bypass landed three days after that
+> sentence was written and it was never reconciled.
+
+(The
 un-prefixed `cleaning_time_seconds` / `cleaning_area_m2` names exist **only** on the
 *completed_job* `job` dict, stamped later at finalize — a rebuild reading
 `active_job["cleaning_time_seconds"]` would get `None`.) Returns a frozen inputs dict.
