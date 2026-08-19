@@ -31,6 +31,16 @@
 #   INYA5T84  `adapters/config_schema.py#INYA5T84`
 #       A1-SERVIC-1 (closed RP-028): No mapping write service can tell "this map exists" from "this map does not" — every
 #              schema takes a free-form map_id and every handler mints the bucket, so an edit
+#   INKV8ZQD  `services/_common.py#INKV8ZQD`
+#       A3-IMAGE--5: Image filenames are built from an unsanitised free-form map_id, so one map's upload
+#              can silently overwrite another map's image
+#       A4-CUSTOM-1: set_custom_segments is a REPLACE-ALL write that cannot name its target layout — it
+#              lands on whatever layout is active at call time, destroying another layout's
+#              authored geometry
+#       A5-FURNIS-1: map_id is documented as optional + auto-resolving on 6 presentation services but is
+#              vol.Required; a literal blank map_id silently mints and writes a phantom map bucket
+#       A6-ZONE-C-6: Every handler in the block mints a persisted map bucket for an unknown map_id —
+#              including on the pure not-found and read-only clean paths
 
 
 from __future__ import annotations

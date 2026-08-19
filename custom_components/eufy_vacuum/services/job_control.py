@@ -37,6 +37,11 @@ listener / path-blocker listener own those firings).
 #   INGZFYXX  `profiles/manager.py#INGZFYXX`
 #       A2-JOB-7 (closed RP-031): async_save() sits after the try/except in every job_control handler — a raise after
 #              dispatch leaves a running job in memory only
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A2-JOB-1: start_selected_rooms discards every refusal — no supports_response, no exception,
+#              DEBUG log only; docs promise a response it cannot return
+#       A2-JOB-3: clear_active_job destroys a running job's record unconditionally and returns nothing
+#              — no status precondition, no supports_response, immediate persist
 
 
 from __future__ import annotations

@@ -24,6 +24,13 @@ Eight services for the room-profile library and per-room application.
 #              supplied scoping arguments are accepted and silently ignored
 #       A3-ROOMS-4 (closed RP-032): services.yaml advertises required fields that the voluptuous schemas reject — three
 #              services fail outright when the user fills the form HA renders
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A3-ROOMS-11: Error-surfacing is inconsistent across the area: rooms.py wraps 4 of 5 handlers,
+#              room_profiles.py wraps 0 of 8, access_graph.py wraps 0 of 2
+#       A3-ROOMS-5: apply_room_profile silently no-ops on unknown room ids and returns a success-shaped
+#              response with no way to tell
+#       A3-ROOMS-7: save_user_room_profile silently overwrites an existing custom profile and reports
+#              saved: true, while its sibling rename_room_profile refuses the identical collision
 
 
 from __future__ import annotations

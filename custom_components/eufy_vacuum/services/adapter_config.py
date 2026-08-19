@@ -27,6 +27,10 @@ multi-brand setups) plus the capability detection service:
 #   INGZFYXX  `profiles/manager.py#INGZFYXX`
 #       A4-SETUP-5 (closed RP-033): save_adapter_config persists to storage BEFORE registering, so a config the registry
 #              flags as invalid is written to disk anyway and reloaded at every restart
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A4-SETUP-4: save_adapter_config / delete_adapter_config declare no supports_response and return
+#              None on every rejection path — a rejected write is indistinguishable from a
+#              successful one
 
 
 from __future__ import annotations

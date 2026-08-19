@@ -32,6 +32,15 @@ Services driving the panel-based setup flow:
 #   INYA5T84  `adapters/config_schema.py#INYA5T84`
 #       A4-SETUP-9 (closed RP-033): adapter `setup.steps` is never validated at registration despite two docstrings and
 #              the schema claiming it is; two declared step IDs have no completion writer and
+#   INC63FDF  `rooms/room_crud.py#INC63FDF`
+#       A4-SETUP-1: setup_save_rooms rebuilds the map from the stale/absent `data["discovery"]` cache
+#              and REPLACES the map's rooms wholesale — returns {"status": "success"}
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A4-SETUP-12: setup_get_map_rooms returns a success-shaped empty room list when the runtime
+#              manager is missing — the caller cannot tell "integration not loaded" from "map has
+#              no rooms"
+#       A4-SETUP-8: setup_save_rooms stamps the setup step complete unconditionally, unlike both of its
+#              sibling step-advancing handlers
 
 
 from __future__ import annotations

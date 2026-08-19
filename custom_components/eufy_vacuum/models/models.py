@@ -1,5 +1,20 @@
 """Canonical dataclass and TypedDict definitions for the Eufy Vacuum integration."""
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history. They
+# are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# NO CLOSURE CLAIMS BELOW. The 2026-08-17 blocks carried '(closed RP-x)' copied from
+# the ledger, and 35 of 60 such claims named a packet whose commits never touched the
+# file the claim sat in; two that were read were still LIVE. These rows record which
+# RULE a finding produced -- verified from the family crosswalk -- and say nothing
+# about whether it is fixed.
+#   INCFMPP1  `rooms/room_discovery.py#INCFMPP1`
+#       A1-ID-6: RoomRecord documents grants_access_to as 'list[str] — room slugs' but every producer
+#              and consumer stores integer room ids
+
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field

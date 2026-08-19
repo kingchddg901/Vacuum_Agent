@@ -34,6 +34,13 @@ Public surface:
 #   INYA5T84  `adapters/config_schema.py#INYA5T84`
 #       A3-COMMON-2 (closed RP-033): completion_secondary_satisfied() returns True from a config FLAG without verifying
 #              the entity it delegates to exists; the "Invariant" asserted in the caller is never
+#   IN6VSBJ1  `jobs/active_job.py#IN6VSBJ1`
+#       A3-COMMON-4: _common owns the completion QUESTION but not its vocabulary defaults — the clear-
+#              sentinel and completion-status fallbacks exist as two hand-copied literals in
+#              different modules
+#       A3-COMMON-6: The listener layer never uses either canonical in-flight predicate — it hand-inlines
+#              the status set that dispatched_job_is_in_flight declares itself "THE single answer"
+#              to
 
 
 from __future__ import annotations

@@ -27,6 +27,20 @@ Owns:
 #              no vacuum_entity_id, so a brand with its own profile keys renders every room as
 #       A5-PP-RP-8 (closed RP-025): The water-off suppression in _settings_profile_display compares against the literal
 #              "off" instead of the brand's no-water value
+#   IN11T0FS  `profiles/room_profiles.py#IN11T0FS`
+#       A5-PP-RP-2: Any plan whose FIRST surviving phase is a zone is refused with "Room-clean payload
+#              is missing or invalid" — and a live blocker rule can push a plan into that state
+#       A6-PP-EST-DSP-1: A room stamped profile_name="custom" is re-labelled as the brand's DEFAULT preset
+#              ("Vacuum Quick") with is_custom_profile=False — proven for any mop room on hardwood
+#       A6-PP-EST-DSP-2: _settings_profile_display's "selected != resolved" custom-detection arm is dead for
+#              every name the resolver can rewrite — a carpet-downgraded mop room is still labelled
+#              "Vacuum + Mop Quick"
+#   INSJM6KC  `rooms/access_graph.py#INSJM6KC`
+#       A5-AG-1: Mid-run reachability is queue-scoped while preflight is graph-scoped — a run that
+#              omits the dock room reports EVERY remaining room as access_blocked and can cancel
+#              the job
+#       A6-PP-EST-BLK-1: Mid-job path-block report walks reachability over the QUEUE only, so any queued room
+#              whose access parent is not in the queue is reported blocked — and can cancel the job
 
 
 from __future__ import annotations

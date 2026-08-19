@@ -1,5 +1,26 @@
 """Listens to raw position sensors, feeds boundary traces, and drives room confidence tracking."""
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history. They
+# are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# NO CLOSURE CLAIMS BELOW. The 2026-08-17 blocks carried '(closed RP-x)' copied from
+# the ledger, and 35 of 60 such claims named a packet whose commits never touched the
+# file the claim sat in; two that were read were still LIVE. These rows record which
+# RULE a finding produced -- verified from the family crosswalk -- and say nothing
+# about whether it is fixed.
+#   INCFMPP1  `rooms/room_discovery.py#INCFMPP1`
+#       A6-TRK-5: _norm_room_name normalises differently from slugify_room_name — it merges room
+#              identities that rooms/ keeps distinct, and lacks the NFC canonicalisation slugify
+#              was given specifically to prevent this
+#   INJW5J2A  `learning/history_store.py#INJW5J2A`
+#       A6-TRK-6: Dock-drift append rewrites the entire log file on every reading, and a failed write
+#              silently forfeits that drift event via the already-committed _last_dock_pos
+#       A6-TRK-7: start_job/end_job are dispatched to an executor thread on the strength of a comment
+#              describing disk I/O that start_job does not perform
+
+
 from __future__ import annotations
 
 import json

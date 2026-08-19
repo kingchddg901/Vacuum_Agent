@@ -23,6 +23,13 @@ lifecycle operation, not a library mutation.
 #              profile's rooms no longer exist on the map
 #       A5-RUNPROF-3 (closed RP-031): overwrite_run_profile exposes the step-sequence destruction with no warning, no
 #              confirmation, no response signal — and commits it with async_save
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A5-RUNPROF-1: save_run_profile never inspects the manager's `saved` flag — a save that stored
+#              nothing returns a success-shaped response and raises nothing
+#       A5-RUNPROF-5: rename_run_profile accepts a blank name and silently relabels the profile
+#              'Untitled', returning renamed:True — the sibling save rejects the same input
+#       A5-RUNPROF-6: overwrite_run_profile with no rooms enabled returns overwritten:False as a success —
+#              the raise gate matches one literal reason, not the failure flag
 
 
 from __future__ import annotations

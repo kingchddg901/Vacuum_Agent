@@ -29,6 +29,21 @@ one-file fix:
   ``0x01`` wall, other obstacle bits -> wall variants — all resolve to id 0.
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history. They
+# are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# NO CLOSURE CLAIMS BELOW. The 2026-08-17 blocks carried '(closed RP-x)' copied from
+# the ledger, and 35 of 60 such claims named a packet whose commits never touched the
+# file the claim sat in; two that were read were still LIVE. These rows record which
+# RULE a finding produced -- verified from the family crosswalk -- and say nothing
+# about whether it is fixed.
+#   INJW5J2A  `learning/history_store.py#INJW5J2A`
+#       A7-ROBORO-2: raster_room_bboxes runs an O(width*height) pure-Python per-pixel loop directly on
+#              the Home Assistant event loop
+
+
 from __future__ import annotations
 
 import base64

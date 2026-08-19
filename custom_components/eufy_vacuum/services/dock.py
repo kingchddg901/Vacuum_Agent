@@ -25,6 +25,15 @@ Six services:
 #   INJSETB0  `services/queue.py#INJSETB0`
 #       A1-WIRE-3 (closed RP-032): Sixteen registered services documented as public API have no services.yaml
 #              descriptor, including set_dock_event_count whose five dock siblings all have one
+#   INKV8ZQD  `services/_common.py#INKV8ZQD`
+#       A6-DIAG-6: set_dock_event_count overwrites and immediately saves a durable counter for any
+#              entity_id, with no managed-vacuum check and no way back except the response body
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A6-DIAG-1: Dock actions return performed:true / "Dock action sent." when the resolved button
+#              entity has no state — the press is silently dropped by HA
+#       A6-DIAG-7: get_dock_action_status raises a raw TypeError when map_id cannot be auto-resolved —
+#              the only unwrapped handler in the three modules, and _common's docstring claims the
+#              opposite
 
 
 from __future__ import annotations

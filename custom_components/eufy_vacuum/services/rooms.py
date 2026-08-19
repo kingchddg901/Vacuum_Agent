@@ -25,6 +25,14 @@ Four services:
 #              water in storage and in the UI but silently drops it from the wire payload
 #       A3-ROOMS-9 (closed RP-025): update_room_fields accepts any fan_speed string; on Roborock an unrecognised value
 #              leaves the device's previous suction in place with no error
+#   INC63FDF  `rooms/room_crud.py#INC63FDF`
+#       A3-ROOMS-1: save_managed_rooms silently wipes a map's entire saved room configuration when the
+#              discovery cache for that map is empty
+#       A3-ROOMS-2: enabled_room_ids: null coerces to [] and wipes every managed room — the exact
+#              opposite of omitting the key
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A3-ROOMS-10: save_managed_rooms is the most destructive service in the area and the only mutation
+#              registered without supports_response
 
 
 from __future__ import annotations

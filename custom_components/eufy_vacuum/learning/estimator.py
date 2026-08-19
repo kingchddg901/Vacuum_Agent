@@ -95,6 +95,9 @@ payload includes stats_stale=True so the card can warn the user.
 #              brand-agnostic estimator while the adapter already declares wash_frequency_bounds
 #       A1-EST-8 (closed RP-025): is_mop raw-compares clean_mode against a hand-copied literal set while the very same
 #              function canonicalizes it for the stats lookup
+#   INJW5J2A  `learning/history_store.py#INJW5J2A`
+#       A1-EST-9: estimate() runs ensure_dirs (four mkdir syscalls) three times per call on the event
+#              loop, even on full cache hits
 
 
 from __future__ import annotations

@@ -27,6 +27,22 @@ Public surface:
     remove(hass: HomeAssistant) -> None
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history. They
+# are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# NO CLOSURE CLAIMS BELOW. The 2026-08-17 blocks carried '(closed RP-x)' copied from
+# the ledger, and 35 of 60 such claims named a packet whose commits never touched the
+# file the claim sat in; two that were read were still LIVE. These rows record which
+# RULE a finding produced -- verified from the family crosswalk -- and say nothing
+# about whether it is fixed.
+#   IN6VSBJ1  `jobs/active_job.py#IN6VSBJ1`
+#       A5-METRICS-1: job_progress ticker gates on a hand-copied {"started","paused"} literal, so app-
+#              started (external) runs never get the Lever B live current-room refresh or a
+#              progress tick
+
+
 from __future__ import annotations
 
 import logging

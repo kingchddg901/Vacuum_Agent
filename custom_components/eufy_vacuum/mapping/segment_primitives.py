@@ -30,6 +30,24 @@ Typical import pattern for a new segmentor
     )
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history. They
+# are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# NO CLOSURE CLAIMS BELOW. The 2026-08-17 blocks carried '(closed RP-x)' copied from
+# the ledger, and 35 of 60 such claims named a packet whose commits never touched the
+# file the claim sat in; two that were read were still LIVE. These rows record which
+# RULE a finding produced -- verified from the family crosswalk -- and say nothing
+# about whether it is fixed.
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A2-POLYGO-2: `rasterize_primitives` returns the same `[]` for 'numpy/Pillow missing' as for
+#              'degenerate shape', so set_custom_segments silently wipes the layout and reports
+#              saved:true
+#       A2-POLYGO-8: A malformed primitive is silently skipped mid-segment, so a partially-drawn room
+#              saves as a success with no signal in the response
+
+
 from __future__ import annotations
 
 import importlib

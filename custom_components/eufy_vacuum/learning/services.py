@@ -46,6 +46,10 @@ SERVICES
 #   INQ619A6  `learning/utils.py#INQ619A6`
 #       A4-STATE-1 (closed RP-013c): The final room of EVERY non-completed run is recorded as "missed"; on a stranded run
 #              the documented retry automation re-dispatches the robot in an unbounded loop
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A5-SVC-4: record_estimate_accuracy's schema requires no keys at all; an entry missing
+#              map_id/slug writes a permanently unreadable durable record and returns a confident
+#              success payload
 
 
 from __future__ import annotations

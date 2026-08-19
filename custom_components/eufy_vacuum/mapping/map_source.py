@@ -20,6 +20,22 @@ provider's `.storage` for the Eufy storage backend, or finding the coordinator's
 map in `hass.data` for the Roborock memory backend) live in the caller and inject plain
 data here, so the extraction/normalization is unit-testable without Home Assistant.
 """
+
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history. They
+# are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# NO CLOSURE CLAIMS BELOW. The 2026-08-17 blocks carried '(closed RP-x)' copied from
+# the ledger, and 35 of 60 such claims named a packet whose commits never touched the
+# file the claim sat in; two that were read were still LIVE. These rows record which
+# RULE a finding produced -- verified from the family crosswalk -- and say nothing
+# about whether it is fixed.
+#   INJW5J2A  `learning/history_store.py#INJW5J2A`
+#       A2-GEO-2: zone_membership scans the entire room_outline raster with a per-cell
+#              normalize_rendered before the bbox reject, synchronously on the event loop —
+#              measured ~0.10 s per zone, ~1.0 s per dashboard read
+
 from __future__ import annotations
 
 import base64

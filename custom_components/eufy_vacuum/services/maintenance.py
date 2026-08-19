@@ -22,6 +22,10 @@ Two services:
 #   INGZFYXX  `profiles/manager.py#INGZFYXX`
 #       A6-DIAG-9 (closed RP-031): Mutate-then-save is not atomic in all three write services: a save failure surfaces
 #              an error while the change has already taken effect in memory
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A6-DIAG-2: set_maintenance_interval accepts ANY component string, persists it, and returns
+#              saved:true — its sibling reset_maintenance raises ServiceValidationError for exactly
+#              that input
 
 
 from __future__ import annotations

@@ -14,6 +14,25 @@ for per-vacuum mutations (save_as_new, set_active, update_draft, revert).
 The sensor platform uses this to push state writes without polling.
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history. They
+# are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# NO CLOSURE CLAIMS BELOW. The 2026-08-17 blocks carried '(closed RP-x)' copied from
+# the ledger, and 35 of 60 such claims named a packet whose commits never touched the
+# file the claim sat in; two that were read were still LIVE. These rows record which
+# RULE a finding produced -- verified from the family crosswalk -- and say nothing
+# about whether it is fixed.
+#   INKV8ZQD  `services/_common.py#INKV8ZQD`
+#       A2-DRAFT-4: _get_vacuum_theme creates per-vacuum draft state for ANY well-formed entity id, so
+#              update_working_draft / revert_draft / set_active_theme return ok:true for a vacuum
+#              that does not exist and persist a record nothing can reach
+#   INT62M7A  `themes/services.py#INT62M7A`
+#       A1-CRUD-7: set_theme_tags silently discards tags past 16 or longer than 32 chars and still
+#              returns ok:True
+
+
 from __future__ import annotations
 
 import logging

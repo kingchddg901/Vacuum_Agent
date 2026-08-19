@@ -44,6 +44,9 @@ applies a confirmed migration (it owns the data dict).
 #   INMKEHPQ  `rooms/room_manager.py#INMKEHPQ`
 #       A2-REC-3 (closed RP-019): A room renamed AND renumbered in the same edit is invisible to reconciliation — and
 #              migrate then deletes its stored data as if it were a stranger
+#   INCFMPP1  `rooms/room_discovery.py#INCFMPP1`
+#       A2-REC-2: Two rooms with the same name collapse into one identity: phantom id_changed on an
+#              unchanged map, and migrate overwrites one room's settings with the other's
 
 
 from __future__ import annotations

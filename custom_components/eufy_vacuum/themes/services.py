@@ -7,6 +7,22 @@ operations that cannot fail (get_library, update_draft, revert) return
 their dict directly.
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history. They
+# are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# NO CLOSURE CLAIMS BELOW. The 2026-08-17 blocks carried '(closed RP-x)' copied from
+# the ledger, and 35 of 60 such claims named a packet whose commits never touched the
+# file the claim sat in; two that were read were still LIVE. These rows record which
+# RULE a finding produced -- verified from the family crosswalk -- and say nothing
+# about whether it is fixed.
+#   INJW5J2A  `learning/history_store.py#INJW5J2A`
+#       A2-DRAFT-5: Every update_working_draft triggers an immediate full Store.async_save of the entire
+#              integration data dict, and the card fires it on `input` — once per keystroke in text
+#              and number token fields
+
+
 from __future__ import annotations
 
 import logging

@@ -35,6 +35,15 @@ _refresh_room_derived_state without re-implementing them.
 #              room's profile_name to "custom" on every start
 #       DQ-PAY-1 (closed RP-025): Applying a built-in room profile to a Roborock room writes EUFY vocabulary onto the
 #              room; the fresh room_defaults fix covers creation only
+#   IN11T0FS  `profiles/room_profiles.py#IN11T0FS`
+#       A3-PP-CRUD-2: Applying a mop room profile instantly rewrites the room's profile_name to "custom" —
+#              the profile the user just picked does not stay selected
+#       A3-PP-CRUD-5: save-a-room-as-a-profile is not a round trip: path_type is discarded and re-derived
+#              from clean_intensity
+#       A3-PP-CRUD-8: Generated profile ids are local-time second-resolution and saves have no exists
+#              check, so two saves in one second silently destroy the first
+#       A4-PP-RP-5: Run-profile ids are generated at one-second resolution and assigned without a
+#              collision check, so two saves in the same second silently overwrite each other
 
 
 from __future__ import annotations

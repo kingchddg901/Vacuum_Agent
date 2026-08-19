@@ -48,6 +48,17 @@ Public surface:
 #   INT79PB7  `core/manager.py#INT79PB7`
 #       A4-SRC-5 (closed RP-007): The room-source cache is never invalidated — not on config-entry unload/reload, not
 #              on map switch, not when a vacuum is unmanaged — and it keeps hass.data[DOMAIN] alive
+#   INJBNQ2Q  `dispatch/manager.py#INJBNQ2Q`
+#       A4-SRC-1: async_refresh_room_source returns None on success AND on every failure/skip path,
+#              and the cache carries no freshness stamp — dispatch cannot tell a fresh live
+#              snapshot from an arbitrarily old one, and rewrites the wire payload with stale
+#              segment ids while believing it re-resolved live
+#       A4-SRC-3: flatten_maps_response keys the cache by map NAME with last-writer-wins and no
+#              collision detection; a collapsed cache chains into room_discovery's single-map
+#              fallback and serves one map's segment ids for a different map_id
+#       A4-SRC-4: No in-flight coalescing or lock on the refresh: triggers spawn unbounded concurrent
+#              get_maps cloud calls, and an older response landing last becomes the resident cached
+#              snapshot — including one that started before a map switch and lands after it
 
 
 from __future__ import annotations
