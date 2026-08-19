@@ -488,6 +488,10 @@ _CLEAN_MODE_DISPLAY_ALIASES: dict[str, str] = {
 }
 
 
+# anchor: RNY1AHMD  the canonical clean-mode ALIAS TABLE -- the replica set. The card
+# carries the same table in src/clean-mode.js, alias for alias. Separate languages,
+# so they CANNOT share code and are pinned to each other by test instead: add an
+# alias to one, add it to the other. Load-bearing -- there is no unification.
 def canonical_clean_mode(value: Any) -> str:
     """Normalize a clean_mode to its canonical token: vacuum | mop | vacuum_mop.
 

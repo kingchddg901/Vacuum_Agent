@@ -9,6 +9,7 @@
 // the combined mode. "Vacuum" and "Mop" survive lowercasing, which is why a defect
 // that made mode chips render unselected and mode hints disappear went unnoticed.
 //
+// REPLICA RNY1AHMD -- the primary is profiles/room_profiles.py::canonical_clean_mode.
 // This mirrors the BACKEND owner, `canonical_clean_mode` in
 // profiles/room_profiles.py, alias for alias. The two are separate languages and
 // cannot share code, so they are pinned to each other by test instead: if you add

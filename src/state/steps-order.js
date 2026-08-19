@@ -6,6 +6,7 @@
 // deliberately mode-agnostic — they reorder/insert/delete/retarget at the STEP level and never touch
 // a room_group's internals, so they are unaffected by how per-room settings are modelled.
 //
+// REPLICA RN4T4MPV -- primary: profiles/manager.py::normalize_run_profile_steps.
 // sanitizeStepsForSave mirrors the backend normalize (profiles/manager.normalize_run_profile_steps)
 // so the service receives already-clean data.
 

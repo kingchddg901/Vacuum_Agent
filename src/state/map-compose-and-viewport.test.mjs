@@ -23,6 +23,7 @@ function makeState() {
   return Object.create(proto);
 }
 
+// REPLICA RNNPSKT7 -- primary: src/state/map.js::composeToSegments.
 // Round helper mirroring the composer's 2dp corner rounding.
 const r2 = (v) => Math.round(v * 100) / 100;
 

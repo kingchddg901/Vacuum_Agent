@@ -518,6 +518,7 @@ export function applyMetricsRenderers(proto) {
   /**
    * Recompose a profile's display name + settings subtitle in the CARD's
    * per-user language from the raw settings the snapshot carries (clean_mode,
+   * REPLICA RN9Y5N84 -- primary: learning/manager.py::_settings_profile_label.
    * clean_intensity, fan_speed, water_level, passes, edge). Mirrors the backend
    * _settings_profile_label so the result matches, but localized. Falls back to
    * the backend's (English) profile_label/subtitle when the raw settings are

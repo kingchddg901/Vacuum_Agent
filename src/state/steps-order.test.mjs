@@ -1,5 +1,6 @@
 // Unit tests for the pure step-mutation helpers in src/state/steps-order.js — the immutable
 // derive-next-array primitives the run-profile STEPS editor rides on. They own no card state and
+// REPLICA RN4T4MPV -- see profiles/manager.py::normalize_run_profile_steps.
 // never touch a room_group's internals (mode-agnostic). Mirrors the backend normalize for save.
 // Run: node --test src/state/steps-order.test.mjs
 //

@@ -336,6 +336,129 @@ vocabulary, not domain logic on a cuttable seam.
 
 ---
 
+### `RNY1AHMD` — the canonical clean-mode ALIAS TABLE · **2 copies, 2 languages**
+
+| Site | Kind |
+|---|---|
+| `profiles/room_profiles.py::canonical_clean_mode` | **primary** |
+| `src/clean-mode.js` | the copy — alias for alias |
+
+**Load-bearing.** Backend and card are separate languages and cannot share code; the block
+says so and names its own guard: *"pinned to each other by test instead: if you add an alias
+to one, add it to the other."* Severity **mutation** — the fold decides which mode a room
+dispatches as. `ISSUE #48` is what the halves disagreeing cost.
+
+---
+
+### `RN4T4MPV` — run-profile STEP normalization · **3 sites, 2 languages**
+
+`profiles/manager.py::normalize_run_profile_steps` (**primary**), `src/state/steps-order.js`
+`::sanitizeStepsForSave`, and `steps-order.test.mjs` which pins the card half.
+
+The card sanitizes before save so the service receives already-clean data. Diverge and the
+card ships what the backend then silently rewrites — the user sees their edit change shape
+after saving, with nothing reporting a refusal.
+
+---
+
+### `RNC6DK2S` — the queue-steps INTERLEAVE · **2 copies, 2 languages**
+
+`core/manager.py::get_queue_steps` (**primary**) and `src/state/steps-queue-order.js`.
+
+"A break with `after_index` K sits after the K-th room." Rederived card-side so the editor
+previews without a round trip. **Observational**, but the preview is what the user commits.
+
+---
+
+### `RN538E27` — the live-pose OVERRIDE precedence · **2 copies, 2 languages**
+
+`mapping/map_source.py::apply_live_pose_override` (**primary**) and `src/state/map.js`.
+
+The live pose OWNS `current_room` + `path`; the stale snapshot values must be **cleared
+first**, in that order. The card repeats the sequence. Diverge and the *"stale in the
+kitchen"* ghost returns — a live anchor in a catch-all cell leaving the previous room lit
+and a lagged trail drawn. That ghost is the feature's whole reason for existing.
+
+---
+
+### `RN9N6NVB` — "is this run SEQUENCED, or a flat queue?" · **2 copies, 2 languages**
+
+`profiles/manager.py::_enrich_saved_run_profile`'s `has_stops` gate (**primary**) and
+`src/state/run-profiles.js::_deriveHasStops`.
+
+**Both halves were wrong on the same day**: a rooms→zone profile reported itself as a flat
+queue in each. Two independent answers to one question, and they agreed — on the wrong
+answer. `step_types.py` carries the companion warning that the two vocabularies *inside* it
+must NOT be merged; this set is the backend↔card pair, not those.
+
+---
+
+### `RN9Y5N84` — the profile DISPLAY LABEL composition · **2 copies, 2 languages**
+
+`learning/manager.py::_settings_profile_label` (**primary**) and
+`src/renderers/metrics.js::_localizedProfile`, which recomposes it in the user's language
+and falls back to the English one.
+
+**Diverge and the two disagree only for non-English users** — the half nobody testing in
+English ever sees. Related: [`RNJ9YQF7`](00c-replicas.md) covers the *Python* duplication of
+display logic, so this rule is expressed in **three** places across two languages.
+
+---
+
+### `RNHW3BKZ` — the shipped OPTION LISTS · **2 copies, 2 languages**
+
+`adapters/eufy/adapter.py`'s option lists (**primary**) and `harness/fixtures/cards.js`,
+which mirrors them **verbatim — values and order**.
+
+A fixture agrees with the **caller**, not the callee. Let this drift and every harness shot
+renders chips no real install shows, in an order it does not use — and the shots are what
+the README and the docs site publish. Silent, and self-confirming.
+
+---
+
+### `RNCCB8J2` — the SEMANTIC DEFAULT palette · **2 copies, 2 languages**
+
+`src/styles/foundation.js`'s `--evcc-sem-*` declarations (**primary**) and
+`harness/cvd/report.mjs`, which hard-copies the four hexes as RGB triples to run the
+colour-vision contrast floor against them.
+
+**The failure is a green result about a palette that does not ship.** Change a default here
+and the CVD report still PASSES — it is measuring the old colours. An accessibility claim
+that cannot notice it is stale is worse than no claim.
+
+---
+
+### `RNH0W1RK` — the theme ENVELOPE SPLIT · **2 copies, 2 languages**
+
+`themes/manager.py`'s tokens / colors / alpha split (**primary**) and
+`harness/fixtures/theme-library.mjs`, which rebuilds it so the editor's swatch and opacity
+rail render populated rather than empty. A drifted fixture shows an editor state no real
+theme produces.
+
+---
+
+### `RNF6XB1P` — the LOCALE LOAD PATH · **2 copies**
+
+`harness/shoot-locales.mjs` (**primary**) and `harness/tests/i18n-rtl.spec.mjs`, which
+repeats the sequence — parse the shipped nested JSON, flatten against the English manifest —
+because Playwright's loader treats a typeless `.js` as CJS and rejects the ESM modules.
+
+**Load-bearing:** the spec cannot import the real path, so it must restate it. Change the
+load order and the spec validates a model nothing uses.
+
+---
+
+### `RNNPSKT7` — the composer's 2dp CORNER ROUNDING · **2 copies**
+
+`src/state/map.js::composeToSegments` (**primary**) and
+`map-compose-and-viewport.test.mjs`'s own `r2()` helper.
+
+A test that reimplements the arithmetic it is checking cannot fail when that arithmetic
+changes — it asserts against its own stale copy and stays green. The narrowest possible
+example of why a fixture agrees with the caller, not the callee.
+
+---
+
 ## Observational vs MUTATION replicas
 
 A replica set that decides **what to display or bind** is bad when it diverges: someone

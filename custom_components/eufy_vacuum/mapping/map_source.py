@@ -703,6 +703,10 @@ def live_pose_overlay(
 _LIVE_POSE_OWNED_KEYS = ("current_room", "path")
 
 
+# anchor: RN538E27  the live-pose OVERRIDE precedence -- the replica set. The live pose
+# OWNS current_room + path when present, and the stale snapshot values must be CLEARED
+# first. src/state/map.js repeats this order card-side; diverge and the 'stale in the
+# kitchen' ghost returns -- a live anchor in a catch-all cell leaving the old room lit.
 def apply_live_pose_override(result: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     """Make the fresh live pose AUTHORITATIVE over the lagged .storage overlays: drop the
     owned moving keys, then merge the (possibly partial) overlay. No-op when the overlay is

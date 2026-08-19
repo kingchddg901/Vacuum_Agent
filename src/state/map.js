@@ -1150,6 +1150,7 @@ export function applyMapState(proto) {
     if (!base || !base.present || !lp || !lp.present) return base;
     const merged = { ...base };
     // The live pose OWNS current_room + path when present: clear the stale snapshot values
+    // REPLICA RN538E27 -- primary: mapping/map_source.py::apply_live_pose_override.
     // first (mirrors the backend apply_live_pose_override) so a live anchor in a no-room
     // (catch-all) cell, or with no live trail, can't leave the old room highlighted / a
     // lagged trail drawn — the exact "stale in the kitchen" ghost this feature kills.
@@ -1433,6 +1434,10 @@ export function applyMapState(proto) {
   // Map the draft to the set_custom_segments payload. Group-aware: shapes are
   // bucketed by `group` (default = each shape's own id, i.e. one room each), so
   // merge/cut (shared group + op:subtract) drops in later with no change here.
+  // anchor: RNNPSKT7  the composer's 2dp CORNER ROUNDING -- the replica set.
+  // map-compose-and-viewport.test.mjs carries its own r2() helper repeating the same
+  // arithmetic; change the precision here and the test asserts against its own stale
+  // copy and stays green.
   proto.composeToSegments = function () {
     const rectCorners = (s) => {
       const cx = s.x + s.w / 2, cy = s.y + s.h / 2;

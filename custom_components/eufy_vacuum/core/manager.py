@@ -2494,6 +2494,9 @@ class EufyVacuumManager:
             for room in self._enabled_rooms_in_order(map_bucket, vacuum_entity_id, map_id)
         ]
 
+    # anchor: RNC6DK2S  the queue-steps INTERLEAVE (a break with after_index K sits
+    # after the K-th room) -- the replica set. Rederived card-side in
+    # src/state/steps-queue-order.js so the editor can preview without a round trip.
     def get_queue_steps(
         self, *, vacuum_entity_id: str, map_id: str
     ) -> dict[str, Any]:

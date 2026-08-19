@@ -391,6 +391,11 @@ def _normalize_profile_setting(value: Any, aliases: dict[str, str] | None) -> An
     return compact.replace(" ", "_")
 
 
+# anchor: RN9Y5N84  the profile DISPLAY LABEL composition -- the replica set. The card
+# recomposes it in the user's language from the raw settings the snapshot carries
+# (src/renderers/metrics.js::_localizedProfile) and falls back to this English one.
+# Diverge and the two disagree only for non-English users, which is the half nobody
+# sees. Related: RNJ9YQF7 covers the PYTHON duplication of the same display logic.
 def _settings_profile_label(
     *,
     room_slug: Any = None,

@@ -89,6 +89,11 @@ for (const lang of LANGS) {
   console.log(`\n===== ${lang} (width=${width}px${MOBILE ? ", mobile" : ""}) =====`);
   byLang[lang] = [];
   // The locales were ripped out of the bundle, so the stub only ships English.
+  // anchor: RNF6XB1P  the LOCALE LOAD PATH -- the replica set. harness/tests/
+  // i18n-rtl.spec.mjs repeats this sequence (parse the shipped nested JSON, flatten
+  // against the English manifest) because Playwright's loader cannot import the ESM
+  // modules directly. Change the load order here and the spec validates a model
+  // nothing actually uses -- green, and about the wrong thing.
   // Load the shipped nested JSON, flatten against the English manifest, and
   // inject it the same way the real card loads it at runtime.
   try {

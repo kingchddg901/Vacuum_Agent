@@ -157,6 +157,10 @@ class ThemeManager:
         entry = {
             "id": str(source.get("id") or "").strip() or None,
             "name": str(source.get("name") or "").strip() or "Untitled",
+            # anchor: RNH0W1RK  the theme ENVELOPE SPLIT (tokens / colors / alpha) -- the
+            # replica set. harness/fixtures/theme-library.mjs rebuilds the same split so
+            # the editor swatch + opacity rail render populated; a fixture that stops
+            # matching shows an editor state no real theme produces.
             "tokens": dict(source.get("tokens", {})) if isinstance(source.get("tokens"), dict) else {},
             "colors": dict(source.get("colors", {})) if isinstance(source.get("colors"), dict) else {},
             "alpha": dict(source.get("alpha", {})) if isinstance(source.get("alpha"), dict) else {},

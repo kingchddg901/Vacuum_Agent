@@ -60,6 +60,7 @@ export function applyStepsQueueOrderState(proto) {
         };
 
         // Interleave: a break with after_index === K sits after the K-th room
+        // REPLICA RNC6DK2S -- primary: core/manager.py::get_queue_steps.
         // (mirrors the backend get_queue_steps derivation).
         const items = [];
         let seq = 0;

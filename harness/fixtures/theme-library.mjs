@@ -64,6 +64,7 @@ export function makeThemeFixture({ id = "fixture_full", name = "Fixture Full" } 
     if (!key) return;
     const v = valueFor(def, i);
     tokens[key] = v;
+    // REPLICA RNH0W1RK -- primary: themes/manager.py's envelope split.
     // Mirror the export envelope's split: colours also land in colors/alpha so
     // the editor's swatch + opacity rail render populated rather than empty.
     if (typeof v === "string" && v.startsWith("#")) {

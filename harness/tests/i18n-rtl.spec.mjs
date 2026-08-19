@@ -28,6 +28,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 // Read the shipped locale JSON in Node (fs) and hand the parsed NESTED object to
 // the page; the flatten-against-English step runs IN-PAGE via window.__evcc so
 // this spec never imports en.js/flatten.js (Playwright's loader treats a
+// REPLICA RNF6XB1P -- primary: harness/shoot-locales.mjs's load path.
 // typeless .js as CJS and rejects their ESM `export const`). Mirrors the runtime
 // load path (harness/shoot-locales.mjs) otherwise.
 const nestedFor = (code) =>

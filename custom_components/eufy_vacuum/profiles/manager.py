@@ -972,6 +972,10 @@ class ProfileManager:
         }
 
     @staticmethod
+    # anchor: RN4T4MPV  run-profile STEP normalization -- the replica set. The card
+    # sanitizes with the same rules before save (src/state/steps-order.js
+    # ::sanitizeStepsForSave, pinned by steps-order.test.mjs) so the service receives
+    # already-clean data. Diverge and the card ships what this then rewrites.
     def normalize_run_profile_steps(steps: Any) -> list[dict[str, Any]]:
         """Validate/coerce an ordered run-profile steps list. A step is a room_group
         ({type:'room_group', rooms:[...]}), a charge_wait ({type:'charge_wait',
@@ -1137,6 +1141,11 @@ class ProfileManager:
         rooms = (profile or {}).get("rooms", [])
         return [{"type": "room_group", "rooms": list(rooms)}] if rooms else []
 
+    # anchor: RN9N6NVB  "is this run SEQUENCED rather than a flat queue?" -- the replica
+    # set. This method's has_stops gate and the card's _deriveHasStops
+    # (src/state/run-profiles.js) answered it separately and BOTH got it wrong the same
+    # day: a rooms->zone profile reported itself as a flat queue in both. See
+    # step_types.py, which warns that the two vocabularies inside it must NOT be merged.
     def _enrich_saved_run_profile(
         self, profile_id: str, profile: dict[str, Any]
     ) -> dict[str, Any]:

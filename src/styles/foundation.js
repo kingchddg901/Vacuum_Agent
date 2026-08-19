@@ -206,6 +206,11 @@ export const foundationStyles = `
     --evcc-accent-soft: rgba(0,229,255,0.16);
 
     /* Generic semantics */
+    /* anchor: RNCCB8J2  the SEMANTIC DEFAULT palette -- the replica set. harness/cvd/
+       report.mjs hard-copies these four hexes as RGB triples to run the colour-vision
+       contrast floor against them. Change a default here and the report keeps PASSING,
+       about colours the product no longer ships -- a green accessibility result for a
+       palette that does not exist. */
     --evcc-sem-success: var(--success-color, #4caf6e);
     --evcc-sem-warning: var(--warning-color, #f5a623);
     --evcc-sem-error:   var(--error-color,   #e05252);

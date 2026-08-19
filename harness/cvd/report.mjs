@@ -78,6 +78,7 @@ export function printReport(label, groups) {
 }
 
 // Default semantic palette (opaque; muted = text-muted composited over the
+// REPLICA RNCCB8J2 -- primary: src/styles/foundation.js's --evcc-sem-* declarations.
 // panel surface). These mirror the foundation.js defaults.
 const DEFAULT_GROUPS = {
   success: [76, 175, 110],  // #4caf6e

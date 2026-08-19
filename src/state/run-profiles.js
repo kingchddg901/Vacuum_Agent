@@ -79,6 +79,8 @@ export function applyRunProfilesState(proto) {
   // Local mirror of the backend has_stops rule (SHARED CONTRACT): a SEQUENCED run —
   // any wait/charge_wait boundary OR more than one room_group. Used only as a fallback
   // when the backend hasn't stamped has_stops on the payload; the backend flag wins.
+  // REPLICA RN9N6NVB -- primary: profiles/manager.py::_enrich_saved_run_profile's
+  // has_stops gate. Both halves were wrong together once; keep them answering alike.
   proto._deriveHasStops = function (steps) {
     if (!Array.isArray(steps)) return false;
     let roomGroups = 0;

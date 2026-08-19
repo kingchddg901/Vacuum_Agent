@@ -472,6 +472,10 @@ def register_eufy_adapter_for_vacuum(
             # selectors in the room editor and rule editor. The framework
             # never reads them — purely a card-facing vocabulary surface.
             # See docs/dev/adapter-config-reference.md §6.
+            # anchor: RNHW3BKZ  the shipped OPTION LISTS -- the replica set. The harness
+            # fixture (harness/fixtures/cards.js) mirrors this block VERBATIM, values and
+            # order, so a shot shows the chips a real install shows. A fixture agrees with
+            # the CALLER, not the callee: let it drift and every harness render lies.
             "clean_mode_options": [
                 {"value": "vacuum",     "label": "Vacuum"       },
                 {"value": "mop",        "label": "Mop"          },

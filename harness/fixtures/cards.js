@@ -21,6 +21,7 @@
  *       clean_mode / fan_speed / water_level / clean_intensity / clean_passes /
  *       edge_mopping.
  *
+ * REPLICA RNHW3BKZ -- primary: adapters/eufy/adapter.py's option lists.
  * The option lists mirror the Eufy adapter's `vocabulary` block verbatim
  * (adapters/eufy/adapter.py) so a chip row here shows the chips a real install
  * shows, in the real order.
