@@ -329,6 +329,36 @@ other people's repos are allowed to move.
 Retiring a screenshot or renaming a docs page now fails here instead of on the
 front page.
 
+### Register ratchet — `tests/test_replica_ratchet.py`
+
+A notation anchor and its registry must not drift apart. Three checks, each ablated and
+confirmed to go red on its own and nothing else:
+
+| | |
+|---|---|
+| `[RR-1]` | an anchor **declared in source** has a `### \`TOKEN\`` entry in `00b` (IN) or `00c` (RN) |
+| `[RR-2]` | a **registry entry** names a real anchor site — `00b`'s own standard, enforced |
+| `[RR-3]` | each `RN` set has **exactly one** `anchor:` primary and **at least one** `REPLICA` |
+
+**The hole it closes is specific and was live.** On 2026-08-18 seven `RN` anchors were
+declared, marked at both members, and present in **no document at all**, while
+`doc_anchor --check` reported 0 problems and `--orphans` reported 0 orphans. `--orphans`
+asks *"does any document cite this anchor?"*, and a `REPLICA` marker in **source** satisfies
+it — so a set can be fully wired in code and invisible in the register, permanently, with
+every shipped gate green.
+
+`[RR-3]` covers the other invisible state: three placements during the census briefly left a
+**primary with no replica**. A set of one is not a set, and nothing else can see it.
+
+**It imports `doc_anchor.scan()` rather than re-scanning.** A second parser is a second
+answer to "what counts as declared" and will diverge — while writing this, a hand-rolled
+regex requiring a `#`/`//`/`*` prefix reported `INMKEHPQ` and `INSJM6KC` as unregistered.
+Both were fine; `INSJM6KC` is declared inside a docstring. A ratchet that cries wolf gets
+deleted, so the tool owns the question and the test owns only the comparison.
+
+`CN` is deliberately exempt — `00b` indexes IN and `00c` indexes RN; code notation has no
+registry by design.
+
 ### Documentation ratchet — `tests/test_docs_ratchet.py`
 
 A test file that appears nowhere in `docs/testing/` produces no findings and reads
