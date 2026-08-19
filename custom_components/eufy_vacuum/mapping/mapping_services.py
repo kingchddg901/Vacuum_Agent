@@ -407,6 +407,8 @@ CLEAN_SAVED_ZONE_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Required("zone_id"): cv.string,
+        # REPLICA RNGSVFKN -- twin schema below, and the third in services/job_control.py
+        # which carries the reasoning. Range(min=1) with NO max is the agreed shape.
         vol.Optional("clean_times", default=1): vol.All(vol.Coerce(int), vol.Range(min=1)),
     }
 )

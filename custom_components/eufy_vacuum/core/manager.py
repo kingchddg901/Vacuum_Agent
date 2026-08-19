@@ -249,6 +249,10 @@ def _display_label(value: Any) -> str | None:
     return " ".join(part.capitalize() for part in normalized.split())
 
 
+# REPLICA RNJ9YQF7 -- the twin lives at planning/run_plan.py, which carries the
+# reasoning. Seven functions here are byte-identical to it; a fix applied to one
+# copy and not the other passes a green suite, because each copy is only ever
+# self-consistent (see 00c-replicas.md, and RNF2RCXP for the 4381-test precedent).
 def _profile_name_label(value: Any) -> str | None:
     """Return a friendly label for known preset names."""
     text = str(value or "").strip()

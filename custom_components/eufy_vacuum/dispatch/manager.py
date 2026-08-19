@@ -413,6 +413,8 @@ class DispatchManager:
                 len(dropped), vacuum_entity_id, dropped,
             )
         if not new_segments:
+            # anchor: INJBNQ2Q  dispatch sends only ids resolved against a LIVE source;
+            # a partial miss skips rooms, a TOTAL miss refuses -- they are not the same
             # RP-007 step 5 (DQ-ACT-1/DQ-DE-1): a TOTAL live-resolution miss used
             # to fall back to the STALE stored ids — after a re-segment those
             # numbers belong to whatever rooms the vendor renumbered, and the

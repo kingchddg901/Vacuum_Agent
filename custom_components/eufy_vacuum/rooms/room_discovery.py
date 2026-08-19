@@ -356,6 +356,8 @@ def discover_rooms_for_vacuum(
             }
         )
 
+    # anchor: INCFMPP1  one slug derivation, at ONE admission boundary, unique within
+    # its map -- lowest room_id keeps the bare slug, colliding siblings get _r{room_id}
     # RP-015/Q4 clause 1 (admission boundary): slugify_room_name is a pure
     # per-name transform with no cross-room uniqueness guarantee — two
     # same-named rooms would otherwise silently share one slug (dispatch's

@@ -183,6 +183,8 @@ def dispatched_job_is_in_flight(job: Any) -> bool:
     return isinstance(job, dict) and job.get("status") in _DISPATCHED_IN_FLIGHT_STATUSES
 
 
+# anchor: IN6VSBJ1  the ROBOT question and the QUEUE question are different questions,
+# each with one owner -- this one answers the robot, and counts an external run
 def run_is_in_flight(job: Any) -> bool:
     """Is this active-job record ANY run still going — dispatched OR app-started?
 

@@ -1316,6 +1316,86 @@ durable writers may not.
 - **Cite `INKV8ZQD`** from any handler that takes a `vacuum_entity_id`, and from any store keyed
   by one.
 
+### `INJBNQ2Q` — dispatch sends only ids resolved against a LIVE source, and a total miss refuses
+
+Stored room ids are a device handle. Before dispatch they are re-resolved against the live
+source, and the two miss cases are **not** the same: a *partial* miss skips the rooms it could
+not resolve and runs the rest; a *total* miss **refuses the dispatch with a user-visible
+reason**. "Resolved live" must be a fact, not a belief.
+
+**The consequence.** The total-miss branch used to return the **stale payload** — so the
+documented safety inverted exactly when it mattered most. A full re-segment renumbers every
+segment, which is precisely when nothing resolves, and precisely when shipping the previous
+numbering sends the robot to the wrong rooms. A safety net that holds for small failures and
+lets go of large ones is worse than none, because it is trusted.
+
+**Why the two misses stay different behaviours.** Refusing on a total miss can strand a run
+mid-sequence, so per-room phase dispatches skip-and-advance while a job dispatch refuses to
+start. Different consumers, one invariant, deliberately **not** unified into a single
+behaviour — unifying them would trade a wrong-room clean for a stranded run or the reverse.
+
+- **Why:** recorded at the anchor site, `dispatch/manager.py`'s live-resolution block
+  (RP-007 step 5, DQ-ACT-1/DQ-DE-1).
+- **Enforced:** the `slug_to_live_id` resolution and its total-miss refusal.
+- **Related.** [[INMKEHPQ]] — the slug is the identity a live id is resolved *from*.
+  [[INT62M7A]] — the refusal carries a reason rather than reporting success.
+- **Cite `INJBNQ2Q`** from any code that turns a stored room reference into a wire id.
+
+### `IN6VSBJ1` — the robot question and the queue question are different questions, each with ONE owner
+
+*"Is the robot cleaning?"* and *"is one of our dispatched jobs in flight?"* are not the same
+question. `run_is_in_flight` answers the first (and counts an app-started **external** run);
+`dispatched_job_is_in_flight` answers the second. Each has one owner, and the helpers'
+docstrings prescribe which callers ask which.
+
+**The consequence.** Five-plus sites hand-inlined `{"started", "paused"}` — the **queue** set —
+and used it to answer the **robot** question. An app-started run holds the slot at
+`status="external"`, so every one of them read a cleaning robot as idle: the progress ticker
+skipped external runs entirely, the active-job sensor reported `none` mid-clean, and the dock
+gate fired **during** an external run — pressing a dock button on a robot that was cleaning.
+
+**A literal is not the bug; asking the wrong question is.** The queue set is correct *for the
+queue question*, and several inline uses of it are right. What must not happen is the robot
+question being answered from it. That is why the fix is two named predicates rather than one
+shared constant: a constant makes the sets agree, and these sets are **supposed** to differ.
+
+**One deliberate divergence, preserved.** The pose-sampler predicates were **not** re-pointed —
+doing so would add `paused` to sampling. Recorded as intentional, not overlooked.
+
+- **Why:** recorded at the anchor site, `jobs/active_job.py`'s two predicates and their
+  docstrings, which name the distinction and their intended callers.
+- **Enforced:** those two helpers, consumed across `dock/manager.py`, `listeners/job_progress.py`,
+  `sensor/lifecycle.py`, `core/error_tracker.py`, `battery/manager.py`.
+- **Related.** [[feedback_centralize_question_not_vocabulary]] — centralize the QUESTION, not
+  the vocabulary; this is the case where two questions must stay two.
+- **Cite `IN6VSBJ1`** from any code branching on whether a clean is happening.
+
+### `INCFMPP1` — one slug derivation, at one admission boundary, with a stable uniqueness guarantee
+
+A room's slug is derived in exactly one place — the discovery emit — and it is **unique within
+its map**. `slugify_room_name` is a pure per-name transform with no cross-room guarantee, so
+uniqueness is imposed at the boundary: the **lowest stable `room_id` keeps the bare slug**, and
+every colliding sibling becomes `{slug}_r{room_id}`.
+
+**The consequence.** Two rooms named "Bathroom" produced one slug. Dispatch's first-wins
+`slug_to_live_id` then resolved **both to the same live segment**, so one room was cleaned twice
+and the other never — and reconciliation reported a phantom `id_changed` for the room that had
+not renumbered. The docstring claimed uniqueness the code did not provide, which is why it read
+as settled.
+
+**Deterministic, not merely unique.** Suffixing by `room_id` rather than by encounter order is
+what makes re-discovery of the same physical rooms converge on the same identities. A counter
+would produce a different assignment on a different traversal and silently re-point every
+stored reference.
+
+- **Why:** recorded at the anchor site, `rooms/room_discovery.py`'s disambiguation block, and at
+  `rooms/utils.py::slugify_room_name`, whose Unicode handling keeps Cyrillic/CJK/emoji names
+  distinct and non-empty rather than folding them all to `""`.
+- **Enforced:** that block, and the empty-slug refusal at the same boundary.
+- **Related.** [[INMKEHPQ]] — identity is the slug scoped to its map; this is where that slug
+  comes from and why two rooms can never share one.
+- **Cite `INCFMPP1`** from any code that derives, stores or resolves a room slug.
+
 ## Not yet registered
 
 Rules that behave like invariants and are currently held only in prose or in a single
@@ -1326,6 +1406,15 @@ subsystem doc. Each needs a consequence stated before it earns an entry.
 - **A service call moves real hardware.** Anything reachable from a doc, a test, or an
   agent must not dispatch one incidentally.
 - **The card is a glance surface**; deep analysis belongs in the CSV export.
+- **Every map/pose payload is bound to (device identity, map identity, content identity), and
+  every reader checks the binding.** `RF-09`, 13 findings, and it is **unenforced** — stated at
+  the site: `mapping/map_source.py` records that `transform`/`viewport` carry no map-geometry
+  version stamp and that *"there is no map-geometry-version stamping mechanism in this codebase
+  to compare against here."* `eufy_version_of` is a content hash for client-side caching, not an
+  identity binding. Consequences already filed: the Eufy candidate walk takes no vacuum identity
+  (first coordinator wins), the Roborock walk no device and no map binding, one cache is keyed
+  without `map_id`, and the content hash covers only the room raster while the cached value
+  carries mutable geometry. Single-vacuum installs mask most of it, which is why it has survived.
 - **A seam is correct at its OWN boundary; a caller's coincidence is not correctness.** Three
   live `RF-35` findings share one shape — an input accepted and not honoured, masked by
   something true of today's only caller. `_SinglePhaseMixin.build_phases` takes `strict_order`

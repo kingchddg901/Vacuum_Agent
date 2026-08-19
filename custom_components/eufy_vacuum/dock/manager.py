@@ -222,6 +222,13 @@ class DockManager:
         # Adapter-driven only (from dock_events.triggers) — no brand fallback.
         # An adapter that omits a trigger set gets an empty set (no detection)
         # rather than inheriting Eufy's dock vocabulary.
+        # anchor: RNSERK29  the dock EVENT-TYPE keys -- the replica set. The three
+        # keys (last_mop_wash / last_dry_start / last_dust_empty) are hand-written at
+        # three sites in this file. They are FRAMEWORK keys, so core owning them is
+        # correct (feedback_eufy_is_not_the_default) and deriving them from the
+        # adapter would be the wrong fix -- the residue of A6-DIAG-8 is the copying,
+        # not the ownership. A module constant is the real fix; this records the set
+        # until then. The STATE STRINGS below are correctly adapter-derived.
         _wash_states: frozenset[str] = _vocab_set("last_mop_wash")
         _dry_states: frozenset[str] = _vocab_set("last_dry_start")
         _empty_states: frozenset[str] = _vocab_set("last_dust_empty")
@@ -457,6 +464,7 @@ class DockManager:
         vacuum_events = self._data["dock_events"].setdefault(vacuum_entity_id, {})
 
         counter_map = {
+            # REPLICA RNSERK29 -- see the vocab block above.
             "last_mop_wash": "mop_wash_count",
             "last_dust_empty": "dust_empty_count",
             "last_dry_start": "dry_start_count",
@@ -525,6 +533,7 @@ class DockManager:
         window measured from BEFORE the reset.
         """
         counter_map = {
+            # REPLICA RNSERK29 -- see the vocab block above.
             "last_mop_wash": "mop_wash_count",
             "last_dust_empty": "dust_empty_count",
             "last_dry_start": "dry_start_count",

@@ -149,6 +149,8 @@ _START_ZONE_CLEAN_SCHEMA = vol.Schema(
         vol.Required("zones"): vol.All(
             cv.ensure_list, [_ZONE_RECT_SCHEMA], vol.Length(min=1)
         ),
+        # anchor: RNGSVFKN  clean_times is deliberately UNBOUNDED in three schemas --
+        # the replica set. If one ever gains a max, the others are wrong.
         # No fixed upper bound — the real per-brand ceiling is enforced against the
         # adapter's zone-repeat capability at dispatch (core.manager zone path),
         # since the schema can't see which vacuum/adapter the call targets. Matches

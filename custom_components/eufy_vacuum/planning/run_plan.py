@@ -103,6 +103,13 @@ def _display_label(value: Any) -> str | None:
     return " ".join(part.capitalize() for part in normalized.split())
 
 
+# anchor: RNJ9YQF7  the run-plan display helpers -- the replica set. SEVEN functions
+# are byte-identical here and in core/manager.py: _display_label, _iso_now,
+# _profile_name_label, _safe_float, _safe_int, _settings_profile_display and
+# _room_surface_labels. Verified identical 2026-08-18 (whitespace-normalised).
+# CHANGE ONE, CHANGE BOTH -- and this set has ALREADY failed that way: A5-PP-RP-8
+# (the water-off suppression comparing the literal "off" instead of the brand's
+# no-water value) is live in BOTH copies, and the ledger recorded it closed.
 def _profile_name_label(value: Any) -> str | None:
     """Return a friendly label for known preset names."""
     text = str(value or "").strip()

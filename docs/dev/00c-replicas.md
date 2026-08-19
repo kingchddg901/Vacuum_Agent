@@ -137,6 +137,80 @@ token nothing reads. Neither errors, and nothing compares the counts.
 
 ---
 
+### `RNJ9YQF7` — the run-plan display helpers · **2 copies × 7 functions**
+
+Every module-level helper the run-plan/dashboard display path uses, defined twice and
+byte-identical in both.
+
+| Site | Kind |
+|---|---|
+| `planning/run_plan.py` | **primary** — carries the reasoning and the audit header block |
+| `core/manager.py` | the copy — same seven functions, verified identical 2026-08-18 |
+
+`_display_label`, `_iso_now`, `_profile_name_label`, `_safe_float`, `_safe_int`,
+`_settings_profile_display`, `_room_surface_labels`. Neither file imports the other.
+
+**This set has already failed, and the failure is on record as a success.** `A5-PP-RP-8` —
+the water-off suppression comparing the literal `"off"` instead of the brand's no-water
+value — is live in **both** copies today, while the ledger recorded it closed by `RP-025`,
+a packet whose commits never touched either file. So the set demonstrates the exact
+`RNF2RCXP` shape *and* the mis-attribution shape at once.
+
+**A green suite cannot see the second copy.** Both are exercised, each is self-consistent,
+and no test compares them. The verification that found this was a whitespace-normalised
+diff of the two files' shared function names — cheap, and worth repeating rather than
+trusting.
+
+**Unification candidate, deliberately not done here.** Seven identical functions is the
+`helper` rung of `constant > derived > helper > inline exception`, not a deliberate
+divergence — there is no consumer-specific reason for two copies. Recording the set is
+coordination *now*; extracting a shared module is the real fix and is a code change, not
+a tagging one.
+
+**Declared at** `planning/run_plan.py::_profile_name_label` (immediately above the block).
+
+---
+
+### `RNGSVFKN` — `clean_times` is deliberately UNBOUNDED · **3 schemas**
+
+| Site | Kind |
+|---|---|
+| `services/job_control.py` (start_zone_clean) | **primary** — carries the reasoning |
+| `mapping/mapping_services.py` ×2 | the copies — same `Range(min=1)`, no max |
+
+All three are `vol.All(vol.Coerce(int), vol.Range(min=1))`. The absent upper bound is the
+*decision*, not an omission: a schema cannot see which vacuum the call targets, so the real
+per-brand ceiling is enforced at dispatch — `dispatch/manager.py` clamps to
+`zone_passes_max` on one branch and normalizes to 1 where the brand declares no zone-repeat
+support on the other.
+
+**The drift that matters is someone "fixing" one.** Adding a max to a single schema would
+make that path refuse values the other two accept and dispatch would have clamped anyway —
+a per-entry-point difference in what the same field means. If one gains a bound, all three
+must, and the dispatch clamp becomes redundant rather than authoritative.
+
+**Declared at** `services/job_control.py`'s zone-clean schema.
+
+---
+
+### `RNSERK29` — the dock EVENT-TYPE keys · **3 sites, one file**
+
+`last_mop_wash` / `last_dry_start` / `last_dust_empty`, hand-written three times in
+`dock/manager.py` (the trigger-vocabulary block and two count-mapping dicts).
+
+These are **framework keys, not brand words** — core owning them is correct
+([[feedback_eufy_is_not_the_default]]: core owns KEYS, never a brand's WORDS), so
+"derive them from the adapter" would be the wrong fix and is worth stating because the
+original finding (`A6-DIAG-8`) proposed exactly that. The state STRINGS these keys look up
+*are* correctly adapter-derived via `_vocab_set`, with a documented no-brand-fallback.
+
+**What is actually wrong is the copying**, and a module-level constant is the real fix —
+the `constant` rung, the top of the ladder. This records the set until then.
+
+**Declared at** `dock/manager.py`'s trigger-vocabulary block.
+
+---
+
 ## Observational vs MUTATION replicas
 
 A replica set that decides **what to display or bind** is bad when it diverges: someone
