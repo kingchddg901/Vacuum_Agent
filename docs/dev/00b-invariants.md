@@ -44,7 +44,39 @@ IN<token> — <the rule, in one sentence, with its consequence>
 
 Mint with `python scripts/doc_anchor.py --mint IN`.
 
-**An entry names its enforcement site — or states that it has none, and why.** The second
+**An entry names its enforcement site — or states that it has none, and why.**
+
+**And a named site is a claim, not evidence.** Measured 2026-08-19: **33 entries name an
+enforcement site; 3 named a test that pins it; 1 recorded an ablation.** Twenty-nine asserted
+*"enforced at X"* with nothing establishing that X enforces anything — and an unproven guard
+reads identically to a proven one, which is the same blindness as an unaudited subsystem
+producing zero findings.
+
+The proof is **ablation**: remove the named enforcement, run the suite, and something must go
+red. Nothing going red has two causes and both are findings — the guard does not work, or it
+works and nothing tests it. `SETUP-REJ-2` was the second kind, *"true of the CODE and false of
+the SYSTEM."*
+
+Naming a test is not enough either. `[UV-4]` and `[UV-6]` were written for `INKV8ZQD`, named
+exactly the right behaviour, passed, and were **decorative** — both stayed green under ablation
+and had to be rewritten. So an entry records **what went red when what was removed**, with a
+date, and *"ablation left the suite green"* is a legitimate and valuable thing to record rather
+than omit.
+
+**The first eight came back 8/8, and the prediction was wrong.** `INC63FDF`, `IN40W49E`,
+`IN5BRA39`, `IN1FX8EH`, `INT62M7A`, `IN2QDNB3`, `INZKT2QF` and the `INKV8ZQD` control all bite,
+and the tests that redden are named for the RULE — `test_catalog_declared_empty_is_carried`,
+`test_accuracy_rmw_refuses_on_unreadable`, `test_delete_core_theme_does_not_survive_restart`.
+So the enforcement was real and tested all along; **only the record was missing.**
+
+That also retires a metric: only 43 of 348 findings are named in a test, and that number measures
+a NAMING CONVENTION, not coverage. `INKV8ZQD` scores 0% on it while carrying six purpose-built
+tests. Traceability and coverage are different things, and the first is not evidence about the
+second in either direction.
+
+This is a campaign, not a gate: identifying the guard line is a judgement per invariant, so it
+cannot run in CI. What can eventually be a gate is far weaker — that every entry names a test
+id which still exists. The second
 half is not a concession. *"This cannot be enforced in code, and here is what stands in
 for it"* is a stronger claim than silence, and it separates a rule that is unenforceable
 in principle from one that simply is not enforced yet. The first is a `PN` and belongs
@@ -147,6 +179,11 @@ That is why the guard is a loud schema error rather than a silent normalisation.
   discovery still writes normally: absent is not failed. The manager facades need no guard
   of their own; the rule binds behind them, and adding a second copy there would be the
   divergence this entry exists to prevent.
+- **PROVEN by ablation, 2026-08-19.** Remove `_refuse_destructive_replace`'s refusal and the suite goes red:
+  `test_save_managed_rooms_refuses_empty_replacement`,
+  `test_rebuild_map_refuses_empty_replacement`,
+  `test_setup_save_rooms_refuses_empty_replacement`,
+  `test_save_managed_rooms_service_refusal_leaves_rooms_untouched`.
 - **Cite `INC63FDF`** from any new site that replaces a stored room map wholesale.
 
 > `_enabled_room_ids_validator` is currently written **twice**, in `services/rooms.py` and
@@ -339,6 +376,8 @@ ten Roborock rooms and the next save put it back as `""`, one room at a time"*).
   `core/manager.py::get_dashboard_snapshot` still defaults five adapter-config reads to
   Eufy's answers (`passes_max` 2, `zone_max` 10, `supports_water_control` / `supports_edge_mopping`
   / `supports_room_profiles` True) — the same clause-(ii) bug outside this subsystem's repair.
+- **PROVEN by ablation, 2026-08-19.** Remove `_catalog_key`'s presence-not-truthiness test and the suite goes red:
+  `test_catalog_declared_empty_is_carried`.
 - **Cite `IN40W49E`** from any core site that reads a brand-declared block, and from any new
   adapter-config key.
 
@@ -615,6 +654,11 @@ replacement, then swap.
   [[INC63FDF]] refuses to replace a stored room map with an empty one, and this entry
   separates absent from unreadable on disk. [[INT79PB7]]'s `R2-BUG-6` corollary is the same
   rule at whole-store scope: never flush a store you never read.
+- **PROVEN by ablation, 2026-08-19.** Remove `read_json_outcome`'s UNREADABLE arm (all seven return sites collapsed to ABSENT) and the suite goes red:
+  `test_read_json_outcome_tristate`,
+  `test_trouble_rooms_rmw_refuses_on_unreadable`,
+  `test_accuracy_rmw_refuses_on_unreadable`,
+  `test_accuracy_unreadable_is_backed_off_not_permanent`.
 - **Cite `IN2QDNB3`** from any read that precedes a write, and from any cache that can hold a
   failure.
 
@@ -695,6 +739,8 @@ phantom persists and the **next** run's completion signals finalize it instead.
   policy.
 - **Related.** [[IN5TNKMD]] keeps an *intent* alive across awaits; this keeps *recovery*
   alive across failures. Both fail the same way — silently, with the machine still moving.
+- **PROVEN by ablation, 2026-08-19.** Remove the lease's liveness check in `_phase_pending_still_live` and the suite goes red:
+  `test_stranded_when_pending_since_past_margin`.
 - **Cite `INZKT2QF`** from any flag a reaper consults, and from any loop that sweeps items.
 
 ### `INGZFYXX` — resolve and authorize BEFORE mutating; a failed operation must leave the world as it found it
@@ -877,6 +923,12 @@ are three different consumers who must not each decide for themselves.
   not truthiness**, so a brand's declared-empty block survives; [[IN2QDNB3]] rejects a
   cache-hit gate that serves a cached **failure envelope** as valid. Same mistake, three
   subsystems: a container that exists is not an answer that means yes.
+- **PROVEN by ablation, 2026-08-19.** Remove the positive `completed_job` test in `finalize_result_succeeded` and the suite goes red:
+  `test_stranded_finalize_in_flight_leaves_slot_reapable`,
+  `test_stranded_already_finalized_marks_the_slot`,
+  `test_finalize_learning_job_empty_state`,
+  `test_finalize_service_refusal_raises_service_validation_error`,
+  `test_lifecycle_refusal_fires_no_event`.
 - **Cite `IN5BRA39`** from any consumer of a finalize result, and from any operation whose
   refusal is a value rather than an exception.
 
@@ -1086,6 +1138,13 @@ floor-type table).
 - **Related.** [[IN5BRA39]] is the same rule read from the other end: *success carries its
   payload*, so a truthy refusal dict is not a completion. [[INJSETB0]] governs the declaration
   of the response this invariant governs the contents of.
+- **PROVEN by ablation, 2026-08-19.** Remove `_raise_if_failed`'s flag gate and the suite goes red:
+  `test_overwrite_theme_service_raises_for_unknown`,
+  `test_rename_theme_service_raises_for_unknown`,
+  `test_delete_theme_service_raises_for_unknown`,
+  `test_set_active_theme_service_raises_for_unknown`,
+  `test_export_theme_service_raises_for_unknown`,
+  `test_import_theme_service_raises_for_missing_name`.
 - **Cite `INT62M7A`** from any service handler that can decline, and from any helper that
   returns a store a caller will write into.
 
@@ -1266,6 +1325,8 @@ somewhere; falling back to `theme_follow_ha` is right. The defect was re-pointin
   deliberately leaves a user theme's provenance alone rather than guessing it.
 - **Related.** [[INC63FDF]] — a stored map is replaced only by positive evidence, never by
   absence. Same mistake in a different subsystem: absence is not an instruction.
+- **PROVEN by ablation, 2026-08-19.** Remove the `deleted_core_ids` tombstone check in the seeder and the suite goes red:
+  `test_delete_core_theme_does_not_survive_restart`.
 - **Cite `IN1FX8EH`** from any code that seeds, re-seeds, or restores bundled content.
 
 ### `INKV8ZQD` — durable per-vacuum state is minted only for a MANAGED vacuum; a write refuses, a read answers empty
@@ -1311,6 +1372,23 @@ durable writers may not.
 - **Enforced:** `require_managed_vacuum` on the mutating handlers;
   `unmanaged_vacuum_read_result` on the reading ones, which carries `reason` so a consumer can
   tell *"nothing here"* from *"not ours"*.
+- **PROVEN, by ablation — 2026-08-18.** Each guard was removed and the suite re-run; each
+  reddens its own test and nothing else:
+  | remove | goes red |
+  |---|---|
+  | `require_managed_vacuum` in `services/queue.py` | `[UV-1]`, `[UV-2]` |
+  | the read guard in `services/errors.py` | `[UV-3]`, `[UV-4]` |
+  | the read-must-not-write fix in `core/manager.py` | `[UV-6]` |
+
+  **Naming a test is not the same as the test biting**, and this entry is the proof: `[UV-4]`
+  and `[UV-6]` were written first, passed, and were **decorative** — `[UV-4]` asserted against a
+  path made unreachable by an unloaded `ErrorTracker`, and `[UV-6]` was masked by the
+  service-layer guard hiding the manager-level fix it existed to prove. Both stayed green under
+  ablation and were rewritten. Without the ablation this entry would name two tests that
+  proved nothing.
+
+  `[UV-5]` deliberately stays green under all three — it asserts the MANAGED case still works,
+  so a guard that refused everything would pass `[UV-1..4]` and fail only here.
 - **Safe to activate, and this was measured rather than assumed.** Every per-vacuum store on
   the reference install (`theme.vacuums`, `error_tracker`, `queue`, `snapshots`, `maps`,
   `setup_progress`) keyed **only** on the three managed vacuums — zero phantoms — so the guard
