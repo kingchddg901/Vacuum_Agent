@@ -23,6 +23,11 @@ class EufyVacuumStorage:
     """Manages persistent JSON storage for the integration via HA's Store helper."""
 
     def __init__(self, hass: HomeAssistant) -> None:
+        # PN1E8AZT: this Store helper is the ONLY supported way our data reaches disk.
+        # HA rewrites .storage from its own memory on shutdown, so a hand-edit is not
+        # merged -- it is overwritten, and the file it cannot reconcile becomes a .corrupt
+        # backup. If a value can only be changed by editing that file, the missing thing
+        # is a service, not a licence to edit it.
         self._store = Store[dict[str, Any]](hass, STORAGE_VERSION, STORAGE_KEY)
 
     async def async_load(self) -> dict[str, Any]:

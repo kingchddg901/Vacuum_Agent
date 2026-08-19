@@ -77,6 +77,9 @@ export function applyReviewActions(proto) {
         vacuum_entity_id: vacuumEntityId,
         job_id: String(job_id),
         ...(reason ? { reason: String(reason) } : {}),
+        // PNN14JRN: the export is where ANALYSIS lives. The card is a glance surface --
+        // history and column-by-column reading belong here, and a request for more
+        // density on the card is usually a request for this instead.
         rebuild_csv: rebuild_csv !== false,
       },
       true

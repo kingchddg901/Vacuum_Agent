@@ -42,7 +42,13 @@ IN<token> — <the rule, in one sentence, with its consequence>
    Cite:     any code site that takes the same dependency
 ```
 
-Mint with `python scripts/doc_anchor.py --mint IN`. `--check` verifies every cited anchor
+Mint with `python scripts/doc_anchor.py --mint IN`.
+
+**An entry names its enforcement site — or states that it has none, and why.** The second
+half is not a concession. *"This cannot be enforced in code, and here is what stands in
+for it"* is a stronger claim than silence, and it separates a rule that is unenforceable
+in principle from one that simply is not enforced yet. The first is a `PN` and belongs
+below; the second is a gap and belongs under *Not yet registered*. `--check` verifies every cited anchor
 resolves; `--orphans` finds anchors nothing references.
 
 > **An invariant states a rule AND its consequence** — "do this, or this happens"
@@ -1396,16 +1402,94 @@ stored reference.
   comes from and why two rooms can never share one.
 - **Cite `INCFMPP1`** from any code that derives, stores or resolves a room slug.
 
+## Rules with no code site — `PN`
+
+Some rules bind and can never have an enforcement site, because they are not about code.
+They are decisions: what the system must not do, or what the product is for. An `IN` anchor
+would be a lie — there is nothing to point at — so these carry a **`PN`** (prose notation),
+declared here rather than in source, because **here is where the reasoning lives**.
+
+**A citation cannot make something a `PN`.** The order is one-way and the tooling sits at
+the end of it:
+
+> a human rules that this is genuinely a prose-only obligation → mint → declare here →
+> attach citations from live artifacts → the ratchet proves the relationship stays present
+
+Reversing any step lets link topology decide ontology — "three files mention it, so it must
+be a rule" — which is how a register fills with things nobody decided. The checker proves
+**reachability, not correctness**: a decorative citation passes it, and only review catches
+that. Same division as every other gate here.
+
+The integrity question inverts. For an `IN`, ask *"is it declared at a site?"* — a rule with
+no site is suspect. A `PN` has no site by definition, so the meaningful question is the
+reverse: **does anything cite it?** A `PN` nothing references is a document with a token on
+it. Each one below therefore names where it is cited from.
+
+**And the citation must be LIVE.** `docs/dev/history/` and `maintenance/` are as-of-their-date
+records, and the repo's citation and index gates already exclude them for that reason. A `PN`
+kept alive by a mention in a dated note is attached to nothing current — the prose equivalent
+of a green test bound to the wrong thing. `[RR-4]` excludes them.
+
+### `PN1E8AZT` — never edit `.storage` directly
+
+> `anchor: PN1E8AZT` — **declared here.** This section is the site; there is no code one.
+
+Home Assistant owns `.storage`. It rewrites the file on shutdown from its own in-memory
+state, so an external edit is not merged — it is **overwritten**, and HA moves the file it
+could not reconcile to a `.corrupt` backup. The edit is lost and the store may be too.
+
+**Why this can never be an `IN`.** The rule governs what a *person or an agent* does with a
+file this integration does not own. There is no branch to guard: our code always goes through
+HA's `Store` helper, which is correct. The failure happens outside the process.
+
+**What stands in for enforcement:** the UI is the supported path for every stored value, and
+every service that mutates durable state exists precisely so nothing has to hand-edit. If a
+value can only be changed by editing `.storage`, that is a missing service, not a licence.
+
+- **Cited from** `core/storage.py`, the one place the `Store` helper is constructed.
+
+### `PNWJZYYR` — a service call moves real hardware
+
+> `anchor: PNWJZYYR` — **declared here.** This section is the site; there is no code one.
+
+`hass.services.async_call` on a vacuum domain moves a robot in someone's home. It is not a
+read, it is not idempotent, and it cannot be undone by calling something else.
+
+**Why this can never be an `IN`.** The rule binds *anything that can reach a service call* —
+a doc example, a test fixture, an agent exploring the API, a copied snippet. Most of those
+are not code we own, and the ones that are cannot tell a deliberate dispatch from an
+accidental one by inspection.
+
+**What stands in for enforcement:** the dispatch chokepoint is single and named, so a call
+that moves hardware is always visible in a diff at one place rather than scattered. Tests use
+the container and never a live entity. Documentation shows payloads, not invocations.
+
+- **Cited from** `dispatch/manager.py`'s send chokepoint.
+
+### `PNN14JRN` — the card is a glance surface
+
+> `anchor: PNN14JRN` — **declared here.** This section is the site; there is no code one.
+
+The card answers *"what is happening, and what do I press"* in a few seconds on a phone.
+Analysis — history, comparisons, anything read column-by-column — belongs in the CSV export.
+
+**Why this can never be an `IN`.** It is a product decision about scope, not a property of
+any function. Nothing is *wrong* if a panel grows a data table; it is just no longer the
+thing the card is for, and that degrades continuously rather than breaking.
+
+**What stands in for enforcement:** the CSV export exists so there is somewhere for the
+analysis to go. A request for more density on the card is usually a request for the export,
+and answering it there keeps both surfaces good at their own job.
+
+- **Cited from** `src/actions/review.js`, the export path.
+
+---
+
 ## Not yet registered
 
 Rules that behave like invariants and are currently held only in prose or in a single
 subsystem doc. Each needs a consequence stated before it earns an entry.
 
-- **Never edit `.storage` directly** — HA rewrites it on shutdown and the change becomes a
-  `.corrupt` backup.
-- **A service call moves real hardware.** Anything reachable from a doc, a test, or an
-  agent must not dispatch one incidentally.
-- **The card is a glance surface**; deep analysis belongs in the CSV export.
 - **Every map/pose payload is bound to (device identity, map identity, content identity), and
   every reader checks the binding.** `RF-09`, 13 findings, and it is **unenforced** — stated at
   the site: `mapping/map_source.py` records that `transform`/`viewport` carry no map-geometry

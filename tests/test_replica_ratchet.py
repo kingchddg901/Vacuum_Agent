@@ -31,6 +31,13 @@ and this file owns only the comparison.
 
 CN IS DELIBERATELY EXEMPT. `00b` indexes IN and `00c` indexes RN; CN (code
 notation) has no registry by design, so requiring one would invent a rule.
+
+PN INVERTS THE QUESTION, so it gets its own check rather than the shared pair.
+A PN anchors a rule with NO code site -- "never edit .storage", "a service call
+moves hardware" -- so "is it declared at a site?" is meaningless: it is declared
+in `00b`, because the reasoning IS the artifact. The meaningful question is the
+reverse. A PN that nothing cites is a document with a token on it, so [RR-4]
+asks whether anything actually points at it.
 """
 
 from __future__ import annotations
@@ -50,6 +57,8 @@ REGISTRIES = {
     "IN": ROOT / "docs" / "dev" / "00b-invariants.md",
     "RN": ROOT / "docs" / "dev" / "00c-replicas.md",
 }
+# PN lives in 00b too, but is checked by RR-4 rather than the shared pair above.
+PN_REGISTRY = ROOT / "docs" / "dev" / "00b-invariants.md"
 ENTRY_RE = re.compile(r"^###\s*`([A-Z]{2}[0-9A-Z]{6})`", re.M)
 REPLICA_RE = re.compile(r"REPLICA\s+(RN[0-9ABCDEFGHJKMNPQRSTVWXYZ]{6})\b")
 
@@ -114,4 +123,54 @@ def test_replica_sets_are_well_formed():
     assert not bad and not stray, (
         f"malformed replica sets: {bad or 'none'}\n"
         f"REPLICA markers with no primary: {stray or 'none'}"
+    )
+
+
+# Dated records are not evidence of liveness. `docs/dev/history/` and
+# `maintenance/` are as-of-their-date accounts, and the repo's own citation and
+# index gates already exclude them for exactly this reason. A PN kept alive by a
+# mention in a historical note is the prose equivalent of a test that bites the
+# wrong thing -- technically green, attached to nothing current.
+HISTORICAL = ("docs/dev/history/", "docs/dev/maintenance/", "docs/dev/deltas/",
+              ".claude/")
+
+
+def test_prose_anchors_have_a_live_consumer():
+    """[RR-4] A PN is cited by at least one LIVE artifact. The inverse of [RR-1]/[RR-2].
+
+    A PN has no code site by definition, so "is it declared?" cannot be the check --
+    it is declared in 00b, because the reasoning IS the artifact. What makes it earn
+    its place is being pointed at from something that still runs or is still read:
+    the code the rule constrains, a procedure, a test.
+
+    NECESSARY, NOT SUFFICIENT, and deliberately so. This proves REACHABILITY, not
+    that the citation is apt. A decorative citation passes here and is caught by
+    review, the same division as every other ratchet in this repo: the machine shows
+    the relationship is structurally present, a human decides it is the right one.
+    """
+    declared = sorted(t for t in _declared() if t.startswith("PN"))
+    assert declared, "no PN anchors found — the prose-declaration path is broken"
+
+    live: dict[str, list[str]] = {t: [] for t in declared}
+    for path in doc_anchor.ref_files():
+        rel = path.relative_to(ROOT).as_posix()
+        if rel == "docs/dev/00b-invariants.md":
+            continue  # the declaration is not a citation of itself
+        if any(rel.startswith(h) for h in HISTORICAL):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for token in declared:
+            if token in text:
+                live[token].append(rel)
+
+    uncited = sorted(t for t, where in live.items() if not where)
+    assert not uncited, (
+        f"PN anchors with no LIVE consumer: {uncited}. "
+        "A rule with no code site earns its place by being pointed at from "
+        "something current — the code it constrains, a procedure, a test. A "
+        "mention in history/ or maintenance/ does not count: those are dated "
+        "records, and a rule kept alive by one is attached to nothing."
     )

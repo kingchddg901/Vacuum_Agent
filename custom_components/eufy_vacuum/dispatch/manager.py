@@ -100,6 +100,9 @@ class DispatchManager:
             data = {"entity_id": vacuum_entity_id, "command": command, "params": params}
         else:
             data = {"entity_id": vacuum_entity_id, **payload}
+        # PNWJZYYR: THIS LINE MOVES A ROBOT IN SOMEONE'S HOUSE. Not a read, not
+        # idempotent, not undoable by calling something else. It is the single send
+        # chokepoint on purpose, so a dispatch is always visible in a diff at one place.
         await self._manager.hass.services.async_call(domain, name, data, blocking=True)
 
     @staticmethod

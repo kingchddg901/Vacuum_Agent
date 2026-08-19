@@ -156,9 +156,42 @@ def source_files() -> list[pathlib.Path]:
     return out
 
 
+# PN declares in PROSE, and only PN. Every other class anchors a thing that exists in
+# code, so its declaration belongs beside that thing. A PN anchors a rule with NO code
+# site -- "never edit .storage", "a service call moves hardware" -- and its reasoning is
+# the artifact. Declaring it in source would mean pinning it to a file that does not
+# enforce it, which reads as a guard and is not one. So the registry that holds the
+# reasoning IS the declaration site, and this is scoped to PN precisely so no other
+# class can drift into declaring itself in prose.
+PROSE_DECL_ROOTS = ("docs",)
+PROSE_DECL_PREFIX = "PN"
+
+
+def prose_decl_files() -> list[pathlib.Path]:
+    out: list[pathlib.Path] = []
+    for root in PROSE_DECL_ROOTS:
+        base = ROOT / root
+        if not base.is_dir():
+            continue
+        out.extend(p for p in base.rglob("*.md"))
+    return out
+
+
 def scan() -> dict[str, list[tuple[pathlib.Path, int, str]]]:
-    """token -> [(file, line, the whole declaration line)]."""
+    """token -> [(file, line, the whole declaration line)].
+
+    Source files may declare any class. Docs may declare PN and nothing else.
+    """
     found: dict[str, list[tuple[pathlib.Path, int, str]]] = defaultdict(list)
+    for p in prose_decl_files():
+        try:
+            lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for i, line in enumerate(lines, 1):
+            for tok in DECL_RE.findall(line):
+                if tok.startswith(PROSE_DECL_PREFIX):
+                    found[tok].append((p, i, line.strip()))
     for p in source_files():
         try:
             lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
