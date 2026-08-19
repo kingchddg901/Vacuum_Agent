@@ -31,6 +31,7 @@ files that give you the mental model you need before reading anything else.
 | # | File | What it covers |
 |---|---|---|
 | 00c | [replicas](00c-replicas.md) | **Replica sets** — every rule implemented in more than one place on purpose, so changing one copy sends you to the others. A green suite cannot see a missing copy |
+| 00d | [audit crosswalk](00d-audit-crosswalk.md) | **finding id → the rule it produced.** The 463-finding audit corpus is git-ignored working data; this is what survives it, so an id met in an old commit stays resolvable. Self-contained, not generated — its inputs are not in the repo |
 | 00c-h | [replica harvest](00c-h-replica-harvest.md) | The unclassified **pile** 00c is reduced from — 71 candidates read back from replica notices already written in comments (`scripts/replica_census.py`). Hand-edited STATUS column; not a generated doc |
 | 00b | [invariants](00b-invariants.md) | **The invariant registry** — every system-wide rule that must remain true, one sentence each, with pointers to the explanation and the enforcement site. Read this before a change, not the whole subsystem doc |
 | 00 | [documentation-standard](00-documentation-standard.md) | **How these docs work.** The three shelves (NOW / DESIGN / HISTORY), what an invariant must state, adjudicating a design doc against the code, what a subsystem doc must specify, the meta-rules, citation form, and the release gate |
