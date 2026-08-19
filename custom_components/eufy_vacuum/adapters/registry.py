@@ -394,6 +394,9 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
             else:
                 tuning = mapping_block.get("segmenter_tuning") or {}
                 engine = get_segmenter_engine(engine_name)
+                # anchor: RNTKY81M  the ENGINE-BLOCK validation -- the replica set. Written
+                # once per engine family (mapping / job_segmenter / room_attribution); a
+                # change to the contract obliges all three, and a NEW family adds a fourth.
                 issues.extend(engine.validate_tuning(tuning))
 
     # Job-segmenter engine check — mirrors the mapping check (deferred import). A
@@ -423,6 +426,7 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
             else:
                 tuning = job_block.get("tuning") or {}
                 engine = get_job_segmenter_engine(engine_name)
+                # REPLICA RNTKY81M -- see the first engine-block check above.
                 issues.extend(engine.validate_tuning(tuning))
 
     # Room-attribution engine check — mirrors the job-segmenter check. A declared block
@@ -452,6 +456,7 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
             else:
                 tuning = attr_block.get("tuning") or {}
                 engine = get_room_attribution_engine(engine_name)
+                # REPLICA RNTKY81M -- see the first engine-block check above.
                 issues.extend(engine.validate_tuning(tuning))
 
     # Room-profile catalog check — a declared block must be a dict with sane field

@@ -1,3 +1,5 @@
+// REPLICA RN1RX2AT -- primary: src/styles/run-profiles.js's panel tokens. The two
+// sidecol panels are meant to read as a set; restyle one and they stop matching.
 // CSS for the Saved Zones sidebar panel (Wave 3b) — mirrors the run-profiles
 // panel tokens so the two sidecol panels read as a set. Cut 2 adds the collapse
 // header, per-row multi-select, the shared setting selects and the actions bar.

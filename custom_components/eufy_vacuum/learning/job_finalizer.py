@@ -709,6 +709,7 @@ class LearningJobFinalizer:
                         if ct_state and ct_state.state not in ("unavailable", "unknown"):
                             cleaning_time_seconds = _duration_state_to_seconds(
                                 ct_state.state,
+                                # REPLICA RN8Q25E5 -- the cleaning_area normalization below restates this.
                                 # entity's own unit wins; adapter fallback covers a
                                 # bare-number sensor (Roborock cleaning_time = minutes)
                                 ct_state.attributes.get("unit_of_measurement")
@@ -720,6 +721,10 @@ class LearningJobFinalizer:
                     if _ca_entity:
                         ca_state = manager.hass.states.get(_ca_entity)
                         if ca_state and ca_state.state not in ("unavailable", "unknown"):
+                            # anchor: RN8Q25E5  UNIT NORMALIZATION by the entity's own unit_of_measurement --
+                            # the replica set. cleaning_time is handled the same way directly above. A brand
+                            # reporting one imperial and one metric needs BOTH, or one silently lands in the
+                            # wrong unit and every learning bucket built on it is poisoned.
                             # Normalize to m² by the entity's unit (imperial HA → Eufy in ft²) —
                             # mirrors the cleaning_time unit handling right above.
                             cleaning_area_m2 = cleaning_area_to_m2(

@@ -30,6 +30,7 @@ export function isManagedVacuum(hass, vacuumEntityId) {
 }
 
 /**
+  * REPLICA RN60D6C4 -- primary: cards/_shared.js::roomSwitchesFor.
  * The first per-room switch's room_id for a vacuum, or null. Mirrors the filter in
  * _shared.roomSwitchesFor, kept local so this module stays dependency-free.
  */

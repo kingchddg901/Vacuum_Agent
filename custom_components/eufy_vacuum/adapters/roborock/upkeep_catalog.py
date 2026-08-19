@@ -70,6 +70,7 @@ ROBOROCK_MODELS: list[tuple[str, str, str]] = [
     ("roborock.vacuum.a101", "Qrevo Pro", "wash_station"),
     ("roborock.vacuum.a87", "Qrevo MaxV", "wash_station"),
     ("roborock.vacuum.a143", "G20S Ultra", "wash_station"),
+    # REPLICA RNARRS0S -- primary: roborock_upkeep_guides.py's tier docstring.
     # These carry TWO flat mop cloths on twin mounts — same remove-wash-airdry care
     # as a single cloth, so they're wash_station, NOT a separate tier. `dual_pad` is
     # reserved for a true ROTATING roller-mop model (e.g. Qrevo Curv 2 Flow) once its

@@ -8,6 +8,7 @@
 // imports beyond the dependency-free clean-mode fold below
 // — and returns the manifest HTML string ("" when there are no steps).
 //
+// REPLICA RNG7V2Y3 -- primary: src/styles/run-profiles.js.
 // Class names match src/styles/run-profiles.js (.evcc-run-profiles-seq-*). The main
 // bundle styles them for the panel; the standalone card carries the same rules in
 // its own shadow root (aliased to HA tokens so it styles on a cold dashboard).
@@ -59,6 +60,9 @@ export function renderStepsManifest({ steps, nameById = {}, zoneNameById = {}, t
       // stored with different spellings — one card-edited ("Vacuum and mop"), one
       // profile-resolved ("vacuum_mop") — gave size 2, so the chip was dropped and
       // an all-same-mode group rendered identically to a genuinely mixed one.
+      // anchor: RN1HP37Y  fold clean-mode spellings BEFORE the Set -- the replica set.
+      // ISSUE #48: renderers/run-profiles.js carries the same line. Skip the fold and two
+      // rooms in one mode stored differently read as a MIXED group, and the chip vanishes.
       const modes = new Set(groupRooms.map((r) => canonicalCleanMode(r.clean_mode)).filter(Boolean));
       // Show the room's own spelling, not the token — the chip is localized through
       // the caller's vocab resolver, which is keyed on what the room actually holds.

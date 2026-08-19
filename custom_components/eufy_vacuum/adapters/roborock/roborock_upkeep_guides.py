@@ -20,6 +20,9 @@ one above (see upkeep_catalog.py for the model→tier map):
     standard      no dock, single mop cloth           (S4/S5/S6/S7, Q5/Q7, E, G…)
     auto_empty    + dust-collection dock              (Q5 Pro, Q7/Q8 Max, Q10)
     wash_station  + wash&dry dock, water tanks        (S7·S8 Pro Ultra, Q Revo, Qrevo, Saros, S8 MaxV Ultra…)
+    anchor: RNARRS0S  the dual_pad tier RESERVATION -- the replica set. The same
+    reasoning is stated in upkeep_catalog.py's model table. When a true rotating
+    roller-mop model is authored, BOTH move or the tier table and this library disagree.
     dual_pad      RESERVED — a true ROTATING roller mop (Qrevo Curv 2 Flow); not yet authored
 
 The manager overlays a localized copy PER FIELD, so any field left None/absent

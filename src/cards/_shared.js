@@ -43,6 +43,9 @@ export function vocab(t, field, value, fallback) {
  * per-room settings as attributes (populated by the backend room entity).
  * @returns {Array<{entityId: string, state: string, attrs: object}>}
  */
+// anchor: RN60D6C4  the per-room SWITCH FILTER -- the replica set. card-suggestions.js
+// restates it locally and says why: 'kept local so this module stays dependency-free'.
+// LOAD-BEARING -- dissolving it adds the dependency the copy exists to avoid.
 export function roomSwitchesFor(hass, vacuumEntityId) {
   const states = hass?.states;
   if (!states || !vacuumEntityId) return [];
@@ -115,6 +118,7 @@ export function chipRow(label, fieldKey, options, currentVal, tVocabFn, idPrefix
 }
 
 /**
+  * REPLICA RNGP3ZBE -- primary: src/actions/core.js::callService.
  * Response-capable service call (snapshot / saved-profile reads). Mirrors the
  * panel's actions/core.js helper: target undefined, notifyOnError false,
  * returnResponse true. Returns the unwrapped `response` payload, or null on any

@@ -61,6 +61,10 @@ export function applySharedRenderers(proto) {
    * @param {Record<string, unknown>} [vars] - interpolation values (raw).
    * @returns {string} the resolved, interpolated, escaped string.
    */
+  // anchor: RNZQ33ZP  the ESCAPED/RAW translator pairing -- the replica set. t/tRaw and
+  // tVocab/tVocabRaw are two copies of one contract: the Raw half returns unescaped for
+  // call sites the renderer escapes again later. Change the escaping on one pair and not
+  // the other and a translated "l'eau" either double-escapes or reaches innerHTML raw.
   proto.t = function (key, vars) {
     return translate(this._i18nLanguage(), key, vars);
   };
@@ -120,6 +124,7 @@ export function applySharedRenderers(proto) {
   };
 
   /**
+    * REPLICA RNZQ33ZP -- primary: the t/tRaw pair above.
    * Like `tVocab`, but returns the RAW (unescaped) localized label — for the few
    * call sites that drop the value into a data object the renderer escapes again
    * later (e.g. room-estimate's summary rows do `escapeHtml(row.value)`). Using

@@ -52,6 +52,10 @@ export function applyCoreActions(proto) {
    * @param {boolean} [returnResponse=false] - set true for response-capable services
    * @returns {Promise<*>} service response or null on failure
    */
+  // anchor: RNGP3ZBE  the RESPONSE-CAPABLE service-call convention -- the replica set.
+  // The standalone card restates it in cards/_shared.js, argument for argument: target
+  // undefined, notifyOnError false, returnResponse true, unwrap `response`, null on any
+  // failure and never throw into the render cycle. Panel and card must refuse alike.
   proto.callService = async function (domain, service, data = {}, returnResponse = false) {
     if (!this.hass?.callService) {
       console.warn(

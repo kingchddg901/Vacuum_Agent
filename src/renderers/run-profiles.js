@@ -300,6 +300,7 @@ export function applyRunProfilesRenderers(proto) {
           nameById[String(r.room_id)] ?? this.t("run_profiles.room_fallback", { id: this.escapeHtml(String(r.room_id)) })
         ))
         .join(", ");
+      // REPLICA RN1HP37Y -- primary: state/steps-manifest.js.
       // ISSUE #48, twin of the same line in state/steps-manifest.js: fold the
       // spellings before the Set, or two rooms in one mode stored differently read
       // as a mixed group and the chip vanishes.

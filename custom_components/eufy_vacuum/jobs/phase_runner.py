@@ -430,6 +430,7 @@ class PhaseRunner:
         # from the cancel's own return_to_base dock. The robot starts cleaning again after
         # you cancelled it, and the run writes phases past its own finalize.
         #
+        # REPLICA RNJB6JXD -- primary: the _still_ours poller predicate below.
         # Mirrors the pollers' `_still_ours` predicate — a job is advanceable only while it
         # is genuinely live. A paused job is excluded too: resume re-arms the phase.
         if active_job.get("finalized") or str(active_job.get("status") or "") != "started":
@@ -1700,6 +1701,9 @@ class PhaseRunner:
 
         poll_s = 30.0  # battery updates are slow; adapter-tunable later via dispatch.charge
 
+        # anchor: RNJB6JXD  the job-OWNERSHIP predicate -- the replica set. The phase
+        # advance gate restates it; a job is advanceable only while it is still the one
+        # we dispatched.
         def _still_ours(job: dict[str, Any] | None) -> bool:
             return bool(
                 job

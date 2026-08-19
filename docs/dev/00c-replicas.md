@@ -459,6 +459,132 @@ example of why a fixture agrees with the caller, not the callee.
 
 ---
 
+### `RNTKY81M` — the ENGINE-BLOCK validation · **3 sites, one file**
+
+`adapters/registry.py` validates a declared engine block once per engine family — mapping,
+job_segmenter, room_attribution — each resolving the engine and calling its `validate_tuning`.
+
+A change to the validation contract obliges all three, and a **new engine family adds a
+fourth**. The three are adjacent in one function, which is why this reads as safe; it is the
+same shape as any other triplicate, minus the distance.
+
+**Declared at** the first (mapping) check.
+
+---
+
+### `RNARRS0S` — the `dual_pad` tier RESERVATION · **2 files**
+
+`roborock_upkeep_guides.py`'s tier docstring (**primary**) and `upkeep_catalog.py`'s model
+table both state that twin-mount flat cloths are `wash_station`, and that `dual_pad` is held
+for a true **rotating roller mop** (Qrevo Curv 2 Flow) once its manual exists.
+
+**A reservation is a decision with no code.** Nothing fails if only one is updated — the
+tier table and the guide library simply describe different products, and the disagreement
+surfaces as a user reading care instructions for a mop they do not own.
+
+---
+
+### `RNJB6JXD` — the job-OWNERSHIP predicate · **2 sites, one file**
+
+`phase_runner.py`'s `_still_ours` poller predicate (**primary**) and the phase-advance gate,
+which restates it: *a job is advanceable only while it is still the one we dispatched.*
+
+**Mutation class.** Diverge and a phase advances against a job the dispatcher no longer
+owns — which is the `_cancel_in_flight` hazard the surrounding block already documents from
+the other direction.
+
+---
+
+### `RN8Q25E5` — UNIT NORMALIZATION by the entity's own unit · **2 sites, one file**
+
+`job_finalizer.py` reads `cleaning_time` and `cleaning_area` from separate entities and
+normalizes each by that entity's own `unit_of_measurement`, with an adapter fallback for a
+bare-number sensor.
+
+**Both halves are needed because a brand can report one imperial and one metric** — Eufy
+ships area in ft², and an imperial HA install changes the time unit independently. Normalize
+one and not the other and the value silently lands in the wrong unit, poisoning every
+learning bucket built from it. Nothing raises; the numbers are just wrong.
+
+---
+
+### `RNGP3ZBE` — the RESPONSE-CAPABLE service-call convention · **2 copies**
+
+`src/actions/core.js::callService` (**primary**) and `src/cards/_shared.js`, restated
+argument for argument: target undefined, `notifyOnError` false, `returnResponse` true,
+unwrap `response`, null on any failure, **never throw into the render cycle**.
+
+Panel and standalone card must refuse alike. Diverge and one surface swallows a failure
+the other reports — or worse, one throws mid-render.
+
+---
+
+### `RN60D6C4` — the per-room SWITCH FILTER · **2 copies**
+
+`src/cards/_shared.js::roomSwitchesFor` (**primary**) and `card-suggestions.js`, which
+restates it locally and **says why**: *"kept local so this module stays dependency-free."*
+
+**Load-bearing.** Dissolving it adds exactly the dependency the copy exists to avoid — the
+clearest case in the register of duplication as the correct terminal state.
+
+---
+
+### `RN1HP37Y` — fold clean-mode spellings BEFORE the Set · **2 copies**
+
+`src/state/steps-manifest.js` (**primary**) and `src/renderers/run-profiles.js`, which names
+it: *"ISSUE #48, twin of the same line."*
+
+Skip the fold and two rooms in one mode **stored differently** read as a mixed group, so the
+mode chip vanishes. Note this rides on [`RNY1AHMD`](00c-replicas.md) — `canonicalCleanMode`
+is itself the card half of a cross-language set, so the alias table and its two call sites
+form a three-deep chain.
+
+---
+
+### `RNZQ33ZP` — the ESCAPED/RAW translator pairing · **2 pairs, one file**
+
+`t`/`tRaw` (**primary**) and `tVocab`/`tVocabRaw` in `src/renderers/shared.js`. The Raw half
+returns unescaped output for call sites that escape again later.
+
+Change the escaping on one pair and not the other and a translated `"l'eau"` either
+**double-escapes** (renders its entities literally) or reaches an innerHTML sink raw. One is
+ugly, the other is trust model B failing open.
+
+---
+
+### `RNG7V2Y3` — the run-profiles CLASS NAMES · **3 sites**
+
+`src/styles/run-profiles.js` (**primary**), the `.evcc-run-profiles-seq-*` markup emitted by
+`state/steps-manifest.js`, and the standalone card, which carries the same rules again in
+its own shadow root so it styles on a cold dashboard.
+
+Rename here and the manifest renders **unstyled in whichever host was not updated** — and
+the two hosts are exercised by different tests, so each stays self-consistently green.
+
+---
+
+### `RNHME6XA` — the FONT ID SPACE · **2 copies**
+
+`src/i18n/font-store.js::FONT_SUPPORT` (**primary**) and `src/styles/fonts.js`'s CSS-side
+font table. The ids must match, and `TF-11` pins that.
+
+Adding a font means both **plus** a `font.<id>` label key. One edit short and the picker
+offers a font that styles nothing, or a font styles that nobody can pick. The existing test
+is a detector, not a discharge.
+
+---
+
+### `RN1RX2AT` — the SIDECOL PANEL token set · **2 copies**
+
+`src/styles/run-profiles.js`'s panel tokens (**primary**) and `src/styles/saved-zones.js`,
+which mirrors them *"so the two sidecol panels read as a set."*
+
+**Observational, and the weakest set in the register on purpose.** Nothing breaks — the
+panels just stop looking designed, which no test can see and no user reports as a bug. Worth
+recording precisely because it is the kind of drift that has no other detector.
+
+---
+
 ## Observational vs MUTATION replicas
 
 A replica set that decides **what to display or bind** is bad when it diverges: someone

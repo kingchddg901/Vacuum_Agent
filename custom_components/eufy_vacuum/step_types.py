@@ -6,6 +6,9 @@ one day, on opposite sides of the stack: ``profiles.manager._enrich_saved_run_pr
 ``has_stops`` gate (backend) and ``_deriveHasStops`` (card). A rooms->zone profile reported
 itself as a flat queue in both.
 
+# REPLICA RN9N6NVB -- the sequenced-vs-flat QUESTION is answered by the backend's
+# has_stops gate and the card's _deriveHasStops. The two vocabularies BELOW are a
+# different matter and must NOT be merged; read the block.
 **There are TWO vocabularies here, and they are NOT the same question.** Collapsing them
 into one shared set would be worse than the duplication it replaces — it would break zone
 handling outright. Read this before touching either:

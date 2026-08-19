@@ -44,6 +44,10 @@ export const FONT_DEFAULT = "default";
  * fontId -> the locales whose SHIPPED CATALOGUE that font has been verified to
  * cover. Read by the gate; never a hardcoded `lang === "en"`.
  */
+// anchor: RNHME6XA  the FONT ID SPACE -- the replica set. styles/fonts.js carries the CSS
+// half of every font and these ids MUST match it; TF-11 pins that. Adding a font means
+// both, plus a font.<id> label key -- one edit short and the picker offers a font that
+// styles nothing, or styles a font nobody can pick.
 export const FONT_SUPPORT = {
   // Verified 2026-08-06 by cmap inspection (fontTools, the same evidence the
   // drop-in gate uses): the shipped OpenDyslexic-Regular/Bold carry 1586

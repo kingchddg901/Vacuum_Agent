@@ -49,6 +49,7 @@ const FONT_BASE = "/eufy_vacuum/fonts";
 /**
  * THE font table — everything CSS-side about a selectable font, one entry per
  * font. Adding a font = add its woff2 files to frontend/fonts/, add one entry
+  * REPLICA RNHME6XA -- primary: src/i18n/font-store.js::FONT_SUPPORT.
  * here, and add its verified locales to i18n/font-store.js FONT_SUPPORT (the
  * ids must match — TF-11 pins that) + a `font.<id>` label key. Every rule
  * below (@font-face, the a11y-token setters, the picker sample class) is
