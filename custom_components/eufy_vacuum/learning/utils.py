@@ -304,6 +304,7 @@ def evaluate_idle_wall_hold(
     return {"hold": False, "idle_gap_minutes": idle_gap, "reason": None}
 
 
+# anchor: INQ619A6  ONE answer to 'which rooms are done' - derived, and biased to missed
 def known_completed_room_ids(
     active_job_state: Any, room_timings: Any = None
 ) -> list[int]:

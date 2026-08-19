@@ -31,9 +31,17 @@ from ..const import (
     SERVICE_REMOVE_QUEUE_BREAK,
     SERVICE_SET_QUEUE_BREAKS,
 )
-from ._common import VACUUM_MAP_SCHEMA, get_manager, resolved_call_data
+from ._common import (
+    VACUUM_MAP_SCHEMA,
+    get_manager,
+    is_managed_vacuum,
+    require_managed_vacuum,
+    resolved_call_data,
+    unmanaged_vacuum_read_result,
+)
 
 
+# anchor: INJSETB0  one contract, three declarations; the write accepts what the read emits
 def _require_break_params(value: dict) -> dict:
     """RP-032/RF-28 (A2-JOB-5). voluptuous's per-key vol.Optional can't express
     "required only when break_type has a specific value", so this runs as a
@@ -161,6 +169,8 @@ SERVICES = (
 
 async def _handle_build_queue(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Build cleaning queue from enabled rooms."""
+    # INKV8ZQD: refuse BEFORE the manager mints anything.
+    require_managed_vacuum(hass, call.data["vacuum_entity_id"])
     payload = get_manager(hass).build_queue(**resolved_call_data(hass, call))
     _LOGGER.debug("build_queue complete: %s", payload)
     await get_manager(hass).async_save()
@@ -169,6 +179,8 @@ async def _handle_build_queue(hass: HomeAssistant, call: ServiceCall) -> dict:
 
 async def _handle_build_room_payload(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Build payload for room cleaning."""
+    # INKV8ZQD: refuse BEFORE the manager mints anything.
+    require_managed_vacuum(hass, call.data["vacuum_entity_id"])
     payload = get_manager(hass).build_room_payload(**resolved_call_data(hass, call))
     _LOGGER.debug("build_room_payload complete: %s", payload)
     await get_manager(hass).async_save()
@@ -177,6 +189,9 @@ async def _handle_build_room_payload(hass: HomeAssistant, call: ServiceCall) -> 
 
 async def _handle_get_queue_state(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Get current queue state."""
+    # INKV8ZQD: a read answers empty-with-a-reason, it does not raise.
+    if not is_managed_vacuum(hass, call.data["vacuum_entity_id"]):
+        return unmanaged_vacuum_read_result(call.data["vacuum_entity_id"])
     payload = get_manager(hass).get_queue_state(**resolved_call_data(hass, call))
     _LOGGER.debug("get_queue_state complete: %s", payload)
     return payload
@@ -184,6 +199,9 @@ async def _handle_get_queue_state(hass: HomeAssistant, call: ServiceCall) -> dic
 
 async def _handle_get_payload_state(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Get current payload state."""
+    # INKV8ZQD: a read answers empty-with-a-reason, it does not raise.
+    if not is_managed_vacuum(hass, call.data["vacuum_entity_id"]):
+        return unmanaged_vacuum_read_result(call.data["vacuum_entity_id"])
     payload = get_manager(hass).get_payload_state(**resolved_call_data(hass, call))
     _LOGGER.debug("get_payload_state complete: %s", payload)
     return payload
@@ -191,6 +209,8 @@ async def _handle_get_payload_state(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_clear_queue(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Clear queue state."""
+    # INKV8ZQD: refuse BEFORE the manager mints anything.
+    require_managed_vacuum(hass, call.data["vacuum_entity_id"])
     payload = get_manager(hass).clear_queue(**resolved_call_data(hass, call))
     _LOGGER.debug("clear_queue complete: %s", payload)
     await get_manager(hass).async_save()
@@ -199,6 +219,9 @@ async def _handle_clear_queue(hass: HomeAssistant, call: ServiceCall) -> dict:
 
 async def _handle_get_queue_steps(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return the live queue as a stepped list (rooms + charge/wait breaks)."""
+    # INKV8ZQD: a read answers empty-with-a-reason, it does not raise.
+    if not is_managed_vacuum(hass, call.data["vacuum_entity_id"]):
+        return unmanaged_vacuum_read_result(call.data["vacuum_entity_id"])
     payload = get_manager(hass).get_queue_steps(**resolved_call_data(hass, call))
     _LOGGER.debug("get_queue_steps complete: %s", payload)
     return payload
@@ -206,6 +229,8 @@ async def _handle_get_queue_steps(hass: HomeAssistant, call: ServiceCall) -> dic
 
 async def _handle_add_queue_break(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Insert a charge/wait break into the live queue."""
+    # INKV8ZQD: refuse BEFORE the manager mints anything.
+    require_managed_vacuum(hass, call.data["vacuum_entity_id"])
     payload = get_manager(hass).add_queue_break(**resolved_call_data(hass, call))
     _LOGGER.debug("add_queue_break complete: %s", payload)
     await get_manager(hass).async_save()
@@ -214,6 +239,8 @@ async def _handle_add_queue_break(hass: HomeAssistant, call: ServiceCall) -> dic
 
 async def _handle_remove_queue_break(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Remove one break from the live queue by index."""
+    # INKV8ZQD: refuse BEFORE the manager mints anything.
+    require_managed_vacuum(hass, call.data["vacuum_entity_id"])
     payload = get_manager(hass).remove_queue_break(**resolved_call_data(hass, call))
     _LOGGER.debug("remove_queue_break complete: %s", payload)
     await get_manager(hass).async_save()
@@ -222,6 +249,8 @@ async def _handle_remove_queue_break(hass: HomeAssistant, call: ServiceCall) -> 
 
 async def _handle_clear_queue_breaks(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Remove all breaks — the queue drops back to a flat clean."""
+    # INKV8ZQD: refuse BEFORE the manager mints anything.
+    require_managed_vacuum(hass, call.data["vacuum_entity_id"])
     payload = get_manager(hass).clear_queue_breaks(**resolved_call_data(hass, call))
     _LOGGER.debug("clear_queue_breaks complete: %s", payload)
     await get_manager(hass).async_save()
@@ -230,6 +259,8 @@ async def _handle_clear_queue_breaks(hass: HomeAssistant, call: ServiceCall) -> 
 
 async def _handle_set_queue_breaks(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Replace all queue breaks wholesale (reorder + retarget in one call)."""
+    # INKV8ZQD: refuse BEFORE the manager mints anything.
+    require_managed_vacuum(hass, call.data["vacuum_entity_id"])
     payload = get_manager(hass).set_queue_breaks(**resolved_call_data(hass, call))
     _LOGGER.debug("set_queue_breaks complete: %s", payload)
     await get_manager(hass).async_save()
@@ -238,6 +269,8 @@ async def _handle_set_queue_breaks(hass: HomeAssistant, call: ServiceCall) -> di
 
 async def _handle_add_queue_zone(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Insert a zone step (clean the named saved zones together) into the live queue."""
+    # INKV8ZQD: refuse BEFORE the manager mints anything.
+    require_managed_vacuum(hass, call.data["vacuum_entity_id"])
     payload = get_manager(hass).add_queue_zone(**resolved_call_data(hass, call))
     _LOGGER.debug("add_queue_zone complete: %s", payload)
     await get_manager(hass).async_save()

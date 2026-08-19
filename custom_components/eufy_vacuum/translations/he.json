@@ -57,6 +57,9 @@
     },
     "finalize_learning_job_refused": {
       "message": "finalize_learning_job נדחה: {reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id} אינה שואב אבק המנוהל על ידי אינטגרציה זו."
     }
   },
   "entity": {

@@ -11,6 +11,24 @@ multi-brand setups) plus the capability detection service:
 - get_vacuum_capabilities: detect capability flags for one vacuum
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   INGZFYXX  `profiles/manager.py#INGZFYXX`
+#       A4-SETUP-5 (closed RP-033): save_adapter_config persists to storage BEFORE registering, so a config the registry
+#              flags as invalid is written to disk anyway and reloaded at every restart
+
+
 from __future__ import annotations
 
 import logging
@@ -71,7 +89,7 @@ async def _handle_save_adapter_config(hass: HomeAssistant, call: ServiceCall) ->
     # doesn't fail the schema's required-key check on a field it never owns.
     config["source"] = "config"
 
-    # RP-033/RF-32: the config's schema used to be `dict` only, checked by hand for
+    # RP-033/RF-32 (INYA5T84): the config's schema used to be `dict` only, checked by hand for
     # exactly two keys (adapter_id, dispatch.template) here -- every OTHER required
     # block (entities, dispatch.service_domain, dispatch.service_name, ...) was
     # silently absent-safe, registering OVER the live adapter with each omitted

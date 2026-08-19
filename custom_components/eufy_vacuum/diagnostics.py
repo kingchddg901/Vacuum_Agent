@@ -328,7 +328,7 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
             "providing a current map id, so rooms cannot be imported."
         )
 
-    # RP-039/RF-33: every OTHER collector's failure surfaces here too, not just
+    # RP-039/RF-33 (INTCWVFM): every OTHER collector's failure surfaces here too, not just
     # the two hand-picked warning keys above. Two failure shapes: a bare
     # "<name>_error" top-level string (a collector's own try/except caught
     # something) and a nested {"error": ...} dict (a sub-block that failed

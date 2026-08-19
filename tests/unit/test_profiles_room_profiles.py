@@ -273,26 +273,38 @@ def test_resolve_carpet_fan_speed_comes_from_the_catalog(brand, floor):
 
 
 # ---------------------------------------------------------------------------
-# [RP-10] mop mode + no water → floor default
+# [RP-10] mop mode + no water → STAYS off (the floor default is retired)
 # ---------------------------------------------------------------------------
 
-def test_resolve_mop_mode_with_no_water_gets_floor_default(brand):
-    """[RP-10] Mop mode with water suppressed on a hard floor takes the floor default.
+def test_resolve_mop_mode_with_no_water_keeps_it_off(brand):
+    """[RP-10] Mop mode with water suppressed on a hard floor KEEPS it suppressed.
 
-    The guard compares case-insensitively against "off" because that is a FRAMEWORK
-    concept (the absence of water) and brands differ only in casing — a strict
-    == "Off" meant this never fired on Roborock, whose word is "off", so a mop room
-    stayed dry-mopping instead of being corrected.
+    This test used to assert the opposite: that the room took its floor's water
+    default. That per-surface table was retired 2026-08-17
+    (docs/dev/history/floor-type-cleaning-defaults.md) because it applied the
+    author's preference to every user who had never set a water level, and nothing
+    in the UI said choosing a floor type would also choose how wet to mop.
+
+    So the room now keeps what it was given. If a hard-floor default ever comes
+    back this fails, which is the point — it must be a deliberate decision with a
+    canonical value, not a table someone re-grows a row at a time.
+
+    CARPET is unaffected and is covered by [RP-9]: that is a safety property, not a
+    preference, and it is the one surface rule the framework still makes.
     """
+    off = _no_water(brand)
     result = resolve_room_profile_for_room(
         room_config={
             "profile_name": "vacuum_mop_quick",
             "floor_type": "hardwood",
-            "water_level": _no_water(brand),
+            "water_level": off,
         },
         catalog=brand,
     )
-    assert result["water_level"] == brand["floor_type_water_defaults"]["hardwood"]
+    assert result["water_level"] == off, result
+    assert "hardwood" not in brand["floor_type_water_defaults"], (
+        "the hard-floor rows are retired; re-adding one silently restores a hidden default"
+    )
 
 
 # ---------------------------------------------------------------------------

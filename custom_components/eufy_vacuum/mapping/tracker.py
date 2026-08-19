@@ -361,7 +361,7 @@ class MappingTracker:
     def end_job(self, *, vacuum_entity_id: str) -> None:
         """Notify tracker that a cleaning job has ended.
 
-        RP-012/RF-31 (TRK-4): flush the CURRENTLY-HELD room as room_completed
+        RP-012/RF-31 (INNJ6SGC) (TRK-4): flush the CURRENTLY-HELD room as room_completed
         first if its confidence cleared the fire threshold -- _update_confidence
         only fires room_completed on a ROOM SWITCH, so the room the job actually
         finished IN would otherwise never get one.

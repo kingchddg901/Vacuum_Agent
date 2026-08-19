@@ -57,6 +57,9 @@
     },
     "finalize_learning_job_refused": {
       "message": "finalize_learning_job が拒否されました: {reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id} はこの統合が管理している掃除機ではありません。"
     }
   },
   "entity": {

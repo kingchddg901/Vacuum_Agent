@@ -525,6 +525,8 @@ def ensure_preloaded_theme_library(theme_data: dict[str, Any]) -> None:
         library = {}
         theme_data["library"] = library
 
+    # anchor: IN1FX8EH  a seeder respects deletion - absence is not a gap to fill,
+    # and a tombstone is what distinguishes 'never had it' from 'removed it'
     # CRUD-3/INIT-3 (RP-034): a bundled theme the user explicitly deleted must
     # NOT come back on the next restart -- ThemeManager.delete_theme records the
     # id here. Without this, deleting a core theme silently reverted itself the

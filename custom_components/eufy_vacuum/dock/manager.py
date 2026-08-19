@@ -242,6 +242,10 @@ class DockManager:
                 message = "This vacuum does not support that dock action."
                 allowed = False
             elif action_entity is None:
+                # INT62M7A: A6-VAC-2. A button that is present in the registry but
+                # DISABLED resolves to None upstream, so it lands here and the action
+                # is offered as unavailable. It used to resolve, report
+                # performed=True / "Dock action sent.", and press nothing.
                 reason = "missing_action_entity"
                 message = "The upstream dock control entity was not found."
                 allowed = False

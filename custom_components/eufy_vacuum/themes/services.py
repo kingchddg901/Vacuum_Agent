@@ -33,6 +33,8 @@ from ..const import (
     SERVICE_UPDATE_WORKING_DRAFT,
 )
 
+from ..services._common import require_managed_vacuum
+
 _LOGGER = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -131,8 +133,15 @@ def _get_manager(hass: HomeAssistant):
     return hass.data[DOMAIN][DATA_RUNTIME]
 
 
+# anchor: INT62M7A  a mutation refuses with a reason, or succeeds carrying what it applied
 def _raise_if_failed(result: dict, *, operation: str) -> None:
-    """Raise ServiceValidationError when a theme operation returns ok=False."""
+    """Raise ServiceValidationError when a theme operation returns ok=False.
+
+    RF-14: the gate is the FLAG, not the reason. Matching reason literals is how
+    this class of handler grew holes — one spelling is handled and every other
+    failure falls through as a success. `ok` is absent-means-true on purpose so a
+    read-shaped response is not forced to declare one.
+    """
     if not result.get("ok", True):
         reason = result.get("reason", "unknown_error")
         raise ServiceValidationError(
@@ -159,6 +168,17 @@ async def async_register_theme_services(hass: HomeAssistant) -> None:
         return result
 
     async def handle_save_theme_as_new(call: ServiceCall) -> dict:
+        # INKV8ZQD: _get_vacuum_theme setdefaults a full draft record for ANY
+        # well-formed entity id, so the refusal goes here -- at the service
+        # boundary -- rather than in the manager, which is also called during
+        # setup before the vacuum record exists.
+        #
+        # Conditional because two of these schemas make vacuum_entity_id
+        # OPTIONAL: import/export are library-wide unless SCOPED to a vacuum.
+        # Omitted means no per-vacuum state is touched, so there is nothing to
+        # guard -- refusing there would break a full library import outright.
+        if call.data.get("vacuum_entity_id"):
+            require_managed_vacuum(hass, call.data["vacuum_entity_id"])
         manager = _get_manager(hass)
         result = manager.save_theme_as_new(
             vacuum_entity_id=call.data["vacuum_entity_id"],
@@ -170,6 +190,17 @@ async def async_register_theme_services(hass: HomeAssistant) -> None:
         return result
 
     async def handle_overwrite_theme(call: ServiceCall) -> dict:
+        # INKV8ZQD: _get_vacuum_theme setdefaults a full draft record for ANY
+        # well-formed entity id, so the refusal goes here -- at the service
+        # boundary -- rather than in the manager, which is also called during
+        # setup before the vacuum record exists.
+        #
+        # Conditional because two of these schemas make vacuum_entity_id
+        # OPTIONAL: import/export are library-wide unless SCOPED to a vacuum.
+        # Omitted means no per-vacuum state is touched, so there is nothing to
+        # guard -- refusing there would break a full library import outright.
+        if call.data.get("vacuum_entity_id"):
+            require_managed_vacuum(hass, call.data["vacuum_entity_id"])
         manager = _get_manager(hass)
         result = manager.overwrite_theme(
             vacuum_entity_id=call.data["vacuum_entity_id"],
@@ -211,6 +242,17 @@ async def async_register_theme_services(hass: HomeAssistant) -> None:
         return result
 
     async def handle_set_active_theme(call: ServiceCall) -> dict:
+        # INKV8ZQD: _get_vacuum_theme setdefaults a full draft record for ANY
+        # well-formed entity id, so the refusal goes here -- at the service
+        # boundary -- rather than in the manager, which is also called during
+        # setup before the vacuum record exists.
+        #
+        # Conditional because two of these schemas make vacuum_entity_id
+        # OPTIONAL: import/export are library-wide unless SCOPED to a vacuum.
+        # Omitted means no per-vacuum state is touched, so there is nothing to
+        # guard -- refusing there would break a full library import outright.
+        if call.data.get("vacuum_entity_id"):
+            require_managed_vacuum(hass, call.data["vacuum_entity_id"])
         manager = _get_manager(hass)
         result = manager.set_active_theme(
             vacuum_entity_id=call.data.get("vacuum_entity_id"),
@@ -222,6 +264,17 @@ async def async_register_theme_services(hass: HomeAssistant) -> None:
         return result
 
     async def handle_update_working_draft(call: ServiceCall) -> dict:
+        # INKV8ZQD: _get_vacuum_theme setdefaults a full draft record for ANY
+        # well-formed entity id, so the refusal goes here -- at the service
+        # boundary -- rather than in the manager, which is also called during
+        # setup before the vacuum record exists.
+        #
+        # Conditional because two of these schemas make vacuum_entity_id
+        # OPTIONAL: import/export are library-wide unless SCOPED to a vacuum.
+        # Omitted means no per-vacuum state is touched, so there is nothing to
+        # guard -- refusing there would break a full library import outright.
+        if call.data.get("vacuum_entity_id"):
+            require_managed_vacuum(hass, call.data["vacuum_entity_id"])
         manager = _get_manager(hass)
         result = manager.update_working_draft(
             vacuum_entity_id=call.data["vacuum_entity_id"],
@@ -238,6 +291,17 @@ async def async_register_theme_services(hass: HomeAssistant) -> None:
         return result
 
     async def handle_revert_draft(call: ServiceCall) -> dict:
+        # INKV8ZQD: _get_vacuum_theme setdefaults a full draft record for ANY
+        # well-formed entity id, so the refusal goes here -- at the service
+        # boundary -- rather than in the manager, which is also called during
+        # setup before the vacuum record exists.
+        #
+        # Conditional because two of these schemas make vacuum_entity_id
+        # OPTIONAL: import/export are library-wide unless SCOPED to a vacuum.
+        # Omitted means no per-vacuum state is touched, so there is nothing to
+        # guard -- refusing there would break a full library import outright.
+        if call.data.get("vacuum_entity_id"):
+            require_managed_vacuum(hass, call.data["vacuum_entity_id"])
         manager = _get_manager(hass)
         result = manager.revert_draft(
             vacuum_entity_id=call.data["vacuum_entity_id"],
@@ -254,6 +318,17 @@ async def async_register_theme_services(hass: HomeAssistant) -> None:
         return result
 
     async def handle_import_theme(call: ServiceCall) -> dict:
+        # INKV8ZQD: _get_vacuum_theme setdefaults a full draft record for ANY
+        # well-formed entity id, so the refusal goes here -- at the service
+        # boundary -- rather than in the manager, which is also called during
+        # setup before the vacuum record exists.
+        #
+        # Conditional because two of these schemas make vacuum_entity_id
+        # OPTIONAL: import/export are library-wide unless SCOPED to a vacuum.
+        # Omitted means no per-vacuum state is touched, so there is nothing to
+        # guard -- refusing there would break a full library import outright.
+        if call.data.get("vacuum_entity_id"):
+            require_managed_vacuum(hass, call.data["vacuum_entity_id"])
         manager = _get_manager(hass)
         result = manager.import_theme(
             payload=call.data["payload"],

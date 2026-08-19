@@ -313,6 +313,8 @@ class AccessGraphManager:
     # Issue formatting
     # ------------------------------------------------------------------
 
+    # anchor: INNPA4ZV  a user-facing message is a CODE plus PARAMS; the sentence,
+    # and its punctuation, belong to the locale -- so lists are never pre-joined
     def _format_access_graph_issue(
         self,
         *,
@@ -323,7 +325,7 @@ class AccessGraphManager:
 
         Returns ``{code, message, params, room_ids}``.
 
-        A6-AGX-4: ``message`` is ENGLISH PROSE built here and is kept unchanged —
+        INNPA4ZV / A6-AGX-4: ``message`` is ENGLISH PROSE built here and is kept unchanged —
         it is the documented response-service surface (docs/advanced/03-services.md)
         that automations and non-card consumers read, so it cannot move. ``params``
         is the translation seam beside it: the values the sentence interpolates, as
@@ -1045,6 +1047,9 @@ class AccessGraphManager:
         validation: dict[str, Any] | None = None,
     ) -> str | None:
         """The reason runs are blocked by the access graph, or None.
+
+        anchor: INSJM6KC  a gate judges only the DELTA, and the state it judges
+        carries a VERDICT -- blank and partial must not be indistinguishable.
 
         A6-AGX-1. "Do runs block on the graph?" was asked in exactly one place —
         an inline if/elif inside planning/run_plan.py — and nowhere else could

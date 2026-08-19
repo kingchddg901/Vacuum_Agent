@@ -27,7 +27,10 @@ from ._common import (
     VACUUM_MAP_SCHEMA,
     VACUUM_ONLY_SCHEMA,
     get_manager,
+    is_managed_vacuum,
+    require_managed_vacuum,
     resolved_call_data,
+    unmanaged_vacuum_read_result,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,6 +56,9 @@ _PAUSE_TIMEOUT_SETTINGS_SCHEMA = vol.Schema(
 
 async def _handle_get_dashboard_snapshot(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return unified dashboard snapshot for one vacuum/map."""
+    # INKV8ZQD: a read answers empty-with-a-reason.
+    if not is_managed_vacuum(hass, call.data["vacuum_entity_id"]):
+        return unmanaged_vacuum_read_result(call.data["vacuum_entity_id"])
     manager = get_manager(hass)
     resolved = resolved_call_data(hass, call)
     # Pre-warm the map_state_source cache ASYNC (off-loop .storage read for the Eufy
@@ -70,6 +76,9 @@ async def _handle_get_dashboard_snapshot(hass: HomeAssistant, call: ServiceCall)
 
 async def _handle_get_upkeep_snapshot(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return upkeep snapshot for one vacuum."""
+    # INKV8ZQD: a read answers empty-with-a-reason.
+    if not is_managed_vacuum(hass, call.data["vacuum_entity_id"]):
+        return unmanaged_vacuum_read_result(call.data["vacuum_entity_id"])
     payload = get_manager(hass).get_upkeep_snapshot(**call.data)
     _LOGGER.debug("get_upkeep_snapshot complete: %s", payload)
     return payload
@@ -77,6 +86,11 @@ async def _handle_get_upkeep_snapshot(hass: HomeAssistant, call: ServiceCall) ->
 
 async def _handle_get_pause_timeout_settings(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return persisted default pause-timeout settings for one vacuum."""
+    # INKV8ZQD: a read answers empty-with-a-reason. Defence in depth here --
+    # the manager method this calls is the one that used to MINT the vacuum
+    # bucket (fixed 2026-08-18); this stops the call reaching it at all.
+    if not is_managed_vacuum(hass, call.data["vacuum_entity_id"]):
+        return unmanaged_vacuum_read_result(call.data["vacuum_entity_id"])
     payload = get_manager(hass).get_pause_timeout_settings(**call.data)
     _LOGGER.debug("get_pause_timeout_settings complete: %s", payload)
     return payload
@@ -84,6 +98,8 @@ async def _handle_get_pause_timeout_settings(hass: HomeAssistant, call: ServiceC
 
 async def _handle_set_pause_timeout_settings(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Persist default pause-timeout settings for one vacuum."""
+    # INKV8ZQD: a write to an unmanaged vacuum refuses.
+    require_managed_vacuum(hass, call.data["vacuum_entity_id"])
     payload = get_manager(hass).set_pause_timeout_settings(**call.data)
     _LOGGER.debug("set_pause_timeout_settings complete: %s", payload)
     await get_manager(hass).async_save()

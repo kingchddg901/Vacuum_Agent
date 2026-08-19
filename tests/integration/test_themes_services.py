@@ -35,6 +35,13 @@ async def manager_with_theme_services(hass, manager):
         async_register_theme_services,
         async_unregister_theme_services,
     )
+    # INKV8ZQD: a service-layer fixture must MANAGE the vacuum it calls services
+    # against. Production reaches this state through setup/workflow.py::add_vacuum,
+    # which calls ensure_vacuum_record and whose own "already managed" check reads
+    # data["vacuums"] -- the same dict require_managed_vacuum gates on. Derived from
+    # the real function rather than a hand-built dict, so the fixture cannot drift
+    # from what production actually produces.
+    manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
     await async_register_theme_services(hass)
     yield manager
     await async_unregister_theme_services(hass)

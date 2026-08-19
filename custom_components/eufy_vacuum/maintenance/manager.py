@@ -366,7 +366,7 @@ class MaintenanceManager:
         vacuum_entity_id: str,
     ) -> dict[str, Any]:
         """Return replacement, maintenance, and dock upkeep state for one vacuum."""
-        # RF-33 cont'd: read-only, unlike get_vacuum_capabilities(refresh=False) —
+        # RF-33 (INTCWVFM) cont'd: read-only, unlike get_vacuum_capabilities(refresh=False) —
         # this is the collector diagnostics.py's own upkeep_snapshot call reaches,
         # and it's also on get_dashboard_snapshot's path. Detection is primed
         # elsewhere (setup-time priming loop, every sensor/button/number poll for

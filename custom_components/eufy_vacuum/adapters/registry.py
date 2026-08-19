@@ -150,7 +150,7 @@ class AdapterCoordinator:
         Idempotent — re-registering the same vacuum overwrites the previous
         config. Runs ``_validate_adapter`` and logs every issue.
 
-        RP-033/RF-32: a STORED config (``source == "config"``, UI/service-authored)
+        RP-033/RF-32 (INYA5T84): a STORED config (``source == "config"``, UI/service-authored)
         now HARD-RAISES when issues are found — a broken stored config used to
         register cleanly and shadow the live adapter, with every block it omitted
         silently resolving to that block's own absent-default (Eufy-shaped)

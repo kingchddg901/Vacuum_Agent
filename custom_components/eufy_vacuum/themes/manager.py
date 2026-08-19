@@ -388,7 +388,7 @@ class ThemeManager:
     def delete_theme(self, *, theme_id: str) -> dict[str, Any]:
         """Remove a theme from the library. Clears it from any vacuum that uses it.
 
-        CRUD-3/INIT-3 (RP-034): deleting a bundled (source=='core') theme records
+        CRUD-3/INIT-3 (RP-034, IN1FX8EH): deleting a bundled (source=='core') theme records
         a tombstone the preloaded-library seeder consults on the next
         construction — otherwise the delete survives exactly until the next
         restart, when ensure_preloaded_theme_library re-adds every spec id not

@@ -57,6 +57,9 @@
     },
     "finalize_learning_job_refused": {
       "message": "finalize_learning_job reddedildi: {reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id}, bu entegrasyonun yönettiği bir süpürge değil."
     }
   },
   "entity": {

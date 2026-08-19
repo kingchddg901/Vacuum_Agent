@@ -57,6 +57,9 @@
     },
     "finalize_learning_job_refused": {
       "message": "رفض finalize_learning_job: {reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id} ليست مكنسة تديرها هذه التكاملية."
     }
   },
   "entity": {

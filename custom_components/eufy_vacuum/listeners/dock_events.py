@@ -10,6 +10,26 @@ Public surface:
     remove(hass: HomeAssistant) -> None
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   IN96V4SA  `listeners/_common.py#IN96V4SA`
+#       A1-REG-1 (closed RP-038): dock_events treats any arrival at a trigger value as a NEW dock cycle — a startup,
+#              an entity re-add, or an `unavailable` blip mid-cycle re-records the event and
+#       A1-REG-4 (closed RP-038): dock_events.register() never reads the adapter's `dock_events.enabled` flag — a
+#              brand that declares enabled:False but inherits triggers still records dock events
+
+
 from __future__ import annotations
 
 import logging

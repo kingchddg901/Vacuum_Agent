@@ -8,6 +8,7 @@ from typing import Any
 from ..models.models import RoomConfig
 
 
+# anchor: INJ7VXE7  delete/rename sweeps every back-reference from ONE enumeration
 # RP-016/RF-20: every per-(vacuum, map_id) bucket in the integration's root
 # data dict, so a map-scoped operation (remove_map's clear, RP-017's
 # id-remap walker) can reach all of them from ONE list instead of a
@@ -243,7 +244,7 @@ def rebuild_map_bucket(
     rebuilt_rooms: dict[str, dict[str, Any]] = {}
     is_first_import = not existing_rooms
 
-    # RP-018/RF-25b (REC-8/CRUD-2): slug-led carry, id fallback — mirrors
+    # RP-018/RF-25b (INMKEHPQ) (REC-8/CRUD-2): slug-led carry, id fallback — mirrors
     # build_managed_rooms' own consumed_ids guard exactly (same bug,
     # independently written in both writers, same fix). A slug unique among
     # existing_rooms is the primary match; its OLD numeric id is "consumed" so

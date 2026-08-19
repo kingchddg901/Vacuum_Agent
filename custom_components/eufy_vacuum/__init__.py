@@ -348,7 +348,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception:
         _LOGGER.debug("eufy_vacuum: icon-select cleanup pass failed", exc_info=True)
 
-    # RP-039/RF-16: everything from here to `return True` registers a resource
+    # RP-039/RF-16 (INT79PB7): everything from here to `return True` registers a resource
     # that must be undone if a LATER step in this same setup fails. The only
     # existing safety net for this stretch is manager.async_shutdown (ledgered
     # above via entry.async_on_unload — HA itself calls every entry.async_on_unload

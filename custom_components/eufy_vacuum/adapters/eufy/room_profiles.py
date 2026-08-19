@@ -111,16 +111,28 @@ LEGACY_PROFILE_ALIASES: dict[str, str] = {
     "vacuum_mop_standard": "vacuum_mop_quick",
 }
 
+# RETIRED IN PRINCIPLE 2026-08-17 — see docs/dev/history/floor-type-cleaning-defaults.md
+# The non-carpet rows are a PREFERENCE applied to users who never asked for it: floor_type
+# is collected for the map render + the onboarding gate, and nothing ever told the user it
+# would also pick a water level. They come out. The CARPET rows STAY — carpet-is-water-off
+# is the framework's one guarantee (profiles/room_profiles.py::no_water_value) and is a
+# safety property, not a taste. Do not add rows here; add a floor type to the picker only.
 FLOOR_TYPE_WATER_DEFAULTS: dict[str, str] = {
-    "hardwood": "Low",
-    "laminate": "Low",
-    "tile": "Medium",
-    "marble": "Low",
+    # CARPET ONLY. This is not a table of per-surface preferences any more -- it is
+    # this brand's word for "no water", which the framework reads via
+    # profiles/room_profiles.py::no_water_value. The hardwood/laminate/tile/marble
+    # rows were retired 2026-08-17.
     "carpet_low_pile": "Off",
     "carpet_high_pile": "Off",
 }
 
 # Carpet suction defaults keyed by pile height encoded in floor_type.
+# KEPT deliberately, ruled 2026-08-17 alongside the water-table retirement next
+# door. This looks like the same shape and is not: boosting suction on carpet is
+# what most vacuums do in firmware anyway, so it meets an expectation rather than
+# imposing a preference. The hard-floor WATER rows went because nobody else held
+# that opinion. Do not retire this by applying that reasoning mechanically --
+# see docs/dev/history/floor-type-cleaning-defaults.md.
 FLOOR_TYPE_FAN_DEFAULTS: dict[str, str] = {
     "carpet_low_pile": "Max",
     "carpet_high_pile": "Standard",

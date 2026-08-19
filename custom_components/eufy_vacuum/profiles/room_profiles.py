@@ -192,7 +192,7 @@ def no_water_value(catalog: dict[str, Any] | None) -> str:
 
 
 def _catalog_key(block: dict[str, Any], key: str, default: Any) -> Any:
-    """RP-025/RF-18 clause (ii): presence, not truthiness — ``key in block`` so a
+    """RP-025/RF-18 (IN40W49E) clause (ii): presence, not truthiness — ``key in block`` so a
     brand's DECLARED-empty value (e.g. ``builtins: {}``, "this brand ships no
     framework built-ins") is honored, not conflated with the key being absent
     entirely. The old ``block.get(key) or default`` treated any falsy declared
@@ -205,6 +205,7 @@ def _catalog_key(block: dict[str, Any], key: str, default: Any) -> Any:
     return block[key]
 
 
+# anchor: IN40W49E  core holds no brand's vocabulary - undeclared resolves EMPTY
 def resolve_profile_catalog(block: dict[str, Any] | None) -> dict[str, Any]:
     """Resolve an adapter's ``room_profiles`` block. There is NO framework default.
 
@@ -624,45 +625,46 @@ def resolve_room_profile_for_room(
     resolved_fan_speed = str(room_config.get("fan_speed", resolved_profile.get("fan_speed", "")))
     resolved_water_level = str(room_config.get("water_level", resolved_profile.get("water_level", "")))
 
-    # Carpet overrides fan speed and suppresses water; hard floors apply
-    # per-surface water defaults only when the room has no explicit override.
+    # anchor: IN11T0FS  settings resolve room-explicit > profile > ABSENT; the carpet
+    # clamp is the only rule above that ladder, and absent is omitted, never invented
     #
-    # Both come from the CATALOG, which a brand declares. floor_type_water_defaults already
-    # maps carpet -> the brand's no-water value, so the carpet arm reads it rather than
-    # assigning a literal "Off" — that literal wrote Eufy casing into a Roborock
-    # resolution, where the value is "off".
+    # CARPET is the framework's ONE surface rule, and it is a safety property: never
+    # put water on a carpet. The word for "no water" belongs to the brand and is read
+    # from its own carpet entry rather than assigned as a literal -- that literal wrote
+    # Eufy casing ("Off") into a Roborock resolution, where the value is "off".
+    #
+    # There is deliberately NO hard-floor arm here any more. Per-surface water defaults
+    # (hardwood -> Low, tile -> Medium, ...) were RETIRED 2026-08-17: they applied the
+    # author's preference to every user who had not set a water level, and nothing in
+    # the UI ever said that answering "what is the floor here?" would also choose how
+    # wet to mop it. See docs/dev/history/floor-type-cleaning-defaults.md. floor_type
+    # still drives the map render and the onboarding gate; it no longer drives settings.
     if floor_type.startswith("carpet"):
         resolved_fan_speed = fan_defaults.get(floor_type, "")
         resolved_water_level = water_defaults.get(floor_type, "")
-    elif "water_level" not in room_config and "water_level" not in resolved_profile:
-        # Q2/RP-024 clause 1: this used to check ONLY the room's own dict, never
-        # whether the SELECTED PROFILE supplied water_level -- so a room relying
-        # on its profile (the normal case, no per-room override) always failed
-        # the old check, and the floor's hard-floor water default silently
-        # overwrote whatever the room > profile ladder above had just resolved,
-        # even a real, explicit profile water_level. Every sibling field's
-        # ladder is untouched by floor_type at all off carpet; this is the one
-        # field where "floor default" outranked "explicit profile value".
-        resolved_water_level = water_defaults.get(floor_type, "")
 
-    # Mop mode with no water is invalid — fall back to the floor's water default.
+    # NO hard-floor water correction. There used to be one here -- "mop mode with no
+    # water is invalid, so fall back to the floor's default" -- and it died with the
+    # per-surface table it depended on (2026-08-17, history/floor-type-cleaning-defaults.md).
     #
-    # "No water" is a FRAMEWORK concept; the WORD for it belongs to the brand, and is
-    # read from its declaration (the carpet water default) rather than matched against a
-    # literal. This was `in ("", "off")`, which was itself a repair — the original strict
-    # == "Off" never fired on Roborock, whose value is lowercase, so a mop room with
-    # water off stayed dry-mopping. Widening the literal to a case-insensitive pair fixed
-    # the two brands that happen to spell it "off" and left every other brand broken in
-    # exactly the same way. A brand declaring "dry", "none" or "0" was silently
-    # unrecognised, and the correction never ran.
-    no_water = no_water_value(catalog)
-    _absent_water = {"", no_water.strip().lower()}
-    if (
-        is_mop_clean_mode(resolved_clean_mode)
-        and resolved_water_level.strip().lower() in _absent_water
-        and not floor_type.startswith("carpet")
-    ):
-        resolved_water_level = water_defaults.get(floor_type, "")
+    # It is NOT simply pending a replacement value, and this is the part worth reading
+    # before restoring it:
+    #
+    #   * A guard that fires and then assigns "" is indistinguishable from one that never
+    #     fired. Re-adding it with an empty fallback would be dead code that looks alive.
+    #   * The premise is unproven. "Mop mode with no water is invalid" was never argued --
+    #     dry mopping is a real mode this integration already exposes as a dock action.
+    #     A user who selects mop and turns water off may mean exactly that.
+    #   * If it IS restored, the value is canonical `low`, not a per-surface choice and not
+    #     a literal. The framework owns canonical water keys -- low/medium/high, see
+    #     adapters/config_schema.py's water_level_aliases -- but that vocabulary is only
+    #     translated INBOUND (brand -> canonical, for learning and rate estimation). There
+    #     is no canonical -> brand direction yet, and inventing one here by reading
+    #     declared option ORDER was tried and backed out: order is a convention no adapter
+    #     states, and water_level_options lives in the `vocabulary` block, not this catalog.
+    #
+    # Until that translation exists, a mop room whose water is off keeps water off, and
+    # the wire omits the field (queue_engine's value gate). The device keeps its setting.
 
     # Edge mopping is only meaningful for mop modes on non-carpet floors.
     # ISSUE #48: this was an exact, case-SENSITIVE set membership test, so the

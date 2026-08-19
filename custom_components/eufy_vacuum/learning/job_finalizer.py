@@ -1742,7 +1742,7 @@ class LearningJobFinalizer:
             outcome = completed_job.get("outcome", {})
             outcome_status = str(outcome.get("status", "")).lower()
             if outcome_status not in {"cancelled", "failed", "interrupted"}:
-                # RP-013c/RF-11 (#16:A4-STATE-2): clear ONLY when this run actually
+                # RP-013c/RF-11 (INQ619A6) (#16:A4-STATE-2): clear ONLY when this run actually
                 # covers what the log is complaining about. The old rule cleared on ANY
                 # normal completion, so a one-room Kitchen clean silently erased a log
                 # about a different run's stranded Bedroom and Den -- the user lost the

@@ -15,6 +15,26 @@ Owns:
 Receives manager (EufyVacuumManager) parent reference.
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   INQ619A6  `learning/utils.py#INQ619A6`
+#       A2-CAN-2 (closed RP-013c): Cancelling a sequenced run reports the WRONG missed rooms — per-phase reset of
+#              queue_room_ids/completed_room_ids feeds the incomplete-run log and trouble-rooms
+#       A3-REC-3: A phased job never records a completed room, so live progress freezes on the group's
+#              first room and the stall detector fires a false 'stuck' event mid-run
+
+
 from __future__ import annotations
 
 import asyncio
@@ -276,7 +296,7 @@ class ActiveJobTracker:
         # Sensor update callbacks — same pattern as ErrorTracker.add_update_listener.
         # Fired with (vacuum_entity_id, map_id) on job status transitions.
         self._update_listeners: list[Callable[[str, str], None]] = []
-        # RP-002/RF-01: job_ids already WARNed about a stranded-finalize refusal —
+        # RP-002/RF-01 (IN5BRA39): job_ids already WARNed about a stranded-finalize refusal —
         # dedups the reaper's per-tick log spam while a slot stays unfinalizable.
         self._stranded_finalize_warned: set[str] = set()
         # RP-013e: (vacuum_entity_id, job_id) pairs already WARNed about more than
@@ -2677,6 +2697,7 @@ class ActiveJobTracker:
         finalize_result: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Mark one tracked job finalized in runtime storage."""
+        # anchor: INNJ6SGC  exits belong at the TERMINAL chokepoint, not a happy-path finally
         # RP-012/RF-31 (TRK-1): this is the terminal chokepoint every path
         # reaches -- cancel, strand, success -- so release the mapping
         # tracker's hold on this job HERE, not only from the lifecycle
@@ -2700,7 +2721,7 @@ class ActiveJobTracker:
         # mid-watchdog could otherwise leave it set). Harmless to the live gate, which
         # only inspects started/paused jobs, but keeps the stored record clean.
         active_job["_phase_dispatch_pending"] = False
-        # RP-010/RF-06: the cancel single-flight latch is cleared HERE — this is the
+        # RP-010/RF-06 (IN5TNKMD): the cancel single-flight latch is cleared HERE — this is the
         # terminal chokepoint every cancel/strand/success path reaches, so a fresh
         # job later reusing this slot never inherits a stale latch.
         active_job["_cancel_in_flight"] = False
@@ -3068,7 +3089,7 @@ class ActiveJobTracker:
         mid_run_set = frozenset(str(s).strip().lower() for s in (mid_run or []))
         task_status_n = str(signals.get("task_status", "")).strip().lower()
 
-        # RP-011/RF-07 (STR-1): dock_status is already fetched into `signals` above
+        # RP-011/RF-07 (INZKT2QF) (STR-1): dock_status is already fetched into `signals` above
         # but was never consulted here — a dock service cycle (mop wash / waste
         # water recycling) reads docked+task-status-not-yet-completed exactly like
         # a genuine strand, so without this a mid-service dock could be reaped as

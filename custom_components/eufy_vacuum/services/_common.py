@@ -25,6 +25,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from ..const import DATA_RUNTIME, DOMAIN
@@ -74,6 +75,69 @@ def resolved_call_data(hass: HomeAssistant, call: ServiceCall) -> dict:
     if resolved:
         data["map_id"] = resolved
     return data
+
+
+
+# anchor: INKV8ZQD  durable per-vacuum state is minted only for a MANAGED vacuum;
+# a write to an unmanaged one refuses, a read returns the empty shape with a reason
+def is_managed_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> bool:
+    """True when this integration actually manages ``vacuum_entity_id``.
+
+    ``cv.entity_id`` validates the SHAPE ``domain.object_id`` and nothing else —
+    not that the entity exists, and certainly not that we manage it. Every
+    per-vacuum store keyed off an unchecked id therefore mints a durable bucket
+    for whatever string an automation happened to pass.
+
+    The authority is ``data["vacuums"]``, the same dict ``get_managed_vacuums``
+    reads. It only became usable as an authority on 2026-08-18, when
+    ``get_pause_timeout_settings`` — a registered READ service — stopped
+    setdefault-ing into it. A gate cannot be built on a dict its own read path
+    writes to.
+    """
+    manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+    if manager is None:
+        return False
+    return str(vacuum_entity_id) in (manager.data.get("vacuums") or {})
+
+
+def require_managed_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> None:
+    """Refuse a WRITE aimed at a vacuum this integration does not manage.
+
+    Raises ``ServiceValidationError`` (caller error, not internal failure), so HA
+    surfaces it as a toast rather than a traceback — see ``INT62M7A``: a mutation
+    either refuses with a reason or succeeds carrying what it applied. Silently
+    minting a bucket and reporting success is the third thing, and it is the bug.
+
+    WRITES ONLY. Reads return their empty shape with a ``reason`` instead, because
+    a read is how a card discovers state and turning discovery into an error trades
+    a blank panel for a red toast. The split is inspectable per handler — mutating
+    or not — rather than a judgement call per service.
+
+    Ruled 2026-08-18. Safe to activate: every per-vacuum store on the reference
+    install keyed only on the three managed vacuums, so there was no existing
+    phantom for this to start rejecting.
+    """
+    if not is_managed_vacuum(hass, vacuum_entity_id):
+        raise ServiceValidationError(
+            f"{vacuum_entity_id} is not a vacuum this integration manages.",
+            translation_domain=DOMAIN,
+            translation_key="unmanaged_vacuum",
+            translation_placeholders={"vacuum_entity_id": str(vacuum_entity_id)},
+        )
+
+
+def unmanaged_vacuum_read_result(vacuum_entity_id: str, **empty_shape) -> dict:
+    """The empty-but-honest payload a READ returns for an unmanaged vacuum.
+
+    Carries ``reason`` so a consumer can tell "nothing here" from "not ours" —
+    the distinction the phantom buckets destroyed, since minting one made the two
+    byte-identical forever after.
+    """
+    return {
+        "vacuum_entity_id": str(vacuum_entity_id),
+        "reason": "unmanaged_vacuum",
+        **empty_shape,
+    }
 
 
 def job_finished_event_payload(

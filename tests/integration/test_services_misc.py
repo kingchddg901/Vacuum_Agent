@@ -54,7 +54,7 @@ async def test_acknowledge_error_no_tracker_scope_variant(hass, manager_with_ser
 # [SM-2] get_recent_errors — no tracker
 # ---------------------------------------------------------------------------
 
-async def test_get_recent_errors_no_tracker_graceful(hass, manager_with_services):
+async def test_get_recent_errors_no_tracker_graceful(hass, manager_with_services, managed_vacuum):
     """[SM-2] Returns empty errors list with reason='tracker_not_loaded' when no tracker."""
     result = await hass.services.async_call(
         DOMAIN,

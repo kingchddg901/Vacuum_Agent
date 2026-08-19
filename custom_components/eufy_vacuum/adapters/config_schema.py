@@ -1920,6 +1920,7 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
 
 
 # ---------------------------------------------------------------------------
+# anchor: INYA5T84  runtime validation is the SAME walk as the tests; severity by source
 # Schema walker — RP-033/RF-32.
 #
 # Originally lived only in tests/adapters/test_adapter_contract.py as a

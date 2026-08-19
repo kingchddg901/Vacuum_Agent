@@ -74,6 +74,29 @@ If the last stats rebuild is older than STALE_THRESHOLD_DAYS, the estimate
 payload includes stats_stale=True so the card can warn the user.
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   IN2QDNB3  `learning/history_store.py#IN2QDNB3`
+#       A2-ACC-1 (closed RP-006): A single transient read failure makes record_estimate_accuracy silently overwrite
+#              the entire accuracy history with one job's rooms
+#   IN40W49E  `profiles/room_profiles.py#IN40W49E`
+#       A1-EST-7 (closed RP-025): _load_mop_wash_config hard-codes Eufy's wash-frequency bounds (15/20/25) in the
+#              brand-agnostic estimator while the adapter already declares wash_frequency_bounds
+#       A1-EST-8 (closed RP-025): is_mop raw-compares clean_mode against a hand-copied literal set while the very same
+#              function canonicalizes it for the stats lookup
+
+
 from __future__ import annotations
 
 import copy

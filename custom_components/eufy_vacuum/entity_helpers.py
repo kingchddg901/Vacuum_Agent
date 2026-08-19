@@ -100,6 +100,7 @@ def unique_ids_for_map(
     room_ids: "list[int] | list[str]",
     suffixes: "tuple[str, ...] | list[str]" = ROOM_ENTITY_SUFFIXES,
 ) -> set[str]:
+    # anchor: IN4CW5Y9  ownership = forward reconstruction, never a registry prefix scan
     """FORWARD-reconstruct the exact unique_id set for one vacuum/map's rooms.
 
     RP-009 (RF-04): the builder and the matcher live side by side so ownership

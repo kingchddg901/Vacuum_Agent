@@ -1,5 +1,28 @@
 """Builds queue state, room-clean payloads, and frozen active job snapshots."""
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   IN40W49E  `profiles/room_profiles.py#IN40W49E`
+#       DQ-PAY-5 (closed RP-025): _write_room_field's value_map is fail-open: an unmapped
+#              canonical value is emitted raw
+#   INQ619A6  `learning/utils.py#INQ619A6`
+#       DQ-PH-2 (closed RP-013c): advance_active_job_phase resets completed_room_ids and no
+#              code path ever refills them for a phased job
+#   IN76GE4W  `dispatch/manager.py#IN76GE4W`
+#       DQ-Q-7 (closed RP-021a): build_room_clean_payload treats an empty queue_room_ids as
+#              "no filter" rather than "no rooms"
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -24,7 +47,11 @@ from ..profiles.room_profiles import (
 # queue_entries / payload_items). Kept as documentation of the intended canonical
 # shapes; they are total=False and unused for runtime validation.
 class QueueEntry(TypedDict, total=False):
-    """Canonical shape for one entry in the room queue.
+    """ASPIRATIONAL shape for one entry in the room queue -- NOT what is emitted.
+
+    DQ-PH-5: see the NOTE above the class. This is repeated on each class on
+    purpose -- the warning used to sit only above the first one, so a reader
+    landing here from a jump-to-definition read "Canonical" and never saw it.
 
     ``stable_key`` is ``"{vacuum_entity_id}:{map_id}:{room_id}"`` — a composite
     key that uniquely identifies a room regardless of its queue position.
@@ -42,7 +69,7 @@ class QueueEntry(TypedDict, total=False):
 
 
 class PayloadItem(TypedDict, total=False):
-    """Canonical shape for one room's vacuum command payload.
+    """ASPIRATIONAL (DQ-PH-5 -- see the NOTE above QueueEntry). Intended shape for one room's vacuum command payload.
 
     Derived from ``QueueEntry`` at payload-build time. Capability gating has
     already been applied; ``path_type`` is always present.
@@ -61,7 +88,11 @@ class PayloadItem(TypedDict, total=False):
 
 
 class ActiveJobSnapshot(TypedDict, total=False):
-    """Canonical shape for a frozen active job snapshot.
+    """ASPIRATIONAL shape for a frozen active job snapshot -- NOT what is emitted.
+
+    DQ-PH-5: the live shape is the flat ``active_job`` dict written by
+    ``build_active_job_state``; there are no ``queue_entries`` / ``payload_items``
+    sub-dicts. See the NOTE above QueueEntry.
 
     Frozen by ``build_active_job_state()`` at job start and treated as
     immutable for the duration of the job. Only ``status`` and ``ended_at``
@@ -330,7 +361,19 @@ def build_room_clean_payload(
         # telling them apart.
         is_mop = is_mop_clean_mode(clean_mode)
 
-        if supports_water and is_mop:
+        # DQ-PAY-2 (IN11T0FS): the VALUE gates this too, exactly like path_type below. The
+        # floor->water table is brand-declared advice; `granite` and `concrete` are
+        # offered as floor types (entity_helpers.py) and appear in NEITHER brand's
+        # table, so a mop room on one resolves to "" -- and _write_room_field passes
+        # values through unchanged, so that "" reached the device as a water level.
+        #
+        # Absent is not "off". CARPET is the one surface where the framework
+        # guarantees water off (profiles/room_profiles.py::no_water_value) and carpet
+        # HAS a declared value, so this gate never touches the guarantee -- it drops
+        # only a level nobody declared. Same shape the wire already uses for a dry
+        # room, kept on resolved_rooms and dropped from the payload (GPC-6b); the
+        # global pre-calls read resolved_rooms, so safest-water is unaffected.
+        if supports_water and is_mop and water_level:
             _write_room_field(payload_room, room_fields, "water_level", water_level)
 
         if supports_edge and is_mop:

@@ -76,7 +76,7 @@ async def test_acknowledge_error(hass, manager_with_services):
     tracker.acknowledge.assert_called_once_with(_VAC, scope="both")
 
 
-async def test_get_recent_errors(hass, manager_with_services):
+async def test_get_recent_errors(hass, manager_with_services, managed_vacuum):
     """[SVE-2]"""
     result = await _call(hass, SERVICE_GET_RECENT_ERRORS, {"vacuum_entity_id": _VAC})
     assert result["errors"] == [] and result["reason"] == "tracker_not_loaded"

@@ -57,6 +57,9 @@
     },
     "finalize_learning_job_refused": {
       "message": "finalize_learning_job geweigerd: {reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id} is geen stofzuiger die door deze integratie wordt beheerd."
     }
   },
   "entity": {

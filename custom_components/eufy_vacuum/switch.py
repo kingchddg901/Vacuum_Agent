@@ -68,7 +68,7 @@ async def async_setup_entry(
             )
             desired[entity.unique_id] = entity
 
-        # RP-009 (RF-04): stale = OWNED by this vacuum/map (live attributes, via
+        # RP-009 (RF-04 (IN4CW5Y9)): stale = OWNED by this vacuum/map (live attributes, via
         # entity_belongs_to) and absent from desired — never a unique_id prefix
         # scan, which matched sibling vacuums whose entity_id is a string prefix
         # (vacuum.alfred_2 under vacuum.alfred + map "2" — DR-SETUP-1).

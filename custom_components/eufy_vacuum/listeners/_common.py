@@ -18,6 +18,24 @@ Public surface:
 - run_incomplete_event_data(*, vacuum_entity_id, finalize_result) -> dict | None
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   INYA5T84  `adapters/config_schema.py#INYA5T84`
+#       A3-COMMON-2 (closed RP-033): completion_secondary_satisfied() returns True from a config FLAG without verifying
+#              the entity it delegates to exists; the "Invariant" asserted in the caller is never
+
+
 from __future__ import annotations
 
 from typing import Any
@@ -79,6 +97,7 @@ def is_dock_trigger_edge(
     new_state_value: str | None,
     trigger_vocabulary: frozenset[str] | set[str],
 ) -> bool:
+    # anchor: IN96V4SA  an edge needs a KNOWN prior; arrival is not a transition
     """Whether a dock_status transition is a genuine edge INTO a trigger state.
 
     RP-038 (RF-30) / LIFE-3: the shared edge test both dock_events.py's
@@ -146,6 +165,9 @@ def get_lifecycle_watch_entities(vacuum_entity_id: str) -> list[str]:
     return watch
 
 
+# INFJXSM4 enforced at `listeners/path_blockers.py#INFJXSM4` — the keyword below IS the
+# rule: an unreadable signal is indeterminate, so the CALLER declares what that means here
+# (detection and finalization want opposite answers) rather than this helper collapsing it.
 def is_job_active(
     hass: HomeAssistant,
     vacuum_entity_id: str,

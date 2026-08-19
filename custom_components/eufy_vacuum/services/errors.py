@@ -20,6 +20,7 @@ from ..const import (
     SERVICE_ACKNOWLEDGE_ERROR,
     SERVICE_GET_RECENT_ERRORS,
 )
+from ._common import is_managed_vacuum, unmanaged_vacuum_read_result
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,6 +63,10 @@ async def _handle_acknowledge_error(hass: HomeAssistant, call: ServiceCall) -> d
     Does not affect upstream. The next rising edge re-creates whichever
     latch the upstream condition triggers.
     """
+    # INKV8ZQD: deliberately NOT guarded. acknowledge() early-returns on
+    # `vacuum_entity_id not in root`, so it never mints -- it is not an RF-15
+    # site, and raising here would turn a clean acknowledged:False into an
+    # error for no gain. Do not "complete" the guard by adding one.
     vacuum_entity_id = call.data["vacuum_entity_id"]
     scope = str(call.data.get("scope") or "both").strip().lower()
     tracker = hass.data.get(DOMAIN, {}).get(DATA_ERROR_TRACKER)
@@ -77,6 +82,12 @@ async def _handle_acknowledge_error(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_get_recent_errors(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return the last N entries from the per-device recent_errors ring buffer."""
+    # INKV8ZQD: this is the read whose get_record docstring says "creates if
+    # absent" -- answer empty rather than mint, and never raise on a read.
+    if not is_managed_vacuum(hass, call.data["vacuum_entity_id"]):
+        return unmanaged_vacuum_read_result(
+            call.data["vacuum_entity_id"], errors=[], count=0
+        )
     vacuum_entity_id = call.data["vacuum_entity_id"]
     limit_raw = call.data.get("limit", 20)
     try:

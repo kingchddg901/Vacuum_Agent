@@ -57,6 +57,9 @@
     },
     "finalize_learning_job_refused": {
       "message": "finalize_learning_job 거부됨: {reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id}은(는) 이 통합이 관리하는 청소기가 아닙니다."
     }
   },
   "entity": {

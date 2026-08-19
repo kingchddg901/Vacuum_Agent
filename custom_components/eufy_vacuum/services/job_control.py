@@ -18,6 +18,27 @@ don't fire those events themselves (the lifecycle listener / pause-timeout
 listener / path-blocker listener own those firings).
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   IN76GE4W  `dispatch/manager.py#IN76GE4W`
+#       A2-JOB-4 (closed RP-022): start_zone_clean clean_times has no upper bound; the schema comment claims a
+#              dispatch-side per-brand ceiling that exists only on the Roborock branch
+#   INGZFYXX  `profiles/manager.py#INGZFYXX`
+#       A2-JOB-7 (closed RP-031): async_save() sits after the try/except in every job_control handler — a raise after
+#              dispatch leaves a running job in memory only
+
+
 from __future__ import annotations
 
 import logging
@@ -183,7 +204,7 @@ async def _handle_start_run_profile(hass: HomeAssistant, call: ServiceCall) -> d
     return payload
 
 
-#: RP-010/RF-06 (JOB-2): a zone clean must not stack a second dispatch on a job
+#: RP-010/RF-06 (IN5TNKMD) (JOB-2): a zone clean must not stack a second dispatch on a job
 #: already in flight, but it must NOT newly acquire the room-queue readiness gates
 #: (no_target_map, onboarding, all_selected_rooms_blocked) that its own zones-based
 #: dispatch never depended on.

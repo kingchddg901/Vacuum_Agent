@@ -7,6 +7,26 @@ Four services:
 - update_room_fields: write per-room field overrides
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   IN40W49E  `profiles/room_profiles.py#IN40W49E`
+#       A3-ROOMS-6 (closed RP-025): update_room_fields accepts any clean_mode string; a casing/spelling variant keeps
+#              water in storage and in the UI but silently drops it from the wire payload
+#       A3-ROOMS-9 (closed RP-025): update_room_fields accepts any fan_speed string; on Roborock an unrecognised value
+#              leaves the device's previous suction in place with no error
+
+
 from __future__ import annotations
 
 import logging
@@ -104,7 +124,7 @@ _SAVE_MANAGED_ROOMS_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Optional("map_id"): cv.string,
         vol.Optional("enabled_room_ids"): _enabled_room_ids_validator,
-        # RP-032/RF-28: the manager genuinely accepts this (rooms/room_crud.py
+        # RP-032/RF-28 (INJSETB0): the manager genuinely accepts this (rooms/room_crud.py
         # save_managed_rooms(floor_types=...)); the schema was just missing
         # the field services.yaml already documented.
         vol.Optional("floor_types"): vol.Schema({cv.string: cv.string}),

@@ -113,6 +113,7 @@ class DispatchManager:
         min_area: float | None,
         max_area: float | None,
     ) -> None:
+        # anchor: IN76GE4W  limits resolve ABOVE the branch; enforced by declaration, not path
         """Check one zone's side + area bounds. Shared by BOTH coordinate branches
         (RP-022/RF-23) so a declared bound is enforced regardless of which branch
         the adapter takes — previously area bounds only existed inside the

@@ -263,6 +263,7 @@ def _normalize_graph_targets(value: Any) -> list[int]:
     return normalized
 
 
+# anchor: IN5BRA39  a refusal is not a success - success CARRIES its payload
 def finalize_result_succeeded(result: Any) -> bool:
     """True iff a finalize result is a real success (carries a completed_job dict).
 

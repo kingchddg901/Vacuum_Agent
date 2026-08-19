@@ -25,6 +25,24 @@ Extracted from core/manager.py (the orchestrator delegates ``maybe_advance_phase
 ``_run_advanced_phase`` for the initial phase from ``start_selected_rooms``).
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   INYA5T84  `adapters/config_schema.py#INYA5T84`
+#       A1-WD-5 (closed RP-011): Adapter-declared phase_timing overrides are applied with no clamping — poll_seconds:
+#              0 pins the event loop in a hot loop, max_attempts: 0 dispatches nothing and wedges
+
+
 from __future__ import annotations
 
 import asyncio
@@ -318,7 +336,7 @@ class PhaseRunner:
         _still_ours logic makes a fresh spawn idempotent; the wait poller recomputes its deadline
         from the persisted ``wait_started_at`` so a restart mid-wait doesn't restart the full timer.
 
-        RP-011/RF-07 (WD-4/CAN-4): a ``room_group`` / ``zone`` phase's ONLY driver is ALSO an
+        RP-011/RF-07 (INZKT2QF) (WD-4/CAN-4): a ``room_group`` / ``zone`` phase's ONLY driver is ALSO an
         in-memory asyncio task — ``_run_advanced_phase``'s watchdog — and loses it exactly the
         same way. Previously nothing re-armed those, so a restart/resume mid-strict-order left
         the run wedged with no dispatcher at all. Spawns a fresh watchdog attempt
@@ -1532,7 +1550,7 @@ class PhaseRunner:
                         # exists on the current map, or freshness could not be
                         # established) is not a transient — retrying the same phase
                         # cannot succeed. Log, record the skip on the stored job
-                        # (cumulative evidence for RF-11), release the guard and
+                        # (cumulative evidence for RF-11 (INQ619A6)), release the guard and
                         # advance to the next phase instead of wedging the run.
                         _LOGGER.warning(
                             "Strict-order: phase %s on %s refused by live resolution "
@@ -2142,6 +2160,7 @@ class PhaseRunner:
             resolved_rooms=list(job.get("resolved_rooms", [])),
         )
 
+        # anchor: IN5TNKMD  re-read the intent FROM THE STORE after the last await
         # RP-010/RF-06: the chokepoint. Four sequential awaits sit between the
         # top-of-attempt check and the wire send with no re-read in between — a
         # cancel/pause landing anywhere in that window still reached the send.

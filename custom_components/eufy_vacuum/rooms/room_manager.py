@@ -72,6 +72,8 @@ def build_managed_rooms(
     ``rebuild_map``) are responsible for guarding an empty result against a non-empty
     stored map via ``room_crud._refuse_destructive_replace`` before assigning it.
 
+    anchor: INMKEHPQ  room identity is the SLUG, scoped to its map; the id renumbers
+
     RP-018/RF-25b: carry-over is SLUG-LED with id fallback (REC-8/CRUD-2) — a
     re-segment renumber must not transplant one physical room's settings onto
     whichever room now happens to hold its OLD numeric id. Q5 (verbatim):

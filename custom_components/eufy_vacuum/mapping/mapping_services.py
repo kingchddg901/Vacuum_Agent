@@ -1,5 +1,38 @@
 """Service handlers for the Eufy Vacuum mapping module."""
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   IN2QDNB3  `learning/history_store.py#IN2QDNB3`
+#       A3-IMAGE--2 (closed RP-006): A failed or unavailable segmenter run overwrites the good cached segmentation with
+#              an empty available:False envelope and persists it
+#       A3-IMAGE--3 (closed RP-006): The analyze cache-hit gate tests truthiness, so a cached FAILURE envelope is served
+#              as a valid cache forever
+#   IN76GE4W  `dispatch/manager.py#IN76GE4W`
+#       A1-SERVIC-3 (closed RP-022): `clean_times` has no upper bound, defended by a sibling comment claiming dispatch
+#              enforces the per-brand ceiling — dispatch clamps it only on the Roborock
+#       A6-ZONE-C-8 (closed RP-022): Zone size limits are not enforced at author time, contradicting the doc — an un-
+#              cleanable zone can be saved and only fails when the user taps clean
+#   INMKEHPQ  `rooms/room_manager.py#INMKEHPQ`
+#       A2-POLYGO-5: Stale `image_segment_adjustments` survive a CV re-analysis and are re-applied by
+#              segment_id to whatever polygon now carries that id - moving a room the user never
+#       A3-IMAGE--1: Re-analysis rebinds the user's room links and manual segment adjustments onto
+#              positionally-reassigned segment ids
+#   INYA5T84  `adapters/config_schema.py#INYA5T84`
+#       A1-SERVIC-1 (closed RP-028): No mapping write service can tell "this map exists" from "this map does not" — every
+#              schema takes a free-form map_id and every handler mints the bucket, so an edit
+
+
 from __future__ import annotations
 
 import asyncio
@@ -326,7 +359,7 @@ CREATE_SAVED_ZONE_SCHEMA = vol.All(
             vol.Required("map_id"): cv.string,
             vol.Required("name"): cv.string,
             vol.Required("geometry"): vol.All([_SAVED_ZONE_POINT], vol.Length(min=3)),
-            # RP-032/RF-28 (A6-ZONE-C-7): "clean" is the only kind either clean
+            # RP-032/RF-28 (INJSETB0) (A6-ZONE-C-7): "clean" is the only kind either clean
             # handler reads -- both dispatch on the geometry bbox alone regardless
             # of kind, so an unconstrained string (e.g. "no_go") got persisted and
             # was then dispatched as a clean anyway. Restrict to what dispatch
@@ -847,7 +880,9 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
         os.makedirs(base_dir, exist_ok=True)
         with open(file_path, "wb") as fh:
             fh.write(image_bytes)
-        # A3-IMAGE--8: three sources, most reliable first, and NEVER persist nulls.
+        # A3-IMAGE--8 (INT62M7A): three sources, most reliable first, and NEVER
+        # persist nulls. The refusal below also UNLINKS the file it just wrote --
+        # a refusal that leaves half its work behind is a second bug.
         # This used to be Pillow-or-declared. Pillow is genuinely optional
         # (manifest requirements are empty), and the declared fallback is empty in
         # practice -- image_width/image_height are optional in the schema and the
@@ -990,7 +1025,7 @@ def _mark_segments_stale_for_variant(map_bucket: dict, variant: str) -> bool:
 
 def _clear_layout_references_to_variant(map_bucket: dict, variant: str) -> dict[str, int]:
     """Sweep every custom_layouts entry for a reference to a deleted image
-    variant and clear it (RP-016/RF-20, delegation-checked against
+    variant and clear it (RP-016/RF-20 (INJ7VXE7), delegation-checked against
     _handle_upload_map_image's three write sites: backdrop_variant,
     home_art.art_variant, rooms[*].art_variant). Upload keeps these in sync
     when it writes a variant; delete must mirror that or a layout is left
@@ -1282,9 +1317,26 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
         "analyze_map_image: %s segments for %s map %s",
         len(result.get("segments", [])), vacuum_entity_id, map_id,
     )
-    # Enrich with stored overlays before returning. Re-analysis preserves
-    # the user's segment_room_links and companion_anchors — they're
-    # independent of the image-derived segments.
+    # Enrich with stored overlays before returning.
+    #
+    # ⚠ A3-IMAGE--1 / A2-POLYGO-5 / A4-CUSTOM-6 — LIVE, verified 2026-08-18.
+    # This block used to read "re-analysis preserves the user's segment_room_links
+    # and companion_anchors — they're INDEPENDENT of the image-derived segments".
+    # That is backwards, and it read as a decision rather than an assumption.
+    #
+    # `segment_room_links` is {segment_id: room_id}, and segment_id is a MONOTONIC
+    # COUNTER: adapters/eufy/segmentor.py:1085 seeds `segment_id = 1` and bumps it
+    # once per ACCEPTED candidate (:1394, :1482). It is positional — the Nth region
+    # this pass happened to keep — so a re-analysis over changed pixels renumbers.
+    # Preserving the links therefore re-binds the user's room assignments, their
+    # manual vertex nudges (image_segment_adjustments) and adjust_map_segment's
+    # map-level record onto whatever polygon now carries that number.
+    #
+    # This is INMKEHPQ at a third site: identity is the SLUG scoped to its map, and
+    # a renumbering handle must not carry durable user intent. The three findings
+    # are ONE root and want ONE fix — a stable segment identity (centroid- or
+    # content-derived, or an explicit remap emitted by the analyze pass) — not
+    # three patches. Deferred deliberately; do not paper over it here.
     return _build_segments_response(map_bucket)
 
 
@@ -1717,7 +1769,7 @@ def _resolve_active_scope(map_bucket: dict) -> dict:
     keys; custom → the active layout's keys. Call after ``_migrate_custom_layouts``.
 
     ``links``/``anchors`` are the real mutable dicts ONLY when ``resolved`` is
-    True. A4-CUSTOM-2: the custom-mode-with-no-layout branch has to return
+    True. INT62M7A / A4-CUSTOM-2: the custom-mode-with-no-layout branch has to return
     something, and it returns fresh throwaway literals bound to nothing. A writer
     that mutates those is writing into a dict the garbage collector takes on the
     next line — while reporting ``saved: True``. Every caller that WRITES must
@@ -2818,7 +2870,7 @@ async def _handle_clean_saved_zone(hass: HomeAssistant, call: ServiceCall) -> di
         active_map_id = get_active_map_id(hass, vacuum_entity_id)
     except Exception:  # noqa: BLE001
         active_map_id = None
-    # RP-029/ZONE-C-1: indeterminate != match (RF-13's rule, already applied to
+    # RP-029/ZONE-C-1: indeterminate != match (RF-13 (INFJXSM4)'s rule, already applied to
     # blocker rules by RP-008). An unreadable active_map signal used to fall
     # through this guard's own "not None" condition — the zone dispatched with
     # no evidence it was even on the right map. A saved zone's geometry is only

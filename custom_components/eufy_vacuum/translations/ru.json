@@ -57,6 +57,9 @@
     },
     "finalize_learning_job_refused": {
       "message": "finalize_learning_job отклонено: {reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id} — не пылесос, управляемый этой интеграцией."
     }
   },
   "entity": {

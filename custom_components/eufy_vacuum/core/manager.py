@@ -1,5 +1,35 @@
 """Central orchestrator for the eufy_vacuum integration, managing vacuum state, room configuration, job control, queue building, map management, and all service handlers."""
 
+# ---------------------------------------------------------------------------
+# System invariants that bind in this file. Each is DECLARED and explained
+# elsewhere (docs/dev/00b-invariants.md indexes them); these are references, so
+# `python scripts/doc_anchor.py --show <TOKEN>` reaches the rule from here.
+#
+#   IN40W49E  `profiles/room_profiles.py#IN40W49E`  core holds no brand's
+#             vocabulary. The startup backfill and setup_progress migration
+#             hard-code Eufy words; the capability projection in
+#             get_dashboard_snapshot still defaults five adapter-config reads to
+#             Eufy's answers (passes_max 2, zone_max 10, supports_* True).
+#   IN76GE4W  `dispatch/manager.py#IN76GE4W`  a declared limit is enforced by
+#             declaration, not by branch — zone_max/zone_bounds are surfaced here
+#             and enforced at dispatch; the card is not a gate.
+#   IN2QDNB3  `learning/history_store.py#IN2QDNB3`  read is tri-state. The
+#             room-history preload must not write {} when its rebuild throws, and
+#             must not replace the subtree across an executor await.
+#   INFJXSM4  `listeners/path_blockers.py#INFJXSM4`  an unreadable signal is
+#             indeterminate — mop_active must not collapse "tank unreadable" to a
+#             definite False in the snapshot.
+#   IN5BRA39  `learning/manager.py#IN5BRA39`  a refusal is not a success — the
+#             snapshot reads the exactly-once finalize claim rather than inferring
+#             from status across the finalize await.
+#   INGZFYXX  `profiles/manager.py#INGZFYXX`  resolve and authorize before
+#             mutating — start_selected_rooms' global pre-calls run after live id
+#             resolution, and are still not transactional (see DQ-ACT-6 below).
+#   INYA5T84  `adapters/config_schema.py#INYA5T84`  a config is validated by the
+#             same walk the tests use — refresh_vacuum_capabilities must reproduce
+#             startup's detection inputs, not a narrower set.
+# ---------------------------------------------------------------------------
+
 from __future__ import annotations
 from ..profiles.room_profiles import may_wet_floor
 
@@ -378,6 +408,7 @@ class EufyVacuumManager:
         self._background_tasks: set[asyncio.Task] = set()
         self._timers: set = set()
 
+    # anchor: INT79PB7  everything spawned joins a ledger; teardown is DERIVED, not parallel
     async def async_shutdown(self) -> dict[str, int]:
         """Tear down loop-lifetime work on unload so a reloaded entry's previous
         manager can neither run nor write. Idempotent — a second call is a no-op.
@@ -995,13 +1026,24 @@ class EufyVacuumManager:
 
     def get_pause_timeout_settings(self, *, vacuum_entity_id: str) -> dict[str, Any]:
         """Return persisted paused-job timeout settings for one vacuum."""
-        vacuum_bucket = self.data.setdefault("vacuums", {}).setdefault(
-            vacuum_entity_id, {}
-        )
-        # A READ MUST NOT WRITE. This used to persist its own fallback, which meant
-        # the first read of an unset vacuum stamped a hard value into the store —
-        # after which "never configured" and "deliberately set to this" were
-        # byte-identical, and no later change of default could ever reach it.
+        # A READ MUST NOT WRITE — and until 2026-08-18 this line still did. The
+        # earlier fix removed the persisted FALLBACK but left the two setdefaults,
+        # so reading an unset vacuum stopped stamping a value and went on minting
+        # the BUCKET. The comment below described the half that was fixed, which is
+        # exactly why the other half survived a 463-finding campaign: a guard that
+        # exists reads as complete.
+        #
+        # RF-15 (A5-RUNPROF-8), and this is the site the whole family turns on.
+        # `data["vacuums"]` is what get_managed_vacuums() reads to answer "is this
+        # vacuum managed", and get_pause_timeout_settings is a REGISTERED READ
+        # service (services.yaml:755, snapshots.py). So one read call carrying a
+        # typo'd entity id MINTED A MANAGED VACUUM — which would have silently
+        # defeated require_managed_vacuum(), the guard built on that same dict.
+        # An authority a read can write into cannot gate anything.
+        #
+        # Unchanged for a real vacuum: the fallback was already computed rather
+        # than recorded, so an existing bucket resolves identically.
+        vacuum_bucket = (self.data.get("vacuums") or {}).get(vacuum_entity_id) or {}
         # Absence stays absence; the fallback is computed, not recorded.
         default_minutes = _normalize_pause_timeout_minutes(
             vacuum_bucket.get("pause_timeout_minutes_default"),
@@ -1678,6 +1720,7 @@ class EufyVacuumManager:
 
         return stored
 
+    # anchor: INTCWVFM  observability is INERT - no detection, no write, no lost evidence
     def get_vacuum_capabilities_snapshot(self, *, vacuum_entity_id: str) -> dict[str, Any]:
         """Return the STORED capabilities snapshot for one vacuum — genuinely
         read-only, never triggers detection or a write.
@@ -1857,7 +1900,7 @@ class EufyVacuumManager:
 
         previous_room = dict(room)
 
-        # A6-AGX-2: reject what this edit BREAKS, not what the graph already
+        # A6-AGX-2 (INSJM6KC): reject what this edit BREAKS, not what the graph already
         # carried. The check below validates the whole post-edit graph and used to
         # refuse on any structural issue at all, so a violation that was already
         # stored blocked edits with nothing to do with it — a fan-speed change, an
@@ -2165,6 +2208,12 @@ class EufyVacuumManager:
 
     # ------------------------------------------------------------------
     # Room / map management
+    #
+    # INC63FDF enforced at `rooms/room_crud.py#INC63FDF` — reference, not a second home.
+    # discover_rooms / save_managed_rooms / rebuild_map replace a stored room map
+    # wholesale, and the no-empty-replacement guard lives BEHIND these facades on
+    # purpose (RP-005). Do NOT add a second copy here: a guard written twice is how
+    # this rule fails, and these delegators cannot see the stored map to compare.
     # ------------------------------------------------------------------
 
     def discover_rooms(self, **kwargs) -> dict:

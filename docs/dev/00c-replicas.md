@@ -224,6 +224,28 @@ an accidental duplicate wants a helper, not an entry here.
 - **"is the job_active signal real?"** — `is_job_active` (state is `on`) vs
   `completion_secondary_satisfied` (which tested only that the KEY was declared, until #51).
   Same question, two answers, and the weaker one gated completion.
+- 🔴 **MUTATION — the consumed-id guard.** Slug-led carry with id fallback, written twice:
+  `rooms/room_manager.py::build_managed_rooms` and `maps/map_manager.py`'s rebuild path.
+  The source already says so — *"mirrors `build_managed_rooms`' own consumed_ids guard
+  exactly (same bug, independently written in both writers, same fix)"*. Both are WRITERS of
+  the persisted room store, and the subtle half is identical in each: a slug match consumes
+  the room's OLD numeric id so a renumbered neighbour cannot inherit its settings through the
+  id fallback. Drop that in one copy and the settings transplant returns silently on
+  whichever write path skipped it. Obliged-to-change looks near-certain; unverified.
+  Rule: [[INMKEHPQ]].
+- 🔴 **MUTATION — `_enabled_room_ids_validator`.** `services/rooms.py:86` and
+  `services/setup.py:109`, identical refusal messages today. Both gate the same destructive
+  write — `null` and `[]` are rejected as loud schema errors rather than coerced to "select
+  nothing", which would wipe every managed room. Two service surfaces, one rule, no shared
+  symbol. Rule: [[INC63FDF]].
+- **The sentinel vocabulary** — what counts as "no reading". Five sites, and the memberships
+  already disagree: `adapters/eufy/lifecycle.py:67` carries `"null"`,
+  `adapters/roborock/vocabulary.py:31` does not, `core/error_tracker.py:89` omits `"none"`
+  (its own comment calls that a deliberate last-resort scope), `listeners/path_blockers.py`
+  has its own set inline, and `rooms/room_discovery.py::_ACTIVE_MAP_SENTINELS` is a fifth.
+  Probably NOT one set: the brand files are declaring brand vocabulary, which is correct
+  divergence, while the core ones are answering "is this a reading?" and may be twins with
+  each other. Needs splitting before it can be classified. Rule: [[INFJXSM4]].
 
 Adding one is cheap. Leaving one here is also fine — a listed candidate is honest; an
 anchored set nobody verified is not.

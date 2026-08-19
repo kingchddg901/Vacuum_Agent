@@ -57,6 +57,9 @@
     },
     "finalize_learning_job_refused": {
       "message": "finalize_learning_job 已拒绝：{reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id} 不是此集成管理的扫地机。"
     }
   },
   "entity": {

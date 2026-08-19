@@ -245,7 +245,7 @@ def register_post_job_water_amendment(
     )
     unsub_timeout.append(async_call_later(hass, timeout_seconds, _on_timeout))
 
-    # RP-039/RF-16: join onto the entry's teardown ledger (RP-003's pattern) so a
+    # RP-039/RF-16 (INT79PB7): join onto the entry's teardown ledger (RP-003's pattern) so a
     # mid-watch entry reload/unload cancels this watcher too instead of leaving it
     # running against a torn-down hass. This function has no `entry` parameter —
     # resolve it the same way services/setup.py's setup_add_vacuum already does

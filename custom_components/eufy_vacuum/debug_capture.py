@@ -218,7 +218,7 @@ class DebugCapture:
         self._target: str = TARGET_ALL_FLAGGED  # the UI target-select's current option
         self._last_dump_file: str | None = None
         self._last: collections.deque[dict[str, Any]] = collections.deque()
-        # RP-039/RF-16+RF-33: the auto-stop timer's cancel handle lives HERE (on
+        # RP-039/RF-16 (INT79PB7)+RF-33 (INTCWVFM): the auto-stop timer's cancel handle lives HERE (on
         # the shared singleton) rather than in a service-handler closure, so it's
         # reachable from BOTH the debug_capture_start service AND
         # DebugCaptureSwitch.async_turn_on/off -- previously a service-armed

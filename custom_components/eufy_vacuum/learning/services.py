@@ -21,6 +21,33 @@ SERVICES
   get_next_room                 lightweight next-room shortcut for live job display
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   IN2QDNB3  `learning/history_store.py#IN2QDNB3`
+#       A5-SVC-6 (closed RP-006): rebuild_learning_stats blanks accuracy_stats before replaying it; any failure after
+#              the blank leaves the store empty and the service reports nothing at all
+#   INGZFYXX  `profiles/manager.py#INGZFYXX`
+#       A5-SVC-3 (closed RP-031): retry_missed_rooms permanently destroys the map's room-enable selection and persists
+#              it to disk even when the start was BLOCKED and nothing ran
+#   INJSETB0  `services/queue.py#INJSETB0`
+#       A5-SVC-9 (closed RP-032): Schemas mark map_id Required on three services the documentation marks optional, so
+#              an automation written from the docs fails validation
+#   INQ619A6  `learning/utils.py#INQ619A6`
+#       A4-STATE-1 (closed RP-013c): The final room of EVERY non-completed run is recorded as "missed"; on a stranded run
+#              the documented retry automation re-dispatches the robot in an unbounded loop
+
+
 from __future__ import annotations
 
 import logging
@@ -256,7 +283,7 @@ RESEGMENT_EXTERNAL_RUN_SCHEMA = vol.Schema(
 )
 
 
-# RP-039/RF-16: consumed by async_unregister_learning_services below so
+# RP-039/RF-16 (INT79PB7): consumed by async_unregister_learning_services below so
 # registration and unregistration derive from the SAME list and can never drift
 # apart again (5 of 21 services had silently gone hand-list-only, per-name, and
 # leaked on every unload/reload). Mirrors the pattern services/__init__.py and
@@ -442,7 +469,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
             forced_outcome_status=data.get("forced_outcome_status"),
         )
 
-        # RP-002/RF-01: a refusal ({"finalized": False, "reason": ...}) is not a
+        # RP-002/RF-01 (IN5BRA39): a refusal ({"finalized": False, "reason": ...}) is not a
         # success -- the caller must be told, not handed a fabricated "completed"
         # event. This is the documented manual retry; a caller relying on it needs
         # to see WHY it did not run.
@@ -635,6 +662,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
                 rebuild_csv=call.data.get("rebuild_csv", False),
             )
         )
+        # anchor: IN5ATBW9  a write reaches EVERY derived artifact; 'rebuild' is not partial
         # RP-020/RF-22 (SVC-1): rebuild_learning_job's rebuild_all only reaches the
         # four derived files (job/room stats, jobs index, CSV). The incremental
         # accumulators outside it (learned_zones, battery drain aggregates) kept

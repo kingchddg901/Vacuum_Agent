@@ -57,6 +57,9 @@
     },
     "finalize_learning_job_refused": {
       "message": "finalize_learning_job refusé : {reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id} n'est pas un aspirateur géré par cette intégration."
     }
   },
   "entity": {

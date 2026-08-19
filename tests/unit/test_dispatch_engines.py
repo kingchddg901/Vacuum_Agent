@@ -401,3 +401,82 @@ def test_strict_order_ignored_by_atomic_engine():
     phases = engine.build_phases(strict_order=True, **kwargs)
     assert len(phases) == 1
     assert phases[0] == engine.build_payload(**kwargs)
+
+
+# --- DQ-PAY-2: an undeclared floor's water level must not reach the wire ------
+
+def _water_payload(floor_type: str, *, clean_mode: str = "vacuum_mop", **room: object) -> dict:
+    """One mop room on ``floor_type``, built through the real resolver."""
+    payload = build_room_clean_payload(
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        managed_rooms={
+            "1": {"room_id": 1, "name": "Kitchen", "enabled": True,
+                  "clean_mode": clean_mode, "floor_type": floor_type, "order": 1, **room},
+        },
+        queue_room_ids=[1],
+        stored_profiles=None,
+        capabilities={"supports_mop_features": True, "supports_water_control": True},
+        dispatch={},
+    )
+    rooms = payload["payload"]["rooms"]
+    assert len(rooms) == 1, payload          # a helper that finds no room proves nothing
+    return rooms[0]
+
+
+def test_undeclared_floor_type_omits_water_level():
+    """[DE-W1] DQ-PAY-2: a floor the brand declares no water level for sends NO
+    water_level field, rather than the empty string.
+
+    The synthetic brand declares carpet/hardwood/tile and nothing else — the same
+    gap the shipped brands have, where `granite` and `concrete` are offered as
+    floor types (entity_helpers.py) and appear in neither water table. The
+    resolver correctly refuses to invent a word and yields "", and _write_room_field
+    passes values through unchanged, so without a VALUE gate that "" went to the
+    device as a water level.
+    """
+    # An explicit "" is "nobody chose", stated directly. Retiring the per-surface
+    # table (2026-08-17) closed the path that USED to manufacture this -- the
+    # hard-floor arm overwrote whatever the room > profile ladder had resolved,
+    # including a real profile value (Q2/RP-024 clause 1). What remains is the case
+    # the gate exists for: a room, profile and brand that all decline to say.
+    room = _water_payload("marble", water_level="")
+    assert "water_level" not in room, room
+
+
+def test_carpet_still_sends_the_brands_no_water_word():
+    """[DE-W2] the value gate must not weaken the ONE guarantee the framework makes.
+
+    Carpet is the surface where water is guaranteed off
+    (profiles/room_profiles.py::no_water_value), and carpet HAS a declared value,
+    so it is unaffected by the gate. If this ever fails, the gate has started
+    swallowing a real level and a carpet is about to be wet-mopped.
+    """
+    room = _water_payload("carpet_low_pile")
+    assert room.get("water_level") == "SynthDry", room
+
+
+def test_explicit_room_water_level_still_reaches_the_wire():
+    """[DE-W3] the gate drops only values NOBODY chose — an explicit one still ships.
+
+    Was "a declared non-carpet floor keeps its level", which stopped meaning anything
+    when the per-surface table was retired (history/floor-type-cleaning-defaults.md):
+    hardwood no longer declares one, so that assertion had become a second copy of
+    [DE-W1]. The property worth pinning now is the user's own value surviving.
+    """
+    payload = build_room_clean_payload(
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        managed_rooms={
+            "1": {"room_id": 1, "name": "Kitchen", "enabled": True,
+                  "clean_mode": "vacuum_mop", "floor_type": "hardwood",
+                  "water_level": "SynthWet", "order": 1},
+        },
+        queue_room_ids=[1],
+        stored_profiles=None,
+        capabilities={"supports_mop_features": True, "supports_water_control": True},
+        dispatch={},
+    )
+    rooms = payload["payload"]["rooms"]
+    assert len(rooms) == 1, payload
+    assert rooms[0].get("water_level") == "SynthWet", rooms[0]

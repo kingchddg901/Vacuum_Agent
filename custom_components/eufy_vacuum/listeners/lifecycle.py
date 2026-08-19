@@ -12,6 +12,24 @@ Public surface:
     remove(hass: HomeAssistant) -> None
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   IN40W49E  `profiles/room_profiles.py#IN40W49E`
+#       A2-LIFE-3 (closed RP-025): The inline mop-wash detector diverges from the dedicated dock_events listener: hard-
+#              coded Eufy wash vocabulary as a fallback, and no same-state guard against attribute-
+
+
 from __future__ import annotations
 from ..profiles.room_profiles import may_wet_floor
 
@@ -44,7 +62,7 @@ from ._common import (
 _LOGGER = logging.getLogger(__name__)
 
 _JOB_LIFECYCLE_UNSUBS = "_job_lifecycle_unsubs"
-# RP-039/RF-16: mirrors core/manager.py's _background_tasks pattern — every
+# RP-039/RF-16 (INT79PB7): mirrors core/manager.py's _background_tasks pattern — every
 # spawned _process() task is tracked here and cancelled in remove(hass), which
 # previously only cancelled the state-change-event unsub, never the in-flight
 # task itself.
@@ -177,7 +195,7 @@ def register(hass: HomeAssistant) -> None:
                         # adapter registry directly, with brand-specific fallbacks.
                     )
 
-                    # RP-012/RF-31 (A4-AJ-1/TRK-2): resolve a mid-job recharge that
+                    # RP-012/RF-31 (INNJ6SGC) (A4-AJ-1/TRK-2): resolve a mid-job recharge that
                     # has ENDED first (this tick can observe a charging state that
                     # differs from the tick that started the observed_mid_job_recharge
                     # flag), then evaluate whether a NEW recharge is starting.
@@ -190,7 +208,7 @@ def register(hass: HomeAssistant) -> None:
                         map_id=map_id,
                     )
 
-                    # LIFE-3 (RP-038/RF-30): delegates edge detection to the
+                    # LIFE-3 (RP-038/RF-30 (IN96V4SA)): delegates edge detection to the
                     # SAME is_dock_trigger_edge helper dock_events.py's own
                     # _handle_dock_event uses, instead of hand-rolling a
                     # weaker inline check here. old_state/new_state above are
@@ -362,7 +380,7 @@ def register(hass: HomeAssistant) -> None:
                               job_id=active_job.get("job_id"),
                               phase_index=active_job.get("current_phase_index"))
 
-                    # RP-010/RF-06: a cancel in flight owns finalization for this
+                    # RP-010/RF-06 (IN5TNKMD): a cancel in flight owns finalization for this
                     # job. Its own return-to-base dock can otherwise read as
                     # completion here — the cancel path releases
                     # _phase_dispatch_pending before its terminal-confirm poll
@@ -440,7 +458,7 @@ def register(hass: HomeAssistant) -> None:
                               result_keys=sorted(finalize_result.keys())
                               if isinstance(finalize_result, dict) else None)
 
-                    # RP-002/RF-01: a refusal dict ({"finalized": False, "reason": ...})
+                    # RP-002/RF-01 (IN5BRA39): a refusal dict ({"finalized": False, "reason": ...})
                     # is not a success — branch on finalize_result_succeeded, not on
                     # "finalize_result is not None" (a refusal dict is also not None).
                     # On refusal, the ENTRANT THAT ACTUALLY SUCCEEDED (this one, earlier,

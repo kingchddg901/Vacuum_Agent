@@ -57,6 +57,9 @@
     },
     "finalize_learning_job_refused": {
       "message": "finalize_learning_job ditolak: {reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id} bukan penyedot debu yang dikelola integrasi ini."
     }
   },
   "entity": {

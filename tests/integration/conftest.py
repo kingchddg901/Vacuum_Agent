@@ -159,6 +159,20 @@ def setup_map(
 
 
 @pytest.fixture
+async def managed_vacuum(manager):
+    """Opt-in: make vacuum.alfred a MANAGED vacuum (INKV8ZQD).
+
+    Deliberately NOT folded into manager_with_services. Doing that broke
+    test_setup_add_vacuum, which asserts status == "success" and got
+    "already_done" -- add_vacuum's whole job is the transition this fixture
+    would have already performed. A fixture that pre-satisfies the thing under
+    test does not fail loudly; it changes what the assertion means.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
+    return manager
+
+
+@pytest.fixture
 async def manager_with_services(hass, manager):
     """Manager with all domain services registered.
 

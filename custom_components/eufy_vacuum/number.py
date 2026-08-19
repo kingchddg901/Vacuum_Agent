@@ -105,7 +105,7 @@ async def async_setup_entry(
             ):
                 desired[entity.unique_id] = entity
 
-        # RP-009 (RF-04 + EP-2): stale = a ROOM entity owned by this vacuum/map
+        # RP-009 (RF-04 (IN4CW5Y9) + EP-2): stale = a ROOM entity owned by this vacuum/map
         # and absent from desired. entity_belongs_to answers by live attributes,
         # so the maintenance-interval numbers sharing this entity_map (plain
         # NumberEntity, no ownership attributes) can never be classified stale —

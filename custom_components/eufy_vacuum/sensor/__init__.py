@@ -268,7 +268,7 @@ async def async_setup_entry(
     # by the #49 reporter as "2nd is 'no longer reporting' — not sure where/how
     # that's appeared".
     #
-    # FORWARD RECONSTRUCTION, never a prefix scan of the registry. RP-009/RF-04
+    # FORWARD RECONSTRUCTION, never a prefix scan of the registry. RP-009/RF-04 (IN4CW5Y9)
     # records why: a prefix scan in setup/delete was PROVEN to registry-delete
     # every entity of a SIBLING vacuum whose entity_id was the scanned prefix plus
     # a suffix — `vacuum.alfred` deleting map "2" swept `vacuum.alfred_2`'s

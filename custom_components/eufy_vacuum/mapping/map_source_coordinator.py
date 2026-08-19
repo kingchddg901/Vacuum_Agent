@@ -151,6 +151,7 @@ class MapSourceCoordinator:
                     held["stale"] = True
                     held["stale_since"] = since
                     held["stale_reason"] = reason
+                    # anchor: INPQ6ZE7  a hold is DISPLAY-only - strip moving fields, don't flag them
                     # RP-027/RF-10 clause 1: the hold stays present:True for DISPLAY (the
                     # card keeps the frozen map + a stale badge — CF-6, not closed here),
                     # but the MOVING attribution fields must not survive it. Without this a

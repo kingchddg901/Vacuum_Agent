@@ -112,7 +112,7 @@ async def add_vacuum(
         vacuum_entity_id,
         title=effective_panel_title(record),
     )
-    # RP-039/RF-16: this is a singleton domain (one config entry manages every
+    # RP-039/RF-16 (INT79PB7): this is a singleton domain (one config entry manages every
     # vacuum), so the first (only) entry IS the owning entry — same lookup
     # services/setup.py's setup_add_vacuum already uses to find it for a reload.
     # Without this the panel registered above was untracked and never cleanly

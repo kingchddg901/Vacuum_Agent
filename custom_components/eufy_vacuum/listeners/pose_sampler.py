@@ -40,6 +40,27 @@ Public surface:
     remove(hass: HomeAssistant) -> None
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   INFJXSM4  `listeners/path_blockers.py#INFJXSM4`
+#       A4-POSE-3 (closed RP-008): _is_parked has no working fallback on the native_current_room path — when
+#              task_status is unreadable it returns 'not parked', the opposite of what its own
+#   INYA5T84  `adapters/config_schema.py#INYA5T84`
+#       A4-POSE-4 (closed RP-033): A zero or negative interval_s survives adapter registration (warn-only) and then
+#              splits the sampler in two: register() drops it, _sample_vacuum_once does not
+
+
 from __future__ import annotations
 
 import logging
@@ -376,7 +397,7 @@ def register(hass: HomeAssistant) -> None:
         return
     interval_s = min(intervals)
 
-    # RP-012/RF-31: per-vacuum cadence state (POSE-1) and in-flight guards
+    # RP-012/RF-31 (INNJ6SGC): per-vacuum cadence state (POSE-1) and in-flight guards
     # (POSE-2), persisting across ticks via this closure.
     _last_sample_ts: dict[str, float] = {}
     _in_flight: set[str] = set()

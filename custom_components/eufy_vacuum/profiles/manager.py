@@ -17,6 +17,26 @@ _notify_run_profiles_updated, _notify_rooms_updated, and
 _refresh_room_derived_state without re-implementing them.
 """
 
+# System invariants that bind in this file. Declared and explained elsewhere
+# (docs/dev/00b-invariants.md); `scripts/doc_anchor.py --show <TOKEN>` from here.
+# The findings under each are the FAILURES THAT PRODUCED the rule -- history, with
+# the packet that OWNS them. They are not a to-do list; see OPEN-FIX-CHECKLIST.
+#
+# A packet id here is the ledger's ATTRIBUTION, not a verification that the fix
+# landed in THIS file. Measured 2026-08-18 (.claude/notes/_audit_closure_claims.py):
+# 35 of 60 claims name a packet whose commits -- full git footprint, not just the
+# ledger's list -- never touched the file the claim sits in. Two were then read and
+# both were still LIVE: DQ-Q-7 (queue_engine) and A5-PP-RP-8 (this pattern, in both
+# copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
+# inherited its mis-attributions into source -- where prose at the site reads as
+# authority. Verify before citing one as closed.
+#   IN40W49E  `profiles/room_profiles.py#IN40W49E`
+#       DQ-Q-2 (closed RP-025): _match_profile_from_fields is structurally brand-blind and rewrites every Roborock
+#              room's profile_name to "custom" on every start
+#       DQ-PAY-1 (closed RP-025): Applying a built-in room profile to a Roborock room writes EUFY vocabulary onto the
+#              room; the fresh room_defaults fix covers creation only
+
+
 from __future__ import annotations
 
 import logging
@@ -669,7 +689,7 @@ class ProfileManager:
 
     def _find_rooms_referencing_profile(self, profile_name: str) -> list[dict[str, Any]]:
         """Every room, across every vacuum/map, whose profile_name references
-        ``profile_name`` (RP-016/RF-20). delete/rename must know about these
+        ``profile_name`` (RP-016/RF-20 (INJ7VXE7)). delete/rename must know about these
         before mutating the store -- rename repoints them, delete refuses
         unless the caller says force=True.
         """
@@ -1537,6 +1557,7 @@ class ProfileManager:
         if not isinstance(rooms, dict):
             rooms = {}
 
+        # anchor: INGZFYXX  resolve and authorize BEFORE mutating; failure leaves no trace
         # RP-031/RF-05a: resolve the profile's rooms against the CURRENT map
         # FIRST, without mutating anything -- a profile whose every referenced
         # room has since been deleted/renumbered (a re-segment) must refuse

@@ -103,12 +103,13 @@ SYNTHETIC_BLOCK: dict[str, Any] = {
     "custom_template": _synthetic_profile(label="Synth Custom"),
     "normalize_defaults": _synthetic_profile(label="Synth Custom"),
     "legacy_aliases": {},
-    # Carpet's entry is the brand's no-water word — see _no_water_value().
+    # CARPET ONLY -- the brand's no-water word, read by _no_water_value(). The
+    # hard-floor rows were retired 2026-08-17 in both shipped adapters
+    # (docs/dev/history/floor-type-cleaning-defaults.md); the synthetic brand mirrors
+    # them, or a retired feature keeps passing its own tests here.
     "floor_type_water_defaults": {
         "carpet_low_pile": "SynthDry",
         "carpet_high_pile": "SynthDry",
-        "hardwood": "SynthWet",
-        "tile": "SynthWet",
     },
     "floor_type_fan_defaults": {
         "carpet_low_pile": "SynthMax",

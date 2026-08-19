@@ -34,17 +34,31 @@ docs, not here:
 | `room_profiles.py` | 81 | 100% | `test_services_room_profiles.py` | clean |
 | `rooms.py` | 108 | 98% | `test_services_rooms.py` | **bare x1** |
 | `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` | clean |
-| `queue.py` | 121 | 100% | `test_services_queue.py` | **bare x1** |
-| `snapshots.py` | 43 | 100% | `test_services_snapshots.py` | clean |
-| `errors.py` | 37 | 95% | `test_services_errors_setup.py` | **bare x2** |
+| `queue.py` | 121 | 100% | `test_services_queue.py`, `test_services_unmanaged_vacuum.py` | **bare x1** |
+| `snapshots.py` | 43 | 100% | `test_services_snapshots.py`, `test_services_unmanaged_vacuum.py` | clean |
+| `errors.py` | 37 | 95% | `test_services_errors_setup.py`, `test_services_unmanaged_vacuum.py` | **bare x2** |
 | `access_graph.py` | 34 | 88% | `test_services_access_graph.py` | clean |
-| `_common.py` | 43 | 96% | `test_services_common.py`, `test_services_misc.py` | clean |
+| `_common.py` | 43 | 96% | `test_services_common.py`, `test_services_misc.py`, `test_services_unmanaged_vacuum.py` | clean |
 | `stall_capture.py` | 43 | 37% | — | - |
 | `debug.py` | 8 | 100% | `test_services_misc.py` | clean |
 
 ---
 
 ## What's tested
+
+- **Unmanaged vacuums (`INKV8ZQD`)** — `test_services_unmanaged_vacuum.py`.
+  `cv.entity_id` validates the SHAPE `domain.object_id` and nothing more, so every
+  per-vacuum store keyed off an unchecked id used to mint a durable bucket for
+  whatever string an automation passed. A **write** now refuses
+  (`ServiceValidationError`); a **read** returns the empty shape with
+  `reason: "unmanaged_vacuum"` rather than raising, because a read is how the card
+  discovers state. `[UV-5]` asserts the managed case still works — without it the
+  whole file would pass against a guard that refused everything.
+  Each guard was **ablated** and confirmed to turn a test red; that pass caught two
+  of these tests being decorative, one because the ErrorTracker was never loaded so
+  the guarded path was unreachable, and one because a second guard at the service
+  layer masked the manager-level fix it was meant to prove.
+
 
 - **Read services** — snapshots, job-control read, access-graph, saved profiles,
   dashboard snapshot: returned-shape assertions through the registry.
