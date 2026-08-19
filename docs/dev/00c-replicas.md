@@ -146,6 +146,20 @@ byte-identical in both.
 |---|---|
 | `planning/run_plan.py` | **primary** — carries the reasoning and the audit header block |
 | `core/manager.py` | the copy — same seven functions, verified identical 2026-08-18 |
+| `maintenance/manager.py` | **third copy of `_display_label`**, missed on first recording |
+
+**This entry was wrong when written, and the method caught it.** It was minted by hand
+after diffing two files, and said "2 copies". `_relation_hunt.py shape` found
+`_display_label` in a THIRD — `maintenance/manager.py` — 1.6 s of machine time against an
+hour of careful reading. An under-recorded set is a wrong claim, not a partial one: someone
+fixing both listed members would believe they were done.
+
+**Disposition: SPLIT, and the split matters.** Four members (`_safe_int`, `_safe_float`,
+`_iso_now`, `_display_label`) are leaf utilities — *dissolvable safely*, a shared util
+module adds nothing any subsystem lacks. Three (`_profile_name_label`,
+`_settings_profile_display`, `_room_surface_labels`) carry profile / water / carpet
+vocabulary — hoisting those into a shared module puts **domain logic on a seam**, which is
+manager-gravity by another route. Those are *dissolvable but shouldn't*.
 
 `_display_label`, `_iso_now`, `_profile_name_label`, `_safe_float`, `_safe_int`,
 `_settings_profile_display`, `_room_surface_labels`. Neither file imports the other.
@@ -208,6 +222,117 @@ original finding (`A6-DIAG-8`) proposed exactly that. The state STRINGS these ke
 the `constant` rung, the top of the ladder. This records the set until then.
 
 **Declared at** `dock/manager.py`'s trigger-vocabulary block.
+
+---
+
+## Finding sets: four ways to ask, and three axes to judge
+
+Derived 2026-08-18 and **tested before being written down** — five mixed candidates run
+through it, three correctly rejected, one new set found, one rule refined by the run.
+
+### The question is not "where is the duplication"
+
+It is **how is this code related** — and there is no single way to ask. Each mode is blind
+by construction, which is why no one of them is sufficient:
+
+| ask | finds | blind to |
+|---|---|---|
+| **shape** — structural fingerprint | copies, the day they are made | cross-language; **absences**; derived-vs-enumerated |
+| **history** — git co-change | cross-language and cross-artifact obligations | copies never yet co-edited — the **dormant** ones |
+| **data** — who writes the same durable key | multi-writer state coupling | anything not routed through the store |
+| **vocabulary** — shared literals | *not built* — recorded so the gap is visible | — |
+
+`shape` and `history` are complementary **in risk**, not just coverage: a set `shape` finds
+and `history` misses has never been co-edited, so nobody has learned it is coupled, and the
+first edit is the one that breaks it silently. `_display_label` ×3 was exactly that.
+
+It is **not combinatorial** — fingerprint-and-group is O(N). 1,261 functions in 1.6 s,
+794,430 comparisons never performed. Loosening three steps moved cross-file candidates
+16 → 58, so over-finding is affordable *at this repo's size*. That is a fact about 218
+files, not about the method.
+
+`.claude/notes/_relation_hunt.py` runs the first three.
+
+### Membership: does changing one OBLIGE changing the others?
+
+Already the register's one question. Two things discharge the obligation, and a discharged
+obligation means **there is no set**:
+
+1. **A mechanism already guarantees it.** The two built bundles co-change 192 times and are
+   not a set — a build moves both. `guide-translations.js` says *"GENERATED — do not
+   hand-edit"* and is not a set either. The palette's third site "imports rather than
+   restates" and is explicitly not a member.
+2. **The consumer genuinely absorbs the change.** A tolerant reader is not obliged. But
+   note the trap: a consumer that tolerates **silently** is the worst case, not the safe
+   one — `A6-PP-EST-LBL-1` `.get()`s a key its producer stopped emitting and yields `None`
+   for every room, forever, with no test failing.
+
+> **Discharge relocates the risk, it does not delete it.** A generator turns a replica
+> obligation into a *staleness* obligation — and `check_generated_docs.py`'s own header is
+> the record of that failing: *"Nothing was wrong with the generator. Nothing ran it."*
+> Different hazard, different guard.
+
+And obliged-together is not the same as bound-by-a-rule: `remove()` ×4 across the listeners
+are byte-identical and all bound by [[INT79PB7]], which obliges each to satisfy it
+**independently**. That is an `IN` relation, not an `RN` one.
+
+### Severity: observational or mutation?
+
+Unchanged — see below. Mutation sets produce divergent STATE and no test sees it.
+
+### Disposition: load-bearing, or dissolvable?
+
+**New, and it is the axis that says what to DO.** It also decides whether the entry is
+permanent or is scaffolding awaiting an extraction.
+
+| | |
+|---|---|
+| **load-bearing** | cannot be dissolved — a runtime boundary (Python ↔ card), an **absence** (you cannot extract "no upper bound"), or copies that must be able to differ |
+| **dissolvable safely** | the destination is a leaf utility with no domain knowledge; extraction adds a dependency that travels with the subsystem |
+| **dissolvable but shouldn't** | extraction is possible and would put **domain logic on a seam that must stay cuttable** — duplication is the correct terminal state |
+
+That third row exists because the register's whole purpose is to make deliberate duplication
+affordable. Without it duplication is a silent hazard, so the only safe response is to
+unify — and unifying welds. An extraction that makes a subsystem depend on something it did
+not depend on before is a **coupling decision**, not a cleanup; it belongs to
+`design/core-minimality.md`, not to a tidy-up pass.
+
+A set can split across dispositions. `RNJ9YQF7`'s seven members are four leaf utilities and
+three functions carrying profile/water/carpet vocabulary — same set, opposite correct
+actions.
+
+### Classify after finding, never during
+
+A disposition-blind census is the point. Classify while hunting and you skip candidates that
+look dissolvable — but a dissolvable set is a live hazard until someone actually extracts
+it, and *"we could unify that someday"* is precisely how `_display_label` sat in three files
+unrecorded.
+
+---
+
+### `RNRVXK51` — the path-block ACTION vocabulary + its normalizer · **2 copies**
+
+| Site | Kind |
+|---|---|
+| `core/manager.py` | **primary** — carries the reasoning |
+| `jobs/active_job.py` | the copy — `frozenset` and `_normalize_path_block_action`, byte-identical |
+
+Two levels duplicated at once: the closed vocabulary *and* the function that validates
+against it. **Nothing discharges it** — no shared import, no generator, no constant in
+`const.py`.
+
+**MUTATION class.** This decides what the system *does* when a path is blocked. Add a policy
+to one site and it is honoured there while the other silently maps it to `"event_only"` —
+divergent behaviour, no test failing, because each copy is self-consistent.
+
+**Disposition: dissolvable safely.** The natural destination is a shared constant; both
+modules already sit inside core and neither gains a dependency it lacks. This is a leaf
+vocabulary, not domain logic on a cuttable seam.
+
+**Found by method, not by reading** — `_relation_hunt.py shape`, 2026-08-18, in the same
+1.6 s pass that showed `RNJ9YQF7` was recorded one member short.
+
+**Declared at** `core/manager.py`'s `_PATH_BLOCK_ACTIONS`.
 
 ---
 

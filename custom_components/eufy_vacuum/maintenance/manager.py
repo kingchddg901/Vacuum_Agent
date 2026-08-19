@@ -62,6 +62,9 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+# REPLICA RNJ9YQF7 -- _display_label is byte-identical here, in planning/run_plan.py
+# (the primary, which carries the reasoning) and in core/manager.py. Found by
+# _relation_hunt.py AFTER the set was recorded by hand as two copies.
 def _display_label(value: Any) -> str | None:
     """Return a friendly title-cased label for enum-like values."""
     text = str(value or "").strip()

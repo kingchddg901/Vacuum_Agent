@@ -28,6 +28,16 @@
 #   INYA5T84  `adapters/config_schema.py#INYA5T84`  a config is validated by the
 #             same walk the tests use — refresh_vacuum_capabilities must reproduce
 #             startup's detection inputs, not a narrower set.
+#   IN11T0FS  `profiles/room_profiles.py#IN11T0FS`
+#       A5-FACADE-4: save_user_room_profile facade silently overwrites the existing 'user_1' profile when
+#              profile_name is omitted, while its sibling mints a unique id
+#   IN1FX8EH  `themes/preloaded.py#IN1FX8EH`
+#       A1-INIT-3: Startup re-seed of the bundled theme library resurrects themes the user deleted, and
+#              re-points default_theme_id
+#   INJW5J2A  `learning/history_store.py#INJW5J2A`
+#       A3-SNAP-2: get_dashboard_snapshot composes get_job_progress_snapshot TWICE, so job_progress and
+#              job_control in the same payload can describe different rooms — and every side effect
+#              in the progress composer fires twice per card poll
 # ---------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -170,6 +180,13 @@ _INFLIGHT_LIFECYCLE_STATES: frozenset[str] = frozenset({
     "mid_job_service",
     "vacuum_busy",
 })
+# anchor: RNRVXK51  the path-block ACTION vocabulary and its normalizer -- the replica
+# set. Both the frozenset and _normalize_path_block_action below are duplicated
+# byte-for-byte in jobs/active_job.py, and NOTHING discharges it: no shared import,
+# no generator. Add a policy here only and active_job silently maps it to
+# "event_only" -- a MUTATION-class divergence (it decides what the system DOES on a
+# path block), so the copies produce different behaviour with no test failing.
+# Found 2026-08-18 by _relation_hunt.py shape; see 00c-replicas.md.
 _PATH_BLOCK_ACTIONS = frozenset(
     {"event_only", "pause_and_event", "cancel_and_event"}
 )

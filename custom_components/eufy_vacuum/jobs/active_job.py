@@ -86,6 +86,9 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# REPLICA RNRVXK51 -- the twin lives at core/manager.py, which carries the reasoning.
+# The vocabulary AND its normalizer are duplicated; a policy added to one and not
+# the other is accepted there and silently downgraded here.
 _PATH_BLOCK_ACTIONS = frozenset(
     {"event_only", "pause_and_event", "cancel_and_event"}
 )
