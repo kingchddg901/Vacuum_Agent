@@ -4773,7 +4773,12 @@ class EufyVacuumManager:
         if not active_job:
             return {"fired": None, "reason": "no_job"}
 
-        adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
+        # ISSUE #51: this read `get_adapter_config` -- the BARE name -- while line 62
+        # imports it `as _get_adapter_config`. Every other of the twelve call sites in
+        # this module uses the alias; this was the one that did not, so the tick raised
+        # NameError on EVERY 5-second poll for any vacuum with an active job. Shipped
+        # 2026-08-09, reported by a user 10 days later, and no test executed this line.
+        adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
         limits = stuck_watch.tunables(adapter_cfg)
         now_iso = utc_now_iso()
 

@@ -15,7 +15,8 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 ### `stuck_watch.py` — two triggers, because a robot gets stuck two ways (added 2026-08-09)
 
 `test_stuck_watch.py` (12 tests) covers the area gate and the error edge as pure
-logic. Both were designed against hardware, by deliberately trapping a Roborock S6
+logic. **`test_stuck_watch_tick.py` covers the WIRING**, added 2026-08-19 after the
+gap between them shipped a crash — see below. Both were designed against hardware, by deliberately trapping a Roborock S6
 twice on 2026-08-09:
 
 - **Corner trap** — the robot was MOVING, retrying, and freed itself after ~3 minutes.
@@ -54,6 +55,47 @@ run.
 ---
 
 ## What's tested
+
+
+### The wiring gap — `test_stuck_watch_tick.py` (issue #51)
+
+The pure logic above was well tested from day one. `core/manager.py`'s
+`apply_stuck_watch_tick`, which wires it to the manager, had **no test at all** — and
+shipped a `NameError` on 2026-08-09 that a user reported ten days later:
+
+```
+adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
+NameError: name 'get_adapter_config' is not defined. Did you mean: '_get_adapter_config'?
+```
+
+The module imports that function `as _get_adapter_config` at line 62. Eleven call sites
+used the alias; one used the bare name. The tick fires every 5 seconds, so the reporter's
+log filled with the same traceback until they raised it.
+
+**Why nothing caught it.** The crash is on the line immediately after an early-return
+guard. Anything calling the tick without seeding an active job returned cleanly and proved
+nothing. A `NameError` is the loudest possible evidence that a line has **zero** coverage —
+it cannot survive one execution — so `[SWT-1]` is built to *reach* the line, and asserts the
+PRESENCE of a body-produced key rather than its value, because a value assertion would not
+have caught this either.
+
+**`[SWT-2]` was written as the control and found a second defect.** It asserted the guard
+still fires — and failed. `get_active_job` never returns falsy: it substitutes
+`_default_active_job_state()` for a missing entry, so `if not active_job:` in the tick is
+**dead code** and no caller can ever see `reason: "no_job"`. Benign today (the body runs and
+answers `excluded: True` by another route), but a guard that cannot fire reads as protection
+and is none. `[SWT-2]` now pins the current truth so it goes red the moment anyone removes
+the guard or teaches `get_active_job` to report absence — which is when someone should look.
+
+**`[SWT-3]` generalises the fix**: no call site in `core/manager.py` may use the bare name.
+The specific bug was one line in twelve; the next one will be a different line.
+
+All three were **ablated** — restoring the original `NameError` turns all three red.
+
+**This is a defect in genuinely unclaimed code**, and worth recording as a counter-example.
+The 2026-08-17 walk concluded that *"not one of the 22 families was a defect in unclaimed
+code — every one was a defect in something that already had a rule, a guard, a table or a
+declaration."* This one had no rule, no guard, no test and no anchor.
 
 ### `job_monitor.py` — start-gate evaluation (prefix `JM`, 31 tests)
 The whole module is pure, so coverage is near-total:
