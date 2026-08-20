@@ -132,6 +132,9 @@
       },
       "room_rule_status": {
         "name": "Статус правил: {room}"
+      },
+      "clean_order": {
+        "name": "Порядок уборки"
       }
     },
     "binary_sensor": {

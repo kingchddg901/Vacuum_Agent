@@ -132,6 +132,9 @@
       },
       "room_rule_status": {
         "name": "{room}规则状态"
+      },
+      "clean_order": {
+        "name": "清扫顺序"
       }
     },
     "binary_sensor": {

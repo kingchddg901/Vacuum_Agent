@@ -585,6 +585,14 @@ class EufyVacuumManager:
         from ..live_refresh import LiveRoomRefreshManager
         self.live_room_refresh = LiveRoomRefreshManager(manager=self)
 
+        # Construct CleanOrderManager - owns the DEVICE-side clean order (the order the
+        # robot will clean rooms in, which on a path-optimising brand overrides its own
+        # optimisation). Adapter-declared under `device_clean_order`; a brand that omits
+        # the block is a no-op and gains no sensor. Owns the read + the in-memory cache
+        # the clean-order sensor reads.
+        from ..clean_order import CleanOrderManager
+        self.clean_order = CleanOrderManager(manager=self)
+
         # Construct MapSourceCoordinator - owns the map_state_source backend dispatch
         # (the provider's own segmentation + live-pose reads). Writes the normalized
         # result to self._map_state_source_cache (read on-loop by the snapshot composer

@@ -577,6 +577,40 @@ def register_roborock_adapter_for_vacuum(
             },
         },
 
+        # DEVICE-SIDE CLEAN ORDER — Roborock calls it a "Sequence". A saved order
+        # OVERRIDES the device's own path optimisation for EVERY start (ours and the
+        # user's own app runs alike) and persists on the device until changed or
+        # cleared, so it is not scoped to a single run. It ORDERS but never RESTRICTS:
+        # the app states "the robot cleans unsequenced areas one by one at the end", so
+        # a sequence can neither skip a room nor pull in one the dispatch omitted.
+        #
+        # Ids are OUR room_id space, no translation. Verified live 2026-08-19: wrote
+        # [27, 25, 23, 22], read back identical, ack ['ok'], and the vendor app rendered
+        # it as badges 1-2-3-4 on its own Sequence screen. `[]` means no order saved.
+        #
+        # READ ONLY for now. Writing is the override feature and is deliberately not
+        # declared yet — a declaration that promises a write nothing implements is worse
+        # than an absent one.
+        #
+        # via: v1_debug_log — `vacuum.send_command` is SupportsResponse.NONE, so the
+        # reply is observable ONLY on python-roborock's decode DEBUG line, captured for
+        # a short window (clean_order/manager.py; needs no change to roborock and
+        # nothing installed by a user). THIS IS THE REPOINT SEAM: when upstream
+        # registers get_clean_sequence with SupportsResponse.ONLY — as
+        # get_vacuum_current_position already is in that same integration — add a
+        # `service_response` strategy and change `via` HERE. No core change, no sensor
+        # change. An unimplemented `via` reads as unavailable, never as an empty order.
+        "device_clean_order": {
+            "enabled": True,
+            "read": {
+                "via": "v1_debug_log",
+                "command": "get_clean_sequence",
+                "service": {"domain": "vacuum", "service": "send_command"},
+                "source_logger": "roborock.protocols.v1_protocol",
+                "decoded_prefix": "Decoded V1 message result: ",
+            },
+        },
+
         "setup": {
             # add_vacuum -> import_active_map -> save_rooms. Roborock has no
             # Eufy-style one-at-a-time cloud-map "import", but the integration still

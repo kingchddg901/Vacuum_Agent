@@ -132,6 +132,9 @@
       },
       "room_rule_status": {
         "name": "حالة قواعد {room}"
+      },
+      "clean_order": {
+        "name": "ترتيب التنظيف"
       }
     },
     "binary_sensor": {

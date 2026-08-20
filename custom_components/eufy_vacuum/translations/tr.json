@@ -132,6 +132,9 @@
       },
       "room_rule_status": {
         "name": "{room} Kural Durumu"
+      },
+      "clean_order": {
+        "name": "Temizlik Sırası"
       }
     },
     "binary_sensor": {

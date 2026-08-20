@@ -64,6 +64,7 @@ from .dock_event import EufyVacuumDockEventSensor
 from .error import EufyVacuumActiveRunErrorSensor, EufyVacuumLastDeviceErrorSensor
 from .lifecycle import EufyVacuumActiveJobSensor
 from .maintenance import EufyVacuumMaintenanceRemainingSensor
+from .clean_order import EufyVacuumCleanOrderSensor
 from .map_overlays import EufyVacuumMapOverlaysSensor
 from .onboarding import EufyVacuumOnboardingSensor
 from .profile import EufyVacuumProfileSensor
@@ -176,6 +177,17 @@ async def async_setup_entry(
         )
         built.append(_map_overlays_sensor)
         map_overlays_by_vacuum[vacuum_entity_id] = _map_overlays_sensor
+
+        # Device clean-order sensor — only where the adapter declares the concept, so a
+        # brand without it gains no entity rather than a permanently-unknown one.
+        _clean_order = getattr(manager, "clean_order", None)
+        if _clean_order is not None and _clean_order.is_supported(vacuum_entity_id):
+            built.append(
+                EufyVacuumCleanOrderSensor(
+                    manager=manager,
+                    vacuum_entity_id=vacuum_entity_id,
+                )
+            )
 
         # Battery health sensors — six per vacuum (cycles + 3 rates +
         # last-charge duration + health %). Backed by BatteryHealthManager.

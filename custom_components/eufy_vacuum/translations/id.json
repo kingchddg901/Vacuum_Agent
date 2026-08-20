@@ -132,6 +132,9 @@
       },
       "room_rule_status": {
         "name": "Status Aturan {room}"
+      },
+      "clean_order": {
+        "name": "Urutan Pembersihan"
       }
     },
     "binary_sensor": {

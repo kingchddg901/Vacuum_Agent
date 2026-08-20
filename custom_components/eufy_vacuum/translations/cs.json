@@ -132,6 +132,9 @@
       },
       "room_rule_status": {
         "name": "Stav pravidel: {room}"
+      },
+      "clean_order": {
+        "name": "Pořadí úklidu"
       }
     },
     "binary_sensor": {

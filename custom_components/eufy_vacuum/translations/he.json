@@ -132,6 +132,9 @@
       },
       "room_rule_status": {
         "name": "מצב כללים: {room}"
+      },
+      "clean_order": {
+        "name": "סדר ניקיון"
       }
     },
     "binary_sensor": {

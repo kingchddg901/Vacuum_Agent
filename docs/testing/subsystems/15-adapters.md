@@ -236,6 +236,32 @@ node in every file. And an import graph cannot see a runtime reach at all, hence
 ISO-4. Both ISO-1 and ISO-4 were mutation-verified when added — a fresh
 non-SDK import and a planted `hass._private_thing` each turn their own check red.
 
+### `../unit/test_clean_order.py` — the shape filter that makes a log-scraped read trustworthy
+
+18 tests, added 2026-08-20. Roborock exposes a per-map cleaning SEQUENCE, declared by
+the adapter under `device_clean_order`. Reading it is the awkward part:
+`vacuum.send_command` is `SupportsResponse.NONE`, so the reply never returns through
+the service call — it is captured off a DEBUG log line that does **not say which
+command it answers**. Everything therefore rests on `is_clean_order` telling a real
+reply apart from routine poll traffic. A wrong filter reports confident nonsense,
+which is the worst failure available here, because it looks like a reading.
+
+The inputs are REAL decoded results captured from Ivy on 2026-08-19 — every distinct
+shape observed across 53 replies — not invented ones.
+
+| id | what it holds |
+|---|---|
+| `CO-1` | each of the ten real decoded shapes classifies correctly |
+| `CO-2` | ABLATION: `[0]` arrives every ~15s poll tick and a naive "flat list of ints" filter accepts it; the known-room-id check is what rejects it. The test also asserts the ABLATED form still passes, so the ablation cannot quietly stop meaning anything |
+| `CO-3` | `isinstance(True, int)` is True in Python, so `[True]` must not read as room id 1 |
+| `CO-4` | one unknown id invalidates the reading whole — a dropped room would silently reorder the rest |
+| `CO-5` | an unparseable payload yields `None` (→ `unavailable`), never an exception on a path a live run can touch |
+| `CO-6` | with no known room ids the manager declines to read at all, rather than accept a list it cannot check |
+| `CO-7` | an unread vacuum must not present as "no order saved": `[]` is a legitimate ORDER value, so the STATUS field is what carries "we have not looked yet" |
+
+**`CO-2` is the load-bearing one.** `[0]` arrives roughly every fifteen seconds, so a
+filter weakened to a type check would report it as a clean order continuously.
+
 ---
 
 ## Coverage map

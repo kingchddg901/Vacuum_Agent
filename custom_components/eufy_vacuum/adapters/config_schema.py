@@ -1812,6 +1812,19 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         ),
     },
 
+    "device_clean_order": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "DEVICE-side clean order — the order the robot itself will clean rooms in, "
+            "which on a path-optimising brand overrides its own optimisation. Absent (or "
+            "enabled False) => the brand has no such concept: no read, and no clean-order "
+            "sensor is created. `read.via` names the acquisition strategy and is the "
+            "REPOINT SEAM (today only 'v1_debug_log'); an unimplemented via reads as "
+            "unavailable, never as an empty order. Consumed by clean_order/manager.py."
+        ),
+    },
+
     "job_segmenter": {
         "type": "dict",
         "required": False,
