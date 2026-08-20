@@ -4700,7 +4700,7 @@ class EufyVacuumManager:
         if not active_job:
             return {"fired": None, "reason": "no_job"}
 
-        adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
+        adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
         limits = stuck_watch.tunables(adapter_cfg)
         now_iso = utc_now_iso()
 
