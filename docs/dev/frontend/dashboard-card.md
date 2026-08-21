@@ -72,8 +72,12 @@ config-driven, sections capability-gated:
   - **Your profiles** — a dropdown of saved run profiles (`get_saved_run_profiles`).
   - **App scenes** — *Eufy only* — a dropdown of the vendor-app scenes
     (`select.<object_id>_scene`); hidden on Roborock (no such entity).
-- **Actions** — **Start** (commits the armed run), **Dock**, and optional dock
-  actions (Wash/Dry/Empty) gated by `get_dock_action_status`.
+- **Actions** — **Start** (commits the armed run) and **Dock**
+  (`vacuum.return_to_base`, `src/cards/dashboard-card.js:801`). The dock *actions*
+  (Wash/Dry/Empty, gated by `get_dock_action_status`) were designed for but did **not**
+  ship in the card — they live in the panel's Base Station tab
+  (`src/renderers/base-station.js` + `src/actions/dock.js`). The backend services are
+  registered and remain callable from an automation.
 - *(Later)* **Map** — the interactive room map in a compact box (§7).
 
 ## 3. The core contract — arm, then Start
@@ -113,8 +117,9 @@ lives in the **panel**, not this card: the steps editor, the "This run" preview,
 [Module reference](module-reference.md); the phase machinery is in
 [Phase runner](../30-phase-runner.md) and the snapshot shapes (`queue_steps`,
 `live_queue`, `zone_phase_*`) are aggregated in the [Backend contract](backend-contract-and-data-shapes.md#ha-services) (authoritative field-by-field: [05 §6](../05-core-manager.md#6-direct-responsibilities)).
-The snapshot's `has_charge_steps` flag is likewise a panel-render concern; the card
-never reads it.
+The `has_charge_steps` flag is likewise a panel-render concern; the card never reads
+it. (It is a *run-profile record* field — `profiles/manager.py:1176`, surfaced through
+`get_saved_run_profiles` — not a `get_dashboard_snapshot` key.)
 
 ## 4. What it reuses (this is why it's cheap)
 
@@ -197,7 +202,9 @@ vacuum_entity_id: vacuum.alfred   # required
 title: Vacuum                     # optional
 show_profiles: true               # default true (hidden if supports_room_profiles=false)
 show_scenes: auto                 # auto = show iff the scene entity resolves (Eufy)
-show_dock: true                   # default true (hidden if supports_base_station=false)
+show_dock: true                   # default true; pure config — the card does NOT consult
+                                  # supports_base_station (contrast show_profiles, which does
+                                  # honour supports_room_profiles)
 show_map: true                    # default true; the embedded map shipped (shown unless set to false)
 ```
 
@@ -222,16 +229,23 @@ thing that triggers the loader).
   advisory (path-optimizing), mirroring the panel.
 - **`max_clean_passes`** caps the passes chips (Eufy 2, Roborock 3); `passes_is_global`
   changes per-room vs whole-run semantics.
-- **Two cards on one dashboard** — ✅ pan/zoom (and moved room-name labels) are keyed
-  per *context* (panel vs card) + per device, so the panel and a dashboard card keep
-  independent map views (`_mapCtx` on the state; see [Card Topology & Bundles](card-topology-and-bundles.md)).
+- **Two cards on one dashboard** — ✅ **pan/zoom** is keyed per *context* (panel vs card)
+  + per device (`_mapTransformKey` → `evcc_map_xform_<ctx>_<vac>`, `src/state/map.js:1926-1929`;
+  `_mapCtx` on the state), so the panel and a dashboard card keep independent map
+  *viewports*. ⚠️ **Moved room-name labels are NOT context-keyed** — `_labelStorageKey`
+  (`src/state/map.js:893-897`) is vacuum + active map + kind only, so a dragged label
+  position is shared between the panel and the card. See
+  [Card Topology & Bundles](card-topology-and-bundles.md).
 - **Multi-map vacuum** — the room list is filtered to the **active map only**
   (`_roomsForActiveMap()`, mirroring the panel's `getRoomsForActiveMap`), so a device with
   several maps (e.g. Alfred: map 6 + map 7) doesn't list every map's rooms at once. Every
   operate-on-rooms site (render, room toggle, `_startContext`, `_turnOffAllRooms`, room-by-id
   lookup) uses the filtered set, which also prevents a Start from targeting an off-map room
-  when two maps share `room_id` values. Unfiltered `_rooms()` survives only where it must (the
-  `_activeMapId()` fallback and the `shouldUpdate` diff).
+  when two maps share `room_id` values. Unfiltered `_rooms()` survives only in the
+  `_activeMapId()` fallback (`src/cards/dashboard-card.js:292`). The re-render guard is
+  `_shouldRender(prev, hass)` (`:210`, called from `set hass` at `:196`) and it does not
+  use `_rooms()` at all — it walks `roomSwitchesFor()` directly. (There is no
+  `shouldUpdate` method; the stale name survives only in the code comment at `:281`.)
 - **No live entity** — degrade every section independently; a missing snapshot field
   hides its control, never throws (wrap reads).
 - **Mid-run** — show progress in the header; Start becomes "already cleaning" / the
@@ -282,6 +296,6 @@ that hides the scenes group). The backend services are already covered. Gate:
   + `src/bindings/map.js`, `custom_components/eufy_vacuum/services.yaml`,
   `adapters/{config_schema,eufy/adapter,roborock/adapter}.py`, `profiles/manager.py`,
   `core/manager.py::get_dashboard_snapshot`.
-- Memory: (scene fires-on-select),
-  (edit src/, build:deploy),, the voice wizard's
-  sibling "meet users where they are" play in.
+- Memory (inline links stripped per the no-attention-proof rule): the scene
+  fires-on-select ruling; "edit `src/`, never the built bundle — `npm run build:deploy`";
+  and the voice wizard's sibling "meet users where they are" framing.

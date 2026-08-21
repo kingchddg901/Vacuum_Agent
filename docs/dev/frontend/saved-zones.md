@@ -157,14 +157,14 @@ In `mapping/mapping_services.py`, mirroring `_handle_{create,rename,delete}_cust
   whole batch.
 
 Each runs `_migrate_saved_zones` first, degrades safely, and the snapshot carries a
-`SavedZoneSummary` catalog (like `custom_layouts`) for the card.
+full saved-zone dict per zone on the `get_map_segments` read (geometry included — NOT a summary, unlike the sibling `custom_layouts`, which is); no `SavedZoneSummary` shape exists anywhere in the code.
 
 ## 6. Dispatch + drift-safety (the one hard rule)
 
 **Store normalized, convert at clean-time — never persist absolute cm.** The provider re-origins
 its coordinate frame per session; the map-relative (normalized) frame is stable, but a cached
 device-coordinate quad is not. So `clean_saved_zone`/`clean_saved_zones` hand the stored 0–1 bbox
-rect(s) to the shared `dispatch_zone_clean` (`dispatch/manager.py:145+`) each time, which converts
+rect(s) to the shared `dispatch_zone_clean` (`dispatch/manager.py::dispatch_zone_clean`) each time, which converts
 **per brand, at call time, from the current session's live map**, exactly as live zone-drawing
 already does — never persist absolute coordinates. The conversion itself is brand-branched on the
 adapter's `zone_coords` capability, not a single shared helper:
@@ -205,7 +205,7 @@ through i18n.
   **Unassigned** special-cases section last). Each entry shows name + m².
 - **Reassign:** a room picker per zone (`set_saved_zone_room`) — a filing action only; None =
   Unassigned.
-- **Clean:** tap a saved zone → `clean_saved_zone`. Multi-select → `clean_saved_zones` batch
+- **Clean:** tapping a zone row toggles its multi-select checkbox, and the singular `clean_saved_zone` has NO card caller (it is a registered service + the `cleanSavedZone` JS wrapper, reachable from an automation). The card's one clean control, "Clean N selected", always fires the `clean_saved_zones` batch
   (respecting the zone cap).
 
 ## 9. Validation (author-time + clean-time)
@@ -240,7 +240,7 @@ zones + overrides are stable across sessions (the normalized frame doesn't drift
 2. **Bucketing** — the room-mask membership computation (90%-of-floor), `room_number` only (no
    `rooms[]` breakdown is persisted — §3), `set_saved_zone_room` override.
 3. **Card UX (BUILT/SHIPPED)** — draw→name→save (via `_zoneDrawPurpose="save"`), room-grouped
-   multi-select list, room-picker, clean (single + "Clean N selected" batch), delete,
+   multi-select list, room-picker, clean (ONE "Clean N selected" batch control — selecting a single zone IS the single-zone clean; the card never calls the singular `clean_saved_zone`), delete,
    m² + validation. Implemented across `src/{state,renderers,bindings,actions}/saved-zones.js` and
    registered in each layer's `index.js`; the panel renders in the Rooms view (`renderers/rooms.js`
    calls `renderSavedZonesPanel`).

@@ -130,7 +130,7 @@ hass setter → state.sync() → _scheduleRender()
 user action → binding handler → action.callService() + state mutator → _scheduleRender()
 ```
 
-The innerHTML step is **diffed, not unconditional**: the header, bottom nav, mobile overlay, active view root, and modal host each cache their last markup in `dataset.renderedHtml` and skip the swap when it is unchanged. `bindEvents()` still runs on every render, which is why the `_on` / `_onAll` helpers are idempotent — a same-markup render keeps its live elements, so a raw `addEventListener` would stack a duplicate listener each time. (The modal host is the exception that proves it: it binds *only* inside the swap branch.)
+The innerHTML step is **diffed, not unconditional**: the header, bottom nav, mobile overlay, active view root, modal host, and toast host each cache their last markup in `dataset.renderedHtml` and skip the swap when it is unchanged. `bindEvents()` still runs on every render, which is why the `_on` / `_onAll` helpers are idempotent — a same-markup render keeps its live elements, so a raw `addEventListener` would stack a duplicate listener each time. (The modal host is the exception that proves it: it binds *only* inside the swap branch.)
 
 State modules never call each other. If module A needs data that module B owns, it goes through the card instance, which owns all four layer objects — bindings and renderers reach it as `this.card._state` / `this.card._actions`; actions hold `this.state` directly and use `this.card` only to reach the host's i18n and toast stack (see the constructor table above).
 
