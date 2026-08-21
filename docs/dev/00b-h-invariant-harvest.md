@@ -15,6 +15,16 @@ it manufactures the unfalsifiable claim the registry exists to remove.
 `STATUS`: ` ` unclassified · `INVARIANT` · `CONVENTION` · `PN` (binding but no
 code site) · `STALE` (asserts something no longer true).
 
+`INVARIANT (cite IN……)` means it RESTATES an existing registry entry — the action
+is a citation, not a new token. Bare `INVARIANT` means no entry covers it and a
+ruling is still owed. `CONTESTED` means two independent reads reached opposite
+verdicts and it needs a human call.
+
+> **Evidence for every `.py` verdict below lives in `.claude/notes/LEDGER-defects-code-vs-doc.md`**
+> (batches 2–6, 2026-08-20), including the enforcement site, whether a test can make it red,
+> and whether one exists. Classifying here is NOT minting: the order stays
+> human ruling → mint → declare → cite.
+
 **Ranking is not a ruling.** A candidate here is a lead. The order stays
 human ruling → mint → declare → cite.
 
@@ -89,56 +99,56 @@ verdict a human has to make:
 
 | STATUS | File | Notice |
 |---|---|---|
-|  | `custom_components/eufy_vacuum/adapters/eufy/const.py`:44 | derived from DOMAIN so that framework namespace changes never silently |
-|  | `custom_components/eufy_vacuum/adapters/eufy/room_profiles.py`:115 | The non-carpet rows are a PREFERENCE applied to users who never asked for it: floor_type |
-|  | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:250 | fault that never stopped the robot cleaning silently zeroes a productive run. Observed |
-|  | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:274 | BOTH SETS ARE DECLARED. A code in neither resolves to UNKNOWN, and unknown NEVER |
-|  | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:275 | invalidates -- an unrecognised fault must not be subtracted, because that is the failure |
-|  | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:564 | """Coerce to an error code, or None. NEVER int(): int(3.7) is 3, a real code (SIDE |
-|  | `custom_components/eufy_vacuum/adapters/roborock/adapter.py`:344 | mode-specific. Without this, _detect_cancel_likely_run never fires |
-|  | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:47 | Card-facing dropdown option lists (the framework never reads these). |
-|  | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:195 | The non-carpet rows are a PREFERENCE applied to users who never asked for it: floor_type |
-|  | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:353 | follows the rule the Eufy table already states: never invent a label for a code whose |
-|  | `custom_components/eufy_vacuum/battery/manager.py`:800 | excluded from the delta/rate/drain accounting above, but must not |
-|  | `custom_components/eufy_vacuum/battery/manager.py`:866 | is already True so this branch never fires, and tracking goes dark |
-|  | `custom_components/eufy_vacuum/battery/manager.py`:1231 | live:BATT-CV-1 — the ratio is unbounded by construction, so plausibility is |
-|  | `custom_components/eufy_vacuum/battery/manager.py`:1285 | that means it must be cleared here too, or the very next |
-|  | `custom_components/eufy_vacuum/button.py`:103 | writing state onto the STALE `existing` object would never |
-|  | `custom_components/eufy_vacuum/button.py`:325 | start_run_profile is a COROUTINE — it MUST be awaited or its body never runs: |
-|  | `custom_components/eufy_vacuum/button.py`:326 | the press silently no-ops with only a "coroutine was never awaited" warning, |
-|  | `custom_components/eufy_vacuum/config_flow.py`:63 | must NOT also reload. Single-instance anyway, so this just aborts. |
-|  | `custom_components/eufy_vacuum/const.py`:43 | : MUST NOT be stored as an adapter config. Stored configs load first and are |
-|  | `custom_components/eufy_vacuum/const.py`:190 | `live_map_rotation` and surfaced in the dashboard snapshot. Display only — never |
-|  | `custom_components/eufy_vacuum/core/capabilities.py`:70 | : pinning a dead id, but a user choice that has quietly stopped working must be |
-|  | `custom_components/eufy_vacuum/core/capabilities.py`:764 | each must be DECISIVE (exactly one survivor) or the next is tried: |
-|  | `custom_components/eufy_vacuum/core/capabilities.py`:896 | live:ENT-7 — an override that did not win must SAY so. It is first in |
-|  | `custom_components/eufy_vacuum/core/error_tracker.py`:285 | NEVER ``int()`` on a float — ``int(3.7)`` is 3, a real Eufy code (SIDE BRUSH |
-|  | `custom_components/eufy_vacuum/core/error_tracker.py`:311 | """Exact integers only. NEVER int(): int(3.7) is 3, which is a real Eufy code (SIDE |
-|  | `custom_components/eufy_vacuum/core/error_tracker.py`:655 | declare it — it was simply never read, so a brand whose firmware says |
-|  | `custom_components/eufy_vacuum/counter_segmentation.py`:507 | live:RECHARGE-ATTR-1 — drop never-boundary kinds BEFORE every mode, including |
-|  | `custom_components/eufy_vacuum/learning/room_attribution_engines.py`:223 | "cleaned" on it directly. The winding short-circuit must NOT pre-empt it: |
-|  | `custom_components/eufy_vacuum/learning/stats_rebuilder.py`:996 | flag (missing key -> coerced False here) is never mislabeled "Sanity |
-|  | `custom_components/eufy_vacuum/listeners/stall_capture.py`:60 | : Fired after a capture lands. Carries the path so an automation never has to |
-|  | `custom_components/eufy_vacuum/listeners/stall_capture.py`:65 | : images of someone's home must be opted into, never inherited by an upgrade. |
-|  | `custom_components/eufy_vacuum/live_refresh/manager.py`:172 | RP-039/RF-33: a subclass of HomeAssistantError, so it MUST be caught |
-|  | `custom_components/eufy_vacuum/mapping/stall_capture_render.py`:162 | """Chevrons along ``pts``, pointing the way the robot travelled. Never raises. |
-|  | `custom_components/eufy_vacuum/mapping/stall_capture_render.py`:426 | normalize_rendered. They are never offset by (ro_dx, ro_dy) and never flipped; |
-|  | `custom_components/eufy_vacuum/mapping/stall_capture_render.py`:496 | capture is correct and unrecognisable — the room is a shape the user has never seen |
-|  | `custom_components/eufy_vacuum/onboarding/manager.py`:237 | never saw it. The damage is silent and card-reachable: reconcile_room's |
-|  | `custom_components/eufy_vacuum/receipts/__init__.py`:57 | : D is the one §4 never stated. §4 says success may not be silent; a legitimate |
-|  | `custom_components/eufy_vacuum/receipts/__init__.py`:103 | : DECLARED, NEVER DERIVED from `__name__`. Deriving would make a file move silently change a |
-|  | `custom_components/eufy_vacuum/receipts/__init__.py`:104 | : station identity, and §18 says a semantic id never silently changes meaning. Declared + |
-|  | `custom_components/eufy_vacuum/room_entities.py`:63 | RP-009 (REVIEW D2): ownership is answered by ATTRIBUTES, never by parsing |
-|  | `custom_components/eufy_vacuum/room_entities.py`:145 | managed subset above, so anything else must still reach the generic |
-|  | `custom_components/eufy_vacuum/rooms/vocabulary_migration.py`:70 | : must agree on which axes a brand has, or the repair undoes itself one room at a time. |
-|  | `custom_components/eufy_vacuum/rooms/vocabulary_migration.py`:274 | The rule is EVERY target, not "any adapter answered". With two vacuums, one |
-|  | `custom_components/eufy_vacuum/rooms/vocabulary_migration.py`:275 | provider being ready must not burn the opportunity for a provider that starts |
-|  | `custom_components/eufy_vacuum/services/stall_capture.py`:84 | Never mint a record for a vacuum this install does not manage — that is the |
-|  | `custom_components/eufy_vacuum/services/stall_capture.py`:118 | renderer. The instrument must not hand anyone that. |
-|  | `custom_components/eufy_vacuum/setup/protection.py`:38 | DR-SETUP-4: a malformed bucket/room record must degrade like drift.py's |
-|  | `custom_components/eufy_vacuum/step_types.py`:11 | different matter and must NOT be merged; read the block. |
-|  | `custom_components/eufy_vacuum/user_fonts.py`:165 | explicitly (manifest does). This is "cannot verify", never "covers |
-|  | `custom_components/eufy_vacuum/user_fonts.py`:166 | nothing": the two verdicts must not be conflated. |
+| CONVENTION | `custom_components/eufy_vacuum/adapters/eufy/const.py`:44 | derived from DOMAIN so that framework namespace changes never silently |
+| INVARIANT (cite IN11T0FS) | `custom_components/eufy_vacuum/adapters/eufy/room_profiles.py`:115 | The non-carpet rows are a PREFERENCE applied to users who never asked for it: floor_type |
+| STALE | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:250 | fault that never stopped the robot cleaning silently zeroes a productive run. Observed |
+| INVARIANT | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:274 | BOTH SETS ARE DECLARED. A code in neither resolves to UNKNOWN, and unknown NEVER |
+| INVARIANT | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:275 | invalidates -- an unrecognised fault must not be subtracted, because that is the failure |
+| INVARIANT | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:564 | """Coerce to an error code, or None. NEVER int(): int(3.7) is 3, a real code (SIDE |
+| INVARIANT (cite IN40W49E) | `custom_components/eufy_vacuum/adapters/roborock/adapter.py`:344 | mode-specific. Without this, _detect_cancel_likely_run never fires |
+| STALE | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:47 | Card-facing dropdown option lists (the framework never reads these). |
+| INVARIANT (cite IN11T0FS) | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:195 | The non-carpet rows are a PREFERENCE applied to users who never asked for it: floor_type |
+| INVARIANT | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:353 | follows the rule the Eufy table already states: never invent a label for a code whose |
+| INVARIANT | `custom_components/eufy_vacuum/battery/manager.py`:800 | excluded from the delta/rate/drain accounting above, but must not |
+| INVARIANT (cite INNJ6SGC) | `custom_components/eufy_vacuum/battery/manager.py`:866 | is already True so this branch never fires, and tracking goes dark |
+| INVARIANT | `custom_components/eufy_vacuum/battery/manager.py`:1231 | live:BATT-CV-1 — the ratio is unbounded by construction, so plausibility is |
+| INVARIANT (cite IN5ATBW9) | `custom_components/eufy_vacuum/battery/manager.py`:1285 | that means it must be cleared here too, or the very next |
+| INVARIANT (cite IN5ATBW9) | `custom_components/eufy_vacuum/button.py`:103 | writing state onto the STALE `existing` object would never |
+| CONVENTION | `custom_components/eufy_vacuum/button.py`:325 | start_run_profile is a COROUTINE — it MUST be awaited or its body never runs: |
+| CONVENTION | `custom_components/eufy_vacuum/button.py`:326 | the press silently no-ops with only a "coroutine was never awaited" warning, |
+| CONVENTION | `custom_components/eufy_vacuum/config_flow.py`:63 | must NOT also reload. Single-instance anyway, so this just aborts. |
+| INVARIANT (cite INYA5T84) | `custom_components/eufy_vacuum/const.py`:43 | : MUST NOT be stored as an adapter config. Stored configs load first and are |
+| STALE | `custom_components/eufy_vacuum/const.py`:190 | `live_map_rotation` and surfaced in the dashboard snapshot. Display only — never |
+| INVARIANT | `custom_components/eufy_vacuum/core/capabilities.py`:70 | : pinning a dead id, but a user choice that has quietly stopped working must be |
+| INVARIANT | `custom_components/eufy_vacuum/core/capabilities.py`:764 | each must be DECISIVE (exactly one survivor) or the next is tried: |
+| INVARIANT | `custom_components/eufy_vacuum/core/capabilities.py`:896 | live:ENT-7 — an override that did not win must SAY so. It is first in |
+| INVARIANT | `custom_components/eufy_vacuum/core/error_tracker.py`:285 | NEVER ``int()`` on a float — ``int(3.7)`` is 3, a real Eufy code (SIDE BRUSH |
+| STALE | `custom_components/eufy_vacuum/core/error_tracker.py`:311 | """Exact integers only. NEVER int(): int(3.7) is 3, which is a real Eufy code (SIDE |
+| INVARIANT (cite IN40W49E) | `custom_components/eufy_vacuum/core/error_tracker.py`:655 | declare it — it was simply never read, so a brand whose firmware says |
+| INVARIANT | `custom_components/eufy_vacuum/counter_segmentation.py`:507 | live:RECHARGE-ATTR-1 — drop never-boundary kinds BEFORE every mode, including |
+| INVARIANT | `custom_components/eufy_vacuum/learning/room_attribution_engines.py`:223 | "cleaned" on it directly. The winding short-circuit must NOT pre-empt it: |
+| CONTESTED | `custom_components/eufy_vacuum/learning/stats_rebuilder.py`:996 | flag (missing key -> coerced False here) is never mislabeled "Sanity |
+| CONVENTION | `custom_components/eufy_vacuum/listeners/stall_capture.py`:60 | : Fired after a capture lands. Carries the path so an automation never has to |
+| INVARIANT | `custom_components/eufy_vacuum/listeners/stall_capture.py`:65 | : images of someone's home must be opted into, never inherited by an upgrade. |
+| CONVENTION | `custom_components/eufy_vacuum/live_refresh/manager.py`:172 | RP-039/RF-33: a subclass of HomeAssistantError, so it MUST be caught |
+| CONVENTION | `custom_components/eufy_vacuum/mapping/stall_capture_render.py`:162 | """Chevrons along ``pts``, pointing the way the robot travelled. Never raises. |
+| INVARIANT | `custom_components/eufy_vacuum/mapping/stall_capture_render.py`:426 | normalize_rendered. They are never offset by (ro_dx, ro_dy) and never flipped; |
+| INVARIANT | `custom_components/eufy_vacuum/mapping/stall_capture_render.py`:496 | capture is correct and unrecognisable — the room is a shape the user has never seen |
+| INVARIANT (cite INMKEHPQ) | `custom_components/eufy_vacuum/onboarding/manager.py`:237 | never saw it. The damage is silent and card-reachable: reconcile_room's |
+| INVARIANT | `custom_components/eufy_vacuum/receipts/__init__.py`:57 | : D is the one §4 never stated. §4 says success may not be silent; a legitimate |
+| INVARIANT | `custom_components/eufy_vacuum/receipts/__init__.py`:103 | : DECLARED, NEVER DERIVED from `__name__`. Deriving would make a file move silently change a |
+| INVARIANT | `custom_components/eufy_vacuum/receipts/__init__.py`:104 | : station identity, and §18 says a semantic id never silently changes meaning. Declared + |
+| INVARIANT (cite IN4CW5Y9) | `custom_components/eufy_vacuum/room_entities.py`:63 | RP-009 (REVIEW D2): ownership is answered by ATTRIBUTES, never by parsing |
+| CONVENTION | `custom_components/eufy_vacuum/room_entities.py`:145 | managed subset above, so anything else must still reach the generic |
+| INVARIANT (cite IN40W49E) | `custom_components/eufy_vacuum/rooms/vocabulary_migration.py`:70 | : must agree on which axes a brand has, or the repair undoes itself one room at a time. |
+| INVARIANT (cite INKR1TW7) | `custom_components/eufy_vacuum/rooms/vocabulary_migration.py`:274 | The rule is EVERY target, not "any adapter answered". With two vacuums, one |
+| INVARIANT (cite INKR1TW7) | `custom_components/eufy_vacuum/rooms/vocabulary_migration.py`:275 | provider being ready must not burn the opportunity for a provider that starts |
+| INVARIANT (cite INKV8ZQD) | `custom_components/eufy_vacuum/services/stall_capture.py`:84 | Never mint a record for a vacuum this install does not manage — that is the |
+| CONVENTION | `custom_components/eufy_vacuum/services/stall_capture.py`:118 | renderer. The instrument must not hand anyone that. |
+| CONVENTION | `custom_components/eufy_vacuum/setup/protection.py`:38 | DR-SETUP-4: a malformed bucket/room record must degrade like drift.py's |
+| INVARIANT (cite IN6VSBJ1) | `custom_components/eufy_vacuum/step_types.py`:11 | different matter and must NOT be merged; read the block. |
+| CONVENTION | `custom_components/eufy_vacuum/user_fonts.py`:165 | explicitly (manifest does). This is "cannot verify", never "covers |
+| CONVENTION | `custom_components/eufy_vacuum/user_fonts.py`:166 | nothing": the two verdicts must not be conflated. |
 |  | `harness/dist/mount.js`:78 | raw code, in parens, so a refusal is never blank and never silently renders as success. --- |
 |  | `harness/dist/mount.js`:1534 | emits {code, params} (params never pre-joined) and the card resolves them via |
 |  | `harness/dist/mount.js`:2264 | Secondary caption under a renamed room's NEW name in the reconciliation banner's "Renamed" group; {name}=the room's previous name (escaped by the call |
@@ -182,15 +192,15 @@ verdict a human has to make:
 |  | `scripts/check-i18n.mjs`:413 | picker. A missing index resolves soft (ok:false), never throws. |
 |  | `scripts/check-i18n.mjs`:532 | never silently exempt the whole catalog. |
 |  | `scripts/check-styles.mjs`:4 | template literal must be whole. A stray backtick INSIDE one (e.g. `.is-open` |
-|  | `scripts/check_doc_citations.py`:74 | The `::` branch MUST come first and MUST be spelled with two colons. The original |
-|  | `scripts/check_doc_citations.py`:75 | pattern had one, so it matched `file.py:symbol` and never `file.py::symbol` — the |
-|  | `scripts/check_doc_citations.py`:77 | skipped silently, which meant NO-SYMBOL reported zero findings because it had never |
-|  | `scripts/check_receipts.py`:81 | dimensionless, but it must be SAID, for the same reason provenance states |
-|  | `scripts/check_receipts.py`:166 | and a reader trusting the catalog would wait for a signal that never comes. |
+| CONVENTION | `scripts/check_doc_citations.py`:74 | The `::` branch MUST come first and MUST be spelled with two colons. The original |
+| CONVENTION | `scripts/check_doc_citations.py`:75 | pattern had one, so it matched `file.py:symbol` and never `file.py::symbol` — the |
+| CONVENTION | `scripts/check_doc_citations.py`:77 | skipped silently, which meant NO-SYMBOL reported zero findings because it had never |
+| CONVENTION | `scripts/check_receipts.py`:81 | dimensionless, but it must be SAID, for the same reason provenance states |
+| CONVENTION | `scripts/check_receipts.py`:166 | and a reader trusting the catalog would wait for a signal that never comes. |
 |  | `scripts/gen-theme-token-docs.mjs`:103 | produced spurious churn, and CI could never agree with a local run. |
 |  | `scripts/gen-theme-token-docs.mjs`:248 | Split the count so a dynamic family can never be mistaken for a dead one. |
-|  | `scripts/gen_event_docs.py`:387 | they went stale on commits that never touched an event. Parent links are |
-|  | `scripts/gen_floor_masks.py`:59 | calibrated for that canvas, so every mask must match or the shift misaligns. |
+| CONVENTION | `scripts/gen_event_docs.py`:387 | they went stale on commits that never touched an event. Parent links are |
+| STALE | `scripts/gen_floor_masks.py`:59 | calibrated for that canvas, so every mask must match or the shift misaligns. |
 |  | `scripts/sanitize-animal-svg.mjs`:20 | - href / xlink:href must be an internal #fragment (drops external refs). |
 |  | `src/actions/core.js`:167 | never break the call it's reporting on — same defensive pattern as the |
 |  | `src/actions/fetch-failure-tristate.test.mjs`:151 | FE-ERR-4: a failed saved-zones fetch must not overwrite the library with []. |
