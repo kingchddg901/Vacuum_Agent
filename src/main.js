@@ -8,6 +8,7 @@ import { VacuumCardBindings }                 from "./bindings/index.js";
 import { VacuumCardActions }                  from "./actions/index.js";
 import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
+// anchor: CNG921VV
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
 import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales, localeStatus, applyDir } from "./i18n/index.js";
@@ -118,6 +119,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // bindModalHostEvents would re-attach on every modal render,
     // so we anchor it on connectedCallback instead and let the
     // modal host's close action handle the actual close logic.
+    // anchor: CN39AJJ5
     this._boundHandleKeydown = (e) => this._handleGlobalKeydown(e);
     // Re-render whenever a new animal registers so the animal companion
     // dropdown always reflects the live AnimalSVG registry. Bound per-
@@ -853,6 +855,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // this once per card instance.
     if (this._state && !this._confirmationsWired) {
       this._confirmationsWired = true;
+      // anchor: CNMY8CY9
       this._state.setConfirmationsRenderTrigger?.(() => this._scheduleRender());
     }
 
@@ -1162,10 +1165,12 @@ class EufyVacuumCommandCenter extends HTMLElement {
           this._state?.setLivePose?.(null);
           clearInterval(this._livePosePollTimer);
           this._livePosePollTimer = null;
+          // anchor: CN88VVBN
           this._scheduleRender();
           return;
         }
         this._state?.setLivePose?.(resp);
+        // anchor: CNT4XH65
         this._scheduleRender();
       } catch (err) {
         // transient WS drop — keep the last pose + the timer, retry next tick
@@ -1574,6 +1579,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
   showToast(message, opts = {}) {
     if (!this._state?.pushToast) return null;
     const id = this._state.pushToast(message, opts);
+    // anchor: CN1R797P
     this._scheduleRender();
     const ttl = Number.isFinite(opts?.ttl) ? Math.max(1000, opts.ttl) : 3500;
     // Tracked so disconnectedCallback can cancel it. Untracked, this fired up to
@@ -1583,6 +1589,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       this._toastSweepTimers.delete(sweep);
       // The renderer also filters expired toasts, but we still need a
       // re-render to actually clear them from the DOM.
+      // anchor: CNWHQWV5
       this._scheduleRender();
     }, ttl + 80);
     this._toastSweepTimers.add(sweep);
@@ -1680,6 +1687,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     const ctx = buildRenderContext(this);
     const focusSnapshot = this._captureShadowFocusState();
     const scrollSnapshot = this._captureShadowScrollState();
+    // anchor: CNET1PRZ
     const frame = this._ensureShellFrame(STYLES);
     this._ensureRuntimeFontStyles(); // survives frame resets; no-op without drop-ins
     const isMobile = this._state.isMobileViewport?.() ?? false;
@@ -1716,6 +1724,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       ? this._renderers.renderMobileOverlay?.(ctx) ?? ""
       : "";
 
+    // anchor: CNPA0T4V
     if (frame.header.dataset.renderedHtml !== headerHtml) {
       frame.header.innerHTML = headerHtml;
       frame.header.dataset.renderedHtml = headerHtml;
@@ -1817,6 +1826,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       || !bottomNav || !mobileOverlay
       || Object.keys(viewRoots).length !== VIEW_ORDER.length;
 
+    // anchor: CND80HAJ  the shadow-root frame rewrite - the single <style data-evcc-style-root> node
     if (missingFrame) {
       this.shadowRoot.innerHTML = `
         <style data-evcc-style-root>${styles}</style>
@@ -1847,6 +1857,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       bottomNav = this.shadowRoot?.querySelector("[data-evcc-bottom-nav-root]");
       mobileOverlay = this.shadowRoot?.querySelector("[data-evcc-mobile-overlay-root]");
       viewRoots = this._collectViewRoots();
+    // anchor: CNJEQQXZ
     } else if (styleRoot.textContent !== styles) {
       styleRoot.textContent = styles;
     }
@@ -1917,6 +1928,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
         ? this._renderers.renderThemeJsonModal(ctx)
         : "";
 
+    // anchor: CNP2PC4W
     // Dialog (confirm / alert / prompt) is rendered LAST so it stacks above
     // whatever modal triggered it (e.g. the run-profile editor below it).
     const jobSummaryHtml =
@@ -1929,8 +1941,10 @@ class EufyVacuumCommandCenter extends HTMLElement {
         ? this._renderers.renderDialogModal(ctx)
         : "";
 
+    // anchor: CNP39QF9
     const html = `${roomEditorHtml}${roomAccessHtml}${roomEstimateHtml}${orderModalHtml}${maintenanceModalHtml}${externalWizardHtml}${themeJsonHtml}${jobSummaryHtml}${dialogHtml}`;
 
+    // anchor: CNRBAADE
     if (!html) {
       if (this._modalHost) {
         this._modalHost.remove();
@@ -1939,6 +1953,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       return;
     }
 
+    // anchor: CN5837PS
     if (!this._modalHost) {
       this._modalHost = document.createElement("div");
       this._modalHost.className = "evcc-modal-host";
@@ -1948,23 +1963,30 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // dir (that lives on the panel host in its own shadow tree). Stamp the
     // resolved language's direction on it, or an RTL card's modals render LTR
     // (numbered steps + headings on the wrong side) with only per-character bidi.
+    // anchor: CNQGQBJM
     applyDir(this._modalHost, resolveLang(this._hass, this._config, this._langOverride));
     // Same reason as applyDir above: a body-mounted host cannot inherit the
     // typeface token, which is set on :host([data-evcc-font]) in the card's own
     // shadow tree. Stamp the id so the host's stylesheet can key off it — the
     // @font-face itself is registered document-wide, so the face is available
     // here even though the token is not.
+    // anchor: CNQ1W3ZE
     this._applyFontAttributeTo(this._modalHost);
 
+    // anchor: CN2W4MTS
     const modalMarkup = `<style>${MODAL_HOST_STYLES}${runtimeFontTokenRules((id) => `.evcc-modal-host[data-evcc-font="${id}"]`)}</style>${html}`;
+    // anchor: CNPK07RK
     if (this._modalHost.dataset.renderedHtml !== modalMarkup) {
+      // anchor: CNE578FJ
       // Preserve each open modal body's scroll across the innerHTML swap. Without
       // this, every in-modal interaction (room pick, setting tap) re-renders and
       // jumps the modal back to the top. Bodies map by index (modal order is stable).
+      // anchor: CNXZAC3C
       const prevScroll = Array.from(
         this._modalHost.querySelectorAll(".evcc-modal-body"),
         (el) => el.scrollTop,
       );
+      // anchor: CNR1S943
       this._modalHost.innerHTML = modalMarkup;
       this._modalHost.dataset.renderedHtml = modalMarkup;
       const bodies = this._modalHost.querySelectorAll(".evcc-modal-body");
@@ -1972,6 +1994,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
         if (top && bodies[i]) bodies[i].scrollTop = top;
       });
 
+      // anchor: CNDKE7HV
       // Bind ONLY after an actual innerHTML swap. The swap recreates every modal
       // element (dropping its old listeners), so this attaches exactly one set.
       // Re-binding on every render — including a background status/battery push
@@ -2010,6 +2033,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // cancel IT — not the modal underneath. (Native confirm/prompt were
     // document-blocking; Escape never reached the page. Preserve that.)
     if (this._state.cancelDialog?.()) {
+      // anchor: CNBX76QN
       this._scheduleRender();
       event.preventDefault();
       return;
@@ -2033,6 +2057,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       if (typeof opener !== "function" || typeof closer !== "function") continue;
       if (!opener.call(this._state)) continue;
       closer.call(this._state);
+      // anchor: CNC3451F
       this._scheduleRender();
       event.preventDefault();
       return;
@@ -2057,16 +2082,19 @@ class EufyVacuumCommandCenter extends HTMLElement {
     }
     // Body-mounted like the modal host — stamp the card's resolved direction so
     // RTL toasts align/flow correctly instead of inheriting the document's LTR.
+    // anchor: CNGWD6HY
     applyDir(this._toastHost, resolveLang(this._hass, this._config, this._langOverride));
     // Same reason as applyDir above: a body-mounted host cannot inherit the
     // typeface token, which is set on :host([data-evcc-font]) in the card's own
     // shadow tree. Stamp the id so the host's stylesheet can key off it — the
     // @font-face itself is registered document-wide, so the face is available
     // here even though the token is not.
+    // anchor: CNYEMPE6
     this._applyFontAttributeTo(this._toastHost);
 
     const markup = `<style>${TOAST_HOST_STYLES}${runtimeFontTokenRules((id) => `.evcc-toast-host[data-evcc-font="${id}"]`)}</style>${html}`;
     if (this._toastHost.dataset.renderedHtml !== markup) {
+      // anchor: CN83JR6N
       this._toastHost.innerHTML = markup;
       this._toastHost.dataset.renderedHtml = markup;
     }

@@ -49,7 +49,7 @@ path it no longer occupies (`STALE`).
 > did NOT copy this, and here is why". Reading only the quoted fragment inverts its
 > meaning, which is what the header below warns about.
 >
-> **Line numbers in this table have drifted** — `profiles/manager.py:398` is now `:426`,
+> **Line numbers in this table have drifted** — `profiles/manager.py::get_effective_room_details` is now `:426`,
 > and two rows resolved only by searching the notice text. The notices are intact; the
 > coordinates are not. Same rot as the audit corpus's `file:line`, and the same argument
 > for anchors.

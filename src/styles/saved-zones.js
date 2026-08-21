@@ -5,6 +5,7 @@
 // header, per-row multi-select, the shared setting selects and the actions bar.
 
 export const savedZonesStyles = `
+  /* anchor: CNXDKP5B */
   .evcc-saved-zones-panel {
     flex: 1 1 300px;
     display: flex;
@@ -17,6 +18,7 @@ export const savedZonesStyles = `
     box-shadow: var(--evcc-shadow-card, 0 6px 14px rgba(0, 0, 0, 0.14));
   }
 
+  /* anchor: CNHZZ19E */
   .evcc-saved-zones-header {
     display: flex;
     align-items: center;
@@ -131,6 +133,7 @@ export const savedZonesStyles = `
     color: var(--evcc-text-muted);
   }
 
+  /* anchor: CN15KDB5 */
   .evcc-saved-zones-item {
     display: flex;
     flex-wrap: wrap;
@@ -143,6 +146,7 @@ export const savedZonesStyles = `
     background: color-mix(in srgb, var(--evcc-surface-input) 72%, transparent);
   }
 
+  /* anchor: CN8PQBTZ */
   .evcc-saved-zones-item.is-selected {
     border-color: var(--evcc-accent, #4c9be8);
     background: color-mix(in srgb, var(--evcc-accent, #4c9be8) 16%, var(--evcc-surface-input));

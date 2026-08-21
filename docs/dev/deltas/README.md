@@ -286,7 +286,7 @@ spot-checked): `frontend/animal-svg` (no drift found, left untouched);
 
 **Verified since the pass:** `frontend/render-cycle` — read in full during the FONT-1
 work, its cache-bust section exercised against `build-card.mjs`, and its one recorded
-unverifiable claim (VIEW_ORDER-mismatch frame reset) since confirmed at `main.js:1602`.
+unverifiable claim (VIEW_ORDER-mismatch frame reset) since confirmed at `main.js::_ensureShellFrame`.
 
 **The former residual — RECONCILED 2026-08-07, closed:**
 

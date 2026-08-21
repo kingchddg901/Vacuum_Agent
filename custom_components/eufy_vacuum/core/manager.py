@@ -125,6 +125,7 @@ _UNSET: Any = object()
 # (else we'd double-dispatch). MAX_ATTEMPTS is also the per-phase watchdog: after
 # that many tries with no start, the run is left stalled (the user can Cancel Run)
 # rather than silently hung. Tunable from on-device validation. These are in-core
+# anchor: CN3AX4QG  the _PHASE_* phase-timing DEFAULTS block — brand-overridable via dispatch.phase_timing
 # DEFAULTS only — a strict-order brand whose post-dock ignore-transient or per-room
 # timing differs overrides any subset via its adapter's `dispatch.phase_timing`
 # block (read by manager._phase_timing), so the timing stays BRAND-OWNED, not
@@ -5737,6 +5738,7 @@ class EufyVacuumManager:
         )
         _mapping_cfg = _adapter_cfg.get("mapping", {}) or {}
         _segmenter_engine = _mapping_cfg.get("segmenter_engine")
+        # anchor: CN5APNA9  supports_map_bounds derivation — CV segmentation gated on a real segmenter_engine
         supports_map_bounds = bool(
             _segmenter_engine and _segmenter_engine != "noop_fallback"
         )

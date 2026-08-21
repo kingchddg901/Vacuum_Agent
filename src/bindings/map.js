@@ -324,12 +324,14 @@ export function applyMapBindings(proto) {
     // (override > token > default) holds on the raster too — an exact per-pixel recolor, not an
     // overlay. Bridge the raster's per-pixel rid to a room via the DEVICE-AUTHORITATIVE rid->name
     // map the render payload already ships (rd.room_names = {rid: name}); our rooms carry that same
+    // anchor: CNFJPTKD  keying a raster override by room.id vs bridging by name — the id-space question
     // name (it's what the labels show). The name bridge is DEFENSIVE, not required — read on before
     // "simplifying" it, and before trusting it as proof that the two ids differ.
     //
     // R2-BUG-5. This comment used to assert that raster rid and our stored room.id are "DIFFERENT
     // id spaces on real devices (empirically verified)". That claim has no dataset behind it, and
     // three separate code paths (selection scrim, clean-order badges, current-room attribution)
+    // anchor: CNZZT0GC  the rid -> room_names -> room name-bridge (defensive, not required)
     // assume the opposite — so the codebase read as self-contradictory for two months. The raster
     // rid space is EUFY-ONLY (map_source.py:373 — Roborock has no per-pixel raster at all), so
     // "on real devices" can only ever have meant Eufy; and on the one Eufy device we hold data
@@ -373,6 +375,7 @@ export function applyMapBindings(proto) {
       const dx = rd.ro_dx | 0, dy = rd.ro_dy | 0;
       const shift = rd.rid_shift | 0;
       const catchAll = rd.catch_all_rid | 0;
+      // anchor: CNYVDQ9S  palette slot is rid-derived: (rid-1) mod ROOM_FILL_N, NOT render order
       const flip = rd.flip_y !== false;
       for (let ry = 0; ry < roH; ry++) {
         const rowOff = ry * roW;
@@ -1319,6 +1322,7 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='cancel-layout-editor']").forEach((btn) => {
       this.card._on(btn, "click", () => { this.card._state.closeLayoutEditor(); this.card._scheduleRender(); });
     });
+    // anchor: CNZHSHTG
     root.querySelectorAll("[data-layout-field='name']").forEach((inp) => {
       this.card._on(inp, "input", () => { this.card._state.setLayoutDraftName(inp.value); });
     });
@@ -2779,6 +2783,7 @@ export function applyMapBindings(proto) {
     let _lastX = 0, _lastY = 0;
     let _moved  = false;
 
+    // anchor: CNH72SCP
     this.card._on(container, "pointerdown", (e) => {
       if (e.button !== 0) return;
       // Zone-draw mode owns the press: paint a rubber-band rectangle instead of
@@ -2796,6 +2801,7 @@ export function applyMapBindings(proto) {
         const zsy = zclamp(((e.clientY - zr.top)  / zr.height) * 100);
         let zcur = { x: zsx, y: zsy, w: 0, h: 0 };
         const zpaint = () => {
+          // anchor: CNGGE3MJ
           // Re-query each paint so a mid-drag re-render doesn't strand a detached node.
           const box = container.querySelector(".evcc-zone-draft");
           if (!box) return;
@@ -2829,6 +2835,7 @@ export function applyMapBindings(proto) {
         document.addEventListener("pointercancel", zUp);
         return;
       }
+      // anchor: CNKWAHZT
       // Hide-area draw owns the press the same way (mirrors the zone rubber-band): drag a box,
       // convert it to a normalized image rect (letterbox-corrected), and append it to the
       // persisted hidden regions. Like zones, this MUST live in this one pointerdown handler.

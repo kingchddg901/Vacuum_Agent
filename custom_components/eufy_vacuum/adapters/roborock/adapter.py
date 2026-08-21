@@ -171,6 +171,7 @@ def register_roborock_adapter_for_vacuum(
     # --- capability gating ----------------------------------------------------
     # Hints come from the model profile; detect_capabilities OR-s them with live
     # entity presence. Roborock's mop is a SELECT (mop_intensity), so we assert
+    # anchor: CN1R6FC7  roborock entity candidates — the declared role->entity_id map the resolver starts from
     # supports_mop_features via the hint rather than mapping it to the detector's
     # water_level slot (which would falsely imply station water on a no-dock unit).
     entity_candidates: dict[str, list[str]] = {
@@ -516,6 +517,7 @@ def register_roborock_adapter_for_vacuum(
             # path-optimized run. The dispatch-time call seeds the first (guessed)
             # room's fan; the rollover corrects to the real first room (~30s poll
             # lag). passes stays GLOBAL (the app_segment_clean repeat — NOT
+            # anchor: CN8S81R0  mop intensity is a device-GLOBAL select, re-applied per phase; omitted entirely on the S6
             # mid-run-settable). NO mop: SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE are
             # RoborockUnsupportedFeature on the S6 (observe-only, app-controlled).
             # Mop intensity (settable models) — a device-GLOBAL select, re-applied per
@@ -619,6 +621,7 @@ def register_roborock_adapter_for_vacuum(
             # create bucket" op (it refreshes the get_maps source first), so declare
             # it here to surface the rooms in setup. (Label is Eufy-flavored — a
             # per-brand step label is a later UX polish.)
+            # anchor: CN0QXDWS  discovery source — Roborock's id<->name map lives ONLY in the service response
             "steps": ["add_vacuum", "import_active_map", "save_rooms"],
         },
 

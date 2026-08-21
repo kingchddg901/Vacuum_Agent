@@ -62,6 +62,7 @@
  * ============================================================
  */
 
+// anchor: CN01YPJS  applyThemeToCard import — every editor control calls it directly, 14 call sites
 import { applyThemeToCard } from "../styles/apply-theme.js";
 import { THEME_GROUPS, THEME_TOKEN_MAP, THEME_TOKEN_REGISTRY } from "../theme-tokens/index.js";
 import { sliceThemeByTypes, themeKeyCount, detectFloorScope, clampThemeScalars } from "../theme-tokens/floor-scope.js";
@@ -302,6 +303,7 @@ export function applyThemeBindings(proto) {
   proto._bindThemeMode = function () {
     this.card._onAll("[data-theme-mode]", "click", (e) => {
       this.card._state.setThemeMode(e.currentTarget.dataset.themeMode);
+      // anchor: CNW1D5GX
       applyThemeToCard(this.card);
       this.card._scheduleRender();
     });
@@ -649,6 +651,7 @@ export function applyThemeBindings(proto) {
       this.card._scheduleDeferredRender?.();
     });
 
+    // anchor: CNJ9HJB5
     this.card._onAll("[data-theme-token]", "input", async (e) => {
       const token = e.currentTarget.dataset.themeToken;
       const tokenDef = THEME_TOKEN_MAP[token];
@@ -684,6 +687,7 @@ export function applyThemeBindings(proto) {
       applyThemeToCard(this.card);
     });
 
+    // anchor: CNWFAFXJ
     this.card._onAll("[data-theme-color-input]", "change", async (e) => {
       const token = e.currentTarget.dataset.themeColorInput;
       const tokenDef = THEME_TOKEN_MAP[token];
@@ -702,10 +706,13 @@ export function applyThemeBindings(proto) {
       );
 
       this.card._state.applyThemeDraftPatch(payload);
+      // anchor: CNFQSNRH
       applyThemeToCard(this.card);
+      // anchor: CNDNT4SX
       this.card._scheduleDeferredRender?.();
     });
 
+    // anchor: CNKW51R0
     this.card._onAll("[data-theme-token]", "change", async (e) => {
       const isRange = e.currentTarget.type === "range";
 

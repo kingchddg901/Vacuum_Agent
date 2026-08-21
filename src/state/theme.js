@@ -388,8 +388,10 @@ export function applyThemeState(proto) {
 
     // Effective active = the device override (if pinned) else the backend active.
     const activeTheme = state.library?.[this.effectiveActiveThemeId()] || null;
+// anchor: CNGDHPPD
 
     /* -------------------------------------------------------
+       // anchor: CN1YNYTH
        0. SEED: ROOM-FILL PALETTE DEFAULTS
        The room-fill tokens carry no default in styles/index.js (the map
        render supplies its own fallback via roomFillCss/roomFillRgb). But
@@ -399,12 +401,14 @@ export function applyThemeState(proto) {
        the render's own default palette, so a themeless card is net-zero —
        an active theme or working draft still overrides below.
        ------------------------------------------------------- */
+    // anchor: CNG4F7SJ  seed step: room-fill palette defaults from ROOM_FILL_PALETTE
     ROOM_FILL_PALETTE.forEach((hex, i) => {
       const key = `--evcc-room-fill-${i + 1}`;
       colorMap[key] = hex;
       sources[key] = "default";
     });
 
+    // anchor: CNTV53SE
     /* -------------------------------------------------------
        0b. SEED: FLOOR-TEXTURE MATERIAL DEFAULTS
        Floor color/opacity tokens carry their defaults in the RENDER
@@ -423,6 +427,7 @@ export function applyThemeState(proto) {
        THEME_TOKEN_MAP gate skips computed "-eff" vein layers (marble),
        whose oklch()/calc() defaults are not editor tokens.
        ------------------------------------------------------- */
+    // anchor: CNH8B7A7  seed step: floor-texture MATERIAL defaults, before the active-theme merge
     for (const material of Object.values(FLOOR_TEXTURE_REGISTRY)) {
       for (const layer of material?.layers || []) {
         const ct = layer?.colorToken;
@@ -447,6 +452,7 @@ export function applyThemeState(proto) {
     /* -------------------------------------------------------
        1. BASE: ACTIVE THEME
        ------------------------------------------------------- */
+    // anchor: CNGDCQF4
     if (activeTheme) {
       Object.entries(activeTheme.colors || {}).forEach(([k, v]) => {
         colorMap[k] = v;
@@ -467,6 +473,7 @@ export function applyThemeState(proto) {
     /* -------------------------------------------------------
        2. OVERLAY: WORKING DRAFT
        ------------------------------------------------------- */
+    // anchor: CNC3TMHJ
     Object.entries(state.workingDraft.colors).forEach(([k, v]) => {
       colorMap[k] = v;
       sources[k] = "draft";
@@ -489,11 +496,13 @@ export function applyThemeState(proto) {
        This overwrites any pre-baked value from the tokens bucket
        so that an alpha-only draft change is reflected correctly.
        ------------------------------------------------------- */
+    // anchor: CNGE76CN
     Object.entries(colorMap).forEach(([k, color]) => {
       const alpha = k in alphaMap ? alphaMap[k] : null;
       tokens[k] = _hexWithAlpha(color, alpha);
     });
 
+    // anchor: CNWWDBRT
     return { tokens, sources };
   };
 

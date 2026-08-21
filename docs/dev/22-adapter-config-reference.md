@@ -513,7 +513,7 @@ Eufy **derives** `evidence_invalidating_error_codes` as
 **hand-declares** its invalidating set (`adapters/roborock/vocabulary.py::ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES`)
 rather than deriving it the same way, because Roborock's source tables are a
 *partial, open* classification of a vendor enum — several states are left
-out on purpose as ambiguous (see `adapters/roborock/vocabulary.py:289-297`),
+out on purpose as ambiguous (see `adapters/roborock/vocabulary.py::ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES`),
 so `ROBOT - SAFE_ROBOT` would wrongly widen the invalidating set to every
 un-vetted robot code. Both brands' `evidence_safe_error_codes` **are**
 derived as `dock_sourced_error_codes | <a separate safe-robot set>`
@@ -1982,7 +1982,7 @@ supports_room_profiles     supports_zone_clean
 >
 > **`supports_base_station` / `supports_map_bounds` are not capability flags —
 > they are snapshot-DERIVED** in `core/manager.py::get_dashboard_snapshot`
-> (`core/manager.py:3949-3963` — base_station at `:3950`, map_bounds at `:3961`), not
+> (`core/manager.py#CN585YGW` and `core/manager.py#CN5APNA9`), not
 > read from the `capabilities` block (no adapter declares them):
 >
 > - `supports_base_station` = `bool(dock_events.enabled)` OR any of

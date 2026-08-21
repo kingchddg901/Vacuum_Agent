@@ -272,8 +272,8 @@ business picking. That signature *is* the invariant, expressed in a type.
 - **Cite `INFJXSM4`** from any site that reads an entity state into a boolean or a rule operand.
 
 > **Replica set, unresolved.** The sentinel vocabulary is written at least five times and
-> the memberships disagree: `adapters/eufy/lifecycle.py:67` carries `"null"`,
-> `adapters/roborock/vocabulary.py:31` does not, `core/error_tracker.py:89` omits `"none"`
+> the memberships disagree: `adapters/eufy/lifecycle.py::_active_cleaning_target_cleared` carries `"null"`,
+> `adapters/roborock/vocabulary.py::NOT_ERROR_SENTINELS` does not, `core/error_tracker.py::_NOT_ERROR` omits `"none"`
 > (its own comment calls it a deliberate last-resort scope), and
 > `rooms/room_discovery.py::_ACTIVE_MAP_SENTINELS` is a fifth. Some of that divergence is
 > almost certainly per-brand and correct. It wants an `RN` anchor and a read — not a

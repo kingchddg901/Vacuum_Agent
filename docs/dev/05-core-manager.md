@@ -294,7 +294,7 @@ orchestrate multiple subsystems or span too many data keys to belong to one.
 
 ### `update_room_fields`
 
-The most cross-cutting write in the system (`core/manager.py:1553`). Accepts a room
+The most cross-cutting write in the system (`core/manager.py::remove_vacuum_record`). Accepts a room
 update (`enabled`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`,
 `clean_passes`, `edge_mopping`, `color`, `is_dock_room`, `is_transition`,
 `grants_access_to`, `rules` — keyword-only, all optional), applies it to

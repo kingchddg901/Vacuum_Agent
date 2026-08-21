@@ -165,7 +165,7 @@ Roborock likewise), and the card resolves it at render time via
   translate fault labels like any other key. 237 keys total (189 Eufy + 48
   Roborock).
 - The resolution is one inline template — `this.t(\`fault.${brand}.${slug}\`)`
-  (`faults.js:37`) — which is what proves all 237 `fault.*` keys reachable to
+  (`faults.js::faultLabel`) — which is what proves all 237 `fault.*` keys reachable to
   [check:i18n](#checki18n) instead of reporting them dead; that single-template
   property is a stated design reason for the seam existing at all.
 - **Fallback is the raw code, deliberately.** A key with no entry (a brand that
