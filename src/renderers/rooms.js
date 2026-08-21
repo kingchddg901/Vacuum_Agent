@@ -850,6 +850,7 @@ proto.renderRoomsActionBar = function (
                 ? `${Math.max(0, Math.min(99, Math.floor(chipProgress)))}%`
                 : minutes;
 
+            // anchor: CNPK5534  the room queue-progress chip and its --job-progress custom property
             return `
               <button
                 type="button"

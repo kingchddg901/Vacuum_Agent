@@ -681,14 +681,14 @@ an accidental duplicate wants a helper, not an entry here.
   id fallback. Drop that in one copy and the settings transplant returns silently on
   whichever write path skipped it. Obliged-to-change looks near-certain; unverified.
   Rule: [[INMKEHPQ]].
-- 🔴 **MUTATION — `_enabled_room_ids_validator`.** `services/rooms.py:86` and
-  `services/setup.py:109`, identical refusal messages today. Both gate the same destructive
+- 🔴 **MUTATION — `_enabled_room_ids_validator`.** `services/rooms.py::_enabled_room_ids_validator` and
+  `services/setup.py::_SETUP_SET_PANEL_TITLE_SCHEMA`, identical refusal messages today. Both gate the same destructive
   write — `null` and `[]` are rejected as loud schema errors rather than coerced to "select
   nothing", which would wipe every managed room. Two service surfaces, one rule, no shared
   symbol. Rule: [[INC63FDF]].
 - **The sentinel vocabulary** — what counts as "no reading". Five sites, and the memberships
-  already disagree: `adapters/eufy/lifecycle.py:67` carries `"null"`,
-  `adapters/roborock/vocabulary.py:31` does not, `core/error_tracker.py:89` omits `"none"`
+  already disagree: `adapters/eufy/lifecycle.py::_active_cleaning_target_cleared` carries `"null"`,
+  `adapters/roborock/vocabulary.py::NOT_ERROR_SENTINELS` does not, `core/error_tracker.py::_NOT_ERROR` omits `"none"`
   (its own comment calls that a deliberate last-resort scope), `listeners/path_blockers.py`
   has its own set inline, and `rooms/room_discovery.py::_ACTIVE_MAP_SENTINELS` is a fifth.
   Probably NOT one set: the brand files are declaring brand vocabulary, which is correct

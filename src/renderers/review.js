@@ -558,6 +558,7 @@ export function applyReviewRenderers(proto) {
           { seconds: Math.round(errorSeconds), count: Math.round(errorSeconds) }));
       }
       titleParts.push(...sourceParts);
+      // anchor: CN147YHC
       badges.push({
         text: Number.isFinite(errorCount) && errorCount > 0
           ? this.t("review.badge_errors_count", { count: errorCount })
@@ -631,6 +632,7 @@ export function applyReviewRenderers(proto) {
     const profileSettings = String(lp.subtitle ?? "").trim();
     const profileAmbiguous = !!(this.card?._state?._isAmbiguousProfileLabel?.(profileBase) && profileSettings);
     const profileDisplay = profileAmbiguous ? `${profileBase} · ${profileSettings}` : profileBase;
+    // anchor: CNP8K5RW  the review job-card badge row
     const profileSubtitle = profileAmbiguous ? null : (profileSettings || null);
     const roomDisplay = Array.isArray(job?.room_slugs) && job.room_slugs.length
         ? job.room_slugs.join(", ")

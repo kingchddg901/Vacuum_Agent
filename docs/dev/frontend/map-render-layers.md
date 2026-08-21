@@ -30,7 +30,7 @@ Inside `.evcc-map-content-rotator`, in order (later paints ON TOP; most rely on 
    dims, it does not recolor. This scrim keys its selection set directly by managed `room.id`
    against the raster's own `rid` (see §2's disagreement note) — `selected = new Set(
    rooms.filter(r => r.enabled).map(r => Number(r.id)))`, tested with `if (selected.has(rid))
-   continue` (`bindings/map.js:269-288`).
+   continue` (`bindings/map.js::_bindSelectionScrim`).
 4. **`<svg class="evcc-map-svg">`** — contains, in order:
    - floor-texture `<defs>` (`_buildFloorTextureDefs`);
    - **room polygons** (`_renderMapSegmentPolygon`) — `fill: transparent` unless selected, so they
@@ -63,12 +63,12 @@ different generations of code encoded two different beliefs about whether that's
 - **Treats them as the SAME number, no bridging (older, load-bearing feature code):**
   - `_bindSelectionScrim` builds `selected = new Set(rooms.filter(r => r.enabled).map(r =>
     Number(r.id)))` and tests it directly against the decoded raster `rid`
-    (`bindings/map.js:269-288`) — if they ever diverge for a device, the scrim dims the wrong
+    (`bindings/map.js::_bindSelectionScrim`) — if they ever diverge for a device, the scrim dims the wrong
     rooms.
   - `_renderRoomSelection`'s clean-order badges look up `order.get(Number(room.number))`, where
     `order` is keyed by `Number(r.id)` and `room.number` is the raw `rid` `rooms_from_room_pixels`
     emits (`map_source.py::rooms_from_room_pixels`, `"number": rid`); the function's own docstring says "Keyed by
-    device room number (== managed room id)" (`renderers/map.js:654`).
+    device room number (== managed room id)" (`renderers/map.js::_renderSelectionScrim`).
   - `current_room_for_pixel` returns the raw raster `rid` (`map_source.py::current_room_for_pixel`), and
     `learning/room_attribution_engines.py::PoseSample` documents that return value as **"the MANAGED
     room id"** outright.
@@ -76,10 +76,10 @@ different generations of code encoded two different beliefs about whether that's
   code):** `_drawVaRender`'s per-room override resolves a raster pixel's `rid` → `rd.room_names[rid]`
   → our room *by matching name* (trimmed + lowercased) → `room.color` — it deliberately does NOT
   key by `room.id` directly. The comment at the point of the choice
-  (`bindings/map.js:327-329`) states this as an asserted, already-confirmed finding, not a
+  (`bindings/map.js#CNFJPTKD`) states this as an asserted, already-confirmed finding, not a
   hedge: *"Keying by room.id directly is WRONG — the raster rid and our stored room.id are
   DIFFERENT id spaces on real devices (empirically verified), so a room.id key lands on no
-  pixels (or, worse, another room's)."* The name-bridge itself is at `bindings/map.js:333-345`.
+  pixels (or, worse, another room's)."* The name-bridge itself is at `bindings/map.js#CNZZT0GC`.
 - **RESOLUTION (R2-BUG-5, 2026-08-06): the identity-assuming paths are the supported reading;
   the divergence claim has no dataset behind it.** Two facts settle it:
   1. **The raster `rid` space is Eufy-only.** `rooms_from_room_pixels` is the *"Eufy storage
@@ -120,8 +120,8 @@ Single source of truth: **`src/cards/map-room-color.js`**. Cascade, resolved the
   (`roomFillRgb`, one `getComputedStyle` read), plus a per-rid override map
   (`roomOverrideRgb` via `rd.room_names`, bridged by name — see §2). An un-overridden pixel takes
   palette slot **`(rid − 1) mod N`** — rid-derived, NOT render order (render order is the SVG
-  path's index rule instead; `bindings/map.js:376-377`, `ROOM_FILL_N` = 12,
-  `cards/map-room-color.js:19-26`). An `overrideSig` in the `_vaImageCache` key repaints on
+  path's index rule instead; `bindings/map.js#CNYVDQ9S`, `ROOM_FILL_N` = 12,
+  `cards/map-room-color.js::ROOM_FILL_PALETTE`). An `overrideSig` in the `_vaImageCache` key repaints on
   a recolor, like `paletteSig` does for a theme change.
 - **Floor texture** is suppressed for an overridden room (see layer 4) so the override is the fill.
 - `room.color` is a `#rrggbb` string or `null`, stored per-room (`update_room_fields`, models

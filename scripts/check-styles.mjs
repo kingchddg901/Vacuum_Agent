@@ -97,6 +97,7 @@ for (const f of readdirSync(DIR).filter((n) => n.endsWith(".js") && !n.endsWith(
   }
 }
 
+// anchor: CN50N9K4
 for (const f of readdirSync(DIR).filter((n) => n.endsWith(".js") && !n.endsWith(".test.js"))) {
   let mod;
   try {
@@ -113,6 +114,7 @@ for (const f of readdirSync(DIR).filter((n) => n.endsWith(".js") && !n.endsWith(
   }
 }
 
+// anchor: CNDPYTCV
 /* ---------------------------------------------------------------------------
  * THEME-LINT — no hardcoded color literal assigned to a CSS property in a rule
  * body. Every color must resolve through a theme token: `var(--evcc-*, fallback)`.
@@ -165,6 +167,7 @@ for (const rel of LINT_TARGETS) {
   });
 }
 
+// anchor: CND7HKR6
 /* ---------------------------------------------------------------------------
  * RTL-LINT — no PHYSICAL-direction CSS property. The card renders in Arabic /
  * Hebrew (see i18n isRTL/applyDir), so every left/right-anchored rule must be
@@ -209,6 +212,7 @@ for (const rel of RTL_TARGETS) {
   });
 }
 
+// anchor: CNMF2SNK
 /* ---------------------------------------------------------------------------
  * TOKEN-LINT — every `var(--evcc-*)` must resolve to something real.
  *
@@ -308,5 +312,7 @@ for (const tok of KNOWN_DANGLING) {
   }
 }
 
+// anchor: CNN7APJJ
 if (failures) { console.error(`FAIL — ${failures} style problem(s).`); process.exit(1); }
+// anchor: CNCVC9M3
 console.log("OK — style modules import cleanly, CSS exports brace-balanced, no un-tokenized colors, no physical-direction (non-RTL) CSS, and every --evcc-* reference resolves.");

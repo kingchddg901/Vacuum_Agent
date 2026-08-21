@@ -32,7 +32,7 @@ them and adds only persistence + UI:
 |---|---|---|
 | Stable, drift-immune frame | `map_state_source` normalized 0–1 (provider's own segmentation, **not** the drifting pose) | [map-state-source.md](../design/shipped/map-state-source.md), [map-source-coordinator.md](../31-map-source-coordinator.md) |
 | Zone **size** (m²) | per-room `area_m2` / `width_m` / `height_m` from map resolution — same math for a drawn box | `map_source.build_map_source_result` |
-| Named, per-map, user-authored **collection** storage | `custom_layouts: dict[id, CustomLayout]` on the map bucket + `_migrate_custom_layouts` + summaries + `create/rename/delete_custom_layout` services | [data-model.md §Segment stores](../03-data-model.md), `mapping/mapping_services.py:2299+` |
+| Named, per-map, user-authored **collection** storage | `custom_layouts: dict[id, CustomLayout]` on the map bucket + `_migrate_custom_layouts` + summaries + `create/rename/delete_custom_layout` services | [data-model.md §Segment stores](../03-data-model.md), `mapping/mapping_services.py::_migrate_custom_layouts` / `::_create_layout` / `::_handle_create_custom_layout` |
 | Room-membership of a point/region | the `room_pixels` room-id raster (decoded with `map_render` `rid_shift`/`catch_all_rid`) that backs `current_room`; per-point analog = the fork's `room_at_point` (#139) | `map_source.py`, fork `room_id_at_normalized` |
 | Fire a zone clean | `normalized_rects_to_quads_cm` → zone-clean dispatch (Eufy `SelectZonesClean` via fork #138; Roborock `app_zoned_clean`, shipped v1.2.0) | [project_roborock_zone_clean], fork `commands.py` |
 
@@ -193,13 +193,14 @@ likely forces re-localization itself (like the room-based refresh probe). Test o
 Zone names are **user data, not authored strings** — "the couch" is exactly like a user's room name
 ("Kids Bedroom"): we store and display it verbatim, never fabricate or translate it. So it satisfies
 the no-string-without-i18n contract the same way room names do (display *is* identity). Only the
-card **chrome** (buttons, section headers, the "Spans rooms" label, validation messages) routes
+card **chrome** (buttons, section headers, the "Unassigned" section label, validation messages) routes
 through i18n.
 
 ## 8. Card UX
 
-- **Author:** draw a box on the map → name it → save (`create_saved_zone`). Live m² shown while
-  drawing; the size/ count limits gate here (§9).
+- **Author:** draw a box on the map → name it → save (`create_saved_zone`). **No** live m² while
+  drawing — `area_m2` is computed server-side at create (`_handle_create_saved_zone` →
+  `zone_membership`) and renders only on an already-saved zone; the size/ count limits gate here (§9).
 - **Browse:** the saved-zone list, **grouped by `room_number`** (room sections in map order, the
   **Unassigned** special-cases section last). Each entry shows name + m².
 - **Reassign:** a room picker per zone (`set_saved_zone_room`) — a filing action only; None =
@@ -236,10 +237,10 @@ zones + overrides are stable across sessions (the normalized frame doesn't drift
 
 1. **Storage + services** — `saved_zones` collection, `_migrate_saved_zones`, create/rename/delete,
    snapshot summary. No bucketing yet (flat list).
-2. **Bucketing** — the room-mask membership computation (90%-of-floor), `rooms[]`/`room_number`,
-   `set_saved_zone_room` override.
+2. **Bucketing** — the room-mask membership computation (90%-of-floor), `room_number` only (no
+   `rooms[]` breakdown is persisted — §3), `set_saved_zone_room` override.
 3. **Card UX (BUILT/SHIPPED)** — draw→name→save (via `_zoneDrawPurpose="save"`), room-grouped
-   multi-select list + Spans-rooms, room-picker, clean (single + "Clean N selected" batch), delete,
+   multi-select list, room-picker, clean (single + "Clean N selected" batch), delete,
    m² + validation. Implemented across `src/{state,renderers,bindings,actions}/saved-zones.js` and
    registered in each layer's `index.js`; the panel renders in the Rooms view (`renderers/rooms.js`
    calls `renderSavedZonesPanel`).
@@ -265,7 +266,8 @@ save) and **out-of-range** coords. Fixed by `_saved_zone_coord`: reject non-nume
 (fail loud), clamp finite to 0-1, round — mirroring `_handle_set_hidden_regions`. Locked by a test.
 
 **Wave 2 (2026-07-02):** `zone_membership` (pure raster tally in `map_source.py`, reusing
-`_area_m2`/`normalize_rendered`/`point_in_polygon`) + `async_get_map_data_dict` (coordinator accessor,
+`normalize_rendered`/`point_in_polygon`, but NOT `_area_m2` — the footprint is its own bbox-span math,
+offset-independent so "size shown == size cleaned") + `async_get_map_data_dict` (coordinator accessor,
 memory→`.storage`, Eufy-only, degrade-to-None) + best-effort compute in `create_saved_zone` +
 `set_saved_zone_room` filing override. **Review → 1 finding (map-mismatch):** the compute read the
 *current* map's raster with no check it matched the zone's `map_id` — could file wrong-map

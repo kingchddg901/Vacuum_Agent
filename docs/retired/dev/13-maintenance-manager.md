@@ -64,7 +64,7 @@ else:                    → "good"
 replacement_status(*, remaining_percent: float | None) -> str
 ```
 
-Converts **percent of total service life remaining** to a status bucket. The input is **not** the raw upstream sensor state — `get_upkeep_snapshot` derives it as `round(max(min(remaining_hours / total_life_hours * 100, 100), 0), 2)` (clamped 0–100, 2 dp; `maintenance/manager.py:412-416`). Percent-based (not absolute hours) so a short-life part isn't pinned to "warning" — the issue #38 refactor a fresh part at 100% always reads "good".
+Converts **percent of total service life remaining** to a status bucket. The input is **not** the raw upstream sensor state — `get_upkeep_snapshot` derives it as `round(max(min(remaining_hours / total_life_hours * 100, 100), 0), 2)` (clamped 0–100, 2 dp; `maintenance/manager.py::get_upkeep_snapshot`). Percent-based (not absolute hours) so a short-life part isn't pinned to "warning" — the issue #38 refactor a fresh part at 100% always reads "good".
 
 ```
 if remaining_percent is None: → "unknown"   (no total_life to divide by; also uncoercible → "unknown")
@@ -159,7 +159,7 @@ adapter_config["upkeep_catalog"] = {
 
 The upkeep guide library maps per-model-family maintenance schedules (cleaning procedures, photos, replacement tips). It is read by `get_upkeep_snapshot()` but not mutated by the manager.
 
-`guide_translations` is `UPKEEP_GUIDE_TRANSLATIONS` (assembled by `adapters/eufy/upkeep_guides_i18n/__init__.py` from one `<lang>.py` module per language — 17 language modules; English is the base with no module of its own), structured as `[lang][guide_family][component]`. `_get_upkeep_item_guide` (`maintenance/manager.py:224-285`, translation overlay `249-262`) selects the entry by HA instance language (`self._guide_language()`) and overlays the localized `steps` / `notes` / `clean_frequency` / `replace_frequency` onto the English `guide_library` base **per field** — any absent field (or an unharvested component/language) falls back to English.
+`guide_translations` is `UPKEEP_GUIDE_TRANSLATIONS` (assembled by `adapters/eufy/upkeep_guides_i18n/__init__.py` from one `<lang>.py` module per language — 17 language modules; English is the base with no module of its own), structured as `[lang][guide_family][component]`. `_get_upkeep_item_guide` (`maintenance/manager.py::_get_upkeep_item_guide`, translation overlay `249-262`) selects the entry by HA instance language (`self._guide_language()`) and overlays the localized `steps` / `notes` / `clean_frequency` / `replace_frequency` onto the English `guide_library` base **per field** — any absent field (or an unharvested component/language) falls back to English.
 
 ### 4.3 Component render gating (`maintenance_only` + the family gate)
 

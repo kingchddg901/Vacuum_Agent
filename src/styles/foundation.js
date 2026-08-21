@@ -167,6 +167,7 @@ export const foundationStyles = `
     height: calc(100dvh - var(--evcc-panel-offset, var(--header-height, 56px)));
   }
 
+  /* anchor: CNVJMQTE */
   :host {
 
     /* =======================================================
@@ -174,6 +175,7 @@ export const foundationStyles = `
        ======================================================= */
 
     /* Surfaces */
+    /* anchor: CNRE7F7B */
     --evcc-surface-base:   var(--card-background-color, #1c2127);
     --evcc-surface-card:   var(--evcc-surface-base);
     --evcc-surface-panel:  color-mix(in srgb, var(--evcc-surface-base) 85%, white 15%);
@@ -202,6 +204,7 @@ export const foundationStyles = `
     --evcc-border-warning: rgba(255,180,0,0.35);
 
     /* Accent */
+    /* anchor: CNQ4HPFN */
     --evcc-accent: var(--accent-color, #3b82f6);
     --evcc-accent-soft: rgba(0,229,255,0.16);
 

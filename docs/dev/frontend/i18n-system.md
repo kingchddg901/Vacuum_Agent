@@ -89,7 +89,13 @@ string by default** — a contributed value carrying `<script>` can never reach 
 `innerHTML` sink raw. The short, audited set of first-party strings that carry
 *authored* markup (`<strong>`, `<code>`, …) opt out via `options.raw` (exposed as
 `this.tRaw`). Interpolated `{name}` **values** are inserted raw — the caller
-escapes user data at the sink, exactly as the original literal did.
+escapes user data at the sink, exactly as the original literal did. In an **RTL**
+locale each substituted run is additionally wrapped in Unicode bidi isolates
+(FSI `U+2068` … PDI `U+2069`) so an embedded LTR token — a number, `%`, `m²`, an
+`entity_id`, a duration like "14 min" — keeps its own direction; LTR locales are
+left byte-identical. Invisible controls are used rather than a literal `<bdi>`
+tag because most `.t()` callers write to `textContent`, where a tag would render
+as visible text.
 
 This escape is one of **two independent layers**. The other is the
 [intake gate](#the-intake-gate), which scrubs a contributed locale *before* it is
@@ -165,7 +171,7 @@ Roborock likewise), and the card resolves it at render time via
   translate fault labels like any other key. 237 keys total (189 Eufy + 48
   Roborock).
 - The resolution is one inline template — `this.t(\`fault.${brand}.${slug}\`)`
-  (`faults.js:37`) — which is what proves all 237 `fault.*` keys reachable to
+  (`faults.js::faultLabel`) — which is what proves all 237 `fault.*` keys reachable to
   [check:i18n](#checki18n) instead of reporting them dead; that single-template
   property is a stated design reason for the seam existing at all.
 - **Fallback is the raw code, deliberately.** A key with no entry (a brand that
@@ -198,9 +204,13 @@ the stored object rather than clobber it, so the two preferences coexist. The
 typeface chain itself is [styles-system §4](styles-system.md); the font
 *offering* is language-gated (`fontSupportsLang`, `font-store.js`) — a font is
 offered for a locale only after its glyph coverage has been verified against
-that locale's shipped catalogue, not assumed from "looks Latin" (OpenDyslexic
-is missing glyphs Polish/Czech/Turkish need). It ships one entry:
-`opendyslexic: {en}`.
+that locale's shipped catalogue, not assumed from "looks Latin" — a cmap
+inspection of the shipped OpenDyslexic-Regular/Bold found 1586 codepoints
+including Latin Extended and Cyrillic, which is why `cs`/`pl`/`tr`/`ru` are in
+the verified set; Hebrew and CJK are genuinely absent from the cmap and Arabic
+additionally needs shaping. It ships one entry — `opendyslexic`,
+verified for 12 of the 18 shipped locales (`cs`, `de`, `en`, `es`, `fr`, `id`,
+`it`, `nl`, `pl`, `pt`, `ru`, `tr`).
 
 ## Locales: bundled, shipped, and drop-in
 
@@ -235,7 +245,7 @@ per-user language (per-field → English → the backend value). One switch.
 ## The intake gate
 
 > Security boundary. A user-dropped `custom` locale is **untrusted** and its
-> values feed ~13 `tRaw` `innerHTML` sinks. The gate scrubs or rejects each file
+> values feed ~60 `tRaw` `innerHTML` sinks. The gate scrubs or rejects each file
 > **before** `registerLocale`, so by translate-time provenance no longer matters.
 
 `sanitizeOrQuarantineLocale(catalog)` in `sanitize-locale.js` returns one of three

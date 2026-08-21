@@ -17,9 +17,9 @@ and must be re-confirmed at implementation time (verify-vs-code rule).
 > **Current state (2026-08-06).** The track that shipped (1.8.0, see "Shipped" below) is the **W5
 > pose/attribution path** — the in-job hybrid's prerequisite shims #1–#4 and the W3 flag flip were
 > **never wired into the `live_transition` seam**: Eufy still declares
-> `live_transition.native_transition_source: False` (`adapters/eufy/adapter.py:785`) and still uses
+> `live_transition.native_transition_source: False` (`adapters/eufy/adapter.py#present_requires_live_map_image`) and still uses
 > `active_cleaning_target` as its secondary completion sentinel (`adapters/eufy/adapter.py#CN74RBSG`);
-> Roborock declares `True` (`adapters/roborock/adapter.py:521`). Two structural moves since the
+> Roborock declares `True` (`adapters/roborock/adapter.py#CN8S81R0`). Two structural moves since the
 > anchors were taken: external-run finalize is now owned by `ExternalRunManager` in
 > `learning/external_run.py` (the W5c bullet's `core/manager.py::_finalize_external_run` anchor
 > still resolves — `core/manager.py::_finalize_external_run` — but as a thin delegator; the substance is
@@ -60,7 +60,7 @@ Two facts shape the whole design:
 
 Three collaborators (`jobs/active_job.py`, `_maybe_roll_current_room_by_timing` at :814):
 
-- `live_transition.native_transition_source: True` — Eufy is currently `False` (`adapters/eufy/adapter.py:632`).
+- `live_transition.native_transition_source: True` — Eufy is currently `False` (`adapters/eufy/adapter.py#CN57RZE0`).
 - `entities.active_cleaning_target` → a **live room-NAME** sensor.
 - the ~5s tick caller `_maybe_roll_current_room_by_timing` — a `**kwargs` delegator on the manager
   (`core/manager.py::_maybe_roll_current_room_by_timing`) called from the tick at `core/manager.py::get_job_progress_snapshot`, whose real implementation is
@@ -99,7 +99,7 @@ attributed (see below).
 - When `current_room` resolves to a confirmed job-target name **and** has held for **N consecutive
   ticks**, the native path completes/advances.
 - When it is `None` / stale / off-map / docked, fall back to the dormant `eufy_counter_v1`
-  counter-plateau engine (kept wired at `adapters/eufy/adapter.py:613`, `counter_segmentation.py`).
+  counter-plateau engine (kept wired at `adapters/eufy/adapter.py#commit_state`, `counter_segmentation.py`).
 - The settle requirement replaces the smoothing the plateau logic gave for free — the native
   rollover path has **no debounce of its own** (settle/verify/retry lives only in the strict-order
   phase watchdog `PhaseRunner._run_advanced_phase`, `jobs/phase_runner.py::PhaseRunner._spawn_dock_poller`, with the re-dispatch at
@@ -107,7 +107,7 @@ attributed (see below).
   moved out of `core/manager.py` to `jobs/phase_runner.py` in the `feat/zone-clean` re-bundle;
   `core/manager.py` keeps only a `maybe_advance_phase` delegator (`core/manager.py::maybe_advance_phase`) and spawns
   the initial phase via `self.phase_runner._run_advanced_phase` (`core/manager.py::start_selected_rooms`). The `_PHASE_*`
-  timing constants (`core/manager.py:85-110`) and the `_phase_timing` resolver (`core/manager.py::_phase_timing`)
+  timing constants (`core/manager.py#CN3AX4QG`) and the `_phase_timing` resolver (`core/manager.py::_phase_timing`)
   stayed on the manager.
 
 This captures most of the better-grounded-signal win while the heuristic covers the inference's
@@ -119,9 +119,9 @@ blind spots.
 |---|---|---|---|
 | 1 | Live current-room-**NAME** sensor (rid → `room.number` → managed name, slug-reconciled) | seam matches by slug, not id | `mapping/map_source.py:201,:259`, `sensor/map_overlays.py::native_value` |
 | 2 | Migrate Eufy completion off the `active_cleaning_target` sentinel → adopt `require_job_active_clear: True` | frees the entity to carry the live name (Roborock's approach) | `adapters/eufy/adapter.py#CN74RBSG`, `adapters/roborock/adapter.py#CNTM7CWT` |
-| 3 | **Server-side** refresh of the rid/name during a run, independent of the map tab | the 2s freshness is UI-poll-coupled (`src/cards/main.js:600-625`) and does NOT run when the tab is backgrounded | new periodic task |
+| 3 | **Server-side** refresh of the rid/name during a run, independent of the map tab | the 2s freshness is UI-poll-coupled (`src/cards/main.js::_maybeLoadLocale`) and does NOT run when the tab is backgrounded | new periodic task |
 | 4 | N-frame settle on the native rollover for non-phased jobs | no built-in debounce; doorway cells can flicker the rid for one frame | `_maybe_roll_current_room_by_native_signal`, `jobs/active_job.py::_maybe_roll_current_room_by_native_signal` |
-| 5 | Re-map reconciliation: re-resolve rid→name when the raster version changes | rid raster is content-versioned (`eufy_version_of`, sha1) | `mapping/map_source.py::eufy_version_of`, cf. `adapters/roborock/adapter.py:274` |
+| 5 | Re-map reconciliation: re-resolve rid→name when the raster version changes | rid raster is content-versioned (`eufy_version_of`, sha1) | `mapping/map_source.py::eufy_version_of`, cf. `adapters/roborock/adapter.py#last_clean_end` |
 | 6 | Contract tests mirroring `NR-1..NR-11` for the Eufy adapter | parity with Roborock's native-rollover suite | `tests/integration/test_native_rollover.py` |
 
 The flag flip + per-room-live-settings reuse are nearly free; shims 1–4 are the real work.

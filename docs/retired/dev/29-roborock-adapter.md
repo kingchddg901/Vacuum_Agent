@@ -123,8 +123,8 @@ dispatch behavior:
   run start and (b) gates the opt-in **strict-order** sequencing (§5).
 - **`supports_base_station` / `supports_map_bounds` are *not* literal capability
   flags** — the S6 declares neither; both are *derived at snapshot time* in
-  `core/manager.py::get_dashboard_snapshot` (`core/manager.py:3949-3963` —
-  `supports_base_station` at `:3950`, `supports_map_bounds` at `:3961`). (a)
+  `core/manager.py::get_dashboard_snapshot` (`core/manager.py#CN585YGW`
+  and `core/manager.py#CN5APNA9`). (a)
   `supports_base_station` resolves False because the adapter omits the `dock_events`
   block entirely and all of `supports_mop_wash` / `supports_mop_dry` /
   `supports_empty_dust` / `supports_station_water` are False — this still gates a
@@ -132,7 +132,7 @@ dispatch behavior:
   `supports_map_bounds` = `bool(segmenter_engine and segmenter_engine != "noop_fallback")`
   resolves False for the S6 (noop) and True for Eufy (`eufy_cv_v1`), **but the Map
   Bounds review tab was removed with the mapping split** — the flag is derived-and-tested
-  but **no card surface consumes it for either brand today** (`core/manager.py:3945-3947`).
+  but **no card surface consumes it for either brand today**.
 - **`supports_room_profiles: mop_settable`** — a room-profile bundle groups
   multiple per-room settings (mode/water/intensity/passes), so it's meaningful only
   when the mop is programmable. The S6 (`mop_settable: False`) resolves this False —

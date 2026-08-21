@@ -399,7 +399,7 @@ neither had ever failed anything:
 
 | surface | state found | why nothing caught it |
 |---|---|---|
-| `docs/dev/reference/THEME_TOKEN_USAGE.md` | 651 lines out of date after 31 commits to `src/styles/`; **every `file:line` citation wrong** (`index.js:324` had become `:393`) | the generator was run by hand, last on 2026-08-11 |
+| `docs/dev/reference/THEME_TOKEN_USAGE.md` | 651 lines out of date after 31 commits to `src/styles/`; **every `file:line` citation wrong** (index.js:324 had become :393) | the generator was run by hand, last on 2026-08-11 |
 | the `Mocking` column in `subsystems/15-adapters.md`, `17-services.md` | two rows stale | `mock_docs.py --check` existed, documented as *"CI: fail if stale"*, and was wired into nothing |
 
 The second one is the sharper lesson: the check was already written and already
@@ -456,7 +456,7 @@ rots **without anyone touching the document**: one import added at the top of a
 module invalidates every citation below it, everywhere.
 
 What makes it a trap rather than a nuisance is that **a rotted line number still
-resolves.** `capabilities.py:187` lands on `return entry.entity_id` — real code, in
+resolves.** `capabilities.py::_find_registry_entity_by_tokens` lands on `return entry.entity_id` — real code, in
 the right file, plausible. A broken link announces itself; this reads as correct.
 
 Measured across `docs/` on 2026-08-15:

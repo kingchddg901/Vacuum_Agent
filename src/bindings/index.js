@@ -184,6 +184,7 @@ export class VacuumCardBindings {
   bindModalHostEvents(host) {
     if (!host) return;
 
+    // anchor: CNSJ5XD3
     // Stop propagation inside modal so backdrop click doesn't fire.
     const modal = host.querySelector("[data-stop-propagation]");
     if (modal) {
@@ -206,6 +207,7 @@ export class VacuumCardBindings {
       });
     });
 
+    // anchor: CN12D9C8
     // Shared order selector actions inside modal host.
     host.querySelectorAll("[data-action='close-order-selector']").forEach((el) => {
       el.addEventListener("click", () => {
@@ -285,6 +287,7 @@ export class VacuumCardBindings {
     // Per-room color picker. Capture the pick LIVE on "input" WITHOUT re-rendering — the card also
     // re-renders on HA state updates, and swapping the <input> while its native OS picker is open
     // drops the pick. Commit + re-render on "change" (picker closed) so the hex + Reset appear.
+    // anchor: CNZS5V36
     host.querySelectorAll("[data-room-color-input]").forEach((input) => {
       input.addEventListener("input", () => {
         this.card._state.updateEditorField("color", input.value);
@@ -296,6 +299,7 @@ export class VacuumCardBindings {
     });
 
     // Reset the per-room color back to the themeable palette default.
+    // anchor: CN1VYY22
     host.querySelectorAll("[data-action='reset-room-color']").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -425,6 +429,7 @@ export class VacuumCardBindings {
    PROTOTYPE COMPOSITION
    ========================================================= */
 
+// anchor: CNYGJAD4
 applyNavBindings(VacuumCardBindings.prototype);
 applyLanguageBindings(VacuumCardBindings.prototype);
 applyBaseStationBindings(VacuumCardBindings.prototype);

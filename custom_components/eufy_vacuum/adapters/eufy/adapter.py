@@ -223,6 +223,7 @@ def register_eufy_adapter_for_vacuum(
     # detection in detect_capabilities() is the fallback for unrecognised
     # model codes that still expose the relevant entities.
     # Rooms can be read from the `segments` attribute even when there's no
+    # anchor: CN31C111  attribute-path room detection — segments attribute without an active_map entity
     # active_map sensor (scalar/Tuya transport). Flag it so detect_capabilities
     # reports supports_rooms/segments via the attribute path (supports_active_map
     # stays entity-gated — there's no map entity to dereference).
@@ -319,6 +320,7 @@ def register_eufy_adapter_for_vacuum(
 
     # Remove None values — absent entities degrade gracefully per the schema.
     entities = {k: v for k, v in entities.items() if v is not None}
+# anchor: CNAFKHEP  dock-entity rescue — Eufy's DOCK is a separate device, so derived ids miss on a live X10
 
     # Rescue derived IDs that do not match this install. Eufy's DOCK is a separate
     # device, so its entities are named for that device, not the vacuum — the four
@@ -627,6 +629,7 @@ def register_eufy_adapter_for_vacuum(
             "room_list_attribute": "segments",
             "room_id_key": "id",
             "room_name_key": "name",
+            # anchor: CN57RZE0  scalar/Tuya implicit single-map id — these devices surface segments but create NO active_map sensor
             # Scalar/Tuya-transport Eufy devices surface the room list in the
             # `segments` attribute but create NO active_map sensor. There is only
             # one map on these, so anchor import/discovery to this single implicit
@@ -828,6 +831,7 @@ def register_eufy_adapter_for_vacuum(
             # FRESHER than .storage (no save-throttle lag) and loop-safe (no file read). The
             # compare_map_sources probe verifies its bytes are byte-identical to .storage before
             # we repoint the source to it (P2). mapdata_attrs locate the object; field_attrs
+            # anchor: CN2ARB50  fork memory transport — hass_data_domain + mapdata attrs, remapped if the fork renames one
             # (optional) remap a field if the fork renames one across the pending #136 merge.
             "memory": {
                 "hass_data_domain": "robovac_mqtt",
