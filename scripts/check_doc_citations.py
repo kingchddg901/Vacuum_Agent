@@ -54,13 +54,34 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 # Where a bare basename citation (`manager.py:12`) may be resolved from.
-SOURCE_ROOTS = ("custom_components", "scripts", "tests", "harness")
+#
+# `src` was absent until 2026-08-21, so the ENTIRE frontend tree was outside this
+# checker's world — not merely unparsed, unlisted. It could not answer even "does
+# this file exist?" about any of the 240 line citations in `docs/dev/frontend/`,
+# which is why that corpus accumulated them at 12.0 per doc against the backend's
+# 1.4: the backend's were pruned by a gate that could see them.
+SOURCE_ROOTS = ("custom_components", "scripts", "tests", "harness", "src")
+
+# Extensions the resolver indexes. A citation into any of these is checkable.
+SOURCE_SUFFIXES = (".py", ".mjs", ".js")
 
 DOC_ROOTS = ("docs",)
 
+# Generated/build output. Present only after a build, so a citation into it is not
+# a broken reference on a clean checkout — the same asymmetry that makes
+# `test_replica_ratchet.py` fail for a developer who has built and pass in CI.
+BUILD_DIRS = ("/dist/", "/node_modules/", "/__pycache__/")
+
 # Illustrative paths used when DOCUMENTING the citation rule itself. They are not
-# claims about this repo and must not be reported as broken ones.
-PLACEHOLDERS = {"file.py", "path/to/file.py", "module.py"}
+# claims about this repo and must not be reported as broken ones. The `my-panel` /
+# `myanimal` family are the "how to add a panel" and "how to add an animal"
+# tutorials in `architecture-overview.md` and `animal-svg.md`.
+PLACEHOLDERS = {
+    "file.py", "path/to/file.py", "module.py",
+    "src/renderers/my-panel.js", "src/bindings/my-panel.js",
+    "src/state/my-panel.js", "src/actions/my-panel.js",
+    "animals/myanimal.js", "my-panel.js", "myanimal.js",
+}
 
 # An ID-form anchor: two-character class prefix + six Crockford Base32 characters.
 # Owned by scripts/doc_anchor.py — see the note at its use below.
@@ -78,7 +99,7 @@ FORMS = {"line": 0, "symbol": 0, "anchor": 0, "strong": 0, "weak": 0}
 # been shown a single candidate. A detector that cannot see its target reads exactly
 # like a clean one.
 CITE_RE = re.compile(
-    r"`(?P<path>[\w./-]+\.py)"
+    r"`(?P<path>[\w./-]+\.(?:py|mjs|js))"
     r"(?:::(?P<sym>[A-Za-z_][\w.]*)"          # ::symbol — preferred, refactor-proof
     r"|#(?P<anchor>[^\s`]+)"                  # #anchor  — any unique string in the file
     r"|:(?P<sym1>[A-Za-z_][\w.]*)"            # :symbol  — older spelling, still valid
@@ -162,6 +183,87 @@ def symbol_ranges(py: pathlib.Path) -> dict[str, list[tuple[int, int]]]:
     return out
 
 
+# Every way this codebase names a JavaScript symbol. Regex, not a parser, and that is
+# deliberate: the questions this gate asks are dumb ones — does the file exist, does
+# the named symbol exist, has a cited target disappeared — and none of them need to
+# understand JavaScript. Building a semantic JS analyser to delete line numbers would
+# be the cure being worse than the disease.
+#
+# The PROTOTYPE-MIXIN form is the one that matters and the one a naive pattern misses.
+# `architecture-overview.md` documents the choice ("Why prototype mixins rather than a
+# component framework"), so the bindings and renderers are assembled as
+# `proto._bindMap = function () {` rather than declared. A first pass that only matched
+# declarations resolved 58% of the corpus; the misses were `_bindMap`, `_on`, `_onAll` —
+# all of them assignments.
+#
+# INDENT IS THE FILTER, and it is load-bearing. Without it the method form matches
+# any `foo(...) {` deep inside a body — a call with a trailing brace, an object
+# literal, a callback — and every one of those becomes a phantom symbol that CHOPS
+# the enclosing range into one-line slivers. Measured on the first pass: `resolvedTheme`
+# reported a span of `377-377`, and 116 citations were flagged wrong against ranges
+# that were an artifact of the extractor rather than the code. Real declarations,
+# exports and prototype assignments all sit at column 0-2 in this codebase.
+JS_SYMBOL_RE = re.compile(
+    r"""^[ \t]{0,2}(?:
+          (?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*(?P<fn>[\w$]+)
+        | (?:export\s+)?(?:default\s+)?class\s+(?P<cls>[\w$]+)
+        | (?:export\s+)?(?:const|let|var)\s+(?P<var>[\w$]+)\s*=
+        # proto.x = fn — the mixin form, at column 0-2. NOT `this.x = fn` inside a
+        # constructor: that sits at indent 4, and widening the indent cap to reach it
+        # re-admits every `foo(...) {` deep in a function body, which is what fragmented
+        # every range into one-line slivers. Constructor-assigned handlers
+        # (`_boundHandleResize`) are real citable things but get an anchor, not a symbol.
+        | [\w$.]+\.(?P<prop>[\w$]+)\s*=\s*(?:async\s+)?(?:function|\()
+        | (?:static\s+)?(?:async\s+)?(?:get\s+|set\s+)?(?P<meth>[\w$]+)\s*\([^;]*\)\s*\{  # method
+    )""",
+    re.X,
+)
+# Words that match the method form but are control flow, not symbols.
+JS_KEYWORDS = frozenset({
+    "if", "for", "while", "switch", "catch", "function", "return", "else",
+    "do", "try", "with", "case", "typeof", "await", "new", "delete", "void",
+})
+
+
+def symbol_ranges_js(path: pathlib.Path) -> dict[str, list[tuple[int, int]]]:
+    """Every citable symbol in a JS/MJS module → its line span.
+
+    ⚠ SPANS ARE APPROXIMATE. A symbol runs from its own line to the line before the
+    next symbol, because brace-matching JavaScript correctly means handling template
+    literals, regex literals and comments — a parser's job. Containment is the only
+    thing the spans are used for (does line N sit inside symbol S), and for that an
+    approximation is honest. A `::symbol` citation, the form this gate exists to
+    encourage, needs only the NAME and is exact.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return {}
+    found: list[tuple[int, str]] = []
+    for i, line in enumerate(lines, 1):
+        m = JS_SYMBOL_RE.match(line)
+        if not m:
+            continue
+        name = m.group("fn") or m.group("cls") or m.group("var") or m.group("prop") or m.group("meth")
+        if not name or name in JS_KEYWORDS:
+            continue
+        # A `const`/`let`/`var` is a MODULE-LEVEL symbol only at column 0. Indented, it is a
+        # LOCAL and indexing it is actively harmful: `animalHslComponents` in
+        # `styles/index.js` declares m/int/r/g/b/max/min/l/d/h/s/round at indent 2, and each
+        # one truncated the enclosing function's range to a single line. Bad ranges make
+        # by-line resolution confidently wrong, which is how a conversion pass produced
+        # anchors claiming the modal host is appended in `_confirm`.
+        indent = len(line) - len(line.lstrip())
+        if m.group("var") and indent > 0:
+            continue
+        found.append((i, name))
+    out: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for idx, (start, name) in enumerate(found):
+        end = found[idx + 1][0] - 1 if idx + 1 < len(found) else len(lines)
+        out[name].append((start, max(start, end)))
+    return out
+
+
 class Index:
     """Lazily-built map of source files, symbol tables and line counts."""
 
@@ -172,12 +274,14 @@ class Index:
             base = ROOT / root
             if not base.is_dir():
                 continue
-            for py in base.rglob("*.py"):
-                if "__pycache__" in py.parts:
+            for src in base.rglob("*"):
+                if src.suffix not in SOURCE_SUFFIXES or not src.is_file():
                     continue
-                rel = py.relative_to(ROOT).as_posix()
-                self._by_rel[rel] = py
-                self._by_base[py.name].append(py)
+                rel = src.relative_to(ROOT).as_posix()
+                if any(d in f"/{rel}/" for d in BUILD_DIRS):
+                    continue
+                self._by_rel[rel] = src
+                self._by_base[src.name].append(src)
         self._syms: dict[pathlib.Path, dict[str, list[tuple[int, int]]]] = {}
         self._lines: dict[pathlib.Path, int] = {}
 
@@ -210,7 +314,8 @@ class Index:
 
     def symbols(self, py: pathlib.Path) -> dict[str, list[tuple[int, int]]]:
         if py not in self._syms:
-            self._syms[py] = symbol_ranges(py)
+            self._syms[py] = (symbol_ranges(py) if py.suffix == ".py"
+                              else symbol_ranges_js(py))
         return self._syms[py]
 
     def length(self, py: pathlib.Path) -> int:
