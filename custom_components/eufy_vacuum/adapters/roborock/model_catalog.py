@@ -47,6 +47,25 @@ MODEL_PROFILES: dict[str, dict] = {
         # No path/route axis on this unit — owner-confirmed on hardware.
         "has_path_control": False,
     },
+    # Same class as the S6, and catalogued for the same reason: the mop-intensity and
+    # mop-mode selects EXIST (the unit ships with a pad + tank) but the SETs are rejected
+    # on-device with RoborockUnsupportedFeature -- observed on every phase dispatch on
+    # hardware. Without this entry an a72 falls through to DEFAULT_PROFILE (mop_settable
+    # True) and is offered water pickers it can never honour.
+    "roborock.vacuum.a72": {  # Q5 Pro
+        "family": "q5",
+        "display_name": "Roborock Q5 Pro",
+        # Charge-only base. The core roborock integration creates no auto-empty / wash /
+        # dry entities for this unit, so there is no station to model.
+        "has_dock": False,
+        # Carries a mop pad + water tank...
+        "has_mop": True,
+        # ...but SET_WATER_BOX_CUSTOM_MODE is rejected on-device, and
+        # binary_sensor.<obj>_water_box_attached reads unavailable.
+        "mop_settable": False,
+        "supports_segments": True,
+        "has_path_control": False,
+    },
     # Settable-mop models. device.model codes are best-effort from python-roborock's
     # model table; if a code is wrong the profile simply never matches and the unit
     # falls through to DEFAULT_PROFILE (also mop_settable), so mop controls still

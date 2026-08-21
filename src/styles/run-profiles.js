@@ -13,10 +13,10 @@ export const runProfileStyles = `
     min-width: 0;
   }
 
-  // anchor: RNG7V2Y3  the run-profiles CLASS NAMES -- the replica set. state/steps-manifest.js
-  // emits .evcc-run-profiles-seq-* markup against these rules, and the standalone card carries
-  // the same rules again in its own shadow root so it styles on a cold dashboard. Rename here
-  // and the manifest renders unstyled in whichever host was not updated.
+  /* anchor: RNG7V2Y3  the run-profiles CLASS NAMES -- the replica set. state/steps-manifest.js
+     emits .evcc-run-profiles-seq-* markup against these rules, and the standalone card carries
+     the same rules again in its own shadow root so it styles on a cold dashboard. Rename here
+     and the manifest renders unstyled in whichever host was not updated. */
   .evcc-run-profiles-panel {
     flex: 1 1 300px;
     display: flex;
@@ -29,9 +29,9 @@ export const runProfileStyles = `
     box-shadow: var(--evcc-shadow-card, 0 6px 14px rgba(0, 0, 0, 0.14));
   }
 
-  // anchor: RN1RX2AT  the SIDECOL PANEL token set -- the replica set. styles/saved-zones.js
-  // mirrors these so the two panels read as one surface. Observational: nothing breaks, it
-  // just stops looking designed, which no test can see.
+  /* anchor: RN1RX2AT  the SIDECOL PANEL token set -- the replica set. styles/saved-zones.js
+     mirrors these so the two panels read as one surface. Observational: nothing breaks, it
+     just stops looking designed, which no test can see. */
   .evcc-run-profiles-panel-header {
     display: flex;
     flex-direction: column;
