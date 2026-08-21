@@ -27,7 +27,7 @@ Links between frontend docs are bare sibling filenames; links out to backend sub
 - **[render-cycle.md](render-cycle.md)** — `_scheduleRender` (microtask coalescing), the 8-step `_render` with its `dataset.renderedHtml` cache-stamp and full re-bind invariant, the `dblclick` disambiguation timer, the `VIEWS`/`VIEW_ORDER` router, and floor-texture rendering.
 - **[state-management.md](state-management.md)** — the `state/` module inventory, the init/clear property shape, the `hass` setter + load-once pattern, and how state modules communicate (they don't — everything routes through the card).
 - **[event-binding-and-modal-host.md](event-binding-and-modal-host.md)** — the binding layer: `_on`/`_onAll` helpers and idempotency, the `document.body` modal portal, the live-vs-commit (`input`/`change`) convention, and the non-`hass` `_scheduleRender` trigger map.
-- **[card-topology-and-bundles.md](card-topology-and-bundles.md)** — the two standalone Lovelace cards (`vacuum-agent-dashboard`, `eufy-room-card`), the three ESM bundles, the lazy `<eufy-vacuum-map>` host shim, and the reuse boundary vs. the sidebar panel.
+- **[card-topology-and-bundles.md](card-topology-and-bundles.md)** — the three standalone Lovelace cards (`vacuum-agent-dashboard`, `eufy-room-card`, `vacuum-agent-profile-card`), the three ESM bundles, the lazy `<eufy-vacuum-map>` host shim, and the reuse boundary vs. the sidebar panel.
 - **[module-reference.md](module-reference.md)** — the per-file navigation map of `src/`: every actions / bindings / renderers / styles / theme-token / i18n / `cards/` module and the entry points.
 
 **Cross-cutting systems**

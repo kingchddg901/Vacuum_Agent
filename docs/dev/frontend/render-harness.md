@@ -33,8 +33,10 @@ Two consequences the design rides on:
   differing only in the token values fed in. A green check is a guarantee about
   the card that ships, not a proxy for it.
 
-The one place the card breaks purity is `src/renderers/rooms.js`, which reads
-`window.AnimalSVG` directly at render time. The harness stubs that global;
+The card breaks purity wherever a renderer reads `window.AnimalSVG` directly at
+render time: `src/renderers/map.js` (`_renderMapAnimalControls`, which the Rooms
+tab calls), `src/renderers/theme-preview.js`, and
+`src/renderers/theme-preview-registry.js`. The harness stubs that global;
 routing it through `ctx` is a tracked follow-up.
 
 ---
@@ -52,7 +54,8 @@ It recreates the **exact ship path**, not an approximation:
   `<ha-card><div class="evcc-shell">…</div></ha-card>` with the real `STYLES`
   (`src/styles/index.js`) injected.
 - Applies a flat `--evcc-*` bundle as inline custom properties on the host,
-  mirroring `applyDynamicTheme` (`src/styles/apply-theme.js`).
+  mirroring `applyDynamicTheme` (`src/styles/index.js`, the function
+  `src/styles/apply-theme.js` calls for the card host and the modal host).
 - Supplies a stub `state` and a stub `card` (the renderers read
   `_config/_state/_renderers/_view/_mobileMoreOpen` and, for rooms,
   `_learningController`).
@@ -65,7 +68,7 @@ freeze for deterministic capture. Both are clearly marked and never shipped.
 
 | Member | Purpose |
 |---|---|
-| `render(view, opts)` | Render one tab. `opts`: `bundle`, `overrides`, `controller`, `width`, `freeze`, `modal` (a renderer name to mount as a body-level modal — §3). Returns `{ok, error?, misses}` — never throws to the page. |
+| `render(view, opts)` | Render one tab. `opts`: `bundle`, `overrides`, `controller`, `width`, `height` (a definite host height, for the views that own a scroll container), `freeze`, `modal` (a renderer name to mount as a body-level modal — §3), `lang` (pins `config.i18n.locale`, bypassing the draft-gate), `mobile` (forces `isMobileViewport()`; a caller override still wins), `font` (registers the faces on the document and stamps `data-evcc-font`), `real` (a live `VacuumCardState` to delegate unstubbed accessors to), `config` (extra card `_config` keys — Setup's `vacuum_entity_id` is the only one today). Returns `{ok, error?, misses}` — never throws to the page. |
 | `renderGallery(id, opts)` | Render an all-states gallery entry (§3). |
 | `renderThemePresets(themes, opts)` | Render the Themes-tab presets grid driven by **real** state — a `VacuumCardState` seeded with the theme library, the facet filter / search / Browse-gallery UI, so the picker is captured on genuine state (the null-object stub can't exercise the filter). Backs `shoot-theme-picker.mjs`. |
 | `ingestTheme(envelope)` | The intake gate (§6). |
@@ -80,6 +83,8 @@ freeze for deterministic capture. Both are clearly marked and never shipped.
 | `mountCard(id, opts)` | **Opt-in.** Mounts one **standalone Lovelace card** (`cards.js` fixtures: `room` / `dashboard` / `profile`) as its real custom element into a width-pinned holder, with a stubbed `callService` served from `CARD_SERVICE_RESPONSES` and a settle pass for the card's one-shot `_ensureData()`. `opts`: `bundle` (flat `--evcc-*` map, applied to the host exactly as `apply-theme.js` does — an EMPTY bundle is the real cold-dashboard look, since the cards read the tokens with literal fallbacks), `freeze`. Returns a serialisable **render report** counted off the LIVE shadow tree (`chips` / `rooms` / `steps` / `text` / heights) — that report is the point, because a card that fails to mount is a small empty box that passes any check asserting only that a file exists. Backs `shoot-cards.mjs`. |
 | `cards` | Standalone-card fixture metadata (`id`, `element`, `file`, `label`, `width`). |
 | `mountRealCard(opts)` | **Opt-in.** Builds the panel card's own frame rather than the harness's recreation of it. |
+| `renderThemeEditor(themes, opts)` | The full Themes view **including the token editor**, on a real `VacuumCardState` seeded with a theme library (`harness/fixtures/theme-library.mjs`) — the stub supplies no theme data, so the editor body renders empty and a layout probe measures nothing. `opts`: `subTab` (`presets`/`palette`/`tokens`), `activeThemeId`, plus every `render()` option. |
+| `mountRealThemeEditor(themes, opts)` | **Opt-in.** The same editor on the **real** card frame (`mountRealCard` + seeded library) — main.js's shell, its ResizeObserver viewport decision and the sticky mobile chrome are absent from the synthetic path, and a mobile layout gate is a question about the frame. Backs `theme-mobile-layout.spec.mjs`. |
 | `renderReadmeShot(id, opts)` · `readmeShots` | The committed README panel shots and their metadata (`id`, `file`, `view`, `label`, `clip`, `needsThemes`); gate-measured against the live tree before anything is written. Backs `shoot-readme.mjs`. |
 | `version` | Surface version (`1`). |
 
@@ -139,11 +144,13 @@ colored state at once** — the honest instrument for colorblind validation.
 Distinguishability is relative: whether error-red is confusable with success-
 green can only be judged with the two co-present and adjacent at real size. A
 gallery of all states in real layout is that instrument; isolated swatches are
-not. Current galleries: rooms (queue + confidence tiers), learning review (job
-badges), the **External Jobs** subtab (app-started runs awaiting review), the
-two-step **review wizard** (modal), and a
-status-dot strip — plus **populated single-tab fixtures** (metrics, maintenance,
-room rules) that stub a tab's data accessors with realistic content. Those last
+not. Current galleries: rooms (queue + confidence tiers), the same tab in Cyrillic
+room names and in the OpenDyslexic typeface, the Rooms run-profile steps editor
+with an unsupported-position break struck through, learning review (job badges),
+the **External Jobs** subtab (app-started runs awaiting review), the two-step
+**review wizard** (modal), Setup → System (entity bindings: resolved /
+contested / overridden / unresolved), and a status-dot strip — plus **populated
+single-tab fixtures** (metrics, maintenance, room rules) that stub a tab's data accessors with realistic content. Those last
 serve a purpose beyond colorblind validation: the theme-preview gallery (§7)
 renders them so a shared theme shows on real content, not empty stub tabs. (They
 are deliberately date-math-free so the baselines stay deterministic.)
@@ -413,7 +420,10 @@ PR (also documented in the workflow header):
 | `harness/preview-animals.mjs` | Renders the `/animals` gallery from `gallery/animals/*.json` (real animal-svg framework, all six poses, detail page + faceted index). |
 | `harness/preview-index-dryrun.mjs` | Fast no-Chromium gallery-index dry-run: runs committed themes through `lib/gallery-html.mjs` with cheap swatch thumbnails to eyeball the filter bar. |
 | `harness/preview.mjs` | Builds the theme gallery: per-theme detail pages, thumbnails, contact sheets, and the themes index. |
-| `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake · tab-gating · device-theme · i18n-layout · i18n-locale · i18n-rtl (the i18n gates render pseudo/foreign catalogs: i18n-layout asserts no layout overflow under a pseudo-long locale @500px/@390px **plus a real-German pass @390px and a maintenance-CARDS pass in en/de/nl/ru**, i18n-locale asserts the `renderers.t` wiring actually switches the UI, i18n-rtl asserts a real Arabic/Hebrew catalog under `dir="rtl"` also survives the layout probe and that the host actually carries `dir="rtl"`). |
+| `harness/shoot-hero-mobile.mjs` | Curated mobile hero shots for release notes (390×844 portrait, 720×344 landscape, 320×700 narrow) + contact sheet — deliberately not a gate and not a baseline. |
+| `harness/measure-locale-width.mjs` | Ranks locales by **rendered width** in a given font, not character count — picks the stress locale/font for the layout gates and the hero shots. |
+| `harness/fixtures/theme-library.mjs` | Registry-derived theme-library fixture (`themeLibraryFixture`, `tokenCount`) backing `renderThemeEditor` / `mountRealThemeEditor`. |
+| `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake · tab-gating · device-theme · real-frame · theme-mobile-layout · i18n-layout · i18n-locale · i18n-rtl · i18n-escaping (real-frame builds the card's OWN shell via `mountRealCard` instead of the synthetic frame; theme-mobile-layout gates the token editor at 390px via `mountRealThemeEditor`; the i18n gates render pseudo/foreign catalogs: i18n-layout asserts no layout overflow under a pseudo-long locale @500px/@390px **plus a real-German pass @390px and a maintenance-CARDS pass in en/de/nl/ru**, i18n-locale asserts the `renderers.t` wiring actually switches the UI, i18n-rtl asserts a real Arabic/Hebrew catalog under `dir="rtl"` also survives the layout probe and that the host actually carries `dir="rtl"`, i18n-escaping asserts a catalog string is not double-escaped into `&#39;` on screen). |
 | `src/renderers/badge-marks.js` | The six per-state shape marks (ships). |
 | `gallery/themes/*.json` | Theme exports published to the gallery (one JSON per theme). |
 | `.github/ISSUE_TEMPLATE/theme-submission.yml` | Submission issue form (the "Submit a theme" target). |

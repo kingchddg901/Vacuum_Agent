@@ -134,7 +134,7 @@ Alpha multipliers are stored as a third separate bucket (`alpha`) as floating-po
 
 ### The `--evcc-` prefix convention
 
-Every token key begins with `--evcc-`. This is enforced by convention, not validation. The prefix ensures:
+Every token key begins with `--evcc-`. Inside the card that is convention, but the **import path validates it**: `ThemeManager._filter_evcc_keys()` splits each of `tokens` / `colors` / `alpha` into kept (`key.startswith("--evcc-")`) and rejected, `import_theme()` stores only the kept half, and the dropped keys come back as `response["rejected"]` (PORT-1, RP-034). The check is namespace-only — not a per-token registry match. The prefix ensures:
 
 1. No collision with HA's own `--primary-color` / `--card-background-color` / etc. variables.
 2. No collision with any other Lovelace card's variables.
@@ -235,9 +235,9 @@ harness — see [render-harness](render-harness.md) §5–6. The exact hexes are
 mirrored (comment-linked) in `harness/bundles/cvd-safe.mjs`, which the harness
 CVD gate validates.
 
-**How they're distinguished:** Preloaded theme IDs use the `theme_` prefix followed by a short slug (e.g. `theme_core_slate`). User-saved themes use the `theme_` prefix followed by a timestamp (e.g. `theme_20240612T103045123456`). There is no explicit `is_preloaded` flag.
+**How they're distinguished:** every library entry carries an explicit `source` provenance field. `_build_preloaded_theme_entry()` stamps `"core"` on every bundled entry (and the seeder back-fills it onto entries written by a pre-`source` version); `save_theme_as_new()` stamps `"manual"`; `import_theme()` normalizes an upload's own value to `community` / `generated` / `manual` and never honours `core`. The ID shape is a secondary tell — preloaded IDs are the `theme_` prefix plus a short slug (e.g. `theme_core_slate`), user-saved ones the `theme_` prefix plus a timestamp (e.g. `theme_20240612T103045123456`) — but `source` is what `delete_theme()` branches on and what the card/gallery Source facet reads.
 
-**Why preloaded themes can't be deleted or overwritten in the normal workflow:** The seeding logic in `ensure_preloaded_theme_library()` only adds an entry if the ID is not already present. If a user deletes or overwrites `theme_core_slate` through the service layer (there is no guard in `delete_theme()` preventing it), the original value will be gone until the next HA restart re-seeds it. The card UI only hides the delete button for the current default theme (`src/renderers/theme.js::_renderPresetFilters`, `id !== state.defaultThemeId`); every other built-in still renders a delete button and is UI-deletable, and the backend enforces nothing.
+**Why preloaded themes can't be deleted or overwritten in the normal workflow:** The seeding logic in `ensure_preloaded_theme_library()` only adds an entry if the ID is not already present. There is still no guard in `delete_theme()` preventing a user from deleting or overwriting `theme_core_slate` through the service layer — but the change now sticks. Deleting an entry whose `source` is `"core"` records its id in `data.theme.deleted_core_ids`, and `ensure_preloaded_theme_library()` skips any tombstoned id, so a bundled theme the user explicitly deleted does **not** come back on the next restart (CRUD-3/INIT-3, RP-034). Overwriting is permanent for the same reason the seeder is idempotent: it only adds ids that are absent, so an overwritten built-in is never restored to its shipped value. The card UI only hides the delete button for the current default theme (`src/renderers/theme.js::_renderPresetFilters`, `id !== state.defaultThemeId`); every other built-in still renders a delete button and is UI-deletable, and the backend enforces nothing.
 
 **The `theme_follow_ha` default:** If `default_theme_id` is missing or points to a nonexistent entry, it is reset to `theme_follow_ha` at seeding time. `theme_follow_ha` has empty `colors` and `tokens`, which means no `--evcc-` variables are injected — the card's CSS falls through to its static defaults.
 
@@ -292,7 +292,7 @@ This function is called from every place that could change the visible theme: to
 `applyDynamicTheme(target, resolvedTheme)` in `src/styles/index.js` does the actual DOM mutation:
 
 1. Iterates `THEME_TOKEN_REGISTRY` and calls `host.style.removeProperty(token.key)` for any token whose key is absent, null, undefined, or empty-string in `resolvedTheme.tokens`. This ensures stale values from a previous draft do not persist after a reset.
-2. Iterates `Object.entries(resolvedTheme.tokens)` and calls `host.style.setProperty(property, value)` for every non-empty value.
+2. Iterates `Object.entries(resolvedTheme.tokens)` and calls `host.style.setProperty(property, value)` for every non-empty value — with one transform: a key starting with `--evcc-animal-` is first passed through `animalHslComponents(value)` and written as bare `H S% L%` (or `H S% L% / A`) components instead of the stored hex. The animal SVGs consume their variables inside `hsl()`, so writing the 8-digit hex through unchanged produces `hsl(#e8e800e0)` — invalid CSS, which falls back to SVG's initial `black`.
 
 The target is the element itself (`host.style`), not the shadow root's stylesheet. This works because `--evcc-` variables declared on the host element cascade into the shadow root — shadow DOM inherits custom properties from the host.
 
@@ -577,7 +577,7 @@ custom_components/eufy_vacuum/frontend/animal-svg/
 > The animal list above is illustrative — current as of writing, not exhaustive. Because `index.json` is auto-generated at startup from whatever `.js` files exist in `animals/`, the shipped set can change without this tree being updated.
 
 `animals/index.json` is **not** hand-maintained — the integration regenerates it at
-startup from whatever `.js` files exist in `animals/` (`sensor/__init__.py::_build_vacuum_sensors`, a sorted
+startup from whatever `.js` files exist in `animals/` (`custom_components/eufy_vacuum/__init__.py::_prepare_static_dirs`, a sorted
 `os.listdir` filtered to `.js`), and `manifest.js` `fetch`es it to decide which animal
 files to load.
 
@@ -625,7 +625,7 @@ Sections 4–5 cover the runtime CSS bridge and the working-draft lifecycle; thi
 
 ### Live preview — `applyThemeToCard` on every mutation
 
-Every editor control, after it writes the working draft, calls `applyThemeToCard(this.card)` **directly** (`bindings/theme.js#CN01YPJS` import; 14 call sites — preset `:251/:288`, mode `:305/:324/:331`, token `:633/:676`, color `:654`, alpha `:705/:718`, colormix `:914/:928/:945`, backend refresh `:1543`). That pushes the merged draft straight to the live `--evcc-*` CSS vars on the card and modal host **without persisting and without a full re-render** — so the card previews the change the instant you touch a control. It is the same [styles-system.md](styles-system.md) `apply-theme` bridge; the editor just calls it out-of-band for immediacy.
+Every editor control, after it writes the working draft, calls `applyThemeToCard(this.card)` **directly** (`bindings/theme.js#CN01YPJS` import; 15 call sites — preset `:252/:289`, mode `:307/:326/:333`, font preset `:650`, token `:687/:734`, color `:710`, alpha `:763/:776`, colormix `:972/:986/:1003`, backend refresh `:1601`). That pushes the merged draft straight to the live `--evcc-*` CSS vars on the card and modal host **without persisting and without a full re-render** — so the card previews the change the instant you touch a control. It is the same [styles-system.md](styles-system.md) `apply-theme` bridge; the editor just calls it out-of-band for immediacy.
 
 ### Live-vs-commit — `input` applies, `change` persists
 
