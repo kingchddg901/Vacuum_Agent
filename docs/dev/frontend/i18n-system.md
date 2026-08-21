@@ -320,7 +320,11 @@ contract gate, run after every wave. Four sections:
   product term) or untranslated leakage, and telling them apart needs a human
   exactly once. `scripts/i18n-accepted-english.json` is the reviewed snapshot
   (`accepted`: key → locale list or `"*"`; `pending`: provisionally tolerated
-  but listed so entries can't rot invisibly — currently empty). Only **NEW**
+  but listed so entries can't rot invisibly — 178 `accepted` keys and 2 `pending`
+  today: `vocab.obstacle_type.cable` (`es`) and `vocab.obstacle_type.pedestal`
+  (`es`, `pt`). ⚠ The file's own `_meta` still asserts "pending is now empty" under a
+  dated 2026-08-04 note — the data file misdescribes itself, so read the `pending`
+  object, never the prose beside it). Only **NEW**
   English-identical values not in the snapshot are flagged; comparison is
   language-blind by design (no dictionaries; plural objects compared by
   key-sorted serialization).
