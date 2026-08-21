@@ -320,18 +320,17 @@ export function applyMapBindings(proto) {
     const palette = [];
     for (let i = 0; i < ROOM_FILL_N; i++) palette[i] = roomFillRgb(i, canvas);
     const paletteSig = palette.map((c) => c.join(",")).join("|");
+    // anchor: CNFJPTKD  keying a raster override by room.id vs bridging by name — the id-space question
     // Per-room fill OVERRIDES: recolor each room's OWN pixels with its custom color, so the cascade
     // (override > token > default) holds on the raster too — an exact per-pixel recolor, not an
     // overlay. Bridge the raster's per-pixel rid to a room via the DEVICE-AUTHORITATIVE rid->name
     // map the render payload already ships (rd.room_names = {rid: name}); our rooms carry that same
-    // anchor: CNFJPTKD  keying a raster override by room.id vs bridging by name — the id-space question
     // name (it's what the labels show). The name bridge is DEFENSIVE, not required — read on before
     // "simplifying" it, and before trusting it as proof that the two ids differ.
     //
     // R2-BUG-5. This comment used to assert that raster rid and our stored room.id are "DIFFERENT
     // id spaces on real devices (empirically verified)". That claim has no dataset behind it, and
     // three separate code paths (selection scrim, clean-order badges, current-room attribution)
-    // anchor: CNZZT0GC  the rid -> room_names -> room name-bridge (defensive, not required)
     // assume the opposite — so the codebase read as self-contradictory for two months. The raster
     // rid space is EUFY-ONLY (map_source.py:373 — Roborock has no per-pixel raster at all), so
     // "on real devices" can only ever have meant Eufy; and on the one Eufy device we hold data
@@ -346,6 +345,7 @@ export function applyMapBindings(proto) {
     const state = this.card._state;
     const rooms = state?.getRoomsForActiveMap?.() ?? [];
     const norm = (s) => String(s == null ? "" : s).trim().toLowerCase();
+    // anchor: CNZZT0GC  the name-bridge itself: rid -> room_names -> our room BY NAME (defensive, not required)
     const rgbByName = new Map();
     for (const room of rooms) {
       const rgb = roomOverrideRgb(room.color);

@@ -42,7 +42,7 @@ The SVG path can ride the CSS cascade; the raster can't (canvas takes no CSS var
 
 ### Index vs id (the split that makes it coherent)
 
-- The **theme palette** is indexed by **render order** (`idx = segIndex % N`) — a base palette that "cycles by position," matching `ROOM_FILL_PALETTE[idx]` (the shipped default array; was `_SEGMENT_COLORS` at design time). Not stable across a re-segment; that's fine — it's a *base look*, not a per-room promise.
+- The **theme palette** slot is derived differently on the two paths — and on neither is it the `room_id` the override uses. **SVG:** by **render order** (`idx = segIndex % N`, the segment's index in `state.mapSegments()` — `renderers/map.js:216` and `:1237` pass `i` into `roomFillCss` at `:937` / `:1290`), matching `ROOM_FILL_PALETTE[idx]` (the shipped default array; was `_SEGMENT_COLORS` at design time); not stable across a re-segment. **VA raster:** by the device's **raster rid** — `palette[(rid - 1) mod ROOM_FILL_N]` (`bindings/map.js:392`, and `:459` on the floor path), with `rid` decoded per pixel at `:385`; the `CNYVDQ9S` anchor at `:378` marks it explicitly. So the raster slot moves only when a room's rid moves, not when draw order does. Either way the palette is a *base look*, not a per-room promise — that promise is the override below.
 - The **per-room override** is keyed by **`room_id`** — stable across re-segment/re-render, because it's a promise about a specific room.
 
 ## Contracts

@@ -76,8 +76,9 @@ different generations of code encoded two different beliefs about whether that's
   code):** `_drawVaRender`'s per-room override resolves a raster pixel's `rid` → `rd.room_names[rid]`
   → our room *by matching name* (trimmed + lowercased) → `room.color` — it deliberately does NOT
   key by `room.id` directly. The comment at the point of the choice
-  (`bindings/map.js#CNFJPTKD`) states this as an asserted, already-confirmed finding, not a
-  hedge: *"Keying by room.id directly is WRONG — the raster rid and our stored room.id are
+  (`bindings/map.js#CNFJPTKD`) USED TO state this as an asserted, already-confirmed finding,
+  not a hedge — R2-BUG-5 rewrote that comment into a retraction, so the anchor now carries the
+  retraction rather than the historical quote that follows: *"Keying by room.id directly is WRONG — the raster rid and our stored room.id are
   DIFFERENT id spaces on real devices (empirically verified), so a room.id key lands on no
   pixels (or, worse, another room's)."* The name-bridge itself is at `bindings/map.js#CNZZT0GC`.
 - **RESOLUTION (R2-BUG-5, 2026-08-06): the identity-assuming paths are the supported reading;
@@ -142,6 +143,6 @@ Almost always a **layer covering the raster**, not a color/mapping bug:
 
 ## See also
 
-`docs/dev/map-state-source.md` (VA render payload + `room_names`), `docs/dev/11-mapping-system.md`,
+[map-state-source](../design/shipped/map-state-source.md) (VA render payload + `room_names`), `docs/dev/11-mapping-system.md`,
 [architecture-overview.md](architecture-overview.md) (the four-layer card + floor textures),
 `docs/dev/frontend/furnished-render.md`, `docs/dev/frontend/themeable-map-palette.md` (the color feature design).

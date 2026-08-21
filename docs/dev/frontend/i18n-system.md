@@ -94,8 +94,10 @@ locale each substituted run is additionally wrapped in Unicode bidi isolates
 (FSI `U+2068` … PDI `U+2069`) so an embedded LTR token — a number, `%`, `m²`, an
 `entity_id`, a duration like "14 min" — keeps its own direction; LTR locales are
 left byte-identical. Invisible controls are used rather than a literal `<bdi>`
-tag because most `.t()` callers write to `textContent`, where a tag would render
-as visible text.
+tag because `.t()` output also lands in plain-text sinks — the `textContent`
+writes in `bindings/theme.js` / `bindings/map.js`, and the ~200 HTML **attribute**
+values (`title=` / `aria-label=` / `placeholder=`) — where a tag would render as
+visible text rather than as markup.
 
 This escape is one of **two independent layers**. The other is the
 [intake gate](#the-intake-gate), which scrubs a contributed locale *before* it is
@@ -183,7 +185,8 @@ Roborock likewise), and the card resolves it at render time via
 - The Job Summary modal's fault list (`renderers/job-summary.js`
   `_renderJobSummaryFaults`) calls `faultLabel` directly per fault, alongside
   `source`/`recovered` fields the label alone doesn't carry. A sibling helper,
-  `faultRows(errors)` (same file), maps a run's captured error list to a
+  `faultRows(errors)` (`state/faults.js:56`, alongside `faultLabel` itself —
+  not in the renderer), maps a run's captured error list to a
   reduced `{index, code, capturedAt, label}` shape — but it has no production
   caller today; only `faultLabel` is wired into a renderer.
 
@@ -317,7 +320,11 @@ contract gate, run after every wave. Four sections:
   product term) or untranslated leakage, and telling them apart needs a human
   exactly once. `scripts/i18n-accepted-english.json` is the reviewed snapshot
   (`accepted`: key → locale list or `"*"`; `pending`: provisionally tolerated
-  but listed so entries can't rot invisibly — currently empty). Only **NEW**
+  but listed so entries can't rot invisibly — 178 `accepted` keys and 2 `pending`
+  today: `vocab.obstacle_type.cable` (`es`) and `vocab.obstacle_type.pedestal`
+  (`es`, `pt`). ⚠ The file's own `_meta` still asserts "pending is now empty" under a
+  dated 2026-08-04 note — the data file misdescribes itself, so read the `pending`
+  object, never the prose beside it). Only **NEW**
   English-identical values not in the snapshot are flagged; comparison is
   language-blind by design (no dictionaries; plural objects compared by
   key-sorted serialization).

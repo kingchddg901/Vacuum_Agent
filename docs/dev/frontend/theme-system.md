@@ -140,7 +140,7 @@ Every token key begins with `--evcc-`. Inside the card that is convention, but t
 2. No collision with any other Lovelace card's variables.
 3. A clear namespace that the card's CSS uses consistently.
 
-CSS usage in the card's stylesheets references these as `var(--evcc-accent)`, `var(--evcc-surface-base)`, etc. The card provides no fallback to HA global theme variables except where explicitly defined in `MODAL_HOST_STYLES` (see section 4).
+CSS usage in the card's stylesheets references these as `var(--evcc-accent)`, `var(--evcc-surface-base)`, etc. Where a token carries no theme value the fallback is the card's own `:host` seed block (`src/styles/foundation.js`, opened at `:171`), and a number of those seeds defer to an HA global first: `--evcc-surface-base: var(--card-background-color, #1c2127)` (`:179`), `--evcc-text-primary` / `--evcc-text-strong` → `--primary-text-color` (`:194`/`:197`), `--evcc-text-secondary` → `--secondary-text-color` (`:195`), `--evcc-accent: var(--accent-color, #3b82f6)` (`:208`), `--evcc-sem-success`/`-warning`/`-error` → `--success-color`/`--warning-color`/`--error-color` (`:217`–`:219`), and `--evcc-radius-card: var(--ha-card-border-radius, 12px)` (`:226`); the panel height chains through `var(--header-height, 56px)` at `:167`. A few component sheets chain to a global too (`src/styles/learning.js:735`/`:783`, `src/styles/metrics.js:234`). `--evcc-sem-info` is the deliberate exception — a literal blue rather than `var(--info-color, …)`, because HA's is theme-inconsistent. `MODAL_HOST_STYLES` (see section 4) is *not* where this happens: its fallbacks are hardcoded literals behind `--evcc-*` vars, with no HA global among them.
 
 ### Floor texture sub-groups and nesting
 
@@ -178,9 +178,18 @@ The full `theme` object shape:
       "draft_dirty": false,
       "editor_mode": "live"
     }
-  }
+  },
+  "deleted_core_ids": ["theme_signal"]
 }
 ```
+
+`deleted_core_ids` is a fourth, **optional** top-level key. `_get_theme_data()`
+(`themes/manager.py:119-125`) seeds only `library` / `default_theme_id` / `vacuums`, so the
+key does not exist until the first time a `source: "core"` entry is deleted, at which point
+`delete_theme()` appends the id (`themes/manager.py:428-433`). It is durable and load-bearing:
+`ensure_preloaded_theme_library()` reads it on every construction
+(`themes/preloaded.py:534-535`) and skips any tombstoned id (`:548`) — that is what stops a
+deleted built-in from reappearing on the next restart.
 
 ### Theme entry shape
 

@@ -112,6 +112,7 @@ _LOGGER = logging.getLogger(__name__)
 # color override) and so can't double as "argument not provided". `is _UNSET` distinguishes the two.
 _UNSET: Any = object()
 
+# anchor: CN3AX4QG  the _PHASE_* phase-timing DEFAULTS block — brand-overridable via dispatch.phase_timing
 # Sequenced (strict-order) phase re-dispatch tuning. A path-optimizing device
 # (Roborock S6) finishes one room, returns to the dock + starts charging, then
 # IGNORES an app_segment_clean sent at that instant — so the next room is
@@ -125,7 +126,6 @@ _UNSET: Any = object()
 # (else we'd double-dispatch). MAX_ATTEMPTS is also the per-phase watchdog: after
 # that many tries with no start, the run is left stalled (the user can Cancel Run)
 # rather than silently hung. Tunable from on-device validation. These are in-core
-# anchor: CN3AX4QG  the _PHASE_* phase-timing DEFAULTS block — brand-overridable via dispatch.phase_timing
 # DEFAULTS only — a strict-order brand whose post-dock ignore-transient or per-room
 # timing differs overrides any subset via its adapter's `dispatch.phase_timing`
 # block (read by manager._phase_timing), so the timing stays BRAND-OWNED, not

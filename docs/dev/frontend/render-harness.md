@@ -159,7 +159,7 @@ are deliberately date-math-free so the baselines stay deterministic.)
 subtab, so non-default surfaces are captured as gallery fixtures instead. A fixture
 flips a subtab by overriding its state accessor (e.g. `reviewSubtab: () =>
 "external"`). A **body-level modal** — the review wizard mounts to `document.body`
-via `main.js` `_renderModals()`, not `renderView` — is captured by naming its
+via `main.js` `_updateModalHost()`, not `renderView` — is captured by naming its
 renderer in the fixture's `modal:` field; `render()` then mounts that one modal
 into a shadow-root host with `MODAL_HOST_STYLES` (faithful to the ship path), and
 the entry's `clip` crops the shot to the modal shell. Modal entries render under
@@ -187,8 +187,9 @@ can't reach (z-index, shadow DOM, layout, flood).
 across OSes, so baselines are generated *and* gated in one pinned image —
 `mcr.microsoft.com/playwright:v1.60.0-noble` — making the comparison byte-for-
 byte stable. The visual specs are gated to CI / `VISUAL=1` (other platforms
-would mismatch); smoke, completeness, CVD, shape, intake, tab-gating, and
-device-theme gates run everywhere. See [testing/frontend/render-harness](../../testing/frontend/render-harness.md) for
+would mismatch); every other spec runs everywhere — smoke, completeness, CVD, shape,
+intake, tab-gating, device-theme, real-frame, theme-mobile-layout, and the four
+i18n gates (layout / locale / RTL / escaping). See [testing/frontend/render-harness](../../testing/frontend/render-harness.md) for
 the regenerate-baselines workflow.
 
 **Structural, not color.** The diff budget is an **absolute** `maxDiffPixels`,
@@ -420,7 +421,7 @@ PR (also documented in the workflow header):
 | `harness/preview-animals.mjs` | Renders the `/animals` gallery from `gallery/animals/*.json` (real animal-svg framework, all six poses, detail page + faceted index). |
 | `harness/preview-index-dryrun.mjs` | Fast no-Chromium gallery-index dry-run: runs committed themes through `lib/gallery-html.mjs` with cheap swatch thumbnails to eyeball the filter bar. |
 | `harness/preview.mjs` | Builds the theme gallery: per-theme detail pages, thumbnails, contact sheets, and the themes index. |
-| `harness/shoot-hero-mobile.mjs` | Curated mobile hero shots for release notes (390×844 portrait, 720×344 landscape, 320×700 narrow) + contact sheet — deliberately not a gate and not a baseline. |
+| `harness/shoot-hero-mobile.mjs` | Curated mobile hero shots for release notes (390×900 portrait, 720×344 landscape, 320×900 narrow) + contact sheet — deliberately not a gate and not a baseline. (The file header's 390×844 / 320×700 are the geometries that *exposed* the bugs, not the sizes it shoots.) |
 | `harness/measure-locale-width.mjs` | Ranks locales by **rendered width** in a given font, not character count — picks the stress locale/font for the layout gates and the hero shots. |
 | `harness/fixtures/theme-library.mjs` | Registry-derived theme-library fixture (`themeLibraryFixture`, `tokenCount`) backing `renderThemeEditor` / `mountRealThemeEditor`. |
 | `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake · tab-gating · device-theme · real-frame · theme-mobile-layout · i18n-layout · i18n-locale · i18n-rtl · i18n-escaping (real-frame builds the card's OWN shell via `mountRealCard` instead of the synthetic frame; theme-mobile-layout gates the token editor at 390px via `mountRealThemeEditor`; the i18n gates render pseudo/foreign catalogs: i18n-layout asserts no layout overflow under a pseudo-long locale @500px/@390px **plus a real-German pass @390px and a maintenance-CARDS pass in en/de/nl/ru**, i18n-locale asserts the `renderers.t` wiring actually switches the UI, i18n-rtl asserts a real Arabic/Hebrew catalog under `dir="rtl"` also survives the layout probe and that the host actually carries `dir="rtl"`, i18n-escaping asserts a catalog string is not double-escaped into `&#39;` on screen). |

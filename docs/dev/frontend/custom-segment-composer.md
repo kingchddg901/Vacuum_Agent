@@ -12,7 +12,7 @@ The backend contract for the services referenced here (`set_custom_segments`, `c
 
 `_renderSegmentationToggle` (in `src/renderers/map.js`) replaces the old binary CV/Custom toggle with a **layout picker** that mirrors the run-profiles chip strip:
 
-- An **`Auto (CV)`** chip (`data-action="set-segmentation-mode"`, `data-mode="cv"`) selects the map-bucket CV store. It renders only when `cvAvailable()` is true — the backend's `cv_available` flag, false when the optional science stack (numpy/Pillow/scipy) is not installed. When it is false the chip is omitted entirely and an `.evcc-map-cv-unavailable` note naming the missing packages is rendered under the strip instead; the Live map, custom-layout and manual paths are unaffected.
+- An **`Auto (CV)`** chip (`data-action="set-segmentation-mode"`, `data-mode="cv"`) selects the map-bucket CV store. It renders only when `cvAvailable()` is true — the backend's `cv_available` flag, false when the optional science stack (numpy/Pillow/scipy) is not installed. When it is false the chip is omitted entirely and an `.evcc-map-cv-unavailable` note naming the missing packages is rendered under the strip instead; the Live map, custom-layout and manual chips still render and stay selectable. That is a *picker*-level guarantee only: `set_custom_segments` rasterises server-side through `rasterize_primitives`, which returns `[]` when Pillow or numpy is missing (`mapping/segment_primitives.py`), so on an install missing either of those a composer **Save** still reports `saved: true` — with `segment_count: 0`.
 - One chip **per named layout** (`data-action="set-active-custom-layout"`, `data-layout-id`) — tapping it activates that layout and flips the map into `custom` mode. Switching a chip swaps the whole layout: backdrop, authored rooms, room links, and mascot home all change together. Layouts whose `backdrop_source` is `"live"` are **filtered out** of this list — they are represented by the Live map chip below, so they never appear twice.
 - A **`Live map`** chip (`data-action="select-or-create-live-layout"`), rendered only when `liveMapImageEntity()` resolves. It activates the existing live-pinned layout, or creates one (`createCustomLayout(mapId, "Live map", { backdropSource: "live" })`), so the composer draws rooms straight over the live camera/image backdrop. Chip order in the strip is Live map, Auto (CV), the named layouts, then ＋ New.
 - A **`＋ New`** chip (`data-action="open-new-layout"`) opens an inline name editor.
@@ -44,7 +44,7 @@ Composer state on the `VacuumCardState` instance (all `proto.compose*`):
 - `composeMergeFrom` — the pending merge target during the two-tap merge flow.
 - `composeMoveScope` — `room` (move the whole group, the default) or `piece` (move just the selected shape). Shaping is always per-piece.
 - `composeStep` — nudge step in pct (Fine 1 / Med 3 / Coarse 7; default 3); scales both move and resize.
-- `composeLoadedFor` — the `${map_id}:${active_custom_layout_id}` key (`_composeKey(data)`) the draft was last reloaded for (the once-per-active-layout guard; switching layouts reloads that layout's shapes).
+- `_composeLoadedFor` — **not** a `proto.compose*` accessor but a private instance field (written at `src/state/map.js` on reload and reset to `null` on any map/layout switch): the `${map_id}:${active_custom_layout_id}` key (`_composeKey(data)`) the draft was last reloaded for (the once-per-active-layout guard; switching layouts reloads that layout's shapes).
 
 ## Operations
 
