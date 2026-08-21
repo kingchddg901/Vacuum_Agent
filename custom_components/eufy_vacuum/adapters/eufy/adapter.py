@@ -218,12 +218,12 @@ def register_eufy_adapter_for_vacuum(
         "cleaning_intensity": [f"select.{object_id}_cleaning_intensity"],
     }
 
+    # anchor: CN31C111  attribute-path room detection — segments attribute without an active_map entity
     # Model-based capability hints — confirmed hardware support regardless
     # of whether the entity happens to be present right now. Entity presence
     # detection in detect_capabilities() is the fallback for unrecognised
     # model codes that still expose the relevant entities.
     # Rooms can be read from the `segments` attribute even when there's no
-    # anchor: CN31C111  attribute-path room detection — segments attribute without an active_map entity
     # active_map sensor (scalar/Tuya transport). Flag it so detect_capabilities
     # reports supports_rooms/segments via the attribute path (supports_active_map
     # stays entity-gated — there's no map entity to dereference).
@@ -825,13 +825,13 @@ def register_eufy_adapter_for_vacuum(
                 "trail_pixel_attrs": ["_robot_trail", "robot_trail"],
                 "heading_attrs": ["_robot_angle", "robot_angle", "_robot_heading"],
             },
+            # anchor: CN2ARB50  fork memory transport — hass_data_domain + mapdata attrs, remapped if the fork renames one
             # IN-MEMORY MapData source (the SAME EufyCleanCoordinator the live pose reads also
             # holds `_map_data`, a full MapData object: room_pixels/raw_pixels bytes + dims +
             # room_outline_* + room_names + virtual_walls/forbidden_zones/ban_mop_zones). It is
             # FRESHER than .storage (no save-throttle lag) and loop-safe (no file read). The
             # compare_map_sources probe verifies its bytes are byte-identical to .storage before
             # we repoint the source to it (P2). mapdata_attrs locate the object; field_attrs
-            # anchor: CN2ARB50  fork memory transport — hass_data_domain + mapdata attrs, remapped if the fork renames one
             # (optional) remap a field if the fork renames one across the pending #136 merge.
             "memory": {
                 "hass_data_domain": "robovac_mqtt",
