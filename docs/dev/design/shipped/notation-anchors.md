@@ -194,14 +194,31 @@ citing a `BN` is pointing at a **region of a file**, not at a rule.
 
 ```python
 # ---------------------------------------------------------------------------
-# section: BN4K2P9M  saved-zones — create / rename / delete / clean stored rects
+# anchor: BN7T3K9W
+# saved-zones — create / rename / delete / clean stored rects
 # ---------------------------------------------------------------------------
 ```
+
+⚠ **The marker word is `anchor:`, the same as every other class — this example said
+`section:` until 2026-08-22 and that form is INVISIBLE to the tooling.** `doc_anchor.py`
+and `check_bn_boundaries.py` both scan for `anchor:`; a `section:` line declares nothing,
+and because the token is still *present* the gate reports it as an UNDECLARED token —
+verified by running both regexes against the old form.
+
+⚠ **The NAME goes on its own line BENEATH the token, not appended to it.** `check_bn_boundaries.py`
+requires it (*"a token with no NAME line beneath it is an address to nowhere"*), and the reason is
+the gate's headline property: a BN pass **adds comment lines and deletes nothing**, which is
+mechanically provable. Appending the name to the token line REWRITES an existing line, so the
+diff stops being purely additive and the gate rejects it. This example was wrong in BOTH ways
+until 2026-08-22 — marker word and layout — and a 175-marker pass written to it failed on
+both counts, caught by running the gate rather than by reading it. (Token above is illustrative
+and deliberately unminted, as in the `PN` and `EN` sections: a worked example using a real
+anchor becomes a live citation of it.)
 
 Cited from prose in the ordinary form — path, `#`, token:
 
 ```text
-mapping/mapping_services.py#BN4K2P9M
+mapping/mapping_services.py#BN7T3K9W
 ```
 
 **The name is what people read; the token is what survives renaming the name.**

@@ -369,6 +369,16 @@ def self_test() -> int:
 
 
 def main() -> int:
+    # A GATE THAT CRASHES WHILE REPORTING IS A GATE THAT CANNOT REPORT. Several problem
+    # messages contain characters cp1252 cannot encode, so on a Windows console this used
+    # to raise UnicodeEncodeError PART WAY THROUGH printing the findings -- losing the
+    # remaining ones and surfacing as a crash rather than as a clean failure, which in CI
+    # reads as "the tool is broken", not "the code is wrong".
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):  # pragma: no cover -non-reconfigurable stream
+        pass
+
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--base", default="HEAD", help="ref to diff against (default HEAD)")
     ap.add_argument("--paths", nargs="*", help="check these files instead of the diff")
