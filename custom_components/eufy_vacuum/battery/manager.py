@@ -1480,25 +1480,39 @@ class BatteryHealthManager:
         duration = metrics.get("duration_min")
         area = metrics.get("area_m2")
 
+        # A raw total over every job that reported a drain. NOT a mean input: since the
+        # numerators were split it has no reader anywhere in the tree. Kept because it is
+        # a PERSISTED KEY in existing records and a true, separate fact; removing it is a
+        # storage-shape decision, not a tidy-up.
         if drain is not None:
             bucket["drain_pct_sum"] = float(bucket.get("drain_pct_sum", 0.0)) + float(drain)
-        if duration is not None:
-            bucket["duration_min_sum"] = (
-                float(bucket.get("duration_min_sum", 0.0)) + float(duration)
-            )
-        if area is not None:
-            bucket["area_m2_sum"] = float(bucket.get("area_m2_sum", 0.0)) + float(area)
-
-        # THE PAIRING. A job reaches a mean only when it carried BOTH halves of it.
+        # THE PAIRING, AND IT GATES BOTH SIDES. A ratio's numerator and denominator
+        # must count the SAME jobs, so a job reaches a mean only when it carried BOTH
+        # halves -- which means the DENOMINATOR is gated on the drain as well.
+        #
+        # Partnering only the numerators (the first pass at this, 1e2ba0d7) fixes one
+        # direction and leaves the mirror: a job with a duration and no drain grew
+        # duration_min_sum without growing drain_pct_sum_for_duration, DEFLATING the
+        # mean exactly as the original defect INFLATED it. One numerator served three
+        # denominators, so the substitution ran both ways and closing one way is not
+        # closing it. [BM-5d] is the direction [BM-5b] and [BM-5c] cannot see, because
+        # both of those supply a drain and vary the other field.
+        #
+        # duration_min_sum and area_m2_sum have no consumer outside these three means,
+        # so narrowing them costs nothing else. They are denominators, not totals.
         if drain is not None and duration is not None:
             bucket["drain_pct_sum_for_duration"] = (
                 float(bucket.get("drain_pct_sum_for_duration", 0.0)) + float(drain)
+            )
+            bucket["duration_min_sum"] = (
+                float(bucket.get("duration_min_sum", 0.0)) + float(duration)
             )
             bucket["samples_duration"] = int(bucket.get("samples_duration", 0)) + 1
         if drain is not None and area is not None:
             bucket["drain_pct_sum_for_area"] = (
                 float(bucket.get("drain_pct_sum_for_area", 0.0)) + float(drain)
             )
+            bucket["area_m2_sum"] = float(bucket.get("area_m2_sum", 0.0)) + float(area)
             bucket["samples_area"] = int(bucket.get("samples_area", 0)) + 1
 
         dt_sum = float(bucket.get("drain_pct_sum_for_duration", 0.0))

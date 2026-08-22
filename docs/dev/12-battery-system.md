@@ -532,20 +532,22 @@ Each bucket stores cumulative sums to enable on-the-fly mean computation without
 # count is EVERY job folded in. It is not the sample size of any mean.
 bucket.count += 1
 
-# Each input is independently null-guarded — a job missing one still contributes
-# the others.
-if drain    is not None: bucket.drain_pct_sum    += drain
-if duration is not None: bucket.duration_min_sum += duration
-if area     is not None: bucket.area_m2_sum      += area
+# A raw total over every job that reported a drain. NOT a mean input — since the
+# split it has no reader. Kept because it is a persisted key and a separate fact.
+if drain is not None: bucket.drain_pct_sum += drain
 
-# PARTNERED NUMERATORS. A job reaches a mean only when it carried BOTH halves,
-# so each ratio has a numerator and denominator over the same set of jobs.
+# PARTNERED RATIOS, BOTH SIDES GATED. A ratio's numerator and denominator must
+# count the SAME jobs, so the DENOMINATOR is gated on the drain as well. Gating
+# only the numerators leaves the mirror defect: a job with a duration and no
+# drain grows the denominator alone and DEFLATES the mean.
 if drain is not None and duration is not None:
     bucket.drain_pct_sum_for_duration += drain
-    bucket.samples_duration += 1
+    bucket.duration_min_sum           += duration
+    bucket.samples_duration           += 1
 if drain is not None and area is not None:
     bucket.drain_pct_sum_for_area += drain
-    bucket.samples_area += 1
+    bucket.area_m2_sum            += area
+    bucket.samples_area           += 1
 
 bucket.drain_per_min_mean  = drain_pct_sum_for_duration / duration_min_sum
 bucket.drain_per_hour_mean = (drain_pct_sum_for_duration / duration_min_sum) * 60
@@ -572,9 +574,34 @@ bucket.drain_per_m2_mean   = drain_pct_sum_for_area      / area_m2_sum
 > split has no `samples_*` keys and reports `None` — unknown, stated as unknown,
 > rather than falling back to `count`.
 >
-> These aggregates are **rebuildable from the archive**
-> (`BatteryHealthManager.rebuild_job_aggregates`), so no migration was needed: a
-> `rebuild_learning_stats` recomputes honest values from job records already on disk.
+> **Both sides of each ratio are gated, not just the numerator.** Partnering only the
+> numerators closes one direction of the substitution and opens its mirror: a job that
+> recorded a duration but no battery read — the same finalize-time race that produces
+> the area-less jobs above — grew `duration_min_sum` while `drain_pct_sum_for_duration`
+> stayed put, so the mean came out LOW where the original defect made it HIGH. Six jobs
+> at 20% over 40 min plus four drain-less ones published `120/400 = 0.3` against an
+> honest `120/240 = 0.5`. `duration_min_sum` and `area_m2_sum` have no consumer outside
+> these three means, so narrowing them to the paired population costs nothing: they are
+> denominators, not totals.
+>
+> ⚠ **A BUCKET WRITTEN BEFORE THE PAIRING CARRIES A PERMANENT DOWNWARD BIAS, AND IT IS
+> NOT MIGRATED.** `ensure_record()` setdefaults the new keys onto an older record, so
+> `drain_pct_sum_for_duration` restarts at `0.0` while `duration_min_sum` keeps every
+> minute it accumulated under the old unpaired rule. The mean then reads *new drain over
+> all-time duration*. **This does not wash out.** Both sums grow together from that point,
+> so the historical denominator is never diluted away — the bias is smaller on a busy
+> install and permanent on every install.
+>
+> The repair exists and is not automatic: `eufy_vacuum.rebuild_learning_stats` reaches
+> `BatteryHealthManager.rebuild_job_aggregates`, which **rebuilds every bucket from EMPTY**
+> over the job archive on disk, so every sum is recomputed under the current rule. It is
+> not run on upgrade because doing so would replay the full archive for every vacuum at
+> startup. A user who has never run it sees means that are low, not wrong-shaped: the
+> ordering between buckets survives, only the magnitude is depressed.
+>
+> `samples_duration` / `samples_area` are the tell. A bucket whose `samples` is much
+> smaller than its `count` has drain-less or measurement-less jobs in it; a bucket
+> reporting `samples: None` predates the split entirely and has never been rebuilt.
 
 The means are **time-weighted** (sums in numerator + denominator), not arithmetic averages of per-job means. A 60-min job and a 30-min job contribute proportionally to their durations.
 

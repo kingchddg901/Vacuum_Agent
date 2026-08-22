@@ -380,6 +380,46 @@ def test_a_job_without_duration_does_not_move_the_per_minute_mean(bm):
     assert bucket["drain_per_hour_mean"] == pytest.approx(30.0)
     assert bucket["drain_per_m2_mean"] == pytest.approx(2.0)
 
+def test_a_job_without_drain_does_not_deflate_the_means(bm):
+    """[BM-5d] C17, the THIRD direction -- and the one the first fix missed.
+
+    [BM-5b] and [BM-5c] both supply a drain and vary the other field, so both pass
+    against a fix that partners only the NUMERATORS. They cannot see a job that
+    carries a duration and NO drain: that grew duration_min_sum while
+    drain_pct_sum_for_duration stayed put, so the mean came out LOW -- the exact
+    mirror of the original defect, which came out high.
+
+    Six jobs at 20% over 40 min, plus four that recorded time but no battery read.
+    Honest: 120/240 = 0.5. Numerator-only fix: 120/400 = 0.3, 40% low, and worse the
+    more drain-less runs land.
+
+    A drain-less job is the SAME finalize-time race that produces the area-less and
+    duration-less jobs in the two tests above; nothing blocks it being recorded.
+    """
+    bucket: dict = {}
+    for _ in range(6):
+        BatteryHealthManager._update_aggregate_bucket(
+            bucket, {"battery_used_pct": 20, "duration_min": 40, "area_m2": 10})
+    for _ in range(4):
+        BatteryHealthManager._update_aggregate_bucket(
+            bucket, {"battery_used_pct": None, "duration_min": 40, "area_m2": 10})
+
+    assert bucket["count"] == 10
+    assert bucket["samples_duration"] == 6, (
+        "samples_duration must be the jobs that carried BOTH a drain and a duration"
+    )
+    assert bucket["samples_area"] == 6
+
+    assert bucket["drain_per_min_mean"] == pytest.approx(0.5), (
+        f"per-minute mean is {bucket['drain_per_min_mean']} -- the four drain-less jobs "
+        "put their duration in the denominator while contributing nothing to the "
+        "numerator. 0.3 is 120/400: drain from six jobs over duration from ten."
+    )
+    assert bucket["drain_per_m2_mean"] == pytest.approx(2.0), (
+        f"per-m2 mean is {bucket['drain_per_m2_mean']} -- same defect on the area side"
+    )
+    assert bucket["drain_per_hour_mean"] == pytest.approx(30.0)
+
 
 # ---------------------------------------------------------------------------
 # Sample pipeline
