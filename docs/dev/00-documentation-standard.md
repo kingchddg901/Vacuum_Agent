@@ -134,6 +134,37 @@ that quietly does something else, is a *code* defect wearing a doc's clothes.
 > code is a **bug signal**, not a documentation error. The `clean_times` Eufy-ism surfaced
 > exactly that way — the "wrong" guess was closer to correct than the buggy clamp.
 
+### 3a. Drift is not the problem. SEMANTIC drift is.
+
+The two sides own different things, and they are allowed to move independently:
+
+| | owns | says |
+|---|---|---|
+| **design** | intent and shape | we are doing this thing · these responsibilities are separated this way · this behaviour must exist · these tradeoffs were chosen |
+| **code** | mechanism | here is the class · the call path · the guard · the exact structure that implements it |
+
+A refactor can change *how* something is implemented beyond recognition while the design
+stays perfectly true. A design can evolve at its own level without prescribing every
+detail beneath it. Neither is drift.
+
+**The warning sign is when the code stops being a plausible implementation of the design.**
+If the design says *there is one authority for X* and the implementation moves that
+authority between modules, nothing is wrong. If the code now has **three** independent
+authorities, the two are no longer describing the same system.
+
+That is what makes a shipped design a useful comparator: it does not chase every code
+change. It answers *what are we doing*, while the code answers *how are we doing it right
+now*.
+
+> **The test, before adjudicating anything:**
+>
+> **Could I change this implementation detail completely and still truthfully say we are
+> implementing the same design?**
+>
+> **Yes** — the design needs no update, however far the code has moved.
+> **No** — either the code has drifted from the design, or the design itself changed and
+> that change was never recorded. Establish which before touching either.
+
 ---
 
 ## 4. What a NOW doc must specify
