@@ -173,7 +173,25 @@ for.
    "as discussed", and discovery stories are metadata about the author, not information
    about the system. The filter: *would this still serve a competent reader who has never
    seen the project's conversations?* If not, it belongs in HISTORY or the commit message.
-5. **A doc no index reaches is a doc the corpus does not have.** Omission is invisible in
+5. **Explain the code, never the document.** "This document exists because…", "what is worth
+   understanding here is…", "called out so it is not mistaken for…" — all of it is the author
+   present in the text, and it reads as padding because it is. A section that has to announce
+   its own significance has not demonstrated it. State the case; the reader can see where it
+   sits.
+
+   The calibration passage is `docs/retired/dev/06-job-lifecycle.md` §6f, on the errored-robot
+   clause in the stranded reaper. It is one of only two passages in that document that answered
+   a counterfactual correctly under measurement, and it never once says what it is doing. It
+   also shows the right way to carry a rejected alternative — inside the sentence ("reverses the
+   predicate's original *an error may recover, leave it alone* stance"), not announced from a
+   labelled slot.
+
+6. **If a sentence is there because the paragraph looked short, cut it.** Padding is not
+   neutral: every filler sentence is another claim that can rot, and a reader who finds one
+   stops trusting the density of the rest. This is the sibling of §5.2 — restatement pads with
+   the code's own content, this pads with nothing at all.
+
+7. **A doc no index reaches is a doc the corpus does not have.** Omission is invisible in
    prose — a missing table row leaves a visible hole, a missing clause reads as a complete
    sentence. Run `python scripts/check_docs_index.py`; naming a file in backticks does
    **not** count as reaching it.
