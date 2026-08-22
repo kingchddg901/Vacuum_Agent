@@ -12,6 +12,19 @@ written down in comments by whoever learned them, and never registered.
 consequence. No consequence → it is a `CONVENTION` and should stay one; promoting
 it manufactures the unfalsifiable claim the registry exists to remove.
 
+⚠ **`STALE` WAS WRONG ON ALL FIVE ROWS THAT CARRIED IT (corrected 2026-08-21, by ablation).**
+Two are defended by existing tests, one is the undefended sibling of a defended rule, and two
+are real constraints the suite CANNOT observe. Two parentheticals were added because the
+original vocabulary had no way to say them:
+
+* `INVARIANT (UNDEFENDED)` — ablation-proven real, and nothing goes red. A gap, not a demotion.
+* `INVARIANT (not test-enforceable)` — real, but ablation is STRUCTURALLY BLIND to it. Two
+  known classes: rules asserting an **absence** (nothing exists to break), and rules governing
+  **build-time artifacts** (the suite never runs them). Both ablate to "nothing red" and would
+  be falsely demoted to CONVENTION. Their enforcement is code review; the input that makes them
+  red is a future commit. **Any future ablation sweep must carry this third verdict or it will
+  quietly demote exactly the rules most worth writing down.**
+
 `STATUS`: ` ` unclassified · `INVARIANT` · `CONVENTION` · `PN` (binding but no
 code site) · `STALE` (asserts something no longer true).
 
@@ -101,12 +114,12 @@ verdict a human has to make:
 |---|---|---|
 | CONVENTION | `custom_components/eufy_vacuum/adapters/eufy/const.py`:44 | derived from DOMAIN so that framework namespace changes never silently |
 | INVARIANT (cite IN11T0FS) | `custom_components/eufy_vacuum/adapters/eufy/room_profiles.py`:115 | The non-carpet rows are a PREFERENCE applied to users who never asked for it: floor_type |
-| STALE | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:250 | fault that never stopped the robot cleaning silently zeroes a productive run. Observed |
+| INVARIANT (defended) | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:250 | fault that never stopped the robot cleaning silently zeroes a productive run. Observed ⟵ **RE-CLASSIFIED 2026-08-21, was STALE.** Not stale — live, and defended by `tests/adapters/eufy/test_error_source.py`, which imports both code sets and `eufy_error_invalidates_cleaning` and asserts they are disjoint and correctly sized. EVIDENCE GRADE: by inspection, NOT ablated. Its consequence is dated and real: alfred `job_2026-08-01T23-23-35` cleaned 4 m² in 360 s and recorded `cleaning_time_seconds` 0. |
 | INVARIANT | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:274 | BOTH SETS ARE DECLARED. A code in neither resolves to UNKNOWN, and unknown NEVER |
 | INVARIANT | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:275 | invalidates -- an unrecognised fault must not be subtracted, because that is the failure |
 | INVARIANT | `custom_components/eufy_vacuum/adapters/eufy/vocabulary.py`:564 | """Coerce to an error code, or None. NEVER int(): int(3.7) is 3, a real code (SIDE |
 | INVARIANT (cite IN40W49E) | `custom_components/eufy_vacuum/adapters/roborock/adapter.py`:344 | mode-specific. Without this, _detect_cancel_likely_run never fires |
-| STALE | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:47 | Card-facing dropdown option lists (the framework never reads these). |
+| INVARIANT (defended) | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:47 | Card-facing dropdown option lists (the framework never reads these). ⟵ **RE-CLASSIFIED 2026-08-21, was STALE.** ABLATION-PROVEN: swapping the two weakest entries so the list is no longer ascending-suction turned `tests/adapters/roborock/test_adapter.py::test_vocabulary` red (1 failed / 4471 passed). Restored byte-exact. |
 | INVARIANT (cite IN11T0FS) | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:195 | The non-carpet rows are a PREFERENCE applied to users who never asked for it: floor_type |
 | INVARIANT | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:353 | follows the rule the Eufy table already states: never invent a label for a code whose |
 | INVARIANT | `custom_components/eufy_vacuum/battery/manager.py`:800 | excluded from the delta/rate/drain accounting above, but must not |
@@ -118,12 +131,12 @@ verdict a human has to make:
 | CONVENTION | `custom_components/eufy_vacuum/button.py`:326 | the press silently no-ops with only a "coroutine was never awaited" warning, |
 | CONVENTION | `custom_components/eufy_vacuum/config_flow.py`:63 | must NOT also reload. Single-instance anyway, so this just aborts. |
 | INVARIANT (cite INYA5T84) | `custom_components/eufy_vacuum/const.py`:43 | : MUST NOT be stored as an adapter config. Stored configs load first and are |
-| STALE | `custom_components/eufy_vacuum/const.py`:190 | `live_map_rotation` and surfaced in the dashboard snapshot. Display only — never |
+| INVARIANT (not test-enforceable) | `custom_components/eufy_vacuum/const.py`:190 | `live_map_rotation` and surfaced in the dashboard snapshot. Display only — never ⟵ **RE-CLASSIFIED 2026-08-21, was STALE.** ⚠ NOT ABLATABLE — the claim asserts an ABSENCE ("display only — never affects dispatch") and the forbidden coupling does not exist (grep: zero dispatch-side references). To violate it you must ADD a dependency, and no test defends against a coupling never built. Its enforcement is CODE REVIEW; the input that makes it red is a future commit, not a test case. Ablating it would report "nothing red" and FALSELY demote it to CONVENTION. |
 | INVARIANT | `custom_components/eufy_vacuum/core/capabilities.py`:70 | : pinning a dead id, but a user choice that has quietly stopped working must be |
 | INVARIANT | `custom_components/eufy_vacuum/core/capabilities.py`:764 | each must be DECISIVE (exactly one survivor) or the next is tried: |
 | INVARIANT | `custom_components/eufy_vacuum/core/capabilities.py`:896 | live:ENT-7 — an override that did not win must SAY so. It is first in |
 | INVARIANT | `custom_components/eufy_vacuum/core/error_tracker.py`:285 | NEVER ``int()`` on a float — ``int(3.7)`` is 3, a real Eufy code (SIDE BRUSH |
-| STALE | `custom_components/eufy_vacuum/core/error_tracker.py`:311 | """Exact integers only. NEVER int(): int(3.7) is 3, which is a real Eufy code (SIDE |
+| INVARIANT (UNDEFENDED) | `custom_components/eufy_vacuum/core/error_tracker.py`:311 | """Exact integers only. NEVER int(): int(3.7) is 3, which is a real Eufy code (SIDE ⟵ **RE-CLASSIFIED 2026-08-21, was STALE.** ABLATION-PROVEN UNDEFENDED: `int(3.7)` made to resolve to code 3 (SIDE BRUSH STUCK) and **4,472 tests passed**. ⚠ ONE RULE, THREE COPIES — the adapter copy (`adapters/eufy/vocabulary.py::_exact_error_code`, owed ruling #2) IS defended by 3 tests parametrised on `3.7`/`2112.9`; this core copy and the string variant at `error_tracker.py:~287` (owed ruling #9) are not. Same rule, filed here THREE times under TWO verdicts. Ruling should cover the SET, not the site. See LEDGER "THE `NEVER int()` RULE". |
 | INVARIANT (cite IN40W49E) | `custom_components/eufy_vacuum/core/error_tracker.py`:655 | declare it — it was simply never read, so a brand whose firmware says |
 | INVARIANT | `custom_components/eufy_vacuum/counter_segmentation.py`:507 | live:RECHARGE-ATTR-1 — drop never-boundary kinds BEFORE every mode, including |
 | INVARIANT | `custom_components/eufy_vacuum/learning/room_attribution_engines.py`:223 | "cleaned" on it directly. The winding short-circuit must NOT pre-empt it: |
@@ -200,7 +213,7 @@ verdict a human has to make:
 |  | `scripts/gen-theme-token-docs.mjs`:103 | produced spurious churn, and CI could never agree with a local run. |
 |  | `scripts/gen-theme-token-docs.mjs`:248 | Split the count so a dynamic family can never be mistaken for a dead one. |
 | CONVENTION | `scripts/gen_event_docs.py`:387 | they went stale on commits that never touched an event. Parent links are |
-| STALE | `scripts/gen_floor_masks.py`:59 | calibrated for that canvas, so every mask must match or the shift misaligns. |
+| INVARIANT (not test-enforceable) | `scripts/gen_floor_masks.py`:59 | calibrated for that canvas, so every mask must match or the shift misaligns. ⟵ **RE-CLASSIFIED 2026-08-21, was STALE.** Ablated `SIZE = 2048` → `1024`: **4,472 passed, nothing red.** But this is a BUILD-TIME generator under `scripts/`, which the suite never exercises — violating it produces wrong masks only when someone REGENERATES. Same blind spot class as the absence-rule above: real, consequential, and structurally invisible to ablation. Do not read "nothing red" here as CONVENTION. |
 |  | `scripts/sanitize-animal-svg.mjs`:20 | - href / xlink:href must be an internal #fragment (drops external refs). |
 |  | `src/actions/core.js`:167 | never break the call it's reporting on — same defensive pattern as the |
 |  | `src/actions/fetch-failure-tristate.test.mjs`:151 | FE-ERR-4: a failed saved-zones fetch must not overwrite the library with []. |
