@@ -530,6 +530,7 @@ class LearningHistoryStore:
         return paths.live_dir / "last_job_snapshot.json"
 
     # ------------------------------------------------------------------
+    # anchor: BNDGR3XF
     # Incomplete run log
     # ------------------------------------------------------------------
     # Single-overwrite file written by _write_incomplete_run_log() when a
@@ -585,6 +586,7 @@ class LearningHistoryStore:
             )
 
     # ------------------------------------------------------------------
+    # anchor: BNWM3ZGR
     # Trouble rooms log
     # ------------------------------------------------------------------
     # Single-overwrite file updated by _update_trouble_rooms_log() after

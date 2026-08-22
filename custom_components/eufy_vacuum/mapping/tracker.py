@@ -42,6 +42,7 @@ from ..rooms.utils import slugify_room_name
 _LOGGER = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# anchor: BNX0V0H3
 # Constants
 # ---------------------------------------------------------------------------
 
@@ -66,6 +67,7 @@ _BLANK_ROOM_SENTINELS = BLANK_STATE_VALUES  # derived; see entity_helpers
 
 
 # ---------------------------------------------------------------------------
+# anchor: BNJYEYJG
 # Per-vacuum tracker state
 # ---------------------------------------------------------------------------
 
@@ -122,6 +124,7 @@ class _RoomConfidenceState:
 
 
 # ---------------------------------------------------------------------------
+# anchor: BN5D4RKA
 # Tracker
 # ---------------------------------------------------------------------------
 
@@ -153,6 +156,7 @@ class MappingTracker:
     DOCK_DRIFT_MAX_LINES = 5000
 
     # ------------------------------------------------------------------
+    # anchor: BNFQRJDY
     # Dock-coordinate drift log (diagnostic)
     # ------------------------------------------------------------------
     # The dock is a physically fixed point, so any change in the robot's REPORTED
@@ -285,6 +289,7 @@ class MappingTracker:
         tmp.replace(path)
 
     # ------------------------------------------------------------------
+    # anchor: BN7N3R5Z
     # Listener registration
     # ------------------------------------------------------------------
 
@@ -342,6 +347,7 @@ class MappingTracker:
             self.unregister_vacuum(vacuum_entity_id)
 
     # ------------------------------------------------------------------
+    # anchor: BNEKTDZR
     # Job lifecycle
     # ------------------------------------------------------------------
 
@@ -412,6 +418,7 @@ class MappingTracker:
             self._confidence[vacuum_entity_id].reset_job()
 
     # ------------------------------------------------------------------
+    # anchor: BNRTVX2S
     # Position handling
     # ------------------------------------------------------------------
 

@@ -59,6 +59,7 @@ function makeState({ backendEntry, reanchoredTimeline, estimateTimeline } = {}) 
 }
 
 // =========================================================================
+// anchor: BNGAA1QF
 // getRoomProgressSnapshot — BACKEND path
 // =========================================================================
 
@@ -175,6 +176,7 @@ test("[LRN-6] backend entry qualified only by `remaining` truthiness; non-finite
 });
 
 // =========================================================================
+// anchor: BNNZFY5R
 // getRoomProgressSnapshot — LOCAL timeline path
 // =========================================================================
 
@@ -290,6 +292,7 @@ test("[LRN-13] estimated minutes 0 on a current room defaults to 1 (avoids /0), 
 });
 
 // =========================================================================
+// anchor: BNADC9QG
 // _computeProgressPercent
 // =========================================================================
 

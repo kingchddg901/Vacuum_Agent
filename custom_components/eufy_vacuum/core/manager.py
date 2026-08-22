@@ -879,6 +879,7 @@ class EufyVacuumManager:
                         room.setdefault("configured_at", now)
 
     # ------------------------------------------------------------------
+    # anchor: BN9Y5WHJ
     # Callback registration / notification
     # ------------------------------------------------------------------
 
@@ -1043,6 +1044,7 @@ class EufyVacuumManager:
             )
 
     # ------------------------------------------------------------------
+    # anchor: BNHF6TXT
     # Vacuum / capability management
     # ------------------------------------------------------------------
 
@@ -1191,6 +1193,7 @@ class EufyVacuumManager:
         return _get_battery_level_impl(self.hass, vacuum_entity_id)
 
     # ------------------------------------------------------------------
+    # anchor: BN52YB62
     # Water model helpers + estimation -- delegates to RunPlanManager
     # ------------------------------------------------------------------
 
@@ -1221,6 +1224,7 @@ class EufyVacuumManager:
         return self.run_plan.estimate_job_water_usage(**kwargs)
 
     # ------------------------------------------------------------------
+    # anchor: BNAQ6QDN
     # Active job tracking — delegates to ActiveJobTracker
     # ------------------------------------------------------------------
 
@@ -1429,6 +1433,7 @@ class EufyVacuumManager:
         return self.maintenance._get_replacement_reset_entity(**kwargs)
 
     # ------------------------------------------------------------------
+    # anchor: BNNH89X5
     # Dock actions — delegates to DockManager
     # ------------------------------------------------------------------
 
@@ -1769,6 +1774,7 @@ class EufyVacuumManager:
         return self.runtime[vacuum_entity_id]
 
     # ------------------------------------------------------------------
+    # anchor: BNTXYKSY
     # Room profiles — delegates to ProfileManager
     # ------------------------------------------------------------------
 
@@ -2267,6 +2273,7 @@ class EufyVacuumManager:
         return self.room_map.rebuild_map(**kwargs)
 
     # ------------------------------------------------------------------
+    # anchor: BN13R22S
     # Queue / payload building
     # ------------------------------------------------------------------
 
@@ -2784,6 +2791,7 @@ class EufyVacuumManager:
         return rects
 
     # ------------------------------------------------------------------
+    # anchor: BNXJC33C
     # Run profiles — delegates to ProfileManager
     # ------------------------------------------------------------------
 
@@ -2816,6 +2824,7 @@ class EufyVacuumManager:
         return self.profiles.apply_run_profile(**kwargs)
 
     # ------------------------------------------------------------------
+    # anchor: BNKAQANF
     # Access graph — delegates to AccessGraphManager
     # ------------------------------------------------------------------
 
@@ -2888,6 +2897,7 @@ class EufyVacuumManager:
 
 
     # ------------------------------------------------------------------
+    # anchor: BN078651
     # Run planning -- delegates to RunPlanManager
     # ------------------------------------------------------------------
 
@@ -3092,6 +3102,7 @@ class EufyVacuumManager:
         }
 
     # ------------------------------------------------------------------
+    # anchor: BNASDHS6
     # Room history cache and accessors
     # ------------------------------------------------------------------
 
@@ -3444,6 +3455,7 @@ class EufyVacuumManager:
         )
 
     # ------------------------------------------------------------------
+    # anchor: BNPN12E3
     # Lifecycle / start status
     # ------------------------------------------------------------------
 
@@ -4036,6 +4048,7 @@ class EufyVacuumManager:
         }
 
     # ------------------------------------------------------------------
+    # anchor: BNA9T0JJ
     # Singleton-ownership helpers
     # ------------------------------------------------------------------
 
@@ -4219,6 +4232,7 @@ class EufyVacuumManager:
 
 
     # ------------------------------------------------------------------
+    # anchor: BN990V7G
     # Job progress / control
     # ------------------------------------------------------------------
 
@@ -4354,6 +4368,7 @@ class EufyVacuumManager:
                 current_room_elapsed_minutes = self._compute_current_room_elapsed_minutes(active_job=active_job)
 
         # ------------------------------------------------------------------
+        # anchor: BN5W62XG
         # Bounds-exit polling signal
         # ------------------------------------------------------------------
         # When timing says a room should be done but the robot is still
@@ -4456,6 +4471,7 @@ class EufyVacuumManager:
         # a path-optimising brand.
 
         # ------------------------------------------------------------------
+        # anchor: BNR8RZFQ
         # Run anomalies: stall (hard) + running_long (soft) + skipped
         # ------------------------------------------------------------------
         # Detection + one-shot event emission (EVENT_STALL_DETECTED /
@@ -5467,6 +5483,7 @@ class EufyVacuumManager:
         }
 
     # ------------------------------------------------------------------
+    # anchor: BNT7JDBC
     # Upkeep / maintenance
     # ------------------------------------------------------------------
 
@@ -6506,6 +6523,7 @@ class EufyVacuumManager:
         return self.maintenance.reset_maintenance(**kwargs)
 
     # ------------------------------------------------------------------
+    # anchor: BNCRE9Z8
     # Onboarding — delegates to OnboardingManager
     # ------------------------------------------------------------------
 
@@ -6534,6 +6552,7 @@ class EufyVacuumManager:
         return self.onboarding.reset_onboarding(**kwargs)
 
     # ------------------------------------------------------------------
+    # anchor: BN9KGAAA
     # Theme management - delegated to self.themes (ThemeManager)
     # ------------------------------------------------------------------
 
@@ -6582,6 +6601,7 @@ class EufyVacuumManager:
         return self.themes.import_theme(**kwargs)
 
     # ------------------------------------------------------------------
+    # anchor: BN40D32F
     # Dock events — delegates to DockManager
     # ------------------------------------------------------------------
 
@@ -6602,6 +6622,7 @@ class EufyVacuumManager:
         return self.maintenance.get_maintenance_remaining(**kwargs)
 
     # ------------------------------------------------------------------
+    # anchor: BN8XKZWY
     # Job start / run-profile start
     # ------------------------------------------------------------------
 

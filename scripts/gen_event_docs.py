@@ -79,6 +79,7 @@ SKIP_DIRS = {"__pycache__", ".claude", "node_modules", ".git", "frontend"}
 
 
 # --------------------------------------------------------------------------
+# anchor: BNB5542G
 # blind-spot ledger
 # --------------------------------------------------------------------------
 @dataclass
@@ -96,6 +97,7 @@ def blind(kind: str, where: str, detail: str) -> None:
 
 
 # --------------------------------------------------------------------------
+# anchor: BNC874K2
 # 1. parse the package
 # --------------------------------------------------------------------------
 def rel(p: Path) -> str:
@@ -140,6 +142,7 @@ def enclosing(node: ast.AST, types: tuple[type, ...]):
 
 
 # --------------------------------------------------------------------------
+# anchor: BNWXRS80
 # 2. module-level string constants — INCLUDING f-strings
 # --------------------------------------------------------------------------
 # `EVENT_JOB_FINISHED = f"{DOMAIN}_job_finished"` is an ast.JoinedStr whose one
@@ -228,6 +231,7 @@ for fname, name, value, line in _pending:
 
 
 # --------------------------------------------------------------------------
+# anchor: BNQYEQND
 # 3. function/method index — for resolving builder calls
 # --------------------------------------------------------------------------
 DEFS: dict[str, list[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]]] = defaultdict(list)
@@ -317,6 +321,7 @@ def resolve_call_keys(call: ast.Call, fname: str, where: str) -> tuple[list[tupl
 
 
 # --------------------------------------------------------------------------
+# anchor: BNTYV3XR
 # 4. every async_fire call site
 # --------------------------------------------------------------------------
 @dataclass
@@ -565,6 +570,7 @@ EVENTS = sorted(BY_EVENT)
 
 
 # --------------------------------------------------------------------------
+# anchor: BNF6JNDQ
 # 5. the model
 # --------------------------------------------------------------------------
 def site_all_keys(s: Site) -> set[str]:
@@ -655,6 +661,7 @@ blind("flow-insensitive-mutation", "—",
       "branch not taken is still counted for any fire site textually below it")
 
 # --------------------------------------------------------------------------
+# anchor: BNGXW9T3
 # 6. emit the reference
 # --------------------------------------------------------------------------
 def md_escape(s: str) -> str:

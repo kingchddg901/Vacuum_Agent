@@ -2929,6 +2929,7 @@ export function applyMapBindings(proto) {
     });
 
     // ----------------------------------------------------------
+    // anchor: BN3KGZJ9
     // Double-click on map background → reset transform
     // ----------------------------------------------------------
     this.card._on(container, "dblclick", (e) => {
@@ -2938,6 +2939,7 @@ export function applyMapBindings(proto) {
     });
 
     // ----------------------------------------------------------
+    // anchor: BNVMC3YY
     // Touch pinch zoom
     // ----------------------------------------------------------
     const _activeTouches = {};

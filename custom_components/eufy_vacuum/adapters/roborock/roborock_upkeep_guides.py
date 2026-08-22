@@ -161,6 +161,7 @@ ROBOROCK_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
 
 
 # ===========================================================================
+# anchor: BNSDMW2E
 # STEP-UP TIER DELTAS  —  DOCK / STATION components on top of the base 9.
 # ===========================================================================
 # Cross-checked across the Qrevo Curv (dock EWFD49LRR), S8 MaxV Ultra (EWFD13LRR),

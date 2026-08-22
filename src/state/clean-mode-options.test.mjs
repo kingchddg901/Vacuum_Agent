@@ -106,6 +106,7 @@ test("[CMO-4] the canonical compare folds every spelling pair", () => {
 
 
 // ---------------------------------------------------------------------------
+// anchor: BNSW5H06
 // Water level: "Off" is not offered while mopping
 // ---------------------------------------------------------------------------
 

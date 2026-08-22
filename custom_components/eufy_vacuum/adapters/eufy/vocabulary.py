@@ -241,6 +241,7 @@ NOT_ERROR_SENTINELS: frozenset[str] = frozenset({
 
 
 # ---------------------------------------------------------------------------
+# anchor: BNZZZXW7
 # Fault policy (RF-DOCK) -- SOURCE, and whether the fault invalidates cleaning evidence
 # ---------------------------------------------------------------------------
 # WHY THIS EXISTS. total_error_seconds is subtracted from cleaning_time_seconds, so a

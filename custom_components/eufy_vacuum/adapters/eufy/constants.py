@@ -11,6 +11,7 @@ brand author needs to measure to provide their own.
 """
 
 # ----------------------
+# anchor: BNRD9B1V
 # Mop wash debounce
 # ----------------------
 
@@ -38,6 +39,7 @@ DOCK_EVENT_MOP_WASH_DEBOUNCE_SECONDS = 60
 POST_JOB_AMENDMENT_MIN_WASH_INTERVAL_SECONDS = 60.0
 
 # ----------------------
+# anchor: BNWC83XR
 # Post-job water amendment timeout
 # ----------------------
 
@@ -52,6 +54,7 @@ POST_JOB_AMENDMENT_MIN_WASH_INTERVAL_SECONDS = 60.0
 POST_JOB_AMENDMENT_TIMEOUT_SECONDS = 180
 
 # ----------------------
+# anchor: BNM86HVH
 # Battery
 # ----------------------
 
@@ -63,6 +66,7 @@ POST_JOB_AMENDMENT_TIMEOUT_SECONDS = 180
 LOW_BATTERY_THRESHOLD_PERCENT = 20
 
 # ----------------------
+# anchor: BNGEQ16P
 # Water flow rates
 # ----------------------
 
@@ -78,6 +82,7 @@ WATER_RATE_MEDIUM_ML_PER_MIN = 4.0
 WATER_RATE_HIGH_ML_PER_MIN = 5.3
 
 # ----------------------
+# anchor: BNKGEF7P
 # Physical tank measurements
 # ----------------------
 
@@ -99,6 +104,7 @@ DOCK_CLEAN_TANK_CAPACITY_ML = 3080.0
 DOCK_WASH_OVERHEAD_ML_PER_CYCLE = 120.0
 
 # ----------------------
+# anchor: BNZEYNKY
 # Wash frequency interval bounds
 # ----------------------
 
