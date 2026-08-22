@@ -4923,7 +4923,17 @@ class EufyVacuumManager:
         phases = active_job.get("phases") or []
         idx = active_job.get("current_phase_index")
         if isinstance(idx, int) and 0 <= idx < len(phases):
-            ptype = str((phases[idx] or {}).get("type") or "").strip().lower()
+            # C36: this read `"type"` until 2026-08-21 and was therefore INERT for the
+            # whole life of the guard. planning/run_plan.py stamps `phase_type` on every
+            # phase it builds (:887 setdefault, :961 charge_wait, :968 wait, :986 zone)
+            # and queue_engine.py:512 hands those dicts to the active job verbatim. A
+            # bare `type` key is stamped on a PHASE nowhere in the tree — the only
+            # `"type":` phase-shaped literals are STEPS (manager.py:2528/2547) and the
+            # history record, which converts `phase_type` -> `type` on the way to disk
+            # (learning/history_store.py:805/856). So ptype was always "", never a member
+            # of the set below, and a small zone phase under the counter's ~1 m² floor
+            # was flagged stalled every time.
+            ptype = str((phases[idx] or {}).get("phase_type") or "").strip().lower()
             # NON_CLEANING_PHASE_TYPES is exactly the set wanted, for DIFFERENT reasons
             # than it exists for: charge_wait allows up to 180 minutes with a flat
             # counter BY DESIGN, and a zone is often smaller than the counter's ~1 m²
