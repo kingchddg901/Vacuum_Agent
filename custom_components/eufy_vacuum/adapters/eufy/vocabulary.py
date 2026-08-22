@@ -39,8 +39,16 @@ DRYING_STATES: frozenset[str] = frozenset({
 # Task status strings that indicate the vacuum is actively running
 # a job. Used to set has_observed_active_lifecycle and to detect
 # vacuum_busy state.
-# Note: "cleaning" and "returning" also appear in
-# HA_ACTIVE_VACUUM_STATES below — both sources are checked.
+# Note: "cleaning" and "returning" are ALSO HA vacuum-platform entity states, and
+# both sources are checked. The platform set is NOT declared here: it is universal
+# across every HA vacuum integration, so core owns it — ONE definition, in
+# `const.py::HA_ACTIVE_VACUUM_STATES`, imported by core/manager.py and
+# jobs/job_monitor.py (whose `active_vacuum_states` parameter defaults to it). It is
+# also NOT an adapter-declarable key: ADAPTER_CONFIG_SCHEMA has no slot for it, so a
+# brand attempting to declare it is rejected at validation. This file declares only
+# what is
+# BRAND-SPECIFIC — hard_service_states, drying_states, active_run_task_states — which
+# is exactly what adapter.py's vocabulary block passes to core.
 ACTIVE_RUN_TASK_STATES: frozenset[str] = frozenset({
     "cleaning",
     "room cleaning",
@@ -48,17 +56,6 @@ ACTIVE_RUN_TASK_STATES: frozenset[str] = frozenset({
     "returning",
     "resuming",
     "navigating",
-})
-
-# Vacuum entity states that indicate the vacuum is active or faulted.
-# Values marked [HA standard] are part of the HA vacuum platform
-# state machine and apply to all brands. Values marked [Eufy] are
-# Eufy-specific and may not appear on other brands.
-HA_ACTIVE_VACUUM_STATES: frozenset[str] = frozenset({
-    "cleaning",   # [HA standard]
-    "returning",  # [HA standard]
-    "paused",     # [HA standard]
-    "error",      # [HA standard]
 })
 
 # Mapping of framework event type keys to the raw dock_status strings
