@@ -104,6 +104,16 @@ PREFIXES = {
     "IN": "invariant notation — something the system must preserve across refactors",
     "RN": "replica notation — one rule deliberately implemented in more than one place; "
           "the copies must agree, and changing one means checking the others",
+    # BN is the odd one and deliberately so: every other class anchors a CLAIM, BN
+    # anchors a PLACE. A break says "section one ends, section two begins" and asserts
+    # nothing about what either section means — so it is never wrong, only stale, and a
+    # doc citing it is pointing at a REGION, not at a rule. That is why sections get
+    # their own namespace instead of CN: minting a code-notation token for every divider
+    # would dilute CN until an anchor stopped signalling "worth pointing at".
+    # The human-readable section name beside the token is what people read; the token is
+    # what survives renaming it.
+    "BN": "break notation — a section boundary within a file; a page break, not a claim. "
+          "Names a region so prose can address it without the file being split",
 }
 
 # Letters only, and only Crockford's unambiguous 22. 22 x 22 = 484 namespaces, each

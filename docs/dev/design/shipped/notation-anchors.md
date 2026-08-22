@@ -2,7 +2,8 @@
 
 > **Status: SPECIFICATION — partially built.** `CN` in use (9 anchors), `IN` in use
 > (1, indexed by [00b](../../00b-invariants.md)), `RN` in use (2, indexed by
-> [00c](../../00c-replicas.md)). `SN`, `HN` and `PN` remain reserved and unused. Tooling: `scripts/doc_anchor.py`
+> [00c](../../00c-replicas.md)). `BN` added 2026-08-21, no anchors minted yet.
+> `SN`, `HN` and `PN` remain reserved and unused. Tooling: `scripts/doc_anchor.py`
 > (`--mint` / `--check` / `--show` / `--orphans`), enforced by `ANC-1..3` in
 > `tests/unit/test_generated_doc_gate.py`.
 
@@ -139,6 +140,40 @@ Example:
 IN5C9V2R
 ```
 
+### `BN` — Break Notation
+
+Added 2026-08-21. **Every other class anchors a claim. `BN` anchors a place.**
+
+A break says *section one ends, section two begins*. It asserts nothing about what
+either section means, which is why it can never be wrong — only stale. A document
+citing a `BN` is pointing at a **region of a file**, not at a rule.
+
+```python
+# ---------------------------------------------------------------------------
+# section: BN4K2P9M  saved-zones — create / rename / delete / clean stored rects
+# ---------------------------------------------------------------------------
+```
+
+Cited from prose in the ordinary form — path, `#`, token:
+
+```text
+mapping/mapping_services.py#BN4K2P9M
+```
+
+**The name is what people read; the token is what survives renaming the name.**
+
+**Why sections get a namespace instead of reusing `CN`.** A large module holds dozens of
+dividers. Minting a code-notation token for each would dilute `CN` until an anchor
+stopped signalling *worth pointing at* — the scarcity is the signal. Keeping breaks in
+their own class means `BN` can be dense without costing `CN` anything.
+
+**What this is FOR, and it is the load-bearing part:** a `BN` lets prose address a region
+of a file **without the file being split**. `mapping/mapping_services.py` holds five
+service domains sharing 7% of their code; each can own a document today, at 3,224 lines
+and unmoved, because a `BN` gives the document something stable to point at. If the file
+is ever split, the breaks are the cut lines — already placed, already agreed, already
+cited — and the anchor travels with its section, so the prose does not change.
+
 ## Prefixes are types, not folders
 
 A prefix should only be introduced when the referenced relationship is meaningfully different.
@@ -163,6 +198,7 @@ HN  historical provenance
 PN  deep prose/design
 IN  invariant
 RN  replica set — one rule, several deliberate copies
+BN  section break — a place in a file, not a claim
 ```
 
 `RN` was added 2026-08-16. Its shape differs from the others in one way worth stating: an
@@ -173,6 +209,44 @@ other member. The listing of sets lives in [00c](../../00c-replicas.md); the dec
 cannot, because declarations are scanned in source only.
 
 This makes the prefix function as a small type system for repository knowledge rather than as a filing scheme.
+
+### What `RN` is actually for — INVISIBILITY, not file boundaries
+
+Recorded 2026-08-21 after a measurement that used the wrong axis.
+
+An `RN` earns its keep when a reader editing one copy **cannot see the others**. File
+boundaries are one cause of that and not the interesting one. Chris: *"relational notes do
+do something in the same file, if they span enough distance, or the connection isn't
+obvious."*
+
+**Two independent triggers, either sufficient:**
+
+**DISTANCE.** This repo's median module is 209 lines. Two sites further apart than that are
+as hidden from one another as two sites in different files — you cannot hold both ends at
+once either way. Measured: `RNJB6JXD` puts its two sites **1,271 lines apart inside a single
+file** (`jobs/phase_runner.py`), and `RNF2RCXP` spans 473 lines inside `core/capabilities.py`
+*as well as* reaching four files.
+
+**NON-OBVIOUSNESS.** Two things that look unrelated and must nevertheless agree are invisible
+at any distance, including twelve lines. This is not measurable — no tool can score whether a
+relationship reads as obvious — so it is found only by reading, and an `RN` is the only place
+it can be written down once found.
+
+⚠ **Do not classify an `RN` by how many files it touches.** A single-file `RN` is not weak;
+a single-file `RN` whose sites are adjacent *and* whose connection is self-evident might be.
+Only the second of those is checkable.
+
+**Why this class carries more weight than `IN`.** An invariant fails LOUD — a defended one
+has a test that goes red. A replica fails SILENT: change one copy, its own tests still pass,
+and the two now disagree with everything green. Nine of the thirty `RN`s span the
+Python↔JavaScript boundary (e.g. `profiles/manager.py` ↔ `src/state/run-profiles.js`), where
+there is no shared import, no shared type, no shared test and no compiler. For those, the
+anchor is not documentation of the constraint — **it is the only mechanism that knows the
+constraint exists.**
+
+**And it is the tax on small files.** One-thing-per-file shrinks the mental model at each
+site by pushing shared rules outward, converting a local problem you can see into a
+distributed one you cannot. `RN` is what makes that trade payable.
 
 ## Definitions and references
 
