@@ -33,9 +33,15 @@ Coverage targets (high-priority: state-machine branches, rule eval, contracts)
 [AG-17]  A5-DOCK-1: linking rooms is refused while no room is the dock.
 [AG-17b] A5-DOCK-1: ...unless that same save sets the dock.
 [AG-17c] A5-DOCK-1: ...and a non-access edit on a rootless map is untouched.
+[AG-18]  INNPA4ZV: every emitted code carries the params its locale string names.
+[AG-18b] INNPA4ZV: list params arrive UNJOINED — the separator is the locale's.
+[AG-18c] INNPA4ZV: params are the values the English sentence interpolates.
 """
 
 from __future__ import annotations
+
+import pathlib
+import re
 
 import pytest
 
@@ -762,3 +768,216 @@ def test_a_non_access_edit_on_a_rootless_map_is_untouched(manager):
     )
     assert out["ok"] is True
     assert manager.data["maps"][VAC]["dg3"]["rooms"]["1"]["color"] == "#ff0000"
+
+
+# ---------------------------------------------------------------------------
+# INNPA4ZV — a user-facing message is a CODE plus PARAMS; the sentence, and its
+# punctuation, belong to the locale.
+#
+# The card never reads the English sentence when it can help it: it resolves
+# `room_access.issue.<code>` and interpolates `params` into it
+# (src/state/coded-label.js::resolveCodedLabel). So the two surfaces are the same
+# sentence only if the backend's param NAMES are exactly the placeholders the
+# locale declares, and only if list params arrive UNJOINED — the card joins them
+# with `room_access.issue.list_separator`, because ", " is an English convention
+# and a translated sentence with an untranslatable comma is not translated.
+#
+# Nothing here tested `params`. Every AG-9 assertion reads `code`, `message` or
+# `room_ids`, so emptying the seam — or pre-joining a chain with ", " — leaves
+# the whole suite green while all 18 locales silently fall back to English prose,
+# including AR and HE, where it lands inside an RTL layout.
+#
+# The two sides are independent sources: the templates are read from
+# src/i18n/en.js, which nothing in rooms/ writes. Comparing them is a real
+# cross-check rather than a table agreeing with itself.
+# ---------------------------------------------------------------------------
+
+_EN_JS = pathlib.Path(__file__).resolve().parents[2] / "src" / "i18n" / "en.js"
+
+#: The card-facing name for each room in the scenarios below, so a param can be
+#: matched against the label the formatter must have interpolated.
+_ISSUE_NAMES = {1: "Hallway", 2: "Kitchen", 3: "Study"}
+
+#: Raw-issue fields that carry a SET or CHAIN of rooms. The param they feed is
+#: the one that must stay a list; which param that is comes from the locale
+#: string, not from this file.
+_RAW_ROOM_LISTS = ("rooms", "source_room_ids")
+
+
+def _issue_room(rid, **kwargs):
+    return _room(rid, name=_ISSUE_NAMES[rid], **kwargs)
+
+
+#: One managed-room graph per issue type, each of which the REAL validator turns
+#: into that issue. Fixture values are therefore the validator's own payloads
+#: rather than hand-written ones.
+_ISSUE_SCENARIOS = {
+    "self_reference": _rooms(_issue_room(1, dock=True, grants=[1])),
+    "missing_room": _rooms(_issue_room(1, dock=True, grants=[99])),
+    "duplicate_edge": _rooms(_issue_room(1, dock=True, grants=[2, 2]), _issue_room(2)),
+    "multiple_inbound": _rooms(
+        _issue_room(1, dock=True, grants=[3]), _issue_room(2, grants=[3]), _issue_room(3)),
+    "missing_dock_room": _rooms(_issue_room(1)),
+    "multiple_dock_rooms": _rooms(_issue_room(1, dock=True), _issue_room(2, dock=True)),
+    "missing_dependency": _rooms(_issue_room(1, dock=True), _issue_room(2)),
+    "unreachable_from_dock": _rooms(
+        _issue_room(1, dock=True), _issue_room(2, grants=[3]), _issue_room(3)),
+    "cycle_detected": _rooms(
+        _issue_room(1, dock=True, grants=[2]),
+        _issue_room(2, grants=[3]),
+        _issue_room(3, grants=[2]),
+    ),
+}
+
+#: Plus the fallback branch, which no graph can produce.
+_ISSUE_CODES = sorted(_ISSUE_SCENARIOS) + ["unknown_issue"]
+
+
+def _english_issue_template(code):
+    """`room_access.issue.<code>`'s English string, translator note stripped.
+
+    The note is dropped by matching only the quoted literal: nearly every en.js
+    entry carries a trailing `// …` and those notes NAME placeholders, so a
+    line-wide placeholder scan reports them as expected-and-missing.
+    """
+    src = _EN_JS.read_text(encoding="utf-8")
+    found = re.findall(
+        r'^  "room_access\.issue\.([a-z_]+)":\s*"((?:[^"\\]|\\.)*)"',
+        src,
+        re.MULTILINE,
+    )
+    templates = dict(found)
+    assert code in templates, (
+        f"src/i18n/en.js declares no room_access.issue.{code}. Either the code is "
+        f"unlocalized — the whole failure INNPA4ZV exists to prevent — or this "
+        f"parser stopped matching, in which case every assertion below is vacuous. "
+        f"It found {len(templates)} keys."
+    )
+    return templates[code]
+
+
+def _placeholders(template):
+    return set(re.findall(r"\{([a-z_]+)\}", template))
+
+
+def _formatted_issue(g, code):
+    """Drive `code` through the REAL validator and the REAL formatter.
+
+    Returns ``(payload, raw_issue, room_names)``.
+    """
+    if code == "unknown_issue":
+        return g._format_access_graph_issue(issue={}, room_names={}), {}, {}
+    managed = _ISSUE_SCENARIOS[code]
+    names = {int(room["room_id"]): room["name"] for room in managed.values()}
+    validation = g._validate_room_access_graph(managed_rooms=managed)
+    raw = next(
+        issue for issue in validation["issues"] if issue["type"] == code
+    )
+    return g._format_access_graph_issue(issue=raw, room_names=names), raw, names
+
+
+def _expected_room_chain(raw, names):
+    """The room labels the raw issue names, in the order it names them."""
+    for field in _RAW_ROOM_LISTS:
+        value = raw.get(field)
+        if isinstance(value, list):
+            return [names[int(rid)] for rid in value]
+    return []
+
+
+@pytest.mark.parametrize("code", _ISSUE_CODES)
+def test_issue_params_carry_every_placeholder_the_locale_names(ag, code):
+    """[AG-18] INNPA4ZV: `params` is the translation seam, not decoration.
+
+    The card interpolates `params` into `room_access.issue.<code>`. A param the
+    locale does not name is dead; a placeholder no param fills renders as a bare
+    `{room}` in front of the user. So the two key sets must be equal, and an
+    empty `params` fails for every code whose sentence interpolates anything.
+    """
+    g, _ = ag
+    payload, _raw, _names = _formatted_issue(g, code)
+
+    assert payload["code"] == code
+    params = payload["params"]
+    assert isinstance(params, dict), (
+        f"{code}: params must be a dict, got {type(params).__name__}"
+    )
+    expected = _placeholders(_english_issue_template(code))
+    assert set(params) == expected, (
+        f"{code}: the locale string interpolates {sorted(expected)} but the "
+        f"backend emits {sorted(params)}. The card resolves the code and fills "
+        f"these in; a mismatch renders a bare placeholder or drops a name."
+    )
+
+
+def test_issue_params_are_never_pre_joined(ag):
+    """[AG-18b] INNPA4ZV: a list stays a list so the LOCALE picks the separator.
+
+    The subtle half of the rule. `", "` is an English convention; pre-joining
+    bakes it into all 18 packs, and `flattenParams` only reaches its separator
+    for values that are still arrays. A joined chain still renders — in English
+    punctuation, inside a Japanese or Arabic sentence — so nothing looks broken.
+
+    Not parametrized, deliberately. Only three issues name a SET or CHAIN of
+    rooms, and which three is derived from the validator's own payloads rather
+    than listed here — so the count is asserted too. A run that found no chains
+    would otherwise pass while checking nothing, which is the shape this whole
+    file exists to avoid.
+    """
+    g, _ = ag
+    checked = {}
+    for code in sorted(_ISSUE_SCENARIOS):
+        payload, raw, names = _formatted_issue(g, code)
+        chain = _expected_room_chain(raw, names)
+        if not chain:
+            continue
+        checked[code] = chain
+        params = payload["params"]
+        matched = [name for name, value in params.items() if value == chain]
+        assert matched, (
+            f"{code}: no param equals the room chain {chain}. Got {params!r}. "
+            f"A pre-joined string, a truncated list and a missing param all land "
+            f"here — the card can only choose the locale's separator while this "
+            f"is still a list."
+        )
+        for name in matched:
+            assert all(isinstance(entry, str) for entry in params[name]), (
+                f"{code}: {name} must interpolate strings; the packs put them in "
+                f"a sentence."
+            )
+
+    assert sorted(checked) == [
+        "cycle_detected", "multiple_dock_rooms", "multiple_inbound",
+    ], (
+        "the multi-room issues changed. Every issue that names more than one "
+        f"room must be checked here; this run only reached {sorted(checked)}."
+    )
+
+
+@pytest.mark.parametrize("code", _ISSUE_CODES)
+def test_issue_params_are_the_values_the_sentence_interpolates(ag, code):
+    """[AG-18c] INNPA4ZV: the English prose and the seam say the same thing.
+
+    `message` is kept — it is the documented response-service surface and the
+    last fallback — so the two are only consistent if every value in `params`
+    also appears in the sentence. A param that appears nowhere in the message is
+    a seam that drifted from the prose beside it.
+    """
+    g, _ = ag
+    payload, _raw, _names = _formatted_issue(g, code)
+    message = payload["message"]
+    assert message, f"{code}: the fallback sentence must not be blank"
+
+    for name, value in payload["params"].items():
+        values = value if isinstance(value, list) else [value]
+        assert values, f"{code}: {name} is empty; it fills a placeholder"
+        for entry in values:
+            assert isinstance(entry, str), (
+                f"{code}: {name} must interpolate strings, got "
+                f"{type(entry).__name__}"
+            )
+            assert entry in message, (
+                f"{code}: params[{name!r}] carries {entry!r}, which appears "
+                f"nowhere in {message!r}. params must be the values the sentence "
+                f"interpolates."
+            )
