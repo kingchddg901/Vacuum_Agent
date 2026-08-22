@@ -118,6 +118,27 @@ key, and its docstring says **"Not through the chokepoint."** Routing a per-phas
 the claim would set `finalized: True` on the stored active job at phase 0, so every later phase —
 including the real final one — returns `already_finalized` and writes nothing.
 
+### The other chokepoint
+
+`mark_active_job_finalized` is where every runtime hold is released, and it is deliberately
+the terminal point rather than the happy path's `finally`. A cancel or a strand never enters
+that `finally` — so the mapping tracker stayed bound to a job that was already over. That
+matters beyond tidiness: `tracker.end_job` also flushes the currently-held room as
+`room_completed`, so a tracker still holding a finished job keeps crediting rooms to it.
+
+It sets `status = "completed"` unconditionally, including on the cancel path and including
+when the finalizer raised. It also clears `_cancel_in_flight`, so a later run reusing the slot
+does not inherit a stale latch — which is why `maybe_advance_phase` needs its second refusal
+(§4).
+
+**Its three callers apply three different policies, and each site records why.** The lifecycle
+path marks only on success. The cancel path marks unconditionally — a finalizer that raises
+(the recorded case is a run ending on a zone, which it cannot attribute) used to kill the
+cancel before the slot was cleared, leaving the job stranded `started` and clearable only
+through Dev Tools. The stranded reaper marks on success plus a dedicated branch for an
+`already_finalized` refusal, without which it re-reaps and re-refuses the same slot every
+tick forever.
+
 ---
 
 ## 4. Where ordering carries the behaviour
