@@ -1117,6 +1117,23 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Zone rectangles are converted into this space before dispatch."
                 ),
             },
+            # NO ``zone_shape`` KEY, AND THAT IS DELIBERATE — but it is the key to add here
+            # if it ever becomes false. Both shipped brands take a 4-POINT RECT and nothing
+            # else: Eufy ``zone_clean`` {zones:[[x0,y0,x1,y1],...]}, Roborock
+            # ``app_zoned_clean`` [[x0,y0,x1,y1,repeat],...]. Saved zones are STORED as
+            # polygons (CREATE_SAVED_ZONE_SCHEMA takes Length(min=3)) and both clean handlers
+            # flatten whatever is stored to its bounding rect before dispatch, so a permissive
+            # store is harmless: a door opening into a narrow hallway. The flattening is the
+            # safeguard, not the schema.
+            #
+            # THE DAY A BRAND DECLARES A SHAPE RICHER THAN A RECT, THAT STOPS BEING TRUE.
+            # The hallway widens, a malformed polygon can reach a device instead of being
+            # flattened, and CREATE_SAVED_ZONE_SCHEMA's Length(min=3) becomes a real bad-input
+            # hole. So a new zone_shape declaration lands TOGETHER WITH input validation on
+            # the create side and a dispatch-side refusal for any shape a brand has not
+            # declared — never on its own. Same rule the ``kind`` allow-list states in
+            # mapping_services.py (widen only alongside a real dispatch-side consumer);
+            # ledger C13 carries the measurement.
             "phase_timing": {
                 "type": "dict",
                 "required": False,
