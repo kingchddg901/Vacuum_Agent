@@ -140,6 +140,50 @@ Example:
 IN5C9V2R
 ```
 
+### `EN` — Enforcement Notation
+
+Added 2026-08-22. **`IN`'s twin: a rule that binds a PERSON, not the program.**
+
+An `EN` is a genuine obligation whose enforcement lives outside the code — *never edit
+`.storage` directly*, *a service call moves real hardware*. It can never have a bite,
+because nothing in the repository can be made to go red when it is broken.
+
+**The discriminator is one question: WHO BREAKS IT?**
+
+> A person doing something → `EN`.  The program doing something → `IN`.
+
+That test is positive and decidable. The class was previously distinguished by *"why this
+can never be an `IN`"* — defined by what it lacks — and a negative definition loses the
+first time somebody argues that a bite exists after all, promoting a row that was never
+an invariant.
+
+**Why it is not just an `IN` with a footnote.** `IN`'s whole discipline is *name the input
+that makes it red*. An `IN` that cannot bite corrupts the class: you can no longer tell an
+enforced rule from an aspirational one by looking at its prefix. Splitting these out
+protects `IN`'s meaning, the same argument that gave `BN` its own namespace rather than
+diluting `CN`.
+
+**Where it declares.** In prose, like `PN` and unlike everything else — its reasoning IS the
+artifact, so the registry holding that reasoning is the declaration site. Declaring it in
+source would pin it to a file that does not enforce it, which reads as a guard and is not
+one. The integrity question therefore inverts: for an `IN` ask *is it declared at a site?*;
+for an `EN` ask *does anything cite it?*
+
+Example (illustrative, deliberately NOT a minted token — the `PN` section above does the
+same. A worked example that uses a REAL anchor becomes a live citation of it, which
+silently satisfies `[RR-4]`'s liveness rule and makes the check decorative):
+
+```text
+EN7K3M2Q
+```
+
+⚠ **`EN` did not exist until 2026-08-22, and three rules were filed under `PN` in the
+meantime** — `PN` is a *pointer to a deeper explanation*, which is not what those three
+are. They were re-minted, not re-prefixed, so the old
+tokens do not survive looking well-formed — the mapping is recorded in `00b-invariants.md`,
+not here, so this specification does not become a citation of the rules it describes.
+`doc_anchor.py`'s prose-declaration comment had
+drifted the same way and is corrected. Dated records keep the old tokens.
 ### `BN` — Break Notation
 
 Added 2026-08-21. **Every other class anchors a claim. `BN` anchors a place.**
@@ -195,8 +239,9 @@ The notation class should instead describe the **kind of relationship being trav
 CN  implementation
 SN  runtime semantic translation
 HN  historical provenance
-PN  deep prose/design
-IN  invariant
+PN  deep prose/design — a POINTER to where the canonical explanation lives
+IN  invariant — the program must preserve it, and a test can go red
+EN  enforcement note — a rule that binds a PERSON; no bite is possible
 RN  replica set — one rule, several deliberate copies
 BN  section break — a place in a file, not a claim
 ```

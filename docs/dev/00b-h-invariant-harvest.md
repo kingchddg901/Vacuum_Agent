@@ -51,7 +51,7 @@ nearly free:
 **Places an EXISTING invariant binds and is not cited.** `services/stall_capture.py::_set_stall_capture` says
 *"Never mint a record for a vacuum this install does not manage"* — that is [[INKV8ZQD]], in a
 file carrying no anchor. `room_entities.py::EufyVacuumRoomEntity` states [[IN4CW5Y9]]. `bindings/room-editor.js::_alertRoomProfileResult`
-states [[INNPA4ZV]]. `cards/dashboard-card.js::_handleStart` states [[PNWJZYYR]]. **The rule already
+states [[INNPA4ZV]]. `cards/dashboard-card.js::_handleStart` states [[ENFV9F37]]. **The rule already
 exists; only the citation is missing**, so closing these is a reference, not a ruling. This is
 the same gap the 2026-08-18 tagging pass closed from the corpus side — found here from the
 prose side, which reaches files no finding ever named.

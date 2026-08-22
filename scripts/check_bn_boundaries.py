@@ -3,7 +3,7 @@
 A BN boundary is TWO COMMENT LINES marking where one section of a file ends and the
 next begins:
 
-    # anchor: BN7QW2XH
+    # anchor: BN<6 Crockford chars>
     # ===================== THE READ MODEL =====================
 
 It asserts nothing about behaviour, so a BN pass has a property almost no other change
@@ -28,7 +28,7 @@ WHAT THIS CHECKS, and why each one exists rather than being assumed:
      comment to a regex and is a string to the parser. Python is checked by tokenizing;
      JS by a brace/backtick scan.
   4. THE ANCHOR IS DECLARED IN THE FORM doc_anchor.py CAN SEE — the literal marker
-     ``anchor:`` followed by a BN token. ``# BN7QW2XH`` alone is invisible to the anchor
+     ``anchor:`` followed by a BN token. ``# BN<token>`` alone is invisible to the anchor
      tooling and would leave the boundary uncitable, which defeats the point.
   5. NO DUPLICATE TOKENS, and every token is well-formed against the real alphabet
      (Crockford Base32: no I, L, O or U).
@@ -226,7 +226,7 @@ def check_tree(path: str) -> list[str]:
         # Asks whether THIS token is the one the marker declares, not merely whether the
         # word "anchor:" appears somewhere on the line. The weaker version shipped for
         # about four minutes and was caught by its own ablation: a line reading
-        # `# BNH3M8T5  a token with no anchor: marker` contains the marker as PROSE, so
+        # `# BN<token>  a token with no anchor: marker` contains the marker as PROSE, so
         # `MARKER in line` was true and the undeclared token walked through the gate.
         declared = {m.group(1) for m in BN_DECL.finditer(line)}
         for tok in BN_TOKEN.findall(line):
@@ -259,6 +259,19 @@ def check_duplicates(paths: list[str]) -> list[str]:
             seen[tok] = path
     return problems
 
+
+# ⚠ FIXTURE TOKENS ARE ASSEMBLED, NEVER WRITTEN OUT, AND THAT IS LOAD-BEARING.
+# doc_anchor.py scans source files for the marker followed by a token and cannot tell a
+# checker's test data from a real declaration. Spelling them here registered 10 phantom
+# BN anchors and produced every problem `doc_anchor.py --check` reported. Concatenating
+# keeps the literal out of the file while the runtime VALUES stay exactly what the checks
+# need. If you inline these back, the anchor registry starts counting this file's
+# test data as real rules.
+_MK = "anchor" + ":"
+_T_OK = "BN" + "4K2P9M"      # well-formed
+_T_ALT = "BN" + "7QW2XH"     # well-formed, distinct
+_T_REAL = "BN" + "H3M8T5"    # well-formed, used by the prose-marker regression
+_T_BAD = "BN" + "IL0U12"     # I/L/O/U are excluded from Crockford -- must be REJECTED
 
 def self_test() -> int:
     """CAN THIS GATE FAIL? A gate only ever seen passing has not been tested.
@@ -295,7 +308,7 @@ def self_test() -> int:
         bad.write_text(
             'def f():\n'
             '    """doc\n'
-            '    # anchor: BN4K2P9M\n'
+            f'    # {_MK} {_T_OK}\n'
             '    # ===== NOT REALLY A COMMENT =====\n'
             '    """\n',
             encoding="utf-8",
@@ -306,7 +319,7 @@ def self_test() -> int:
 
         good = d / "real.py"
         good.write_text(
-            '# anchor: BN4K2P9M\n'
+            f'# {_MK} {_T_OK}\n'
             '# ===== SAVED ZONES =====\n'
             'def f():\n    pass\n',
             encoding="utf-8",
@@ -318,9 +331,9 @@ def self_test() -> int:
         js = d / "tpl.js"
         js.write_text(
             'const html = `\n'
-            '  // anchor: BN7QW2XH\n'
+            f'  // {_MK} {_T_ALT}\n'
             '`;\n'
-            '// anchor: BNH3M8T5\n',
+            f'// {_MK} {_T_REAL}\n',
             encoding="utf-8",
         )
         jcl = _js_comment_lines(js.read_text(encoding="utf-8"))
@@ -329,10 +342,11 @@ def self_test() -> int:
 
         # CHECK 4/5 — token shapes
         expect("token without the marker is caught",
-               bool(BN_TOKEN.search("# BN4K2P9M")) and not BN_DECL.search("# BN4K2P9M"), True)
-        expect("well-formed token is accepted", bool(BN_DECL.search("# anchor: BN4K2P9M")), True)
+               bool(BN_TOKEN.search(f"# {_T_OK}")) and not BN_DECL.search(f"# {_T_OK}"), True)
+        expect("well-formed token is accepted",
+               bool(BN_DECL.search(f"# {_MK} {_T_OK}")), True)
         expect("token using an excluded letter is rejected",
-               bool(BN_DECL.search("# anchor: BNIL0U12")), False)
+               bool(BN_DECL.search(f"# {_MK} {_T_BAD}")), False)
 
         # REGRESSION, and the reason this whole self-test exists. The first version of
         # check 4 asked `MARKER not in line`, which is true of the line below — the word
@@ -340,12 +354,12 @@ def self_test() -> int:
         # The undeclared token walked straight through the gate, and it was caught only by
         # ablating a real file rather than by reading the check. A gate that reasons about
         # a line instead of about the TOKEN has a hole exactly this shape.
-        prose = "# BNH3M8T5  a token with no anchor: marker of its own"
+        prose = f"# {_T_REAL}  a token with no {_MK} marker of its own"
         declared = {m.group(1) for m in BN_DECL.finditer(prose)}
         undeclared = [t for t in BN_TOKEN.findall(prose) if t not in declared]
         expect("token adjacent to the marker-as-PROSE is still caught",
-               undeclared == ["BNH3M8T5"], True)
-        real = "# anchor: BNH3M8T5"
+               undeclared == [_T_REAL], True)
+        real = f"# {_MK} {_T_REAL}"
         declared_real = {m.group(1) for m in BN_DECL.finditer(real)}
         expect("a genuinely declared token is NOT reported",
                [t for t in BN_TOKEN.findall(real) if t not in declared_real] == [], True)

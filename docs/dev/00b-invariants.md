@@ -1536,14 +1536,35 @@ individual write is legitimate in isolation; the defect is the set of them.
 > the separate rule that a rejection must be visible; this one is that a rejection must not
 > leak into the baseline. Two rules, one guard, worth keeping apart — a site can satisfy
 > either while breaking the other.
-## Rules with no code site — `PN`
+## Rules with no code site — `EN`
+
+> **⚠ RECLASSIFIED 2026-08-22 — these three were `PN` until now.** `PN` means what the
+> specification always said it meant: *a pointer to where the deep canonical explanation
+> lives*. This section had been using it for something else — *a rule whose enforcement
+> lives outside the code* — and the divergence mattered because this is the document you
+> consult to answer "is this an `IN` or a `PN`?". The tooling had drifted the same way
+> (`doc_anchor.py`'s prose-declaration comment defined `PN` as the no-code-site class),
+> so two of the three places PN was written down agreed against the third.
+>
+> The three rules were **re-minted, not re-prefixed**: `PN1E8AZT` → `ENMKYC3F`,
+> `PNWJZYYR` → `ENFV9F37`, `PNN14JRN` → `ENQZV7VH`. Swapping only the class would have
+> left the old tokens still *looking* well-formed while resolving to nothing, which is
+> the stale-citation failure `[RR-4]` exists to catch. Dated records keep the old tokens
+> deliberately — they record what was true when written.
+>
+> **The discriminator is now positive, and it is one question: WHO BREAKS IT?** A person
+> doing something — editing `.storage` by hand, calling a service that moves a robot — is
+> an `EN`. The program doing something is an `IN`. Each entry below used to carry a *"why
+> this can never be an `IN`"* paragraph, defining the class by what it lacks; that form
+> loses the moment someone argues a bite exists and promotes the row.
 
 Some rules bind and can never have an enforcement site, because they are not about code.
 They are decisions: what the system must not do, or what the product is for. An `IN` anchor
-would be a lie — there is nothing to point at — so these carry a **`PN`** (prose notation),
+would be a lie — there is nothing to point at — so these carry an **`EN`** (enforcement
+notation),
 declared here rather than in source, because **here is where the reasoning lives**.
 
-**A citation cannot make something a `PN`.** The order is one-way and the tooling sits at
+**A citation cannot make something an `EN`.** The order is one-way and the tooling sits at
 the end of it:
 
 > a human rules that this is genuinely a prose-only obligation → mint → declare here →
@@ -1555,18 +1576,19 @@ be a rule" — which is how a register fills with things nobody decided. The che
 that. Same division as every other gate here.
 
 The integrity question inverts. For an `IN`, ask *"is it declared at a site?"* — a rule with
-no site is suspect. A `PN` has no site by definition, so the meaningful question is the
-reverse: **does anything cite it?** A `PN` nothing references is a document with a token on
+no site is suspect. An `EN` has no site by definition, so the meaningful question is the
+reverse: **does anything cite it?** An `EN` nothing references is a document with a token on
 it. Each one below therefore names where it is cited from.
 
 **And the citation must be LIVE.** `docs/dev/history/` and `maintenance/` are as-of-their-date
-records, and the repo's citation and index gates already exclude them for that reason. A `PN`
+records, and the repo's citation and index gates already exclude them for that reason. An `EN`
 kept alive by a mention in a dated note is attached to nothing current — the prose equivalent
 of a green test bound to the wrong thing. `[RR-4]` excludes them.
 
-### `PN1E8AZT` — never edit `.storage` directly
+### `ENMKYC3F` — never edit `.storage` directly
 
-> `anchor: PN1E8AZT` — **declared here.** This section is the site; there is no code one.
+> `anchor: ENMKYC3F` — **declared here.** This section is the site; there is no code one.
+> *(was `PN1E8AZT` before the 2026-08-22 reclassification.)*
 
 Home Assistant owns `.storage`. It rewrites the file on shutdown from its own in-memory
 state, so an external edit is not merged — it is **overwritten**, and HA moves the file it
@@ -1582,9 +1604,10 @@ value can only be changed by editing `.storage`, that is a missing service, not 
 
 - **Cited from** `core/storage.py`, the one place the `Store` helper is constructed.
 
-### `PNWJZYYR` — a service call moves real hardware
+### `ENFV9F37` — a service call moves real hardware
 
-> `anchor: PNWJZYYR` — **declared here.** This section is the site; there is no code one.
+> `anchor: ENFV9F37` — **declared here.** This section is the site; there is no code one.
+> *(was `PNWJZYYR` before the 2026-08-22 reclassification.)*
 
 `hass.services.async_call` on a vacuum domain moves a robot in someone's home. It is not a
 read, it is not idempotent, and it cannot be undone by calling something else.
@@ -1600,9 +1623,10 @@ the container and never a live entity. Documentation shows payloads, not invocat
 
 - **Cited from** `dispatch/manager.py`'s send chokepoint.
 
-### `PNN14JRN` — the card is a glance surface
+### `ENQZV7VH` — the card is a glance surface
 
-> `anchor: PNN14JRN` — **declared here.** This section is the site; there is no code one.
+> `anchor: ENQZV7VH` — **declared here.** This section is the site; there is no code one.
+> *(was `PNN14JRN` before the 2026-08-22 reclassification.)*
 
 The card answers *"what is happening, and what do I press"* in a few seconds on a phone.
 Analysis — history, comparisons, anything read column-by-column — belongs in the CSV export.

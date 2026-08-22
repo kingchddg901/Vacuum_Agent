@@ -12,9 +12,9 @@ backlog* had no finish line anyone could compute.
 
 | token | n | means |
 |---|---:|---|
-| `[OPEN]` | 62 | still present in the tree exactly as described |
+| `[OPEN]` | 63 | still present in the tree exactly as described |
 | `[OPEN-DRIFTED]` | 4 | real, but **the text below it is WRONG** — a corrected-mechanism line follows the entry |
-| `[NEEDS-RULING]` | 1 | blocked on a decision, not on work |
+| `[NEEDS-RULING]` | 0 | blocked on a decision, not on work |
 | `[FIXED]` | 3 | gone, **and** a named test goes red if it returns |
 | `[FIXED-UNPROVEN]` | 9 | gone, but nothing would notice if it came back |
 | `[ACCEPTED]` | 2 | **a real defect, ruled not worth fixing, and stated AT THE SITE** — not a backlog item |
@@ -828,7 +828,7 @@ itself was clean and merged as `953c9aca`.
 # 2026-08-21 — surfaced while drafting the 18 rulings
 
 ## DOC
-- [NEEDS-RULING] **D36 `docs/dev/design/shipped/notation-anchors.md` — the SPEC and the REGISTRY disagree about `PN`,
+- [OPEN] **D36 `docs/dev/design/shipped/notation-anchors.md` — the SPEC and the REGISTRY disagree about `PN`,
   and the spec is the one you would reach for.** Its status block (lines 3–7) states **`SN`, `HN` and
   `PN` remain reserved and unused** — three `PN`s are live in `00b` — and **`IN` in use (1)** — 33 are
   live, with 35 `anchor: IN` sites planted across the tree. Measured 2026-08-21 by grep, not by
@@ -851,7 +851,28 @@ itself was clean and merged as `953c9aca`.
   the status block reports clean because nothing recounts it.
 
   ⟵ **DISPOSITION 2026-08-21 — NEEDS-RULING.** The spec's status block is still wrong on IN and PN counts, and its PN definition still contradicts how 00b uses PN.
-  **⚠ DECISION NEEDED:** The question for Chris, one sentence: does `PN` mean "a pointer to a deeper canonical explanation" (the spec's definition, in which case 00b's three entries are mis-prefixed and need a new class) or "a rule whose enforcement lives outside the code" (the registry's working definition, in which case the spec's §PN is rewritten)? The count half needs no ruling — `doc_anchor.py --show` regenerates it…
+  **✅ SEMANTIC HALF RULED 2026-08-22 — `PN` IS THE POINTER; the spec was right and the
+  registry had drifted.** Confirmed by the spec's own worked example `PN3W7F6D`, which is used
+  as a pointer — definition and example agreed with each other, and only the registry
+  diverged. A THIRD divergent copy was found during the fix: `doc_anchor.py`'s
+  prose-declaration comment also defined PN as the no-code-site class, so tooling and registry
+  agreed against the spec.
+  **NEW CLASS `EN` (enforcement notation) minted for the class the registry actually held:** a
+  rule that binds a PERSON, not the program. Discriminator is positive — WHO BREAKS IT? The
+  three rules were RE-MINTED, not re-prefixed (`PN1E8AZT`→`ENMKYC3F`,
+  `PNWJZYYR`→`ENFV9F37`, `PNN14JRN`→`ENQZV7VH`), so a stale old token cannot keep looking
+  well-formed. All live citations swept, including `_ablate_ratchet.py` which pins one and
+  would have broken silently.
+  **⚠ STILL OPEN — THE COUNT HALF, WHICH IS AUTOMATION, NOT A RULING.** Every line of the
+  status block is false, not just the two D36 named: `CN` claims 9 (is 138), `IN` claims 1 (is
+  35), `RN` claims 2 (is 37), and `SN`/`HN`/`PN` are claimed "reserved and unused" (are 2/1/4).
+  ⚠ **`doc_anchor.py --show` does NOT regenerate this** — it takes a single token. There is no
+  count-producing command; that is new code.
+  **A PREREQUISITE WAS FIXED ALONG THE WAY:** a counter written before 2026-08-22 would have
+  counted `check_bn_boundaries.py`'s self-test fixtures as real anchors — they were minting
+  phantom BN declarations and all 4 of `--check`'s problems. Fixtures are now assembled at
+  runtime so the file spells no anchor; `--check` reports 0 problems and BN declarations are
+  genuinely 0.
 ## NOT A DEFECT — recorded so it is not re-derived
 - **Single-site `IN` entries are NORMAL.** Measured: 33 registry entries, ~35 planted `anchor:` sites
   — roughly one primary site each, with bodies discussing 1–9 files. I had been using "spans multiple
