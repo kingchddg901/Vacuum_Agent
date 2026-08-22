@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "A run profile cannot start with a charge/wait break."
     },
+    "leading_zone_unsupported": {
+      "message": "A run profile cannot start with a zone."
+    },
     "trailing_break_unsupported": {
       "message": "A run profile cannot end with a charge/wait break."
     },

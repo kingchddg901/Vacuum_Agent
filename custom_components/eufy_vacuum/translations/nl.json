@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "Een uitvoerprofiel kan niet beginnen met een laad-/wachtpauze."
     },
+    "leading_zone_unsupported": {
+      "message": "Een uitvoerprofiel kan niet beginnen met een zone."
+    },
     "trailing_break_unsupported": {
       "message": "Een uitvoerprofiel kan niet eindigen met een laad-/wachtpauze."
     },

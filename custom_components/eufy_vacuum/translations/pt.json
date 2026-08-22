@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "Um perfil de execução não pode começar com uma pausa de carregamento/espera."
     },
+    "leading_zone_unsupported": {
+      "message": "Um perfil de execução não pode começar com uma zona."
+    },
     "trailing_break_unsupported": {
       "message": "Um perfil de execução não pode terminar com uma pausa de carregamento/espera."
     },

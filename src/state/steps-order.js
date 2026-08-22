@@ -57,11 +57,19 @@ function clampIndex(index, max) {
 }
 
 // Move the step at fromIndex to toIndex (both clamped). Returns a fresh array.
+//
+// C40: refuses to land a ZONE at index 0. A profile whose first step is a zone is
+// accepted by the old service, listed by the card as step 1, and its zone never runs --
+// apply_run_profile anchors breaks by "rooms emitted so far" and a leading zone has
+// emitted none. The backend now refuses this on save (leading_zone_unsupported); this
+// stops the editor composing one in the first place, so the user is prevented rather
+// than corrected after the work.
 export function moveStep(steps, fromIndex, toIndex) {
   const arr = Array.isArray(steps) ? [...steps] : [];
   if (!arr.length) return arr;
   const from = clampIndex(fromIndex, arr.length - 1);
   const to = clampIndex(toIndex, arr.length - 1);
+  if (to === 0 && arr.length > 1 && isZoneStep(arr[from])) return arr;
   const [moved] = arr.splice(from, 1);
   arr.splice(to, 0, moved);
   return arr;
@@ -84,10 +92,19 @@ function isLeadingOrTrailing(at, length) {
 // renderer uses this to flag such a step struck-through ("will be skipped, unsupported
 // position") instead of showing it as an ordinary, editable, about-to-run step (CARD-6
 // clause (1) display half) -- sanitizeStepsForSave strips exactly these on save.
+//
+// C40 extends this to a ZONE at index 0. Same shape of defect, different mechanism: a
+// leading zone is not "unbracketed", it simply cannot be anchored, because
+// apply_run_profile positions every derived break by the number of rooms emitted
+// before it and a first-position zone has none. It is flagged rather than stripped --
+// sanitizeStepsForSave keeps zone steps (its shift/pop loops match charge/wait only),
+// so an existing profile still round-trips and the user sees WHY it will not run
+// instead of watching the step disappear on save.
 export function isUnsupportedBreakPosition(steps, index) {
   const arr = Array.isArray(steps) ? steps : [];
   if (!arr.length) return false;
   const step = arr[index];
+  if (isZoneStep(step)) return index === 0 && arr.length > 1;
   if (!isChargeStep(step) && !isWaitStep(step)) return false;
   return index === 0 || index === arr.length - 1;
 }

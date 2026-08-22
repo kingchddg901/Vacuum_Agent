@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "Profil jalan tidak bisa dimulai dengan jeda isi daya/tunggu."
     },
+    "leading_zone_unsupported": {
+      "message": "Profil jalan tidak bisa dimulai dengan zona."
+    },
     "trailing_break_unsupported": {
       "message": "Profil jalan tidak bisa diakhiri dengan jeda isi daya/tunggu."
     },

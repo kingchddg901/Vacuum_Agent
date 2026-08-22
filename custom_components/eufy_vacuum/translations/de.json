@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "Ein Ausführungsprofil kann nicht mit einer Lade-/Wartepause beginnen."
     },
+    "leading_zone_unsupported": {
+      "message": "Ein Ausführungsprofil kann nicht mit einer Zone beginnen."
+    },
     "trailing_break_unsupported": {
       "message": "Ein Ausführungsprofil kann nicht mit einer Lade-/Wartepause enden."
     },

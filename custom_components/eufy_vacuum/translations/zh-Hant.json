@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "執行設定檔不能以充電/等待休息開始。"
     },
+    "leading_zone_unsupported": {
+      "message": "執行設定檔不能以區域開始。"
+    },
     "trailing_break_unsupported": {
       "message": "執行設定檔不能以充電/等待休息結束。"
     },
