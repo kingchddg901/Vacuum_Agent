@@ -64,14 +64,23 @@ reader could act on it.
 | `design/planning/` | Decided, not built. A reader could pick it up and implement it. |
 | `design/shipped/` | Built. Kept because it still answers *"why is it like this?"* — a question that stays live long after the work lands. |
 
-A shipped design does **not** go to `history/`. History is unmaintained and left alone,
-whereas NOW docs actively cite these as rationale — `31-map-source-coordinator.md` calls
-`map-state-source` "the design rationale", and `11-mapping-system.md` §11 defers to it as
-the authoritative reference. Burying that on an unmaintained shelf would strand the live
-docs' own explanation.
+**A shipped design is NOT maintained against the code**, and that is load-bearing rather
+than lax. It is a touchstone: what was decided, as it was decided. §3 asks a reader to
+adjudicate when a design and the code disagree — and that question only exists while the
+design still says what it originally said. Edit it to track the implementation and it agrees
+with the code forever, which deletes the evidence of exactly the drift it was meant to catch.
 
-The distinction is: **history is what we stopped doing; shipped design is why we do what we
-do.** A design that was abandoned rather than built belongs in `history/`.
+It can still evolve, but only in one direction: when the DESIGN is revisited, not when the
+code moves. That is the difference from `history/`, which never changes at all.
+
+So a shipped design does not go to `history/`, and the reason is the question each shelf
+answers rather than how either is maintained — neither is. **History is what we stopped
+doing; shipped design is why we do what we do.** A design abandoned rather than built belongs
+in `history/`.
+
+NOW docs cite these as rationale — one calls `map-state-source` "the design rationale",
+another defers to it as the authoritative reference — which is why a live doc may point at a
+shelf nobody updates. It is being pointed at a decision, not at a description.
 
 ### 1.4 HISTORY — what we tried, and what failed
 

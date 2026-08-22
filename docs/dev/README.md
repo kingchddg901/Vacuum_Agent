@@ -38,6 +38,7 @@ Code is authoritative. A NOW doc that disagrees with the code is stale, and the 
 
 | doc | covers |
 |---|---|
+| [05 — While a Run Is Live](05-run-live.md) | Queue derivation and the refusal ladder, dispatch, brand-conditional room advance, the two stuck detectors, and the mid-run observers. |
 | [06 — How a Run Ends](06-run-end.md) | Every path by which a run ends, the exactly-once claim, finalization and its commit point, error-second deduction, and which derived stores never self-heal. |
 
 > The rest of the NOW shelf is unwritten. Until a subsystem is rewritten here, its retired guide

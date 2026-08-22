@@ -682,9 +682,14 @@ n_sites = len([s for s in SITES if s.event])
 n_keys = sum(len(MODEL[e]["keys"]) for e in EVENTS)
 L += [
     "> Generated reference — the facts. The *reasons* live in the prose docs: "
-    "[Events](../../advanced/02-events.md) for automation authors, "
-    "[HA Integration](../02-ha-integration.md) §7 and "
-    "[Job Lifecycle](../06-job-lifecycle.md) §10 for why each one exists. "
+    "[Events](../../advanced/02-events.md) for automation authors, and "
+    "[How a Run Ends](../06-run-end.md) for why the end-of-run events exist and "
+    "which paths fire them. "
+    # The run-half prose doc is not written yet; when it is, add it here. The two
+    # previous targets (02-ha-integration §7, 06-job-lifecycle §10) were retired to
+    # docs/retired/ and these links pointed at nothing — a generated file cannot be
+    # repaired by regenerating it, so a stale pointer here survives every --fix.
+
     "Regenerate with `python scripts/gen_event_docs.py`; CI fails if this file is "
     "not what the generator emits.",
     "",
