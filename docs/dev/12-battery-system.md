@@ -229,8 +229,8 @@ prev_ts = parse(record["last_sample_ts"])
 
 if prev_level is not None and prev_ts is not None:
     elapsed_sec = (ts - prev_ts).total_seconds()
-    if elapsed_sec > 0:   # DR-BAT-2: an out-of-order/duplicate-timestamp sample
-                          # skips this whole block AND does not move the anchor
+    if elapsed_sec > 0:   # DR-BAT-2: an out-of-order sample skips this whole
+                          # block. It does NOT skip the two writes below it.
         raw_delta = battery_level - prev_level   # +charging, -draining
 
         if abs(raw_delta) <= MAX_DELTA_PCT:
@@ -247,18 +247,38 @@ if prev_level is not None and prev_ts is not None:
                 if zone == "low":  update rate_low_zone_per_min
                 if zone == "high": update rate_high_zone_per_min
 
-# Session lifecycle (see section 6)
+# Session lifecycle (see section 6). NOT gated on elapsed_sec — an out-of-order
+# sample reaches this, and can open or close a session with its stale ts/level.
 _update_session(record, battery_level, charging, ts, rate_per_min)
 
-# Persist
-record["last_battery_level"] = battery_level
-record["last_sample_ts"] = ts
-record["last_charging"] = charging
+# Persist. Only the first two are held back for an out-of-order sample.
+if elapsed_sec > 0:
+    record["last_battery_level"] = battery_level
+    record["last_sample_ts"] = ts
+record["last_charging"] = charging          # written either way
 
 raw_store.append_sample(...)              # samples.jsonl
 _schedule_save()                          # eufy_vacuum.storage
 _notify(vacuum_entity_id)                 # → sensor refresh
 ```
+
+> **The anchor is three fields and the guard holds two.** `last_charging` is written
+> for a rejected sample, and `_update_session` has already run by the time the guard is
+> reached — so an out-of-order sample can open or close a charge session using its own
+> stale timestamp and level, which can leave a `session_history_recent` entry and a
+> `sessions.csv` row whose `end_ts` precedes its `start_ts`. Nothing repairs those:
+> `rebaseline()` leaves session history untouched.
+>
+> This is known and left open. `elapsed_sec <= 0` requires the wall clock to step
+> **backwards** — `ts` is minted per-sample from `datetime.now()` and never inherited
+> from a state object, so two co-timed samples cannot collide. 104 vacuum-days of
+> `samples.jsonl` across two live machines contain no such step, and 387 archived
+> sessions contain no inverted row.
+>
+> **If it is ever closed, both statements move inside the guard together.** Moving
+> `_update_session` alone makes each repeated stale sample re-open the session; moving
+> `last_charging` alone makes the next genuine sample read a false transition and
+> restart a live one. Either half alone is worse than neither.
 
 ---
 
@@ -788,6 +808,19 @@ ts, battery_level, charging, delta_pct, rate_per_min, zone, drain_added, cycles,
 `rejected_delta_pct` (9th field) is non-null only when the per-sample `MAX_DELTA_PCT` guard rejected the observed `raw_delta` (firmware X-to-0 / 0-to-X flip, HA restart gap, multi-hour self-discharge). It carries the rejected magnitude for post-hoc analysis — grep `rejected_delta_pct` in `samples.jsonl` to find every rejection.
 
 Best-effort write — `OSError` is logged at debug and swallowed so a transient FS issue can't crash the manager.
+
+> ⚠ **LINE ORDER IS NOT SAMPLE ORDER.** `append_sample` is dispatched with
+> `async_add_executor_job`, so two closely-spaced samples race in the thread pool and can
+> land in the file in the opposite order they were taken. The `ts` values are correct and
+> monotonic in *processing* order; only the line order is scrambled. Measured on live
+> data: 79 inversions in 2,194 samples on one vacuum, every one between 0.16 ms and
+> 15.9 ms, median 3.1 ms.
+>
+> **Sort by `ts` before doing anything sequential with this file.** Reading line order as
+> processing order reports clock skew that did not happen — a scan looking for backwards
+> time found 82 hits across two vacuums and every one was this artifact. The tell that it
+> is an artifact and not a clock step is the magnitude: thread-pool jitter is
+> sub-100 ms, a real clock step is seconds or more.
 
 ### 12.2 sessions.csv
 

@@ -808,9 +808,32 @@ class BatteryHealthManager:
         self._update_session(record, battery_level, charging, ts, rate_per_min)
 
         # DR-BAT-2: an out-of-order sample (elapsed_sec <= 0) is correctly
-        # excluded from the delta/rate/drain accounting above, but must not
-        # rewind the anchor either -- else the NEXT (genuinely newer) sample
+        # excluded from the delta/rate/drain accounting above, and its level/ts
+        # do not move the anchor -- else the NEXT (genuinely newer) sample
         # computes its own delta against a stale, wrong anchor.
+        #
+        # THIS GUARD IS NARROWER THAN IT READS, AND THIS COMMENT USED TO SAY
+        # OTHERWISE. Only the two fields inside the block are held. The sample has
+        # ALREADY reached _update_session above, and last_charging is written below
+        # unconditionally -- so an out-of-order sample can still OPEN or CLOSE a
+        # charge session, carrying its own stale ts and battery_level in. That can
+        # write a session_history_recent entry, and a sessions.csv row, whose end_ts
+        # precedes its own start_ts. Nothing repairs those; rebaseline() does not
+        # clear session history.
+        #
+        # IF YOU CLOSE THIS, CLOSE BOTH. Moving _update_session inside without
+        # last_charging makes every repeated stale sample re-open the session;
+        # moving last_charging without _update_session makes the next genuine
+        # sample see a false transition and restart a live one. Either half alone
+        # is worse than neither. (Ledger C15; the drafted invariant "a rejected
+        # datum is rejected for every purpose" would say close it.)
+        #
+        # LEFT OPEN ON EVIDENCE, NOT OVERSIGHT. elapsed_sec <= 0 needs the wall
+        # clock to step BACKWARDS: ts is minted per-sample from datetime.now() and
+        # never inherited from a state object, so two co-timed samples cannot
+        # collide. 104 vacuum-days of samples.jsonl across two live machines hold
+        # no such step, and 387 archived sessions hold no inverted row -- the
+        # signature this would leave. Mechanism certain, occurrence unobserved.
         if advance_anchor:
             record["last_battery_level"] = int(battery_level)
             record["last_sample_ts"] = ts.isoformat()
