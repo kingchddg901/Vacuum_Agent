@@ -122,7 +122,7 @@ verdict a human has to make:
 | INVARIANT (defended) | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:47 | Card-facing dropdown option lists (the framework never reads these). ⟵ **RE-CLASSIFIED 2026-08-21, was STALE.** ABLATION-PROVEN: swapping the two weakest entries so the list is no longer ascending-suction turned `tests/adapters/roborock/test_adapter.py::test_vocabulary` red (1 failed / 4471 passed). Restored byte-exact. |
 | INVARIANT (cite IN11T0FS) | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:195 | The non-carpet rows are a PREFERENCE applied to users who never asked for it: floor_type |
 | INVARIANT | `custom_components/eufy_vacuum/adapters/roborock/vocabulary.py`:353 | follows the rule the Eufy table already states: never invent a label for a code whose |
-| INVARIANT | `custom_components/eufy_vacuum/battery/manager.py`:800 | excluded from the delta/rate/drain accounting above, but must not |
+| INVARIANT (cite IN3ASEP8) | `custom_components/eufy_vacuum/battery/manager.py`:800 | excluded from the delta/rate/drain accounting above, but must not |
 | INVARIANT (cite INNJ6SGC) | `custom_components/eufy_vacuum/battery/manager.py`:866 | is already True so this branch never fires, and tracking goes dark |
 | INVARIANT | `custom_components/eufy_vacuum/battery/manager.py`:1231 | live:BATT-CV-1 — the ratio is unbounded by construction, so plausibility is |
 | INVARIANT (cite IN5ATBW9) | `custom_components/eufy_vacuum/battery/manager.py`:1285 | that means it must be cleared here too, or the very next |

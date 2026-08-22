@@ -807,6 +807,11 @@ class BatteryHealthManager:
         # Session lifecycle.
         self._update_session(record, battery_level, charging, ts, rate_per_min)
 
+        # anchor: IN3ASEP8  a rejected datum is rejected for every purpose
+        # ⚠ THIS SITE IS THE REGISTERED, ACCEPTED VIOLATION of that rule, not an
+        # example of it. Read the `IN3ASEP8` entry in docs/dev/00b-invariants.md
+        # before changing anything below.
+        #
         # DR-BAT-2: an out-of-order sample (elapsed_sec <= 0) is correctly
         # excluded from the delta/rate/drain accounting above, and its level/ts
         # do not move the anchor -- else the NEXT (genuinely newer) sample

@@ -1480,6 +1480,62 @@ stored reference.
   comes from and why two rooms can never share one.
 - **Cite `INCFMPP1`** from any code that derives, stores or resolves a room slug.
 
+### `IN3ASEP8` — a rejected datum is rejected for every purpose
+
+A sample a guard rejects may be **recorded**, but must not update any state that later
+samples are measured against. Half-rejecting it corrupts every measurement that follows.
+
+**The consequence.** A rejected datum is one the system has already decided it cannot
+trust. If it is still allowed to move a baseline, an anchor, a flag or a lifecycle, then
+every *accepted* sample after it is measured against something the system itself refused.
+The corruption is silent and it compounds: nothing downstream can tell that its reference
+point came from a discarded observation.
+
+**Why it is not obvious, and this is the whole difficulty.** The guard EXISTS. A site that
+rejects a datum for its headline purpose reads as handled, and the fields it *does* protect
+are exactly what stops anyone looking for the ones it does not. The failure is never a
+missing guard — it is a guard whose predicate covers less than its comment claims. Every
+individual write is legitimate in isolation; the defect is the set of them.
+
+- **Why:** the mechanism, the measured evidence and the accepted exception are recorded at
+  the anchor site itself, `battery/manager.py::_process_sample` (the `DR-BAT-2` block).
+- **Enforced:** PARTIALLY, deliberately, and the gap is named below. `advance_anchor`
+  (`battery/manager.py::_process_sample`) holds `last_battery_level` and `last_sample_ts`
+  for an out-of-order sample.
+- **Bite.** Feed a sample the guard rejects, then assert that **no state a later sample
+  reads** has changed — enumerated from the function, not from memory. Not "the anchor is
+  unchanged": the anchor is whatever the next sample measures against, which is more than
+  the fields named *anchor*.
+- **⚠ THE BITE IS WIDER THAN THE ONE THIS RULE WAS DRAFTED WITH, ON PURPOSE.** The draft
+  said *assert `last_battery_level` and `last_sample_ts` are unchanged* — two of the three
+  fields — and **that assertion passes on the code at its own cited site.** A rule whose
+  stated bite cannot detect its own violation is the same partial-guard shape one level up,
+  and it would have shipped as enforcement. Anywhere this rule is applied, enumerate the
+  writes; do not name the ones you remember.
+- **⚠ ACCEPTED VIOLATION at the primary site — `battery/manager.py`, ledger C15.** The
+  anchor is three fields and the guard holds two. `_update_session` has already run when
+  `if advance_anchor:` is reached, and `last_charging` is written below it unconditionally,
+  so a rejected sample still opens or closes a charge session carrying its own stale
+  timestamp and level — which can leave a `session_history_recent` entry and a
+  `sessions.csv` row whose `end_ts` precedes its `start_ts`. Nothing repairs those.
+  **Left open on evidence, not oversight:** `elapsed_sec <= 0` requires the wall clock to
+  step backwards (`ts` is minted per-sample from `datetime.now()`, never inherited from a
+  state object, so co-timed samples cannot collide), and 104 vacuum-days of `samples.jsonl`
+  across two live machines contain no such step, with 387 archived sessions containing no
+  inverted row. Mechanism certain, occurrence unobserved.
+- **⚠ IF THE EXCEPTION IS EVER CLOSED, BOTH STATEMENTS MOVE TOGETHER.** Guarding
+  `_update_session` alone makes each repeated stale sample RE-OPEN the session; guarding
+  `last_charging` alone makes the next genuine sample read a false transition and RESTART a
+  live one. Either half alone is worse than neither — which is also why this rule is stated
+  as *every purpose* rather than as a list of fields.
+- **Cite `IN3ASEP8`** from any guard that rejects an observation while other state at the
+  same site keeps updating.
+
+> **Pairs with, and is not, the report-the-reason rule at the same guard.** `_process_sample`
+> captures `rejected_delta_pct` for the audit trail *while* `delta_pct` stays `None`. That is
+> the separate rule that a rejection must be visible; this one is that a rejection must not
+> leak into the baseline. Two rules, one guard, worth keeping apart — a site can satisfy
+> either while breaking the other.
 ## Rules with no code site — `PN`
 
 Some rules bind and can never have an enforcement site, because they are not about code.
