@@ -594,7 +594,6 @@ class LearningStatsRebuilder:
                         "clean_intensity": clean_intensity,
                         "edge_mopping": edge_mopping,
                         "sample_count": 0,
-                        "total_estimated_minutes": 0.0,
                         "total_estimated_battery_used": 0.0,
                         "total_robot_water_used_ml": 0.0,
                         "total_water_overhead_ml": 0.0,
@@ -605,7 +604,6 @@ class LearningStatsRebuilder:
 
                 room_water = room_water_allocations.get(slug, {})
                 room_stats[exact_key]["sample_count"] += 1
-                room_stats[exact_key]["total_estimated_minutes"] += room_minutes
                 room_stats[exact_key]["total_estimated_battery_used"] += per_room_battery
                 room_stats[exact_key]["total_robot_water_used_ml"] += _safe_float(room_water.get("robot_water_used_ml"), 0.0)
                 room_stats[exact_key]["total_water_overhead_ml"] += _safe_float(room_water.get("water_overhead_ml"), 0.0)
@@ -635,7 +633,6 @@ class LearningStatsRebuilder:
                         "map_id": map_id,
                         "room_slug": slug,
                         "sample_count": 0,
-                        "total_estimated_minutes": 0.0,
                         "total_estimated_battery_used": 0.0,
                         "total_robot_water_used_ml": 0.0,
                         "total_water_overhead_ml": 0.0,
@@ -651,8 +648,6 @@ class LearningStatsRebuilder:
                     }
 
                 room_baselines[baseline_key]["sample_count"] += 1
-                if rid not in allocated_rids:
-                    room_baselines[baseline_key]["total_estimated_minutes"] += room_minutes
                 room_baselines[baseline_key]["total_estimated_battery_used"] += per_room_battery
                 room_baselines[baseline_key]["total_robot_water_used_ml"] += _safe_float(room_water.get("robot_water_used_ml"), 0.0)
                 room_baselines[baseline_key]["total_water_overhead_ml"] += _safe_float(room_water.get("water_overhead_ml"), 0.0)
