@@ -905,7 +905,28 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Clear persistent storage when the entry is deleted."""
+    """Clear the HA Store when the entry is deleted. NOT the on-disk tree.
+
+    There are TWO persistence layers and this clears one. `.storage/eufy_vacuum`
+    goes — rooms, profiles, adapter config, the battery record. Everything under
+    `<config>/eufy_vacuum/` STAYS: the learning tree, stall captures, the pose ring,
+    the job archive, samples.jsonl and sessions.csv.
+
+    THAT IS A RULING, NOT AN OMISSION (ledger C30). The tree is the user's own
+    recorded history of their own home, it is the only copy, and nothing in HA would
+    put it back. Removing an integration is not obviously a request to destroy it, so
+    the recoverable outcome is preferred: a reinstall that inherits data can be
+    cleaned up by hand, a purge cannot be undone.
+
+    IT IS THEREFORE NOT MANAGED FOR DELETION AT ALL — no service, no hook, no age
+    policy removes it. Deleting `<config>/eufy_vacuum/` is a manual step, and that is
+    the documented answer, not a gap waiting for a fix.
+
+    On inheriting after a reinstall: learned rows are keyed by `(map_id, room_slug)`,
+    so old data only re-attaches where BOTH match a map the vacuum later builds. A
+    recreated map is a different map_id in practice, which is why this is tolerable
+    rather than merely convenient.
+    """
     from homeassistant.helpers.storage import Store
 
     from .core.storage import STORAGE_KEY, STORAGE_VERSION

@@ -14,10 +14,10 @@ backlog* had no finish line anyone could compute.
 |---|---:|---|
 | `[OPEN]` | 62 | still present in the tree exactly as described |
 | `[OPEN-DRIFTED]` | 4 | real, but **the text below it is WRONG** — a corrected-mechanism line follows the entry |
-| `[NEEDS-RULING]` | 2 | blocked on a decision, not on work |
+| `[NEEDS-RULING]` | 1 | blocked on a decision, not on work |
 | `[FIXED]` | 3 | gone, **and** a named test goes red if it returns |
 | `[FIXED-UNPROVEN]` | 9 | gone, but nothing would notice if it came back |
-| `[ACCEPTED]` | 1 | **a real defect, ruled not worth fixing, and stated AT THE SITE** — not a backlog item |
+| `[ACCEPTED]` | 2 | **a real defect, ruled not worth fixing, and stated AT THE SITE** — not a backlog item |
 | `[NOT-A-DEFECT]` | 1 | verified by-design or explicitly accepted |
 | `[SUPERSEDED]` | 1 | overtaken by another entry or a redesign |
 | `[UNVERIFIABLE]` | 1 | undecidable from the repo alone |
@@ -338,11 +338,22 @@ diagnosis in two directions:
   one-file-per-map contract, where nothing reclaims it.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The stall-capture atomic write still has no fsync and no tmp cleanup, while the copy that documents both sits four files away.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** "Shortest of FOUR copies" is right on the count and on the substance but not on the superlative: `os.replace` appears in four places (learning/history_store.py:491, core/water_amendment.py:189, debug_capture.py:559, listeners/stall_capture.py:224), and core/water_amendment.py:189 is the shorter body (`tmp.write_text(...); os.replace(tmp, path)`). Both water_amendment.py:189 and debug_capture.py:559 share BOTH omissions with _write_atomic, so history_store is the lone correct copy and the fix has two siblings, not zero.
-- [NEEDS-RULING] **C30 nothing ever deletes a stall capture.** Zero `rmtree`/`shutil` hits in the package. The PNG
+- [ACCEPTED] **C30 nothing ever deletes a stall capture.** Zero `rmtree`/`shutil` hits in the package. The PNG
   survives disarming the switch, deleting the vacuum, and removing the integration.
   ⟵ **DISPOSITION 2026-08-21 — NEEDS-RULING.** The finding is factually correct — nothing deletes the capture — but whether that is a defect is a retention policy call, and the gap is not stall-capture-specific.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The entry frames this as a stall-capture gap; it is the whole on-disk learning tree. `async_remove_entry` leaves `<config>/eufy_vacuum/learning/` entirely intact — the stall PNG, the pose ring (pose_store.py, which has its own age-based expiry at :165 but no removal hook), the job records and the battery store all survive integration removal by the same omission. Any ruling should be made once, for the tree, not for the PNG.
-  **⚠ DECISION NEEDED:** Should removing the integration (or deleting a vacuum) purge `<config>/eufy_vacuum/learning/<vacuum>/` — or is leaving the user's own data on disk after removal the intended behaviour, in which case C30 closes as by-design?
+  **✅ RULED 2026-08-22 — NO PURGE. The tree is NOT MANAGED FOR DELETION, and that is now
+  stated at the site and in `02-ha-integration.md`.** The data is the user's own recorded
+  history of their own home, it is the only copy, and nothing in HA would put it back, so
+  the recoverable outcome wins: inherited data can be cleared by hand, a purge cannot be
+  undone. Deleting `<config>/eufy_vacuum/` is a documented manual step.
+  **The inherit-on-reinstall risk is what made this safe to rule:** learned rows are keyed
+  by `(map_id, room_slug)`, and a recreated map takes a new `map_id` in practice — so stale
+  rows go INERT rather than silently informing estimates.
+  **⚠ WHAT WAS ACTUALLY WRONG HERE WAS THE DOCSTRING, and it was wrong under either ruling:**
+  `async_remove_entry` said *"Clear persistent storage when the entry is deleted"* while
+  clearing one of two layers. Fixed. The entry's stall-capture framing is also too narrow —
+  it is the whole tree, 1.9 MB across four directories on the live box.
 - [OPEN] **C31 zone dispatch rotation mismatch (FRONTEND, hardware).** The panel RENDERS at
   `effectiveMapRotation()` but DISPATCHES zones at raw `mapRotation()`; they differ when VA render
   is wanted but absent, and `canDrawZone()` does not gate on that. A zone dispatched a quarter-turn
