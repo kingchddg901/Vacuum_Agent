@@ -525,6 +525,36 @@ EUFY_EVIDENCE_SAFE_ROBOT_CODES: frozenset[int] = frozenset({
 })
 
 
+# ---------------------------------------------------------------------------
+# ⚠ NO PRODUCTION CALLER YET, AND THAT IS DELIBERATE — DO NOT DELETE.
+#
+# `eufy_error_source`, `eufy_error_invalidates_cleaning` and their `_exact_error_code`
+# helper are complete, tested (tests/adapters/eufy/test_error_source.py) and reached
+# from nowhere in the shipped tree. They are waiting on their DATA SOURCE, not on a
+# consumer decision:
+#
+#     jeppesens/eufy-clean PR #161 — "feat: capture and persist the full ErrorCode
+#     proto" — opened 2026-07-26, OPEN as of 2026-08-21.
+#
+# Until that lands upstream the fork does not surface the fault detail these tables
+# classify, so wiring a caller now would classify data that does not arrive. The seam
+# is built ahead of the source on purpose (build the expansion-ready seam, ship the
+# tiny surface); the tables and their reasoning were authored while the codes were
+# fresh in hand, which is the only time that reasoning is cheap to write down.
+#
+# ⚠ WHY THIS NOTE EXISTS AT ALL. A reachability sweep on 2026-08-21 found these three
+# functions callerless and queued them for deletion alongside a genuinely dead
+# int-coercion island in core (ledger C18, correctly removed). Nothing in the code
+# said the difference. The two cases are indistinguishable to any tool — same zero
+# callers, same green suite when broken — and only the upstream PR separates them.
+# Ledger C20 records the same observation and must be read WITH this note, not
+# against it.
+#
+# WHEN #161 LANDS: wire the consumer, delete this banner, and C20 closes by becoming
+# false rather than by anyone deciding anything.
+# ---------------------------------------------------------------------------
+
+
 def eufy_error_source(code: object) -> str:
     """Return "dock", "robot", or "unknown" for one Eufy error code.
 
