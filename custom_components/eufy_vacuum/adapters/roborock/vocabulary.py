@@ -92,6 +92,25 @@ CLEAN_MODE_OPTIONS: list[dict] = [
 # canonical framework slot (locked decision: global-only, set pre-dispatch). Kept
 # here for the card / future dispatch pre-call wiring, not exposed as a canonical
 # vocabulary key yet.
+#
+# ⚠ CALLERLESS BY DESIGN, AND VERIFIED SO — do not "tidy" it (ledger C11).
+# Twelve declaration surfaces were searched 2026-08-21: the parenthesised import in
+# adapter.py, the vocabulary block including its conditional mop_settable spread, the
+# mop_pre_calls list, per_room_live_settings (the only options_key literal in the tree
+# is "fan_speed_options"), the entity_candidates role map, ADAPTER_CONFIG_SCHEMA (which
+# declares five *_options keys and REJECTS undeclared ones), VOCABULARY_FIELDS and the
+# generic f"{field}_options" path, both card surfaces, the registry, and dynamic access.
+# Reachable by none of them. `git log -S` returns ONE commit: it has been callerless
+# SINCE BIRTH — never wired, not unwired, which is a different thing from abandoned.
+# The deferral is stated twice independently, here and at the consumption site
+# (adapter.py, above mop_pre_calls): "a second GLOBAL select with no canonical
+# per-group slot yet -> left out until there is a card control to drive it per group."
+#
+# ⚠ AND THE REAL RISK IS THE NEIGHBOUR, NOT THIS SYMBOL. A block-level tidy of "the
+# unused option lists in this file" takes PATH_TYPE_OPTIONS with it, which IS live:
+# rooms/vocabulary_migration.py judges a stored path_type against it. Wiring is not the
+# one-line change "wire or delete" implies either — it touches five layers, starting
+# with a schema that would reject the key today.
 MOP_MODE_OPTIONS: list[dict] = [
     {"value": "standard", "label": "Standard"},
     {"value": "deep", "label": "Deep"},

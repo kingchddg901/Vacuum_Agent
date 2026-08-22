@@ -39,6 +39,19 @@ def evaluate_map_protection(
     # isinstance(bucket, dict) guards do, not raise AttributeError out of a
     # function both the delete gate and get_setup_status's per-map summaries
     # call -- one bad record would otherwise take out the whole Setup tab.
+    #
+    # ⚠ NO LIVE CALLER REACHES THIS TODAY, and it stays anyway (ledger C34, filed as
+    # dead twice). Both callers pre-filter: status.py:127 rejects the non-dict bucket
+    # by isinstance BEFORE calling in (and landed 2.5 months BEFORE this guard), and
+    # delete.py:68 raises upstream of the call. Three of the four guards that commit
+    # added are live; this is the fourth.
+    #
+    # It is a BOUNDARY NORMALIZER, not a redundant check. Its value is for the NEXT
+    # caller — the one that has not pre-filtered — and the cost of being wrong is
+    # asymmetric: a single malformed bucket in a user .storage (hand-edit, truncated
+    # write, pre-1.0 schema) raises out of a function get_setup_status calls once per
+    # map per managed vacuum, so ONE bad record takes out the entire Setup tab. Two
+    # lines against that is not a trade worth optimising.
     if not isinstance(bucket, dict):
         bucket = {}
     rooms       = bucket.get("rooms", {})
