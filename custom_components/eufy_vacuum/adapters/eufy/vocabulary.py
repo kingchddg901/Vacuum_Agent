@@ -526,32 +526,44 @@ EUFY_EVIDENCE_SAFE_ROBOT_CODES: frozenset[int] = frozenset({
 
 
 # ---------------------------------------------------------------------------
-# ⚠ NO PRODUCTION CALLER YET, AND THAT IS DELIBERATE — DO NOT DELETE.
+# ⚠ THE TABLES ABOVE ARE LIVE. THE TWO FUNCTIONS BELOW ARE NOT. DO NOT CONFLATE THEM.
 #
-# `eufy_error_source`, `eufy_error_invalidates_cleaning` and their `_exact_error_code`
-# helper are complete, tested (tests/adapters/eufy/test_error_source.py) and reached
-# from nowhere in the shipped tree. They are waiting on their DATA SOURCE, not on a
-# consumer decision:
+# LIVE — every set above (EUFY_DOCK_SOURCED_ERROR_CODES, EUFY_ROBOT_SOURCED_ERROR_CODES,
+# EUFY_EVIDENCE_INVALIDATING_ERROR_CODES, EUFY_EVIDENCE_SAFE_ERROR_CODES,
+# EUFY_ERROR_LABEL_KEYS) is wired into core through the adapter DECLARATION at
+# `adapters/eufy/adapter.py` ("dock_sourced_error_codes", "robot_sourced_error_codes",
+# ...). Core reads them generically in `core.error_tracker.error_source_for_code` /
+# `classify_error_code` / `error_label_key`. Deleting any set breaks fault classification
+# for every Eufy vacuum.
 #
-#     jeppesens/eufy-clean PR #161 — "feat: capture and persist the full ErrorCode
-#     proto" — opened 2026-07-26, OPEN as of 2026-08-21.
+# NOT LIVE — `eufy_error_source`, `eufy_error_invalidates_cleaning` and their
+# `_exact_error_code` helper have no production caller. They are not pending; they are
+# SUPERSEDED. They do per-brand what core now does generically from the declaration, and
+# the adapter says so in its own comment: "eufy_error_source() had built these tables and
+# had ZERO callers until this declaration wired them." The function built the tables; the
+# declaration wired the tables; the function stayed.
 #
-# Until that lands upstream the fork does not surface the fault detail these tables
-# classify, so wiring a caller now would classify data that does not arrive. The seam
-# is built ahead of the source on purpose (build the expansion-ready seam, ship the
-# tiny surface); the tables and their reasoning were authored while the codes were
-# fresh in hand, which is the only time that reasoning is cheap to write down.
+# ROBOROCK IS THE CORRECT PATTERN AND THE PROOF: `adapters/roborock/vocabulary.py` ships
+# the same five table kinds and NO equivalent functions. Written later, it skipped the
+# scaffolding.
 #
-# ⚠ WHY THIS NOTE EXISTS AT ALL. A reachability sweep on 2026-08-21 found these three
-# functions callerless and queued them for deletion alongside a genuinely dead
-# int-coercion island in core (ledger C18, correctly removed). Nothing in the code
-# said the difference. The two cases are indistinguishable to any tool — same zero
-# callers, same green suite when broken — and only the upstream PR separates them.
-# Ledger C20 records the same observation and must be read WITH this note, not
-# against it.
+# ⚠ THE HAZARD, hit for real on 2026-08-21. A reachability sweep found the FUNCTIONS
+# callerless and queued them for deletion — correct on its own terms. But the tables sit
+# in the same file, carry the same subject, and are load-bearing. "Delete the dead error
+# stuff here" removes both. That is why this banner names which half is which rather than
+# saying the file is fine.
 #
-# WHEN #161 LANDS: wire the consumer, delete this banner, and C20 closes by becoming
-# false rather than by anyone deciding anything.
+# An earlier version of this banner claimed the functions were WAITING on
+# jeppesens/eufy-clean PR #161 ("capture and persist the full ErrorCode proto", open
+# 2026-07-26). That was wrong and is corrected here. #161 matters — today the fork reads
+# only warn[0], so few numeric codes reach us at all, and #161 delivers error[]/warn[]/
+# history to the Error Message sensor. But that data flows into CORE's generic lookup via
+# the declared tables. It creates no caller for these functions. More codes to classify,
+# same classifier.
+#
+# DISPOSITION (ledger C20): the functions are deletable on their own merits — with their
+# tests, which test only them. Not urgent, and not to be done by a sweep that cannot see
+# the distinction this banner exists to draw.
 # ---------------------------------------------------------------------------
 
 
