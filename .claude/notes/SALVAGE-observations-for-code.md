@@ -70,6 +70,30 @@ provider's rendered-image space (0–1, top-left origin), not the raw robot posi
 
 ---
 
+## From `26-eufy-segmentor.md`, `17-map-manager.md`, `31-map-source-coordinator.md` (retired 2026-08-22)
+
+### 4. ⭐ Why hue is the clustering space — the Eufy renderer paints each room a distinct hue
+
+**Site:** `adapters/eufy/segmentor.py`, one line above the median-filter / 16-wide binning pair.
+
+> Hue clustering. Median-filter the hue plane, bin into 16-wide buckets; iterate the active
+> bins (**Eufy renders each room in a distinct hue**).
+
+**The highest-value item found so far, and the only one rated high.** It is not a detail about a
+constant — it is the world fact the entire CV segmentation rests on. A maintainer can read the
+binning and see *what* it does; nothing in source says why a hue bin corresponds to a room.
+
+Without it the choice of hue as the clustering space reads as a generic computer-vision
+decision. It is not: **the algorithm is keyed to a rendering property of the vendor's map
+image.** Anyone porting to another brand, or re-tuning after Eufy changes its palette, needs to
+know that the premise is the vendor's renderer rather than anything about rooms.
+
+*Verified absent:* the only room-adjacent `hue` hits in `custom_components/` are the two binning
+lines themselves, both bare code with no rationale. `distinct hue|own hue|hue per room` returns
+zero across source and notes.
+
+---
+
 ## How to apply these
 
 They are comments at a constant, not prose. Each states a **premise** the number rests on, which
