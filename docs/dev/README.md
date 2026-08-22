@@ -39,6 +39,10 @@ Code is authoritative. A NOW doc that disagrees with the code is stale, and the 
 | doc | covers |
 |---|---|
 | [05 — While a Run Is Live](05-run-live.md) | Queue derivation and the refusal ladder, dispatch, brand-conditional room advance, the two stuck detectors, and the mid-run observers. |
+| [12 — Where the Map Comes From](12-map-source.md) | The provider's own segmentation and pose, normalized into one brand-neutral shape. Backends are declared, never inferred. |
+| [13 — How Rooms Are Found](13-segmentation.md) | The segmenter contract, the shape every engine must return, the shared geometry toolkit, and what survives of boundary derivation. |
+| [14 — Live Room Tracking](14-live-tracking.md) | Room identity from the device's own signal; position survives only as a movement delta. Plus the dock-drift log. |
+| [15 — The Stall Capture Image](15-stall-capture-image.md) | The pure renderer behind a stall notification, and why every behaviour in it is an absence behaviour. |
 | [11 — A Map's Stored State](11-map-stored-state.md) | The 29 services that write a map's stored representation — images and the segment cache, custom segmentation, layout lifecycle, display state, and saved zones. |
 | [06 — How a Run Ends](06-run-end.md) | Every path by which a run ends, the exactly-once claim, finalization and its commit point, error-second deduction, and which derived stores never self-heal. |
 
