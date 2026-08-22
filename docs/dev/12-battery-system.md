@@ -529,15 +529,52 @@ Called from `learning/job_finalizer.py` after the completed_job dict is built an
 Each bucket stores cumulative sums to enable on-the-fly mean computation without keeping every job around:
 
 ```python
+# count is EVERY job folded in. It is not the sample size of any mean.
 bucket.count += 1
-bucket.drain_pct_sum += metrics.battery_used_pct
-bucket.duration_min_sum += metrics.duration_min
-bucket.area_m2_sum += metrics.area_m2
 
-bucket.drain_per_min_mean  = drain_pct_sum / duration_min_sum
-bucket.drain_per_hour_mean = (drain_pct_sum / duration_min_sum) * 60
-bucket.drain_per_m2_mean   = drain_pct_sum / area_m2_sum
+# Each input is independently null-guarded — a job missing one still contributes
+# the others.
+if drain    is not None: bucket.drain_pct_sum    += drain
+if duration is not None: bucket.duration_min_sum += duration
+if area     is not None: bucket.area_m2_sum      += area
+
+# PARTNERED NUMERATORS. A job reaches a mean only when it carried BOTH halves,
+# so each ratio has a numerator and denominator over the same set of jobs.
+if drain is not None and duration is not None:
+    bucket.drain_pct_sum_for_duration += drain
+    bucket.samples_duration += 1
+if drain is not None and area is not None:
+    bucket.drain_pct_sum_for_area += drain
+    bucket.samples_area += 1
+
+bucket.drain_per_min_mean  = drain_pct_sum_for_duration / duration_min_sum
+bucket.drain_per_hour_mean = (drain_pct_sum_for_duration / duration_min_sum) * 60
+bucket.drain_per_m2_mean   = drain_pct_sum_for_area      / area_m2_sum
 ```
+
+> **Why the numerators are split (C17, fixed 2026-08-21).** One `drain_pct_sum` used
+> to feed all three means while each denominator accumulated over a different subset.
+> A job with drain and duration but no measured area — the area read loses the same
+> finalize-time race `job_finalizer.py` documents for cleaning time, and no
+> learning-blocker stops it being recorded — still added its drain to the per-m²
+> numerator and nothing to that denominator.
+>
+> The zero-guard on the division **hid** this rather than preventing it: `if a_sum > 0`
+> fires only when *no* job in the bucket had an area, so a single measured job was
+> enough for the ratio to proceed over mismatched populations. Six jobs of 10 m² at
+> 20% drain among ten recorded jobs published `200/60 = 3.333 %/m²` where the honest
+> figure over the six is `2.0`.
+>
+> `samples_duration` / `samples_area` exist so a consumer can publish the denominator
+> a mean was computed over. `_bucket_means` emits it as `samples` beside `mean`;
+> `count` remains, because it is a true and separate fact, but it is no longer the
+> only number shown next to a mean it does not describe. A bucket written before the
+> split has no `samples_*` keys and reports `None` — unknown, stated as unknown,
+> rather than falling back to `count`.
+>
+> These aggregates are **rebuildable from the archive**
+> (`BatteryHealthManager.rebuild_job_aggregates`), so no migration was needed: a
+> `rebuild_learning_stats` recomputes honest values from job records already on disk.
 
 The means are **time-weighted** (sums in numerator + denominator), not arithmetic averages of per-job means. A 60-min job and a 30-min job contribute proportionally to their durations.
 

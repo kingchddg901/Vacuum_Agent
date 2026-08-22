@@ -177,7 +177,13 @@ def test_last_job_metric():
     assert attrs["job_id"] == "j1"
     assert attrs["all_jobs_mean"] == 0.5
     assert attrs["all_jobs_count"] == 10
-    assert attrs["by_clean_mode_mean"]["vacuum"] == {"count": 5, "mean": 0.5}
+    # C17: samples is None here because the fixture bucket predates the split and
+    # carries no samples_duration. Unknown, stated as unknown.
+    assert attrs["by_clean_mode_mean"]["vacuum"] == {
+        "count": 5,
+        "mean": 0.5,
+        "samples": None,
+    }
 
 
 def test_mid_job_recharge():
@@ -200,9 +206,36 @@ def test_empty_record_none():
 
 
 def test_bucket_means():
-    """[BS-10]"""
-    out = _bucket_means({"vacuum": {"count": 4, "drain_per_min_mean": 0.6}}, "drain_per_min_mean")
-    assert out == {"vacuum": {"count": 4, "mean": 0.6}}
+    """[BS-10] The projection carries the mean AND the denominator it used.
+
+    C17: ``count`` is every job in the bucket; a mean is computed only over the jobs
+    that carried both of its inputs. Publishing the two side by side without
+    ``samples`` is what let the card show "3.333 %/m2 — Jobs: 10" for a mean taken
+    over six.
+    """
+    out = _bucket_means(
+        {"vacuum": {"count": 4, "drain_per_min_mean": 0.6, "samples_duration": 3}},
+        "drain_per_min_mean",
+    )
+    assert out == {"vacuum": {"count": 4, "mean": 0.6, "samples": 3}}, (
+        "the mean must publish the sample size it was computed over, not only the "
+        "bucket count — 4 jobs recorded, 3 of them carried a duration"
+    )
+
+    # Each mean must read ITS OWN denominator, not whichever one is present.
+    bucket = {"count": 9, "drain_per_m2_mean": 2.0, "samples_duration": 9, "samples_area": 6}
+    assert _bucket_means({"v": bucket}, "drain_per_m2_mean")["v"]["samples"] == 6, (
+        "the per-m2 mean reported the DURATION sample count — the exact substitution "
+        "C17 exists to stop"
+    )
+
+    # A bucket written before C17 has no samples_* keys. It must say so rather than
+    # borrow `count`, which is the number that was wrong in the first place.
+    legacy = _bucket_means({"v": {"count": 10, "drain_per_m2_mean": 3.333}}, "drain_per_m2_mean")
+    assert legacy["v"]["samples"] is None, (
+        "a pre-C17 bucket must report an UNKNOWN denominator, never fall back to count"
+    )
+
     assert _bucket_means("nope", "drain_per_min_mean") == {}
     assert _bucket_means({"x": {}}, None) == {}
 

@@ -316,6 +316,70 @@ def test_update_aggregate_bucket(bm):
     assert bucket["drain_per_min_mean"] == pytest.approx(0.5)   # 20/40
     assert bucket["drain_per_m2_mean"] == pytest.approx(2.0)    # 20/10
 
+def test_a_job_without_area_does_not_move_the_per_m2_mean(bm):
+    """[BM-5b] C17 — a ratio's numerator and denominator must count the same jobs.
+
+    THE FAILURE THIS REPRODUCES. Ten cleans. Six report an area; on four the
+    finalizer's area read comes back null because it loses the same finalize-time
+    race job_finalizer.py documents for cleaning_time. No learning-blocker stops
+    those four being recorded, so all ten fold into the bucket.
+
+    Before the fix a single drain_pct_sum fed every mean: 200 / 60 = 3.333 %/m2,
+    against an honest 120 / 60 = 2.0 over the six jobs that were actually measured.
+    67% high, and worse the more area-less runs land.
+
+    THE ZERO-GUARD DID NOT PREVENT THIS AND CANNOT. `if a_sum > 0 else None` fires
+    only when NO job in the bucket carried an area; one measured job is enough for
+    the division to proceed over mismatched populations. That is why this test feeds
+    a MIXTURE rather than an all-null bucket — an all-null bucket is the one case the
+    old code got right.
+    """
+    bucket: dict = {}
+    for _ in range(6):
+        BatteryHealthManager._update_aggregate_bucket(
+            bucket, {"battery_used_pct": 20, "duration_min": 40, "area_m2": 10})
+    for _ in range(4):
+        BatteryHealthManager._update_aggregate_bucket(
+            bucket, {"battery_used_pct": 20, "duration_min": 40, "area_m2": None})
+
+    assert bucket["count"] == 10
+    assert bucket["samples_area"] == 6, (
+        "samples_area must be the jobs that carried an area, not every job"
+    )
+    assert bucket["samples_duration"] == 10
+
+    assert bucket["drain_per_m2_mean"] == pytest.approx(2.0), (
+        f"per-m2 mean is {bucket['drain_per_m2_mean']} — the four area-less jobs put "
+        "their drain in the numerator while contributing nothing to the denominator. "
+        "3.333 is 200/60: drain from ten jobs over area from six."
+    )
+    # The per-MINUTE mean is unaffected by the same jobs — all ten had a duration.
+    assert bucket["drain_per_min_mean"] == pytest.approx(0.5)
+
+
+def test_a_job_without_duration_does_not_move_the_per_minute_mean(bm):
+    """[BM-5c] C17, the mirror. One numerator served THREE denominators, so the
+    substitution ran both ways: a job with area but no duration inflated the
+    per-minute mean exactly as an area-less job inflated the per-m2 one. Without
+    this, [BM-5b] passes against a fix that only partnered the area half.
+    """
+    bucket: dict = {}
+    for _ in range(6):
+        BatteryHealthManager._update_aggregate_bucket(
+            bucket, {"battery_used_pct": 20, "duration_min": 40, "area_m2": 10})
+    for _ in range(4):
+        BatteryHealthManager._update_aggregate_bucket(
+            bucket, {"battery_used_pct": 20, "duration_min": None, "area_m2": 10})
+
+    assert bucket["samples_duration"] == 6
+    assert bucket["samples_area"] == 10
+    assert bucket["drain_per_min_mean"] == pytest.approx(0.5), (
+        f"per-minute mean is {bucket['drain_per_min_mean']} — 200/240 = 0.833 is drain "
+        "from ten jobs over duration from six"
+    )
+    assert bucket["drain_per_hour_mean"] == pytest.approx(30.0)
+    assert bucket["drain_per_m2_mean"] == pytest.approx(2.0)
+
 
 # ---------------------------------------------------------------------------
 # Sample pipeline

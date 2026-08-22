@@ -299,7 +299,18 @@ def _new_aggregate_bucket() -> dict[str, Any]:
         "count": 0,
         "duration_min_sum": 0.0,
         "area_m2_sum": 0.0,
+        # Total drain over every job in the bucket. A real quantity, but NOT a ratio
+        # numerator — the two partnered sums below are. See C17.
         "drain_pct_sum": 0.0,
+        # PARTNERED NUMERATORS. A ratio whose top and bottom count different
+        # populations is not a mean of anything, so each of these accumulates ONLY
+        # when its partner denominator is present too.
+        "drain_pct_sum_for_duration": 0.0,
+        "drain_pct_sum_for_area": 0.0,
+        # The honest denominators, so a consumer can publish the sample size a mean
+        # was actually computed over rather than `count`, which counts every job.
+        "samples_duration": 0,
+        "samples_area": 0,
         # Pre-rounded means — written every record_job_metrics call.
         "drain_per_min_mean": None,
         "drain_per_hour_mean": None,
@@ -1441,9 +1452,28 @@ class BatteryHealthManager:
 
     @staticmethod
     def _update_aggregate_bucket(bucket: dict[str, Any], metrics: dict[str, Any]) -> None:
-        """Mutate ``bucket`` in place with this job's contributions and refresh
-        the rolling means. Only jobs with non-null inputs contribute to that
-        means' count to keep the averages honest."""
+        """Fold one job into ``bucket`` and refresh the rolling means.
+
+        ``count`` is every job folded in and increments unconditionally. It is NOT
+        the sample size of any mean — ``samples_duration`` / ``samples_area`` are.
+
+        EACH MEAN IS A RATIO WHOSE TOP AND BOTTOM COUNT THE SAME JOBS (C17). Until
+        2026-08-21 one ``drain_pct_sum`` fed all three means while each denominator
+        accumulated over a different subset, so a job with drain and duration but no
+        measured area still added drain to the per-m2 numerator and nothing to its
+        denominator.
+
+        The zero-guard on the division HID it rather than preventing it: it fires
+        only when NO job in the bucket had area, so a single measured job was enough
+        for the ratio to proceed over mismatched populations. Measured: six jobs of
+        10 m2 at 20% drain among ten recorded jobs published 200/60 = 3.333 %/m2
+        where the honest figure over the six is 2.0 — 67% high, and worse the more
+        area-less runs land.
+
+        Area is the read that goes missing in practice: it loses the same
+        finalize-time race ``job_finalizer.py`` documents for cleaning_time, and no
+        learning-blocker stops such a job being recorded.
+        """
         bucket["count"] = int(bucket.get("count", 0)) + 1
 
         drain = metrics.get("battery_used_pct")
@@ -1459,15 +1489,28 @@ class BatteryHealthManager:
         if area is not None:
             bucket["area_m2_sum"] = float(bucket.get("area_m2_sum", 0.0)) + float(area)
 
-        d_sum = float(bucket.get("drain_pct_sum", 0.0))
+        # THE PAIRING. A job reaches a mean only when it carried BOTH halves of it.
+        if drain is not None and duration is not None:
+            bucket["drain_pct_sum_for_duration"] = (
+                float(bucket.get("drain_pct_sum_for_duration", 0.0)) + float(drain)
+            )
+            bucket["samples_duration"] = int(bucket.get("samples_duration", 0)) + 1
+        if drain is not None and area is not None:
+            bucket["drain_pct_sum_for_area"] = (
+                float(bucket.get("drain_pct_sum_for_area", 0.0)) + float(drain)
+            )
+            bucket["samples_area"] = int(bucket.get("samples_area", 0)) + 1
+
+        dt_sum = float(bucket.get("drain_pct_sum_for_duration", 0.0))
+        da_sum = float(bucket.get("drain_pct_sum_for_area", 0.0))
         t_sum = float(bucket.get("duration_min_sum", 0.0))
         a_sum = float(bucket.get("area_m2_sum", 0.0))
 
-        bucket["drain_per_min_mean"] = round(d_sum / t_sum, 4) if t_sum > 0 else None
+        bucket["drain_per_min_mean"] = round(dt_sum / t_sum, 4) if t_sum > 0 else None
         bucket["drain_per_hour_mean"] = (
-            round((d_sum / t_sum) * 60.0, 4) if t_sum > 0 else None
+            round((dt_sum / t_sum) * 60.0, 4) if t_sum > 0 else None
         )
-        bucket["drain_per_m2_mean"] = round(d_sum / a_sum, 4) if a_sum > 0 else None
+        bucket["drain_per_m2_mean"] = round(da_sum / a_sum, 4) if a_sum > 0 else None
 
     def _attach_post_job_charge_if_pending(
         self,
