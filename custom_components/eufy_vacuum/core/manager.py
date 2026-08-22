@@ -73,6 +73,7 @@ from ..const import (
     EVENT_ROOM_FINISHED,
     EVENT_ROOM_STARTED,
     EVENT_STALL_DETECTED,
+    HA_ACTIVE_VACUUM_STATES,
 )
 from ..jobs import stuck_watch
 from ..learning.utils import read_cleaning_area_m2
@@ -158,15 +159,6 @@ _PHASE_CONFIRM_SECONDS = 45
 # not only at the window's end (covers cross-room transit lag).
 _PHASE_POLL_SECONDS = 5
 
-# Standard HA vacuum platform states that indicate an active or faulted vacuum.
-# These are defined by the HA vacuum integration, not by any specific brand.
-# Brand-specific active states (e.g. task_status strings) come from the adapter.
-_HA_ACTIVE_VACUUM_STATES: frozenset[str] = frozenset({
-    "cleaning",   # HA standard
-    "returning",  # HA standard
-    "paused",     # HA standard
-    "error",      # HA standard
-})
 #: The two halves of "a job is already happening here" — see
 #: ``EufyVacuumManager.get_job_inflight_state``. A TRACKED run is in flight by its
 #: own status regardless of the robot's posture; an UNTRACKED (app-started) run has
@@ -3587,7 +3579,7 @@ class EufyVacuumManager:
             if active_run_task_states is None:
                 active_run_task_states = _vocab_frozenset("active_run_task_states", frozenset())
         if active_vacuum_states is None:
-            active_vacuum_states = _HA_ACTIVE_VACUUM_STATES
+            active_vacuum_states = HA_ACTIVE_VACUUM_STATES
 
         _lifecycle_entities = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
         vacuum_state = self.hass.states.get(vacuum_entity_id)

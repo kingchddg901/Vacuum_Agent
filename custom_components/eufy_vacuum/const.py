@@ -17,6 +17,31 @@ from .adapters.eufy.const import (
 )
 
 CONF_TESTED_MODEL = "tested_model"
+
+
+# HA VACUUM PLATFORM STANDARD STATES — the entity states meaning "active or faulted".
+#
+# Defined by the Home Assistant vacuum integration, NOT by any brand: every HA vacuum
+# integration uses these names regardless of manufacturer. Brand-specific active states
+# (Eufy's task_status strings, for instance) are a DIFFERENT concept and come from the
+# adapter's vocabulary block as hard_service_states / drying_states /
+# active_run_task_states.
+#
+# ⚠ NOT AN ADAPTER-DECLARABLE KEY, and that is deliberate. `active_vacuum_states` is not
+# in ADAPTER_CONFIG_SCHEMA's vocabulary section, so a brand that tried to declare it
+# would be REJECTED at validation. Core owns this set; a brand adding to it is a
+# category error, which is what ledger C19 removed from adapters/eufy/vocabulary.py.
+#
+# It lives HERE rather than in either consumer because it had TWO byte-identical copies
+# (core/manager.py and jobs/job_monitor.py, ledger C53) with no mechanism making them
+# agree — a rename in the HA platform would have updated one and left the other silently
+# wrong on whichever path used it.
+HA_ACTIVE_VACUUM_STATES: frozenset[str] = frozenset({
+    "cleaning",
+    "returning",
+    "paused",
+    "error",
+})
 CONF_NOTES = "notes"
 CONF_VACUUM_ENTITY_ID = "vacuum_entity_id"
 
