@@ -8,11 +8,31 @@
 [LP-5] toggle ON from OFF runs the catch-up (pending cleared) + resumes on.
 [LP-6] the button-triggered catch-up clears pending but leaves the toggle off.
 [LP-7] the dashboard snapshot carries the toggle state + pending count for the card.
+[LP-8] the catch-up ALSO rebuilds the incremental accumulators rebuild_all does not write.
+[LP-9] one accumulator failing must not abort the others.
+[LP-10] IN5ATBW9: every service that CLAIMS a rebuild runs the whole post-write
+       sequence -- accumulators, cache invalidate, cache preload -- against the
+       archive as it stands AFTER the write.
+[LP-11] ...and the cache half is not optional just because the runtime is.
 """
 
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import create_autospec
+
+import pytest
+
+from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
+from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
+from custom_components.eufy_vacuum.learning.services import (
+    SERVICE_EXCLUDE_LEARNING_JOB,
+    SERVICE_REBUILD_LEARNING_STATS,
+    SERVICE_RESTORE_LEARNING_JOB,
+    _get_learning_manager,
+    async_register_learning_services,
+    async_unregister_learning_services,
+)
 
 
 async def test_learning_processing_enabled_default_and_toggle(manager):
@@ -190,3 +210,270 @@ async def test_accumulator_rebuild_survives_one_sink_failing(manager, monkeypatc
     out = await manager.async_rebuild_learning_accumulators(vacuum_entity_id="vacuum.alfred")
     assert out["vacuum_entity_id"] == "vacuum.alfred"
     assert "learned_zones" not in out, "a failing sink reported a result"
+
+
+# ---------------------------------------------------------------------------
+# [LP-10] / [LP-11] IN5ATBW9 — the SERVICE copies of the same post-write sequence
+# ---------------------------------------------------------------------------
+
+_VAC = "vacuum.alfred"          # the vacuum the `manager` fixture registers an adapter for
+_JOB_ID = "j-in5atbw9"
+
+
+@pytest.fixture
+async def learning_services(hass, manager):
+    """Learning services registered on top of the wired manager.
+
+    The handlers are closures inside `async_register_learning_services`, so the service
+    registry is the only way to reach them — calling the LearningManager directly walks
+    straight past the wiring these tests are about.
+    """
+    await async_register_learning_services(hass)
+    yield manager
+    await async_unregister_learning_services(hass)
+
+
+@pytest.fixture
+def archived_job(hass):
+    """One learning-eligible completed job in the archive, and the archive left as found.
+
+    The learning archive lives on disk and is SHARED by the whole session, not rebuilt
+    per test — so a seeded record that outlives its test becomes a job file other tests
+    find. Measured: leaving this one behind turned [LS-4b] red four files later, because
+    it asserts `job_files_found == 0` and read this job. The rebuild these services run
+    also rewrites `learned/`, so the fixture restores contents as well as removing files.
+
+    Minimal payload on purpose: `is_learning_job` asks for record_type `completed_job`,
+    an outcome status of `completed`, and used_for_learning — nothing else gates it.
+    """
+    store = LearningHistoryStore(hass)
+    root = store.get_paths(vacuum_entity_id=_VAC).root
+    before = (
+        {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+        if root.exists()
+        else {}
+    )
+    store.save_completed_job(
+        vacuum_entity_id=_VAC,
+        job_id=_JOB_ID,
+        payload={
+            "record_type": "completed_job",
+            "job_id": _JOB_ID,
+            "job": {
+                "ended_at": "2026-01-01T10:00:00+00:00",
+                "duration_minutes": 30.0,
+                "room_count": 1,
+            },
+            "battery": {"start": 80, "end": 60, "used": 20},
+            "water": {},
+            "job_profile": {
+                "map_id": 6,
+                "room_count": 1,
+                "room_slugs": ["kitchen"],
+                "rooms": [],
+            },
+            "resolved_rooms": [],
+            "queue": {"queue_room_ids": [1], "queue_rooms": []},
+            "outcome": {
+                "status": "completed",
+                "used_for_learning": True,
+                "learning_blockers": [],
+            },
+        },
+    )
+
+    yield _JOB_ID
+
+    for path in {p for p in root.rglob("*") if p.is_file()} - set(before):
+        path.unlink()
+    for path, blob in before.items():
+        if path.read_bytes() != blob:
+            path.write_bytes(blob)
+
+
+#: Every service whose response tells the user the stats were REBUILT. [LP-8] pins the
+#: manager-side copy of this sequence (the catch-up); these are the other three, and
+#: they are parametrised rather than written out three times on purpose. RP-020/RF-22
+#: (SVC-1): the sequence landed in `rebuild_learning_stats` and NOT in exclude/restore,
+#: so two of the three claimed "stats rebuilt" while the incremental accumulators
+#: OUTSIDE `rebuild_all` (learned_zones, accuracy_stats, battery drain aggregates) kept
+#: whatever the excluded job had already contributed. A test per copy proves only that
+#: each copy agrees with itself; this one bites the SET.
+_REBUILD_CLAIMING_SERVICES = (
+    # service, extra call data, response key that means the write happened, and what
+    # the archived record must say at the moment the accumulator rebuild reads it back
+    (SERVICE_REBUILD_LEARNING_STATS, {}, None, True),
+    (SERVICE_EXCLUDE_LEARNING_JOB, {"job_id": _JOB_ID}, "excluded", False),
+    (SERVICE_RESTORE_LEARNING_JOB, {"job_id": _JOB_ID}, "restored", True),
+)
+
+
+@pytest.mark.parametrize(
+    ("service", "extra_data", "wrote_key", "eligible_when_read_back"),
+    _REBUILD_CLAIMING_SERVICES,
+    ids=[row[0] for row in _REBUILD_CLAIMING_SERVICES],
+)
+async def test_every_rebuild_claiming_service_reaches_every_derived_artifact(
+    hass,
+    learning_services,
+    archived_job,
+    monkeypatch,
+    service,
+    extra_data,
+    wrote_key,
+    eligible_when_read_back,
+):
+    """[LP-10] IN5ATBW9: a write that changes a source must reach EVERY artifact
+    derived from it, and "rebuild" must not name a partial operation.
+
+    Rebuild the derived files, rebuild the incremental accumulators that live outside
+    them, invalidate the in-memory cache, repopulate it — all four, or the operation is
+    lying about what it did. The user's one tool for removing a known-bad run was
+    partial, reported success, and left the bad data influencing estimates.
+
+    RED when any handler drops any one of the three post-write calls, when a handler
+    names a vacuum other than the one it just wrote for, or when the accumulator rebuild
+    runs BEFORE that write — which would re-fold the very sample being removed.
+    """
+    core_manager = hass.data[DOMAIN][DATA_RUNTIME]
+    learning = _get_learning_manager(hass)
+
+    order: list[str] = []
+    # A sentinel, not None/{}: "the rebuild never ran" and "the rebuild saw a record
+    # with no outcome" must not both read as the same falsy answer.
+    never_read = "<the accumulator rebuild never read the archive>"
+    read_back: list = [never_read]
+
+    real_rebuild_all = learning.rebuilder.rebuild_all
+    real_accumulators = core_manager.async_rebuild_learning_accumulators
+    real_invalidate = learning._invalidate_learning_stats_cache
+    real_preload = learning.async_preload_learning_stats
+
+    def _rebuild_all(**kwargs):
+        # The FIRST step, and the one the rule names first: it writes the four derived
+        # files (room_stats, job_stats, jobs_index, CSV). It runs INSIDE the manager
+        # method the service calls, one line after the archive write — so observing it
+        # here is also what proves the sequence runs AFTER the write, not merely that
+        # it runs. Without this spy, deleting the call leaves `order` unchanged and both
+        # tests stay green while all four files go stale (refuted 2026-08-21).
+        order.append("rebuild_all")
+        return real_rebuild_all(**kwargs)
+
+    async def _accumulators(*, vacuum_entity_id):
+        order.append("accumulators")
+        record = LearningHistoryStore(hass).load_completed_job(
+            vacuum_entity_id=vacuum_entity_id, job_id=archived_job
+        )
+        read_back[0] = (record or {}).get("outcome", {}).get("used_for_learning")
+        return await real_accumulators(vacuum_entity_id=vacuum_entity_id)
+
+    def _invalidate(*, vacuum_entity_id):
+        order.append("invalidate")
+        return real_invalidate(vacuum_entity_id=vacuum_entity_id)
+
+    def _preload(*, vacuum_entity_id):
+        order.append("preload")
+        return real_preload(vacuum_entity_id=vacuum_entity_id)
+
+    # create_autospec of the REAL bound methods, and each spy delegates to the real one:
+    # the production effects still happen, and a handler that called these positionally
+    # or under a different kwarg name is a TypeError here rather than a cheerful pass.
+    # A bare mock would agree with the caller about all three.
+    spy_rebuild_all = create_autospec(real_rebuild_all, side_effect=_rebuild_all)
+    spy_accumulators = create_autospec(real_accumulators, side_effect=_accumulators)
+    spy_invalidate = create_autospec(real_invalidate, side_effect=_invalidate)
+    spy_preload = create_autospec(real_preload, side_effect=_preload)
+    monkeypatch.setattr(learning.rebuilder, "rebuild_all", spy_rebuild_all)
+    monkeypatch.setattr(
+        core_manager, "async_rebuild_learning_accumulators", spy_accumulators
+    )
+    monkeypatch.setattr(learning, "_invalidate_learning_stats_cache", spy_invalidate)
+    monkeypatch.setattr(learning, "async_preload_learning_stats", spy_preload)
+
+    result = await hass.services.async_call(
+        DOMAIN,
+        service,
+        {"vacuum_entity_id": _VAC, **extra_data},
+        blocking=True,
+        return_response=True,
+    )
+
+    if wrote_key is not None:
+        assert result[wrote_key] is True, (
+            f"{service} did not perform the write whose reach is under test: {result}"
+        )
+
+    # The FOUR post-write calls, in the order that makes each of them mean something.
+    # Four, not three: the rule enumerates rebuild_all first, and a ledger that starts at
+    # "accumulators" cannot see it go missing.
+    assert order == ["rebuild_all", "accumulators", "invalidate", "preload"], (
+        f"{service} ran {order or 'NONE'} of the post-write sequence. Its response says "
+        "the stats were rebuilt; a missing step means that claim is false for every "
+        "artifact that step owns."
+    )
+    # kwargs vary by call site (rebuild_csv is passed on some paths), so pin the one
+    # argument every path must agree on rather than the whole signature.
+    spy_rebuild_all.assert_called_once()
+    assert spy_rebuild_all.call_args.kwargs.get("vacuum_entity_id") == _VAC, (
+        f"{service} rebuilt the derived files for "
+        f"{spy_rebuild_all.call_args.kwargs.get('vacuum_entity_id')!r}, not the vacuum "
+        "it just wrote for."
+    )
+    spy_accumulators.assert_called_once_with(vacuum_entity_id=_VAC)
+    spy_invalidate.assert_called_once_with(vacuum_entity_id=_VAC)
+    spy_preload.assert_called_once_with(vacuum_entity_id=_VAC)
+
+    # ...and it recomputed from the archive AS IT NOW STANDS. Rebuilding first and
+    # writing second would re-fold exactly the sample the user asked to remove.
+    assert read_back[0] is eligible_when_read_back, (
+        f"{service}: the accumulator rebuild read used_for_learning={read_back[0]!r} "
+        f"back off disk, expected {eligible_when_read_back!r} — it ran against the "
+        "PRE-write archive"
+    )
+
+
+async def test_a_rebuild_claiming_service_without_a_runtime_still_refreshes_the_cache(
+    hass, learning_services, archived_job, monkeypatch
+):
+    """[LP-11] The accumulator rebuild hangs off the runtime, which is optional — but
+    the cache half of the sequence is not, and must not be skipped with it.
+
+    `if runtime is not None` is a shoulder: everything after it is unconditional, and a
+    change that moved a line inside the guard would take the cache refresh down with the
+    accumulators for anyone whose runtime is absent.
+    """
+    learning = _get_learning_manager(hass)
+    order: list[str] = []
+
+    real_invalidate = learning._invalidate_learning_stats_cache
+    real_preload = learning.async_preload_learning_stats
+
+    def _invalidate(*, vacuum_entity_id):
+        order.append("invalidate")
+        return real_invalidate(vacuum_entity_id=vacuum_entity_id)
+
+    def _preload(*, vacuum_entity_id):
+        order.append("preload")
+        return real_preload(vacuum_entity_id=vacuum_entity_id)
+
+    spy_invalidate = create_autospec(real_invalidate, side_effect=_invalidate)
+    spy_preload = create_autospec(real_preload, side_effect=_preload)
+    monkeypatch.setattr(learning, "_invalidate_learning_stats_cache", spy_invalidate)
+    monkeypatch.setattr(learning, "async_preload_learning_stats", spy_preload)
+    monkeypatch.delitem(hass.data[DOMAIN], DATA_RUNTIME)
+
+    result = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_EXCLUDE_LEARNING_JOB,
+        {"vacuum_entity_id": _VAC, "job_id": archived_job},
+        blocking=True,
+        return_response=True,
+    )
+
+    assert result["excluded"] is True
+    assert order == ["invalidate", "preload"], (
+        f"with no runtime the handler ran {order or 'NONE'} — the card keeps serving "
+        "the cached pre-exclusion stats while the response says they were rebuilt"
+    )
+    spy_invalidate.assert_called_once_with(vacuum_entity_id=_VAC)
+    spy_preload.assert_called_once_with(vacuum_entity_id=_VAC)

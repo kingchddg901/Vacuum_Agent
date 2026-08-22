@@ -42,6 +42,37 @@ pass them through ``vacuum_to_normalized``, which serves hazard layers stored in
 vacuum coords.
 """
 
+# ---------------------------------------------------------------------------
+# anchor: HNWG96F5  why this module exists at all: we GENERATE the picture
+#                   instead of SCREENSHOTTING the card
+#
+# The docstring above explains every decision INSIDE this approach — plain, pure,
+# three coordinate spaces. This explains why the approach exists, which the code
+# cannot show and which reads as arbitrary without it.
+#
+# THE REJECTED ALTERNATIVE (Chris, ~2026-08): zoom the live card to the stalled
+# room and capture what the user would see. It was thought through and dropped on
+# COST, not on quality. Screenshotting means driving a browser — taking control of
+# something OUTSIDE Home Assistant, keeping it alive, keeping it authenticated,
+# keeping it in step with a card that changes. That is a large, fragile, external
+# dependency to obtain a picture of a room with a dot and a trail.
+#
+# THE OBSERVATION THAT REPLACED IT: at stall time the backend already holds
+# everything the picture needs — the raster, the room mask, the trail and the pose.
+# Nothing has to be captured because nothing is missing. Bytes in, PNG bytes out.
+#
+# ⚠ WHAT THIS RETIRES, AND THE WRONG CONNECTION IT PREVENTS. An early sketch of the
+# screenshot route needed a saved per-room VIEWPOINT to zoom to, and that is the
+# natural thing to assume `set_room_viewport` / `rooms[<id>].viewport` is for. It
+# is NOT. Stall capture computes its own crop from `room_cells()` — geometry, not a
+# saved camera — and reads no viewport at all. The saved viewport is card framing,
+# unread today (`src/state/map.js`: "Per-room art / sub-tabs / saved viewport are
+# Wave 2 — NOT read or written here"). Two zoom mechanisms in one subsystem, from
+# two different eras, with no relationship. Both authors of this system reached for
+# the wrong one within five minutes of each other on 2026-08-21, which is why the
+# non-relationship is written down rather than left to be inferred.
+# ---------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import io

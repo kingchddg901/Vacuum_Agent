@@ -6,7 +6,7 @@
 //
 // Coverage (src/state/steps-order.js):
 //   [STP-clamp]  clampChargeTarget — round, [1,100] clamp, non-finite -> fallback
-//   [STP-move]   moveStep — reorder, index clamp, empty
+//   [STP-move]   moveStep — reorder, index clamp, empty, refuses a ZONE at 0 (C40)
 //   [STP-ins]    insertChargeStep — insert at index, refuses leading/trailing (CARD-6 clause 1), clamped target
 //   [STP-rm]     removeStep — remove, out-of-range no-op, empty
 //   [STP-tgt]    setChargeTarget — update charge target, room_group no-op, clamp
@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import {
   clampChargeTarget,
   moveStep,
+  isUnsupportedBreakPosition,
   insertChargeStep,
   removeStep,
   setChargeTarget,
@@ -198,4 +199,78 @@ test("[STP-zone-1] sanitizeStepsForSave keeps zone steps (dedup ids, strip extra
   assert.deepEqual(clean[1], { type: "zone", zone_ids: ["z1", "z2"] });
   // a zone with no valid ids is dropped
   assert.deepEqual(sanitizeStepsForSave([rg(1), { type: "zone", zone_ids: [] }]).length, 1);
+});
+
+/* ====================== C40 — a leading zone ====================== */
+
+// The backend refuses a profile whose first step is a zone (leading_zone_unsupported):
+// apply_run_profile anchors each derived break by the rooms emitted before it, and a
+// leading zone has emitted none, so it is silently skipped and never runs. These pin the
+// card half of RN4T4MPV — if the editor can still compose one, the pair has diverged and
+// the user builds something the service then rejects.
+
+test("[STP-move] moveStep refuses to land a zone at index 0 (C40)", () => {
+  const steps = [
+    { type: "room_group", rooms: [{ room_id: 1 }] },
+    { type: "zone", zone_ids: ["stove"] },
+  ];
+  const next = moveStep(steps, 1, 0);
+  assert.deepEqual(
+    next,
+    steps,
+    "a zone was moved to position 0 — the backend will refuse the save, so the editor must not offer the move"
+  );
+});
+
+test("[STP-move] moveStep still reorders a zone anywhere else (C40 must not over-reach)", () => {
+  const steps = [
+    { type: "room_group", rooms: [{ room_id: 1 }] },
+    { type: "room_group", rooms: [{ room_id: 2 }] },
+    { type: "zone", zone_ids: ["stove"] },
+  ];
+  const next = moveStep(steps, 2, 1);
+  assert.equal(next[1].type, "zone", "a legal mid-sequence move was blocked");
+  assert.equal(next[0].type, "room_group");
+});
+
+test("[STP-move] a lone zone may still be moved to 0 — it is already there (C40)", () => {
+  const steps = [{ type: "zone", zone_ids: ["stove"] }];
+  assert.deepEqual(moveStep(steps, 0, 0), steps);
+});
+
+test("[STP-unsup] isUnsupportedBreakPosition flags a legacy leading zone (C40)", () => {
+  const steps = [
+    { type: "zone", zone_ids: ["stove"] },
+    { type: "room_group", rooms: [{ room_id: 1 }] },
+  ];
+  assert.equal(
+    isUnsupportedBreakPosition(steps, 0),
+    true,
+    "a stored leading zone must render struck-through, not as an ordinary about-to-run step — the refusal only guards NEW saves"
+  );
+  assert.equal(
+    isUnsupportedBreakPosition(steps, 1),
+    false,
+    "the room_group after it is perfectly fine"
+  );
+});
+
+test("[STP-unsup] a zone elsewhere is NOT flagged (C40 must not over-reach)", () => {
+  const steps = [
+    { type: "room_group", rooms: [{ room_id: 1 }] },
+    { type: "zone", zone_ids: ["stove"] },
+  ];
+  assert.equal(isUnsupportedBreakPosition(steps, 1), false);
+});
+
+test("[STP-san] sanitizeStepsForSave does NOT strip a leading zone (C40)", () => {
+  // isUnsupportedBreakPosition flags it; sanitize must still keep it, or editing and
+  // saving a legacy profile would silently DELETE the zone — trading a silent drop at
+  // apply for a silent loss at save. sanitize's shift/pop loops match charge/wait only.
+  const out = sanitizeStepsForSave([
+    { type: "zone", zone_ids: ["stove"] },
+    { type: "room_group", rooms: [{ room_id: 1 }] },
+  ]);
+  assert.equal(out.length, 2, "the leading zone was stripped on save");
+  assert.equal(out[0].type, "zone");
 });

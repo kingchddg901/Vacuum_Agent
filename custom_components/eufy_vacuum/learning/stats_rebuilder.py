@@ -594,7 +594,6 @@ class LearningStatsRebuilder:
                         "clean_intensity": clean_intensity,
                         "edge_mopping": edge_mopping,
                         "sample_count": 0,
-                        "total_estimated_minutes": 0.0,
                         "total_estimated_battery_used": 0.0,
                         "total_robot_water_used_ml": 0.0,
                         "total_water_overhead_ml": 0.0,
@@ -605,7 +604,6 @@ class LearningStatsRebuilder:
 
                 room_water = room_water_allocations.get(slug, {})
                 room_stats[exact_key]["sample_count"] += 1
-                room_stats[exact_key]["total_estimated_minutes"] += room_minutes
                 room_stats[exact_key]["total_estimated_battery_used"] += per_room_battery
                 room_stats[exact_key]["total_robot_water_used_ml"] += _safe_float(room_water.get("robot_water_used_ml"), 0.0)
                 room_stats[exact_key]["total_water_overhead_ml"] += _safe_float(room_water.get("water_overhead_ml"), 0.0)
@@ -635,7 +633,6 @@ class LearningStatsRebuilder:
                         "map_id": map_id,
                         "room_slug": slug,
                         "sample_count": 0,
-                        "total_estimated_minutes": 0.0,
                         "total_estimated_battery_used": 0.0,
                         "total_robot_water_used_ml": 0.0,
                         "total_water_overhead_ml": 0.0,
@@ -651,8 +648,6 @@ class LearningStatsRebuilder:
                     }
 
                 room_baselines[baseline_key]["sample_count"] += 1
-                if rid not in allocated_rids:
-                    room_baselines[baseline_key]["total_estimated_minutes"] += room_minutes
                 room_baselines[baseline_key]["total_estimated_battery_used"] += per_room_battery
                 room_baselines[baseline_key]["total_robot_water_used_ml"] += _safe_float(room_water.get("robot_water_used_ml"), 0.0)
                 room_baselines[baseline_key]["total_water_overhead_ml"] += _safe_float(room_water.get("water_overhead_ml"), 0.0)
@@ -996,6 +991,38 @@ class LearningStatsRebuilder:
             # flag (missing key -> coerced False here) is never mislabeled "Sanity
             # Failed". cleaning_area_m2 surfaces on the review row so the human
             # include/exclude call sees how much floor the run covered.
+            #
+            # ⚠ WHAT "SANE BY CONSTRUCTION" ACTUALLY RESTS ON, recorded 2026-08-21
+            # because the sentence above states the conclusion and not the premise.
+            # Graduation is not an automated soundness proof — it is a HUMAN
+            # confirming a pending run in the external-jobs wizard. So the claim
+            # reduces to "a person would not promote an unsound run", which holds
+            # only as far as that person can SEE the run is unsound. Chris, who
+            # wrote the original call: "that call was made from inside the system
+            # with too much system knowledge" — a maintainer knows the room sizes
+            # and the plausible timings; a new user does not.
+            #
+            # Measured against the confirm surface rather than argued, and it
+            # splits — the premise is HALF underwritten by the UI:
+            #   ROOM SET  supported. src/renderers/external-jobs.js shows the room
+            #             count and area, and already cross-checks them:
+            #             "{count} room doesn't match the picked area — re-pick,
+            #             or keep anyway". A user of any experience is TOLD.
+            #   DURATION  NOT supported. The justification names "a valid
+            #             duration", and the confirm card never renders one — its
+            #             only time field is detection_ts, falling back to
+            #             "unknown_time". Nobody judges duration at that gate,
+            #             because it is not on screen.
+            # So the room half of the premise is enforced by what the user is
+            # shown; the duration half is assumed and unobserved. Either surface
+            # duration at confirm, or narrow this comment to the half it can keep.
+            #
+            # ⚠ AND THIS IS THE SECOND SITE, NOT THE FIRST. external_ingest.py:1167
+            # already writes "sanity_passed": True at graduation. One rule decided
+            # in two modules, 800+ lines and a package apart: if that gate ever
+            # stops guaranteeing soundness, this force keeps stamping True and
+            # nothing goes red, because each module's own tests stay self-consistent.
+            # Classification of that pairing is an open ruling (00b-h: CONTESTED).
             origin = str(job.get("origin") or outcome.get("origin") or "").strip().lower() or None
             is_external = origin == "external"
             # The finalizer stamps a job-level cleaning_area_m2 (sensor read, any room

@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "実行プロファイルは充電/待機ブレークで始められません。"
     },
+    "leading_zone_unsupported": {
+      "message": "実行プロファイルはゾーンで始められません。"
+    },
     "trailing_break_unsupported": {
       "message": "実行プロファイルは充電/待機ブレークで終われません。"
     },

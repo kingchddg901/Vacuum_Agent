@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "Профиль запуска не может начинаться с паузы на зарядку/ожидание."
     },
+    "leading_zone_unsupported": {
+      "message": "Профиль запуска не может начинаться с зоны."
+    },
     "trailing_break_unsupported": {
       "message": "Профиль запуска не может заканчиваться паузой на зарядку/ожидание."
     },

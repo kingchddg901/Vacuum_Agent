@@ -33,6 +33,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# anchor: BNBFVSBR
 # Module-level pure helpers
 # ---------------------------------------------------------------------------
 
@@ -129,6 +130,7 @@ def _hours_summary(value: Any, suffix: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# anchor: BNXFRB65
 # Pure-function status helpers
 # ---------------------------------------------------------------------------
 
@@ -174,6 +176,7 @@ def replacement_status(*, remaining_percent: float | None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# anchor: BN6QNPKK
 # MaintenanceManager
 # ---------------------------------------------------------------------------
 
@@ -188,6 +191,7 @@ class MaintenanceManager:
         self._manager.data.setdefault("maintenance", {})
 
     # ------------------------------------------------------------------
+    # anchor: BN6NQY5J
     # Upkeep model metadata + guide helpers
     # ------------------------------------------------------------------
 
@@ -360,6 +364,7 @@ class MaintenanceManager:
         return None
 
     # ------------------------------------------------------------------
+    # anchor: BNNYPRQB
     # Upkeep snapshot
     # ------------------------------------------------------------------
 
@@ -697,6 +702,7 @@ class MaintenanceManager:
         }
 
     # ------------------------------------------------------------------
+    # anchor: BNF7YZZ4
     # Maintenance state / reset / remaining
     # ------------------------------------------------------------------
 

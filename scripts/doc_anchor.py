@@ -102,8 +102,25 @@ PREFIXES = {
     "HN": "historical notation — provenance: how or why this came to exist",
     "PN": "prose notation — the deep canonical explanation lives here",
     "IN": "invariant notation — something the system must preserve across refactors",
+    # EN is IN's twin, split off because IN's discipline is "name the input that makes
+    # it red" and these cannot have one. The discriminator is POSITIVE and it is one
+    # question — WHO BREAKS IT? A person doing something (editing .storage by hand,
+    # calling a service that moves a robot) is EN. The program doing something is IN.
+    # Deciding it by "can this be tested?" is what let three of these sit under PN.
+    "EN": "enforcement notation — a rule that binds a PERSON, not the program; its "
+          "enforcement lives outside the code and it can never have a bite",
     "RN": "replica notation — one rule deliberately implemented in more than one place; "
           "the copies must agree, and changing one means checking the others",
+    # BN is the odd one and deliberately so: every other class anchors a CLAIM, BN
+    # anchors a PLACE. A break says "section one ends, section two begins" and asserts
+    # nothing about what either section means — so it is never wrong, only stale, and a
+    # doc citing it is pointing at a REGION, not at a rule. That is why sections get
+    # their own namespace instead of CN: minting a code-notation token for every divider
+    # would dilute CN until an anchor stopped signalling "worth pointing at".
+    # The human-readable section name beside the token is what people read; the token is
+    # what survives renaming it.
+    "BN": "break notation — a section boundary within a file; a page break, not a claim. "
+          "Names a region so prose can address it without the file being split",
 }
 
 # Letters only, and only Crockford's unambiguous 22. 22 x 22 = 484 namespaces, each
@@ -156,15 +173,23 @@ def source_files() -> list[pathlib.Path]:
     return out
 
 
-# PN declares in PROSE, and only PN. Every other class anchors a thing that exists in
-# code, so its declaration belongs beside that thing. A PN anchors a rule with NO code
-# site -- "never edit .storage", "a service call moves hardware" -- and its reasoning is
-# the artifact. Declaring it in source would mean pinning it to a file that does not
-# enforce it, which reads as a guard and is not one. So the registry that holds the
-# reasoning IS the declaration site, and this is scoped to PN precisely so no other
-# class can drift into declaring itself in prose.
+# PN AND EN declare in PROSE. Every other class anchors a thing that exists in code, so
+# its declaration belongs beside that thing. These two do not:
+#
+#   EN  a rule with NO code site -- "never edit .storage", "a service call moves
+#       hardware". Its reasoning IS the artifact, so the registry holding that reasoning
+#       is the declaration site. Declaring it in source would pin it to a file that does
+#       not enforce it, which reads as a guard and is not one.
+#   PN  a pointer to where the deep canonical explanation lives -- and that explanation
+#       is a document, so the anchor belongs on it.
+#
+# ⚠ THIS COMMENT PREVIOUSLY DEFINED **PN** AS THE NO-CODE-SITE CLASS. That was EN's
+# definition under PN's name, and the tool is a third place PN's meaning was written
+# down -- spec, registry, tooling -- with the tool and the registry agreeing against the
+# spec. Ruled 2026-08-22: PN is the pointer, EN is the rule. Kept as a tuple rather than
+# widened to a prefix test, so adding a third prose-declaring class stays a decision.
 PROSE_DECL_ROOTS = ("docs",)
-PROSE_DECL_PREFIX = "PN"
+PROSE_DECL_PREFIXES = ("PN", "EN")
 
 
 def prose_decl_files() -> list[pathlib.Path]:
@@ -190,7 +215,7 @@ def scan() -> dict[str, list[tuple[pathlib.Path, int, str]]]:
             continue
         for i, line in enumerate(lines, 1):
             for tok in DECL_RE.findall(line):
-                if tok.startswith(PROSE_DECL_PREFIX):
+                if tok.startswith(PROSE_DECL_PREFIXES):
                     found[tok].append((p, i, line.strip()))
     for p in source_files():
         try:

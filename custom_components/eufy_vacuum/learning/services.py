@@ -800,6 +800,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
         map_id_override: str | None = call.data.get("map_id")
 
         # -------------------------------------------------------
+        # anchor: BNMXS80A
         # Load incomplete run log (file I/O → executor).
         # -------------------------------------------------------
         log: dict | None = await hass.async_add_executor_job(
@@ -845,6 +846,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
         )
 
         # -------------------------------------------------------
+        # anchor: BNGE63K1
         # Start cleaning.
         # -------------------------------------------------------
         result = await core_manager.start_selected_rooms(

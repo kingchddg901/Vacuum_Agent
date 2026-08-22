@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "Bir çalıştırma profili şarj/bekleme molasıyla başlayamaz."
     },
+    "leading_zone_unsupported": {
+      "message": "Bir çalıştırma profili bölgeyle başlayamaz."
+    },
     "trailing_break_unsupported": {
       "message": "Bir çalıştırma profili şarj/bekleme molasıyla bitemez."
     },

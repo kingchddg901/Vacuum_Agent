@@ -17,6 +17,31 @@ from .adapters.eufy.const import (
 )
 
 CONF_TESTED_MODEL = "tested_model"
+
+
+# HA VACUUM PLATFORM STANDARD STATES — the entity states meaning "active or faulted".
+#
+# Defined by the Home Assistant vacuum integration, NOT by any brand: every HA vacuum
+# integration uses these names regardless of manufacturer. Brand-specific active states
+# (Eufy's task_status strings, for instance) are a DIFFERENT concept and come from the
+# adapter's vocabulary block as hard_service_states / drying_states /
+# active_run_task_states.
+#
+# ⚠ NOT AN ADAPTER-DECLARABLE KEY, and that is deliberate. `active_vacuum_states` is not
+# in ADAPTER_CONFIG_SCHEMA's vocabulary section, so a brand that tried to declare it
+# would be REJECTED at validation. Core owns this set; a brand adding to it is a
+# category error, which is what ledger C19 removed from adapters/eufy/vocabulary.py.
+#
+# It lives HERE rather than in either consumer because it had TWO byte-identical copies
+# (core/manager.py and jobs/job_monitor.py, ledger C53) with no mechanism making them
+# agree — a rename in the HA platform would have updated one and left the other silently
+# wrong on whichever path used it.
+HA_ACTIVE_VACUUM_STATES: frozenset[str] = frozenset({
+    "cleaning",
+    "returning",
+    "paused",
+    "error",
+})
 CONF_NOTES = "notes"
 CONF_VACUUM_ENTITY_ID = "vacuum_entity_id"
 
@@ -47,6 +72,7 @@ CONF_VACUUM_ENTITY_ID = "vacuum_entity_id"
 ENTITY_OVERRIDES_KEY = "entity_overrides"
 
 # ----------------------
+# anchor: BNPD8J3V
 # Service names
 # ----------------------
 
@@ -125,6 +151,7 @@ SERVICE_START_RUN_PROFILE = "start_run_profile"
 SERVICE_GET_VACUUM_CAPABILITIES = "get_vacuum_capabilities"
 
 # ----------------------
+# anchor: BNKPHT1G
 # Adapter config services
 # ----------------------
 
@@ -135,6 +162,7 @@ SERVICE_DISCOVER_ADAPTER_ENTITIES = "discover_adapter_entities"
 SERVICE_OBSERVE_ENTITY_STATES = "observe_entity_states"
 
 # ----------------------
+# anchor: BNQKGHGD
 # Learning services
 # ----------------------
 
@@ -144,6 +172,7 @@ SERVICE_REBUILD_LEARNING_STATS = "rebuild_learning_stats"
 SERVICE_RUN_LEARNING_ESTIMATE = "run_learning_estimate"
 
 # ----------------------
+# anchor: BNTFXJ1X
 # Setup services (panel-driven)
 # ----------------------
 
@@ -164,6 +193,7 @@ SERVICE_SETUP_SET_PANEL_TITLE = "setup_set_panel_title"
 SERVICE_SETUP_SET_MAP_CAMERA = "setup_set_map_camera"
 
 # ----------------------
+# anchor: BNV2NJ50
 # Mapping services
 # ----------------------
 
@@ -243,6 +273,7 @@ SERVICE_SET_FURNISHED_RENDER_MODE = "set_furnished_render_mode"
 SERVICE_SET_ROOM_VIEWPORT = "set_room_viewport"
 
 # ----------------------
+# anchor: BN0JNMVV
 # Theme services
 # ----------------------
 
@@ -259,6 +290,7 @@ SERVICE_EXPORT_THEME = "export_theme"
 SERVICE_IMPORT_THEME = "import_theme"
 
 # ----------------------
+# anchor: BN6DJDXS
 # Internal data keys
 # ----------------------
 
@@ -281,6 +313,7 @@ DATA_ERROR_TRACKER = "error_tracker"
 DATA_ADAPTER_COORDINATOR = "adapter_coordinator"
 
 # ----------------------
+# anchor: BN1ENC2F
 # Events
 # ----------------------
 
@@ -325,6 +358,7 @@ EVENT_RUN_INCOMPLETE     = f"{DOMAIN}_run_incomplete"
 EVENT_ROOM_SKIPPED       = f"{DOMAIN}_room_skipped"
 
 # ----------------------
+# anchor: BNTM6TEN
 # Supported / tested
 # ----------------------
 

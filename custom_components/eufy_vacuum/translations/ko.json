@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "실행 프로필은 충전/대기 휴식으로 시작할 수 없습니다."
     },
+    "leading_zone_unsupported": {
+      "message": "실행 프로필은 구역으로 시작할 수 없습니다."
+    },
     "trailing_break_unsupported": {
       "message": "실행 프로필은 충전/대기 휴식으로 끝날 수 없습니다."
     },

@@ -104,6 +104,7 @@ class ProfileManager:
         self._data = manager.data
 
     # ------------------------------------------------------------------
+    # anchor: BN9M1MVS
     # ID generators
     # ------------------------------------------------------------------
 
@@ -321,6 +322,7 @@ class ProfileManager:
         return result
 
     # ------------------------------------------------------------------
+    # anchor: BNW696N6
     # Room profile CRUD
     # ------------------------------------------------------------------
 
@@ -923,6 +925,7 @@ class ProfileManager:
         }
 
     # ------------------------------------------------------------------
+    # anchor: BNP8V5FN
     # Run profile CRUD
     # ------------------------------------------------------------------
 
@@ -1355,6 +1358,26 @@ class ProfileManager:
             # wrong rather than diffing the saved profile against what they wrote.
             normalized, rejected = self._normalize_steps_reporting(steps)
             normalized = self._reject_unbracketed_break(normalized)
+            # C40: a profile whose FIRST step is a zone is saveable today and its
+            # zone never runs. apply_run_profile derives breaks with
+            # `after_index = rooms emitted so far` and only emits a break once at
+            # least one room has gone out (:1758) — a leading zone has emitted
+            # none, so it is skipped, `applied: True` is returned, and the card
+            # still lists it as step 1.
+            #
+            # DELIBERATELY NOT INSIDE _reject_unbracketed_break. That helper is
+            # also called by normalize_run_profile_steps, which the READ path uses
+            # — and a stored leading-zone profile must keep loading or a legacy
+            # profile stops starting entirely. Strict on write, tolerant on read,
+            # the same split RP-021b already states for breaks.
+            if len(normalized) > 1 and str(
+                normalized[0].get("type") or ""
+            ).strip().lower() == "zone":
+                raise ServiceValidationError(
+                    "A run profile cannot start with a zone",
+                    translation_domain=DOMAIN,
+                    translation_key="leading_zone_unsupported",
+                )
         except ServiceValidationError as err:
             return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
                     "saved": False, "reason": err.translation_key, "profile_id": profile_id}
@@ -1743,6 +1766,7 @@ class ProfileManager:
         # also where a leading/trailing break resolves -- unsupported per RP-021a
         # (Q17), and handled there consistently rather than by a second rule here.
         _derived_breaks: list[dict[str, Any]] = []
+        _dropped_leading_zones: list[dict[str, Any]] = []
         _applied_set = set(applied_room_ids)
         _rooms_emitted = 0
         for _step in self.run_profile_steps(profile):
@@ -1757,6 +1781,15 @@ class ProfileManager:
                 continue
             if _rooms_emitted >= 1:
                 _derived_breaks.append({**_step, "after_index": _rooms_emitted})
+            elif str(_step.get("type") or "").strip().lower() == "zone":
+                # C40: a zone before any room has been emitted cannot be anchored and
+                # is dropped. Behaviour is UNCHANGED — stored profiles keep applying —
+                # but the drop is no longer silent. The write path refuses new ones;
+                # this reports the ones already saved, which is the case the comment
+                # at :1723 says this method exists to serve: "an automation that calls
+                # apply_run_profile then start_cleaning ... a zone step was never
+                # cleaned at all".
+                _dropped_leading_zones.append(_step)
 
         self._manager.set_queue_breaks(
             vacuum_entity_id=vacuum_entity_id,
@@ -1799,6 +1832,13 @@ class ProfileManager:
             # Reported rather than silent: "the right rooms ran with the wrong
             # settings" is otherwise indistinguishable from a clean apply.
             "unsnapshotted_room_ids": _unsnapshotted,
+            # C40: zone steps that could not be anchored because no room had been
+            # emitted before them, and were therefore dropped. Empty for every profile
+            # saved since the write-path refusal landed; non-empty only for one stored
+            # earlier. Reported rather than silent for the same reason as
+            # unsnapshotted_room_ids above: "the profile ran but a step of it did not"
+            # is otherwise indistinguishable from a clean apply.
+            "dropped_leading_zones": _dropped_leading_zones,
         }
 
     async def start_run_profile(

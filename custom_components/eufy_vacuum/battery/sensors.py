@@ -490,10 +490,27 @@ class MidJobRechargeRateSensor(_BatteryBase):
         }
 
 
+#: Which honest denominator belongs to which mean (C17). ``count`` counts every job
+#: in the bucket; a mean is computed only over the jobs that carried BOTH of its
+#: inputs. Publishing the pair without this was the second half of the defect — the
+#: card showed "3.333 %/m2 — Jobs: 10" where the mean was over six.
+_MEAN_SAMPLE_FIELD = {
+    "drain_per_min_mean": "samples_duration",
+    "drain_per_hour_mean": "samples_duration",
+    "drain_per_m2_mean": "samples_area",
+}
+
+
 def _bucket_means(buckets: dict, mean_field: str | None) -> dict:
-    """Compact projection of bucketed aggregates for sensor attributes."""
+    """Compact projection of bucketed aggregates for sensor attributes.
+
+    Emits ``samples`` beside ``mean``: the number of jobs the mean was actually
+    computed over. ``count`` stays, because it is a true and separate fact about the
+    bucket — but it is no longer the only number next to a mean it does not describe.
+    """
     if not isinstance(buckets, dict) or not mean_field:
         return {}
+    sample_field = _MEAN_SAMPLE_FIELD.get(mean_field)
     out = {}
     for key, b in buckets.items():
         if not isinstance(b, dict):
@@ -501,5 +518,6 @@ def _bucket_means(buckets: dict, mean_field: str | None) -> dict:
         out[key] = {
             "count": b.get("count"),
             "mean": b.get(mean_field),
+            "samples": b.get(sample_field) if sample_field else None,
         }
     return out

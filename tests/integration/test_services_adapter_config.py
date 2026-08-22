@@ -8,6 +8,12 @@ Coverage targets
 [AC-3b] RP-031/Q9: save_adapter_config raises ServiceValidationError for a config
         missing adapter_id or dispatch.template (was a silent early return).
 [AC-3c] RP-031/Q9: save/delete_adapter_config now supports_response on success too.
+[AC-3d] RP-033/RF-32 (INYA5T84): the save path runs the FULL shared schema walk --
+        the same function the adapter-contract suite runs -- BEFORE persisting, so a
+        config only ADAPTER_CONFIG_SCHEMA can fault is refused and nothing is written.
+[AC-3e] RP-033/RF-32 (INYA5T84): registration severity is decided by the config's
+        SOURCE -- a stored config hard-raises on the same issues a code config only
+        warns about -- on both the coordinator and the bare-function surface.
 [AC-4]  delete_adapter_config removes a registered adapter.
 [AC-4c] RP-031/Q9: delete_adapter_config on a never-saved vacuum returns a
         structured {deleted:False, reason:"not_found"}, not a silent no-op.
@@ -18,6 +24,9 @@ Coverage targets
 """
 
 from __future__ import annotations
+
+import copy
+import logging
 
 import pytest
 
@@ -163,6 +172,173 @@ async def test_save_adapter_config_rejects_incomplete(hass, manager_with_service
             DOMAIN, "save_adapter_config",
             {"vacuum_entity_id": _VAC, "config": {"adapter_id": "a"}}, blocking=True)
     assert get_adapter_config(_VAC) is None
+
+
+# ---------------------------------------------------------------------------
+# [AC-3d] — [AC-3e] INYA5T84: ONE walk behind both surfaces, severity by source
+# ---------------------------------------------------------------------------
+
+_BRAND3 = "vacuum.brand3"
+
+
+def _config_only_the_schema_walk_can_fault() -> dict:
+    """A stored config whose ONLY defect is invisible to registry._validate_adapter.
+
+    ``_validate_adapter`` faults room_profiles, the three engine blocks,
+    capability_hints, dispatch.template, dispatch.phase_timing and setup.steps. It
+    has never looked at ``dispatch.service_domain`` — ADAPTER_CONFIG_SCHEMA is the
+    only thing on this path that declares it required. So this config SEPARATES the
+    save path's two gates: it reaches registration clean, and only the shared schema
+    walk can refuse it.
+
+    Deep-copied because ``dispatch`` is a nested dict a shallow ``dict()`` shares
+    with the module constant.
+    """
+    config = copy.deepcopy(_VALID_CONFIG)
+    del config["dispatch"]["service_domain"]
+    return config
+
+
+async def test_save_runs_the_shared_schema_walk_before_persisting(hass, manager_with_services):
+    """[AC-3d] INYA5T84: runtime validation is the SAME walk as the tests.
+
+    The schema was once "a documented contract nothing at runtime ever actually
+    enforced" — save_adapter_config hand-checked exactly two keys (adapter_id,
+    dispatch.template) and registered whatever else arrived over the live adapter,
+    every omitted block resolving to its own absent-default (Eufy-shaped) behaviour.
+
+    [AC-3b] above cannot see that regression coming back. It faults exactly the two
+    keys the old hand-check already covered, and both of its configs ALSO fail
+    registry._validate_adapter — whose own source-based raise produces the very same
+    ServiceValidationError one step later. Revert the save path to the hand-check and
+    [AC-3b] stays green.
+
+    So this case is built to be faultable ONLY by the shared walk, and it pins the
+    ORDER too: validate, THEN persist. Persist first and storage is left holding a
+    config the registry will reject — something that cannot load.
+    """
+    from custom_components.eufy_vacuum.adapters import registry as reg
+    from custom_components.eufy_vacuum.adapters.config_loader import (
+        get_stored_adapter_config,
+    )
+    from custom_components.eufy_vacuum.adapters.config_schema import (
+        validate_adapter_config,
+    )
+
+    # The manager fixture registers an adapter for _VAC, which would satisfy the
+    # "nothing registered" assertions below on its own.
+    reg.unregister_adapter_config(_VAC)
+
+    config = _config_only_the_schema_walk_can_fault()
+
+    # The premise, asserted rather than assumed: the OTHER gate on this path has
+    # nothing to say about this config, so a refusal below can only have come from
+    # the schema walk.
+    assert reg._validate_adapter(config) == []
+    assert validate_adapter_config(config) == [
+        "dispatch.service_domain: required key missing"
+    ]
+
+    with pytest.raises(ServiceValidationError, match="dispatch.service_domain"):
+        await hass.services.async_call(
+            DOMAIN,
+            "save_adapter_config",
+            {"vacuum_entity_id": _VAC, "config": config},
+            blocking=True,
+        )
+
+    # Refused BEFORE the write, not after it.
+    assert get_stored_adapter_config(manager_with_services.data, _VAC) is None
+    assert reg.get_adapter_config(_VAC) is None
+
+    # ...and the walk DISCRIMINATES: the identical config with that one required key
+    # put back saves and registers. Without this half a validator that refused
+    # everything — or an issues list read from the wrong place and therefore always
+    # truthy — would satisfy the assertions above.
+    restored = _config_only_the_schema_walk_can_fault()
+    restored["dispatch"]["service_domain"] = _VALID_CONFIG["dispatch"]["service_domain"]
+    await hass.services.async_call(
+        DOMAIN,
+        "save_adapter_config",
+        {"vacuum_entity_id": _VAC, "config": restored},
+        blocking=True,
+    )
+    assert get_stored_adapter_config(manager_with_services.data, _VAC) is not None
+    assert reg.get_adapter_config(_VAC)["adapter_id"] == "test_adapter"
+
+
+#: The smallest config producing EXACTLY ONE registration issue, identical for both
+#: sources: an adapter declaring no profile vocabulary at all. Carries no brand's
+#: words — the subject is the verdict, not the vocabulary.
+_UNDECLARED_PROFILE_VOCABULARY = {
+    "adapter_id": "brand3",
+    "entities": {},
+    "dispatch": {},
+}
+
+
+async def test_registration_severity_is_decided_by_the_configs_source(
+    hass, manager_with_services, caplog
+):
+    """[AC-3e] INYA5T84: the same issues, two deliberately different verdicts.
+
+    A STORED config (``source == "config"``) is untrusted input and must be refused —
+    a broken one used to register cleanly and shadow the live adapter. A CODE config
+    is a shipped brand adapter and must stay available: "a future code-adapter
+    regression must degrade to a warning, not take every install's startup down with
+    it." Integrity for input, availability for code.
+
+    Asserted on BOTH surfaces the invariant names — the coordinator method and the
+    bare-function shim — because the raise is written twice. A guard restored in one
+    copy of a replica pair reads exactly like a guard restored in both.
+    """
+    from custom_components.eufy_vacuum.adapters import registry as reg
+
+    caplog.set_level(logging.WARNING)
+
+    stored = dict(_UNDECLARED_PROFILE_VOCABULARY, source="config")
+    code = dict(_UNDECLARED_PROFILE_VOCABULARY, source="code")
+
+    # DETECTION is identical — one validator, one issue, whichever the source. Only
+    # the VERDICT differs, and that difference is the entire claim.
+    assert reg._validate_adapter(stored) == reg._validate_adapter(code)
+    assert len(reg._validate_adapter(code)) == 1
+
+    previous = reg.get_active_coordinator()
+    assert previous is not None, "the manager fixture wires the production surface"
+    try:
+        for surface, coordinator in (
+            ("coordinator", previous),
+            ("bare-function fallback", None),
+        ):
+            reg._set_active_coordinator(coordinator)
+
+            # The refusal must name the ADAPTER as well as the issue: an install
+            # with several vacuums gets one message and has to know which config was
+            # rejected. Matching both halves is also what stops this case passing
+            # against a degenerate config -- an empty dict raises just as loudly,
+            # but its adapter_id resolves to "unknown".
+            with pytest.raises(
+                ServiceValidationError, match=r"'brand3'.*room_profiles"
+            ):
+                reg.register_adapter_config(_BRAND3, stored)
+            assert reg.get_adapter_config(_BRAND3) is None, (
+                f"{surface}: a refused stored config must not be registered"
+            )
+
+            caplog.clear()
+            reg.register_adapter_config(_BRAND3, code)
+            assert reg.get_adapter_config(_BRAND3) == code, (
+                f"{surface}: a code config with issues must stay registered, not raise"
+            )
+            assert "room_profiles" in caplog.text, (
+                f"{surface}: the code config degraded silently instead of warning"
+            )
+
+            reg.unregister_adapter_config(_BRAND3)
+    finally:
+        reg._set_active_coordinator(previous)
+        reg._REGISTRY.pop(_BRAND3, None)
 
 
 async def test_delete_adapter_config_removes_registration(hass, manager_with_services):

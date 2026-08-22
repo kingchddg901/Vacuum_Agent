@@ -39,8 +39,16 @@ DRYING_STATES: frozenset[str] = frozenset({
 # Task status strings that indicate the vacuum is actively running
 # a job. Used to set has_observed_active_lifecycle and to detect
 # vacuum_busy state.
-# Note: "cleaning" and "returning" also appear in
-# HA_ACTIVE_VACUUM_STATES below — both sources are checked.
+# Note: "cleaning" and "returning" are ALSO HA vacuum-platform entity states, and
+# both sources are checked. The platform set is NOT declared here: it is universal
+# across every HA vacuum integration, so core owns it — ONE definition, in
+# `const.py::HA_ACTIVE_VACUUM_STATES`, imported by core/manager.py and
+# jobs/job_monitor.py (whose `active_vacuum_states` parameter defaults to it). It is
+# also NOT an adapter-declarable key: ADAPTER_CONFIG_SCHEMA has no slot for it, so a
+# brand attempting to declare it is rejected at validation. This file declares only
+# what is
+# BRAND-SPECIFIC — hard_service_states, drying_states, active_run_task_states — which
+# is exactly what adapter.py's vocabulary block passes to core.
 ACTIVE_RUN_TASK_STATES: frozenset[str] = frozenset({
     "cleaning",
     "room cleaning",
@@ -48,17 +56,6 @@ ACTIVE_RUN_TASK_STATES: frozenset[str] = frozenset({
     "returning",
     "resuming",
     "navigating",
-})
-
-# Vacuum entity states that indicate the vacuum is active or faulted.
-# Values marked [HA standard] are part of the HA vacuum platform
-# state machine and apply to all brands. Values marked [Eufy] are
-# Eufy-specific and may not appear on other brands.
-HA_ACTIVE_VACUUM_STATES: frozenset[str] = frozenset({
-    "cleaning",   # [HA standard]
-    "returning",  # [HA standard]
-    "paused",     # [HA standard]
-    "error",      # [HA standard]
 })
 
 # Mapping of framework event type keys to the raw dock_status strings
@@ -244,6 +241,7 @@ NOT_ERROR_SENTINELS: frozenset[str] = frozenset({
 
 
 # ---------------------------------------------------------------------------
+# anchor: BNZZZXW7
 # Fault policy (RF-DOCK) -- SOURCE, and whether the fault invalidates cleaning evidence
 # ---------------------------------------------------------------------------
 # WHY THIS EXISTS. total_error_seconds is subtracted from cleaning_time_seconds, so a
@@ -523,6 +521,48 @@ EUFY_EVIDENCE_SAFE_ROBOT_CODES: frozenset[int] = frozenset({
     7051,   # SCHEDULE FAILED -- the run never began
     7055,   # STATION NOT FOUND -- after the clean
 })
+
+
+# ---------------------------------------------------------------------------
+# ⚠ THE TABLES ABOVE ARE LIVE. THE TWO FUNCTIONS BELOW ARE NOT. DO NOT CONFLATE THEM.
+#
+# LIVE — every set above (EUFY_DOCK_SOURCED_ERROR_CODES, EUFY_ROBOT_SOURCED_ERROR_CODES,
+# EUFY_EVIDENCE_INVALIDATING_ERROR_CODES, EUFY_EVIDENCE_SAFE_ERROR_CODES,
+# EUFY_ERROR_LABEL_KEYS) is wired into core through the adapter DECLARATION at
+# `adapters/eufy/adapter.py` ("dock_sourced_error_codes", "robot_sourced_error_codes",
+# ...). Core reads them generically in `core.error_tracker.error_source_for_code` /
+# `classify_error_code` / `error_label_key`. Deleting any set breaks fault classification
+# for every Eufy vacuum.
+#
+# NOT LIVE — `eufy_error_source`, `eufy_error_invalidates_cleaning` and their
+# `_exact_error_code` helper have no production caller. They are not pending; they are
+# SUPERSEDED. They do per-brand what core now does generically from the declaration, and
+# the adapter says so in its own comment: "eufy_error_source() had built these tables and
+# had ZERO callers until this declaration wired them." The function built the tables; the
+# declaration wired the tables; the function stayed.
+#
+# ROBOROCK IS THE CORRECT PATTERN AND THE PROOF: `adapters/roborock/vocabulary.py` ships
+# the same five table kinds and NO equivalent functions. Written later, it skipped the
+# scaffolding.
+#
+# ⚠ THE HAZARD, hit for real on 2026-08-21. A reachability sweep found the FUNCTIONS
+# callerless and queued them for deletion — correct on its own terms. But the tables sit
+# in the same file, carry the same subject, and are load-bearing. "Delete the dead error
+# stuff here" removes both. That is why this banner names which half is which rather than
+# saying the file is fine.
+#
+# An earlier version of this banner claimed the functions were WAITING on
+# jeppesens/eufy-clean PR #161 ("capture and persist the full ErrorCode proto", open
+# 2026-07-26). That was wrong and is corrected here. #161 matters — today the fork reads
+# only warn[0], so few numeric codes reach us at all, and #161 delivers error[]/warn[]/
+# history to the Error Message sensor. But that data flows into CORE's generic lookup via
+# the declared tables. It creates no caller for these functions. More codes to classify,
+# same classifier.
+#
+# DISPOSITION (ledger C20): the functions are deletable on their own merits — with their
+# tests, which test only them. Not urgent, and not to be done by a sweep that cannot see
+# the distinction this banner exists to draw.
+# ---------------------------------------------------------------------------
 
 
 def eufy_error_source(code: object) -> str:

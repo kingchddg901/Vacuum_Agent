@@ -355,3 +355,72 @@ async def test_delete_run_profile_service_unknown_raises(hass, manager_with_serv
             blocking=True,
             return_response=True,
         )
+
+async def test_a_leading_zone_is_refused_on_save(hass, manager_with_services):
+    """[SRN-13] C40. A profile whose FIRST step is a zone must not save.
+
+    apply_run_profile anchors each derived break by the rooms emitted before it and only
+    emits one once at least one room has gone out. A leading zone has emitted none, so it
+    is skipped: the profile saved, the card listed the zone as step 1, `applied: True`
+    came back, and the zone never ran. Exactly the case apply_run_profile's own comment
+    says it exists to serve — an automation that applies a profile then starts cleaning.
+
+    The service converts a `saved: False` payload into ServiceValidationError
+    (services/run_profiles.py:258), so the refusal is observed as a RAISE carrying the
+    reason, not as a returned dict.
+    """
+    profile_id = await _save_profile(hass, manager_with_services, "C40 leading")
+    with pytest.raises(ServiceValidationError, match="leading_zone_unsupported"):
+        await hass.services.async_call(
+            DOMAIN, "set_run_profile_steps",
+            {"vacuum_entity_id": _VAC, "map_id": _MAP, "profile_id": profile_id, "steps": [
+                {"type": "zone", "zone_ids": ["stove"]},
+                {"type": "room_group", "rooms": [{"room_id": 1}, {"room_id": 2}]},
+            ]},
+            blocking=True, return_response=True,
+        )
+
+
+async def test_a_zone_after_a_room_group_still_saves(hass, manager_with_services):
+    """[SRN-13b] C40, the other half — the refusal must not eat legal profiles.
+
+    Without this, a check that rejected ANY profile containing a zone would pass
+    [SRN-13]. A zone following a room group is anchorable and is the supported shape.
+    """
+    profile_id = await _save_profile(hass, manager_with_services, "C40 legal")
+    result = await hass.services.async_call(
+        DOMAIN, "set_run_profile_steps",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "profile_id": profile_id, "steps": [
+            {"type": "room_group", "rooms": [{"room_id": 1}]},
+            {"type": "zone", "zone_ids": ["stove"]},
+            {"type": "room_group", "rooms": [{"room_id": 2}]},
+        ]},
+        blocking=True, return_response=True,
+    )
+    assert result["saved"] is True, (
+        f"a legal mid-sequence zone was refused: {result.get('reason')!r}"
+    )
+
+
+async def test_a_lone_zone_is_refused_for_the_OTHER_reason(hass, manager_with_services):
+    """[SRN-13c] C40. A single-step profile is not "leading" in this sense.
+
+    A zone-only profile was ALREADY illegal before C40 — `no_room_group` (manager.py:1385)
+    refuses it, and rightly. What this pins is that the new check does not ALSO claim it:
+    the leading-zone refusal carries a `len(normalized) > 1` guard mirroring
+    _reject_unbracketed_break's own, because with one entry there is no sequence to be
+    first in, and every queue_breaks call site normalizes one already-positioned step in
+    isolation.
+
+    Asserting WHICH refusal fires is the point. Both reject; only one is correct, and a
+    test that accepted either would not notice the guard being dropped.
+    """
+    profile_id = await _save_profile(hass, manager_with_services, "C40 lone")
+    with pytest.raises(ServiceValidationError, match="no_room_group"):
+        await hass.services.async_call(
+            DOMAIN, "set_run_profile_steps",
+            {"vacuum_entity_id": _VAC, "map_id": _MAP, "profile_id": profile_id, "steps": [
+                {"type": "zone", "zone_ids": ["stove"]},
+            ]},
+            blocking=True, return_response=True,
+        )

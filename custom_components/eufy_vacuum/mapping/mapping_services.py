@@ -137,6 +137,7 @@ def _png_dimensions(data: bytes) -> tuple[int, int] | None:
     return (width, height)
 
 # ---------------------------------------------------------------------------
+# anchor: BNPJAKN9
 # Service names
 # ---------------------------------------------------------------------------
 
@@ -178,6 +179,7 @@ ALL_MAPPING_SERVICES = (
 )
 
 # ---------------------------------------------------------------------------
+# anchor: BNEDRAMZ
 # Schemas
 # ---------------------------------------------------------------------------
 
@@ -579,6 +581,7 @@ GET_MAP_RENDER_DATA_SCHEMA = vol.Schema(
 
 
 # ---------------------------------------------------------------------------
+# anchor: BN131WEZ
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -647,6 +650,7 @@ async def _resolve_write_map_bucket(
 
 
 # ---------------------------------------------------------------------------
+# anchor: BN3EPB5V
 # Polygon math helpers
 # ---------------------------------------------------------------------------
 
@@ -818,6 +822,7 @@ def _apply_segment_adjustments(
 
 
 # ---------------------------------------------------------------------------
+# anchor: BN6NPMKA
 # Image analysis handlers
 # ---------------------------------------------------------------------------
 
@@ -1549,6 +1554,7 @@ async def _handle_set_segmentation_mode(hass: HomeAssistant, call: ServiceCall) 
 
 
 # ---------------------------------------------------------------------------
+# anchor: BNC3PSH3
 # Custom layouts — named collection of no-CV segmentations per map
 # ---------------------------------------------------------------------------
 #
@@ -2180,6 +2186,7 @@ async def _handle_set_companion_anchor(
 
 
 # ---------------------------------------------------------------------------
+# anchor: BN436BDT
 # Furnished custom render (Wave 0) — per-layout furnished-art overlay state
 # ---------------------------------------------------------------------------
 #
@@ -2597,6 +2604,7 @@ _LIVE_ROOM_PROBE_TASKS: dict[str, asyncio.Task] = {}
 
 
 # ---------------------------------------------------------------------------
+# anchor: BNS7MCWP
 # Custom layout CRUD
 # ---------------------------------------------------------------------------
 
@@ -2740,6 +2748,7 @@ async def _handle_set_active_custom_layout(hass: HomeAssistant, call: ServiceCal
 
 
 # ---------------------------------------------------------------------------
+# anchor: BNWZH4DA
 # Saved-zone CRUD (Wave 1 — storage only; filing + dispatch are later waves)
 # ---------------------------------------------------------------------------
 
@@ -2997,6 +3006,7 @@ async def _handle_clean_saved_zones(hass: HomeAssistant, call: ServiceCall) -> d
 
 
 # ---------------------------------------------------------------------------
+# anchor: BNCBE0NT
 # Registration
 # ---------------------------------------------------------------------------
 
@@ -3006,6 +3016,7 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
 
 
     # ------------------------------------------------------------------
+    # anchor: BNB7AGJH
     # Image analysis services
     # ------------------------------------------------------------------
 

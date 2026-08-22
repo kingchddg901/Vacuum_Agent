@@ -36,6 +36,7 @@ true.
 from __future__ import annotations
 
 import ast
+import textwrap
 import os
 
 ADAPTERS = os.path.join(
@@ -97,8 +98,13 @@ ALLOWED_SDK = (
 #: still works with this dict empty, so an empty ledger is evidence, not absence.
 KNOWN_LEAKS: dict[str, set[str]] = {}
 
-# Reaching into ANOTHER HA integration's hass.data is the adapter's whole job
-# (robovac_mqtt for Eufy, roborock for Roborock). Only VA's own domain is fenced.
+#: Reaching into ANOTHER HA integration's ``hass.data`` is the adapter's whole job
+#: (robovac_mqtt for Eufy, roborock for Roborock). Only VA's OWN domain is fenced —
+#: a brand file reading ``hass.data[DOMAIN]`` is reading core's runtime state.
+#:
+#: Consumed by ISO-6. Until 2026-08-21 NOTHING consumed it: it was declared, its rule
+#: lived in the comment above, and no test could make that rule fail — a PREFERENCE
+#: wearing a claim's clothes (ledger C45c). It is now the fence's vocabulary.
 OWN_DOMAIN_KEYS = ("DOMAIN", "eufy_vacuum")
 
 
@@ -286,4 +292,106 @@ def test_iso_5_the_detector_detects(tmp_path):
     assert not {m for _, m in _escaping_imports(str(clean))}, (
         "The detector flags a purely LOCAL import as escaping — it would report every "
         "adapter, and ISO-1's silence would mean nothing."
+    )
+
+
+def _own_domain_hass_data_reads(path: str) -> list[tuple[int, str]]:
+    """``hass.data[...]`` subscripts in one file naming VA's OWN domain.
+
+    AST, not a text search: the only mentions of ``hass.data[DOMAIN]`` under adapters/
+    today are DOCSTRINGS in registry.py explaining where the coordinator is stashed, and
+    a grep-based fence would fail on prose describing the rule it enforces.
+
+    Matches BOTH spellings in OWN_DOMAIN_KEYS — the imported constant and the string
+    literal — because an adapter reaches the same bucket either way, and a fence that
+    sees only one is a fence with a gate in it.
+    """
+    out: list[tuple[int, str]] = []
+    tree = ast.parse(open(path, encoding="utf-8").read())
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Subscript):
+            continue
+        value = node.value
+        if not (isinstance(value, ast.Attribute) and value.attr == "data"):
+            continue
+        key = node.slice
+        name = (
+            key.value if isinstance(key, ast.Constant)
+            else key.id if isinstance(key, ast.Name)
+            else None
+        )
+        if name in OWN_DOMAIN_KEYS:
+            out.append((node.lineno, str(name)))
+    return out
+
+
+def test_iso_6_no_brand_file_reads_vas_own_hass_data():
+    """[ISO-6] A brand package may reach any FOREIGN integration. Not ours.
+
+    An adapter reading ``hass.data[DOMAIN]`` reads CORE runtime state from a brand file
+    — the direction ISO-1 fences at the import graph, arriving instead through a dict at
+    runtime where no import appears.
+
+    ZERO SUBJECTS TODAY, deliberately. Which is why ISO-6b exists below: a fence with
+    nothing to catch is indistinguishable from a broken one until the detector is
+    exercised against a violation built for the purpose.
+    """
+    offenders = [
+        (rel, line, key)
+        for rel, abspath in _brand_files()
+        for line, key in _own_domain_hass_data_reads(abspath)
+    ]
+    assert not offenders, (
+        "a brand file reaches VA own-domain hass.data: "
+        + "; ".join(f"{r}:{l} hass.data[{k}]" for r, l, k in offenders)
+        + ". Reaching into robovac_mqtt or roborock is the adapter job; reaching into "
+        "ours means core state is read from a brand package. Pass what the adapter "
+        "needs as an argument instead."
+    )
+
+
+def test_iso_6b_the_own_domain_detector_detects(tmp_path):
+    """[ISO-6b] The instrument, exercised — the same discipline as ISO-5.
+
+    Fails two ways, both the point. A detector that finds nothing leaves ISO-6 green for
+    the wrong reason; one that flags everything would also pass the positive half alone,
+    so the negative case asserts a FOREIGN domain read is NOT reported.
+    """
+    leaky = tmp_path / "leaky_adapter.py"
+    leaky.write_text(
+        textwrap.dedent(
+            """
+            from ...const import DOMAIN
+
+            def go(hass):
+                a = hass.data[DOMAIN]["runtime"]
+                b = hass.data["eufy_vacuum"]["adapter_coordinator"]
+                return a, b
+            """
+        ),
+        encoding="utf-8",
+    )
+    found = {key for _, key in _own_domain_hass_data_reads(str(leaky))}
+    assert found == {"DOMAIN", "eufy_vacuum"}, (
+        "the own-domain detector must catch BOTH spellings — the imported constant and "
+        "the string literal — or a brand file reaches core state through whichever one "
+        f"it misses and ISO-6 stays green. Found: {found}"
+    )
+
+    clean = tmp_path / "clean_adapter.py"
+    clean.write_text(
+        textwrap.dedent(
+            """
+            def go(hass):
+                coords = hass.data["robovac_mqtt"][0]["coordinators"]
+                parsed = hass.data["roborock"].get("maps")
+                return coords, parsed
+            """
+        ),
+        encoding="utf-8",
+    )
+    assert not _own_domain_hass_data_reads(str(clean)), (
+        "the detector flagged a FOREIGN integration hass.data read. Reaching into "
+        "robovac_mqtt and roborock is precisely what an adapter is FOR — a fence that "
+        "blocks it would report every adapter and ISO-6 silence would mean nothing."
     )

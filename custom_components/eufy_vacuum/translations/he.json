@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "פרופיל הפעלה לא יכול להתחיל בהפסקת טעינה/המתנה."
     },
+    "leading_zone_unsupported": {
+      "message": "פרופיל הפעלה לא יכול להתחיל באזור."
+    },
     "trailing_break_unsupported": {
       "message": "פרופיל הפעלה לא יכול להסתיים בהפסקת טעינה/המתנה."
     },

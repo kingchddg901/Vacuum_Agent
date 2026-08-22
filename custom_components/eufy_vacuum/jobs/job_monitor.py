@@ -19,19 +19,11 @@
 
 
 from __future__ import annotations
+from ..const import HA_ACTIVE_VACUUM_STATES
 from ..profiles.room_profiles import may_wet_floor
 
 from typing import Any, Optional
 
-# HA vacuum platform standard states. These are part of the HA vacuum
-# state machine spec — not brand-specific firmware strings. All HA vacuum
-# integrations use these state names regardless of brand.
-_HA_ACTIVE_VACUUM_STATES: frozenset[str] = frozenset({
-    "cleaning",   # vacuum platform standard
-    "returning",  # vacuum platform standard
-    "paused",     # vacuum platform standard
-    "error",      # vacuum platform standard
-})
 
 try:
     from typing import TypedDict
@@ -176,7 +168,7 @@ def evaluate_job_lifecycle(
     hard_service_states: frozenset[str] = frozenset(),
     drying_states: frozenset[str] = frozenset(),
     active_run_task_states: frozenset[str] = frozenset(),
-    active_vacuum_states: frozenset[str] = _HA_ACTIVE_VACUUM_STATES,
+    active_vacuum_states: frozenset[str] = HA_ACTIVE_VACUUM_STATES,
 ) -> dict[str, Any]:
     """Return a lifecycle state dict describing the vacuum's current readiness.
 

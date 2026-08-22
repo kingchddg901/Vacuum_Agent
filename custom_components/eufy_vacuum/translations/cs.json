@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "Profil úklidu nemůže začínat přestávkou na nabíjení/čekání."
     },
+    "leading_zone_unsupported": {
+      "message": "Profil úklidu nemůže začínat zónou."
+    },
     "trailing_break_unsupported": {
       "message": "Profil úklidu nemůže končit přestávkou na nabíjení/čekání."
     },

@@ -72,6 +72,7 @@ export function applyRoomsActions(proto) {
     };
 
     // ------------------------------------------------------
+    // anchor: BNB9BKM3
     // 1) Confirm start status against backend truth
     // ------------------------------------------------------
     const startStatusResult = await this.callService(
@@ -92,6 +93,7 @@ export function applyRoomsActions(proto) {
     }
 
     // ------------------------------------------------------
+    // anchor: BNAXGMHJ
     // 2) Start selected rooms
     // ------------------------------------------------------
     const startRequest = {
@@ -151,6 +153,7 @@ export function applyRoomsActions(proto) {
     this.state.clearCancelRunConfirmation();
 
     // ------------------------------------------------------
+    // anchor: BNYCFWAT
     // 3) Run learning estimate and store the full payload
     // ------------------------------------------------------
     const estimate = await this.runLearningEstimate({
@@ -168,6 +171,7 @@ export function applyRoomsActions(proto) {
     this.state.setLearningJobActive(false);
 
     // ------------------------------------------------------
+    // anchor: BN7WZN6Q
     // 4) Enter active learning-job mode
     // ------------------------------------------------------
     this.state.beginLearningJob();

@@ -136,10 +136,18 @@ HISTORICAL = ("docs/dev/history/", "docs/dev/maintenance/", "docs/dev/deltas/",
 
 
 def test_prose_anchors_have_a_live_consumer():
-    """[RR-4] A PN is cited by at least one LIVE artifact. The inverse of [RR-1]/[RR-2].
+    """[RR-4] A PROSE-DECLARED anchor is cited by at least one LIVE artifact.
+    The inverse of [RR-1]/[RR-2].
 
-    A PN has no code site by definition, so "is it declared?" cannot be the check --
-    it is declared in 00b, because the reasoning IS the artifact. What makes it earn
+    Covers every class that declares in prose, asked of doc_anchor itself rather than
+    hardcoded -- EN (a rule binding a person, no code site) and PN (a pointer to where
+    the canonical explanation lives). Both are declared in a document because the
+    document IS the artifact, so "is it declared at a site?" cannot be the check.
+
+    ⚠ THIS TEST WAS HARDCODED TO "PN" AND CAUGHT THE 2026-08-22 RECLASSIFICATION BY
+    GOING RED -- the three rules moved to EN, PN went to zero members, and the canary
+    below fired. Sweeping the three TOKENS did not touch a guard keyed on the CLASS.
+    Retiring a class means sweeping its name, not only its instances. What makes it earn
     its place is being pointed at from something that still runs or is still read:
     the code the rule constrains, a procedure, a test.
 
@@ -148,8 +156,13 @@ def test_prose_anchors_have_a_live_consumer():
     review, the same division as every other ratchet in this repo: the machine shows
     the relationship is structurally present, a human decides it is the right one.
     """
-    declared = sorted(t for t in _declared() if t.startswith("PN"))
-    assert declared, "no PN anchors found — the prose-declaration path is broken"
+    declared = sorted(
+        t for t in _declared() if t.startswith(doc_anchor.PROSE_DECL_PREFIXES)
+    )
+    assert declared, (
+        "no prose-declared anchors found for any of "
+        f"{doc_anchor.PROSE_DECL_PREFIXES} — the prose-declaration path is broken"
+    )
 
     live: dict[str, list[str]] = {t: [] for t in declared}
     for path in doc_anchor.ref_files():
@@ -168,7 +181,7 @@ def test_prose_anchors_have_a_live_consumer():
 
     uncited = sorted(t for t, where in live.items() if not where)
     assert not uncited, (
-        f"PN anchors with no LIVE consumer: {uncited}. "
+        f"prose-declared anchors with no LIVE consumer: {uncited}. "
         "A rule with no code site earns its place by being pointed at from "
         "something current — the code it constrains, a procedure, a test. A "
         "mention in history/ or maintenance/ does not count: those are dated "

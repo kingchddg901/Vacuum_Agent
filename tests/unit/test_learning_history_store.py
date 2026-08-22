@@ -613,6 +613,115 @@ def test_ensure_dirs_idempotent(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# INJW5J2A — ensure_dirs does its filesystem work ONCE per (process, vacuum)
+#
+# "does not raise on a second call" (above) is not the claim. The claim is that
+# the second call touches no disk at all. Both are green against an ensure_dirs
+# with no memo whatsoever, which is why the memo needed its own tests.
+# ---------------------------------------------------------------------------
+
+def _record_mkdirs(monkeypatch) -> list[Path]:
+    """Record every ``Path.mkdir`` the code under test issues, and still do it.
+
+    Deliberately a real wrapper rather than a mock: the production call must
+    genuinely create the directories, or "the warm call did no work" could pass
+    because there was never any work to see. The returned list IS the
+    instrument, so every assertion below that it is EMPTY is preceded by one
+    proving it was non-empty first — the [DE-W1] failure was exactly an
+    assertion that could not tell "no work" from "no probe".
+    """
+    real_mkdir = Path.mkdir
+    seen: list[Path] = []
+
+    def counting_mkdir(self, *args, **kwargs):
+        seen.append(self)
+        return real_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", counting_mkdir)
+    return seen
+
+
+def _leaf_dirs(paths) -> tuple[Path, ...]:
+    """The six directories ensure_dirs is responsible for — LearningPaths minus
+    ``root``, which only ever appears as a ``parents=True`` side effect."""
+    return (paths.jobs_dir, paths.learned_dir, paths.exports_dir,
+            paths.live_dir, paths.phases_dir, paths.phased_jobs_dir)
+
+
+def test_ensure_dirs_memoized_warm_calls_touch_no_disk(tmp_path, monkeypatch):
+    """[INJW5J2A/RF-29] ensure_dirs is reached from 13 path-getter call sites in
+    history_store, so an un-memoized version pays the whole mkdir pass on every
+    warm-path hit — three times per estimate(), on every dashboard snapshot. On a
+    network-mounted config that is "sustained blocking filesystem I/O on the HA
+    event loop whenever a card is open", which stalls every integration on the
+    box, not just this one. The pass runs on the FIRST call for a vacuum and
+    never again for that vacuum on this store."""
+    store = _make_store(tmp_path)
+    mkdirs = _record_mkdirs(monkeypatch)
+
+    cold = store.ensure_dirs(vacuum_entity_id="vacuum.alfred")
+
+    # The probe can see the work: the cold call really did make all six.
+    for leaf in _leaf_dirs(cold):
+        assert leaf in mkdirs, f"cold ensure_dirs never mkdir'd {leaf}"
+        assert leaf.is_dir()
+
+    mkdirs.clear()
+    warm = None
+    for _ in range(13):   # one per path-getter call site that reaches ensure_dirs
+        warm = store.ensure_dirs(vacuum_entity_id="vacuum.alfred")
+
+    assert len(mkdirs) == 0, (
+        f"warm ensure_dirs hit the filesystem {len(mkdirs)} times "
+        f"({sorted({p.name for p in mkdirs})}) - the memo is not holding"
+    )
+    assert warm == cold   # ...and still resolves the same paths
+
+
+def test_ensure_dirs_memo_is_keyed_on_the_slug_not_the_entity_id(tmp_path, monkeypatch):
+    """[INJW5J2A/RF-29] "Key the memo the way the guarded thing is keyed."
+    get_paths resolves the directory through _vacuum_slug, so the memo is keyed
+    on the slug too. Keyed on the raw vacuum_entity_id it would be FINER than the
+    thing it guards: every differently-cased or whitespace-padded caller misses,
+    re-runs the mkdir pass, and the memo reads as one that works. The variants
+    below are the closed set _vacuum_slug already normalizes (domain split,
+    strip, lower) — see the _vacuum_slug tests above."""
+    store = _make_store(tmp_path)
+    mkdirs = _record_mkdirs(monkeypatch)
+
+    store.ensure_dirs(vacuum_entity_id="vacuum.alfred")
+    assert mkdirs, "cold ensure_dirs did no work — the probe is not attached"
+
+    for variant in ("vacuum.Alfred", "VACUUM.alfred", "  vacuum.alfred  ", "alfred"):
+        assert _vacuum_slug(variant) == "alfred"   # the premise, stated not assumed
+        mkdirs.clear()
+        store.ensure_dirs(vacuum_entity_id=variant)
+        assert len(mkdirs) == 0, (
+            f"{variant!r} missed the memo and re-ran the mkdir pass "
+            f"({sorted({p.name for p in mkdirs})})"
+        )
+
+    # ...and the key is the slug itself, not whichever spelling arrived first.
+    assert store._ensured_vacuum_dirs == {"alfred"}
+
+
+def test_ensure_dirs_memo_does_not_starve_a_second_vacuum(tmp_path):
+    """[INJW5J2A/RF-29] The memo is per (process, vacuum). Keyed COARSER than
+    that — one "already ensured" flag on the store — every vacuum after the first
+    gets paths back that were never created, and the first write into them fails.
+    One store instance serves every vacuum in the integration, so two on one
+    store is the shipped case, not an edge one."""
+    store = _make_store(tmp_path)
+    store.ensure_dirs(vacuum_entity_id="vacuum.alfred")
+
+    ivy = store.ensure_dirs(vacuum_entity_id="vacuum.ivy")
+
+    for leaf in _leaf_dirs(ivy):
+        assert leaf.is_dir(), f"the second vacuum never got {leaf}"
+    assert store._ensured_vacuum_dirs == {"alfred", "ivy"}
+
+
+# ---------------------------------------------------------------------------
 # read_json / write_json
 # ---------------------------------------------------------------------------
 

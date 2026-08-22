@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "لا يمكن أن يبدأ ملف التشغيل باستراحة شحن/انتظار."
     },
+    "leading_zone_unsupported": {
+      "message": "لا يمكن أن يبدأ ملف التشغيل بمنطقة."
+    },
     "trailing_break_unsupported": {
       "message": "لا يمكن أن ينتهي ملف التشغيل باستراحة شحن/انتظار."
     },

@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "Profil uruchomienia nie może zaczynać się przerwą na ładowanie/oczekiwanie."
     },
+    "leading_zone_unsupported": {
+      "message": "Profil uruchomienia nie może zaczynać się strefą."
+    },
     "trailing_break_unsupported": {
       "message": "Profil uruchomienia nie może kończyć się przerwą na ładowanie/oczekiwanie."
     },

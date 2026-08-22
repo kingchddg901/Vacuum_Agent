@@ -1480,14 +1480,91 @@ stored reference.
   comes from and why two rooms can never share one.
 - **Cite `INCFMPP1`** from any code that derives, stores or resolves a room slug.
 
-## Rules with no code site — `PN`
+### `IN3ASEP8` — a rejected datum is rejected for every purpose
+
+A sample a guard rejects may be **recorded**, but must not update any state that later
+samples are measured against. Half-rejecting it corrupts every measurement that follows.
+
+**The consequence.** A rejected datum is one the system has already decided it cannot
+trust. If it is still allowed to move a baseline, an anchor, a flag or a lifecycle, then
+every *accepted* sample after it is measured against something the system itself refused.
+The corruption is silent and it compounds: nothing downstream can tell that its reference
+point came from a discarded observation.
+
+**Why it is not obvious, and this is the whole difficulty.** The guard EXISTS. A site that
+rejects a datum for its headline purpose reads as handled, and the fields it *does* protect
+are exactly what stops anyone looking for the ones it does not. The failure is never a
+missing guard — it is a guard whose predicate covers less than its comment claims. Every
+individual write is legitimate in isolation; the defect is the set of them.
+
+- **Why:** the mechanism, the measured evidence and the accepted exception are recorded at
+  the anchor site itself, `battery/manager.py::_process_sample` (the `DR-BAT-2` block).
+- **Enforced:** PARTIALLY, deliberately, and the gap is named below. `advance_anchor`
+  (`battery/manager.py::_process_sample`) holds `last_battery_level` and `last_sample_ts`
+  for an out-of-order sample.
+- **Bite.** Feed a sample the guard rejects, then assert that **no state a later sample
+  reads** has changed — enumerated from the function, not from memory. Not "the anchor is
+  unchanged": the anchor is whatever the next sample measures against, which is more than
+  the fields named *anchor*.
+- **⚠ THE BITE IS WIDER THAN THE ONE THIS RULE WAS DRAFTED WITH, ON PURPOSE.** The draft
+  said *assert `last_battery_level` and `last_sample_ts` are unchanged* — two of the three
+  fields — and **that assertion passes on the code at its own cited site.** A rule whose
+  stated bite cannot detect its own violation is the same partial-guard shape one level up,
+  and it would have shipped as enforcement. Anywhere this rule is applied, enumerate the
+  writes; do not name the ones you remember.
+- **⚠ ACCEPTED VIOLATION at the primary site — `battery/manager.py`, ledger C15.** The
+  anchor is three fields and the guard holds two. `_update_session` has already run when
+  `if advance_anchor:` is reached, and `last_charging` is written below it unconditionally,
+  so a rejected sample still opens or closes a charge session carrying its own stale
+  timestamp and level — which can leave a `session_history_recent` entry and a
+  `sessions.csv` row whose `end_ts` precedes its `start_ts`. Nothing repairs those.
+  **Left open on evidence, not oversight:** `elapsed_sec <= 0` requires the wall clock to
+  step backwards (`ts` is minted per-sample from `datetime.now()`, never inherited from a
+  state object, so co-timed samples cannot collide), and 104 vacuum-days of `samples.jsonl`
+  across two live machines contain no such step, with 387 archived sessions containing no
+  inverted row. Mechanism certain, occurrence unobserved.
+- **⚠ IF THE EXCEPTION IS EVER CLOSED, BOTH STATEMENTS MOVE TOGETHER.** Guarding
+  `_update_session` alone makes each repeated stale sample RE-OPEN the session; guarding
+  `last_charging` alone makes the next genuine sample read a false transition and RESTART a
+  live one. Either half alone is worse than neither — which is also why this rule is stated
+  as *every purpose* rather than as a list of fields.
+- **Cite `IN3ASEP8`** from any guard that rejects an observation while other state at the
+  same site keeps updating.
+
+> **Pairs with, and is not, the report-the-reason rule at the same guard.** `_process_sample`
+> captures `rejected_delta_pct` for the audit trail *while* `delta_pct` stays `None`. That is
+> the separate rule that a rejection must be visible; this one is that a rejection must not
+> leak into the baseline. Two rules, one guard, worth keeping apart — a site can satisfy
+> either while breaking the other.
+## Rules with no code site — `EN`
+
+> **⚠ RECLASSIFIED 2026-08-22 — these three were `PN` until now.** `PN` means what the
+> specification always said it meant: *a pointer to where the deep canonical explanation
+> lives*. This section had been using it for something else — *a rule whose enforcement
+> lives outside the code* — and the divergence mattered because this is the document you
+> consult to answer "is this an `IN` or a `PN`?". The tooling had drifted the same way
+> (`doc_anchor.py`'s prose-declaration comment defined `PN` as the no-code-site class),
+> so two of the three places PN was written down agreed against the third.
+>
+> The three rules were **re-minted, not re-prefixed**: `PN1E8AZT` → `ENMKYC3F`,
+> `PNWJZYYR` → `ENFV9F37`, `PNN14JRN` → `ENQZV7VH`. Swapping only the class would have
+> left the old tokens still *looking* well-formed while resolving to nothing, which is
+> the stale-citation failure `[RR-4]` exists to catch. Dated records keep the old tokens
+> deliberately — they record what was true when written.
+>
+> **The discriminator is now positive, and it is one question: WHO BREAKS IT?** A person
+> doing something — editing `.storage` by hand, calling a service that moves a robot — is
+> an `EN`. The program doing something is an `IN`. Each entry below used to carry a *"why
+> this can never be an `IN`"* paragraph, defining the class by what it lacks; that form
+> loses the moment someone argues a bite exists and promotes the row.
 
 Some rules bind and can never have an enforcement site, because they are not about code.
 They are decisions: what the system must not do, or what the product is for. An `IN` anchor
-would be a lie — there is nothing to point at — so these carry a **`PN`** (prose notation),
+would be a lie — there is nothing to point at — so these carry an **`EN`** (enforcement
+notation),
 declared here rather than in source, because **here is where the reasoning lives**.
 
-**A citation cannot make something a `PN`.** The order is one-way and the tooling sits at
+**A citation cannot make something an `EN`.** The order is one-way and the tooling sits at
 the end of it:
 
 > a human rules that this is genuinely a prose-only obligation → mint → declare here →
@@ -1499,18 +1576,19 @@ be a rule" — which is how a register fills with things nobody decided. The che
 that. Same division as every other gate here.
 
 The integrity question inverts. For an `IN`, ask *"is it declared at a site?"* — a rule with
-no site is suspect. A `PN` has no site by definition, so the meaningful question is the
-reverse: **does anything cite it?** A `PN` nothing references is a document with a token on
+no site is suspect. An `EN` has no site by definition, so the meaningful question is the
+reverse: **does anything cite it?** An `EN` nothing references is a document with a token on
 it. Each one below therefore names where it is cited from.
 
 **And the citation must be LIVE.** `docs/dev/history/` and `maintenance/` are as-of-their-date
-records, and the repo's citation and index gates already exclude them for that reason. A `PN`
+records, and the repo's citation and index gates already exclude them for that reason. An `EN`
 kept alive by a mention in a dated note is attached to nothing current — the prose equivalent
 of a green test bound to the wrong thing. `[RR-4]` excludes them.
 
-### `PN1E8AZT` — never edit `.storage` directly
+### `ENMKYC3F` — never edit `.storage` directly
 
-> `anchor: PN1E8AZT` — **declared here.** This section is the site; there is no code one.
+> `anchor: ENMKYC3F` — **declared here.** This section is the site; there is no code one.
+> *(was `PN1E8AZT` before the 2026-08-22 reclassification.)*
 
 Home Assistant owns `.storage`. It rewrites the file on shutdown from its own in-memory
 state, so an external edit is not merged — it is **overwritten**, and HA moves the file it
@@ -1526,9 +1604,10 @@ value can only be changed by editing `.storage`, that is a missing service, not 
 
 - **Cited from** `core/storage.py`, the one place the `Store` helper is constructed.
 
-### `PNWJZYYR` — a service call moves real hardware
+### `ENFV9F37` — a service call moves real hardware
 
-> `anchor: PNWJZYYR` — **declared here.** This section is the site; there is no code one.
+> `anchor: ENFV9F37` — **declared here.** This section is the site; there is no code one.
+> *(was `PNWJZYYR` before the 2026-08-22 reclassification.)*
 
 `hass.services.async_call` on a vacuum domain moves a robot in someone's home. It is not a
 read, it is not idempotent, and it cannot be undone by calling something else.
@@ -1544,9 +1623,10 @@ the container and never a live entity. Documentation shows payloads, not invocat
 
 - **Cited from** `dispatch/manager.py`'s send chokepoint.
 
-### `PNN14JRN` — the card is a glance surface
+### `ENQZV7VH` — the card is a glance surface
 
-> `anchor: PNN14JRN` — **declared here.** This section is the site; there is no code one.
+> `anchor: ENQZV7VH` — **declared here.** This section is the site; there is no code one.
+> *(was `PNN14JRN` before the 2026-08-22 reclassification.)*
 
 The card answers *"what is happening, and what do I press"* in a few seconds on a phone.
 Analysis — history, comparisons, anything read column-by-column — belongs in the CSV export.

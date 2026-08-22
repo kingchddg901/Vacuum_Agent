@@ -64,6 +64,11 @@ export function applySetupRenderers(proto) {
     return t === `setup.step_${step.id}` ? this.escapeHtml(String(step.label || step.id)) : t;
   };
 
+  // ------------------------------------------------------------------------
+  // anchor: BN00X12B
+  // Setup steps wizard
+  // ------------------------------------------------------------------------
+
   proto.renderSetupView = function (ctx) {
     const { state, card } = ctx;
 
@@ -903,6 +908,11 @@ export function applySetupRenderers(proto) {
    * outside — an entity resolving correctly while the consumer is broken (issue
    * #49's battery) versus the resolver having picked the wrong entity.
    */
+  // ------------------------------------------------------------------------
+  // anchor: BN2P065F
+  // System entity bindings
+  // ------------------------------------------------------------------------
+
   proto._renderSystemSubtab = function (ctx) {
     const { state } = ctx;
     const rows = state.entityBindings?.() ?? [];

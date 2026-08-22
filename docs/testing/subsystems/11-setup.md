@@ -42,6 +42,15 @@ Architecture reference: [docs/dev/15-setup-system.md](../../dev/15-setup-system.
 The `manager` / `manager_with_services` fixtures plus `test_init_setup.py` for
 the entry-level wiring. `protection.py` is pure and unit-tested.
 
+One entry-level behaviour needs the opposite precondition to every test in
+`test_init_setup.py`, so it lives apart in `test_init_provider_readiness.py`:
+the cold-start provider-readiness rule (`INKR1TW7`). `async_at_started` fires
+immediately when HA is already running, so a config entry set up against a
+running `hass` cannot tell a deferred read from an inline one — that file boots
+the entry with `hass` NOT started, publishes the vacuum's companion entities
+only afterwards, and asserts the capability snapshot is repaired rather than
+cached.
+
 ---
 
 ## Known gaps

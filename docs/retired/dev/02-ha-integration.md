@@ -157,7 +157,26 @@ external-run grace timers). See [05 §7](05-core-manager.md).
 
 ### `async_remove_entry` (`__init__.py`)
 
-Creates a bare `Store` and calls `async_remove()` to wipe persisted data.
+Creates a bare `Store` and calls `async_remove()` — which clears **`.storage/eufy_vacuum`
+only**: rooms, profiles, adapter config, the battery record.
+
+> ⚠ **THE ON-DISK TREE IS NOT DELETED, AND IS NOT MANAGED FOR DELETION.** Everything under
+> `<config>/eufy_vacuum/` survives removing the integration, deleting a vacuum, and
+> uninstalling from HACS — the learning tree (`learning/<vacuum>/`: jobs, phases, learned
+> stats, exports, stall captures), the pose ring, `samples.jsonl` and `sessions.csv`.
+> **This is a decision, not an oversight** (ledger C30). That data is the user's own
+> recorded history of their own home, it is the only copy, and nothing in HA would put it
+> back — so the recoverable outcome wins: inherited data can be cleared by hand, a purge
+> cannot be undone.
+>
+> **No service, hook, or age policy removes any of it.** Deleting `<config>/eufy_vacuum/`
+> is a manual step. (`pose_store.py` has its own age-based expiry for ring entries, which
+> is a size bound during normal operation, not a removal path.)
+>
+> Learned rows are keyed by `(map_id, room_slug)`, so a reinstall only re-attaches old
+> data where **both** match a map the vacuum later builds. A recreated map takes a new
+> `map_id` in practice, which is what makes inheriting tolerable rather than merely
+> convenient — the stale rows go inert instead of silently informing estimates.
 
 ### `async_remove_config_entry_device` (`__init__.py`)
 

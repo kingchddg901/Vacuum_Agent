@@ -24,7 +24,7 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from ..entity_resolve import resolve_declared_entities
 
 from ..registry import register_adapter_config
-from .const import ADAPTER_ID, STORAGE_KEY
+from .const import ADAPTER_ID
 from .constants import (
     DOCK_EVENT_MOP_WASH_DEBOUNCE_SECONDS,
     LOW_BATTERY_THRESHOLD_PERCENT,
@@ -40,7 +40,6 @@ from .vocabulary import (
     HARD_SERVICE_STATES,
     DRYING_STATES,
     ACTIVE_RUN_TASK_STATES,
-    HA_ACTIVE_VACUUM_STATES,
     DOCK_EVENT_TRIGGERS,
     WATER_LEVEL_ALIASES,
     WASH_FREQUENCY_MODE_ALIASES,

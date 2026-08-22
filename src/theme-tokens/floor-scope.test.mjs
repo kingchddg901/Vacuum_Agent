@@ -27,6 +27,7 @@ import {
 } from "./floor-scope.js";
 
 // ---------------------------------------------------------------------------
+// anchor: BN9E1X7P
 // floorTypeNames / prefixes / keyInType (whole-name, never dash-split)
 // ---------------------------------------------------------------------------
 
@@ -59,6 +60,7 @@ test("[FS-0b] floorTypePrefix / keyInType is a raw '{name}-' prefix check", () =
 });
 
 // ---------------------------------------------------------------------------
+// anchor: BNP10789
 // detectFloorScope — known/unknown partition
 // ---------------------------------------------------------------------------
 
@@ -119,6 +121,7 @@ test("[FS-3b] detectFloorScope: bare theme (no .theme wrapper) and empty/garbage
 });
 
 // ---------------------------------------------------------------------------
+// anchor: BNGVX4JV
 // sliceThemeByTypes — keep only wanted types across the 3 sections
 // ---------------------------------------------------------------------------
 
@@ -191,6 +194,7 @@ test("[FS-6] sliceThemeByTypes: defaults for missing metadata; falsy names filte
 });
 
 // ---------------------------------------------------------------------------
+// anchor: BN2CB85J
 // clampThemeScalars — clamp bounded scalars, pass colors/rangeless through
 // ---------------------------------------------------------------------------
 

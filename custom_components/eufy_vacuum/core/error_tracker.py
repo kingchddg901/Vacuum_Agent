@@ -247,14 +247,6 @@ def error_label_key(vacuum_entity_id: str, code: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def _int_set(value: Any) -> frozenset[int]:
-    """Coerce a declared code list to ints, dropping anything unusable."""
-    if not isinstance(value, (list, tuple, set, frozenset)):
-        return frozenset()
-    out = {rid for rid in (_exact_int(v) for v in value) if rid is not None}
-    return frozenset(out)
-
-
 def _code_set(value: Any) -> frozenset[Any]:
     """Coerce a declared code list to comparable keys — ints AND enum strings.
 
@@ -304,22 +296,6 @@ def _code_key(value: Any) -> Any | None:
             return int(text)
         except (TypeError, ValueError):
             return text.lower()
-    return None
-
-
-def _exact_int(value: Any) -> int | None:
-    """Exact integers only. NEVER int(): int(3.7) is 3, which is a real Eufy code (SIDE
-    BRUSH STUCK), so a malformed reading would classify as a genuine fault and be
-    subtracted. bool is an int subclass, so True would otherwise resolve to code 1."""
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        try:
-            return int(value.strip())
-        except (TypeError, ValueError):
-            return None
     return None
 
 

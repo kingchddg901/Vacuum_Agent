@@ -299,7 +299,18 @@ def _new_aggregate_bucket() -> dict[str, Any]:
         "count": 0,
         "duration_min_sum": 0.0,
         "area_m2_sum": 0.0,
+        # Total drain over every job in the bucket. A real quantity, but NOT a ratio
+        # numerator — the two partnered sums below are. See C17.
         "drain_pct_sum": 0.0,
+        # PARTNERED NUMERATORS. A ratio whose top and bottom count different
+        # populations is not a mean of anything, so each of these accumulates ONLY
+        # when its partner denominator is present too.
+        "drain_pct_sum_for_duration": 0.0,
+        "drain_pct_sum_for_area": 0.0,
+        # The honest denominators, so a consumer can publish the sample size a mean
+        # was actually computed over rather than `count`, which counts every job.
+        "samples_duration": 0,
+        "samples_area": 0,
         # Pre-rounded means — written every record_job_metrics call.
         "drain_per_min_mean": None,
         "drain_per_hour_mean": None,
@@ -796,10 +807,38 @@ class BatteryHealthManager:
         # Session lifecycle.
         self._update_session(record, battery_level, charging, ts, rate_per_min)
 
+        # anchor: IN3ASEP8  a rejected datum is rejected for every purpose
+        # ⚠ THIS SITE IS THE REGISTERED, ACCEPTED VIOLATION of that rule, not an
+        # example of it. Read the `IN3ASEP8` entry in docs/dev/00b-invariants.md
+        # before changing anything below.
+        #
         # DR-BAT-2: an out-of-order sample (elapsed_sec <= 0) is correctly
-        # excluded from the delta/rate/drain accounting above, but must not
-        # rewind the anchor either -- else the NEXT (genuinely newer) sample
+        # excluded from the delta/rate/drain accounting above, and its level/ts
+        # do not move the anchor -- else the NEXT (genuinely newer) sample
         # computes its own delta against a stale, wrong anchor.
+        #
+        # THIS GUARD IS NARROWER THAN IT READS, AND THIS COMMENT USED TO SAY
+        # OTHERWISE. Only the two fields inside the block are held. The sample has
+        # ALREADY reached _update_session above, and last_charging is written below
+        # unconditionally -- so an out-of-order sample can still OPEN or CLOSE a
+        # charge session, carrying its own stale ts and battery_level in. That can
+        # write a session_history_recent entry, and a sessions.csv row, whose end_ts
+        # precedes its own start_ts. Nothing repairs those; rebaseline() does not
+        # clear session history.
+        #
+        # IF YOU CLOSE THIS, CLOSE BOTH. Moving _update_session inside without
+        # last_charging makes every repeated stale sample re-open the session;
+        # moving last_charging without _update_session makes the next genuine
+        # sample see a false transition and restart a live one. Either half alone
+        # is worse than neither. (Ledger C15; the drafted invariant "a rejected
+        # datum is rejected for every purpose" would say close it.)
+        #
+        # LEFT OPEN ON EVIDENCE, NOT OVERSIGHT. elapsed_sec <= 0 needs the wall
+        # clock to step BACKWARDS: ts is minted per-sample from datetime.now() and
+        # never inherited from a state object, so two co-timed samples cannot
+        # collide. 104 vacuum-days of samples.jsonl across two live machines hold
+        # no such step, and 387 archived sessions hold no inverted row -- the
+        # signature this would leave. Mechanism certain, occurrence unobserved.
         if advance_anchor:
             record["last_battery_level"] = int(battery_level)
             record["last_sample_ts"] = ts.isoformat()
@@ -1441,33 +1480,79 @@ class BatteryHealthManager:
 
     @staticmethod
     def _update_aggregate_bucket(bucket: dict[str, Any], metrics: dict[str, Any]) -> None:
-        """Mutate ``bucket`` in place with this job's contributions and refresh
-        the rolling means. Only jobs with non-null inputs contribute to that
-        means' count to keep the averages honest."""
+        """Fold one job into ``bucket`` and refresh the rolling means.
+
+        ``count`` is every job folded in and increments unconditionally. It is NOT
+        the sample size of any mean — ``samples_duration`` / ``samples_area`` are.
+
+        EACH MEAN IS A RATIO WHOSE TOP AND BOTTOM COUNT THE SAME JOBS (C17). Until
+        2026-08-21 one ``drain_pct_sum`` fed all three means while each denominator
+        accumulated over a different subset, so a job with drain and duration but no
+        measured area still added drain to the per-m2 numerator and nothing to its
+        denominator.
+
+        The zero-guard on the division HID it rather than preventing it: it fires
+        only when NO job in the bucket had area, so a single measured job was enough
+        for the ratio to proceed over mismatched populations. Measured: six jobs of
+        10 m2 at 20% drain among ten recorded jobs published 200/60 = 3.333 %/m2
+        where the honest figure over the six is 2.0 — 67% high, and worse the more
+        area-less runs land.
+
+        Area is the read that goes missing in practice: it loses the same
+        finalize-time race ``job_finalizer.py`` documents for cleaning_time, and no
+        learning-blocker stops such a job being recorded.
+        """
         bucket["count"] = int(bucket.get("count", 0)) + 1
 
         drain = metrics.get("battery_used_pct")
         duration = metrics.get("duration_min")
         area = metrics.get("area_m2")
 
+        # A raw total over every job that reported a drain. NOT a mean input: since the
+        # numerators were split it has no reader anywhere in the tree. Kept because it is
+        # a PERSISTED KEY in existing records and a true, separate fact; removing it is a
+        # storage-shape decision, not a tidy-up.
         if drain is not None:
             bucket["drain_pct_sum"] = float(bucket.get("drain_pct_sum", 0.0)) + float(drain)
-        if duration is not None:
+        # THE PAIRING, AND IT GATES BOTH SIDES. A ratio's numerator and denominator
+        # must count the SAME jobs, so a job reaches a mean only when it carried BOTH
+        # halves -- which means the DENOMINATOR is gated on the drain as well.
+        #
+        # Partnering only the numerators (the first pass at this, 1e2ba0d7) fixes one
+        # direction and leaves the mirror: a job with a duration and no drain grew
+        # duration_min_sum without growing drain_pct_sum_for_duration, DEFLATING the
+        # mean exactly as the original defect INFLATED it. One numerator served three
+        # denominators, so the substitution ran both ways and closing one way is not
+        # closing it. [BM-5d] is the direction [BM-5b] and [BM-5c] cannot see, because
+        # both of those supply a drain and vary the other field.
+        #
+        # duration_min_sum and area_m2_sum have no consumer outside these three means,
+        # so narrowing them costs nothing else. They are denominators, not totals.
+        if drain is not None and duration is not None:
+            bucket["drain_pct_sum_for_duration"] = (
+                float(bucket.get("drain_pct_sum_for_duration", 0.0)) + float(drain)
+            )
             bucket["duration_min_sum"] = (
                 float(bucket.get("duration_min_sum", 0.0)) + float(duration)
             )
-        if area is not None:
+            bucket["samples_duration"] = int(bucket.get("samples_duration", 0)) + 1
+        if drain is not None and area is not None:
+            bucket["drain_pct_sum_for_area"] = (
+                float(bucket.get("drain_pct_sum_for_area", 0.0)) + float(drain)
+            )
             bucket["area_m2_sum"] = float(bucket.get("area_m2_sum", 0.0)) + float(area)
+            bucket["samples_area"] = int(bucket.get("samples_area", 0)) + 1
 
-        d_sum = float(bucket.get("drain_pct_sum", 0.0))
+        dt_sum = float(bucket.get("drain_pct_sum_for_duration", 0.0))
+        da_sum = float(bucket.get("drain_pct_sum_for_area", 0.0))
         t_sum = float(bucket.get("duration_min_sum", 0.0))
         a_sum = float(bucket.get("area_m2_sum", 0.0))
 
-        bucket["drain_per_min_mean"] = round(d_sum / t_sum, 4) if t_sum > 0 else None
+        bucket["drain_per_min_mean"] = round(dt_sum / t_sum, 4) if t_sum > 0 else None
         bucket["drain_per_hour_mean"] = (
-            round((d_sum / t_sum) * 60.0, 4) if t_sum > 0 else None
+            round((dt_sum / t_sum) * 60.0, 4) if t_sum > 0 else None
         )
-        bucket["drain_per_m2_mean"] = round(d_sum / a_sum, 4) if a_sum > 0 else None
+        bucket["drain_per_m2_mean"] = round(da_sum / a_sum, 4) if a_sum > 0 else None
 
     def _attach_post_job_charge_if_pending(
         self,

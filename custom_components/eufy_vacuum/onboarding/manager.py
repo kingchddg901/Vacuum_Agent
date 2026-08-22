@@ -62,6 +62,7 @@ class OnboardingManager:
         self._data.setdefault("onboarding", {})
 
     # ------------------------------------------------------------------
+    # anchor: BN3BEJTH
     # Private helpers
     # ------------------------------------------------------------------
 
@@ -108,6 +109,7 @@ class OnboardingManager:
         return ob[vacuum_entity_id][str(map_id)]
 
     # ------------------------------------------------------------------
+    # anchor: BNW9AAN5
     # Public API
     # ------------------------------------------------------------------
 

@@ -229,8 +229,8 @@ prev_ts = parse(record["last_sample_ts"])
 
 if prev_level is not None and prev_ts is not None:
     elapsed_sec = (ts - prev_ts).total_seconds()
-    if elapsed_sec > 0:   # DR-BAT-2: an out-of-order/duplicate-timestamp sample
-                          # skips this whole block AND does not move the anchor
+    if elapsed_sec > 0:   # DR-BAT-2: an out-of-order sample skips this whole
+                          # block. It does NOT skip the two writes below it.
         raw_delta = battery_level - prev_level   # +charging, -draining
 
         if abs(raw_delta) <= MAX_DELTA_PCT:
@@ -247,18 +247,38 @@ if prev_level is not None and prev_ts is not None:
                 if zone == "low":  update rate_low_zone_per_min
                 if zone == "high": update rate_high_zone_per_min
 
-# Session lifecycle (see section 6)
+# Session lifecycle (see section 6). NOT gated on elapsed_sec — an out-of-order
+# sample reaches this, and can open or close a session with its stale ts/level.
 _update_session(record, battery_level, charging, ts, rate_per_min)
 
-# Persist
-record["last_battery_level"] = battery_level
-record["last_sample_ts"] = ts
-record["last_charging"] = charging
+# Persist. Only the first two are held back for an out-of-order sample.
+if elapsed_sec > 0:
+    record["last_battery_level"] = battery_level
+    record["last_sample_ts"] = ts
+record["last_charging"] = charging          # written either way
 
 raw_store.append_sample(...)              # samples.jsonl
 _schedule_save()                          # eufy_vacuum.storage
 _notify(vacuum_entity_id)                 # → sensor refresh
 ```
+
+> **The anchor is three fields and the guard holds two.** `last_charging` is written
+> for a rejected sample, and `_update_session` has already run by the time the guard is
+> reached — so an out-of-order sample can open or close a charge session using its own
+> stale timestamp and level, which can leave a `session_history_recent` entry and a
+> `sessions.csv` row whose `end_ts` precedes its `start_ts`. Nothing repairs those:
+> `rebaseline()` leaves session history untouched.
+>
+> This is known and left open. `elapsed_sec <= 0` requires the wall clock to step
+> **backwards** — `ts` is minted per-sample from `datetime.now()` and never inherited
+> from a state object, so two co-timed samples cannot collide. 104 vacuum-days of
+> `samples.jsonl` across two live machines contain no such step, and 387 archived
+> sessions contain no inverted row.
+>
+> **If it is ever closed, both statements move inside the guard together.** Moving
+> `_update_session` alone makes each repeated stale sample re-open the session; moving
+> `last_charging` alone makes the next genuine sample read a false transition and
+> restart a live one. Either half alone is worse than neither.
 
 ---
 
@@ -529,15 +549,79 @@ Called from `learning/job_finalizer.py` after the completed_job dict is built an
 Each bucket stores cumulative sums to enable on-the-fly mean computation without keeping every job around:
 
 ```python
+# count is EVERY job folded in. It is not the sample size of any mean.
 bucket.count += 1
-bucket.drain_pct_sum += metrics.battery_used_pct
-bucket.duration_min_sum += metrics.duration_min
-bucket.area_m2_sum += metrics.area_m2
 
-bucket.drain_per_min_mean  = drain_pct_sum / duration_min_sum
-bucket.drain_per_hour_mean = (drain_pct_sum / duration_min_sum) * 60
-bucket.drain_per_m2_mean   = drain_pct_sum / area_m2_sum
+# A raw total over every job that reported a drain. NOT a mean input — since the
+# split it has no reader. Kept because it is a persisted key and a separate fact.
+if drain is not None: bucket.drain_pct_sum += drain
+
+# PARTNERED RATIOS, BOTH SIDES GATED. A ratio's numerator and denominator must
+# count the SAME jobs, so the DENOMINATOR is gated on the drain as well. Gating
+# only the numerators leaves the mirror defect: a job with a duration and no
+# drain grows the denominator alone and DEFLATES the mean.
+if drain is not None and duration is not None:
+    bucket.drain_pct_sum_for_duration += drain
+    bucket.duration_min_sum           += duration
+    bucket.samples_duration           += 1
+if drain is not None and area is not None:
+    bucket.drain_pct_sum_for_area += drain
+    bucket.area_m2_sum            += area
+    bucket.samples_area           += 1
+
+bucket.drain_per_min_mean  = drain_pct_sum_for_duration / duration_min_sum
+bucket.drain_per_hour_mean = (drain_pct_sum_for_duration / duration_min_sum) * 60
+bucket.drain_per_m2_mean   = drain_pct_sum_for_area      / area_m2_sum
 ```
+
+> **Why the numerators are split (C17, fixed 2026-08-21).** One `drain_pct_sum` used
+> to feed all three means while each denominator accumulated over a different subset.
+> A job with drain and duration but no measured area — the area read loses the same
+> finalize-time race `job_finalizer.py` documents for cleaning time, and no
+> learning-blocker stops it being recorded — still added its drain to the per-m²
+> numerator and nothing to that denominator.
+>
+> The zero-guard on the division **hid** this rather than preventing it: `if a_sum > 0`
+> fires only when *no* job in the bucket had an area, so a single measured job was
+> enough for the ratio to proceed over mismatched populations. Six jobs of 10 m² at
+> 20% drain among ten recorded jobs published `200/60 = 3.333 %/m²` where the honest
+> figure over the six is `2.0`.
+>
+> `samples_duration` / `samples_area` exist so a consumer can publish the denominator
+> a mean was computed over. `_bucket_means` emits it as `samples` beside `mean`;
+> `count` remains, because it is a true and separate fact, but it is no longer the
+> only number shown next to a mean it does not describe. A bucket written before the
+> split has no `samples_*` keys and reports `None` — unknown, stated as unknown,
+> rather than falling back to `count`.
+>
+> **Both sides of each ratio are gated, not just the numerator.** Partnering only the
+> numerators closes one direction of the substitution and opens its mirror: a job that
+> recorded a duration but no battery read — the same finalize-time race that produces
+> the area-less jobs above — grew `duration_min_sum` while `drain_pct_sum_for_duration`
+> stayed put, so the mean came out LOW where the original defect made it HIGH. Six jobs
+> at 20% over 40 min plus four drain-less ones published `120/400 = 0.3` against an
+> honest `120/240 = 0.5`. `duration_min_sum` and `area_m2_sum` have no consumer outside
+> these three means, so narrowing them to the paired population costs nothing: they are
+> denominators, not totals.
+>
+> ⚠ **A BUCKET WRITTEN BEFORE THE PAIRING CARRIES A PERMANENT DOWNWARD BIAS, AND IT IS
+> NOT MIGRATED.** `ensure_record()` setdefaults the new keys onto an older record, so
+> `drain_pct_sum_for_duration` restarts at `0.0` while `duration_min_sum` keeps every
+> minute it accumulated under the old unpaired rule. The mean then reads *new drain over
+> all-time duration*. **This does not wash out.** Both sums grow together from that point,
+> so the historical denominator is never diluted away — the bias is smaller on a busy
+> install and permanent on every install.
+>
+> The repair exists and is not automatic: `eufy_vacuum.rebuild_learning_stats` reaches
+> `BatteryHealthManager.rebuild_job_aggregates`, which **rebuilds every bucket from EMPTY**
+> over the job archive on disk, so every sum is recomputed under the current rule. It is
+> not run on upgrade because doing so would replay the full archive for every vacuum at
+> startup. A user who has never run it sees means that are low, not wrong-shaped: the
+> ordering between buckets survives, only the magnitude is depressed.
+>
+> `samples_duration` / `samples_area` are the tell. A bucket whose `samples` is much
+> smaller than its `count` has drain-less or measurement-less jobs in it; a bucket
+> reporting `samples: None` predates the split entirely and has never been rebuilt.
 
 The means are **time-weighted** (sums in numerator + denominator), not arithmetic averages of per-job means. A 60-min job and a 30-min job contribute proportionally to their durations.
 
@@ -724,6 +808,19 @@ ts, battery_level, charging, delta_pct, rate_per_min, zone, drain_added, cycles,
 `rejected_delta_pct` (9th field) is non-null only when the per-sample `MAX_DELTA_PCT` guard rejected the observed `raw_delta` (firmware X-to-0 / 0-to-X flip, HA restart gap, multi-hour self-discharge). It carries the rejected magnitude for post-hoc analysis — grep `rejected_delta_pct` in `samples.jsonl` to find every rejection.
 
 Best-effort write — `OSError` is logged at debug and swallowed so a transient FS issue can't crash the manager.
+
+> ⚠ **LINE ORDER IS NOT SAMPLE ORDER.** `append_sample` is dispatched with
+> `async_add_executor_job`, so two closely-spaced samples race in the thread pool and can
+> land in the file in the opposite order they were taken. The `ts` values are correct and
+> monotonic in *processing* order; only the line order is scrambled. Measured on live
+> data: 79 inversions in 2,194 samples on one vacuum, every one between 0.16 ms and
+> 15.9 ms, median 3.1 ms.
+>
+> **Sort by `ts` before doing anything sequential with this file.** Reading line order as
+> processing order reports clock skew that did not happen — a scan looking for backwards
+> time found 82 hits across two vacuums and every one was this artifact. The tell that it
+> is an artifact and not a clock step is the magnitude: thread-pool jitter is
+> sub-100 ms, a real clock step is seconds or more.
 
 ### 12.2 sessions.csv
 

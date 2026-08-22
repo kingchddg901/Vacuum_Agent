@@ -126,3 +126,69 @@ async def test_every_adapter_config_read_uses_the_module_alias(manager):
         "`get_adapter_config`; the module imports it as `_get_adapter_config` "
         "(line 62), so a bare use is a NameError at runtime"
     )
+
+# --- C36 — the non-cleaning phase exemption, which was INERT until 2026-08-21 -------
+#
+# `_stuck_watch_excluded` read `(phases[idx] or {}).get("type")`, but a phase is stamped
+# `phase_type` — planning/run_plan.py:887/961/968/986, handed to the active job verbatim
+# by queue/queue_engine.py:512. A bare `type` key is stamped on a PHASE nowhere in the
+# tree. So ptype was always "", never a member of NON_CLEANING_PHASE_TYPES, and the
+# exemption could not fire for any input.
+#
+# THE KEY IS THE ASSERTION. These tests build the phase dict the way PRODUCTION builds
+# it — `phase_type`. A test written with `type` would pass against the bug and prove
+# nothing, which is exactly how this survived: the guard, its comment and its set were
+# all correct; only the key was wrong, and nothing read the key.
+
+
+def _seed_phase(manager, hass, *, phase_type: str) -> dict:
+    """A started job sitting in one phase, with live state that reaches the phase check.
+
+    Every earlier guard in `_stuck_watch_excluded` has to NOT fire or the phase branch
+    is unreachable and the test proves nothing: watched status, observed lifecycle, no
+    error edge, not paused, a cleaning vacuum state, not charging.
+    """
+    job = _seed_active_job(manager)
+    job["has_observed_active_lifecycle"] = True
+    job["phases"] = [{"phase_type": phase_type}]
+    job["current_phase_index"] = 0
+    hass.states.async_set(_VAC, "cleaning", {})
+    return job
+
+
+@pytest.mark.parametrize("phase_type", ["zone", "charge_wait", "wait"])
+async def test_non_cleaning_phase_exempts_the_stall_watch(manager, hass, phase_type):
+    """[SWT-4] C36. Every member of NON_CLEANING_PHASE_TYPES must exempt the watch.
+
+    charge_wait allows up to 180 minutes with a flat counter BY DESIGN, and a zone is
+    often smaller than the counter's ~1 m2 floor. Without the exemption a legitimate
+    zone clean is reported to the user as a stall.
+    """
+    job = _seed_phase(manager, hass, phase_type=phase_type)
+    excluded = manager._stuck_watch_excluded(
+        vacuum_entity_id=_VAC, active_job=job, err_open=False
+    )
+    assert excluded is True, (
+        f"a {phase_type!r} phase did not exempt the stall watch. The phase is stamped "
+        "`phase_type` by run_plan; a guard reading any other key is inert and every "
+        "small zone phase is flagged stalled."
+    )
+
+
+async def test_a_cleaning_phase_does_NOT_exempt_the_stall_watch(manager, hass):
+    """[SWT-5] C36's other half — the exemption must still REFUSE.
+
+    Without this, [SWT-4] passes against a guard hard-wired to True. The real defect
+    class here is a mute that swallows the detector: 'a critique that only adds mutes
+    is how you ship a detector that never fires', per the docstring on the function
+    under test.
+    """
+    job = _seed_phase(manager, hass, phase_type="cleaning")
+    excluded = manager._stuck_watch_excluded(
+        vacuum_entity_id=_VAC, active_job=job, err_open=False
+    )
+    assert excluded is False, (
+        "a cleaning phase exempted the stall watch — the exemption is no longer "
+        "discriminating and the detector is muted for every phase"
+    )
+

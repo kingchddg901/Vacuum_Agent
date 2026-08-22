@@ -2,7 +2,8 @@
 
 > **Status: SPECIFICATION — partially built.** `CN` in use (9 anchors), `IN` in use
 > (1, indexed by [00b](../../00b-invariants.md)), `RN` in use (2, indexed by
-> [00c](../../00c-replicas.md)). `SN`, `HN` and `PN` remain reserved and unused. Tooling: `scripts/doc_anchor.py`
+> [00c](../../00c-replicas.md)). `BN` added 2026-08-21, no anchors minted yet.
+> `SN`, `HN` and `PN` remain reserved and unused. Tooling: `scripts/doc_anchor.py`
 > (`--mint` / `--check` / `--show` / `--orphans`), enforced by `ANC-1..3` in
 > `tests/unit/test_generated_doc_gate.py`.
 
@@ -139,6 +140,101 @@ Example:
 IN5C9V2R
 ```
 
+### `EN` — Enforcement Notation
+
+Added 2026-08-22. **`IN`'s twin: a rule that binds a PERSON, not the program.**
+
+An `EN` is a genuine obligation whose enforcement lives outside the code — *never edit
+`.storage` directly*, *a service call moves real hardware*. It can never have a bite,
+because nothing in the repository can be made to go red when it is broken.
+
+**The discriminator is one question: WHO BREAKS IT?**
+
+> A person doing something → `EN`.  The program doing something → `IN`.
+
+That test is positive and decidable. The class was previously distinguished by *"why this
+can never be an `IN`"* — defined by what it lacks — and a negative definition loses the
+first time somebody argues that a bite exists after all, promoting a row that was never
+an invariant.
+
+**Why it is not just an `IN` with a footnote.** `IN`'s whole discipline is *name the input
+that makes it red*. An `IN` that cannot bite corrupts the class: you can no longer tell an
+enforced rule from an aspirational one by looking at its prefix. Splitting these out
+protects `IN`'s meaning, the same argument that gave `BN` its own namespace rather than
+diluting `CN`.
+
+**Where it declares.** In prose, like `PN` and unlike everything else — its reasoning IS the
+artifact, so the registry holding that reasoning is the declaration site. Declaring it in
+source would pin it to a file that does not enforce it, which reads as a guard and is not
+one. The integrity question therefore inverts: for an `IN` ask *is it declared at a site?*;
+for an `EN` ask *does anything cite it?*
+
+Example (illustrative, deliberately NOT a minted token — the `PN` section above does the
+same. A worked example that uses a REAL anchor becomes a live citation of it, which
+silently satisfies `[RR-4]`'s liveness rule and makes the check decorative):
+
+```text
+EN7K3M2Q
+```
+
+⚠ **`EN` did not exist until 2026-08-22, and three rules were filed under `PN` in the
+meantime** — `PN` is a *pointer to a deeper explanation*, which is not what those three
+are. They were re-minted, not re-prefixed, so the old
+tokens do not survive looking well-formed — the mapping is recorded in `00b-invariants.md`,
+not here, so this specification does not become a citation of the rules it describes.
+`doc_anchor.py`'s prose-declaration comment had
+drifted the same way and is corrected. Dated records keep the old tokens.
+### `BN` — Break Notation
+
+Added 2026-08-21. **Every other class anchors a claim. `BN` anchors a place.**
+
+A break says *section one ends, section two begins*. It asserts nothing about what
+either section means, which is why it can never be wrong — only stale. A document
+citing a `BN` is pointing at a **region of a file**, not at a rule.
+
+```python
+# ---------------------------------------------------------------------------
+# anchor: BN7T3K9W
+# saved-zones — create / rename / delete / clean stored rects
+# ---------------------------------------------------------------------------
+```
+
+⚠ **The marker word is `anchor:`, the same as every other class — this example said
+`section:` until 2026-08-22 and that form is INVISIBLE to the tooling.** `doc_anchor.py`
+and `check_bn_boundaries.py` both scan for `anchor:`; a `section:` line declares nothing,
+and because the token is still *present* the gate reports it as an UNDECLARED token —
+verified by running both regexes against the old form.
+
+⚠ **The NAME goes on its own line BENEATH the token, not appended to it.** `check_bn_boundaries.py`
+requires it (*"a token with no NAME line beneath it is an address to nowhere"*), and the reason is
+the gate's headline property: a BN pass **adds comment lines and deletes nothing**, which is
+mechanically provable. Appending the name to the token line REWRITES an existing line, so the
+diff stops being purely additive and the gate rejects it. This example was wrong in BOTH ways
+until 2026-08-22 — marker word and layout — and a 175-marker pass written to it failed on
+both counts, caught by running the gate rather than by reading it. (Token above is illustrative
+and deliberately unminted, as in the `PN` and `EN` sections: a worked example using a real
+anchor becomes a live citation of it.)
+
+Cited from prose in the ordinary form — path, `#`, token:
+
+```text
+mapping/mapping_services.py#BN7T3K9W
+```
+
+**The name is what people read; the token is what survives renaming the name.**
+
+**Why sections get a namespace instead of reusing `CN`.** A large module holds dozens of
+dividers. Minting a code-notation token for each would dilute `CN` until an anchor
+stopped signalling *worth pointing at* — the scarcity is the signal. Keeping breaks in
+their own class means `BN` can be dense without costing `CN` anything.
+
+**What this is FOR, and it is the load-bearing part:** a `BN` lets prose address a region
+of a file **without the file being split**. `mapping/mapping_services.py` holds five
+service domains sharing 7% of their code; each can own a document today, at 3,224 lines
+and unmoved, because a `BN` gives the document something stable to point at. If the file
+is ever split, the breaks are the cut lines — already placed, already agreed, already
+cited — and the anchor travels with its section, so the prose does not change.
+
 ## Prefixes are types, not folders
 
 A prefix should only be introduced when the referenced relationship is meaningfully different.
@@ -160,9 +256,11 @@ The notation class should instead describe the **kind of relationship being trav
 CN  implementation
 SN  runtime semantic translation
 HN  historical provenance
-PN  deep prose/design
-IN  invariant
+PN  deep prose/design — a POINTER to where the canonical explanation lives
+IN  invariant — the program must preserve it, and a test can go red
+EN  enforcement note — a rule that binds a PERSON; no bite is possible
 RN  replica set — one rule, several deliberate copies
+BN  section break — a place in a file, not a claim
 ```
 
 `RN` was added 2026-08-16. Its shape differs from the others in one way worth stating: an
@@ -173,6 +271,44 @@ other member. The listing of sets lives in [00c](../../00c-replicas.md); the dec
 cannot, because declarations are scanned in source only.
 
 This makes the prefix function as a small type system for repository knowledge rather than as a filing scheme.
+
+### What `RN` is actually for — INVISIBILITY, not file boundaries
+
+Recorded 2026-08-21 after a measurement that used the wrong axis.
+
+An `RN` earns its keep when a reader editing one copy **cannot see the others**. File
+boundaries are one cause of that and not the interesting one. Chris: *"relational notes do
+do something in the same file, if they span enough distance, or the connection isn't
+obvious."*
+
+**Two independent triggers, either sufficient:**
+
+**DISTANCE.** This repo's median module is 209 lines. Two sites further apart than that are
+as hidden from one another as two sites in different files — you cannot hold both ends at
+once either way. Measured: `RNJB6JXD` puts its two sites **1,271 lines apart inside a single
+file** (`jobs/phase_runner.py`), and `RNF2RCXP` spans 473 lines inside `core/capabilities.py`
+*as well as* reaching four files.
+
+**NON-OBVIOUSNESS.** Two things that look unrelated and must nevertheless agree are invisible
+at any distance, including twelve lines. This is not measurable — no tool can score whether a
+relationship reads as obvious — so it is found only by reading, and an `RN` is the only place
+it can be written down once found.
+
+⚠ **Do not classify an `RN` by how many files it touches.** A single-file `RN` is not weak;
+a single-file `RN` whose sites are adjacent *and* whose connection is self-evident might be.
+Only the second of those is checkable.
+
+**Why this class carries more weight than `IN`.** An invariant fails LOUD — a defended one
+has a test that goes red. A replica fails SILENT: change one copy, its own tests still pass,
+and the two now disagree with everything green. Nine of the thirty `RN`s span the
+Python↔JavaScript boundary (e.g. `profiles/manager.py` ↔ `src/state/run-profiles.js`), where
+there is no shared import, no shared type, no shared test and no compiler. For those, the
+anchor is not documentation of the constraint — **it is the only mechanism that knows the
+constraint exists.**
+
+**And it is the tax on small files.** One-thing-per-file shrinks the mental model at each
+site by pushing shared rules outward, converting a local problem you can see into a
+distributed one you cannot. `RN` is what makes that trade payable.
 
 ## Definitions and references
 

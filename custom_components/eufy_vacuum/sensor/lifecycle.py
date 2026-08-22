@@ -73,6 +73,7 @@ class EufyVacuumActiveJobSensor(SensorEntity):
         self._unsub_safety_net: Any = None
 
     # ------------------------------------------------------------------
+    # anchor: BN93905S
     # HA lifecycle
     # ------------------------------------------------------------------
 
@@ -110,6 +111,7 @@ class EufyVacuumActiveJobSensor(SensorEntity):
                 setattr(self, attr, None)
 
     # ------------------------------------------------------------------
+    # anchor: BNK3GSCT
     # Update callbacks
     # ------------------------------------------------------------------
 
@@ -178,6 +180,7 @@ class EufyVacuumActiveJobSensor(SensorEntity):
             pass
 
     # ------------------------------------------------------------------
+    # anchor: BNCDV51F
     # State
     # ------------------------------------------------------------------
 

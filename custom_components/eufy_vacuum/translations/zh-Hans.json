@@ -49,6 +49,9 @@
     "leading_break_unsupported": {
       "message": "运行配置文件不能以充电/等待休息开始。"
     },
+    "leading_zone_unsupported": {
+      "message": "运行配置文件不能以区域开始。"
+    },
     "trailing_break_unsupported": {
       "message": "运行配置文件不能以充电/等待休息结束。"
     },
