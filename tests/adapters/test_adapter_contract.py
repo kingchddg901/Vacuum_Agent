@@ -91,6 +91,47 @@ class TestValidatorItself:
         nested = _validate({"block": {"inner": "x", "inr": "y"}}, schema)
         assert len(nested) == 1 and "inr" in nested[0] and "block" in nested[0]
 
+    def test_rc1_a_key_the_RUNTIME_READS_is_declared(self):
+        """[RC-1/A7] READ-BUT-UNDECLARED is the mirror of declared-but-unread, and the
+        walker cannot see it: it iterates the SCHEMA, so a key the schema omits is
+        invisible no matter how much code reads it.
+
+        `dispatch.zone_passes_max` was that shape. `dispatch/manager.py` consults it on
+        BOTH zone branches, `capabilities.supports_zone_repeat`'s own description names
+        it as the thing to omit -- and it was absent from `dispatch.fields`. Because
+        `dispatch` declares `fields`, the walker recurses and REJECTS undeclared keys,
+        so a porter following that prose got a ServiceValidationError out of
+        save_adapter_config, and an in-repo code adapter got the same rejection out of
+        test_schema_conformance below.
+
+        Asserted as "a config declaring it VALIDATES", not as "the key is in the dict":
+        the latter passes on a key added to the schema and read by nobody, which is the
+        opposite defect (A9) and not what this guards.
+
+        This file already documents the identical shape for `low_clean_water_margin_ml`.
+        """
+        from custom_components.eufy_vacuum.adapters.config_schema import (
+            ADAPTER_CONFIG_SCHEMA,
+        )
+
+        # Two configs, both minimal-legal for the OTHER dispatch requireds. The
+        # ONE difference is the presence of `zone_passes_max`, so any issues that
+        # appear only in the second are its fault. Comparing sets rather than
+        # equality guards against ordering churn in _validate's output.
+        base = {"template": "eufy_room_clean", "service_domain": "vacuum",
+                "service_name": "send_command"}
+        fields = ADAPTER_CONFIG_SCHEMA["dispatch"]["fields"]
+
+        control  = set(_validate(base, fields))
+        with_key = set(_validate({**base, "zone_passes_max": 5}, fields))
+
+        introduced = with_key - control
+        assert not introduced, (
+            "declaring dispatch.zone_passes_max introduced a schema issue -- the "
+            "runtime reads it on both zone branches, so this is A7's read-but-"
+            f"undeclared shape returning: {sorted(introduced)}"
+        )
+
     def test_open_ended_blocks_are_not_flagged(self):
         """[RC-1] Nine schema blocks are declared as bare `dict` with no `fields`
         (settings_selects, mapping, map_render, room_profiles, …) and are legitimately

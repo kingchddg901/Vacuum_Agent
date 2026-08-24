@@ -4569,7 +4569,7 @@ preserve — or will "clean up" by re-merging `d` and `brand_defaults` under one
 realising the duplicate pair is the only trace of the removed tier. The dangling "byte-
 identical" belongs to the same retired-fallback family as lines 588 and 812.
 
-## ADAPTER CONTRACT COMMENT AUDIT — 2026-08-23. 30 findings (UNION OF THREE PASSES). NOT APPLIED.
+## ADAPTER CONTRACT COMMENT AUDIT — 2026-08-23. 30 findings (UNION OF THREE PASSES). **4 APPLIED 2026-08-24 (A4, A6, A7, A9 — A7 a SCHEMA declaration); 26 NOT APPLIED.**
 
 Severity {'high': 5, 'medium': 15, 'low': 10}. Kind {'false': 7, 'reason-obsolete': 1, 'over-scoped': 11, 'stale-reference': 7, 'adopted-alternative': 4}.
 34 raw across three passes -> 30 distinct; 4 seen by more than one.
@@ -4668,7 +4668,7 @@ and approves it; what actually happens is those axes resolve empty. The correct 
 partial block is fine' is one screen away in the same file (undeclared keys resolve empty, which
 is a defined answer), so the two comments teach opposite mechanisms for the same conclusion.
 
-### A4 · HIGH · over-scoped · passes=1 — `adapters/config_schema.py:1943 (capability_hints block description)`
+### A4 ✅ APPLIED 2026-08-24 · HIGH · over-scoped · passes=1 — `adapters/config_schema.py:1943 (capability_hints block description)`
 
 **SAYS.** "A hint here is authoritative: it overrides the derived default, and it is what
 reaches the room payload gate."
@@ -4717,7 +4717,7 @@ a list that is missing the only check that can reject one. config_schema.py:1797
 :1868-1883 already cite _validate_adapter as validating room_profiles, job_segmenter and
 room_attribution, so the two files contradict each other.
 
-### A6 · MEDIUM · over-scoped · passes=2 — `adapters/config_schema.py:1429-1433 (capabilities.supports_zone_repeat)`
+### A6 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=2 — `adapters/config_schema.py:1429-1433 (capabilities.supports_zone_repeat)`
 
 **SAYS.** "Whether the zone-clean command accepts a repeat count. False (or omitted
 zone_passes_max/passes_max in dispatch) normalizes clean_times to 1 rather than shipping it
@@ -4738,7 +4738,7 @@ on the wire. dispatch/manager.py:299-306 does scope its own comment correctly ('
 so the schema is the only place that states the rule unconditionally — and the schema is what a
 porter reads first.
 
-### A7 · MEDIUM · stale-reference · passes=1 — `adapters/config_schema.py:1431 (zone_passes_max named inside capabilities.supports_zone_repeat)`
+### A7 ✅ APPLIED 2026-08-24 (SCHEMA) · MEDIUM · stale-reference · passes=1 — `adapters/config_schema.py:1431 (zone_passes_max named inside capabilities.supports_zone_repeat)`
 
 **SAYS.** "...(or omitted zone_passes_max/passes_max in dispatch)..."
 
@@ -4780,7 +4780,7 @@ maintainer who trusts this line will not look for that as the cause of 'my saved
 works until I reboot Home Assistant', and may skip the ordering question entirely when touching
 either registration path.
 
-### A9 · MEDIUM · false · passes=1 — `adapters/config_schema.py:570-577 (completion.secondary_clear_entity)`
+### A9 ✅ APPLIED 2026-08-24 · MEDIUM · false · passes=1 — `adapters/config_schema.py:570-577 (completion.secondary_clear_entity)`
 
 **SAYS.** "Entity key from entities dict whose cleared state is required alongside
 task_status_value for completion. Default: 'active_cleaning_target'."
@@ -5973,3 +5973,120 @@ false rather than temporarily so. Every candidate fix either adds a persisted ke
 On this house's boxes the site is inert: `vacuum.robin` (the unsupported Dreame) sits in `vacuums`
 with a `maps` bucket holding zero rooms, so only the no-stored-rooms guard keeps it out — one
 saved room away — and that box has already latched.
+
+
+---
+
+# TIER B — THE DECLARATION SEAM (2026-08-24)
+
+Four adapter-schema findings worked as one batch because they are four faces of one shape:
+`config_schema.py` documents a key as a configuration point, and the runtime honours it
+partially, on one branch only, or not at all. Fanned out with adversarial checks (opus 5), and the
+adversarial pass earned its keep on A6 — overturning the investigator's WIRE-IT to LABEL-THE-SEAM
+with reasoning I could re-verify from the code and the packet history.
+
+**No runtime behaviour changes.** Three schema-description corrections that label the seam
+honestly, plus one schema declaration for a key the runtime already reads.
+
+## ✅ A9 [FIXED-UNPROVEN] — `completion.secondary_clear_entity` is UNWIRED
+
+Zero runtime readers. Verified by AST sweep over all modules, not grep. `listeners/_common.py`
+hardcodes the role: `"active_target": _state(entities.get("active_cleaning_target"))`. `git log -S`
+puts the declaration and the hardcode that ignores it in the SAME commit (2bfda655) — aspirational,
+not a lost consumer.
+
+**KEPT, not deleted.** A string naming ANY entities role is strictly more general than the shipped
+`require_job_active_clear`, which is a bool hardcoding ONE alternative role — exactly the
+expansion-ready seam / tiny shipped surface pattern. Deleting would also flip a stored config that
+sets it from silently-ignored to loudly-rejected.
+
+**THE PORTER-FACING TRAP IS NOT "jobs never finalize".** A porter who sets it AND omits
+`entities.active_cleaning_target` gets `_state(None) == ""`, and `""` IS in the default sentinel
+set — so the secondary is ALWAYS satisfied and the gate silently collapses to task_status alone.
+Premature finalize ends a running job and writes a wrong run record; late finalize is recoverable.
+Description now labels the seam and names both traps.
+
+## ✅ A6 [FIXED-UNPROVEN] — `supports_zone_repeat` is BRANCH-SCOPED, and the adversary is what caught this
+
+Filed as over-scoped prose; investigator said WIRE-IT (hoist the flag above the coordinate-space
+branch); **adversary said LABEL-THE-SEAM at HIGH confidence, and re-verified the mechanism first
+so the disagreement is on the prescription only.** Three reasons, all checkable in the code:
+
+1. **The owner's decision record enumerates the hoist set and excludes this key.**
+   `SYNTH-08-packets-wave4.md` (RP-022, RF-23) hoisted `zone_max` plus min/max area and side
+   bounds, and closed with **"Roborock's device_mm clamp unchanged"**. A stated edge of a finished
+   wave, not a residual of an unfinished one.
+2. **Q12 is brand-scoped to Eufy verbatim**, in both `GATE4-decisions-q1-q17.md` and the in-code
+   comment at `dispatch/manager.py:250-252` ("Q12 is scoped to the non-device_mm (Eufy) branch
+   below"). The investigator quoted the code comment and dismissed it — without the packet.
+3. **Wiring it would not deliver the contract.** The two branches carry repeat structurally
+   differently: the else branch puts it in a NAMED field (`clean_times`), where `1` is a harmless
+   no-op; device_mm puts it as the 5th POSITIONAL element of every rect. A brand that genuinely
+   accepts no repeat needs a FOUR-element rect — `repeat=1` still ships the 5th element the
+   declaration says does not exist. The hoist would transplant dict-field semantics onto a
+   positional-tuple branch.
+
+Description now labels the branch scope AND says outright do not "finish" it by clamping to 1 on
+device_mm.
+
+## ✅ A7 [FIXED] — `dispatch.zone_passes_max` is READ, now DECLARED
+
+Read at TWO sites in `dispatch/manager.py` (both zone branches), absent from `dispatch.fields`,
+and named in the very schema description that told porters to omit it. Because `dispatch` declares
+`fields`, the walker recursed and REJECTED the key — so a porter following the prose hit a
+`ServiceValidationError` out of `save_adapter_config`, and an in-repo code adapter hit the same
+rejection in `test_schema_conformance`. This file already documents the identical shape for
+`low_clean_water_margin_ml`.
+
+Now declared. Test `[RC-1/A7]` in `test_adapter_contract.py`, **differential**: control config
+without the key vs. same config plus the key, and any issue that appears only in the second is its
+fault. Set-diff rather than equality guards against ordering churn in `_validate`'s output.
+Ablated by re-removing the declaration → red.
+
+## ✅ A4 [FIXED-UNPROVEN] — `capability_hints` is TWO rules, not one
+
+The description asserted the strong rule for all twelve KNOWN_CAPABILITY_HINTS. The code applies
+two, and the split is intentional:
+
+  * **`_hint_wins` (6 keys — declared False is BINDING):** supports_water_control,
+    supports_edge_mopping, supports_passes, supports_custom_room_config, supports_room_clean,
+    supports_zone_clean. The code's own comment reserves this for "capabilities a brand can
+    categorically NOT do".
+  * **hint OR entity presence (6 keys — declared False is OVERRIDDEN when the entity resolves):**
+    supports_mop_features, supports_mop_wash, supports_mop_dry, supports_empty_dust,
+    supports_path_control, has_attribute_rooms.
+
+A porter declaring `supports_mop_wash: False` for a brand that categorically cannot wash a mop is
+silently overridden the moment a wash-mop button resolves by name-token match on any sibling
+entity. The behaviour was already the code's stated intent; the description was the misleading
+half.
+
+## Method note — the adversarial pass paid for itself again
+
+Six agents, four findings. All four investigators agreed with themselves; the **refutation** step
+overturned A6 with owner-quoted evidence I could re-verify, and the synthesis phase 529'd (models
+were unstable that afternoon; re-ran the synthesis inline). The pattern is the same one the tier-A
+pass already showed: investigators are close to the code, adversaries pull in decision records and
+packet history that the code alone can't tell you.
+
+## What this batch is NOT — the declaration-proving gate is deferred
+
+The workflow was asked whether a schema-driven gate that walks `ADAPTER_CONFIG_SCHEMA` and asserts
+every declared key has a runtime reader, and every read key is declared, was buildable. Its
+synthesis phase 529'd. The pattern is clearly buildable in principle — A9 and A7 are exactly what
+it catches (declared-but-unread and read-but-undeclared, opposite ends of one axis) — but building
+it properly needs to enumerate the current violations and the false positives (branch-local
+honouring like A6 would pass such a gate). Filed as C63 below.
+
+## C63 [OPEN] — a declaration-proving gate for ADAPTER_CONFIG_SCHEMA
+
+A schema-driven contract test: walk `ADAPTER_CONFIG_SCHEMA` to leaf keys, walk source for readers,
+assert the two sets match. Would have caught A9 and A7 automatically; A6 is the interesting limit
+(branch-local honouring reads as "wired" to a reader-existence check). Not built — A6 is a reminder
+that the gate needs a false-positive story before it goes into CI, or it becomes another guard
+that reads as complete.
+
+Suggested next-hand-on-this: build a THROWAWAY-root prototype (the way `[ANC-4]` guards the
+generated-bundle exclusion), enumerate current violations, name the branch-local exceptions, then
+decide whether to ship. **Do not skip the enumeration step** — a gate that finds zero on run 1
+proves nothing except its own dead spot.

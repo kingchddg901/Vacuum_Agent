@@ -596,9 +596,28 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "type": "str",
                 "required": False,
                 "description": (
-                    "Entity key from entities dict whose cleared state "
-                    "is required alongside task_status_value for completion. "
-                    "Default: 'active_cleaning_target'."
+                    "⚠ UNWIRED SEAM — DECLARED, VALIDATED, AND READ BY NOTHING (A9). "
+                    "Setting this has NO EFFECT today. The completion gate hardcodes "
+                    "the role: listeners/_common.py builds "
+                    "`'active_target': _state(entities.get('active_cleaning_target'))` "
+                    "and compares THAT against secondary_clear_sentinels. Verified by "
+                    "an AST sweep of every module, not a grep — zero readers. It was "
+                    "born orphaned: `git log -S` puts the declaration and the hardcode "
+                    "that ignores it in the SAME commit (2bfda655), so this is an "
+                    "aspirational declaration, not a consumer that was lost. "
+                    "INTENDED, once wired: entity key from the entities dict whose "
+                    "cleared state is required alongside task_status_value. "
+                    "Default: 'active_cleaning_target'. "
+                    "⚠ THE DANGEROUS CASE IS NOT 'jobs never finalize'. A porter who "
+                    "sets this AND omits entities.active_cleaning_target gets "
+                    "`_state(None) == ''`, and '' IS in the default sentinel set — so "
+                    "the secondary is ALWAYS satisfied and the gate silently collapses "
+                    "to task_status alone. A premature finalize ends a running job and "
+                    "writes a wrong run record; a late one is recoverable. "
+                    "KEPT, NOT DELETED: a string naming ANY role is strictly more "
+                    "general than the shipped require_job_active_clear, which is a bool "
+                    "hardcoding ONE alternative role. Deleting it would also flip a "
+                    "stored config that sets it from silently-ignored to loudly-rejected."
                 ),
             },
             "secondary_clear_sentinels": {
@@ -1120,6 +1139,25 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "required": True,
         "description": "Job dispatch configuration.",
         "fields": {
+            # A7: DECLARED because the runtime READS it — dispatch/manager.py consults
+            # `zone_passes_max` on BOTH zone branches, yet it was absent from this
+            # `fields` list. Since `dispatch` declares `fields`, the schema walker
+            # recurses and REJECTS undeclared keys, so a porter following the prose in
+            # `supports_zone_repeat` above (which names zone_passes_max) hit a
+            # ServiceValidationError from save_adapter_config, and an in-repo code
+            # adapter hit the same rejection in test_adapter_contract. Read-but-
+            # undeclared is the mirror of A9's declared-but-unread; this file already
+            # documents the identical shape for low_clean_water_margin_ml.
+            "zone_passes_max": {
+                "type": "int",
+                "required": False,
+                "description": (
+                    "Max repeat count the ZONE command accepts, per zone. Falls back to "
+                    "`passes_max`, then 3. Consulted on both coordinate branches — "
+                    "unlike capabilities.supports_zone_repeat, which is non-device_mm "
+                    "only (see its note)."
+                ),
+            },
             "passes_max": {
                 "type": "int",
                 "required": False,
@@ -1458,7 +1496,24 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "description": (
                     "Whether the zone-clean command accepts a repeat count. False "
                     "(or omitted zone_passes_max/passes_max in dispatch) normalizes "
-                    "clean_times to 1 rather than shipping it verbatim."
+                    "clean_times to 1 rather than shipping it verbatim. "
+                    "⚠ BRANCH-SCOPED, AND DELIBERATELY SO (A6). This is read at exactly "
+                    "ONE site — dispatch/manager.py, inside the NON-device_mm branch. A "
+                    "`dispatch.zone_coords: device_mm` brand (Roborock app_zoned_clean) "
+                    "never consults it: that branch clamps with "
+                    "`min(clean_times, zone_passes_max or passes_max or 3)` regardless. "
+                    "THE SCOPING IS A STATED EDGE, NOT AN UNFINISHED WAVE: RP-022/RF-23 "
+                    "enumerated the hoist set as zone_max plus min/max area and side "
+                    "bounds, and closed with 'Roborock's device_mm clamp unchanged'; "
+                    "Q12 is likewise scoped to Eufy zones, verbatim, in the decision "
+                    "register and in the in-code comment. "
+                    "⚠ DO NOT 'FINISH' IT BY CLAMPING repeat TO 1 ON device_mm. The two "
+                    "branches carry repeat differently: the else branch puts it in a "
+                    "NAMED field (`clean_times`), where 1 is a harmless no-op, while "
+                    "device_mm puts it as the 5th POSITIONAL element of every rect. A "
+                    "brand that genuinely accepts no repeat count needs a FOUR-element "
+                    "rect, so repeat=1 would still ship the element the declaration says "
+                    "does not exist — the hoist would not deliver the contract."
                 ),
             },
             "zone_max": {
@@ -1971,8 +2026,24 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "(core/capabilities.detect_capabilities). Distinct from the `capabilities` "
             "block above, which is the adapter's own declared capability set — the two "
             "share key names but are different dictionaries with different consumers. "
-            "A hint here is authoritative: it overrides the derived default, and it is "
-            "what reaches the room payload gate."
+            "⚠ A HINT IS NOT UNIFORMLY AUTHORITATIVE, AND THIS SAID IT WAS UNTIL "
+            "2026-08-24 (A4). detect_capabilities applies TWO rules, and which one a "
+            "key gets is not visible from here. "
+            "AUTHORITATIVE (`_hint_wins` — a declared False is binding): "
+            "supports_water_control, supports_edge_mopping, supports_passes, "
+            "supports_custom_room_config, supports_room_clean, supports_zone_clean. "
+            "PERMISSIVE (hint OR live entity presence — a declared False is OVERRIDDEN "
+            "when the entity resolves): supports_mop_features, supports_mop_wash, "
+            "supports_mop_dry, supports_empty_dust, supports_path_control, "
+            "has_attribute_rooms. "
+            "So a porter declaring `supports_mop_wash: False` for a brand that "
+            "categorically cannot wash a mop is silently overridden the moment a "
+            "wash-mop button resolves by name-token match on any sibling entity. "
+            "THE SPLIT IS BY DESIGN, not a defect: the code's own comment reserves "
+            "`_hint_wins` for 'capabilities a brand can categorically NOT do'. What was "
+            "wrong is only this description claiming the strong rule for all twelve. If "
+            "a permissive key needs to become binding for your brand, move it into the "
+            "`_hint_wins` set rather than declaring False and expecting it to hold."
         ),
     },
 }
