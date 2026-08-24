@@ -1060,6 +1060,14 @@ class EufyVacuumManager:
         """Unregister a theme update callback - delegates to ThemeManager."""
         self.themes.unregister_update_callback(callback)
 
+    def register_clean_order_update_callback(self, callback) -> None:
+        """Register a clean-order update callback - delegates to CleanOrderManager."""
+        self.clean_order.register_update_callback(callback)
+
+    def unregister_clean_order_update_callback(self, callback) -> None:
+        """Unregister a clean-order update callback - delegates to CleanOrderManager."""
+        self.clean_order.unregister_update_callback(callback)
+
     def register_vacuum_added_callback(self, callback) -> None:
         """Register a callback to fire when a NEW managed vacuum is created."""
         if callback not in self._vacuum_added_callbacks:

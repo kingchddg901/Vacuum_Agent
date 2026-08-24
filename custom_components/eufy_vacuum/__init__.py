@@ -77,6 +77,7 @@ from .learning.services import (
     async_unregister_learning_services,
 )
 from .listeners import (
+    clean_order_refresh,
     discovery,
     entity_rename,
     dock_events,
@@ -771,6 +772,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # user toggling it never needs a reload, and the detector itself is untouched.
         stall_capture.register(hass)
         _unwind_stack.append(lambda: stall_capture.remove(hass))
+
         job_progress.register(hass)
         _unwind_stack.append(lambda: job_progress.remove(hass))
         pose_sampler.register(hass)
@@ -794,6 +796,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # unconditionally on every normal unload. Safe to un-forward mid-setup —
         # this is not the infeasible step.
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+        # Clean-order READ triggers — startup once (deferred) + each dock arrival.
+        # ⚠ `CleanOrderManager.async_read` had NO CALLERS until 2026-08-24: the
+        # sensor sat at `never_read` forever, which forced the card's row to
+        # `unverifiable` and DEADLOCKED the whole feature (no read -> no Apply ->
+        # no write -> no ack -> no read). Registered unconditionally; the listener
+        # checks per-vacuum capability itself, so a brand that declares no
+        # clean-order block does nothing and costs nothing.
+        #
+        # ⚠ THE POSITION IS LOAD-BEARING — it must stay AFTER the forward above.
+        # `async_at_started` fires INLINE when hass is already running (every
+        # config-entry reload), so registering with the other listeners raced the
+        # sensor platform: the read finished ~0.35s later, its cache write fired
+        # into a callback list the sensor had not joined yet, and the entity then
+        # sat at `never_read` until its next poll — measured at 29.7s on the live
+        # box. Forwarding is awaited, so past this line the sensor is subscribed
+        # and the startup read lands on it immediately.
+        clean_order_refresh.register(hass)
+        _unwind_stack.append(lambda: clean_order_refresh.remove(hass))
         _unwind_stack.append(
             lambda: hass.config_entries.async_unload_platforms(entry, PLATFORMS)
         )

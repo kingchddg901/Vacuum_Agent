@@ -11,6 +11,7 @@
 
 import { renderStepsManifest } from "../state/steps-manifest.js";
 import { resolveCodedLabel } from "../state/coded-label.js";
+import { deriveSequenceRowState, findOverrideSwitch } from "../state/sequence-override.js";
 
 /**
  * A5-AG-2. This was a hand-maintained Set of the five codes the card knew how to
@@ -673,6 +674,8 @@ proto.renderRoomsActionBar = function (
           >${strictOrder ? this.t("rooms.strict_order_on_label") : this.t("rooms.force_exact_order")}</button>
         </div>
       ` : ""}
+
+      ${this._renderPanelSequenceOverride(cardState)}
 
       ${showPrimaryConfirmCancel ? `
         <div class="evcc-rooms-inline-actions">
@@ -1770,5 +1773,71 @@ proto.renderRoomCard = function (room, state) {
     return String(value)
       .replace(/[_-]+/g, " ")
       .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  /**
+   * The Override Order row, for the PANEL's rooms view.
+   *
+   * ⚠ THIS ROW SHIPPED ON ONE SURFACE ONLY (2026-08-24) and that is the finding
+   * worth keeping. It was built into `cards/dashboard-card.js` and never added
+   * here, so the panel — the surface actually used day to day — never showed it.
+   * Nothing was broken; the feature simply did not exist where anyone looked.
+   * TWO rooms views exist and BOTH need any room-level control.
+   *
+   * The five-state derivation and the switch lookup are shared
+   * (`state/sequence-override.js`), so the surfaces cannot drift on what a state
+   * MEANS — only on whether they render it. Keep it that way.
+   */
+  proto._renderPanelSequenceOverride = function (cardState) {
+    const vid = cardState?.config?.vacuum_entity_id;
+    if (!vid) return "";
+    const sw = findOverrideSwitch(cardState?.hass, vid);
+    if (!sw) return "";        // adapter/model does not declare the write half
+
+    const objectId = String(vid).split(".")[1];
+    const sensor = cardState?.hass?.states?.[`sensor.${objectId}_clean_order`] ?? null;
+    const queueRooms = (cardState.getRoomsForActiveMap?.() ?? [])
+      .filter((r) => r && r.enabled)
+      .sort((a, b) => (Number(a?.order) || 999999) - (Number(b?.order) || 999999))
+      .map((r) => ({ room_id: r.room_id ?? r.id, name: r.name, on: true }));
+
+    const s = deriveSequenceRowState({ switchState: sw, sensorState: sensor, queueRooms });
+    if (s.kind === "absent") return "";
+
+    const names = (list) =>
+      (list || []).map((n) => this.escapeHtml(String(n))).join(" \u2192 ");
+
+    let body;
+    if (s.kind === "path_optimizing") body = this.t("rooms.override_order.path_optimizing");
+    else if (s.kind === "unverifiable") body = this.t("rooms.override_order.unverifiable");
+    else if (s.kind === "matching") body = this.t("rooms.override_order.matching");
+    else if (s.kind === "mismatch") {
+      body = `${this.t("rooms.override_order.mismatch")}<br>`
+           + `${this.t("rooms.override_order.device_label")} ${names(s.deviceNames)}<br>`
+           + `${this.t("rooms.override_order.queue_label")} ${names(s.queueNames)}`;
+    } else {
+      body = names(s.deviceNames) || this.t("rooms.override_order.empty_placeholder");
+    }
+
+    return `
+      <div class="evcc-rooms-order-advisory evcc-sequence-override is-${s.kind}">
+        <div class="evcc-rooms-order-advisory-text">${body}</div>
+        <div class="evcc-rooms-inline-actions">
+          <button type="button" class="evcc-chip ${s.overrideOn ? "active" : ""}"
+                  data-action="toggle-sequence-override"
+                  aria-pressed="${s.overrideOn ? "true" : "false"}"
+          >${this.t("rooms.override_order.toggle_label")}</button>
+          ${s.canApply ? `
+            <button type="button" class="evcc-chip" data-action="apply-clean-sequence"
+            >${this.t("rooms.override_order.apply")}</button>` : ""}
+          ${s.kind === "saved" ? `
+            <button type="button" class="evcc-chip" data-action="clear-clean-sequence"
+            >${this.t("rooms.override_order.clear")}</button>` : ""}
+        </div>
+        ${s.overrideOn ? `
+          <div class="evcc-rooms-order-advisory-text">${this.t("rooms.override_order.consent")}</div>
+        ` : ""}
+      </div>
+    `;
   };
 }

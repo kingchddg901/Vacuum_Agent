@@ -193,6 +193,34 @@ class CleanOrderManager:
         #: truncates the other's capture. Reads are rare; serialising is cheaper than
         #: refcounting and cannot get the bookkeeping wrong.
         self._read_lock = asyncio.Lock()
+        #: Fired whenever the cache changes, so the sensor republishes IMMEDIATELY
+        #: rather than on its next poll. Without this the entity lags every read by
+        #: up to the platform scan interval — measured at 10s and 29s on real
+        #: hardware — and that lag lands exactly on the Apply -> "row turns green"
+        #: moment the UI flow is built around, which reads as a broken button.
+        self._update_callbacks: list = []
+
+    # ------------------------------------------------------- update callbacks
+
+    def register_update_callback(self, callback) -> None:
+        """Register a callback to fire when the clean-order cache changes."""
+        if callback not in self._update_callbacks:
+            self._update_callbacks.append(callback)
+
+    def unregister_update_callback(self, callback) -> None:
+        """Unregister a clean-order update callback."""
+        if callback in self._update_callbacks:
+            self._update_callbacks.remove(callback)
+
+    def _notify_updated(self, *, vacuum_entity_id: str | None = None) -> None:
+        """Fire all registered clean-order update callbacks."""
+        for cb in list(self._update_callbacks):
+            try:
+                cb(vacuum_entity_id=vacuum_entity_id)
+            except Exception:
+                _LOGGER.exception(
+                    "Clean-order update callback failed for %s", vacuum_entity_id
+                )
 
     @property
     def hass(self):  # noqa: D401 - thin accessor onto the core manager's hass
@@ -225,11 +253,14 @@ class CleanOrderManager:
         }
 
     def _store(self, vacuum_entity_id: str, order: list[int] | None, status: str) -> None:
+        # Every cache write funnels through here, which is why the notify lives here
+        # and not at the call sites: a new read path added later cannot forget it.
         self._cache[vacuum_entity_id] = {
             "order": order,
             "read_at": utc_now_iso(),
             "status": status,
         }
+        self._notify_updated(vacuum_entity_id=vacuum_entity_id)
 
     # ------------------------------------------------------------------ rooms
 

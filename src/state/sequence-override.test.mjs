@@ -164,3 +164,56 @@ test("[SEQ-8c] a name missing from order_names falls back to the id, not to the 
   assert.deepEqual(s.deviceOrder, [27, 25, 23]);
   assert.deepEqual(s.deviceNames, ["Kitchen", "Hallway", "23"]);
 });
+
+/* =========================================================
+   THE DEADLOCK — canApply on an unverified device
+   ========================================================= */
+
+test("[SEQ-9] unverifiable OFFERS Apply when the override is on — the deadlock bite", () => {
+  // Found by Chris on the live card, not by any test: the sensor starts
+  // `never_read`, never_read forces `unverifiable`, and until 2026-08-24 that
+  // state rendered no Apply. Apply is the ONLY writer, so nothing could ever
+  // populate the cache — no read -> grey -> no Apply -> no write -> no ack ->
+  // no read. The feature was inert on every install.
+  const s = deriveSequenceRowState({
+    switchState: _switch(true),
+    sensorState: { state: "unknown", attributes: { status: "never_read", order: [] } },
+    queueRooms: [_room(27, "Kitchen"), _room(25, "Study")],
+  });
+  assert.equal(s.kind, "unverifiable");
+  assert.equal(s.canApply, true,
+    "grey means we do not know the device order — it must not mean the user may not act");
+});
+
+test("[SEQ-9b] unverifiable with the override OFF offers nothing — the switch is still the gate", () => {
+  // The write refuses with `override_off` server-side, so offering Apply here
+  // would render a button whose only outcome is a refusal.
+  const s = deriveSequenceRowState({
+    switchState: _switch(false),
+    sensorState: { state: "unavailable", attributes: { status: "unavailable" } },
+    queueRooms: [_room(27, "Kitchen")],
+  });
+  assert.equal(s.kind, "unverifiable");
+  assert.equal(s.canApply, false);
+});
+
+test("[SEQ-9c] canApply is explicit on every branch — never undefined", () => {
+  // An undefined canApply is falsy, so a missed branch silently hides Apply
+  // rather than failing loudly. Pin all six.
+  const cases = [
+    ["absent",          { switchState: null, sensorState: _sensor([], []), queueRooms: [] }],
+    ["path_optimizing", { switchState: _switch(false), sensorState: _sensor([], []), queueRooms: [_room(1, "A")] }],
+    ["saved",           { switchState: _switch(false), sensorState: _sensor([27], ["Kitchen"]), queueRooms: [_room(1, "A")] }],
+    ["matching",        { switchState: _switch(true), sensorState: _sensor([27], ["Kitchen"]), queueRooms: [_room(27, "Kitchen")] }],
+    ["mismatch",        { switchState: _switch(true), sensorState: _sensor([25], ["Study"]), queueRooms: [_room(27, "Kitchen")] }],
+  ];
+  for (const [expected, input] of cases) {
+    const s = deriveSequenceRowState(input);
+    assert.equal(s.kind, expected, `expected ${expected}, got ${s.kind}`);
+    assert.equal(typeof s.canApply, "boolean",
+      `${expected}: canApply must be an explicit boolean, got ${typeof s.canApply}`);
+  }
+  // And only the two states that can actually write say true.
+  assert.equal(deriveSequenceRowState(cases[4][1]).canApply, true, "mismatch can apply");
+  assert.equal(deriveSequenceRowState(cases[3][1]).canApply, false, "matching needs no apply");
+});

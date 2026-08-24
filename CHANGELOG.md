@@ -46,6 +46,21 @@ only.
   more of what made the original run behave the way it did.
 
 ### Fixed
+- **Override Order was unusable on a fresh install — the row could never leave "could not
+  check".** Nothing in the integration ever asked the robot what order it currently has, so
+  the sensor stayed at "never read" forever. That greyed the row out, and the grey state
+  offered no Apply button — and Apply is the only thing that writes. No read, no Apply, no
+  write, no confirmation, no read. The device order is now read once at startup and again
+  each time the vacuum returns to its dock, and Apply is offered even while unverified,
+  because pressing it is *how* you find out.
+- **The Override Order switch was missing from the card on real hardware.** It existed, but
+  the card looked for it by a predictable entity id, and Home Assistant had given it a
+  different one. The card now finds it by what it is rather than what it is called, so it
+  also survives being renamed and works in every language.
+- **Override Order now confirms instantly instead of after up to 30 seconds.** The row that
+  turns green when the device agrees with your queue was waiting for the next routine poll,
+  so Apply looked like it had done nothing for half a minute even though the robot had
+  already acknowledged it.
 - **Chinese (zh-Hans and zh-Hant) maintenance guide now translates.** In beta.5 the
   step-by-step instructions inside the guide silently fell back to English for both
   Chinese variants — an otherwise-Chinese UI with English procedures. The translations

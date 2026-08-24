@@ -31,6 +31,7 @@ Architecture reference: [19 — The Event Ingress Layer](../../dev/19-event-ingr
 | `entity_rename.py` | new | — | `tests/unit/test_listeners_entity_rename.py` | unit | spec'd |
 | `core/manager.py` (D4 migration) | new | — | `tests/unit/test_manager_entity_rename_migration.py` | unit | clean |
 | `pause_timeout.py` | 89 | 95% | `test_listeners_timers.py` | integration | clean |
+| `clean_order_refresh.py` | new | — | `test_listeners_registration.py` | integration | spec'd |
 | `_common.py` | 80 | 91% | `test_listeners_common.py` | integration | clean |
 | `job_progress.py` | 48 | 92% | `test_listeners_active.py` | integration | **bare x28** |
 | `pose_sampler.py` | 165 | 90% | `test_pose_sampler.py` (unit) | unit | **bare x5** |
@@ -61,6 +62,14 @@ moment rather than after it, which is when a correlation id should be added.
 
 - **Registration / teardown** (`test_listeners_registration`) — each listener
   family registers its state-change subscriptions and unregisters cleanly.
+  The module list is DERIVED FROM THE TREE, not hand-maintained: `[LR-5]` fails
+  if `listeners/` and `_ALL_MODULES` disagree. That guard exists because the list
+  silently fell four modules behind the package, and a hand-maintained scope list
+  reports the same clean result whether it is complete or four short.
+  `[LR-6a]`/`[LR-6b]` are a matched pair — a dock arrival DOES trigger a read, and
+  after `remove()` it does NOT. The positive control is load-bearing: the teardown
+  half alone passes just as happily against a listener that never fires, and that
+  is precisely the bug it caught.
 - **State-driven actions** (`test_listeners_state_driven`) — a vacuum state
   change drives lifecycle auto-finalize and path-blocker re-evaluation.
 - **Active watch maps** (`test_listeners_active`) — dock-event recording,

@@ -102,6 +102,7 @@ async def async_setup_entry(
     room_history_entities: dict[str, SensorEntity] = {}
     room_rule_status_entities: dict[str, SensorEntity] = {}
     theme_sensor_by_vacuum: dict[str, EufyVacuumThemeStateSensor] = {}
+    clean_order_sensor_by_vacuum: dict[str, EufyVacuumCleanOrderSensor] = {}
     # map_overlays sensor per vacuum — refreshed on a timer (below).
     map_overlays_by_vacuum: dict[str, EufyVacuumMapOverlaysSensor] = {}
     # SN-1: dedup guards for the creation hooks (below) — a vacuum/map that
@@ -182,12 +183,15 @@ async def async_setup_entry(
         # brand without it gains no entity rather than a permanently-unknown one.
         _clean_order = getattr(manager, "clean_order", None)
         if _clean_order is not None and _clean_order.is_supported(vacuum_entity_id):
-            built.append(
-                EufyVacuumCleanOrderSensor(
-                    manager=manager,
-                    vacuum_entity_id=vacuum_entity_id,
-                )
+            _clean_order_sensor = EufyVacuumCleanOrderSensor(
+                manager=manager,
+                vacuum_entity_id=vacuum_entity_id,
             )
+            built.append(_clean_order_sensor)
+            # Held so the manager's update callback can push a refresh at it — the
+            # entity is otherwise poll-only, and the poll is what made Apply look
+            # like it had done nothing for up to half a minute.
+            clean_order_sensor_by_vacuum[vacuum_entity_id] = _clean_order_sensor
 
         # Battery health sensors — six per vacuum (cycles + 3 rates +
         # last-charge duration + health %). Backed by BatteryHealthManager.
@@ -525,6 +529,29 @@ async def async_setup_entry(
     manager.register_theme_update_callback(_refresh_theme_entities)
     entry.async_on_unload(
         lambda: manager.unregister_theme_update_callback(_refresh_theme_entities)
+    )
+
+    def _refresh_clean_order_entities(*, vacuum_entity_id: str | None = None) -> None:
+        """Push a state refresh to the clean-order sensor(s) for one or all vacuums.
+
+        Fires on every cache write — the startup read, each dock-arrival read, and
+        our own Apply/Clear. Without it the entity only republishes on its platform
+        poll, so the row the user is watching for confirmation stayed stale for up
+        to 30 seconds after the device had already acked.
+        """
+        targets = (
+            [clean_order_sensor_by_vacuum[vacuum_entity_id]]
+            if vacuum_entity_id and vacuum_entity_id in clean_order_sensor_by_vacuum
+            else list(clean_order_sensor_by_vacuum.values())
+        )
+        for entity in targets:
+            _request_entity_state_write(entity)
+
+    manager.register_clean_order_update_callback(_refresh_clean_order_entities)
+    entry.async_on_unload(
+        lambda: manager.unregister_clean_order_update_callback(
+            _refresh_clean_order_entities
+        )
     )
 
     @callback

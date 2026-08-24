@@ -21,7 +21,7 @@ import { emptyArmed, nextArmed, planStart, armedIsValid } from "./dashboard-disp
 import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone-geometry.js";
 import { dashboardSuggestion } from "./card-suggestions.js";
 import { canZoneRepeat } from "./zone-repeat.js";
-import { deriveSequenceRowState } from "../state/sequence-override.js";
+import { deriveSequenceRowState, findOverrideSwitch } from "../state/sequence-override.js";
 import { ENTITY } from "../constants.js";
 
 const CARD_NAME   = "vacuum-agent-dashboard";
@@ -501,54 +501,12 @@ class EufyDashboardCard extends HTMLElement {
   // vacuum's adapter+model declares the write (Roborock V1 today); on other
   // models the switch entity does not exist and this row renders nothing.
   //
-  /**
-   * The Override Order switch for this vacuum, or null.
-   *
-   * TWO-TIER, and the fallback is the load-bearing half. `theme_state` established
-   * this shape (see docs/dev/frontend/theme-system.md) and this is the same seam.
-   *
-   * ⚠ THE CONSTRUCTED ID IS A GUESS, NOT A CONTRACT. The switch sets
-   * `_attr_has_entity_name` + a `translation_key`, so Home Assistant builds its
-   * entity_id from the device name and the entity NAME — and the name is not
-   * resolvable when the platform ADDS the entity. Measured on the live box
-   * 2026-08-24: the registry held `original_name: 'Clean Order Override'` while
-   * `entity_id` was bare `switch.ivy`, and entity_ids are STICKY, so it never
-   * corrects itself. Three remove-and-re-register cycles reproduced it. Where the
-   * name DOES resolve in time the slug comes from the TRANSLATED name, so the
-   * constructed id is wrong in another language instead.
-   *
-   * Either way the card must be able to find the entity without knowing its id,
-   * which is what `vacuum_entity_id` in the switch's attributes is for.
-   *
-   * @param {object} hass
-   * @param {string} vacuumEntityId
-   * @returns {object|null} the switch state object, or null when there is none.
-   */
-  _findOverrideSwitch(hass, vacuumEntityId) {
-    if (!hass || !vacuumEntityId) return null;
-    const primary = hass.states?.[ENTITY.overrideOrderSwitch(vacuumEntityId)];
-    if (primary) return primary;
-    // `role` is the discriminator, NOT the name. Twenty other switches carry
-    // `vacuum_entity_id` (the per-room ones), so that alone is ambiguous — and
-    // matching the friendly name would fail in exactly the case this fallback
-    // exists for, because the name is translated (`覆盖清扫顺序` on a Chinese
-    // install). A slug is language-independent.
-    return (
-      Object.values(hass.states || {}).find(
-        (s) =>
-          s.entity_id.startsWith("switch.") &&
-          s.attributes?.vacuum_entity_id === vacuumEntityId &&
-          s.attributes?.role === "clean_order_override",
-      ) ?? null
-    );
-  }
-
   // Five states — see src/state/sequence-override.js.
   _renderSequenceOverrideRow(rooms) {
     const vid = this._vacuumId();
     if (!vid) return "";
     const sensorEntityId = ENTITY.cleanOrderSensor(vid);
-    const switchState = this._findOverrideSwitch(this._hass, vid);
+    const switchState = findOverrideSwitch(this._hass, vid);
     if (!switchState) return "";  // adapter/model does not declare the write
     const sensorState = this._hass?.states?.[sensorEntityId] ?? null;
 
@@ -624,9 +582,14 @@ class EufyDashboardCard extends HTMLElement {
             </div>`;
         }
         case "unverifiable":
+          // Apply IS offered here — see the canApply note in
+          // state/sequence-override.js. Grey means "we do not know the device's
+          // order", not "you may not act", and Apply is how the answer is obtained.
+          // Rendering no action here deadlocked the feature on every install.
           return `
             <div class="soro-body soro-grey">
               <div class="soro-status">${this.escapeHtml(this.t("rooms.override_order.unverifiable"))}</div>
+              ${state.canApply ? `<button class="chip active" id="sequence-override-apply">${this.escapeHtml(this.t("rooms.override_order.apply"))}</button>` : ""}
             </div>`;
         default:
           return "";
@@ -820,7 +783,7 @@ class EufyDashboardCard extends HTMLElement {
       // give the entity the id we guessed — and the row would still be on screen,
       // because it rendered from the entity the lookup DID find. A control that is
       // visible and inert is worse than one that is absent.
-      const sw = this._findOverrideSwitch(this._hass, vid);
+      const sw = findOverrideSwitch(this._hass, vid);
       if (!sw) return;
       const next = sw.state === "on" ? "turn_off" : "turn_on";
       await this._hass.callService("switch", next, { entity_id: sw.entity_id });

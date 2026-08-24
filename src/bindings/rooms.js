@@ -33,6 +33,8 @@
  *
  * @param {object} proto - VacuumCardBindings prototype to extend.
  */
+import { findOverrideSwitch } from "../state/sequence-override.js";
+
 export function applyRoomsBindings(proto) {
 
   /**
@@ -185,6 +187,52 @@ export function applyRoomsBindings(proto) {
     () => {
       this.card._state.toggleStrictOrder?.();
       this.card._scheduleRender();
+    }
+  );
+
+  // Override Order row (panel). The row renders from the SHARED derivation in
+  // state/sequence-override.js; these handlers resolve the switch through the
+  // SAME two-tier lookup the row used. Building the entity_id here instead would
+  // toggle nothing on any install where HA assigned a different id, while the row
+  // stayed on screen — visible and inert is worse than absent.
+  this.card._on(
+    this.card.$("[data-action='toggle-sequence-override']"),
+    "click",
+    async () => {
+      const vid = this.card._state?.config?.vacuum_entity_id;
+      const sw = findOverrideSwitch(this.card._hass, vid);
+      if (!sw) return;
+      await this.card._hass.callService(
+        "switch", sw.state === "on" ? "turn_off" : "turn_on", { entity_id: sw.entity_id },
+      );
+    }
+  );
+
+  this.card._on(
+    this.card.$("[data-action='apply-clean-sequence']"),
+    "click",
+    async () => {
+      const vid = this.card._state?.config?.vacuum_entity_id;
+      if (!vid) return;
+      await this.card._hass.callService(
+        "eufy_vacuum", "apply_clean_sequence", { vacuum_entity_id: vid },
+      );
+    }
+  );
+
+  // Clear is EXPLICIT and confirmed, per the FINDINGS-roborock-clean-sequence
+  // design: it edits the saved sequence in the user's OWN vendor app, so it must
+  // never happen as a side effect of anything else.
+  this.card._on(
+    this.card.$("[data-action='clear-clean-sequence']"),
+    "click",
+    async () => {
+      const vid = this.card._state?.config?.vacuum_entity_id;
+      if (!vid) return;
+      if (!window.confirm(this.card.t("rooms.override_order.consent"))) return;
+      await this.card._hass.callService(
+        "eufy_vacuum", "clear_clean_sequence", { vacuum_entity_id: vid },
+      );
     }
   );
 

@@ -44,7 +44,7 @@
 export function deriveSequenceRowState({ switchState, sensorState, queueRooms }) {
   // No switch entity at all -> the vacuum's adapter+model does not declare the
   // write half of device_clean_order. Absent by design; render nothing.
-  if (!switchState) return { kind: "absent" };
+  if (!switchState) return { kind: "absent", canApply: false };
 
   const overrideOn = String(switchState.state).toLowerCase() === "on";
 
@@ -59,7 +59,15 @@ export function deriveSequenceRowState({ switchState, sensorState, queueRooms })
     || sensorStatus === "unavailable" || sensorStatus === "never_read"
   );
   if (isUnverifiable) {
-    return { kind: "unverifiable", overrideOn };
+    // ⚠ APPLY IS OFFERED HERE, and that is the whole point of `canApply`.
+    // Until 2026-08-24 this state rendered no action at all, which DEADLOCKED the
+    // feature on every install: the sensor starts `never_read`, never_read forces
+    // this branch, this branch showed no Apply, and Apply is the only thing that
+    // writes — so nothing could ever populate the cache and the row was permanently
+    // grey. Withholding Apply because we cannot verify is backwards: APPLY IS HOW
+    // VERIFICATION IS OBTAINED. You write, the device acks, and now you know.
+    // Grey means "we do not know the device's order", never "you may not act".
+    return { kind: "unverifiable", overrideOn, canApply: overrideOn };
   }
 
   // Ids and names are PARALLEL ARRAYS the card renders index-by-index, so the
@@ -91,11 +99,12 @@ export function deriveSequenceRowState({ switchState, sensorState, queueRooms })
   // the user's intent to override.
   if (!overrideOn) {
     if (deviceOrder.length === 0) {
-      return { kind: "path_optimizing", overrideOn: false };
+      return { kind: "path_optimizing", overrideOn: false, canApply: false };
     }
     return {
       kind: "saved",
       overrideOn: false,
+      canApply: false,        // the switch gates the write; it is off here
       deviceOrder,
       deviceNames,
     };
@@ -107,12 +116,54 @@ export function deriveSequenceRowState({ switchState, sensorState, queueRooms })
     && deviceOrder.every((v, i) => v === queueOrder[i])
   );
   if (same) {
-    return { kind: "matching", overrideOn: true, deviceOrder, deviceNames, queueOrder, queueNames };
+    return { kind: "matching", overrideOn: true, canApply: false, deviceOrder, deviceNames, queueOrder, queueNames };
   }
   return {
     kind: "mismatch",
     overrideOn: true,
+    canApply: true,
     deviceOrder, deviceNames,
     queueOrder, queueNames,
   };
+}
+
+/**
+ * Find this vacuum's Override Order switch in `hass.states`, or null.
+ *
+ * TWO-TIER, and the fallback is the load-bearing half. Lives HERE rather than on
+ * either card because there are TWO surfaces that render this row — the standalone
+ * dashboard card and the panel's rooms view — and a lookup copied into both is a
+ * lookup that will diverge. The row was shipped on only one of them on 2026-08-24;
+ * a shared helper is what stops the next feature landing on one surface only.
+ *
+ * ⚠ THE CONSTRUCTED ID IS A GUESS, NOT A CONTRACT. The switch sets
+ * `_attr_has_entity_name` + a `translation_key`, so Home Assistant builds its
+ * entity_id from the device name plus the entity NAME — and the name is not
+ * resolvable at the moment the platform ADDS the entity. Measured on the live box:
+ * the registry held `original_name: 'Clean Order Override'` while `entity_id` was
+ * bare `switch.ivy`, and entity_ids are STICKY, so it never self-corrects. Where the
+ * name DOES resolve in time the slug comes from the TRANSLATED name, so the guess is
+ * wrong in another language instead.
+ *
+ * `role` is the discriminator and it is a SLUG on purpose: ~20 other switches carry
+ * `vacuum_entity_id` (every per-room one), and matching the friendly name would fail
+ * in exactly the non-English case this fallback exists for.
+ *
+ * @param {object} hass
+ * @param {string} vacuumEntityId
+ * @returns {object|null}
+ */
+export function findOverrideSwitch(hass, vacuumEntityId) {
+  if (!hass || !vacuumEntityId) return null;
+  const objectId = String(vacuumEntityId).split(".")[1];
+  const primary = hass.states?.[`switch.${objectId}_clean_order_override`];
+  if (primary) return primary;
+  return (
+    Object.values(hass.states || {}).find(
+      (s) =>
+        s.entity_id.startsWith("switch.") &&
+        s.attributes?.vacuum_entity_id === vacuumEntityId &&
+        s.attributes?.role === "clean_order_override",
+    ) ?? null
+  );
 }

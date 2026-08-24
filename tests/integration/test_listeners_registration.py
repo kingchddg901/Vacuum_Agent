@@ -10,25 +10,36 @@ Coverage targets
         whose adapter declares dock_status but explicitly opts out gets no
         dock-status watcher at all.
 
-Tests cover all seven listener modules:
-  lifecycle, pause_timeout, discovery, dock_events, job_metrics,
-  job_progress, path_blockers
+[LR-5]  _ALL_MODULES covers every module in listeners/ — the scope list is
+        checked against the tree rather than trusted (it was four short).
+
+Tests cover EVERY listener module; [LR-5] is what keeps that sentence true.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
+
+from custom_components.eufy_vacuum import listeners as listeners_pkg
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
+from unittest.mock import create_autospec
+
 from custom_components.eufy_vacuum.listeners import (
+    clean_order_refresh,
     discovery,
     dock_events,
+    entity_rename,
     job_metrics,
     job_progress,
     lifecycle,
     path_blockers,
     pause_timeout,
+    pose_sampler,
+    stall_capture,
 )
 
 
@@ -40,7 +51,42 @@ _ALL_MODULES = [
     job_metrics,
     job_progress,
     path_blockers,
+    stall_capture,
+    pose_sampler,
+    entity_rename,
+    clean_order_refresh,
 ]
+
+
+# ---------------------------------------------------------------------------
+# [LR-5] the scope list is DERIVED-CHECKED, not trusted
+# ---------------------------------------------------------------------------
+
+def test_all_modules_covers_every_listener():
+    """[LR-5] Every listener module appears in _ALL_MODULES.
+
+    ⚠ THIS TEST EXISTS BECAUSE THE LIST SILENTLY ROTTED. It was written for seven
+    modules and the docstring said 'all seven listener modules'; by 2026-08-24 the
+    package held eleven and `__init__.py` registered all eleven, so four listeners
+    — stall_capture, pose_sampler, entity_rename and clean_order_refresh — were
+    outside every guard above. A hand-maintained scope list reports the same clean
+    result whether it is complete or four short, which is why coverage has to come
+    from the TREE and not from the list.
+
+    It bit immediately: clean_order_refresh shipped with no `remove()` at all and
+    no unwind entry, leaking a state-change subscription on every config-entry
+    reload. Nothing here could go red, because the module was not in the list.
+    """
+    package = Path(listeners_pkg.__file__).parent
+    on_disk = {
+        f.stem for f in package.glob("*.py")
+        if not f.stem.startswith("_")
+    }
+    covered = {m.__name__.rsplit(".", 1)[-1] for m in _ALL_MODULES}
+    assert on_disk == covered, (
+        "listeners/ and _ALL_MODULES disagree — "
+        f"untested: {sorted(on_disk - covered)}, stale: {sorted(covered - on_disk)}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -218,3 +264,90 @@ async def test_register_is_idempotent(hass, manager):
     lifecycle.register(hass)
     lifecycle.register(hass)  # must not raise or leave orphaned unsubs
     assert "_job_lifecycle_unsubs" in hass.data[DOMAIN]
+
+
+# ---------------------------------------------------------------------------
+# [LR-6] clean_order_refresh actually SUBSCRIBES, and remove() actually STOPS it
+# ---------------------------------------------------------------------------
+
+_LR6_ADAPTER = {
+    "adapter_id": "test_lr6",
+    "source": "test",
+    "device_clean_order": {
+        "enabled": True,
+        "read": {
+            "via": "v1_debug_log",
+            "command": "get_clean_sequence",
+            "service": {"domain": "vacuum", "service": "send_command"},
+            "source_logger": "test.lr6.protocol",
+            "decoded_prefix": "Decoded V1 message result: ",
+        },
+    },
+}
+
+
+async def _lr6_setup(hass, manager):
+    """A capable vacuum, parked OFF the dock, with async_read stubbed.
+
+    The stub is autospec'd off the REAL bound method so it cannot drift from the
+    signature the listener actually calls.
+    """
+    vacuum_entity_id = "vacuum.lr6"
+    manager.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)
+    register_adapter_config(vacuum_entity_id, dict(_LR6_ADAPTER))
+    stub = create_autospec(
+        manager.clean_order.async_read,
+        return_value={"order": [], "read_at": None, "status": "ok"},
+    )
+    manager.clean_order.async_read = stub
+    hass.states.async_set(vacuum_entity_id, "cleaning")
+    await hass.async_block_till_done()
+    return vacuum_entity_id, stub
+
+
+async def test_clean_order_refresh_reads_on_dock_arrival(hass, manager):
+    """[LR-6a] POSITIVE CONTROL — a dock arrival triggers a read.
+
+    Without this half, [LR-6b] would pass just as happily against a listener that
+    never subscribes to anything at all: 'no read after remove()' is only evidence
+    of teardown if a read was reachable in the first place.
+    """
+    vacuum_entity_id, stub = await _lr6_setup(hass, manager)
+    clean_order_refresh.register(hass)
+    await hass.async_block_till_done()
+    stub.reset_mock()  # discard the startup read; this test is about the edge
+
+    hass.states.async_set(vacuum_entity_id, "docked")
+    await hass.async_block_till_done()
+
+    stub.assert_awaited_once_with(vacuum_entity_id)
+
+
+async def test_clean_order_refresh_remove_stops_dock_reads(hass, manager):
+    """[LR-6b] remove() genuinely unsubscribes — the dock arrival reads nothing.
+
+    ⚠ THE CLAIM IS THE SUBSCRIPTION, NOT THE BOOKKEEPING. The first cut of
+    clean_order_refresh had no remove() and discarded both unsubs; when remove()
+    was added, an ablation that threw the unsubs away again left the whole file
+    GREEN, because every existing guard only checked that remove() does not raise
+    and that a dict key disappears. A listener that leaks its subscription
+    satisfies both. So this asserts the only thing that actually matters: after
+    teardown, the event does not reach the handler.
+
+    The leak is not theoretical — `register` runs on every config-entry reload, so
+    a discarded unsub makes one dock arrival fire N reads after N reloads, each a
+    real send_command to the robot.
+    """
+    vacuum_entity_id, stub = await _lr6_setup(hass, manager)
+    clean_order_refresh.register(hass)
+    await hass.async_block_till_done()
+    stub.reset_mock()
+
+    clean_order_refresh.remove(hass)
+    hass.states.async_set(vacuum_entity_id, "docked")
+    await hass.async_block_till_done()
+
+    assert stub.await_count == 0, (
+        "remove() left the dock-arrival subscription live — the listener leaks "
+        "on every reload"
+    )

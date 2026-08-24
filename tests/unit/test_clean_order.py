@@ -486,3 +486,71 @@ def test_co_ap3_apply_writes_the_current_queue(monkeypatch):
     _, _, data = core.calls[-1]
     assert data["command"] == "set_clean_sequence"
     assert data["params"] == [27, 25, 23]
+
+
+# ---------------------------------------------------------------------------
+# [CO-N] cache writes NOTIFY — the sensor must not wait for its poll
+# ---------------------------------------------------------------------------
+
+def test_co_n1_a_cache_write_fires_update_callbacks(monkeypatch):
+    """[CO-N-1] RED IF `_store` STOPS NOTIFYING.
+
+    The sensor is poll-driven, so before this seam existed every read landed in the
+    cache and sat there invisible until the platform's next scan — measured at 10s
+    and 29s against real hardware. That lag falls exactly on the Apply -> "the row
+    turns green" confirmation the UI flow is built around, so the button reads as
+    broken for up to half a minute while the device has in fact already acked.
+
+    `_store` is the single funnel for every cache write, which is why the notify
+    belongs there: a read path added later inherits it instead of forgetting it.
+    """
+    com, _ = _mgr_with_data(monkeypatch)
+    seen: list[str | None] = []
+    com.register_update_callback(lambda *, vacuum_entity_id=None: seen.append(vacuum_entity_id))
+
+    com._store(_VAC, [27, 25], "ok")
+
+    assert seen == [_VAC], "a cache write did not reach the update callbacks"
+
+
+def test_co_n2_unregister_stops_the_callback(monkeypatch):
+    """[CO-N-2] RED IF `unregister_update_callback` DOES NOT DETACH.
+
+    The sensor platform unregisters on unload; a callback that survives holds a
+    reference to a removed entity and pushes state writes at it after teardown.
+    """
+    com, _ = _mgr_with_data(monkeypatch)
+    seen: list[str | None] = []
+
+    def _cb(*, vacuum_entity_id=None):
+        seen.append(vacuum_entity_id)
+
+    com.register_update_callback(_cb)
+    com._store(_VAC, [27], "ok")
+    assert seen == [_VAC], "positive control: the callback never fired at all"
+
+    com.unregister_update_callback(_cb)
+    com._store(_VAC, [25], "ok")
+    assert seen == [_VAC], "unregister left the callback attached"
+
+
+def test_co_n3_a_raising_callback_cannot_break_the_read(monkeypatch):
+    """[CO-N-3] RED IF ONE BAD SUBSCRIBER TAKES DOWN THE CACHE WRITE.
+
+    `_store` runs inside `async_read`, which is documented as never raising into its
+    caller. A subscriber that throws must not turn a diagnostic read into an
+    exception, and must not stop the SIBLING subscribers from being told.
+    """
+    com, _ = _mgr_with_data(monkeypatch)
+    seen: list[str | None] = []
+
+    def _boom(*, vacuum_entity_id=None):
+        raise RuntimeError("subscriber exploded")
+
+    com.register_update_callback(_boom)
+    com.register_update_callback(lambda *, vacuum_entity_id=None: seen.append(vacuum_entity_id))
+
+    com._store(_VAC, [27], "ok")  # must not raise
+
+    assert com.cached(_VAC)["status"] == "ok", "the cache write was lost"
+    assert seen == [_VAC], "a raising subscriber starved the one after it"

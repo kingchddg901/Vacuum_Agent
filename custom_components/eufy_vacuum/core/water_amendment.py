@@ -30,6 +30,7 @@ do not call register_post_job_water_amendment() from __init__.py.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -206,6 +207,14 @@ def register_post_job_water_amendment(
                 job_id, total_wash_count, end_percent,
             )
         except Exception:  # pragma: no cover - best-effort I/O, logs and swallows
+            # C29, second half. The comment above promised this unlink before the
+            # code had it — caught by the 2026-08-24 audit, which is the sharper
+            # finding: a comment asserting a guard that is NOT there is worse than
+            # no comment, because the next reader stops looking. Without it a
+            # failed patch (full disk, permissions, an SMB hiccup on the share this
+            # very repo lives on) strands a `.tmp` beside the job record forever.
+            with contextlib.suppress(OSError):
+                os.unlink(tmp)
             _LOGGER.exception("post_job_water_amendment: failed to write %s", job_path)
 
     @callback

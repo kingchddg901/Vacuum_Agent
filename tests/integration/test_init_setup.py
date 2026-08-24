@@ -24,6 +24,8 @@ Coverage targets
          rule-status sensors to the registry (dynamic-entity sync).
 [INIT-7] the rule-status + theme refresh callbacks push observable state writes;
          saving a new theme makes the theme sensor report the new theme name.
+[INIT-7b] a clean-order cache write reaches hass.states with no poll.
+[INIT-7c] the clean-order listener registers after the sensor subscribes.
 [INIT-8] the hourly safety-net tick refreshes room-history sensors without crash.
 [INIT-9] remove_config_entry_device on the config-flow vacuum tears it down in place
          (trackers/adapter/panel/storage) + defers clearing it from the entry so
@@ -477,6 +479,148 @@ async def test_refresh_callbacks_push_state(hass, hass_storage, mock_config_entr
     rt.themes.save_theme_as_new(vacuum_entity_id=_VAC, name="X")
     await hass.async_block_till_done()
     assert hass.states.get(theme_entity_id).state == "X"
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_clean_order_refresh_callback_pushes_state(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-7b] a clean-order cache write reaches hass.states WITHOUT a poll.
+
+    The clean-order sensor is poll-driven, so before the update-callback seam
+    existed every read landed in the manager's cache and stayed invisible until
+    the platform's next scan — measured at 10s and 29s against real hardware.
+    That delay lands squarely on the Apply -> "the row turns green" confirmation
+    the whole override flow is built around, so the button reads as broken while
+    the device has already acked.
+
+    This is the [INIT-7] shape applied to clean order: boot for real, write the
+    cache, and assert the ENTITY STATE changed. Asserting the callback fired
+    would not do — the callback firing into an entity whose `hass` is unset is
+    exactly the silent no-op this has to rule out.
+    """
+    # The block is forced at the RESOLVER rather than through
+    # register_adapter_config, because booting the entry re-registers the code
+    # adapter for this vacuum and would overwrite a config planted beforehand.
+    _CLEAN_ORDER_BLOCK = {
+        "device_clean_order": {
+            "enabled": True,
+            "read": {
+                "via": "v1_debug_log",
+                "command": "get_clean_sequence",
+                "service": {"domain": "vacuum", "service": "send_command"},
+                "source_logger": "test.init7b.protocol",
+                "decoded_prefix": "Decoded V1 message result: ",
+            },
+        },
+    }
+
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_one_room()
+    with patch(
+        "custom_components.eufy_vacuum.clean_order.manager._get_adapter_config",
+        return_value=_CLEAN_ORDER_BLOCK,
+    ):
+        ok = await _setup(hass, mock_config_entry)
+        assert ok is True
+        await _assert_clean_order_push(hass)
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def _assert_clean_order_push(hass):
+    """The body of [INIT-7b], run inside the adapter-config patch."""
+
+    from homeassistant.helpers import entity_registry as er
+    reg = er.async_get(hass)
+    clean_order_entity_id = reg.async_get_entity_id(
+        "sensor", DOMAIN, "vacuum_alfred_clean_order"
+    )
+    assert clean_order_entity_id is not None, (
+        "no clean-order sensor was built for an adapter that declares the block"
+    )
+    # Nothing read yet: unknown, which is NOT the same fact as an empty order.
+    assert hass.states.get(clean_order_entity_id).state == "unknown"
+
+    rt = hass.data[DOMAIN][DATA_RUNTIME]
+    rt.clean_order._store(_VAC, [1, 2, 3], "ok")
+    await hass.async_block_till_done()
+
+    assert hass.states.get(clean_order_entity_id).state == "3", (
+        "the cache write never reached the entity — the sensor is still "
+        "waiting on its poll"
+    )
+
+
+async def test_clean_order_listener_registers_after_the_sensor_subscribes(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-7c] the clean-order listener registers AFTER the sensor subscribes.
+
+    ⚠ THIS PINS AN ORDERING, and the ordering is the whole finding. The listener
+    registers through `async_at_started`, which fires INLINE whenever hass is
+    already running — which is every config-entry reload. Registered alongside the
+    other listeners it therefore ran BEFORE the platforms were forwarded, so the
+    startup read finished while the sensor had not yet subscribed to the cache:
+    the notify went to an empty callback list and the entity sat at `never_read`
+    until its next poll (29.7s, measured on real hardware).
+
+    The invariant is asserted STRUCTURALLY — how many subscribers exist at the
+    moment `register` is called — rather than through the observable sensor state,
+    and that is a correction, not a shortcut. The obvious version of this test
+    booted the integration and asserted the sensor was not `never_read`; it passed
+    with the registration moved back to the broken position, because in a test
+    harness the read fails instantly, so the sensor is CREATED AFTER it and simply
+    reads the already-populated cache. The live race exists only because a real
+    read spends ~350ms waiting on the device. A timing bug that a test cannot make
+    slow has to be pinned at the structure that causes it.
+
+    RED IF `clean_order_refresh.register` MOVES BACK ABOVE THE PLATFORM FORWARD.
+    """
+    from custom_components.eufy_vacuum.listeners import clean_order_refresh
+
+    _CLEAN_ORDER_BLOCK = {
+        "device_clean_order": {
+            "enabled": True,
+            "read": {
+                "via": "v1_debug_log",
+                "command": "get_clean_sequence",
+                "service": {"domain": "vacuum", "service": "send_command"},
+                "source_logger": "test.init7c.protocol",
+                "decoded_prefix": "Decoded V1 message result: ",
+            },
+        },
+    }
+
+    observed: dict[str, int] = {}
+    _real_register = clean_order_refresh.register
+
+    def _spy_register(hass_):
+        rt = hass_.data[DOMAIN][DATA_RUNTIME]
+        observed["subscribers"] = len(rt.clean_order._update_callbacks)
+        return _real_register(hass_)
+
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_one_room()
+    with patch(
+        "custom_components.eufy_vacuum.clean_order.manager._get_adapter_config",
+        return_value=_CLEAN_ORDER_BLOCK,
+    ), patch(
+        "custom_components.eufy_vacuum.listeners.clean_order_refresh.register",
+        _spy_register,
+    ):
+        ok = await _setup(hass, mock_config_entry)
+        assert ok is True
+
+    assert "subscribers" in observed, "the listener was never registered at all"
+    assert observed["subscribers"] >= 1, (
+        "clean_order_refresh.register ran before the sensor platform subscribed "
+        "to the clean-order cache — the startup read's result will be published "
+        "to nobody and the entity will wait a full poll interval"
+    )
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
