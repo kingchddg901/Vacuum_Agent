@@ -15,6 +15,19 @@ and reports what changed:
     re-segment case). Confirming migrates the durable data to the new id.
   - ``renamed``    — a known segment id now carries a different name/slug (the
     same physical room was renamed in the app).
+  - ``renamed_and_renumbered`` — neither the slug nor the id matched anything, and
+    exactly one stored room and one discovered room were left unclaimed, so the two
+    are PAIRED BY ELIMINATION (REC-3). It carries ``inferred: True`` and
+    ``match_basis: "sole_remaining_pair"`` precisely because nothing about the two
+    rooms was compared — read the C55 block in ``compute_reconciliation`` before
+    consuming it.
+
+⚠ This list named only the first two kinds until 2026-08-24 (R8): it still
+described the pre-REC-3 world, while ``compute_reconciliation``'s own docstring
+had documented all three since REC-3 landed. The omitted kind is the one with the
+weakest evidential basis and the largest data-migration consequence, so a consumer
+switching on ``review["kind"]`` from this header alone has no branch for exactly
+the case that most needs one.
 
 New rooms and removed rooms are intentionally NOT reported here — the existing
 drift system (setup/drift.py) owns those signals. This module only owns the
@@ -67,7 +80,27 @@ def _coerce_int(value: Any) -> int | None:
 
 
 def _room_slug(room: dict[str, Any]) -> str | None:
-    """Return a room's slug, deriving it from the name when absent."""
+    """Return a room's stored slug, or one DERIVED from its name when absent.
+
+    ⚠ The derived value is NOT interchangeable with a stored one when the room's
+    NAME collides with a sibling's, and this docstring implied it was until
+    2026-08-24 (RM12). Discovery disambiguates at its admission boundary (anchor
+    INCFMPP1, ``rooms/room_discovery.py``): within a map the LOWEST ``room_id``
+    keeps the bare slug and every colliding sibling becomes ``{slug}_r{room_id}``.
+    The fallback here calls bare ``slugify_room_name`` — no map, no siblings, no
+    suffix.
+
+    Failure input: stored ``{"7": {"room_id": 7, "name": "Kitchen"}}`` with no
+    ``slug`` field, and a discovery that now returns "Kitchen" (id 3) and "Kitchen"
+    (id 7) — i.e. slugs ``kitchen`` and ``kitchen_r7``. The stored room derives
+    ``kitchen`` and therefore slug-matches DISCOVERED ID 3: an ``id_changed`` review
+    claiming the room moved 7 -> 3, and confirming it stamps room 7's durable
+    settings onto a different physical room. That is A2-REC-2, the failure INCFMPP1
+    exists to prevent, re-entering through the fallback instead of the boundary.
+
+    Exposure is narrow: rooms written by ``build_managed_rooms`` always carry
+    ``slug``, so this needs a bucket that predates the field or was edited by hand.
+    """
     slug = str(room.get("slug") or "").strip().lower()
     if slug:
         return slug
@@ -310,6 +343,29 @@ def plan_migration(
     are dropped and reported under ``dropped`` — the user confirmed the re-map,
     and drift surfaces genuine removals separately.
 
+    ⚠ ``dropped`` IS NOT THE AUTHORITATIVE REMOVAL LIST, and this docstring read as
+    if it were until 2026-08-24 (R4 / RM10). It is derived from ``carried_slugs``,
+    and that set is stamped on a NARROWER condition than the carry itself — which
+    goes wrong in both directions:
+
+    * FALSE NEGATIVE. The REC-3 singleton pairing below is a THIRD carry path this
+      docstring never mentioned, and it carries a room whose slug DID vanish. Stored
+      ``{16: kitchen, 17: den}``, discovered ``[{16: kitchen}, {20: study}]``: 'den'
+      is absent from discovery, is carried onto id 20, and ``dropped`` comes back
+      EMPTY — so a reader concludes a rename+renumber loses the room's settings,
+      the precise loss REC-3 exists to prevent.
+    * FALSE POSITIVE. A saved room whose ``room_id`` is missing or non-coercible is
+      written into ``new_rooms`` BEFORE the ``if old_id is not None`` guard, so it is
+      carried and simultaneously reported under ``dropped``. It also stays in
+      ``leftover_existing_slugs``, which either blocks a genuine REC-3 pairing (two
+      leftovers where the branch needs one) or, when it IS the sole leftover, carries
+      that same stored room onto a SECOND new id — one room's durable settings and
+      access-graph position answering for two rooms.
+
+    ``room_crud.py``'s ``reconcile_room`` hands this list straight back as the
+    service response, so a caller treating it as "what the migration removed" is
+    wrong in both directions.
+
     Returns:
         {"rooms": {id_str: cfg}, "id_remap": {old_id: new_id},
          "slug_remap": {old_slug: new_slug}, "dropped": [slug, ...]}
@@ -375,6 +431,10 @@ def plan_migration(
         carried["name"] = str(discovered.get("name") or source.get("name") or "")
         carried["slug"] = slug
         new_rooms[str(new_id)] = carried
+        # ⚠ The carry happened on the line ABOVE; ``carried_slugs`` — and therefore
+        # ``dropped`` and ``leftover_existing_slugs`` — is stamped only INSIDE this
+        # guard. A stored room with a missing or non-coercible ``room_id`` is carried
+        # and still reported dropped (R4 / RM10, see the docstring).
         if old_id is not None:
             if old_id != new_id:
                 id_remap[old_id] = new_id

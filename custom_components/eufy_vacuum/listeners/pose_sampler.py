@@ -4,8 +4,20 @@ EXTERNAL (app-started) run, for room auto-attribution.
 This is the production version of the throwaway ``debug_log_live_room`` probe: at the
 adapter's room_attribution cadence it captures the live room via the adapter's declared
 ``room_attribution.source`` (Eufy fork pose ``async_get_map_live_pose``, or a brand's native
-current-room NAME entity) and buffers one ``{current_room, anchor, cleaning_area}`` sample per
-tick into the external slot's ``pose_samples`` (via ``record_pose_sample``).
+current-room NAME entity) and buffers one
+``{current_room, anchor, cleaning_area, heading}`` sample per tick into the external slot's
+``pose_samples`` (via ``record_pose_sample``).
+
+⚠ That brace list is the sample's SHAPE, not an example, and it read
+``{current_room, anchor, cleaning_area}`` — three fields — until 2026-08-24 (L26).
+``heading`` has always been the fourth: ``_read_live_pose_sample`` and
+``_read_native_current_room_sample`` both build it, ``_sample_vacuum_once`` passes
+``heading=sample["heading"]`` to ``record_pose_sample``,
+``ActiveJobTracker.record_pose_sample`` takes it as ``heading: float | None = None``, and
+``pose_store._FIELDS`` lists it. Anyone writing an engine, a fixture or an export from the
+three-field version silently drops it. The stale triple had also PROPAGATED — ``pose_store``'s
+own module docstring repeated the identical three-field set as of 2026-08-24 — so a reader who
+cross-checked got agreement rather than the correction.
 
 **Consumed by the W5c engine wiring** (``learning/room_attribution_engines.py``) — the
 buffered ``pose_samples`` drive which rooms an external (app-started) run is recorded as
@@ -92,9 +104,22 @@ _POSE_SAMPLER_UNSUBS = "_pose_sampler_unsubs"
 # native current_room). A strict-order dispatched job still buffers here but ignores it at
 # finalize (it already captures per-phase timings).
 _SAMPLED_STATUSES = ("external", "started")
-# Absolute last-resort cadence — only if the resolved engine declares no interval_s default
-# at all (e.g. the noop engine). The OPERATIVE default comes from the engine's DEFAULT_TUNING
+# Last-resort cadence. The OPERATIVE default comes from the engine's DEFAULT_TUNING
 # (single source, no duplicated literal); the OPERATIVE value from the adapter's tuning.
+#
+# ⚠ TWO paths in `_room_attribution_interval_s` land here, not one. This said "only if the
+# resolved engine declares no interval_s default at all (e.g. the noop engine)" until
+# 2026-08-24 (L18), which reads as a dead defensive branch -- a noop-engine vacuum is not
+# sampled at all. The second path is live:
+#   (a) no engine default            -- `value is None` after the DEFAULT_TUNING lookup;
+#   (b) UNPARSEABLE declared value   -- `except (TypeError, ValueError)`, i.e. the adapter DID
+#       declare an `interval_s` that `float()` cannot read.
+# (b) is reachable on a shipped brand. `adapters/registry._validate_adapter` does not inspect
+# `room_attribution.tuning.interval_s` AT ALL (it checks room_profiles and mapping.segmenter),
+# and even a validated issue only hard-raises for `source == "config"` -- a CODE-sourced
+# adapter, which is both shipped brands, registers warn-only (see INYA5T84 above). So a
+# malformed `interval_s` on a non-Eufy brand is silently replaced with Eufy's 2.0 s -- the very
+# over-sampling POSE-1 in `_handle_pose_tick` exists to prevent -- with no signal at all.
 _FALLBACK_INTERVAL_S = 2.0
 
 
@@ -374,7 +399,17 @@ def remove(hass: HomeAssistant) -> None:
 
 
 def register(hass: HomeAssistant) -> None:
-    """Sample pose into external runs at the adapter's room_attribution cadence."""
+    """Sample pose into ACTIVE runs — external AND dispatched — at the adapter's
+    room_attribution cadence.
+
+    ⚠ This summary read "Sample pose into external runs" until 2026-08-24 (L21), and the
+    summary line is what an editor's hover and the generated API docs show.
+    ``_SAMPLED_STATUSES`` is ``("external", "started")``: DISPATCHED runs are sampled too, and
+    their samples feed ``reconcile_dispatched_identity``'s "rescued" branch — the room
+    identity stamped on a DISPATCHED run's timings. Gating or short-circuiting this listener
+    on "is this an external run" silently breaks that reconcile, which the module docstring
+    warns is not an inert capture buffer.
+    """
     remove(hass)
 
     domain_data = hass.data.setdefault(DOMAIN, {})
@@ -385,10 +420,25 @@ def register(hass: HomeAssistant) -> None:
     # Cadence = the smallest declared room_attribution.interval_s across configured vacuums;
     # one ticker samples all of them. Read from the adapter — never hardcoded. No adapter
     # wants room attribution → no sampler at all.
-    # LIMITATION (F4, deferred): if a future 2nd brand declares a DIFFERENT interval, its
-    # slower vacuums get over-sampled vs the engine's dwell = n*interval_s assumption. Each
-    # sample already carries a wall-clock `t`, so the fix is per-vacuum tickers (or have the
-    # engine derive dwell from `t` deltas). Unreachable while only Eufy declares attribution.
+    # ⚠ A "LIMITATION (F4, deferred)" note stood here until 2026-08-24 (L2), warning that a
+    # future 2nd brand with a DIFFERENT interval would have its slower vacuums over-sampled
+    # against the engine's dwell = n*interval_s assumption. BOTH of its halves are now dead:
+    #   - "Unreachable while only Eufy declares attribution" -- FALSE. The 2nd brand SHIPPED:
+    #     `adapters/roborock/adapter.py` declares a `room_attribution` block with
+    #     `tuning.interval_s` 5.0 against Eufy's 2.0 (`adapters/eufy/adapter.py`), so a
+    #     mixed-cadence fleet is today's configuration, not a hypothesis. Anyone scoping a
+    #     3rd brand would have built on that false premise.
+    #   - "the fix is per-vacuum tickers (or ... derive dwell from `t` deltas)" -- the FIRST
+    #     option was ADOPTED, ~14 lines below. `_handle_pose_tick` keeps a per-vacuum
+    #     `_last_sample_ts` and skips any vacuum whose own `_room_attribution_interval_s`
+    #     has not elapsed; its POSE-1 comment describes this identical failure as already
+    #     remedied, citing the observed 2.5x over-weighting -- which IS Roborock's 5.0
+    #     sharing a ticker with Eufy's 2.0.
+    # Leaving it as written cost either a re-implementation of per-vacuum tickers that
+    # already exist, or blanket distrust of Roborock external-run attribution as
+    # over-sampled. min() below is therefore the TICKER FLOOR only -- the shared ticker must
+    # fire often enough for the FASTEST vacuum; each vacuum's own cadence is enforced
+    # per-vacuum inside the tick.
     intervals = [
         i for i in (_room_attribution_interval_s(vid) for vid in manager.get_known_vacuum_ids())
         if i is not None and i > 0

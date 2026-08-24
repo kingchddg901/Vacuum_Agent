@@ -21,8 +21,19 @@ EufyVacuumManager orchestrator.
 #   INMKEHPQ  `rooms/room_manager.py#INMKEHPQ`
 #       A2-REC-1 (closed RP-019): Reconciliation never runs in production: no trigger, no schedule, no UI — the
 #              reviews are computed into a payload nothing reads
-#       A2-REC-5 (closed RP-019): migrate applies a plan the user never saw: it never re-checks the reviews, and
-#              rebuilds the map even when there are none
+#       A2-REC-5 (RP-019, HALF closed — re-read 2026-08-24, RM4): migrate applies a plan the user never saw: it
+#              never re-checks the reviews, and rebuilds the map even when there are none
+#              CLOSED half: the reviews ARE re-checked. reconcile_room recomputes them fresh and
+#              refuses on a missing token (`skipped="plan_token_required"`) or a mismatch
+#              (`skipped="plan_changed"`).
+#              OPEN half: there is no `if not current_reviews: return` anywhere in the migrate arm.
+#              A confirm with ZERO reviews fingerprints to a token that MATCHES, so it proceeds and
+#              replaces `map_bucket["rooms"]` wholesale from `plan_migration` — which is not a
+#              no-op: every stored room whose slug is absent from the fresh discovery is DROPPED
+#              (only the no_discovery and >50% partial-discovery guards stand in the way), grants
+#              are rewritten through `id_remap`, and a leftover 1-and-1 pair is carried (C55).
+#              This is the preamble above landing on itself: "(closed RP-x)" named a packet that
+#              closed one of the two clauses filed under it.
 
 
 from __future__ import annotations
@@ -115,6 +126,19 @@ class RoomMapManager:
             map_id=map_id,
         )
 
+        # ⚠ This key and the rooms' OWN ``map_id`` field disagree when the active
+        # map cannot be resolved (2026-08-24, RM22). ``discover_rooms_payload`` has
+        # no "unknown" fallback, so ``active_map_id`` comes back None and this key
+        # is the EMPTY STRING — while ``discover_rooms_for_vacuum`` stamps every
+        # room it returns ``map_id="unknown"``. ``save_managed_rooms`` and
+        # ``reconcile_room`` look this payload up by their own ``str(map_id)`` and
+        # then filter its rooms with ``str(room.get("map_id")) == str(map_id)``, so
+        # whichever of the two values the caller passes, one of the two steps
+        # misses: "" finds the payload and filters every room out of it; "unknown"
+        # finds no payload at all. Either way the save writes an empty room map (or
+        # is refused ``empty_replacement_refused`` when something is already stored)
+        # and the migrate reports ``skipped="no_discovery"`` — never "no map id",
+        # which is the thing that actually went wrong.
         _disc_map_id = str(payload.get("active_map_id") or map_id or "")
 
         self._manager.data.setdefault("discovery", {})
@@ -151,8 +175,17 @@ class RoomMapManager:
             dismissed_at=dismiss_meta.get("reconciliation_dismissed_at"),
             dismissed_plan_token=dismiss_meta.get("reconciliation_dismissed_token"),
         )
-        # REC-5 (RP-019): a fingerprint of this exact review, for the card to round-trip
-        # back on confirm — see compute_plan_token / reconcile_room.
+        # REC-5 (RP-019): a fingerprint of the reviews IN THIS PAYLOAD, for the card to
+        # round-trip back on confirm — see compute_plan_token / reconcile_room.
+        # ⚠ was "a fingerprint of this exact review" until 2026-08-24 (RM11), which is
+        # false in the DISMISSED case — and that is the case that bites. When a dismissal
+        # suppresses an identical set, ``compute_reconciliation`` returns
+        # ``{"reviews": [], "has_changes": False, "dismissed": True}``, so the token below
+        # is computed over an EMPTY review list. ``reconcile_room`` recomputes it WITHOUT
+        # the dismissal arguments, i.e. over the real (non-empty) reviews, so the two can
+        # never match: a migrate confirmed against this payload comes back
+        # ``skipped="plan_changed"`` — a report that the plan changed, for a plan that did
+        # not change. The token is round-trippable only while ``dismissed`` is absent.
         payload["reconciliation"]["plan_token"] = compute_plan_token(
             reviews=payload["reconciliation"]["reviews"],
             discovered_rooms=payload.get("rooms", []),
@@ -416,8 +449,23 @@ class RoomMapManager:
                 slug_remap=_slug_remap,
             )
 
-        # Room-history is a rebuildable cache derived from slug-tagged job files;
-        # invalidate so it re-ingests under the new ids.
+        # Room-history is a rebuildable cache derived from the stored job files;
+        # invalidate so it reloads.
+        # ⚠ was: "derived from slug-tagged job files; invalidate so it re-ingests under
+        # the new ids", until 2026-08-24 (RM15). The operative half is false, and it is
+        # the half a reader relies on.
+        # ``core/manager.py::_ingest_completed_job_into_room_history`` keys every entry
+        # on ``room.get("room_id", room.get("id"))`` — the RAW numeric id recorded in
+        # the job file — and never reads a slug, even though ``resolved_rooms`` carries
+        # one.
+        # Historical job files still hold the OLD ids, so the rebuild re-ingests under
+        # the OLD ids, not the new ones. And ``async_preload_room_history_cache`` MERGES
+        # the rebuild into the live dict (newer-wins per field) instead of replacing it,
+        # so the stale old-id entries are not cleared either: after a renumber the
+        # migrated room reads as NEVER CLEANED while its history sits under an id nothing
+        # asks for again. Carrying room-history across ``id_remap`` — rekeying
+        # ``data["room_history"][vacuum][map]``, the same remedy ``accuracy_stats`` gets
+        # above — is a code change and is NOT landed.
         self._manager._room_history_cache_ready.discard(vacuum_entity_id)
 
         self._manager._refresh_room_derived_state(
@@ -566,6 +614,21 @@ class RoomMapManager:
         )
 
         rooms = map_bucket.get("rooms", {})
+        # ⚠ The ``build_room_selection_summary(...)`` default below NEVER supplies the
+        # value (2026-08-24, RM26). It is dead in two independent senses. (1) Python
+        # evaluates the default EAGERLY, so it runs on every call and the result is
+        # discarded whenever the key is present — including the ``int(room_id_key)`` it
+        # does per room, which would raise out of this read path for a non-numeric room
+        # key whose summary was going to be thrown away. (2) The key is present on
+        # every bucket the current code can produce: ``ensure_map_bucket`` seeds
+        # ``"summary": {}`` alongside ``rooms`` (and it is the only bucket creator —
+        # ``rebuild_map_bucket`` goes through it too), while ``get_map_bucket``'s
+        # miss-path literal carries the key as well. So a bucket whose
+        # summary was seeded and never written returns ``{}`` here — this does NOT
+        # recompute a missing one. The one-token repair is ``map_bucket.get("summary") or
+        # build_room_selection_summary(...)``; it is a behaviour change (a bucket that
+        # legitimately holds an empty summary would start reporting a computed one), and
+        # it is unlanded.
         summary = map_bucket.get("summary", build_room_selection_summary(managed_rooms=rooms))
 
         return {

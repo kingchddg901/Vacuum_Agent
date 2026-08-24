@@ -32,26 +32,76 @@ in those bands first.
 Charge sessions
 ---------------
 A session opens on the first sample where ``charging=True`` after a non-charging
-sample, and closes when one of:
-- ``charging`` transitions to False
-- battery reaches 100%
-- a sanity timeout (``SESSION_MAX_HOURS``) elapses without a closing event
+sample — and ALSO, per DR-BAT-3, on a sample where charging was ALREADY true but the
+open session had just been discarded as stale. Without that second path tracking goes
+dark until charging flips false and true again. The single condition stated here until
+2026-08-24 says the branch cannot fire with ``prev_charging`` already True, which makes
+a perfectly good record look corrupt.
 
-Closed sessions are summarized (start/end battery, duration, avg/min/max rate)
-and:
+TWO EVENTS CLOSE A SESSION; A THIRD DESTROYS ONE:
+- ``charging`` transitions to False   → ``_close_session``
+- battery reaches 100%                → ``_close_session``
+- a sanity timeout (``SESSION_MAX_HOURS``) elapses → NOT a close. ``_update_session``
+  drops ``current_session`` in place, logs "battery: discarding stale session" and sets
+  ``session_was_discarded``. No summary is built, ``raw_store.append_session`` is never
+  called, nothing reaches the history ring.
+
+  ⚠ This list read "closes when one of:" over all three until 2026-08-24. Two of them
+  persist the charge and the third throws it away, so "why is there no CSV row for that
+  overnight dock?" had no answer anywhere in the file.
+
+Closed sessions — the first two events only — are summarized (start/end battery,
+duration, avg/min/max rate) and:
 - written to ``sessions.csv``
 - appended to a recent-history ring buffer in storage (size ``HISTORY_LIMIT``)
-- contribute to the baseline + current health windows
+- promoted into ``health_qualifying_sessions`` ONLY if they pass
+  ``_session_cc_qualifies`` or ``_session_cv_qualifies``; anchoring the baseline needs
+  the stricter both-windows-plus-both-regimes test in ``_update_health``.
+
+  ⚠ This bullet read "contribute to the baseline + current health windows", sitting
+  beside two bullets that genuinely do apply to every closed session, so it read as
+  universal by company. It is not: an ordinary 60→100 charge never crosses the 50→80 CC
+  window and may carry no CV attribution either, so it cannot move ``health_pct``. The
+  proxy looks broken when it is behaving as designed.
 
 Battery health proxy
 --------------------
-We compute "minutes per 1% gained" for each completed deep-enough session
-(start ≤ 50%, end ≥ 90%). The FIRST such session this install observes
-anchors the baseline. Average of the LAST 14-day window of similar sessions
-is "current". ``health_pct = round(baseline / current * 100, 1)``.
+``health_pct`` is an ALIAS of ``cv_charge_speed_pct``. It is not a whole-session
+figure. Both regime indices are "minutes per 1% gained" WITHIN one window —
+``cc_min_per_pct`` across the 50→80 CC window, ``cv_min_per_pct`` across the 80→90 CV
+taper, both computed per session in ``_close_session`` — and both go through the one
+formula ``round(baseline_value / current * 100.0, 1)`` in ``_compute_regime_pct``.
 
-While the baseline is being seeded (no qualifying sessions yet), health_pct
-is None.
+⚠ THIS PARAGRAPH DESCRIBED A RETIRED MODEL until 2026-08-24: a session-wide "minutes
+per 1% gained" over start ≤ 50 / end ≥ 90. The regime split replaced it, and
+``_new_record`` states outright that "The legacy session-wide `min_per_pct` field is
+intentionally absent". The stale text sent readers looking for a ``start ≤ 50`` gate on
+the CV comparison set; there is none. Per RP-045(ii) the CV side qualifies on
+``end >= HEALTH_QUALIFY_END_MIN`` alone (``_session_cv_qualifies``), and
+``start <= HEALTH_QUALIFY_START_MAX`` governs only the CC side and the baseline anchor.
+
+The FIRST session satisfying BOTH endpoint windows AND carrying both regime fields
+anchors the baseline. "Current" is the mean of the last ``CURRENT_WINDOW_DAYS`` (14) of
+qualifying sessions for that regime — falling back to the single most recent qualifying
+session that carries the field when the window is empty, so a quiet fortnight does not
+blank the sensor.
+
+``health_pct`` IS NONE IN FOUR DISTINCT STATES, NOT ONE. This said only "While the
+baseline is being seeded (no qualifying sessions yet), health_pct is None", which reads
+as the sole cause:
+- no baseline anchored yet — the seeding case, the one that was documented;
+- baseline anchored, but no retained qualifying session carries ``cv_min_per_pct``;
+- ``current <= 0``;
+- a figure WAS computed and REJECTED as outside ``REGIME_PCT_MIN``..``REGIME_PCT_MAX``
+  (the live:BATT-CV-1 path), which sets
+  ``health_unavailable_reason = "implausible_regime_ratio"`` and keeps the raw number in
+  ``stats["cv_charge_speed_rejected_pct"]``.
+
+A user told "still seeding, wait for a deep charge" waits — when the real state may be
+"a value was computed and rejected as impossible", which points at the session data
+rather than at charging habits. Preserving that distinction is the whole reason the
+reason-code exists. Read ``health_unavailable_reason`` before concluding anything from
+the None.
 
 The baseline is per-install ("your battery as it was when you started
 measuring"), not an estimate of factory-fresh performance — the integration
@@ -291,8 +341,13 @@ def _new_record() -> dict[str, Any]:
             "by_fan_speed": {},
             "by_water_level": {},
         },
-        # Mid-job recharge rates — high-quality health signal (consistent
-        # 15→75 charge zone, in CC region, hot from cleaning).
+        # Mid-job recharge rates. USUALLY a good signal — a firmware auto-recharge is
+        # roughly a 15→75 window in the CC region with the pack hot from cleaning —
+        # but that window is an OBSERVATION OF THE DEVICE, not a gate this code
+        # applies. Membership is decided by `_classify_session_kind` alone (a job was
+        # in flight when the session opened), so a manual 60→63 top-up on a paused job
+        # folds into the same mean. See `_update_mid_job_rate_stat` for what that
+        # costs the statistic.
         "mid_job_recharge_stats": {
             "count": 0,
             "rate_sum": 0.0,
@@ -313,8 +368,14 @@ def _new_aggregate_bucket() -> dict[str, Any]:
         "count": 0,
         "duration_min_sum": 0.0,
         "area_m2_sum": 0.0,
-        # Total drain over every job in the bucket. A real quantity, but NOT a ratio
-        # numerator — the two partnered sums below are. See C17.
+        # Raw total over every job in the bucket THAT REPORTED A DRAIN — the fold in
+        # `_update_aggregate_bucket` is gated on `drain is not None`, while `count`
+        # increments unconditionally. A real quantity, but NOT a ratio numerator; the
+        # two partnered sums below are. See C17.
+        # ⚠ Read "over every job in the bucket" until 2026-08-24, which invites
+        # dividing it by `count` — the exact population mismatch C17 was about. The
+        # parallel comment at the fold site has always had the narrower wording; this
+        # was the copy that read as complete.
         "drain_pct_sum": 0.0,
         # PARTNERED NUMERATORS. A ratio whose top and bottom count different
         # populations is not a mean of anything, so each of these accumulates ONLY
@@ -429,13 +490,36 @@ class BatteryHealthManager:
              must not be quietly reused (RP-044's cold-start contract) — this tier is
              skipped entirely rather than divide by a stale carry-over. Source
              ``"zone_rate"``.
+          2b. ⚠ AN UNLABELLED SUB-TIER — this ladder read as an exhaustive precedence
+             without it until 2026-08-24. ``_span_minutes`` reaches tier 2 as
+             ``stats.get(stats_rate_key) or stats.get("rate_overall_per_min")``: when
+             the ZONE stat is absent it silently falls back to the UNZONED
+             instantaneous rate, which may have been measured anywhere on the curve
+             including the opposite regime, and STILL labels the result
+             ``"zone_rate"``. So a CV-span ETA can be computed from a low-zone reading
+             and reported to the card as a high-zone measurement. Kept deliberately —
+             an unzoned rate beats no ETA at all — but ``source`` overstates it, and
+             anyone reasoning about RP-044's cold-start contract from this docstring
+             could not previously see the fallback existed.
           3. The learned per-install ``cc_min_per_pct``/``cv_min_per_pct`` baseline —
              a fixed, potentially weeks-old anchor, so it is the last resort rather
              than (as before) the first. Source ``"baseline"``.
           4. None of the above -> ``minutes=None`` — a cold-start install, where the
-             caller shows a live wall-clock "charging..." instead of a fabricated ETA
-             (the charge-rate baseline fills passively from every dock, so this
-             self-heals within a sample or two of the session opening).
+             caller shows a live wall-clock "charging..." instead of a fabricated ETA.
+             The charge-rate baseline does fill passively from every dock, so this is a
+             self-healing state rather than a permanent one.
+
+             ⚠ "self-heals within a sample or two of the session opening" (this
+             docstring until 2026-08-24) is true of the CC span and FALSE of the CV
+             span, and it was written about the estimate as a whole. The high-zone
+             accumulators only fill while ``_zone_for`` returns ``"high"``, i.e.
+             battery >= ``HIGH_ZONE_MIN`` (80); with a session open, tier 2 is
+             deliberately skipped; and ``minutes`` is None for the WHOLE estimate if
+             EITHER span is None (the ``cc_minutes is None or cv_minutes is None``
+             return below). A new install charging from 20% toward 95% therefore shows
+             nothing until the pack actually reaches 80%. That is HOURS. An ETA that
+             has said nothing for two hours on a fresh install is expected behaviour,
+             not a broken accumulator.
 
         Returns ``{minutes: float|None, source: 'baseline'|'zone_rate'|'already_charged'|None}``.
         ``source`` is ``"baseline"`` only when EVERY needed span used the baseline;
@@ -646,8 +730,19 @@ class BatteryHealthManager:
         returns False when it's absent/unavailable — no substring fallback
         (substring matching on task_status/dock_status has known false
         negatives, e.g. post-job recharges where ``task_status`` lingers as
-        ``"completed"``). The local ``except`` branch below only fires for a
-        legacy runtime manager that doesn't expose ``_is_charging`` at all.
+        ``"completed"``).
+
+        ⚠ THE LOCAL ``except`` BRANCH IS NOT LEGACY-ONLY. It is a bare
+        ``except AttributeError`` around a TWO-HOP delegation
+        (``core/manager._is_charging`` → ``self.active_job._is_charging`` →
+        ``core/charging.is_charging``), so an AttributeError raised ANYWHERE in that
+        chain is caught identically — ``self.active_job`` not yet assigned during setup
+        ordering being the realistic one, a condition other comments in this file
+        already treat as real. When that happens the integration silently reverts to
+        the exact substring heuristic the paragraph above rejects, with no log line.
+        This docstring said the branch "only fires for a legacy runtime manager that
+        doesn't expose ``_is_charging`` at all" until 2026-08-24, and that sentence is
+        what stopped anyone looking for the silent fallback.
         """
         try:
             return self._manager._is_charging(vacuum_entity_id)
@@ -727,6 +822,26 @@ class BatteryHealthManager:
                         # live:BATT-ZONE-1 — a 1% quantum over a short interval reads
                         # as a huge rate. Caught by VALUE because the device's sample
                         # cadence rules out catching it by interval (see the constant).
+                        #
+                        # ⚠ ONLY THE RATE IS DISCARDED — B26. The warning below
+                        # says "discarding the sample rather than publishing it", and
+                        # the SAMPLE is not discarded. Only `rate_per_min` is set to
+                        # None. The sample still reaches `_update_session`, which
+                        # increments `session["samples"]` unconditionally while
+                        # charging (so the closed session's reported `samples` counts
+                        # it), it still advances `last_battery_level` /
+                        # `last_sample_ts`, and it is still appended to samples.jsonl
+                        # with its `delta_pct` intact — where, unlike the MAX_DELTA_PCT
+                        # rejections, it carries NO `rejected_*` marker, so post-hoc
+                        # analysis cannot see it was rejected at all.
+                        #
+                        # It no longer DEFLATES `avg_rate_per_min`: C54 moved that
+                        # division onto `rate_samples`, which this sample does not
+                        # increment. That was the sharpest edge of B26 and it is
+                        # already closed — recorded here so nobody re-derives it.
+                        # Correcting the log STRING itself is a code change and is
+                        # deliberately not made here; this comment carries the
+                        # correction.
                         if rate_per_min > MAX_PLAUSIBLE_RATE_PCT_PER_MIN:
                             _LOGGER.warning(
                                 "battery: implausible charge rate %.4f %%/min "
@@ -912,7 +1027,12 @@ class BatteryHealthManager:
     ) -> None:
         session = record.get("current_session")
 
-        # Force-close stale sessions
+        # Discard stale sessions. NOT a close: this drops `current_session` in place,
+        # so no summary is built, no sessions.csv row is written and nothing reaches
+        # the history ring — `_close_session` is never reached from here.
+        # ⚠ Read "# Force-close stale sessions" until 2026-08-24, which primes a reader
+        # to expect _close_session semantics; that is half of why the module docstring
+        # listed the timeout beside the two real closes.
         session_was_discarded = False
         if session is not None:
             start_ts = _parse_iso(session.get("start_ts"))
@@ -1073,9 +1193,13 @@ class BatteryHealthManager:
         # Update health proxy (uses qualifying full charges).
         self._update_health(record)
 
-        # Mid-job recharges are gold-standard data — tight, consistent
-        # 15→75 windows in pure CC region. Track their rate as its own stat
-        # for a high-quality second opinion on health.
+        # Mid-job recharges get their own rolling mean as a second opinion on health.
+        # ⚠ Read "gold-standard data — tight, consistent 15→75 windows in pure CC
+        # region" until 2026-08-24. That describes the firmware's auto-recharge, not
+        # this gate. The gate is the line below and nothing more: `kind == "mid_job"`
+        # (i.e. `_has_active_job` was true when the session OPENED) plus a positive
+        # average and a positive delta. `start_battery` and `end_battery` are never
+        # consulted, so a 60→63 top-up on a paused job qualifies identically.
         if kind == "mid_job" and avg is not None and avg > 0 and delta_pct > 0:
             self._update_mid_job_rate_stat(record, avg)
 
@@ -1129,9 +1253,25 @@ class BatteryHealthManager:
     ) -> None:
         """Maintain a rolling mean of mid-job recharge rates.
 
-        These sessions are the cleanest health signal we get — same start/end
-        zone, same thermal state — so a drop in the mean is an early sign of
-        capacity loss before the 0→100 baseline shifts.
+        THE MOTIVE STANDS. A firmware auto-recharge mid-clean tends to be a narrow,
+        repeatable window (roughly 15→75, CC region, pack hot from cleaning), and over
+        charges like that a drop in the mean would be an early sign of capacity loss
+        before the 0→100 baseline shifts.
+
+        ⚠ NOTHING ENFORCES THE COMPARABILITY THAT CLAIM RESTS ON. This said "same
+        start/end zone, same thermal state" until 2026-08-24, as though a gate existed.
+        There is no start/end zone gate anywhere on this path: `_classify_session_kind`
+        returns "mid_job" purely from `_has_active_job`, and `_close_session` admits the
+        session on `kind == "mid_job" and avg is not None and avg > 0 and delta_pct > 0`
+        — `start_battery` and `end_battery` are never read. A shallow high-zone top-up
+        (slow %/min, CV taper) and a deep CC recharge therefore fold into the one mean
+        via `stats["rate_sum"]`, so the mean moves with CHARGE-WINDOW MIX at least as
+        much as with cell health.
+
+        Treat it as a hint, not as the high-quality second opinion the old text
+        promised. If it should be one, the missing piece is a start/end gate HERE —
+        which is a code change, and the old sentence is exactly why nobody thought to
+        add it.
         """
         stats = record.setdefault("mid_job_recharge_stats", {
             "count": 0,
@@ -1303,8 +1443,15 @@ class BatteryHealthManager:
 
         ``value`` is None when there is no usable data OR when the computed figure is
         implausible (live:BATT-CV-1); in the latter case ``rejected`` carries the raw
-        number so it can be reported rather than vanish. Exactly one of the two is
-        ever non-None.
+        number so it can be reported rather than vanish.
+
+        AT MOST one of the two is ever non-None. ``(None, None)`` is a normal return,
+        and on a fresh install it is the DOMINANT one: no baseline, no usable session
+        value for ``field``, and ``current <= 0`` each take it. ⚠ This said "Exactly one
+        of the two is ever non-None" until 2026-08-24, which invites the inference
+        "value is None, therefore rejected is populated, therefore a figure WAS computed
+        and thrown out" — the rejected-vs-never-computed confusion the live:BATT-CV-1
+        comments below say RP-045 spent a whole packet undoing.
         """
         if baseline_value is None:
             return None, None
@@ -1358,9 +1505,26 @@ class BatteryHealthManager:
         Intended for use after a battery replacement. Does not touch cycles,
         aggregates, session history, mid-job stats, or job metrics — only the
         health proxy's anchor point (and, per RP-045, the separately-retained
-        qualifying-session set it's compared against — see below). The next
-        qualifying recharge (start <= HEALTH_QUALIFY_START_MAX, end >=
-        HEALTH_QUALIFY_END_MIN) will seed a fresh baseline.
+        qualifying-session set it's compared against — see below).
+
+        ⚠ ONE PRE-SWAP FIGURE SURVIVES THIS CALL: ``stats["rejected_rate_per_min"]``,
+        written by the ``MAX_PLAUSIBLE_RATE_PCT_PER_MIN`` guard in ``_process_sample``,
+        is not cleared here — so a "cleared" record still carries a rejected rate
+        measured on the OLD cell. The two regime rejections beside it
+        (``cc_charge_speed_rejected_pct`` / ``cv_charge_speed_rejected_pct``) ARE
+        cleared; see the C21 note below, which closed those two and did not reach this
+        third. Diagnostics-only today, nothing gates on it, which is why it survived.
+
+        RE-ANCHORING IS STRICTER THAN THE ENDPOINTS. This said the next qualifying
+        recharge (start <= HEALTH_QUALIFY_START_MAX, end >= HEALTH_QUALIFY_END_MIN)
+        would seed a fresh baseline. It must ALSO carry both regime fields:
+        ``_update_health``'s anchor loop additionally requires ``cc_min_per_pct is not
+        None and cv_min_per_pct is not None`` on the seed session. A recharge that
+        qualifies by endpoints but was assembled from samples the ``MAX_DELTA_PCT`` /
+        ``MAX_RATE_INTERVAL_SEC`` guards rejected has no regime attribution and will NOT
+        re-anchor. ``_update_health``'s own docstring states the rule correctly; this is
+        the copy that drifted, and it is the one the ``eufy_vacuum.battery_rebaseline``
+        service points at.
 
         Returns True if a record existed for the vacuum and was cleared,
         False if no record was found.
@@ -1505,6 +1669,17 @@ class BatteryHealthManager:
         - Single-bucket runs additionally feed ``by_clean_mode``,
           ``by_fan_speed``, and ``by_water_level`` aggregates — only those
           jobs can be cleanly attributed to a single setting.
+        - ⚠ SINGLE-BUCKETNESS IS NOT THE ONLY GATE, and this docstring named it as if
+          it were until 2026-08-24. ``_apply_metrics_to_aggregates`` also requires
+          ``not metrics.get("mid_job_recharge")`` for all three per-config buckets: a
+          run that recharged mid-clean is kept OUT of every one of them however
+          single-setting it was, because the recharge nets out of the raw start−end
+          drain and would understate that bucket's mean. That exclusion has its own,
+          different reason — documented only at the call site — and "only those jobs
+          can be cleanly attributed to a single setting" does not cover it. So
+          ``by_clean_mode[...]["count"]`` reads SHORT against the number of single-mode
+          jobs you know ran, by design rather than by a lost write. ``last_job`` and
+          ``all_jobs`` still record the run.
         - Sets a pending-post-job-charge flag so the next completed charge
           session links back to this job's record.
         """

@@ -1,11 +1,22 @@
 """Lifecycle listeners — auto-finalize completed jobs.
 
 Watches the vacuum entity + adapter-declared lifecycle entities
-(task_status, dock_status, active_cleaning_target, active_map).
+(task_status, dock_status, active_cleaning_target, active_map, job_active).
 On state transitions, evaluates whether an active job has completed
 and, if so, fires the finalization path. Also records mid-job
 observations (recharge counts, mop-wash observations) and registers
 the post-job water amendment for mop jobs.
+
+⚠ ``job_active`` was MISSING from that parenthetical until 2026-08-24 (L16), and the
+parenthetical reads as the exhaustive watch list. The set is built by
+``get_lifecycle_watch_entities`` (``listeners/_common.py``), which appends FIVE keys, and
+``job_active`` is load-bearing rather than incidental: it is watched precisely so its CLEAR
+at the true finish re-triggers finalization, and the recharge-resume guard in this file
+consumes exactly that transition. Debugging a Roborock run that never re-evaluates
+finalization when ``binary_sensor.<vac>_cleaning`` clears, do NOT conclude from this list
+that the binary is unwatched and a new subscription is needed — it is already in the set,
+and the fault lies elsewhere (e.g. the HA 2026.7 never-created case documented in
+``job_active_signal.py``).
 
 Public surface:
     register(hass: HomeAssistant) -> None
@@ -77,9 +88,26 @@ _ACTIVE_LIFECYCLE_STATES: set[str] = {
     "mid_job_service",     # dock is servicing mid-job (wash/empty/recycle)
 }
 
-# Generic completion fallbacks. Used by get_adapter_value when the adapter
-# registry is absent. The task_status value is the normalized "job done"
+# Generic completion fallbacks. The task_status value is the normalized "job done"
 # string; the clear sentinels are standard HA empty/unavailable states.
+#
+# ⚠ This said "Used by get_adapter_value when the adapter registry is absent" until
+# 2026-08-24 (L8). Both halves were wrong, and both understated the blast radius:
+#   - WRONG FUNCTION. `_DEFAULT_CLEAR_SENTINELS` is passed to `get_adapter_vocab`; only
+#     `_DEFAULT_COMPLETION_TASK_STATUS` goes through `get_adapter_value` (the two call
+#     sites sit together in the completion gate below). Grepping `get_adapter_value` to
+#     find `_DEFAULT_CLEAR_SENTINELS`'s consumer therefore misses its real call site.
+#   - WRONG CONDITION. Both helpers return the fallback whenever the KEY PATH is missing,
+#     not only when the registry is absent (`listeners/_common.py`: "if registry is absent,
+#     path is missing, or any error occurs").
+# So the live blast radius is NOT "vacuums with no registered adapter".
+# `adapters/roborock/adapter.py` registers a `completion` block carrying
+# `task_status_value` and `require_job_active_clear` but NO `secondary_clear_sentinels` --
+# so on live Roborock hardware `_DEFAULT_CLEAR_SENTINELS` governs the completion gate with
+# the registry FULLY PRESENT. It is the degradation path `completion_secondary_satisfied`
+# falls through to when `entities.job_active` is undeclared or resolves to nothing: the
+# issue #46 / #51 shape this code is built around. Changing these constants changes shipped
+# Roborock behaviour.
 _DEFAULT_COMPLETION_TASK_STATUS = "completed"
 _DEFAULT_CLEAR_SENTINELS: frozenset[str] = frozenset(
     {"", "unknown", "unavailable", "none", "null"}
@@ -191,8 +219,24 @@ def register(hass: HomeAssistant) -> None:
                     lifecycle = manager_local.get_lifecycle_state(
                         vacuum_entity_id=vacuum_entity_id,
                         map_id=map_id,
-                        # Vocabulary params omitted — manager reads them from the
-                        # adapter registry directly, with brand-specific fallbacks.
+                        # Vocabulary params omitted — get_lifecycle_state reads them
+                        # from the adapter registry directly (core/manager.py).
+                        #
+                        # ⚠ This said "with brand-specific fallbacks" until 2026-08-24
+                        # (L3) — the exact INVERSION of the invariant this handler
+                        # argues for in the LIFE-3 block just below. There are no brand
+                        # fallbacks anywhere on this path: `hard_service_states`,
+                        # `drying_states` and `active_run_task_states` each fall back to
+                        # an EMPTY frozenset, and `active_vacuum_states` falls back to
+                        # const.HA_ACTIVE_VACUUM_STATES — {"cleaning", "returning",
+                        # "paused", "error"}, generic Home Assistant with no brand in it.
+                        # An adapter that declares no `vocabulary` gets NOTHING, by
+                        # design (IN40W49E: "core holds no brand's vocabulary -
+                        # undeclared resolves EMPTY"), so its lifecycle never reads
+                        # `mid_job_service` and no error is raised. Porting a brand, do
+                        # not expect sensible core defaults when your adapter omits
+                        # `vocabulary` — and do NOT "restore" the behaviour the old
+                        # sentence described by adding brand literals into core.
                     )
 
                     # RP-012/RF-31 (INNJ6SGC) (A4-AJ-1/TRK-2): resolve a mid-job recharge that
@@ -385,8 +429,23 @@ def register(hass: HomeAssistant) -> None:
                     # new phase: a Roborock sits docked+charging between phases —
                     # precisely its completion signal — so without this the prior
                     # room's dock finalizes the next room before it ever starts.
-                    # No-op for non-sequenced jobs (the flag is only set on a phase
-                    # advance, queue_engine.advance_active_job_phase).
+                    # No-op for non-sequenced jobs — all three setters are gated on
+                    # `phases`.
+                    #
+                    # ⚠ This said the flag "is only set on a phase advance,
+                    # queue_engine.advance_active_job_phase" until 2026-08-24 (L6). The
+                    # no-op half is right; the ownership half is not. `_phase_dispatch_pending`
+                    # is set True in THREE places, and only one is an advance:
+                    #   - queue/queue_engine.py `advance_active_job_phase` — the named one;
+                    #   - core/manager.py, at the INITIAL dispatch of phase 0 ("Sequenced
+                    #     (strict-order) job: guard + confirm the FIRST phase exactly like
+                    #     an advanced one");
+                    #   - jobs/phase_runner.py, re-asserting the flag an HA restart cleared
+                    #     ("Re-assert the dispatch guard the restart cleared").
+                    # So this suppression IS live at the START of a strict-order run
+                    # (phase 0) and on the first tick after a restart mid-run — exactly the
+                    # two cases the old parenthetical told a debugger to rule out, and
+                    # exactly when a run that will not finalize is being held here.
                     if should_finalize_completed and active_job.get("_phase_dispatch_pending"):
                         should_finalize_completed = False
                         _dlog("lifecycle.finalize.suppress",

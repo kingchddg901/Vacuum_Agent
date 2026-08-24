@@ -1710,6 +1710,18 @@ open defect rather than an invariant.
   somebody has measured. Neither existed at 2.1.0.
   Stated at the site in `rooms/reconciliation.py` above the pairing branch, per the
   ACCEPTED contract.
+  ⤷ **INTAKE DOCS: PARKED 2026-08-24 (Chris) — "we'll come back to that if it ever bites."**
+  The discussed remedy was a precondition rather than code: say at registration time that the
+  house should be fully mapped and every room named in the vendor app BEFORE the vacuum is
+  registered, because naming a new room or merging two is what makes the brand renumber. That
+  reframes C55's trigger as a skipped setup step rather than routine use. It is NOT being done
+  now: it costs strings.json plus all 18 HA-side translation files plus the user guide, and the
+  case has never been reported by a user. **Do not re-propose this unprompted** — it is parked on
+  evidence of a real occurrence, not on someone thinking of it again.
+  Also noted for whoever does pick it up: `docs/user-guide/11-setup.md` currently opens by saying
+  the Setup tab stays useful "whenever the vacuum reports a new room (you added a room in the Eufy
+  app…)", which reads as though adding rooms later is expected. If the intake line ever lands,
+  that sentence contradicts it and must move in the same pass.
 
 Found 2026-08-22 by the rooms comment audit; verified directly against source.
 
@@ -6245,6 +6257,47 @@ synthesis phase 529'd. The pattern is clearly buildable in principle — A9 and 
 it catches (declared-but-unread and read-but-undeclared, opposite ends of one axis) — but building
 it properly needs to enumerate the current violations and the false positives (branch-local
 honouring like A6 would pass such a gate). Filed as C63 below.
+
+## C66 [OPEN] — the renumber premise is stated as a RULE and is actually an unmeasured observation that VARIES
+
+**SOURCE: Chris, 2026-08-24, from operating the hardware. This is ORAL HISTORY — it is
+recorded nowhere else in the repo, and no capture or fixture holds it.**
+
+`rooms/reconciliation.py`'s module docstring opens with:
+
+> "Some brands renumber their segment ids when the map is re-segmented (Roborock: naming
+> a new room or merging two renumbers most ids)."
+
+Stated as a deterministic vendor behaviour. What Chris actually observed:
+
+* **Eufy APPENDS** a new room to the END of the list — existing ids stay put.
+* **Roborock** sometimes did the same, and sometimes **shuffled** the numbers.
+
+So it is **not a stable rule**: it varies by brand, and on Roborock it varied between
+occasions. The docstring generalises two observations into a contract, and five other
+files repeat the generalisation (`adapters/config_schema.py`, `core/manager.py`,
+`dispatch/manager.py` ×2, `mapping/mapping_services.py`) — so a reader gets the same
+overclaim five times over and reads it as corroboration rather than as one belief copied.
+
+⚠ **WHY THIS MATTERS BEYOND THE PROSE.** The whole slug-first identity design exists
+BECAUSE ids are assumed unstable. If Eufy's ids are in fact stable-on-append, then for
+Eufy the reconciliation machinery is guarding against something that does not happen,
+and `id_changed` — the kind carrying the real weight — may be far rarer than assumed.
+That is a "is this subsystem the right size" question, not a defect, and it is NOT being
+answered now.
+
+**DO NOT "FIX" THIS BY WRITING A DIFFERENT RULE.** The honest correction is to say what
+is actually known: that this is observed behaviour, on which brands, how many times, and
+that Roborock was inconsistent between occasions. Replacing one confident sentence with
+another confident sentence is how R1 went wrong earlier in this campaign.
+
+**Chris's ruling on the consequence (2026-08-24): deal with it if it bites.** Engineering
+against non-deterministic vendor behaviour nobody has measured is not worth doing on
+speculation. See C55, which is accepted on the same reasoning.
+
+**Blocked on wave 1**: `reconciliation.py` is being edited by a comment-correction agent
+as this is filed. Apply after that lands, and sweep the five sibling sites in the same
+pass — fixing the docstring alone leaves the overclaim shipping in five other files.
 
 ## C64 [OPEN] — the carpet/mop invariant is still breakable through save_managed_rooms
 

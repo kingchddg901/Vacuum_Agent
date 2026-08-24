@@ -50,9 +50,23 @@ class EffectiveRoomSettings(TypedDict, total=False):
     ``capability_gated`` is added by ``apply_capability_gate()``. ``floor_type``
     encodes material and carpet pile in one value (e.g. ``"carpet_low_pile"``).
 
-    ``path_type`` is brand-conditional, NOT always present — it is carried only by a
-    brand that declares the axis, and ``apply_capability_gate`` drops the key outright
-    for a device without path control rather than clamping it to a value.
+    ``path_type`` DEPENDS ON WHICH PRODUCER MADE THE DICT, and the two differ:
+
+      * ``resolve_room_profile_for_room`` ALWAYS emits the key — it writes
+        ``"path_type": resolved_path_type`` unconditionally, with ``""`` when neither
+        the room nor the brand's profile declared the axis. This TypedDict is that
+        function's output shape, so on RESOLVER output the key is always there.
+      * ``apply_capability_gate`` is the one that REMOVES it (``if path_type:
+        gated["path_type"] = path_type`` / ``else: gated.pop("path_type", None)``). On
+        a GATED payload the key is genuinely absent for a device with no path control,
+        which is why ``queue_engine`` reads ``gated.get("path_type", "")`` — that
+        ``.get`` is load-bearing, not defensive redundancy someone can tidy away.
+
+    ⚠ Until 2026-08-24 this paragraph said "brand-conditional, NOT always present"
+    while the field annotation below said "always present after Wave 2". Both were
+    live, they were direct opposites, and each refuted the other — so whichever a
+    reader believed, the other looked like the bug to go and "fix". Neither was right,
+    because neither said which producer it was describing.
     """
 
     selected_profile_name: str
@@ -64,7 +78,7 @@ class EffectiveRoomSettings(TypedDict, total=False):
     fan_speed: str
     water_level: str
     clean_intensity: str
-    path_type: str              # always present after Wave 2
+    path_type: str              # resolver always emits it ("" = undeclared); the gate drops it
     clean_passes: int
     edge_mopping: bool
     capability_gated: bool      # added by apply_capability_gate() in Wave 3
@@ -83,10 +97,28 @@ class EffectiveRoomSettings(TypedDict, total=False):
 #
 # There is NO framework default catalog and no fallback. An adapter declares its
 # own profiles, or declares the contract supported with none (``builtins: {}``).
-# A MISSING key is neither — it is an incomplete declaration, and
-# ``registry._validate_adapter`` reports it. Absent must not quietly mean empty,
-# or "this brand has no profiles" becomes indistinguishable from "the porter
-# forgot", which is the fail-soft ambiguity this change exists to remove.
+# Absent must not quietly mean empty, or "this brand has no profiles" becomes
+# indistinguishable from "the porter forgot", which is the fail-soft ambiguity
+# this change exists to remove.
+#
+# ⚠ THE GATE IS THE BLOCK, NOT EACH KEY. This comment claimed the opposite until
+# 2026-08-24 — "a MISSING key ... ``registry._validate_adapter`` reports it" — and
+# it does not. ``registry._validate_room_profiles`` fails exactly three states:
+# ``room_profiles`` absent from the config, not a dict, or ``{}``; its own docstring
+# says so outright ("The gate is the block, not each key"). The only per-key rule in
+# ``_validate_adapter`` is a type check — ``room_profiles.{key} must be a dict if
+# present`` — which an absent key skips entirely, and
+# ``tests/adapters/test_declaration_contract.py``
+# ``::test_a_partially_declared_adapter_registers_and_resolves_empty`` PINS that a
+# partial block registers with no ``room_profiles`` issue.
+#
+# So the ambiguity is closed at BLOCK granularity and is STILL OPEN for ``builtins``
+# specifically: ``room_profiles: {"legacy_aliases": {}}`` is non-empty, passes
+# registration, and resolves ``builtins: {}``. The porter finds out hours later at
+# the first room resolution, as ``UndeclaredProfileCatalogError`` — loud, but far
+# from the cause, which is the outcome the registration gate exists to prevent.
+# Closing it needs a per-key check in ``_validate_room_profiles``. That is a code
+# change and it has NOT been made; do not read this banner as saying it has.
 PROTECTED_ROOM_PROFILE_NAMES: frozenset[str] = frozenset({
     "vacuum_quick",
     "vacuum_deep",
@@ -129,8 +161,16 @@ def coerce_clean_intensity(value: Any) -> str:
     The coercion itself stays and is load-bearing: a brand that declares no
     intensity axis (Roborock omits it from every profile) yields None here, and a
     bare ``str()`` would write the string ``"None"`` into a room. Kept as its own
-    name because nine call sites read as intensity questions; the coercion is
-    ``coerce_axis_value``, shared with every other axis.
+    name because the call sites read as intensity questions — SEVEN of them in the
+    package as of 2026-08-24, three in ``profiles/manager.py`` and four in this
+    module; the coercion is ``coerce_axis_value``, shared with every other axis.
+
+    ⚠ That count said "nine", present tense, until 2026-08-24. It was borrowed from
+    the paragraph above, where "nine call sites" is HISTORY — it describes the retired
+    ``normalize_clean_intensity``. The count is the entire stated reason for keeping a
+    one-line alias rather than calling ``coerce_axis_value`` directly, so anyone
+    re-opening that decision counted seven and read the rationale as already stale, or
+    went hunting for two call sites that no longer exist.
     """
     return coerce_axis_value(value)
 
@@ -177,10 +217,21 @@ def no_water_value(catalog: dict[str, Any] | None) -> str:
     Carpet is the one surface where the framework guarantees water off, so a brand's
     ``floor_type_water_defaults`` entry for carpet IS its no-water word.
     ``resolve_room_profile_for_room`` already reads it this way; ``apply_capability_gate``
-    did not, and assigned the literal ``"Off"`` at three sites. Roborock's value is
-    ``"off"``, which is not in its declared ``water_level_options``, so dispatch
-    filtered the setting out and mop intensity was never applied on a mop-settable
-    model. The literal was removed from one function and left in its sibling.
+    did not, and assigned the Eufy literal ``"Off"`` at three sites. THE DEFECT IS
+    CASE. Roborock's own no-water word is ``"off"``, and ``"off"`` IS in its declared
+    ``water_level_options`` — ``adapters/roborock/vocabulary.py::WATER_LEVEL_OPTIONS``
+    is ``off`` / ``low`` / ``medium`` / ``high``, declared on exactly the mop-settable
+    models. The value that was never declared is the capital-O ``"Off"`` this sibling
+    hardcoded: dispatch's ``options_key`` filter dropped it, so mop intensity was never
+    applied on a mop-settable model. The literal was removed from one function and left
+    in its sibling.
+
+    ⚠ Until 2026-08-24 this paragraph read "Roborock's value is ``off``, which is not
+    in its declared ``water_level_options``" — inverting the lesson into "this brand's
+    own word is invalid against this brand's own option list". The repairs that invites
+    are editing the carpet entry in ``FLOOR_TYPE_WATER_DEFAULTS`` or adding a value to
+    ``WATER_LEVEL_OPTIONS``; either breaks the carpet-water-off guarantee this helper
+    exists to source.
 
     Undeclared yields ``""`` rather than a guess — there is no framework word for this.
     """
@@ -220,13 +271,29 @@ def resolve_profile_catalog(block: dict[str, Any] | None) -> dict[str, Any]:
     suction at all.
 
     Absent and declared-empty resolve the SAME WAY here, and that is deliberate —
-    this function's job is resolution, not judgement. The two states are
-    distinguished where the distinction is actionable: ``registry._validate_adapter``
-    reports a missing ``builtins`` as an incomplete declaration, and the brand-
-    agnostic contract suite makes it a hard failure. Were absence quietly
-    equivalent to ``{}`` everywhere, "this brand has no profiles" and "the porter
+    this function's job is resolution, not judgement. Were absence quietly
+    equivalent to ``{}`` EVERYWHERE, "this brand has no profiles" and "the porter
     forgot" would be the same state, which is precisely the fail-soft ambiguity
     removing the fallback was meant to end.
+
+    ⚠ WHERE THE TWO STATES ARE ACTUALLY TOLD APART IS THE WHOLE ``room_profiles``
+    BLOCK, NOT THE ``builtins`` KEY. Until 2026-08-24 this paragraph named
+    ``registry._validate_adapter`` as reporting a missing ``builtins``, and the
+    brand-agnostic contract suite as making it a hard failure. Neither does.
+    ``registry._validate_room_profiles`` gates on the block alone — absent, not a
+    dict, or ``{}`` — and ``_validate_adapter``'s key loop type-checks ``builtins``
+    only ``if present``. In the contract suite,
+    ``test_an_undeclared_catalog_fails_loudly_not_silently`` covers a wholly absent
+    block and ``test_a_partially_declared_adapter_registers_and_resolves_empty``
+    pins the OPPOSITE for a partial one: it registers clean and resolves empty. No
+    test makes a block that omits ``builtins`` a failure.
+
+    That sentence was the load-bearing reason it is safe for THIS function to
+    collapse absent and ``{}``, so it is worth being exact about what survives. For
+    every other key it IS safe — an empty resolved value is a defined answer. For
+    ``builtins`` the report is merely deferred: the first room resolution raises
+    ``UndeclaredProfileCatalogError`` out of ``get_room_profile``, hours from the
+    declaration that caused it. Do not read "caught upstream" here and stop looking.
 
     ``default_profile`` is the one key that still carries a framework value, and
     it is not vocabulary: it names WHICH profile a new room starts on, never what
@@ -276,15 +343,27 @@ def normalize_room_profile(
     corrected in the two docstrings below; it survived the edit that removed the
     thing it referred to.)
 
-    Q2/RP-025 clause (i): the DISPLAY-AXIS fields (fan_speed/water_level/
-    clean_intensity) do NOT fall through to that same in-code default — it is
-    Eufy's own vocabulary ("Max"/"Off"/"Quick"), and using it as a THIRD-level
-    fallback meant any brand (or bare utility call) that declares nothing for an
-    axis silently acquired Eufy's literals with no brand ever having said so.
-    They fall back only to the catalog's OWN explicitly-declared
-    ``normalize_defaults`` (Eufy's adapter declares one, so its real behaviour is
-    unchanged) — with no catalog at all, "" ("nobody said"), matching the same
-    doctrine resolve_room_profile_for_room already follows.
+    Q2/RP-025 clause (i) is the WHY, and it is now HISTORY rather than a live
+    two-tier read. The DISPLAY-AXIS fields (fan_speed/water_level/clean_intensity,
+    and ``path_type`` with them) used to fall through to an in-code default carrying
+    Eufy's own vocabulary ("Max"/"Off"/"Quick"), so any brand — or a bare utility
+    call — that declared nothing for an axis silently acquired Eufy's literals with
+    no brand ever having said so. That tier was deleted from this module. Eufy's
+    adapter declares its own ``normalize_defaults``, so Eufy's real behaviour is
+    unchanged; every other brand now gets its own words or none.
+
+    ⚠ THERE IS ONE SECOND-LEVEL SOURCE NOW, NOT TWO, and this docstring described
+    the contrast in the present tense until 2026-08-24 — which reads as a live
+    mechanism a maintainer should preserve. ``d`` and ``brand_defaults`` below are
+    assigned the IDENTICAL expression, ``(catalog or {}).get("normalize_defaults")
+    or {}``, on consecutive lines. The duplicate pair is the only remaining trace of
+    the removed tier: merging it under one name takes nothing away behaviourally and
+    erases the marker, so leave it and read this paragraph instead.
+
+    The two groups still differ at the THIRD level, and only there: the framework-
+    owned fields land on ``""`` / ``"vacuum"`` / ``1`` / ``False``, none of which is
+    any brand's word, while the display axes and ``path_type`` land on ``""``
+    ("nobody said") — the doctrine ``resolve_room_profile_for_room`` already follows.
     """
     source = profile or {}
     d = (catalog or {}).get("normalize_defaults") or {}
@@ -407,7 +486,21 @@ def get_available_profile_names(
 ) -> list[str]:
     """Return the list of profile names allowed for the given vacuum capabilities.
 
-    Mop profiles are excluded entirely when the vacuum does not support mopping.
+    THE GATE IS A CONJUNCTION: ``supports_mop_features`` AND ``supports_water_control``.
+    Fail either one and the caller gets the two vacuum-only names.
+
+    ⚠ This said "mop profiles are excluded entirely when the vacuum does not support
+    mopping" until 2026-08-24, naming one of the two conditions. The other one SHIPS.
+    The Roborock S6 declares ``has_mop: True`` (``model_catalog.py``), so
+    ``supports_mop_features`` is True, while ``adapters/roborock/adapter.py`` sets
+    ``"supports_water_control": mop_settable`` — False, because the S6 rejects
+    ``SET_WATER_BOX_CUSTOM_MODE`` / ``SET_MOP_MODE`` — and ``core/capabilities.py``
+    lets that explicit declared False win over the detector. So a mop-equipped robot
+    offering only two profiles is correct behaviour, not a bug; the single stated
+    condition sent anyone debugging it looking somewhere else.
+
+    Do NOT "fix" the code to match the old sentence by dropping the ``supports_water``
+    conjunct — that restores mop profiles on hardware that rejects every mop command.
     """
     capabilities = capabilities or {}
     supports_mop = bool(capabilities.get("supports_mop_features", False))
@@ -433,7 +526,23 @@ def get_available_profiles(
     stored_profiles: dict[str, dict[str, Any]] | None = None,
     catalog: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Return normalized profiles filtered to those allowed by the vacuum's capabilities."""
+    """Return normalized profiles surviving BOTH filters below — not capabilities alone.
+
+    ⚠ TWO FILTERS APPLY AND ONLY ONE OF THEM IS A CAPABILITY. This docstring named
+    just the capability one until 2026-08-24. ``allowed_names`` comes from
+    ``get_available_profile_names``, which returns a hardcoded whitelist of the four
+    framework built-in KEYS (``PROTECTED_ROOM_PROFILE_NAMES``), and the comprehension
+    keeps only ``if name in allowed_names``. So every stored custom profile that
+    ``merge_profile_dicts`` has just merged in is dropped regardless of capabilities,
+    as is any brand builtin declared under a key outside that set.
+
+    What that costs: the sole caller, ``sensor/profile.py::_get_profiles``, publishes
+    this as ``profile_count`` / ``profiles``, so a user who saved three custom room
+    profiles sees none of them on the sensor and is given no stated reason. Whether
+    silently discarding user data is right is a CODE question and is not settled here
+    — this paragraph exists so the next reader does not conclude a capability removed
+    them and go and "fix" the sensor.
+    """
     all_profiles = merge_profile_dicts(
         built_in_profiles=get_default_room_profiles(catalog=catalog),
         stored_profiles=stored_profiles,
@@ -455,12 +564,26 @@ def resolve_profile_name_for_constraints(
     floor_type: str,
     catalog: dict[str, Any] | None = None,
 ) -> str:
-    """Resolve the final profile name after applying hard constraints.
+    """Remap a carpet room's profile NAME off the three mop built-ins. Names only.
 
-    Rule:
-    - carpet floor forces vacuum-only behavior
-    - vacuum_mop_quick -> vacuum_quick
-    - vacuum_mop_deep -> vacuum_deep
+    Off carpet the normalized name is returned unchanged. On carpet, exactly three
+    literals are remapped:
+
+    - ``vacuum_mop_quick`` -> ``vacuum_quick``
+    - ``vacuum_mop_deep`` -> ``vacuum_deep``
+    - ``vacuum_mop_standard`` -> ``vacuum_quick`` (undocumented until 2026-08-24, and
+      live: it is reachable for any brand whose ``legacy_aliases`` does not already
+      fold the name — Roborock declares ``legacy_aliases: {}``)
+
+    ⚠ "carpet floor forces vacuum-only behavior" stood here as a universal rule until
+    2026-08-24, over a three-literal whitelist. It is neither universal nor behaviour:
+    this function returns a NAME and never touches ``clean_mode``. Every other name
+    passes straight through — a user-saved custom profile whose ``clean_mode`` is
+    ``vacuum_mop``, and any brand builtin declared under a different key, both reach a
+    carpeted room still in a mop mode. The caller's carpet clamp still forces water to
+    the brand's no-water word, so the floor stays dry; the MODE is not downgraded. A
+    caller that skips its own mop check on the strength of the old sentence dispatches
+    a mop ``clean_mode`` on carpet.
     """
     normalized_name = _normalize_profile_name(profile_name, catalog=catalog)
 
@@ -582,8 +705,30 @@ def resolve_room_profile_for_room(
 ) -> EffectiveRoomSettings:
     """Resolve final effective settings for a room from its profile and metadata.
 
-    Resolution order: selected profile → floor-type defaults →
-    hard constraints (carpet forces vacuum-only) → per-room overrides.
+    ORDER — corrected 2026-08-24. Values resolve room-explicit > profile > ABSENT
+    (``""`` / ``False`` / ``1``), and the CARPET CLAMP is the only rule ABOVE that
+    ladder. The anchor ``IN11T0FS`` further down states exactly this and the line
+    that used to sit here contradicted it.
+
+    Per-room overrides are therefore read FIRST, not last: each value is
+    ``room_config.get(k, resolved_profile.get(k, <absent>))``. On a carpet floor the
+    clamp then OVERWRITES ``resolved_fan_speed`` / ``resolved_water_level`` from the
+    catalog's ``floor_type_fan_defaults`` / ``floor_type_water_defaults`` even where
+    the room set them explicitly — a room-explicit water level LOSES to carpet, on
+    purpose, because carpet-is-water-off is a safety property rather than a taste.
+    Name-level constraints run before any of that:
+    ``resolve_profile_name_for_constraints`` remaps the profile NAME on carpet and the
+    remapped profile is what the value ladder then reads.
+
+    ⚠ This said "selected profile → floor-type defaults → hard constraints → per-room
+    overrides" until 2026-08-24, and both halves misdirect. The override stage was in
+    the wrong place, so anyone tracing why a user's explicit water level did not reach
+    a carpeted room reads the clamp as the bug. And "floor-type defaults" has been
+    CARPET-ONLY since 2026-08-17 — the per-surface hard-floor rows were retired from
+    both brands' ``FLOOR_TYPE_WATER_DEFAULTS`` (see the block comment at the clamp and
+    ``docs/dev/history/floor-type-cleaning-defaults.md``), so restoring it as a general
+    stage re-adds a table that was deliberately deleted.
+
     Returns an ``EffectiveRoomSettings`` dict; does not mutate inputs.
 
     ``catalog`` (a resolved adapter ``room_profiles`` block) sources the built-ins,
@@ -629,10 +774,17 @@ def resolve_room_profile_for_room(
         catalog=catalog,
     )
 
-    # Last-resort fallbacks are "" ("nobody said"), NOT Eufy display literals. They fire
-    # only when the room AND the brand's profile both omit the key; a value here would be
-    # this module quietly becoming a fourth source of Eufy vocabulary, which is the exact
+    # Last-resort fallbacks carry NO brand vocabulary. They fire only when the room AND
+    # the brand's profile both omit the key; a Eufy display literal here would be this
+    # module quietly becoming a fourth source of Eufy vocabulary, which is the exact
     # thing rooms/room_defaults.py exists to stop.
+    #
+    # ⚠ NOT ALL OF THEM ARE "". This read 'Last-resort fallbacks are ""' until
+    # 2026-08-24 and the very next line is the exception: `clean_mode` falls back to the
+    # literal "vacuum", and `edge_mopping` below to False. Both are FRAMEWORK-canonical
+    # tokens — ProfileRecord documents clean_mode/edge_mopping as framework-owned — so
+    # the rule's intent holds and only its universal phrasing did not. Narrowing
+    # "vacuum" to "" to match the old sentence would be a real regression, not a tidy-up.
     resolved_clean_mode = str(room_config.get("clean_mode", resolved_profile.get("clean_mode", "vacuum")))
     resolved_clean_intensity = coerce_clean_intensity(
         room_config.get("clean_intensity", resolved_profile.get("clean_intensity", ""))
@@ -749,7 +901,19 @@ def apply_capability_gate(
     # clean_intensity from the corresponding vacuum-only built-in profile rather than
     # hardcoding values, so the downgrade follows whatever vocabulary the profile
     # catalog declares. A brand that declares only one of the two axes carries only
-    # that one through the downgrade; the other stays "" and is dropped below.
+    # that one through the downgrade; the other stays "".
+    #
+    # ⚠ "...and is dropped below" stood here until 2026-08-24 and holds for ONE axis.
+    # Only `path_type` is dropped: the `gated.update({...})` at the bottom of this
+    # function writes `clean_intensity` unconditionally, empty or not, and the
+    # `if path_type:` / `gated.pop("path_type", None)` pair covers `path_type` alone.
+    # So on Roborock — which declares `path_type` and omits `clean_intensity` from
+    # every profile — the downgraded payload carries `"clean_intensity": ""` rather
+    # than omitting the key, i.e. exactly the state this comment said was dropped.
+    # Anything downstream distinguishing an ABSENT key from a declared-empty value
+    # (the distinction `_finalize_room_update` and `rooms/vocabulary_migration.py` are
+    # built around) therefore reads a brand with no intensity axis as having declared
+    # it empty. Making the two axes symmetric is a CODE change and has not been made.
     # ISSUE #48, dispatch side. This was `clean_mode in {"mop", "vacuum_mop"}` —
     # exact and case-SENSITIVE, against a value this function's own docstring says
     # arrives as a DISPLAY/STORAGE value and which is not lowercased on the way in
@@ -772,9 +936,15 @@ def apply_capability_gate(
     # Vacuum-only mode — water and edge mopping are irrelevant. Same correction as
     # above and the same reason: `clean_mode == "vacuum"` never matched the display
     # label "Vacuum", so a vacuum-only room dispatched carrying a water level and an
-    # edge-mopping flag. The two halves failed in opposite directions from one root
-    # — the mop test UNDER-fired, this one under-fired too, and only the canonical
-    # spelling ever exercised either.
+    # edge-mopping flag. BOTH halves UNDER-fired, from the one root. This said "failed
+    # in opposite directions" until 2026-08-24 and then contradicted itself two clauses
+    # later; there was never an over-firing half. The old
+    # `clean_mode in {"mop", "vacuum_mop"}` never matched "Vacuum and mop", so the mop
+    # downgrade never ran; the old `clean_mode == "vacuum"` never matched the display
+    # label "Vacuum", so this water/edge clear never ran. Two missed firings of the same
+    # case-sensitivity root, and only the canonical spelling ever exercised either.
+    # Anyone sizing the ISSUE #48 blast radius off the old wording hunts for a predicate
+    # that needs TIGHTENING — there isn't one.
     if canonical_clean_mode(clean_mode) == "vacuum":
         water_level = no_water
         edge_mopping = False

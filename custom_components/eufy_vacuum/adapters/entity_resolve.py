@@ -26,8 +26,23 @@ integration instance as this vacuum, never another install's.
 
 SAFETY PROPERTIES, in order of importance:
 
-1. **It never changes a resolution that already works.** A declared ID present in the
-   state machine is returned untouched, so no working install can be altered by this.
+1. **The RESCUE never changes a resolution that already works.** A declared ID present
+   in the state machine is skipped by the rescue loop (``if hass.states.get(declared)
+   is not None: continue``) and returned untouched.
+
+   ⚠ was: "no working install can be altered by this" — which stopped being true when
+   ``overrides`` was added to ``resolve_declared_entities``. The overrides pass runs
+   BEFORE that state check and applies no state check of its own; it simply pins
+   ``entities[_role] = _chosen``. So a role whose declared ID resolves perfectly IS
+   rewritten on any install that has an override for it. That is deliberate — see the
+   function's own docstring, "A role is pinned even when the chosen entity has no
+   state" — and both shipping adapters pass a real map (``overrides=entity_overrides``
+   in ``adapters/eufy/adapter.py`` and ``adapters/roborock/adapter.py``). If you are
+   chasing "my binding changed even though the old entity still exists", the override
+   pass is where it happens, not the rescue. The mirrored sentence inside
+   ``eufy/adapter.py::_rescue_select_block`` IS true at its own site, because that call
+   passes ``overrides=None`` — which is what made the module-level version look
+   corroborated.
 2. **It refuses to guess.** Zero candidates, or two or more it cannot disambiguate, and the
    declared ID is left exactly as it was. A wrong remap would be worse than no remap.
 3. **It is loud.** Every remap is logged at INFO with both IDs, and returned in a report so
@@ -298,6 +313,19 @@ def resolve_action_entity(
     3. a sibling whose upstream ``translation_key`` IS the suffix — the rung the act
        path never had, and the one that speaks German.
 
+    THE LADDER IS NOT THE WHOLE ALGORITHM, and this docstring read as if it were until
+    2026-08-24 ("when it has state" on rung 1 promises that a stateless derived id is
+    never returned). Rungs 2 and 3 need the VACUUM's own registry entry to sweep
+    siblings from, so when ``registry.async_get(vacuum_entity_id)`` returns None the
+    function takes a SEPARATE branch: it returns the derived id on REGISTRY PRESENCE
+    alone, with no state check at all (``registry.async_get(derived) is not None``), and
+    rungs 2 and 3 never run. ``_status`` inspects only ``disabled_by``, so a
+    registered-but-stateless entity comes back ``"resolved"`` rather than ``"missing"``
+    — and ``dock/manager.py`` presses whatever comes back with that status, which is
+    exactly the silent ``log_missing`` no-op the disabled/missing split below exists to
+    prevent. The branch needs the vacuum to be absent from the registry, so it is rare
+    in production but reachable from tests and from a partially-set-up install.
+
     Rung 3 needs NO new vocabulary for the case that motivated it: Roborock's declared
     reset suffixes are byte-identical to its upstream keys (``reset_main_brush_consumable``
     and friends), which is exactly why the declaration doubles as the wanted key
@@ -382,6 +410,18 @@ def rescue_by_translation_key(
     kind live:ENT-1 repairs, where the PREFIX is wrong and the suffix still matches;
     the suffix itself is in another language (issue #51).
 
+    AND THE ID IS A FOSSIL, which is why a settings change cannot undo it. HA slugs the
+    id at creation and then never revisits it: ``async_get_or_create`` looks the entity
+    up by ``unique_id`` and takes the UPDATE path, which does not touch the entity id.
+    Switching HA's language afterwards renames NOTHING, so the id permanently records
+    whichever language was active the day that entity was first created — and an
+    affected user cannot self-heal by putting the setting back. (Salvaged 2026-08-24
+    from the retired ``21-adapter-system.md`` / ``22-adapter-config-reference.md``. The
+    tree stated the creation half in three places — here, the SUFFIX EXHAUSTED comment
+    in ``resolve_declared_entities``, and ``tests/unit/test_entity_resolve.py`` — and the
+    never-revisited half in none, which reads as though the problem goes away when the
+    user changes the language back.)
+
     ``translation_key`` is the upstream integration's own word for the concept. It is
     set from the code, never translated, and it does not move when the entity is
     renamed or when the device it sits on changes — so this recovers a localized
@@ -439,8 +479,17 @@ def resolve_declared_entities(
 ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
     """Return ``(entities, report)`` with unresolvable IDs repaired where unambiguous.
 
-    ``report`` maps role -> ``{"declared": ..., "resolved": ...}`` for each remap, and is
-    empty when nothing needed rescuing (the overwhelmingly common case).
+    ``report`` maps role -> ``{"declared": ..., "resolved": ..., "via": ...}`` for each
+    remap, and is empty when nothing needed rescuing (the overwhelmingly common case).
+    ``via`` names the rung that won — ``"suffix"`` or ``"translation_key"``.
+
+    ⚠ This spec said two keys until 2026-08-24. The two-key shape predates the
+    translation_key rung; every entry the function has written since carries the third
+    key (the inline note at the write site, "Additive: consumers ignore unknown keys
+    today", was accurate but was never reconciled up here). A consumer written from the
+    old spec — or a test asserting the report equals a two-key literal — is written
+    against a shape this function never produces, and ``via`` is precisely the field a
+    future "why did this bind?" surface would key off.
 
     ``overrides`` maps role -> entity_id and is the user's explicit choice, from the
     System tab or the options flow. It is applied HERE, in the shared resolver, rather
@@ -450,23 +499,55 @@ def resolve_declared_entities(
     because a fix landed in one copy of a predicate and not the other. And it is
     upstream of everything that reads a binding: ``config["entities"]`` is what the
     runtime, the card and diagnostics consult, while ``detect_capabilities`` sees only
-    a 14-role candidate subset — so an override applied only there was a no-op for
-    ``battery`` and ten other declared-only roles.
+    the brand's ``entity_candidates`` subset — so an override applied only there was a
+    no-op for every declared-only role.
+
+    ⚠ That subset is PER BRAND, and this said "a 14-role candidate subset ... ``battery``
+    and ten other declared-only roles" until 2026-08-24 — Eufy's numbers stated as a
+    property of ``detect_capabilities``, in a paragraph whose whole thesis is brand
+    symmetry. Counted from source: Eufy declares 14 ``entity_candidates`` roles against
+    22 in its ``entities`` map, leaving 11 declared-only (``battery``, ``error_message``,
+    ``charging``, ``wash_frequency_mode``, ``wash_frequency_value_time``,
+    ``dry_duration``, ``total_cleaning_area``, ``total_cleaning_time``,
+    ``total_cleaning_count``, ``dock_firmware_version``, ``scene_select``); Roborock
+    declares FIVE, and both feed the same ``detect_capabilities``. The argument holds on
+    both brands; only the figure was one brand's.
     """
     report: dict[str, dict[str, str]] = {}
     if not isinstance(entities, dict) or not entities:
         return entities, report
 
     # THE USER'S CHOICE IS A DECLARATION, not a candidate. Pinned before anything else
-    # runs so it is what the rescue and exclusivity passes below reason about: its
-    # suffix joins `declared_suffixes` and therefore participates in the ownership
-    # check, exactly as a brand-declared id would.
+    # runs so it is what the rescue and exclusivity passes below reason about.
+    #
+    # ⚠ was: "its suffix joins `declared_suffixes` and therefore participates in the
+    # ownership check, exactly as a brand-declared id would." True only for an override
+    # whose entity id is PREFIXED by this vacuum's object_id. `build_suffix_universe`
+    # derives every suffix through `_suffix_of`, which bails first (`if not
+    # object_part.startswith(vacuum_object_id): return None`), so an override pointing at
+    # a differently-named entity contributes NOTHING to the universe — and that is the
+    # case overrides exist for, this module's own headline example being
+    # `sensor.dining_room_alfred_total_cleaning_area` against object_id `alfred`. Worse:
+    # because the override has REPLACED the brand's declared id in `entities`, that role's
+    # own brand suffix drops out of the universe too.
+    #
+    # SO WHAT ACTUALLY PROTECTS A COLLISION PAIR HERE IS `reserved_suffixes`, not the
+    # override. Both shipping adapters pass `reserved_suffixes=ALL_SUFFIXES`, which masks
+    # the hole; it is a per-adapter argument a third brand can simply omit, and omitting
+    # it reopens the live:ENT-4 shape (`_cleaning_area` vs `_total_cleaning_area`)
+    # silently, at exactly the point the old wording promised it was closed.
+    # `capabilities.py::augment_candidates_from_device` documents the same prefix
+    # requirement on its own path as DELIBERATE: "an override that does not follow this
+    # vacuum's naming cannot pollute the suffix universe."
     #
     # A role is pinned even when the chosen entity has no state. Silently declining
     # would return the binding to auto-detection while the System tab still showed the
     # override stored, and the two would disagree with no way to see which won. The
-    # rescue pass below may still repair it, and REASON_OVERRIDE_UNRESOLVED reports the
-    # case that cannot be repaired.
+    # rescue pass below may still repair it — but ONLY when the chosen id is prefixed by
+    # this vacuum's object_id, because that loop derives its suffix through the same
+    # `_suffix_of` bail and exits at `if not suffix: continue`. For a renamed or
+    # separate-device override there is no repair path here at all, and
+    # REASON_OVERRIDE_UNRESOLVED reports the case that cannot be repaired.
     if isinstance(overrides, dict):
         for _role, _chosen in overrides.items():
             if isinstance(_chosen, str) and "." in _chosen:
@@ -531,13 +612,31 @@ def resolve_declared_entities(
 
     # anchor: RNZM4AYY  longest-suffix ownership test — the replica set
     #
-    # REPLICA, three copies. The same rule — a candidate belongs to the declaration
-    # that explains the MOST of its name — is implemented separately in
-    # `capabilities.py::augment_candidates_from_device` (the probe's suffix universe)
-    # and in `tokens_owned_elsewhere` above (the button token sets). All three must
-    # agree, or a role resolves one way through the declared map and another way
-    # through the probe, and a button binds to a sibling that already has an owner.
-    # See 00c. `python scripts/doc_anchor.py --show RNZM4AYY` lists all three.
+    # TWO MEMBERS, and the SUFFIX half is ONE implementation. The rule — a candidate
+    # belongs to the declaration that explains the MOST of its name — lives once, as
+    # `build_suffix_universe`/`claimed_by` above. Both suffix sites are thin wrappers
+    # over it: this `_claimed_by`, and the identically-shaped one in
+    # `capabilities.py::augment_candidates_from_device`, which IMPORTS `claimed_by` FROM
+    # this file (see its import header: "THE suffix predicate — one copy, shared with
+    # adapters.entity_resolve"). The genuine second member is `tokens_owned_elsewhere`
+    # above — the button token sets — which cannot share the implementation because it
+    # is SET containment where this is STRING containment. That pair is what must agree,
+    # or a role resolves one way through the declared map and another through the probe,
+    # and a button binds to a sibling that already has an owner.
+    #
+    # ⚠ was: "REPLICA, three copies ... implemented separately in
+    # `capabilities.py::augment_candidates_from_device` ... All three must agree." False
+    # since the extraction, and the counterpart marker over there was updated while this
+    # one was not (it now reads "the twin of this rule", claiming no separate
+    # implementation). Twenty lines above, this same file already says "ONE COPY NOW".
+    # Believing the old text sends a maintainer hunting for a second suffix
+    # implementation to hand-edit into agreement; finding only a one-line wrapper, the
+    # plausible "fix" is to re-inline the predicate there — restoring exactly the
+    # two-copy fork that produced live:ENT-4 (the guard added to one twin and not the
+    # other) and that `build_suffix_universe`/`claimed_by` were extracted to end. The
+    # live hazard now runs the other way: an edit to `claimed_by` lands in EVERY caller,
+    # including the maintenance path.
+    # See 00c. `python scripts/doc_anchor.py --show RNZM4AYY` lists every site.
     def _claimed_by(object_id: str) -> str | None:
         return claimed_by(object_id, declared_suffixes)
 

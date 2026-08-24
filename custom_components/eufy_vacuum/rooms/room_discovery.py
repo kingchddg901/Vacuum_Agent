@@ -5,14 +5,37 @@ attribute contains it, which keys hold room ID and name) comes from the
 adapter registry's discovery config block. This file contains no vacuum
 brand assumptions — it reads whatever the adapter declares.
 
-Adapter config shape consumed here (adapters/config_schema.py § discovery):
-    room_list_entity:    "vacuum_entity" | <full entity_id>
-    room_list_attribute: str — attribute name on the entity
+Adapter config shape consumed here (adapters/config_schema.py § discovery). SEVEN
+keys are read, not the four this block listed until 2026-08-24 (R26), and the one
+it omitted — ``source`` — is the one that selects the whole branch:
+    source:              "entity_attribute" (default) | "service_response". A
+                         service-response adapter reads NEITHER room_list_ key
+                         below; its rooms come from the cache source_refresh.py
+                         fills (get_cached_room_source + select_segments_for_map).
+    room_list_shape:     "flat_list" (default) | "per_map_mapping" — declared
+                         INDEPENDENTLY of source, and read only on the attribute
+                         branch (the service flattener always produces per-map
+                         keying). Conflating shape with source is what discovered
+                         ZERO rooms for Dreame until 2026-08-07.
+    implicit_map_id:     str — synthetic map id for an attribute-mode device that
+                         creates no active_map sensor (_implicit_attribute_map_id).
+    room_list_entity:    "vacuum_entity" | <full entity_id>  (attribute source only)
+    room_list_attribute: str — attribute name on the entity (attribute source only)
     room_id_key:         str — key in each room dict for the room ID
     room_name_key:       str — key in each room dict for the room name
 
-When the adapter is not registered or discovery config is absent, both
-functions degrade gracefully (return None / empty list).
+The four-key version read as this file's declared interface with the adapter
+schema, so a porter working from it declares those four, omits ``source``, lands
+on the attribute branch by default and discovers nothing — the same failure the
+source/shape split was made to end.
+
+Degradation when the adapter is not registered or the discovery config is absent
+is per-function, and there are THREE public functions here, not the "both" this
+said until 2026-08-24 (R26):
+    get_active_map_id          -> None
+    discover_rooms_for_vacuum  -> []
+    discover_rooms_payload     -> always a dict (``rooms: []``, ``room_count: 0``,
+                                  ``active_map_id: None``) — never None
 """
 
 # System invariants that bind in this file. Declared and explained elsewhere
@@ -54,9 +77,18 @@ from ..entity_helpers import BLANK_STATE_VALUES, is_blank_state
 _LOGGER = logging.getLogger(__name__)
 
 # HA sentinel states that mean "no usable value".
-#: Kept as a NAME (diagnostics imports it) but derived from the shared vocabulary so it
-#: cannot drift again. It gains "null" — this sensor previously caught only the Python
-#: str(None) leak form and missed the JSON one.
+#: Kept as a NAME (diagnostics imports it) but derived from the shared vocabulary so the
+#: MEMBERSHIP cannot drift again. It gains "null" — this sensor previously caught only
+#: the Python str(None) leak form and missed the JSON one.
+#: ⚠ was: "so it cannot drift again", unqualified, until 2026-08-24 (RM27). The
+#: VOCABULARY was centralised; the QUESTION was not. This module never tests the set
+#: directly — it asks `is_blank_state`, which strips and lowercases. Its one importer,
+#: `diagnostics.py`, asks raw set membership instead (`active_map_state not in
+#: _ACTIVE_MAP_SENTINELS`), so a provider publishing "Unknown" or " unknown " is BLANK
+#: here (`get_active_map_id` returns None and the import refuses) and USABLE there (the
+#: self-check reports the map resolves) — the same report-vs-behaviour disagreement
+#: diagnostics.py records fixing for the `exists` tell, one predicate along. Sharing the
+#: constant is not sharing the question; only routing both through `is_blank_state` is.
 _ACTIVE_MAP_SENTINELS = BLANK_STATE_VALUES
 
 
@@ -73,11 +105,23 @@ def get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
       a novel device whose sensor hasn't materialised yet (boot/restart window):
       return None and wait. Must NOT fork a phantom implicit map.
     - Entity absent from BOTH state machine and registry → the sensor is never
-      created: an attribute-mode device (e.g. Eufy on the scalar/Tuya transport)
-      that surfaces its room list as a vacuum attribute. Fall back to the
-      adapter's single implicit map id (see _implicit_attribute_map_id).
+      created. TWO fallbacks are tried in order, and the ladder does not stop at
+      the first: `_implicit_attribute_map_id`, for an attribute-mode device (e.g.
+      Eufy on the scalar/Tuya transport) that surfaces its room list as a vacuum
+      attribute; then, when that returns None, `_single_cached_map_id`, which
+      serves a SERVICE-RESPONSE brand (Roborock) whose cached room source holds
+      exactly one map.
 
-    Returns None when no path yields an id.
+    ⚠ This branch was described as attribute-mode-only, and the docstring closed
+    with a flat "Returns None when no path yields an id", until 2026-08-24 (R11).
+    Both stopped being true when `_single_cached_map_id` was added for ISSUE #46:
+    the fall-through is `return _single_cached_map_id(...)`, not `return None`, so
+    a Roborock with no map-selector entity CAN resolve a map id here. Anyone
+    auditing whether this function can invent a map anchor has to read that helper
+    — its narrowing rules (exactly one cached map, service source only, the map
+    must actually carry rooms) are the real answer, not this ladder.
+
+    Returns None only when every path above declines.
     """
     config = get_adapter_config(vacuum_entity_id)
     active_map_entity = (config or {}).get("entities", {}).get("active_map")
@@ -211,14 +255,32 @@ def discover_rooms_for_vacuum(
 ) -> list[dict[str, Any]]:
     """Return normalized room dicts from the adapter's declared room list entity.
 
-    Reads discovery config from the adapter registry:
-      room_list_entity    — "vacuum_entity" or a full entity ID
-      room_list_attribute — attribute name that holds the room list
-      room_id_key         — key in each room dict for the room ID
-      room_name_key       — key in each room dict for the room name
+    Reads discovery config from the adapter registry. ``source`` is read FIRST and
+    decides which of the rest apply:
+      source              — "entity_attribute" (default) or "service_response"
+      room_id_key         — key in each room dict for the room ID   (both sources)
+      room_name_key       — key in each room dict for the room name (both sources)
+      room_list_entity    — "vacuum_entity" or a full entity ID    (attribute only)
+      room_list_attribute — attribute name that holds the room list (attribute only)
+      room_list_shape     — "flat_list" (default) or "per_map_mapping" (attribute
+                            only; the service flattener always keys per map)
 
-    Returns an empty list when the adapter is not registered, discovery
-    config is absent, or the room list attribute is missing/invalid.
+    ⚠ This listed room_list_entity / room_list_attribute / room_id_key /
+    room_name_key as the whole contract until 2026-08-24 (R15) — it was written
+    before SOURCE and SHAPE were split into two axes on 2026-08-07. On the
+    SOURCE_SERVICE_RESPONSE branch the two room_list_ keys are never read at all:
+    the rooms come from ``get_cached_room_source`` + ``select_segments_for_map``.
+    An adapter declared from the old four-key list omits ``source``, silently
+    defaults to the attribute branch and discovers zero rooms — the same failure
+    the SHAPE comment in the attribute branch below records happening to Dreame
+    when shape was conflated with source.
+
+    Returns an empty list when the adapter is not registered, discovery config is
+    absent, room_id_key/room_name_key are missing, or the branch actually taken
+    yields no usable rooms. Those last conditions are NOT one condition: on the
+    attribute branch it is "the room list attribute is missing/invalid"; on the
+    service branch it is "the cache holds nothing for this map", which is a
+    refresh/timing state rather than a config error.
     """
     config = get_adapter_config(vacuum_entity_id)
     discovery = (config or {}).get("discovery", {})
@@ -235,6 +297,12 @@ def discover_rooms_for_vacuum(
         )
         return []
 
+    # ⚠ "unknown" here and the DISCOVERY CACHE KEY disagree when the active map
+    # cannot be resolved (2026-08-24, RM22). ``room_crud.discover_rooms`` keys its
+    # cache with ``str(payload.get("active_map_id") or map_id or "")`` — the EMPTY
+    # STRING, because ``discover_rooms_payload`` has no "unknown" fallback — while
+    # every room returned here is stamped ``map_id="unknown"``. See that site for
+    # what the mismatch costs ``save_managed_rooms``/``reconcile_room``.
     resolved_map_id = map_id or get_active_map_id(hass, vacuum_entity_id) or "unknown"
 
     if source_kind == SOURCE_SERVICE_RESPONSE:

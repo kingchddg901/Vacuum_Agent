@@ -53,7 +53,26 @@ CANCEL_DETECTION_STATES: dict = {
     "paused": "paused",
 }
 
-# Card-facing dropdown option lists (the framework never reads these).
+# Card-facing dropdown option lists — AND THE FRAMEWORK READS THEM.
+#
+# ⚠ was: "(the framework never reads these)". Three live consumers refute it:
+#   * `jobs/active_job.py` filters every `per_room_live_settings` value against
+#     `vocabulary.get(options_key)` AT DISPATCH — a value not in the list is dropped
+#     from the call, not passed through.
+#   * `rooms/vocabulary_migration.py` judges a stored room value against
+#     `vocabulary.get(f"{field}_options")`.
+#   * `adapters/config_schema.py` declares the five `*_options` keys and REJECTS
+#     undeclared ones, so these are schema surface, not decoration.
+# And this very file contradicted itself twice below it: PATH_TYPE_OPTIONS says "this
+# list is what a stored value is judged against", and the ROOM_PROFILES note explains
+# the fan_speed `options_key` filter dropping a value at dispatch.
+#
+# CONSEQUENCE OF BELIEVING IT: dropping an entry looks card-only and safe, and instead
+# silently stops that setting reaching the robot. That is the bug narrated verbatim in
+# `roborock/adapter.py` above the `room_profiles` block — a new room's "Max" was not in
+# FAN_SPEED_OPTIONS, the filter dropped it, and NO suction was applied at all.
+# Corrected 2026-08-24 (D2).
+#
 # fan_speed from ``vacuum.ivy`` ``fan_speed_list``, ordered ASCENDING SUCTION
 # (Gentle weakest -> Max strongest) for the editor chip row — the device lists
 # them in a different order (gentle last), but the user reads them low->high.
@@ -237,7 +256,12 @@ CUSTOM_ROOM_PROFILE: dict = {
     "mop_required": False,
 }
 
-# Carpet suppresses water and raises suction; hard floors get a per-surface water default.
+# Carpet suppresses water and raises suction.
+# ⚠ was: "; hard floors get a per-surface water default" — false since 2026-08-17, and
+# contradicted by the retirement note three lines below IN THIS SAME BLOCK. There are no
+# hard-floor rows left: the dict below is carpet-only. (The Eufy copy of this block never
+# carried the sentence, so the longer copy was the stale one here — a counterexample to
+# "the shorter copy is the bug". Corrected 2026-08-24, D29.)
 # The resolver reads the carpet entry of FLOOR_TYPE_WATER_DEFAULTS as this brand's
 # no-water value, so "off" here is load-bearing, not decorative.
 # RETIRED IN PRINCIPLE 2026-08-17 — see docs/dev/history/floor-type-cleaning-defaults.md

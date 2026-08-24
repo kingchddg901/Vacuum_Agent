@@ -11,10 +11,22 @@ Owns:
   EufyVacuumManager for use by room-management and planning code:
     _protected_room_config, _match_profile_from_fields, _finalize_room_update.
 
-Receives a reference to the parent EufyVacuumManager so it can call
-get_effective_room_details (from room profile save-from-room),
-_notify_run_profiles_updated, _notify_rooms_updated, and
-_refresh_room_derived_state without re-implementing them.
+Receives a reference to the parent EufyVacuumManager for the things the PARENT owns
+and this class reaches through ``self._manager``: _notify_run_profiles_updated,
+_notify_rooms_updated, _refresh_room_derived_state, _room_history_cache_ready,
+get_queue_steps, set_queue_breaks, build_queue, build_room_payload and
+start_selected_rooms.
+
+⚠ This list named ``get_effective_room_details`` as one of them until 2026-08-24
+(P31), and had the delegation BACKWARDS. It is this class's own method -- see "Owns:"
+above -- and ``save_room_profile_from_room`` calls it as
+``self.get_effective_room_details``. It is ``core.manager.EufyVacuumManager`` that
+delegates HERE, in a two-line passthrough. A reader trusting the old sentence went to
+core/manager.py for the implementation, found the delegator, and could "restore" the
+described direction by moving this logic onto the core manager -- inverting the
+ownership this docstring's own "Owns:" section asserts. The list was also short by six
+names, which understated the coupling for anyone judging how extractable this
+subsystem is.
 """
 
 # System invariants that bind in this file. Declared and explained elsewhere
@@ -236,11 +248,25 @@ class ProfileManager:
     def _catalog_for(self, vacuum_entity_id: str) -> dict[str, Any]:
         """Resolve the room-profile catalog DECLARED by this vacuum's adapter.
 
-        Every resolution path goes through here. Core ships no catalog of its own,
-        so a caller that cannot name a vacuum cannot resolve a profile — which is
-        the point: the four call sites that used to omit this were silently
-        resolving every brand's rooms against Eufy's vocabulary, and the omission
-        was invisible precisely because the framework had a default to give them.
+        Core ships no catalog of its own, so a caller that cannot name a vacuum
+        cannot resolve a profile — which is the point: the four call sites that used
+        to omit this were silently resolving every brand's rooms against Eufy's
+        vocabulary, and the omission was invisible precisely because the framework
+        had a default to give them.
+
+        ⚠ NOT the chokepoint. This opened with "Every resolution path goes through
+        here" until 2026-08-24 (P12), and four paths do not:
+          - ``queue.queue_engine.build_room_clean_payload`` re-implements these same
+            two lines inline — and that is the path that reaches the WIRE;
+          - ``rooms.room_defaults.resolve_new_room_defaults`` calls
+            ``resolve_profile_catalog`` on a catalog handed in;
+          - ``sensor.profile.EufyVacuumProfileSensor._catalog`` repeats the same
+            get_adapter_config -> resolve_profile_catalog pair for the sensor;
+          - ``get_room_profiles`` in THIS class falls to
+            ``resolve_profile_catalog(None)`` when no vacuum is named.
+        So a guard, a log, a cache or a brand-mismatch assertion added here covers
+        this method's callers and nobody else's. Dispatch-time resolution would keep
+        whatever behaviour the "chokepoint" was changed to fix, invisibly.
 
         Local import mirrors the other ``get_adapter_config`` call sites and keeps
         the registry out of this module's import cycle.
@@ -296,10 +322,23 @@ class ProfileManager:
                 # "custom". Carpet rooms escaped only because the carpet guard
                 # downgrades them to vacuum first.
                 #
-                # Only this leg. The other five compare a BRAND's vocabulary, which
-                # core does not own and has no canonical form for; widening the shared
-                # normalizer would assert a framework opinion about words like "Max"
-                # and "Quick" that belong to the adapter.
+                # Only this leg goes through the canonical owner. THREE of the
+                # other five compare a BRAND's vocabulary — fan_speed, water_level,
+                # clean_intensity — which core does not own and has no canonical form
+                # for; widening the shared normalizer for those would assert a
+                # framework opinion about words like "Max" and "Quick" that belong to
+                # the adapter.
+                #
+                # ⚠ was: "The other five compare a BRAND's vocabulary" — over-scoped
+                # by two until 2026-08-24 (P32). ``clean_passes`` is compared as an int
+                # and ``edge_mopping`` as a bool, and core DOES own both:
+                # ``room_profiles.VOCABULARY_FIELDS`` lists only clean_mode/fan_speed/
+                # water_level/clean_intensity/path_type, under the comment
+                # "``clean_passes`` / ``edge_mopping`` are numeric/boolean and belong to
+                # no vocabulary", and ``normalize_room_profile`` counts them among the
+                # "Framework-canonical fields". A real matching bug in those two legs is
+                # core's to fix — do not leave it standing on a brand-ownership ground
+                # that does not reach it.
                 canonical_clean_mode(protected_room.get("clean_mode"))
                 == canonical_clean_mode(effective_profile.get("clean_mode"))
                 and self._normalize_profile_match_value(protected_room.get("fan_speed"))
@@ -466,10 +505,21 @@ class ProfileManager:
             "path_type": resolved.get("path_type") or None,
             "default_clean_passes": protected.get("clean_passes", 1),
             "default_edge_mopping": protected.get("edge_mopping", False),
-            # ISSUE #48: the LAST private copy of the predicate. Expressed exactly as
-            # _protected_room_config expresses it — same file, same question, and the
-            # two are read off the same `protected` dict a few lines apart, so a
+            # ISSUE #48: the SECOND of THREE private copies of this predicate in
+            # this file — `_protected_room_config`'s `is_mop_mode`, this one, and
+            # `save_user_room_profile`'s `_mop_required`. All three are the
+            # byte-identical `is_mop_clean_mode(x) or "wash" in x`. Expressed exactly
+            # as _protected_room_config expresses it — same file, same question, and
+            # the two are read off the same `protected` dict a few lines apart, so a
             # disagreement between them is the original #48 shape in miniature.
+            #
+            # ⚠ was: "the LAST private copy" ... "not in a fourth private copy" —
+            # false on both counts until 2026-08-24 (P13/P24). A copy sits ~50 lines
+            # BELOW this one in `save_user_room_profile`, whose own comment claimed to
+            # be "the fifth and last": two comments in one file each declaring itself
+            # last, disagreeing on the count. Anyone auditing #48 who stopped here left
+            # behind the copy the file itself calls "the worst-placed". Grep
+            # `is_mop_clean_mode` in this file; do not trust either count.
             #
             # Identical on every value that exists: the live store holds only
             # "Vacuum", "vacuum" and "Vacuum and mop", and the old substring test and
@@ -477,8 +527,19 @@ class ProfileManager:
             # that merely MENTIONS mopping ("Mopping after sweeping"), and that
             # narrowing was already the sibling's choice — inherited here rather than
             # introduced, because the two answering differently is worse than either
-            # answer. If that tolerance is ever wanted back it belongs in
-            # is_mop_clean_mode, once, not in a fourth private copy.
+            # answer.
+            #
+            # ⚠ was: "If that tolerance is ever wanted back it belongs in
+            # is_mop_clean_mode, once" — wrong owner, and acting on it would collapse a
+            # deliberate split (P7, 2026-08-24). The tolerant question already HAS an
+            # owner: `room_profiles.may_wet_floor`, documented there as "THE SECOND
+            # QUESTION", "DELIBERATELY LOOSER THAN is_mop_clean_mode, and must stay so",
+            # True for a mode that merely MENTIONS mopping, and "``wash`` counts".
+            # `is_mop_clean_mode` is STRICT on purpose — it gates dispatch payloads and
+            # the carpet mop downgrade — and its own docstring forbids exactly the
+            # widening this line used to invite. Note `may_wet_floor` is BROADER than
+            # the expression below (it also matches a bare "mop" substring), so adopting
+            # it here would be a behaviour change, not a comment edit.
             "mop_required": is_mop_clean_mode(clean_mode) or "wash" in clean_mode,
             "selected_profile_name": resolved.get("selected_profile_name"),
             "resolved_profile_name": resolved.get("resolved_profile_name"),
@@ -520,13 +581,24 @@ class ProfileManager:
         # brand's axis from another brand's word — and the derivation was itself the
         # proof that the two are one axis under two names. A brand that genuinely has a
         # separate path axis declares it in its own profiles; nothing synthesizes it.
-        # ISSUE #48, the fifth and last copy — and the worst-placed, because
-        # get_effective_room_details forty lines up produces the SAME mop_required
-        # field through the shared owner. Two producers of one field, disagreeing by
-        # construction, in one file. They agree on every value that exists today,
-        # which is exactly how the original defect stayed invisible: a substring test
-        # and a canonical test give the same answer right up until a brand ships a
-        # mode that only one of them recognises.
+        # ISSUE #48, the THIRD and last copy in this file — and the worst-placed,
+        # because `get_effective_room_details` above produces the SAME mop_required
+        # field. Two producers of one field, in one file, kept in step BY HAND.
+        #
+        # ⚠ was: "the fifth and last copy ... Two producers of one field, disagreeing
+        # by construction ... a substring test and a canonical test" — an accusation
+        # against a pair that AGREES, false until 2026-08-24 (P11). The two expressions
+        # are identical character for character apart from the local variable name:
+        # `is_mop_clean_mode(clean_mode) or "wash" in clean_mode` there,
+        # `is_mop_clean_mode(_clean_mode_l) or "wash" in _clean_mode_l` here. Neither is
+        # "the substring test"; both are canonical-owner-plus-`wash`-tolerance. A
+        # maintainer who believed the old text would "align" this line to a bare
+        # `is_mop_clean_mode(...)`, STRIPPING the "wash" tolerance from one producer
+        # only — manufacturing the very divergence the comment claimed already existed.
+        #
+        # The WHY survives: the hazard is real, it is just FUTURE one-sided drift rather
+        # than a live disagreement. Change one, change both — or move the pair onto a
+        # single owner in a change that says so.
         _clean_mode_l = str(clean_mode).lower()
         _mop_required = is_mop_clean_mode(_clean_mode_l) or "wash" in _clean_mode_l
         profile = normalize_room_profile(
@@ -1051,7 +1123,20 @@ class ProfileManager:
         sees an unparseable room_id. zone entries keep a de-duplicated, order-preserving
         list of non-empty string ids; existence + brand caps are enforced at dispatch
         (where the saved-zone store and the adapter's zone limit are known), so normalize
-        stays brand-agnostic and shape-only — the same discipline room_id gets."""
+        stays brand-agnostic and shape-only — the same discipline room_id gets.
+
+        NOT total — this can RAISE. It returns through ``_reject_unbracketed_break``,
+        which for a list of 2+ normalized entries raises ``ServiceValidationError``
+        (translation keys ``leading_break_unsupported`` / ``trailing_break_unsupported``)
+        when the first or last step is a charge_wait or wait: an unbracketed break has
+        nothing to bracket, so it is unsupported rather than silently droppable (RP-021a
+        Q17). ⚠ The docstring said only "Invalid/empty entries are dropped" until
+        2026-08-24 (P29), which reads as total — a new caller written against it wraps
+        nothing, and on a stored profile with an edge break the raise comes out of a READ
+        path and surfaces as "saved run profile will not load" rather than as a validation
+        result. Both in-tree callers that pass a real sequence do catch it:
+        ``run_profile_steps`` below and ``core.manager.get_queue_steps``. A single-entry
+        list can never trip it."""
         out, _dropped = ProfileManager._normalize_steps_reporting(steps)
         return ProfileManager._reject_unbracketed_break(out)
 
@@ -1151,9 +1236,19 @@ class ProfileManager:
     def _reject_unbracketed_break(out: list[dict[str, Any]]) -> list[dict[str, Any]]:
         # Q17: a leading/trailing charge_wait or wait has nothing to bracket, so it can
         # never run — it is unsupported, not silently droppable (RP-021a clause 1). A
-        # single-entry list (every ``queue_breaks`` call site normalizes one already-
-        # positioned break in isolation) is never "leading" or "trailing" in this sense,
-        # so the check only applies once there is a real sequence to be first/last in.
+        # single-entry list is never "leading" or "trailing" in this sense, so the check
+        # only applies once there is a real sequence to be first/last in.
+        #
+        # ⚠ was: "(every ``queue_breaks`` call site normalizes one already-positioned
+        # break in isolation)" — false until 2026-08-24 (P25/P30), and it made the raise
+        # look UNREACHABLE from the queue_breaks store. Four sites do pass a single entry
+        # (``core.manager._map_queue_breaks``, ``add_queue_break``, ``add_queue_zone``,
+        # ``set_queue_breaks``), but ``core.manager.get_queue_steps`` — the function that
+        # derives the queue FROM ``map_bucket["queue_breaks"]`` — passes the WHOLE
+        # assembled steps list and has to catch what this raises. That except-block is not
+        # dead defensive code to be tidied away: a room disabled AFTER a break was placed
+        # strands the break at an edge, and the self-heal there is what keeps the derived
+        # queue readable instead of throwing on every fetch.
         if len(out) > 1:
             if out[0].get("type") in ("charge_wait", "wait"):
                 raise ServiceValidationError(
@@ -1182,6 +1277,13 @@ class ProfileManager:
                 # A profile saved before Q17's leading/trailing-break rejection existed.
                 # Reading it must never fail to start — strip the unsupported break(s)
                 # loudly and normalize what remains.
+                #
+                # ⚠ Not airtight, and it should not be read as such (noted 2026-08-24,
+                # P29). `_is_break` inspects the RAW stored entries, so a stored
+                # `[<invalid step>, charge_wait, room_group]` trims nothing — the invalid
+                # entry only disappears in normalization, which happens after — and the
+                # re-normalize below sits INSIDE this except block, so a second raise
+                # propagates uncaught. Closing that needs a code change, not a comment.
                 def _is_break(entry: Any) -> bool:
                     return (
                         isinstance(entry, dict)
@@ -1240,9 +1342,31 @@ class ProfileManager:
             # (charge_wait / wait / zone) OR more than one room_group. DISTINCT from the
             # charge-only has_charge_steps. The frontend gates stepped preview/routing
             # on has_stops. (SHARED CONTRACT with the frontend lane.)
-            # The step-type tuple MUST mirror the stepped-path gates at
+            # ⚠ was: "The step-type tuple MUST mirror the stepped-path gates at
             # profiles/manager.py:1308, planning/run_plan.py:1348/1353 and
-            # core/manager.py:1647 — "zone" was added to those and missed here.
+            # core/manager.py:1647 — 'zone' was added to those and missed here." It read
+            # as an OPEN bug report AT the defect site, and the bug was already closed;
+            # retired 2026-08-24 (P1). There is no step-type tuple here to mirror: the
+            # missing "zone" was fixed on 2026-07-30 by moving the vocabulary into
+            # ``step_types.STEPPED_STEP_TYPES`` (frozenset {"charge_wait", "wait",
+            # "zone"}), which ``plan_requires_stepped_execution`` asks on this gate's
+            # behalf. Re-introducing a local ("charge_wait", "wait", "zone") beside that
+            # call is precisely the hand-copied drift step_types.py exists to remove —
+            # its module docstring names THIS gate as one of the two that drifted, and
+            # warns that "a caller that reaches for the set is one ``and`` clause away
+            # from re-creating the drift this module removes".
+            #
+            # All three file:line pointers were stale too, so following them landed a
+            # reader in unrelated code and invited the conclusion that the sibling gates
+            # had been deleted. The live siblings, by SYMBOL: ``start_run_profile`` in
+            # this file (its stash gate, via ``step_requires_stepped_execution``) and
+            # ``core.manager.get_queue_steps``'s ``has_breaks`` (same helper).
+            # ``planning.run_plan._build_effective_start_plan`` is the one copy still
+            # spelled by hand, twice.
+            #
+            # The ``len(_room_group_steps) > 1`` clause stays LOCAL on purpose: it is
+            # plan SHAPE, not step type, which ``plan_requires_stepped_execution``'s own
+            # docstring says does not belong in that vocabulary.
             "has_stops": (
                 plan_requires_stepped_execution(steps)
                 or len(_room_group_steps) > 1
@@ -1395,10 +1519,26 @@ class ProfileManager:
     def set_run_profile_steps(
         self, *, vacuum_entity_id: str, map_id: str, profile_id: str, steps: Any
     ) -> dict[str, Any]:
-        """Replace one saved profile's ordered steps (room_group | charge_wait).
+        """Replace one saved profile's ordered steps (room_group | charge_wait | wait | zone).
 
-        The steps list holds the sequence — room groups and the charge boundaries
-        between them. Requires at least one room_group (a run must clean something).
+        The steps list holds the sequence — room groups and the boundaries between
+        them. Requires at least one room_group (a run must clean something).
+
+        ⚠ The accepted set read "(room_group | charge_wait)" until 2026-08-24 (P9)
+        and named half of it. ``_normalize_steps_reporting`` — the normalizer this
+        write path runs — accepts four types, and this method carries zone-specific
+        write logic of its own (the C40 ``leading_zone_unsupported`` refusal below).
+        The shipped card
+        already saves ``wait`` steps through this very service
+        (``src/state/steps-order.js::insertWaitStep``, persisted via
+        ``setRunProfileSteps`` in ``src/bindings/run-profiles.js``), so a maintainer
+        who "tidied" the normalizer down to the old docstring would have dropped every
+        wait and zone step the card writes, and a YAML author reading the generated
+        service docs would have believed they were not accepted here.
+
+        Accepted is not the same as saveable: a step this normalizer rejects comes back
+        as ``invalid_steps`` with the offending entries named, and a LEADING zone is
+        refused as ``leading_zone_unsupported``.
         """
         library = self._get_saved_run_profile_store(
             vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
@@ -1417,12 +1557,28 @@ class ProfileManager:
             # wrong rather than diffing the saved profile against what they wrote.
             normalized, rejected = self._normalize_steps_reporting(steps)
             normalized = self._reject_unbracketed_break(normalized)
-            # C40: a profile whose FIRST step is a zone is saveable today and its
-            # zone never runs. apply_run_profile derives breaks with
-            # `after_index = rooms emitted so far` and only emits a break once at
-            # least one room has gone out (:1758) — a leading zone has emitted
-            # none, so it is skipped, `applied: True` is returned, and the card
-            # still lists it as step 1.
+            # C40: a profile whose FIRST step is a zone WAS saveable, and its zone
+            # never ran. The `leading_zone_unsupported` raise that closes this `try`
+            # block is the fix — the present-tense "is saveable today" outlived the fix
+            # it introduced, until 2026-08-24 (P28). Every other pre-fix narrative in
+            # this file is past tense ("This used to be a bare `steps: []`", "Was
+            # `clean_mode in {...}`"), so a present-tense claim reads as live shipped
+            # behaviour: a reader would chase a defect this very block already closes,
+            # or bolt a duplicate guard onto another path.
+            #
+            # The mechanism, which is WHY the guard is here: `apply_run_profile`
+            # derives breaks with `after_index = rooms emitted so far` and only emits
+            # a break once at least one room has gone out (its `if _rooms_emitted >= 1:`
+            # gate) — a leading zone has emitted none, so it is skipped, `applied: True`
+            # is returned, and the card still lists it as step 1. That gate used to be
+            # cited here as ":1758", which no longer lands on it — named by SYMBOL now,
+            # as every cross-reference in this file should be. What :1758 held when the
+            # pointer was written is not stated here: it is only answerable against the
+            # sha it was written at, and an earlier draft of this correction asserted a
+            # figure for the drift that was wrong. No write path admits a NEW leading zone: this
+            # guard, the `no_room_group` refusal for a lone zone step, and
+            # `save_run_profile` copying only queue steps (whose breaks all carry
+            # after_index >= 1).
             #
             # DELIBERATELY NOT INSIDE _reject_unbracketed_break. That helper is
             # also called by normalize_run_profile_steps, which the READ path uses
@@ -1827,10 +1983,28 @@ class ProfileManager:
         #
         # after_index counts only rooms that actually RESOLVED against this map, so
         # a break stays anchored to the room it followed even when the profile
-        # references rooms a re-segment has since removed. set_queue_breaks clamps
-        # to an interior slot and drops breaks entirely below two rooms, which is
-        # also where a leading/trailing break resolves -- unsupported per RP-021a
-        # (Q17), and handled there consistently rather than by a second rule here.
+        # references rooms a re-segment has since removed. set_queue_breaks drops
+        # breaks entirely below two enabled rooms, and clamps after_index into
+        # [1, max_after] so nothing can LEAD -- unsupported per RP-021a (Q17), and
+        # handled there consistently rather than by a second rule here.
+        #
+        # ⚠ was: "set_queue_breaks clamps to an interior slot and drops breaks
+        # entirely below two rooms, which is also where a leading/TRAILING break
+        # resolves". The trailing half was false until 2026-08-24 (P10), and the
+        # universal phrasing made trailing steps look impossible after an apply. A ZONE
+        # MAY TRAIL: set_queue_breaks reads
+        # `max_after = room_count if btype == "zone" else room_count - 1`, under its own
+        # comment "A zone may trail (after_index == room_count); a charge/wait is capped
+        # to an interior slot (void at the tail). Neither leads." The `_derived_breaks`
+        # loop below appends zone steps like any other non-room_group step, so a
+        # rooms->zone profile hands over `after_index == room_count` and the trailing
+        # zone is KEPT, deliberately -- `core.manager.get_queue_steps` drains trailing
+        # inserted steps by design. Only the "below two rooms" half is unconditional.
+        #
+        # So: do NOT add a trailing-step drop here "for consistency with RP-021a". It
+        # would silently delete the zone phase of every rooms->zone profile applied
+        # through this path, which is the C40 failure the code below exists to surface.
+        # And a trailing zone that survives is not evidence set_queue_breaks is broken.
         _derived_breaks: list[dict[str, Any]] = []
         _dropped_leading_zones: list[dict[str, Any]] = []
         _applied_set = set(applied_room_ids)
@@ -1850,11 +2024,21 @@ class ProfileManager:
             elif str(_step.get("type") or "").strip().lower() == "zone":
                 # C40: a zone before any room has been emitted cannot be anchored and
                 # is dropped. Behaviour is UNCHANGED — stored profiles keep applying —
-                # but the drop is no longer silent. The write path refuses new ones;
-                # this reports the ones already saved, which is the case the comment
-                # at :1723 says this method exists to serve: "an automation that calls
+                # but the drop is no longer silent. The write path
+                # (`set_run_profile_steps`) refuses new ones; this reports the ones
+                # already saved, which is the case the RP-021c block above this loop
+                # says this method exists to serve: "an automation that calls
                 # apply_run_profile then start_cleaning ... a zone step was never
                 # cleaned at all".
+                #
+                # ⚠ that block was cited as ":1723" until 2026-08-24 (P26/P33), and that
+                # pointer no longer lands on it. What :1723 held when the pointer was
+                # written is deliberately NOT stated: a line number only means anything
+                # against the sha it was written at, and an earlier draft of this very
+                # correction named a literal that sits nowhere near it in either
+                # revision. These two were the file's only same-file line pointers and
+                # BOTH had rotted, so the convention is retired: name the symbol and
+                # quote enough text to be re-found by grep, never a line number.
                 _dropped_leading_zones.append(_step)
 
         self._manager.set_queue_breaks(
@@ -1892,11 +2076,23 @@ class ProfileManager:
             "applied_room_ids": applied_room_ids,
             "missing_room_ids": missing_room_ids,
             # RP-021b / #8:A4-PP-RP-1: rooms the profile had no saved settings
-            # snapshot for, so they kept their CURRENT settings. Empty for any
-            # profile saved since settings were snapshotted, and for every
+            # snapshot for, so they kept their CURRENT settings. Empty for every
             # legacy rooms-only profile (whose group IS profile["rooms"]).
             # Reported rather than silent: "the right rooms ran with the wrong
             # settings" is otherwise indistinguishable from a clean apply.
+            #
+            # ⚠ was: "Empty for any profile saved since settings were snapshotted"
+            # — over-scoped until 2026-08-24 (P27), and it invited reading a non-empty
+            # list as PROOF of a legacy profile. There is a second, live cause. This
+            # list is built by matching each STEP room_id against `_saved_by_id`, and
+            # `_saved_by_id` is built only from `profile["rooms"]` — while
+            # `set_run_profile_steps` replaces `existing["steps"]` WITHOUT touching
+            # `existing["rooms"]`, validating step room ids for shape only ("existence
+            # + brand caps are enforced at dispatch"). So a profile saved yesterday
+            # whose steps were later edited through the shipped `set_run_profile_steps`
+            # service to name a room absent from the snapshot reports that room here.
+            # Diagnosing that as "old profile, just re-save it" does not fix the
+            # steps/rooms desync that actually caused it.
             "unsnapshotted_room_ids": _unsnapshotted,
             # C40: zone steps that could not be anchored because no room had been
             # emitted before them, and were therefore dropped. Empty for every profile
@@ -1946,10 +2142,32 @@ class ProfileManager:
 
         # Stash the profile's step sequence so the plan builder materializes a multi-phase job
         # (e.g. [clean, charge_wait, clean] or [clean, zone]). Consumed (popped) in
-        # run_plan._build_effective_start_plan; absent -> normal atomic dispatch. The gate MUST
-        # mirror run_plan's stepped-path gate (charge_wait/wait/zone) — a zone is a real clean
-        # step, so a rooms->zone profile fired here (the automation entry point) has to stash or
-        # apply_run_profile, which never writes queue_breaks, would drop the zone to a flat clean.
+        # run_plan._build_effective_start_plan; absent -> that builder falls back to the LIVE
+        # QUEUE's own breaks, and only then to normal atomic dispatch. The gate mirrors
+        # run_plan's stepped-path gate (charge_wait/wait/zone) — a zone is a real clean step,
+        # so a rooms->zone profile fired here (the automation entry point) has to stash.
+        #
+        # ⚠ was: "... has to stash or apply_run_profile, WHICH NEVER WRITES QUEUE_BREAKS,
+        # would drop the zone to a flat clean." That described the pre-RP-021c world and stopped
+        # being true when RP-021c landed; false until 2026-08-24 (P2). apply_run_profile — called
+        # at the top of THIS method — now writes queue_breaks unconditionally on every successful
+        # apply, through `self._manager.set_queue_breaks(...)` with `_derived_breaks` built from
+        # every non-room_group step, zone included. Its own RP-021c block says so: "Derive the
+        # breaks from the profile's own steps and write them through set_queue_breaks, the single
+        # replace-ALL primitive." Control only reaches this line after `applied.get("applied")`
+        # is truthy — i.e. after that write has already happened.
+        #
+        # Two repairs the old sentence invited, both wrong: adding a second, redundant
+        # queue_breaks write here; or reading apply_run_profile's set_queue_breaks call as
+        # duplication and DELETING it — which restores the original defect, a plain Start from a
+        # reloaded dashboard or a second tab running the profile FLAT with no charge stop. The
+        # false clause was also the stated justification for "zone" in this gate, so disproving
+        # it invited pulling zone out too.
+        #
+        # The stash still earns its place, and zone still belongs in the gate: it carries the
+        # profile's steps EXACTLY and takes precedence, where the queue-breaks route is lossy.
+        # set_queue_breaks clears breaks outright below two enabled rooms, and apply drops a
+        # leading zone it cannot anchor (`dropped_leading_zones`); the stash carries both.
         _prof = self._get_saved_run_profile_store(
             vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
         ).get(profile_id, {})

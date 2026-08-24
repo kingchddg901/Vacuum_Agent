@@ -35,6 +35,25 @@ Porting a new brand
 Start from ``mapping/segment_primitives.py``, which documents the full primitive
 surface area.  Copy ``_build_room_mask_from_hsv`` and the scoring heuristics
 as a template and tune their thresholds for the new brand's map imagery.
+
+Why this is CV and not a vision model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+A vision-model approach was considered and rejected: the pipeline available to it
+delivered a DOWNGRADED image rather than the full-quality PNG, so the comparison was
+never against the real input. The blocker is what the model can be SHOWN, not what a
+model can do — if the full-quality PNG becomes deliverable, this is worth re-running.
+
+Recorded here 2026-08-24 because the tuning below reads as evidence to the contrary.
+A reader meeting a thousand-odd lines of hand-tuned HSV clustering reasonably infers
+that someone judged CV the better technique; that is a NOT-YET wearing the clothes of
+a NEVER. The thresholds are not proof the problem needs hand tuning — they are what
+you build when the alternative was evaluated on bad input. The note
+``project_eufy_origin_lineage`` already records the engine as deliberately no-LLM;
+what it does not record anywhere is WHY, which is the paragraph above.
+
+WHERE the degradation happened, WHEN this was decided, and whether the full-quality
+PNG is reachable today are all UNKNOWN. Do not guess them here — stating the reason
+and stopping is what keeps this a true fact.
 """
 
 from __future__ import annotations
@@ -111,7 +130,19 @@ def _segmentation_state(*, issues: list[str], fill_ratio: float, compactness: fl
 # -- Eufy HSV room / wall masks -----------------------------------------------
 
 def _build_room_mask_from_hsv(hsv: Any) -> Any:
-    """Return a binary room-pixel mask derived from HSV saturation and value thresholds."""
+    """Return a binary room-pixel mask derived from HSV saturation and value thresholds.
+
+    WHAT THE THRESHOLDS ARE REJECTING — the imagery observation that calibrated them,
+    which cannot be recovered from the numbers. A pixel must be BOTH bright enough
+    (``value >= 68`` of 255, ≈ 27% brightness) AND colourful enough
+    (``saturation >= 18`` of 255, ≈ 7%) to count as a room pixel. Together that excludes
+    near-black walls, near-white backgrounds, and the off-white dock area.
+
+    Salvaged 2026-08-24 from the retired ``11-mapping-system.md``. The threshold VALUES
+    were always in code; what was nowhere was the statement of what the mask is MEANT
+    to exclude — so a porting brand, or anyone re-tuning, had no way to tell a mis-tune
+    from a change in how the vendor renders its maps.
+    """
     saturation = hsv[:, :, 1]
     value = hsv[:, :, 2]
     room_mask = (value >= 68) & (saturation >= 18)
@@ -1119,6 +1150,16 @@ def _detect_room_segments_pipeline(
             },
         }
 
+    # HUE CLUSTERING, and the world fact the whole pipeline rests on: THE EUFY RENDERER
+    # PAINTS EACH ROOM A DISTINCT HUE. Median-filter the hue plane, bin it into 16-wide
+    # buckets, then iterate the active bins below — a hue bin corresponds to a room
+    # because of that RENDERING property, not because of anything true about rooms.
+    #
+    # Salvaged 2026-08-24 from the retired `26-eufy-segmentor.md`. Nothing in source said
+    # why hue was the clustering space, which leaves the choice reading as a generic
+    # computer-vision decision. It is not: the algorithm is keyed to a property of the
+    # VENDOR'S map image, so a port to another brand, or a Eufy palette change,
+    # invalidates the premise directly rather than merely needing the constants re-tuned.
     hue_smooth = _NDIMAGE.median_filter(hue, size=5)
     hue_bin = ((hue_smooth.astype(np.int16) + 8) // 16).astype(np.int16)
     active_bins = sorted({int(value) for value in hue_bin[room_mask]})
