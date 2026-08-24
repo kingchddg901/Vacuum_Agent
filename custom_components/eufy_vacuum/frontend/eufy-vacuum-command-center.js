@@ -9102,16 +9102,29 @@ ${r}
 
   /* Three verification signals. The color tokens fall through to a warning /
      success / muted default set so the row renders sensibly on themes that
-     do not define these \u2014 never invisible on any theme. */
+     do not define these \u2014 never invisible on any theme.
+
+     The BOX fill comes from the standard status set (--evcc-surface-warning /
+     --evcc-surface-success), the same pair .evcc-sequence-override above uses,
+     because this row and that one are THE SAME FEATURE rendered on two surfaces
+     \u2014 the dashboard card here, the panel there \u2014 and two renderings of one row
+     disagreeing on its colour is the defect, not a style preference. It also
+     drops a second amber: the fill was mixed from --evcc-sem-warning (245,166,35)
+     while the warning SURFACE is (255,180,0), so the card carried two ambers a
+     few hundred pixels apart.
+
+     The 3px accent bar stays on the SEMANTIC token, not the border one. A solid
+     bar wants the colour at full strength; --evcc-border-* is a 35%-alpha hairline
+     and would wash it out. Same hue, two weights, chosen per role. */
   .soro-amber {
-    background: color-mix(in srgb, var(--evcc-sem-warning) 12%, transparent);
+    background: var(--evcc-surface-warning, rgba(255,180,0,0.12));
     border-inline-start: 3px solid var(--evcc-sem-warning);
     padding: 6px 10px;
     border-radius: var(--evcc-radius-inner, 6px);
   }
 
   .soro-green {
-    background: color-mix(in srgb, var(--evcc-sem-success) 12%, transparent);
+    background: var(--evcc-surface-success, rgba(76,175,110,0.12));
     border-inline-start: 3px solid var(--evcc-sem-success);
     padding: 6px 10px;
     border-radius: var(--evcc-radius-inner, 6px);

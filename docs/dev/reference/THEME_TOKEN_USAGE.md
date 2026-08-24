@@ -360,9 +360,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:1462
 - src/styles/rooms.js:1479 (color)
 - src/styles/rooms.js:1507 (color)
-- src/styles/rooms.js:1536
-- src/styles/rooms.js:1537
-- src/styles/rooms.js:1540 (color)
+- src/styles/rooms.js:1549
+- src/styles/rooms.js:1550
+- src/styles/rooms.js:1553 (color)
 - src/styles/run-profiles.js:82 (color)
 - src/styles/run-profiles.js:141 (color)
 - src/styles/run-profiles.js:235 (color)
@@ -1076,6 +1076,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-surface-success`** — Surface Success · default `rgba(76,175,110,0.12)` src/styles/foundation.js:200
 - src/styles/rooms.js:230 (background)
+- src/styles/rooms.js:1542 (background)
 
 **`--evcc-surface-sunken`** — Surface Sunken · default `rgba(0,0,0,0.18)` src/styles/foundation.js:190
 - src/cards/dashboard-card.js:1190 (background)
@@ -1085,6 +1086,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-surface-warning`** — Surface Warning · default `rgba(255,180,0,0.12)` src/styles/foundation.js:191
 - src/styles/learning.js:630 (background)
 - src/styles/rooms.js:238 (background)
+- src/styles/rooms.js:1535 (background)
 
 ## Borders & Shadows  ·  7 static / 7
 
@@ -2285,8 +2287,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:1060
 - src/styles/rooms.js:1300
 - src/styles/rooms.js:1308
-- src/styles/rooms.js:1529
-- src/styles/rooms.js:1530
+- src/styles/rooms.js:1543
 - src/styles/run-profiles.js:174
 - src/styles/run-profiles.js:175
 - src/styles/setup.js:68 (background)
@@ -2405,8 +2406,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:1141
 - src/styles/rooms.js:1149
 - src/styles/rooms.js:1150
-- src/styles/rooms.js:1522
-- src/styles/rooms.js:1523
+- src/styles/rooms.js:1536
 - src/styles/run-profiles.js:169
 - src/styles/run-profiles.js:170
 - src/styles/run-profiles.js:191 (color)
@@ -3078,9 +3078,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:162 (border-radius)
 - src/styles/rooms.js:1420 (border-radius)
 - src/styles/rooms.js:1460 (border-radius)
-- src/styles/rooms.js:1525 (border-radius)
-- src/styles/rooms.js:1532 (border-radius)
-- src/styles/rooms.js:1539 (border-radius)
+- src/styles/rooms.js:1538 (border-radius)
+- src/styles/rooms.js:1545 (border-radius)
+- src/styles/rooms.js:1552 (border-radius)
 - src/styles/run-profiles.js:59 (border-radius)
 - src/styles/run-profiles.js:89 (border-radius)
 - src/styles/run-profiles.js:158 (border-radius)
