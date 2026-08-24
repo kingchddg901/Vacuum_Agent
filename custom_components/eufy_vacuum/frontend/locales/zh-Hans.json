@@ -1118,7 +1118,9 @@
     "water_total_detail": "所有符合筛选的任务的总用水量",
     "window_last_30_days": "最近 30 天",
     "window_last_7_days": "最近 7 天",
-    "window_today": "今天"
+    "window_today": "今天",
+    "unit_ml": "毫升",
+    "unit_hours": "时"
   },
   "theme_preview": {
     "animal": {

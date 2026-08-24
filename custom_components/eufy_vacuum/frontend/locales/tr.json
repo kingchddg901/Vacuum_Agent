@@ -1326,7 +1326,9 @@
     "water_total_detail": "Eşleşen işlerde kullanılan toplam su",
     "window_last_30_days": "Son 30 Gün",
     "window_last_7_days": "Son 7 Gün",
-    "window_today": "Bugün"
+    "window_today": "Bugün",
+    "unit_ml": "ml",
+    "unit_hours": "sa"
   },
   "review": {
     "badge_attribution_disagreement": "Oda Uyuşmazlığı",

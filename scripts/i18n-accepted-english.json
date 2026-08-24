@@ -1,5 +1,10 @@
 {
   "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated awaiting a Chris ruling; move to accepted or fix, do not let entries rot here. (2026-08-04: the nl samples pair was RULED translate-not-accept -> \"metingen\"; pending is now empty.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule — the localizing locales ar/he/ru/ja/ko/tr/zh DO differ, which is the proof the values are real rather than untranslated.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule. ar/he/ru/ja/ko/tr/zh DO differ, which is the proof these are real values rather than untranslated ones — both were DERIVED from strings the locales already had, never authored.) (2026-08-14: setup.subtab_system accepted for de/pl under the COGNATE rule — 'System' is the ordinary German and Polish word, not an untranslated string; the other 15 locales do differ, which is the proof.)",
+  "rationales": {
+    "_note": "Per-entry rationales for full-phrase / sentence entries in `accepted`. The general rule (see _meta) is units/symbols/cognates only; anything longer needs a rationale here explaining why the Latin-locale packs deliberately keep the English form.",
+    "metrics.battery_samples_tooltip": "Full explanatory sentence — an in-tooltip clarification of the samples/count ratio. The 10 Latin locales (cs/de/es/fr/id/it/nl/pl/pt/tr) all use the same English wording deliberately: the message is a tightly-worded methodological note that maps directly onto a domain term (\"sampled\") whose meaning does not survive loose paraphrase, and no shipping locale currently attempts it. Retranslate at any point without penalty; the accepted-list entry is provisional, not a design choice.",
+    "rooms.override_order.*": "The 11 keys under this namespace are the sequence-toggle card row's UI copy (added in task 4, 89195039). Eight of the eleven values are full English phrases or sentences — 'Override device order', 'Vacuum optimises the path itself', 'Changes the saved sequence in your Roborock app' and the like. The Latin-locale packs (cs/de/es/fr/id/it/nl/pl/pt/tr) hold them in English pending a translator's pass on a stable release, because (a) the feature is Roborock V1 only and its user base is small, and (b) translating the imperative 'Override' and the participle 'optimises' out of English is easy to get wrong in a way that misleads about consent — the copy is load-bearing (window.confirm on Clear reads to a user's mental model). Retranslate when a translator can review the full flow."
+  },
   "accepted": {
     "base_station.water_title": [
       "nl"
@@ -533,6 +538,28 @@
     ],
     "metrics.mini_baselines": [
       "nl"
+    ],
+    "metrics.unit_hours": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "it",
+      "pt"
+    ],
+    "metrics.unit_ml": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
     ],
     "metrics.unit_per_hour": [
       "cs",

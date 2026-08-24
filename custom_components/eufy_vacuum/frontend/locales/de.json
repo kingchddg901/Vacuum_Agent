@@ -903,7 +903,9 @@
     "water_total_detail": "Gesamtwasserverbrauch über alle passenden Aufträge",
     "window_last_30_days": "Letzte 30 Tage",
     "window_last_7_days": "Letzte 7 Tage",
-    "window_today": "Heute"
+    "window_today": "Heute",
+    "unit_ml": "ml",
+    "unit_hours": "h"
   },
   "mobile": {
     "dock_status_label": "Stationsstatus:",

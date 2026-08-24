@@ -1118,7 +1118,9 @@
     "water_total_detail": "一致するジョブ全体で使用した総水量",
     "window_last_30_days": "過去30日間",
     "window_last_7_days": "過去7日間",
-    "window_today": "今日"
+    "window_today": "今日",
+    "unit_ml": "ml",
+    "unit_hours": "時"
   },
   "theme_preview": {
     "animal": {

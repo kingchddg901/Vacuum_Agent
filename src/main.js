@@ -565,10 +565,16 @@ class EufyVacuumCommandCenter extends HTMLElement {
    * broken. Returns { systemLang, gatedToEnglish }.
    */
   _autoLangInfo() {
+    // Full HA identifier ("zh-Hans", not "zh") — locales list is keyed by full
+    // id, and localeStatus() base-falls-back internally. Splitting first (as
+    // maintenance.js:85 did before 1f153481) makes localeStatus return
+    // "unknown" for every regioned code, so gatedToEnglish reads false while
+    // resolveLang did in fact gate; language-control.js then also fails to
+    // match against the locales list. Same defect class as task 15.
     const systemLang = String(
       (this._hass && this._hass.locale && this._hass.locale.language) ||
       (this._hass && this._hass.language) || "en",
-    ).split("-")[0];
+    );
     const pinned = this._config && this._config.i18n && this._config.i18n.locale;
     const hasPin = pinned && pinned !== "auto";
     const status = localeStatus(systemLang);

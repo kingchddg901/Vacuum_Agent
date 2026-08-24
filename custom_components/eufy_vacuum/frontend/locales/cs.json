@@ -1326,7 +1326,9 @@
     "water_total_detail": "Celková voda použitá napříč odpovídajícími úlohami",
     "window_last_30_days": "Posledních 30 dní",
     "window_last_7_days": "Posledních 7 dní",
-    "window_today": "Dnes"
+    "window_today": "Dnes",
+    "unit_ml": "ml",
+    "unit_hours": "h"
   },
   "review": {
     "badge_attribution_disagreement": "Neshoda místnosti",

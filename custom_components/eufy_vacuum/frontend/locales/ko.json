@@ -1118,7 +1118,9 @@
     "water_total_detail": "일치하는 작업 전체의 총 물 사용량",
     "window_last_30_days": "최근 30일",
     "window_last_7_days": "최근 7일",
-    "window_today": "오늘"
+    "window_today": "오늘",
+    "unit_ml": "ml",
+    "unit_hours": "시"
   },
   "theme_preview": {
     "animal": {

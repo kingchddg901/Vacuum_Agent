@@ -862,6 +862,8 @@ export const en = {
   "metrics.unit_per_hour": "%/h",  // battery drain-per-hour unit, appended to a value; LOCALIZE the 'h' (ar/he use non-Latin scripts)
   "metrics.unit_percent": "%",  // bare percent unit, appended to a value. Most languages keep '%' but some scripts prefer their own numeral marker
   "metrics.unit_square_meters": "m²",  // area unit, appended to a value; LOCALIZE 'm' (ar/he/ru do not use a Latin m — mirror metrics.unit_per_m2's approach)
+  "metrics.unit_hours": "h",  // hours unit, appended to a value; LOCALIZE 'h' (ar/he/ru non-Latin scripts). Used by maintenance device-total tiles.
+  "metrics.unit_ml": "ml",  // millilitres unit, appended to a rounded integer. LOCALIZE for scripts that write volume differently. Used by water/dock format helpers.
   "metrics.battery_col_notes": "Notes",  // Charge-rates table column: explanatory note text per row, not user-entered notes
   "metrics.battery_col_zone": "Zone",  // Charge-rates table column: a battery charge-rate %-band zone (low/high/mid), not a clean zone/room
   "metrics.battery_drain_subtitle": "Only jobs where every room used the same setting feed these means. Mixed-mode runs still update the all-jobs row but skip per-bucket buckets.",  // 'single-bucket job' = a run where every room used the same setting

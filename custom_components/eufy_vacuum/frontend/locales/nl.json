@@ -903,7 +903,9 @@
     "water_total_detail": "Totaal waterverbruik over overeenkomende taken",
     "window_last_30_days": "Laatste 30 dagen",
     "window_last_7_days": "Laatste 7 dagen",
-    "window_today": "Vandaag"
+    "window_today": "Vandaag",
+    "unit_ml": "ml",
+    "unit_hours": "u"
   },
   "mobile": {
     "dock_status_label": "Dockstatus:",

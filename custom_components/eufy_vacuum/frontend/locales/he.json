@@ -1121,7 +1121,9 @@
     "water_total_detail": "סך המים שנוצלו על פני המשימות התואמות",
     "window_last_30_days": "30 הימים האחרונים",
     "window_last_7_days": "7 הימים האחרונים",
-    "window_today": "היום"
+    "window_today": "היום",
+    "unit_ml": "מ״ל",
+    "unit_hours": "ש"
   },
   "theme_preview": {
     "animal": {

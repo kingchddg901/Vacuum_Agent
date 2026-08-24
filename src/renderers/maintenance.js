@@ -228,9 +228,9 @@ export function applyMaintenanceRenderers(proto) {
     const totalTiles = [];
     if (deviceTotals) {
       if (deviceTotals.area_m2 != null)
-        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_total_cleaned"), `${Math.round(deviceTotals.area_m2)} m²`));
+        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_total_cleaned"), this.t("saved_zones.area_m2", { area: Math.round(deviceTotals.area_m2) })));
       if (deviceTotals.time_s != null)
-        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_total_time"), `${(deviceTotals.time_s / 3600).toFixed(1)} h`));
+        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_total_time"), `${(deviceTotals.time_s / 3600).toFixed(1)} ${this.t("metrics.unit_hours")}`));
       if (deviceTotals.count != null)
         totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_cleans"), String(deviceTotals.count)));
     }

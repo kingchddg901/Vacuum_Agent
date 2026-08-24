@@ -48,8 +48,14 @@ export function applyStepsQueueOrderState(proto) {
           if (z && z.id != null) zoneNameById[String(z.id)] = z.name;
         });
         const _breakLabel = (step) => {
-          if (step.type === "charge_wait") return `⚡ ${Number(step.target_battery_percent ?? 100)}%`;
-          if (step.type === "wait") return `⏱ ${Number(step.wait_minutes ?? 30)} min`;
+          // Route the unit through i18n so an RTL locale gets a script-strong
+          // suffix ("دقيقة" not "min"); the label is text-only (order-modal
+          // escapeHtmls it), so bdi tags cannot go here — the translated unit
+          // is the load-bearing fix.
+          const pct = this.t?.("metrics.unit_percent") ?? "%";
+          const min = this.t?.("run_profiles.minutes_unit") ?? "min";
+          if (step.type === "charge_wait") return `⚡ ${Number(step.target_battery_percent ?? 100)}${pct}`;
+          if (step.type === "wait") return `⏱ ${Number(step.wait_minutes ?? 30)} ${min}`;
           if (step.type === "zone") {
             const names = (Array.isArray(step.zone_ids) ? step.zone_ids : [])
               .map((id) => zoneNameById[String(id)] || "?")

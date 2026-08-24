@@ -298,7 +298,7 @@ export function applyBaseStationRenderers(proto) {
   proto._formatBaseStationMilliliters = function (value) {
     const amount = Number(value);
     if (!Number.isFinite(amount)) return this.t("base_station.unknown");
-    return `${Math.round(amount)} ml`;
+    return `${Math.round(amount)} ${this.t("metrics.unit_ml")}`;
   };
 
   /**
@@ -311,10 +311,12 @@ export function applyBaseStationRenderers(proto) {
     const ml = Number(plannedWater?.estimated_clean_tank_remaining_ml);
     const percent = Number(plannedWater?.estimated_clean_tank_remaining_percent);
     if (!Number.isFinite(ml)) return this.t("base_station.unknown");
+    const unitMl = this.t("metrics.unit_ml");
+    const unitPct = this.t("metrics.unit_percent");
     if (Number.isFinite(percent)) {
-      return `${Math.round(ml)} ml (${Math.round(percent)}%)`;
+      return `${Math.round(ml)} ${unitMl} (${Math.round(percent)}${unitPct})`;
     }
-    return `${Math.round(ml)} ml`;
+    return `${Math.round(ml)} ${unitMl}`;
   };
 
   /**
@@ -325,7 +327,7 @@ export function applyBaseStationRenderers(proto) {
    */
   proto._formatBaseStationWaterLevel = function (value) {
     const numeric = Number(value);
-    if (Number.isFinite(numeric)) return `${Math.round(numeric)}%`;
+    if (Number.isFinite(numeric)) return `${Math.round(numeric)}${this.t("metrics.unit_percent")}`;
     // String keys ("low", "medium", …) are backend vocabulary — localize via
     // the existing vocab.water_level family; unknown values keep the
     // title-cased fallback. Raw: the stat sink escapes.
@@ -341,7 +343,7 @@ export function applyBaseStationRenderers(proto) {
   proto._formatBaseStationDuration = function (value) {
     const numeric = Number(value);
     if (Number.isFinite(numeric)) {
-      return `${numeric.toFixed(1).replace(/\.0$/, "")} min`;
+      return `${numeric.toFixed(1).replace(/\.0$/, "")} ${this.t("run_profiles.minutes_unit")}`;
     }
     return String(value ?? "");
   };

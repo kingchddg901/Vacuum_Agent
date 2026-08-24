@@ -909,7 +909,9 @@
     "water_total_detail": "Total de água usada nos trabalhos correspondentes",
     "window_last_30_days": "Últimos 30 dias",
     "window_last_7_days": "Últimos 7 dias",
-    "window_today": "Hoje"
+    "window_today": "Hoje",
+    "unit_ml": "ml",
+    "unit_hours": "h"
   },
   "mobile": {
     "dock_status_label": "Estado da base:",

@@ -1123,7 +1123,9 @@
     "water_total_detail": "إجمالي المياه المستخدمة عبر المهام المطابِقة",
     "window_last_30_days": "آخر 30 يومًا",
     "window_last_7_days": "آخر 7 أيام",
-    "window_today": "اليوم"
+    "window_today": "اليوم",
+    "unit_ml": "مل",
+    "unit_hours": "س"
   },
   "theme_preview": {
     "animal": {

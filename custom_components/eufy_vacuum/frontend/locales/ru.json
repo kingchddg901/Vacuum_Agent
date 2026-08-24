@@ -951,7 +951,9 @@
     "water_total_detail": "Всего воды израсходовано по подходящим заданиям",
     "window_last_30_days": "Последние 30 дней",
     "window_last_7_days": "Последние 7 дней",
-    "window_today": "Сегодня"
+    "window_today": "Сегодня",
+    "unit_ml": "мл",
+    "unit_hours": "ч"
   },
   "mobile": {
     "dock_status_label": "Статус дока:",

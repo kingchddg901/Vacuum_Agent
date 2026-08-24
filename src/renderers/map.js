@@ -534,7 +534,7 @@ export function applyMapRenderers(proto) {
              + `data-room="${this.escapeHtml(String(r.number))}" `
              + `data-cx="${f(hx)}" data-cy="${f(hy)}" `
              + `style="left:${f(lx)}%;top:${f(ly)}%">`
-             + `${this.escapeHtml(String(r.area_m2))} m²</div>`;
+             + `${this.t("saved_zones.area_m2", { area: this.escapeHtml(String(r.area_m2)) })}</div>`;
       }
     }
     // Saved-zone name (+ m²) labels — only for the SELECTED set (mirrors the boxes above),

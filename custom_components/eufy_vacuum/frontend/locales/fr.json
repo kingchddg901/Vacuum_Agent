@@ -909,7 +909,9 @@
     "water_total_detail": "Eau totale utilisée sur les tâches correspondantes",
     "window_last_30_days": "30 derniers jours",
     "window_last_7_days": "7 derniers jours",
-    "window_today": "Aujourd'hui"
+    "window_today": "Aujourd'hui",
+    "unit_ml": "ml",
+    "unit_hours": "h"
   },
   "mobile": {
     "dock_status_label": "État de la station :",

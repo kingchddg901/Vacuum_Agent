@@ -1118,7 +1118,9 @@
     "water_total_detail": "符合條件的作業所使用的總水量",
     "window_last_30_days": "過去 30 天",
     "window_last_7_days": "過去 7 天",
-    "window_today": "今天"
+    "window_today": "今天",
+    "unit_ml": "毫升",
+    "unit_hours": "時"
   },
   "theme_preview": {
     "animal": {

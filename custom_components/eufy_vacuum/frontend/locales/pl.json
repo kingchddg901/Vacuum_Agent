@@ -1326,7 +1326,9 @@
     "water_total_detail": "Łączne zużycie wody w pasujących zadaniach",
     "window_last_30_days": "Ostatnie 30 dni",
     "window_last_7_days": "Ostatnie 7 dni",
-    "window_today": "Dziś"
+    "window_today": "Dziś",
+    "unit_ml": "ml",
+    "unit_hours": "godz."
   },
   "review": {
     "badge_attribution_disagreement": "Niezgodność pokoju",

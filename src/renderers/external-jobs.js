@@ -238,7 +238,7 @@ export function applyExternalJobsRenderers(proto) {
       <button class="evcc-chip ${isPicked ? "active" : ""} ${isSuggested ? "evcc-ext-room-suggested" : ""}"
               data-action="ext-pick-room" data-order="${order}" data-room-id="${r.room_id}"
               ${isSuggested ? `title="${this.escapeHtml(this.t("external_jobs.suggested_hint"))}"` : ""}>
-        ${this.escapeHtml(String(r.name || r.slug || r.room_id))}${(r.learned_area_m2 ?? r.footprint_area_m2) ? ` · ${Number(r.learned_area_m2 ?? r.footprint_area_m2).toFixed(0)} m²` : ""}${isSuggested ? ` · ${this.t("external_jobs.suggested_tag")}` : ""}
+        ${this.escapeHtml(String(r.name || r.slug || r.room_id))}${(r.learned_area_m2 ?? r.footprint_area_m2) ? ` · ${this.t("saved_zones.area_m2", { area: Number(r.learned_area_m2 ?? r.footprint_area_m2).toFixed(0) })}` : ""}${isSuggested ? ` · ${this.t("external_jobs.suggested_tag")}` : ""}
       </button>`;
     }).join("");
 
