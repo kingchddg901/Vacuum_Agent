@@ -47,6 +47,13 @@ Coverage targets
 [BM-31] C54: a session already in flight when this shipped has no rate_samples and
         closes with avg None — "not measured", rather than the old wrong number
         wearing the look of a measurement.
+[BM-32] B2: an ordinary battery sample takes the COALESCED save, not a full
+        integration-data disk write. `_schedule_save` writes immediately — the
+        storage layer does not coalesce, despite the docstring that said it did —
+        and `_process_sample` runs on every accepted sample.
+[BM-33] B2: a sample that CLOSES a session still writes immediately. A closed
+        session is a durable record, not a re-derivable reading, so it does not get
+        the crash-window trade the samples get.
 """
 
 from __future__ import annotations
@@ -266,6 +273,35 @@ def test_rebaseline(bm):
     assert bm.rebaseline(_VAC) is True
     assert rec["baseline"]["cc_min_per_pct"] is None
     assert bm.rebaseline("vacuum.unknown") is False
+
+
+def test_bm3b_rebaseline_clears_every_health_stat(bm):
+    """[BM-3] C21: RED BEFORE THE FIX on two of seven fields.
+
+    `rebaseline` means "this is a different battery now". It cleared five health stats
+    and left `cc_/cv_charge_speed_rejected_pct` behind, so a swapped pack inherited the
+    old pack's rejected readings and the diagnostics explained the new battery with the
+    old one's numbers.
+
+    Asserted over the WHOLE health-stat set rather than the two that were missed: a list
+    of two would go stale the moment an eighth field is added, which is the shape that
+    produced this defect. Nothing gates on these values today, which is precisely why
+    nothing complained.
+    """
+    rec = bm.ensure_record(_VAC)
+    health_stats = [
+        "cc_charge_speed_pct", "cv_charge_speed_pct", "health_pct",
+        "health_unavailable_reason", "health_unavailable_reason_text",
+        "cc_charge_speed_rejected_pct", "cv_charge_speed_rejected_pct",
+    ]
+    for key in health_stats:
+        rec["stats"][key] = 99.0
+    rec["baseline"]["cc_min_per_pct"] = 1.0
+
+    assert bm.rebaseline(_VAC) is True
+
+    left = {k: rec["stats"][k] for k in health_stats if rec["stats"][k] is not None}
+    assert not left, f"rebaseline left stale health stats behind: {left}"
 
 
 def test_record_job_metrics(bm):
@@ -884,3 +920,68 @@ async def test_a_session_open_across_the_upgrade_closes_unmeasured(bm):
     stats = bm.get_record(_VAC)["mid_job_recharge_stats"]
     assert stats["count"] == 0
     assert stats["rate_mean_per_min"] is None
+
+
+# ---------------------------------------------------------------------------
+# B2 - write amplification on the per-sample path
+# ---------------------------------------------------------------------------
+
+
+def _save_spy(bm):
+    """Record which save path each sample takes, without touching behaviour."""
+    calls = {"immediate": 0, "delayed": 0}
+    bm._schedule_save = lambda: calls.__setitem__("immediate", calls["immediate"] + 1)
+    bm._schedule_save_delayed = lambda: calls.__setitem__("delayed", calls["delayed"] + 1)
+    return calls
+
+
+async def test_bm32_an_ordinary_sample_does_not_force_a_disk_write(bm):
+    """[BM-32] RED BEFORE THE FIX: every one of these took an immediate write.
+
+    Six charging samples that open and continue a session — no close. On a real
+    charging vacuum reporting every couple of seconds this is the dominant path, so it
+    is the one that decides whether the integration writes its whole store per sample.
+    """
+    calls = _save_spy(bm)
+    _feed(bm, [(50, False, 0), (52, True, 60), (54, True, 60),
+               (56, True, 60), (58, True, 60), (60, True, 60)])
+
+    assert calls["delayed"] >= 5, calls
+    assert calls["immediate"] == 0, (
+        f"an ordinary sample still forced a full-store write: {calls}"
+    )
+
+
+async def test_bm33_a_session_close_still_writes_immediately(bm):
+    """[BM-33] RED IF THE WHOLE PATH IS SWITCHED TO DELAYED.
+
+    The closing sample carries the session summary, the history-ring entry and the
+    health inputs. Those are not re-derivable from the next sample, so they do not get
+    the ~2s crash window the samples get. This is the assertion that stops "fix the
+    write amplification" from becoming "lose a session to a crash".
+    """
+    calls = _save_spy(bm)
+    _feed(bm, [(50, False, 0), (52, True, 60), (54, True, 60), (54, False, 60)])
+
+    rec = bm.get_record(_VAC)
+    assert rec["current_session"] is None, "precondition: the session closed"
+    assert len(rec["session_history_recent"]) == 1
+    assert calls["immediate"] == 1, (
+        f"the closing sample did not force a write: {calls}"
+    )
+
+
+def test_bm32_the_delayed_path_is_the_coalescing_one(bm, manager):
+    """[BM-32] RED IF `_schedule_save_delayed` IS WIRED TO THE IMMEDIATE API.
+
+    The whole finding was that two similarly-named methods do opposite things and the
+    docstring claimed the wrong one. Asserting the method exists proves nothing; this
+    asserts which manager call it reaches.
+    """
+    reached = []
+    manager.async_save_delayed = lambda: reached.append("delayed")
+    manager.async_save = lambda: reached.append("immediate")
+
+    bm._schedule_save_delayed()
+
+    assert reached == ["delayed"], reached

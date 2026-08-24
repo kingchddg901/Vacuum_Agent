@@ -22,6 +22,11 @@ Coverage targets
 [SC-12] the ±window is DERIVED from a brand's declared pose cadence, floored at the
         historical 30 s so a fast brand's picture does not change.
 [SC-13] sparse samples render as breadcrumbs, never a line — what lets the window widen
+[SC-14] C16: a NON-FINITE pose point is rejected by `_norm_to_px`, and an infinite
+        segment cannot reach the chevron loop. `while d < seg` with seg=inf never
+        terminates — a HANG on an executor thread, on the job-lifecycle path, not a
+        wrong picture. `Infinity` is reachable because the pose ring is parsed with a
+        bare `json.loads`, which accepts that non-standard literal.
         for a coarse brand without the extra samples becoming extra invented route.
 """
 
@@ -311,7 +316,13 @@ def test_a_coarse_pose_widens_the_window_to_hold_the_same_evidence():
     assert scr.trail_window_seconds(30.0) == 75
 
 
-@pytest.mark.parametrize("bad", [None, 0, -5, "fast", float("nan")])
+# inf and -inf added 2026-08-24: they were the only bad inputs this list did not
+# carry, and they were the only ones that did not fall back — `trail_window_seconds`
+# RAISED ValueError on inf, because the ceil trick evaluates `-(-inf // 1)` to NaN.
+# Every other value here already returned 30, which is what made the gap invisible.
+@pytest.mark.parametrize(
+    "bad", [None, 0, -5, "fast", float("nan"), float("inf"), float("-inf")]
+)
 def test_an_undeclared_or_nonsense_cadence_falls_back_to_the_floor(bad):
     """[SC-12] A capture with a plain-but-correct window beats no capture at all."""
     assert scr.trail_window_seconds(bad) == 30
@@ -515,3 +526,63 @@ def test_a_full_turn_is_a_no_op_and_the_angle_is_normalised():
     assert scr.render_room_capture(rotation_deg=360, **kw) == scr.render_room_capture(
         rotation_deg=0, **kw
     )
+
+
+# ---------------------------------------------------------------------------
+# [SC-14] C16 - non-finite pose points
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("-inf"), float("nan")])
+@pytest.mark.parametrize("axis", [0, 1])
+def test_sc14_a_non_finite_point_is_not_a_point(bad, axis):
+    """[SC-14] RED BEFORE THE FIX for inf (NaN already passed).
+
+    The guard was `nx != nx`, which is a NaN test and lets both infinities through. Both
+    axes are exercised because the guard is written per-axis and half of it going missing
+    would look identical for whichever axis the test happened to pick.
+    """
+    pt = [0.5, 0.5]
+    pt[axis] = bad
+    assert scr._norm_to_px(pt, 100, 100) is None
+
+
+def test_sc14_a_finite_point_still_resolves():
+    """[SC-14] RED IF THE GUARD IS INVERTED OR TOO WIDE. Rejecting everything would also
+    make the hang impossible, and would also make every capture blank."""
+    assert scr._norm_to_px([0.5, 0.5], 100, 100) == (50.0, 50.0)
+    assert scr._norm_to_px([0.0, 1.0], 200, 80) == (0.0, 80.0)
+
+
+def test_sc14_the_chevron_loop_cannot_be_made_to_hang(monkeypatch):
+    """[SC-14] The failure this exists to prevent, driven through the REAL function.
+
+    `Infinity` is reachable: `pose_store.read_range` parses the ring with a bare
+    `json.loads`, which accepts the non-standard literal. One such point makes
+    `seg = (dx*dx + dy*dy) ** 0.5` infinite, and `while d < seg: ... d += spacing` never
+    terminates — on an executor thread, on the job-lifecycle path.
+
+    RED BEFORE THE FIX BY TIMING OUT, not by asserting: a hang has no return value to
+    check. Reproduced against the pre-fix code at 15 s. The call is made directly with a
+    raw infinite point so this covers the LOOP guard specifically, not the `_norm_to_px`
+    gate upstream of it — the two are independent and either alone would close the real
+    path.
+    """
+    class _Draw:
+        def line(self, *a, **k):
+            pass
+
+        def polygon(self, *a, **k):
+            pass
+
+    pts = [(0.0, 0.0), (float("inf"), 50.0), (10.0, 10.0)]
+    scr._draw_direction_chevrons(_Draw(), pts, (255, 0, 0), 2, 20.0, 6.0)
+
+
+def test_sc14_json_loads_really_does_accept_infinity():
+    """[SC-14] The reachability premise, pinned. If a future change routes the pose ring
+    through a parser that rejects `Infinity`, the guards above stop being load-bearing and
+    this test says so by going red — which is the moment to re-read C16, not delete it."""
+    import json
+
+    assert json.loads('{"p": [Infinity, 0.5]}')["p"][0] == float("inf")

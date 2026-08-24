@@ -622,7 +622,10 @@ def eufy_error_invalidates_cleaning(code: object) -> bool:
 def _exact_error_code(code: object) -> int | None:
     """Coerce to an error code, or None. NEVER int(): int(3.7) is 3, a real code (SIDE
     BRUSH STUCK), so a malformed value would silently classify as a genuine robot fault
-    and be subtracted. Same lying-coercion class as get_battery_level's ``-> int``.
+    and be subtracted. Same lying-coercion class as ``core/charging.py::get_battery_level``,
+    whose signature is ``-> int | None`` — this line cited it as ``-> int`` until
+    2026-08-24, which is the pre-`| None` signature and the opposite of the point: the
+    parallel is that BOTH must be able to say "no value" rather than coerce one. (D16)
     bool is an int subclass, so True would otherwise resolve to code 1."""
     if isinstance(code, bool):
         return None

@@ -187,3 +187,79 @@ def test_prose_anchors_have_a_live_consumer():
         "mention in history/ or maintenance/ does not count: those are dated "
         "records, and a rule kept alive by one is attached to nothing."
     )
+
+
+# ---------------------------------------------------------------------------
+# D12 - a replica block must name the WHOLE set, including itself correctly
+# ---------------------------------------------------------------------------
+
+#: The three call sites that must agree for RNF2RCXP (translation_key rescue). Named
+#: here rather than derived, because deriving them needs the very text under test.
+_RNF2RCXP_MEMBERS = (
+    "resolve_declared_entities",
+    "_rescue_maintenance_source",
+    "augment_candidates_from_device",
+)
+
+
+def test_rnf2rcxp_every_copy_names_the_whole_set():
+    """D12: two of the three copies named a set of two, one of which was THEMSELVES.
+
+    The anchor's entire purpose is the line it carries: *"changing one means checking the
+    other two."* A copy that lists itself as one of the other two sends a maintainer to
+    one real sibling and back to the block they are already reading — and both wrong
+    copies omitted `_rescue_maintenance_source`, which is the one a live install caught
+    only by renaming a vacuum's entities to German.
+
+    They were wrong in the SAME way because the sentence was self-referential ("this
+    one, plus …") and got pasted verbatim. All three now name all three explicitly, so
+    correctness no longer depends on the reader resolving a pronoun.
+
+    DELIBERATELY NARROW — one anchor, not a general rule over every RN set. This file's
+    own docstring says a ratchet that cries wolf gets deleted, and replica prose varies
+    too much between sets for a generic member-extraction to stay honest. RNF2RCXP earns
+    a specific pin because it is the set that actually drifted.
+    """
+    import pathlib as _pl
+    import re as _re
+
+    root = _pl.Path(__file__).resolve().parents[1]
+    found = 0
+    bad = []
+    for rel in ("custom_components/eufy_vacuum/core/capabilities.py",
+                "custom_components/eufy_vacuum/adapters/entity_resolve.py"):
+        lines = (root / rel).read_text(encoding="utf-8").splitlines()
+        for i, ln in enumerate(lines):
+            if "REPLICA RNF2RCXP" not in ln:
+                continue
+            found += 1
+            # The MEMBER this copy sits in. Scanning back to the nearest `def` is wrong:
+            # the capabilities.py copy lives inside a nested helper (`_claimed_by`), so
+            # the innermost def is not the member. Walk the enclosing chain instead and
+            # take the first name that is one.
+            owner = None
+            for j in range(i, -1, -1):
+                m = _re.match(r"\s*(?:async )?def (\w+)", lines[j])
+                if m and m.group(1) in _RNF2RCXP_MEMBERS:
+                    owner = m.group(1)
+                    break
+            assert owner in _RNF2RCXP_MEMBERS, (
+                f"{rel}:{i+1} REPLICA RNF2RCXP sits in {owner!r}, which is not a "
+                f"declared member of the set -- the set or this test is out of date"
+            )
+            # It must identify ITSELF correctly. Checking "does the word appear
+            # somewhere nearby" is what a footnote can satisfy; this cannot be.
+            block = "\n".join(lines[i:i + 12])
+            m = _re.search(r"THIS ONE is\s*(?:\n\s*#)?\s*`?([\w.]+)", block)
+            if not m:
+                bad.append(f"{rel}:{i+1} ({owner}) does not say which member it is")
+                continue
+            claimed = m.group(1).split(".")[-1]
+            if claimed != owner:
+                bad.append(f"{rel}:{i+1} sits in {owner} but claims to be {claimed}")
+
+    assert found == 3, f"expected 3 RNF2RCXP replica blocks, found {found}"
+    assert not bad, (
+        "an RNF2RCXP replica copy misidentifies itself, so 'changing one means checking "
+        "the other two' points at the wrong two:\n  " + "\n  ".join(bad)
+    )

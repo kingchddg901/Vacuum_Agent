@@ -594,12 +594,20 @@ def resolve_declared_entities(
             # overwhelming majority that need nothing.
             # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree
             #
-            # REPLICA — the same rescue runs in THREE places, deliberately: this one, plus
-            # `entity_resolve.resolve_declared_entities` (the declared `entities` map) and
-            # `capabilities.augment_candidates_from_device` (the roles `detect_capabilities`
-            # probes). They are not unified because each feeds a different consumer and takes
-            # its wanted-key from a different place; ~half of such divergence in this repo is
-            # deliberate, so a helper would force agreement that is not always wanted.
+            # REPLICA — the same rescue runs in THREE places, deliberately: THIS ONE is
+            # `entity_resolve.resolve_declared_entities` (the declared `entities` map); the
+            # other two are `capabilities._rescue_maintenance_source` (maintenance sources)
+            # and `capabilities.augment_candidates_from_device` (the roles
+            # `detect_capabilities` probes). They are not unified because each feeds a
+            # different consumer and takes its wanted-key from a different place; ~half of
+            # such divergence in this repo is deliberate, so a helper would force agreement
+            # that is not always wanted.
+            #
+            # (D12, corrected 2026-08-24 — same paste error as the copy in
+            # `augment_candidates_from_device`: it named ITSELF as one of the other two and
+            # omitted `_rescue_maintenance_source`. Two of the three copies were wrong in
+            # exactly the same way, which is what a verbatim paste of a self-referential
+            # sentence produces.)
             #
             # ⚠ CHANGING ONE MEANS CHECKING THE OTHER TWO. The first fix (`ef810519`) landed in
             # two of the three and 4381 green tests said nothing — each copy had its own passing

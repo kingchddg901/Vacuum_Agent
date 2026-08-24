@@ -23,10 +23,31 @@ keyed by the map NAME (which is what ``entities.active_map`` — Roborock's
 id lines up with a cache key).
 
 Public surface:
-    async_refresh_room_source(hass, vacuum_entity_id) -> None   (async)
+    async_refresh_room_source(hass, vacuum_entity_id) -> dict[str, Any]   (async)
     get_cached_room_source(hass, vacuum_entity_id) -> dict[str, list[dict]]
+    get_cached_room_source_with_age(...)
     set_cached_room_source(hass, vacuum_entity_id, per_map) -> None
-    flatten_maps_response(response, *, discovery) -> dict[str, list[dict]]  (pure)
+    invalidate_room_source_cache(...)
+    select_segments_for_map(...)
+    flatten_maps_response(response, *, discovery, vacuum_entity_id=..., active_map_id=...)
+        -> dict[str, list[dict]]  (pure)
+
+⚠ CORRECTED 2026-08-24 (R5), in two ways, and this is the FIRST thing a caller reads.
+
+RETURN TYPE. `async_refresh_room_source` was listed `-> None`. It returns a dict with
+seven distinct {ok, reason, refreshed_at} exits, documented on the function itself —
+that WAS the RP-007/SRC-1 fix, whose whole point was that it stopped returning None, and
+the stale claim sat at the top of the very file that fixed it. `dispatch/manager.py`
+depends on the dict (`refresh_result.get("ok")`), so a caller who believed this header
+and discarded the result would silently drop the outcome, or read a returned value as a
+bug.
+
+MEMBERSHIP. Three public functions were missing entirely —
+`get_cached_room_source_with_age`, `invalidate_room_source_cache` and
+`select_segments_for_map` — all defined here and all imported by other modules. A
+"public surface" list that omits a third of the surface sends a reader looking for a
+seam that is already there. `flatten_maps_response`'s listed signature also dropped its
+two keyword params.
 """
 
 # System invariants that bind in this file. Declared and explained elsewhere

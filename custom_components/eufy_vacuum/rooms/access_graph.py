@@ -1030,7 +1030,19 @@ class AccessGraphManager:
     ) -> str:
         """Return 'blank', 'partial', or 'complete' for the access graph.
 
-        blank    — no dock room and no grants anywhere; basic runs are allowed.
+        blank    — no dock room and no grants anywhere.
+
+                   ⚠ NOT unconditionally permissive, and this line said "basic runs
+                   are allowed" until 2026-08-24. `access_graph_block_code` in this
+                   same file returns `access_graph_required_for_rules` for the blank
+                   state whenever ANY room carries rules, and `_any_rooms_have_rules`
+                   tests `bool(room.get("rules"))` only — so a DISABLED rule counts.
+                   `run_plan` turns any non-None block code into blocked/unavailable
+                   and returns before the queue is built, so on a blank graph with a
+                   single rule anywhere every run is refused. This docstring is the
+                   definition sheet for the three states and is what a maintainer
+                   reasons from when deciding whether blank needs a block path — it
+                   already has one. (R3)
         partial  — some configuration exists but the graph is not valid; worse
                    than blank, always blocked.
         complete — graph is fully valid; all runs and rules are allowed.
@@ -1170,11 +1182,26 @@ class AccessGraphManager:
 
     # RP-008 (GUARD-1): states that mean "the sensor is not answering", not a
     # value of the world. A rule is a statement about the world; it cannot bind
-    # to ignorance — so NO operator (including the negating ones and `missing`)
-    # may match while the rule entity reads one of these. GATE4 Q18: nothing in
-    # any install depends on matching these; if fail-closed-on-dropout is ever
-    # wanted it arrives as an explicit per-rule `when_unavailable` field, never
-    # by string-matching sentinels.
+    # to ignorance — so no VALUE-COMPARING operator (including the negating ones
+    # and `missing`) may match while the rule entity reads one of these. GATE4
+    # Q18: nothing in any install depends on matching these; if
+    # fail-closed-on-dropout is ever wanted it arrives as an explicit per-rule
+    # `when_unavailable` field, never by string-matching sentinels.
+    #
+    # ⚠ `exists` IS THE EXCEPTION, and this comment said "NO operator" until
+    # 2026-08-24. `_room_rule_matches_known` returns for `exists` BEFORE reaching
+    # the sentinel check — "presence of the entity is an observable fact either
+    # way" — and an entity reading `unavailable` still yields a state object, so
+    # `exists` matches while the sensor is dark. The carve-out is deliberate and
+    # is NOT being changed here; what was wrong is this comment claiming a
+    # universal that the code one screen down contradicts.
+    #
+    # It matters because of who reads this: an auditor checking dropout safety, or
+    # whoever implements the promised `when_unavailable`, reads "NO operator ...
+    # may match" and skips `exists` as already covered. A blocker rule using
+    # `exists` on a door sensor keeps blocking, and a modifier keeps mutating fan
+    # speed and water level, while that sensor is reading `unavailable` — the
+    # exact dropout GUARD-1 was written to stop. (R2)
     INDETERMINATE_STATE_VALUES = frozenset({"unavailable", "unknown"})
 
     def _room_rule_matches_known(self, rule: dict[str, Any]) -> tuple[bool, bool]:

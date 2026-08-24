@@ -259,12 +259,18 @@ def _rescue_maintenance_source(
     # failed, so an install that resolves today is untouched.
     # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree
     #
-    # REPLICA — the same rescue runs in THREE places, deliberately: this one, plus
+    # REPLICA — the same rescue runs in THREE places, deliberately: THIS ONE is
+    # `capabilities._rescue_maintenance_source` (maintenance sources); the other two are
     # `entity_resolve.resolve_declared_entities` (the declared `entities` map) and
     # `capabilities.augment_candidates_from_device` (the roles `detect_capabilities`
     # probes). They are not unified because each feeds a different consumer and takes
     # its wanted-key from a different place; ~half of such divergence in this repo is
     # deliberate, so a helper would force agreement that is not always wanted.
+    #
+    # (D12: this copy was always CORRECT, but only because "this one" happened to resolve
+    # to the member the sentence omitted. Made explicit 2026-08-24 so all three copies
+    # name all three members — a replica set whose correctness depends on the reader
+    # resolving a pronoun is what let the other two be pasted wrong.)
     #
     # ⚠ CHANGING ONE MEANS CHECKING THE OTHER TWO. The first fix (`ef810519`) landed in
     # two of the three and 4381 green tests said nothing — each copy had its own passing
@@ -721,12 +727,21 @@ def augment_candidates_from_device(
                 # shape live:ENT-4 was, and it happened again here.
                 # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree
                 #
-                # REPLICA — the same rescue runs in THREE places, deliberately: this one, plus
-                # `entity_resolve.resolve_declared_entities` (the declared `entities` map) and
+                # REPLICA — the same rescue runs in THREE places, deliberately: THIS ONE is
                 # `capabilities.augment_candidates_from_device` (the roles `detect_capabilities`
-                # probes). They are not unified because each feeds a different consumer and takes
-                # its wanted-key from a different place; ~half of such divergence in this repo is
-                # deliberate, so a helper would force agreement that is not always wanted.
+                # probes); the other two are `entity_resolve.resolve_declared_entities` (the
+                # declared `entities` map) and `capabilities._rescue_maintenance_source`
+                # (maintenance sources). They are not unified because each feeds a different
+                # consumer and takes its wanted-key from a different place; ~half of such
+                # divergence in this repo is deliberate, so a helper would force agreement that
+                # is not always wanted.
+                #
+                # (D12, corrected 2026-08-24. This block was pasted verbatim from the copy in
+                # `_rescue_maintenance_source` without re-pointing "this one", so it named
+                # ITSELF as one of the other two and dropped `_rescue_maintenance_source`
+                # entirely. A replica anchor listing the wrong replica set is worse than none:
+                # the whole point of the anchor is "changing one means checking the other two",
+                # and it named a set of two that includes the copy you are already reading.)
                 #
                 # ⚠ CHANGING ONE MEANS CHECKING THE OTHER TWO. The first fix (`ef810519`) landed in
                 # two of the three and 4381 green tests said nothing — each copy had its own passing
@@ -861,12 +876,8 @@ def detect_capabilities(
     # live:ENT-1: derived names first, device siblings appended behind them. An
     # install where derivation already works resolves byte-identically; only a
     # role that would have found NOTHING can now find something.
-    # live:ENT-1: derived names first, device siblings appended behind them. An
-    # install where derivation already works resolves byte-identically; only a
-    # role that would have found NOTHING can now find something.
-    # live:ENT-1: derived names first, device siblings appended behind them. An
-    # install where derivation already works resolves byte-identically; only a
-    # role that would have found NOTHING can now find something.
+    # (D13: this block stood here three times verbatim until 2026-08-24 — not three
+    # comments on three things, one comment pasted twice. Deduplicated.)
     _aug_report: dict[str, Any] = {}
     _cands = augment_candidates_from_device(
         hass,

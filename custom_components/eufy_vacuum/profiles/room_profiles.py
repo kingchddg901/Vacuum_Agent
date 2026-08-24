@@ -589,12 +589,17 @@ def resolve_room_profile_for_room(
     ``catalog`` (a resolved adapter ``room_profiles`` block) sources the built-ins,
     legacy aliases, and floor-type fan/water defaults.
 
-    ``catalog=None`` yields NOTHING, not a fallback. There are no in-code constants
-    left to fall back to — ``None`` flows through ``get_room_profile`` to
+    ``catalog=None`` RAISES. It does not fall back and it does not quietly resolve to
+    empty: ``None`` flows through ``get_room_profile`` to
     ``get_default_room_profiles(None)``, which returns ``{}`` by design, the merge
-    yields ``{}``, and both lookups miss. The axis fallbacks below are then ``""``
-    ("nobody said"), which is the intended answer: core owns no brand's profile
-    vocabulary, so a catalog-less call must not be able to invent one.
+    yields ``{}``, both lookups miss, and ``get_room_profile`` raises
+    ``UndeclaredProfileCatalogError``. Verified by calling it, 2026-08-24.
+
+    That is the intended contract — core owns no brand's profile vocabulary, so a
+    catalog-less call must FAIL LOUDLY rather than invent one, and
+    ``tests/adapters/test_declaration_contract.py`` pins the raise. The signature's
+    ``catalog: ... | None = None`` default reads like an optional convenience and is
+    not one.
 
     This said "None uses the in-code constants (byte-identical)" until 2026-08-23,
     describing the world before those constants were removed. The behaviour was

@@ -31,10 +31,19 @@ Coverage targets
 [PB-12] manager missing at event time -> early-out (no get_active_job).
 [PB-13] report not a dict -> no event fired, no save.
 [PB-14] no changes overall -> no save, no path-blocked event.
+[PB-15] L15/GUARD-2: an edge on entity B while entity A is mid-evaluation is
+        EVALUATED, not swallowed. The single-flight flag was one dict for the whole
+        integration, and the rerun loop re-runs the CURRENT event's closure — so B's
+        targets were never visited at all, with no report, no event and no log.
+[PB-16] L15: a burst on ONE entity still coalesces. That is the property GUARD-2 was
+        written for and the per-entity keying must not cost it.
+[PB-17] L15: the per-entity state is dropped by remove(), or a stale `running: True`
+        from a killed task wedges that entity off after a reload.
 """
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -346,3 +355,134 @@ async def test_event_no_changes_no_save(hass, monkeypatch):
     # ...yet nothing actionable -> no event, no save.
     assert fired == []
     manager.async_save.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# L15 - the single-flight was integration-wide, not per entity
+# ---------------------------------------------------------------------------
+
+_BLOCKER_ENTITY_B = "binary_sensor.window_open"
+_PATH_BLOCKER_INFLIGHT = "_path_blocker_inflight"
+
+
+def _register_two_and_get_handler(hass, manager, monkeypatch):
+    """Register with TWO watched entities and return the handler.
+
+    Separate from `_register_valid_and_get_handler`, which asserts the watch_map holds
+    exactly one entity — a good assertion for every other test here and the wrong one
+    for the cross-entity case, which needs two by construction.
+    """
+    captured = _register_and_capture(hass, manager, monkeypatch)
+    assert set(captured["entities"]) == {_BLOCKER_ENTITY, _BLOCKER_ENTITY_B}
+    return captured["action"]
+
+
+def _two_entity_manager() -> MagicMock:
+    """Two rooms, each with a blocker rule on a DIFFERENT trigger entity."""
+    return _make_manager({
+        "1": {"room_id": 1, "name": "Kitchen",
+              "rules": [_blocker_rule(_BLOCKER_ENTITY, id="rule-a")]},
+        "2": {"room_id": 2, "name": "Study",
+              "rules": [_blocker_rule(_BLOCKER_ENTITY_B, id="rule-b")]},
+    })
+
+
+async def test_pb15_an_edge_on_another_entity_is_not_swallowed(hass, monkeypatch):
+    """[PB-15] RED BEFORE THE FIX.
+
+    Entity A's evaluation is held open; while it is running, entity B fires. Under the
+    integration-wide flag B set `rerun` and returned, A's loop then re-ran A a second
+    time, and B was never evaluated — silently. Two door sensors on different maps is
+    enough to reach it.
+
+    Asserted on the TRIGGER ENTITY the manager was asked about, not on a call count:
+    a count cannot tell "B was evaluated" from "A was evaluated twice", which is
+    precisely the confusion the old flag produced.
+    """
+    manager = _two_entity_manager()
+    handler = _register_two_and_get_handler(hass, manager, monkeypatch)
+
+    seen: list[str] = []
+
+    def _report(**kwargs):
+        seen.append(kwargs.get("trigger_entity_id"))
+        return {}
+
+    manager.get_runtime_path_block_report.side_effect = _report
+
+    handler(_event(_BLOCKER_ENTITY, old="off", new="on"))
+    handler(_event(_BLOCKER_ENTITY_B, old="off", new="on"))
+    await hass.async_block_till_done()
+
+    assert _BLOCKER_ENTITY_B in seen, (
+        f"the second entity's edge was never evaluated: {seen}"
+    )
+    assert _BLOCKER_ENTITY in seen
+
+
+async def test_pb16_a_burst_on_one_entity_still_coalesces(hass, monkeypatch):
+    """[PB-16] RED IF THE SINGLE-FLIGHT IS REMOVED RATHER THAN RE-KEYED.
+
+    GUARD-2 exists because a burst of edges on one sensor used to spawn one unbounded
+    task per event. Fixing the cross-entity drop by deleting the flag would trade this
+    defect for the one it replaced, so this counts EVALUATIONS, not flag state — the
+    first draft asserted `running is False` at the end, which is equally true when the
+    flag is never consulted, and a "drop the single-flight" ablation sailed through it.
+
+    Five edges are dispatched while the first evaluation is held open. Coalesced that
+    is 2 evaluations (one running + one queued re-check); unbounded it is 5.
+    """
+    manager = _two_entity_manager()
+    handler = _register_two_and_get_handler(hass, manager, monkeypatch)
+
+    gate = asyncio.Event()
+    evaluations = 0
+
+    def _report(**kwargs):
+        nonlocal evaluations
+        evaluations += 1
+        # A truthy report drives the blocked branch, which sets any_changes and makes
+        # _process reach the `await async_save()` below -- the only yield point in the
+        # whole evaluation. Without a yield the tasks never overlap and a single-flight
+        # cannot be observed at all, which is what made the first draft of this test
+        # pass against an ablated flag.
+        return {"blocked": True, "rooms": [1]}
+
+    manager.get_runtime_path_block_report.side_effect = _report
+
+    async def _slow_save():
+        await gate.wait()
+
+    manager.async_save.side_effect = _slow_save
+
+    for state in ("on", "off", "on", "off", "on"):
+        handler(_event(_BLOCKER_ENTITY, old="off" if state == "on" else "on", new=state))
+    await asyncio.sleep(0)          # let the queued tasks start and block on the gate
+    gate.set()
+    await hass.async_block_till_done()
+
+    assert evaluations <= 2, (
+        f"a burst on one entity spawned {evaluations} evaluations; GUARD-2's bound is "
+        "one running plus one queued re-check"
+    )
+    assert evaluations >= 1
+
+
+async def test_pb17_remove_drops_the_per_entity_state(hass, monkeypatch):
+    """[PB-17] RED IF remove() FORGETS IT.
+
+    The old form was one key, rewritten on every register, so leaving it behind cost
+    nothing. A per-entity map grows per register/remove cycle — and a `running: True`
+    left by a task killed mid-flight would wedge that entity's evaluations off for the
+    rest of the session.
+    """
+    manager = _two_entity_manager()
+    handler = _register_two_and_get_handler(hass, manager, monkeypatch)
+    manager.get_runtime_path_block_report.return_value = {}
+    handler(_event(_BLOCKER_ENTITY, old="off", new="on"))
+    await hass.async_block_till_done()
+    assert hass.data[DOMAIN].get(_PATH_BLOCKER_INFLIGHT)
+
+    path_blockers.remove(hass)
+
+    assert _PATH_BLOCKER_INFLIGHT not in hass.data[DOMAIN]

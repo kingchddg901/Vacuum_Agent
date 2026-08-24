@@ -679,6 +679,9 @@ class BatteryHealthManager:
             return
 
         record = self.ensure_record(vacuum_entity_id)
+        # Captured for the save decision at the end: a sample that CLOSES a session
+        # takes an immediate write, an ordinary sample takes the coalesced one.
+        _session_before = record.get("current_session")
         prev_level = record.get("last_battery_level")
         prev_ts_str = record.get("last_sample_ts")
         prev_ts = _parse_iso(prev_ts_str)
@@ -878,7 +881,18 @@ class BatteryHealthManager:
                 },
             )
         )
-        self._schedule_save()
+        # COALESCED, not immediate — see _schedule_save_delayed. This is the
+        # per-sample path and it fires on every accepted sample.
+        #
+        # A sample that CLOSED a session is the exception and takes the immediate
+        # write: a closed session is a durable record (summary, history ring, health
+        # inputs), not a re-derivable reading, so it does not get the crash-window
+        # trade the samples get. `_close_session` sets `current_session` to None, so
+        # "did this sample close one" is exactly "we had one and now we do not".
+        if _session_before is not None and record.get("current_session") is None:
+            self._schedule_save()
+        else:
+            self._schedule_save_delayed()
         self._notify(vacuum_entity_id)
 
     # -- sessions --------------------------------------------------------------
@@ -1366,6 +1380,14 @@ class BatteryHealthManager:
         stats["health_pct"] = None
         stats["health_unavailable_reason"] = None
         stats["health_unavailable_reason_text"] = None
+        # C21: the REJECTED figures are part of the health proxy too, and were the two
+        # of seven this method missed. A rebaseline is "this is a different battery now",
+        # so leaving them behind means a swapped pack inherits the old pack's rejected
+        # readings and the diagnostics explain the new battery with the old one's
+        # numbers. Diagnostics-only today -- nothing gates on them -- which is exactly
+        # why the omission survived: nothing downstream complains.
+        stats["cc_charge_speed_rejected_pct"] = None
+        stats["cv_charge_speed_rejected_pct"] = None
         # RP-045: the retained qualifying-session set exists precisely so a
         # baseline's anchor session can't rotate out from under it — but
         # that means it must be cleared here too, or the very next
@@ -1650,6 +1672,28 @@ class BatteryHealthManager:
 
     # -- save plumbing ---------------------------------------------------------
 
+    def _schedule_save_delayed(self) -> None:
+        """Coalesced save (~2s) for the HIGH-FREQUENCY, LOW-STAKES sample path.
+
+        DRAFT-5's trade, applied where it was always meant to apply: losing the last
+        couple of seconds of battery samples to a hard crash is recoverable — the next
+        sample re-derives the anchor — and it buys not doing a full-integration write
+        per sample. HA flushes any pending delayed write on shutdown, so an ordinary
+        restart or reload loses nothing.
+
+        LOOP-ONLY, deliberately, and that is why this is a separate method rather than
+        a flag on ``_schedule_save``. ``async_save_delayed`` is a CALLBACK, not a
+        coroutine, so it cannot be posted from a worker thread the way
+        ``_schedule_save`` posts one. The only caller is ``_process_sample``, which
+        arrives on the event loop from a state-change callback; ``record_job_metrics``
+        runs on the JobFinalizer's executor pool and must keep using
+        ``_schedule_save``.
+        """
+        try:
+            self._manager.async_save_delayed()
+        except Exception:  # pragma: no cover - best-effort, mirrors _schedule_save
+            _LOGGER.debug("battery: async_save_delayed scheduling failed", exc_info=True)
+
     def _schedule_save(self) -> None:
         """Fire-and-forget save of the integration's storage.
 
@@ -1660,8 +1704,22 @@ class BatteryHealthManager:
 
         ``run_coroutine_threadsafe`` posts the coroutine to the loop from
         whichever thread we're on; if we're already on the loop, fall back
-        to ``async_create_task`` directly. Saves are idempotent, so even
-        rapid-fire calls just coalesce in the storage layer.
+        to ``async_create_task`` directly.
+
+        ⚠ THIS WRITES IMMEDIATELY. NOTHING COALESCES. Until 2026-08-24 this
+        docstring ended "Saves are idempotent, so even rapid-fire calls just
+        coalesce in the storage layer" — they do not. The chain is
+        ``core/manager.async_save`` → ``core/storage.async_save``, whose own
+        docstring is "Save stored data immediately." The coalescing path is a
+        DIFFERENT method this class did not call: ``async_save_delayed``, which
+        routes through HA's ``Store.async_delay_save``.
+
+        That mattered because ``_process_sample`` calls a save on EVERY accepted
+        battery sample. On a charging vacuum reporting every couple of seconds
+        that was one full-integration-data disk write per sample, under a comment
+        telling anyone auditing write amplification that it was free. Use
+        ``_schedule_save_delayed`` for the per-sample path; keep this one for the
+        writes that must not be lost.
         """
         try:
             try:
