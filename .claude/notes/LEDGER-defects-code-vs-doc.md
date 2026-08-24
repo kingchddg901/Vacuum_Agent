@@ -1620,7 +1620,7 @@ threshold nobody has measured. Bring it to Chris before choosing.
 
 Documented as current behaviour in the rooms NOW doc, stated as an open defect.
 
-## ROOMS COMMENT AUDIT — 2026-08-22. 27 findings. **3 APPLIED 2026-08-24 (R2, R3, R5); 24 NOT APPLIED.**
+## ROOMS COMMENT AUDIT — 2026-08-22. 27 findings. **4 APPLIED 2026-08-24 (R2, R3, R5, R25 — R25 a CODE fix); 23 NOT APPLIED.**
 
 Run alongside the `rooms/` doc pass (docs 17 + 18). Two auditors, both clusters read in full,
 read-only. Severity: {'high': 1, 'medium': 15, 'low': 11}. Kind: {'over-scoped': 15, 'stale-reference': 7, 'false': 2, 'reason-obsolete': 3}.
@@ -2130,7 +2130,7 @@ the already-migrated path.
 The enumerated return shape is the contract a caller codes against; "latched" — the only signal
 that the run deferred — is invisible in it, and is not present on every return path.
 
-### R25 · LOW · over-scoped — `rooms/room_discovery.py::discover_rooms_for_vacuum`
+### R25 ✅ APPLIED 2026-08-24 (CODE) · LOW · over-scoped — `rooms/room_discovery.py::discover_rooms_for_vacuum`
 
 **SAYS.** # anchor: INCFMPP1 one slug derivation, at ONE admission boundary, unique within # its
 map -- lowest room_id keeps the bare slug, colliding siblings get _r{room_id}
@@ -2147,6 +2147,54 @@ that still holds a pre-RP-015 duplicate slug (from before admission-time uniquen
 i.e. it treats post-RP-015 duplicates as impossible. A reader would take "unique within its map"
 as guaranteed at admission and not defend against a duplicate arriving fresh. The triggering
 input is contrived, so this is a boundary defect, not a live one.
+
+**✅ APPLIED 2026-08-24 — REAL CODE FIX. Filed LOW; the SEVERITY is low, the CLASS is not.**
+The pass whose entire job is guaranteeing slug uniqueness could itself manufacture a duplicate.
+
+The single pass rewrote colliding siblings to `{slug}_r{room_id}` and never checked whether that
+value was already taken by another room in the same map:
+
+```
+"Kitchen" (id 3), "Kitchen" (id 7), "Kitchen R7" (id 9)
+  -> kitchen, kitchen_r7, kitchen_r7
+```
+
+**THE COLLIDING NAME IS NOT CONTRIVED, and I checked rather than assumed.** Ran
+`slugify_room_name` (2026-08-24): `"Kitchen R7"`, `"Kitchen r7"` and `"Kitchen_r7"` ALL map to
+`kitchen_r7`. A user who has already disambiguated two kitchens BY HAND writes exactly that —
+which makes the reachable population "people who hit the original duplicate-name problem", i.e.
+precisely the users this pass exists for.
+
+**WHY IT IS NOT AN ACCEPT-WITH-A-NOTE.** The test from `accept_defect_when_discarded` is whether
+the bad value is THEN THROWN AWAY. It is not. The slug is the load-bearing identity key:
+dispatch resolves it first-wins to a live segment, reconciliation matches on it, and the learning
+baselines hang durable per-room data from it. Two rooms sharing one means one room's settings and
+history silently answer for both. Low probability, but persisted and trusted — so it gets fixed,
+not documented.
+
+**AND THE ANCHOR IS LOAD-BEARING FOR OTHER CODE.** `INCFMPP1` reads "unique within its map" and is
+cited as a system invariant. `_existing_by_slug` in `room_manager.py` exists ONLY to cope with a
+store still holding a PRE-RP-015 duplicate — it treats post-RP-015 duplicates as impossible. A
+false invariant is worse than a missing one, because downstream stops defending against the case.
+
+**THE FIX runs to a FIXPOINT rather than one pass**, and preserves the convergence promise the
+anchor makes. Each pass leaves the LOWEST `room_id` holding the contested slug and pushes every
+other member one suffix deeper, so the outcome depends only on the SET of (name, room_id) pairs
+and not on the order the source listed them. The first iteration is byte-identical in effect to
+the old single pass, so no existing behaviour moved.
+
+**BOUNDED, deliberately — C16's lesson applied without being asked.** A slug-uniqueness pass is
+not worth a hang, so the loop cannot run away; falling out of the bound leaves a duplicate rather
+than spinning, and logs which slugs are still duplicated. Silence there would re-create the exact
+invariant violation the block exists to close.
+
+Tests `[RD-14]` (the three-room collision; asserts ALL SLUGS DISTINCT rather than one hardcoded
+spelling — the anchor promises uniqueness, and pinning an exact scheme would go red for a
+different-but-still-unique one, which is not the defect) and `[RD-15]` (order independence).
+Ablated 3 ways: the original single pass → `[RD-14]` red; **converge by iteration order instead of
+`room_id` → passes `[RD-14]` and fails `[RD-15]`**, which is why `[RD-15]` exists; remove the pass
+entirely → 3 red, confirming the tests still cover the ORIGINAL RP-015 guarantee and not just the
+new half. **`[FIXED]`**.
 
 ### R26 · LOW · stale-reference — `rooms/room_discovery.py::module`
 
@@ -2388,7 +2436,7 @@ code findings rather than comment problems and are worth reading before the repa
   does run in both directions, and reconcile_room is still the only caller — but the citations
   point at the wrong lines, which is the failure m
 
-## LISTENERS COMMENT AUDIT — 2026-08-22. 26 findings (UNION OF TWO RUNS). **1 APPLIED 2026-08-24 (L15 — a CODE fix); 25 NOT APPLIED.**
+## LISTENERS COMMENT AUDIT — 2026-08-22. 26 findings (UNION OF TWO RUNS). **4 APPLIED 2026-08-24 (L15, L11, L9, L10 — three of them CODE fixes); 22 NOT APPLIED.**
 
 Severity {'high': 2, 'medium': 13, 'low': 11}. Kind {'over-scoped': 7, 'false': 7, 'reason-obsolete': 3, 'stale-reference': 8, 'adopted-alternative': 1}.
 
@@ -2587,7 +2635,7 @@ Roborock completion gate's degradation path — the sentinel check
 surrounding code is built around. Grepping for `get_adapter_value` to find the fallback's
 consumers also misses the real call site.
 
-### L9 · MEDIUM · over-scoped · seen in run1+run2 — `listeners/_common.py:243-249 (completed_finalize_signals, the job_active_present comment)`
+### L9 ✅ APPLIED 2026-08-24 (CODE) · MEDIUM · over-scoped · seen in run1+run2 — `listeners/_common.py:243-249 (completed_finalize_signals, the job_active_present comment)`
 
 **SAYS.** # PRESENCE, not value. `completion_secondary_satisfied` used to accept a # DECLARED
 job_active key as proof the signal existed; on a localized install # the declared id resolves to
@@ -2609,7 +2657,7 @@ secondary as satisfied on the strength of a signal that is currently unreadable.
 auditing the issue #51 fix reads this comment and concludes the indeterminate case is already
 covered.
 
-### L10 · MEDIUM · false · seen in run1+run2 — `listeners/_common.py:219-222 (completed_finalize_signals docstring)`
+### L10 ✅ APPLIED 2026-08-24 · MEDIUM · false · seen in run1+run2 — `listeners/_common.py:219-222 (completed_finalize_signals docstring)`
 
 **SAYS.** Reads entity IDs from the adapter registry. Returns empty strings for absent or
 unavailable entities — the caller compares values against configured sentinels and task_status
@@ -2627,7 +2675,63 @@ active_target against clear_sentinels; a caller trusting this docstring would no
 include "unavailable" in its sentinel handling, because it believes the helper already collapsed
 it to "".
 
-### L11 · MEDIUM · false · seen in run1+run2 — `listeners/discovery.py:166-168 (_on_vacuum_state)`
+**✅ L9 + L10 APPLIED TOGETHER 2026-08-24 — ONE CODE FIX AND ONE DOCSTRING, and which is which
+is the whole point.** Worked as a pair because they are the same sentence read from two ends: the
+helper's docstring claims a collapse, and one caller was relying on that collapse happening.
+
+**L9 IS THE BEHAVIOUR.** `job_active_present` was `bool(_state(entities.get("job_active")))`.
+`_state` returns `""` only when there is no state OBJECT — an entity that exists and reads
+`unavailable` comes back as the literal string, and `bool("unavailable")` is True. So a Roborock
+job-active binary that blipped unavailable mid-run made `completion_secondary_satisfied`
+short-circuit to True and report the completion secondary satisfied **on a signal that could not
+be read**.
+
+⚠ **THIS IS THE THIRD TIME THIS EXACT GATE HAS BEEN TIGHTENED AND STOPPED ONE STEP SHORT.**
+RP-033/COMMON-2 moved it from "flag set" to "entity declared". Issue #51 moved it from "declared"
+to "resolves to a real entity", and its own comment named the failure shape perfectly —
+*"confident and empty"*. Then the same comment asserted "an entity that is absent or UNAVAILABLE
+reads '' above, so this is False exactly when there is no signal to trust", which was never true
+of the unavailable half. Each fix was correct about the case in front of it and wrote a universal.
+
+**WHY THE EXISTING TESTS COULD NOT SEE IT, and this is the transferable part.** There are four
+tests of this gate, including one specifically for "the declared entity does not exist". **Every
+one of them passes `job_active_present` in as a hand-written dict literal.** None routes through
+`completed_finalize_signals`, so none can observe how the flag is COMPUTED — only how it is
+consumed. A gate can be tested four times, tightened three times, and still ship the defect, if
+the tests all start downstream of where it lives. `[LC-15]` builds the signals for real.
+
+**L10 IS THE DOCSTRING, and the fix was deliberately NOT to make it true.** The tempting repair is
+to collapse indeterminates inside `_state` so the sentence becomes accurate. That is wrong:
+`_state` feeds five keys, and the other four are compared against adapter-declared sentinel sets
+that ALREADY name the indeterminate values — Eufy's `secondary_clear_sentinels` is
+`["", "unknown", "unavailable", "none", "null"]`. Collapsing would move that decision out of the
+adapter's declaration and into core, silently, for brands nobody has measured. Core does not own
+a brand's vocabulary. So the docstring now states what the helper actually returns, says which
+half was wrong, and explains why both shipped paths were nonetheless safe — because a new caller
+does not inherit that luck. `[LC-17]` pins the non-collapse so the wrong fix goes red.
+
+**WHICH WAY L9 FAILS, deliberately.** An unreadable binary now falls through to the sentinel check
+instead of short-circuiting. For Roborock that check does not pass (`current_room` reverts to the
+dock room's NAME, never a sentinel), so the job does not finalize on THAT evaluation and finalizes
+on a later one once the binary reads again. A late finalize is recoverable; a premature one ends a
+job that is still running and writes both a wrong run record and wrong learned times.
+
+⚠ **`diagnostics.py` HAS A KEY OF THE SAME NAME THAT IS A DIFFERENT QUESTION. DO NOT UNIFY THEM.**
+Its `job_active_present` is `SignalPresence.has_state`, a pure "does a state object exist" probe;
+`job_active_signal.py` states outright that the callers of that distinction *"use different
+predicates and must keep doing so"*, because a dump must be able to tell never-created from
+momentarily-stateless. Two clocks counting different populations — the shape I got wrong on D11,
+checked properly this time. The naming collision is real and worth knowing about; the behaviour is
+not a defect.
+
+Tests `[LC-15]` (unavailable + unknown, built through the real function, 2 rows), `[LC-16]` (a
+readable binary still short-circuits — without it, "fix the gate" and "stop Roborock jobs
+finalizing at all" are indistinguishable), `[LC-17]` (the non-collapse invariant). Ablated 3 ways:
+old `bool()` test → 2 red, mute presence → `[LC-16]` red, collapse inside `_state` → `[LC-17]` red.
+**L9 `[FIXED]`, L10 `[FIXED]`** — the docstring's claim is pinned by `[LC-17]`, so unusually for a
+prose correction it is not `[FIXED-UNPROVEN]`.
+
+### L11 ✅ APPLIED 2026-08-24 (CODE) · MEDIUM · false · seen in run1+run2 — `listeners/discovery.py:166-168 (_on_vacuum_state)`
 
 **SAYS.** # Only fire on transition INTO docked — filter out # repeat docked-to-docked attribute
 updates and unknown # → docked startup noise.
@@ -2643,6 +2747,48 @@ _common.is_dock_trigger_edge (lines 133-141), refuses exactly these cases (`if o
 discovery pass (async_refresh_room_source + run_discovery_pass + async_save, lines 122-127)
 fires on every HA restart where the vacuum comes back docked. Drift history is written on that
 path, and drift accrues the removal strikes that decide which rooms are flagged gone.
+
+**✅ APPLIED 2026-08-24 — REAL CODE FIX, and it turned up a SIBLING with the same defect.**
+
+`_on_vacuum_state` now delegates to `is_dock_trigger_edge`, the shared edge test that
+`dock_events.py` and `lifecycle.py` already use. This was the THIRD site asking "is this a genuine
+edge into a trigger state" and the only one that had written its own shorter copy — the exact
+shape `partial_guard_blind_spot` names. The helper's own docstring already covered the case
+verbatim: "a fresh sighting after a restart or a reconnect must not be recorded as a brand-new
+dock cycle (REG-1/GUARD-3)".
+
+**THE COST, verified end to end rather than asserted.** Both shipped brands declare
+`vacuum_docked`. A restart with the vacuum on its dock fired a full discovery pass at RAW startup
+— the precise timing the `config_entry_reload` trigger 40 lines above is deferred through
+`async_at_started` to avoid, for the reason its own comment gives. For a `service_response` brand
+(Roborock, `roborock.get_maps`) the flattened room cache lives in `hass.data` and is therefore
+EMPTY after a restart, so the pass discovered NO rooms — and `update_drift_history` has no
+empty-read guard, so every configured room took a `missing_passes` strike.
+
+⚠ **BE PRECISE: a later SUCCESSFUL pass resets `missing_passes` to 0**, so a clean restart
+usually self-heals when the deferred pass lands. The strikes BITE when that pass does not succeed
+either — vacuum offline, cloud unreachable, account rate-limited — which is exactly when nobody
+is watching. See **C58**, filed below: the underlying problem is that an unreadable source and an
+empty source are the same fact to this path.
+
+**NEW FINDING, one trigger over — the sibling `active_map_changed` had it too.** It tested the NEW
+value against the sentinels and left the OLD one unguarded, so `None -> "6"` and `unknown -> "6"`
+both counted as "the active map CHANGED". That is what a restart looks like: the entity is created
+fresh, so its first real reading is an edge from nothing. Found only because L11 sent me to look
+at the sibling — the same way C16's hang turned up `trail_window_seconds`. Now guarded on both
+ends.
+
+⚠ **THE EXISTING TESTS READ AS COVERING BOTH AND COVERED NEITHER.** `[LS-10]`'s own docstring
+says "fires a pass only on transition INTO docked", but it set `cleaning` first — a genuine known
+prior — so it only ever proved the docked→docked dedup. `[LS-11]` pinned the sentinel on the NEW
+value, which is the end a restart does not supply. Both passed before and after the fix. This is
+`partial_guard_blind_spot` at the TEST level, and it is why the audit finding was needed at all.
+
+Tests `[LS-17]` (unknown/unavailable/no-prior → docked, 3 rows), `[LS-18]` (the sibling, 3 rows),
+`[LS-19]` (both genuine edges still fire — without it, "fix the startup case" and "silently
+disable auto-discovery" are indistinguishable, and the second is worse). Ablated 3 ways: old
+predicate → 3 red, drop the old-value guard → 3 red, mute the trigger → `[LS-19]` red.
+**`[FIXED]`**.
 
 ### L12 · MEDIUM · stale-reference · seen in run1+run2 — `listeners/discovery.py:14-16 (module docstring)`
 
@@ -5398,3 +5544,81 @@ evaluations instead of 2 because the stub was synchronous, so nothing ever actua
 **The tell is a GREEN ABLATION**, and it is a claim about MY PATCH as much as about the test.
 Twice this session the ablation itself was mis-aimed — once patching a docstring occurrence
 instead of the code, once patching a branch the test never exercised.
+
+
+---
+
+# LEDGER WORK RESUMED 2026-08-24 — REPAIR BATCH 3 (tier A continues)
+
+⚠ **"BATCH n" MEANS TWO OPPOSITE THINGS IN THIS FILE, AND THE NUMBERS COLLIDE.** `BATCH 3`–
+`BATCH 6` (2026-08-20, above) are DISCOVERY sweeps — they FIND defects. `LEDGER WORK RESUMED …
+BATCH 1/2` (2026-08-24) are REPAIR sessions — they CLOSE them. The numbering restarts and the word
+inverts, so a bare `grep "BATCH 3"` lands on the 2026-08-20 discovery sweep, not on this. This
+section says REPAIR BATCH 3 for that reason. The earlier headers are left alone — other entries
+cite them by name, and renaming them would break those citations to fix a naming problem that a
+single word solves here.
+
+Committed batches 1+2 first: **`286643cb`** "fix: issue #54, a hang, and 9 more defects from the
+comment audits", 16 files, audited by token against the committed tree. Suite green at
+**4589 passed / 2 skipped** before the commit.
+
+⚠ **TESTS DO NOT RUN NATIVELY ON WINDOWS — they need the Docker image.** `python -m pytest`
+here dies at `import fcntl` (Unix-only) during `pytest_homeassistant_custom_component` collection.
+I lost a run to it, and worse: piping to `tail` meant the shell reported **exit 0** for a suite
+that never executed a single test. Use the pre-baked image and DO NOT pipe away the exit code:
+
+```
+docker run --rm -v "C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager:/workspace" -w /workspace eufy-vacuum-test python -m pytest tests --no-cov -p no:cacheprovider
+```
+
+## ✅ L11 + its sibling — details at the finding, not here
+
+Both in `listeners/discovery.py`. An ARRIVAL was being treated as a TRANSITION, on both
+auto-discovery triggers, so an HA restart ran discovery passes at raw startup. See the L11
+finding above for the full mechanism, the cost, and why the two existing tests read as covering
+it.
+
+## ✅ L9 + L10 — details at the finding, not here
+
+`listeners/_common.py`. A completion gate reporting SATISFIED on an entity it could not read — the
+third tightening of the same gate to stop one step short, and the first to be caught by the fact
+that all four of its existing tests hand-build the value they assert on.
+
+## ✅ R25 — details at the finding, not here
+
+`rooms/room_discovery.py`. The slug-uniqueness pass could manufacture the duplicate it exists to
+prevent, and the anchor it violates is cited elsewhere as a system invariant. Now a bounded
+fixpoint. The ablation worth remembering: converging by ITERATION ORDER instead of by `room_id`
+passes the collision test and silently breaks the convergence promise — two different properties,
+and only one of them is obvious.
+
+## C58 [OPEN] — an unreadable room source and an empty one are the same fact to drift
+
+Found while verifying L11's blast radius. **Not fixed — this one needs a ruling.**
+
+`update_drift_history` (`setup/drift.py`) increments `missing_passes` for every configured room
+absent from `discovered_room_ids`, with **no guard for the set being empty**. It cannot
+distinguish:
+
+  * the source was READ and genuinely lists no rooms (a map really was cleared), from
+  * the source could not be read at all — `hass.data` cache cold after a restart, `get_maps` not
+    yet registered, the vacuum offline, the cloud unreachable.
+
+The second is recorded as positive evidence for the first. At `removal_confirmation_passes`
+(3 by default, 3 for Eufy) the outcome is every configured room flagged removed on the strength
+of reads that never happened.
+
+L11 removed the two triggers that fired such a pass at the worst possible moment, so the
+REACHABILITY is much reduced — but the periodic 6-hour safety net still runs one, and a vacuum
+that is offline for a day produces four empty passes with nothing suspicious in the log.
+
+⚠ **WHY THIS IS A RULING AND NOT A PATCH.** "Ignore an empty read" is not obviously right. For an
+ATTRIBUTE-source brand (Eufy) an empty room list can legitimately mean the map was cleared, and a
+blanket ignore would suppress a real removal — the failure mode running the other way. The honest
+fix is probably for `discover_rooms_for_vacuum` to distinguish "read, empty" from "could not
+read" and for drift to only count the former, which is a contract change across two modules and
+touches stored drift history on live installs. That is the
+`persisted-data / stop-for-approval` shape.
+
+This is the same family as `check_reality_before_asserting`: absent, unavailable, never-created
+and unreadable all look alike, and a signature two causes produce is not evidence for either.

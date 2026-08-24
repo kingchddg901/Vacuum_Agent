@@ -367,15 +367,62 @@ def discover_rooms_for_vacuum(
     # room_id keeps the bare slug; every colliding sibling gets
     # ``{slug}_r{room_id}``, so re-discovery of the same physical rooms always
     # converges on the same suffixed identities.
-    by_slug: dict[str, list[dict[str, Any]]] = {}
-    for room in rooms:
-        by_slug.setdefault(room["slug"], []).append(room)
-    for slug, group in by_slug.items():
-        if len(group) < 2:
-            continue
-        group.sort(key=lambda r: r["room_id"])
-        for room in group[1:]:
-            room["slug"] = f"{slug}_r{room['room_id']}"
+    # ⚠ RUN TO A FIXPOINT, NOT ONE PASS (R25). A single pass rewrote colliding
+    # siblings to ``{slug}_r{room_id}`` WITHOUT CHECKING whether that value was
+    # already taken by another room in the same map, so the pass that exists to
+    # guarantee uniqueness could itself manufacture a duplicate:
+    #
+    #     "Kitchen" (id 3), "Kitchen" (id 7), "Kitchen R7" (id 9)
+    #       -> kitchen, kitchen_r7, kitchen_r7
+    #
+    # ``slugify_room_name`` maps "Kitchen R7", "Kitchen r7" and "Kitchen_r7" all to
+    # ``kitchen_r7`` (verified, 2026-08-24), so the colliding name does not have to be
+    # contrived — a user who has already disambiguated two kitchens BY HAND writes
+    # exactly this.
+    #
+    # That is not a cosmetic duplicate. The anchor above is cited as a system
+    # invariant and downstream code is written on its strength: ``_existing_by_slug``
+    # in ``room_manager.py`` exists only to cope with a store still holding a
+    # PRE-RP-015 duplicate, i.e. it treats post-RP-015 duplicates as impossible. And
+    # the slug is not a display string — it is the load-bearing identity key that
+    # dispatch resolves first-wins, reconciliation matches on, and the learning
+    # baselines key durable per-room data to. Two rooms sharing one means one room's
+    # settings and history silently answer for both.
+    #
+    # Each pass leaves the LOWEST room_id holding the contested slug and pushes every
+    # other member one suffix deeper, so the outcome depends only on the SET of
+    # (name, room_id) pairs and not on the order the source listed them — preserving
+    # the convergence promise above. Distinct ids make the rewritten values distinct
+    # within a group, so a pass can only ever be undone by a collision with a
+    # different group, which the next pass resolves.
+    #
+    # BOUNDED, deliberately: a slug-uniqueness pass is not worth a hang (C16), so the
+    # loop cannot run away. Falling out of the bound leaves a duplicate rather than
+    # spinning, and says so — silence there would re-create exactly the invariant
+    # violation this block exists to close.
+    for _ in range(len(rooms) + 1):
+        by_slug: dict[str, list[dict[str, Any]]] = {}
+        for room in rooms:
+            by_slug.setdefault(room["slug"], []).append(room)
+        colliding = [g for g in by_slug.values() if len(g) > 1]
+        if not colliding:
+            break
+        for group in colliding:
+            group.sort(key=lambda r: r["room_id"])
+            for room in group[1:]:
+                room["slug"] = f"{room['slug']}_r{room['room_id']}"
+    else:
+        _LOGGER.warning(
+            "room slug disambiguation did not converge for %s; duplicate slugs "
+            "remain: %s",
+            vacuum_entity_id,
+            sorted(
+                s for s, n in
+                ((r["slug"], sum(1 for x in rooms if x["slug"] == r["slug"]))
+                 for r in rooms)
+                if n > 1
+            ),
+        )
 
     return rooms
 

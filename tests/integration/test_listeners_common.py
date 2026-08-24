@@ -16,6 +16,17 @@ Coverage targets
 [LC-12] job_finished_event_data defaults status to "completed".
 [LC-13] job_finished_event_data reads outcome from nested structure.
 [LC-14] job_finished_event_data tolerates None finalize_result.
+[LC-15] L9: an UNAVAILABLE job_active binary is not a signal to trust. Built
+        through completed_finalize_signals, not hand-assembled -- every existing
+        test passes job_active_present as a dict literal, which is exactly why
+        this survived three rounds of tightening the same gate.
+[LC-16] L9: the trustworthy reading still short-circuits. A gate fixed by never
+        being satisfied is a worse defect wearing the opposite sign.
+[LC-17] L10: `_state` does NOT collapse indeterminates, and must not start.
+        The docstring claimed it did; the fix was to correct the docstring and
+        strengthen the ONE key that relied on the collapse -- not to collapse
+        inside `_state`, which would silently retune four other keys whose
+        adapters already name the indeterminate values themselves.
 """
 
 from __future__ import annotations
@@ -397,3 +408,101 @@ def test_job_finished_event_data_map_id_coerced_to_string(manager):
         vacuum_entity_id=_VAC, map_id=42, finalize_result={}
     )
     assert payload["map_id"] == "42"
+
+
+# ---------------------------------------------------------------------------
+# [LC-15] - [LC-17] L9/L10: "unavailable" is a value, not an absence
+# ---------------------------------------------------------------------------
+
+_JOB_ACTIVE_ENTITY = "binary_sensor.alfred_cleaning"
+
+_ROBOROCK_SHAPED_ADAPTER = {
+    "adapter_id": "test",
+    "source": "test",
+    "entities": {
+        "task_status": "sensor.alfred_task_status",
+        "active_cleaning_target": "sensor.alfred_current_room",
+        "job_active": _JOB_ACTIVE_ENTITY,
+    },
+    "completion": {"require_job_active_clear": True},
+}
+
+
+@pytest.mark.parametrize("blip", ["unavailable", "unknown"])
+async def test_lc15_an_unreadable_job_active_is_not_present(hass, manager, blip):
+    """[LC-15] RED BEFORE THE FIX.
+
+    `job_active_present` was `bool(_state(...))`, and `_state` returns the literal
+    string "unavailable" for an entity that exists but is unreachable -- so
+    `bool("unavailable")` was True and the gate reported the completion secondary
+    SATISFIED on a signal it could not read.
+
+    Asserted through `completed_finalize_signals`, deliberately. Every existing test
+    of this gate passes `job_active_present` in by hand, so none of them can see how
+    the flag is actually computed -- which is how the same gate got tightened three
+    times (flag-set -> entity-declared -> entity-resolves) and still shipped this.
+    """
+    register_adapter_config(_VAC, _ROBOROCK_SHAPED_ADAPTER)
+    hass.states.async_set(_JOB_ACTIVE_ENTITY, blip)
+    await hass.async_block_till_done()
+
+    signals = completed_finalize_signals(hass, _VAC)
+
+    assert signals["job_active_present"] is False, (
+        f"job_active reading {blip!r} was treated as a trustworthy signal"
+    )
+    # ... and the gate must therefore NOT short-circuit. A run still in progress
+    # (current_room naming a real room) must not be reported as complete.
+    assert completion_secondary_satisfied(
+        _VAC, {**signals, "active_target": "Dining Room"}, _SENTINELS
+    ) is False
+
+
+async def test_lc16_a_readable_job_active_still_short_circuits(hass, manager):
+    """[LC-16] RED IF THE FIX IS WIDENED INTO A MUTE.
+
+    `require_job_active_clear` exists because Roborock's current_room reverts to the
+    DOCK ROOM'S NAME at the end of a run -- never a sentinel -- so the default check
+    can never pass and the job would never finalize. Making `job_active_present`
+    stricter must not reach the case the bypass was built for, or Roborock jobs stop
+    finalizing entirely, which is a bigger bug than the one being fixed.
+    """
+    register_adapter_config(_VAC, _ROBOROCK_SHAPED_ADAPTER)
+    hass.states.async_set(_JOB_ACTIVE_ENTITY, "on")
+    await hass.async_block_till_done()
+
+    signals = completed_finalize_signals(hass, _VAC)
+
+    assert signals["job_active_present"] is True
+    assert completion_secondary_satisfied(
+        _VAC, {**signals, "active_target": "Dining Room"}, _SENTINELS
+    ) is True
+
+
+async def test_lc17_state_does_not_collapse_indeterminates(hass, manager):
+    """[LC-17] RED IF SOMEONE 'FIXES' L10 BY COLLAPSING INSIDE `_state`.
+
+    That is the tempting fix -- the docstring said `_state` returns "" for
+    unavailable, so make it true -- and it is the wrong one. `_state` feeds five
+    keys, and the other four are compared against adapter-declared sentinel sets
+    that already NAME the indeterminate values (Eufy's `secondary_clear_sentinels`
+    is `["", "unknown", "unavailable", "none", "null"]`). Collapsing would move that
+    decision out of the adapter's declaration and into core, silently, for brands
+    nobody has measured -- and core does not own a brand's vocabulary.
+
+    So the invariant is: the helper reports what it read, and only the ONE key that
+    asks "is this trustworthy" applies the stronger test.
+    """
+    register_adapter_config(_VAC, _ROBOROCK_SHAPED_ADAPTER)
+    hass.states.async_set("sensor.alfred_task_status", "unavailable")
+    hass.states.async_set("sensor.alfred_current_room", "unknown")
+    await hass.async_block_till_done()
+
+    signals = completed_finalize_signals(hass, _VAC)
+
+    assert signals["task_status"] == "unavailable", (
+        "a value-carrying key was collapsed to an absence"
+    )
+    assert signals["active_target"] == "unknown"
+    # and "" still means genuinely absent, which is the half the docstring had right
+    assert signals["dock_status"] == ""

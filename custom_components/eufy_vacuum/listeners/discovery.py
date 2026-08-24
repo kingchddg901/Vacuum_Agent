@@ -50,6 +50,13 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from ..adapters.registry import get_adapter_config
 from ..const import DATA_RUNTIME, DOMAIN
 from ..core.manager import EufyVacuumManager
+from ._common import is_dock_trigger_edge
+
+#: The vacuum-state value the ``vacuum_docked`` trigger fires on. A frozenset
+#: because that is the shape ``is_dock_trigger_edge`` takes; it compares
+#: case-insensitively after stripping, so a brand reporting "Docked" also
+#: matches (the old ``== "docked"`` did not).
+_DOCKED_TRIGGER: frozenset[str] = frozenset({"docked"})
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -163,10 +170,48 @@ def register(hass: HomeAssistant) -> None:
                 old_state_obj = event.data.get("old_state")
                 new_state = getattr(new_state_obj, "state", None)
                 old_state = getattr(old_state_obj, "state", None)
-                # Only fire on transition INTO docked — filter out
-                # repeat docked-to-docked attribute updates and unknown
-                # → docked startup noise.
-                if new_state == "docked" and old_state != "docked":
+                # RP-038 (RF-30) / LIFE-3 (L11): delegate to the SHARED edge test.
+                # This is the THIRD site asking "is this a genuine edge into a
+                # trigger state"; dock_events.py and lifecycle.py already delegate,
+                # and this one had written a shorter copy of the same predicate.
+                #
+                # ⚠ THE COMMENT HERE USED TO CLAIM THE STARTUP CASE WAS HANDLED. It
+                # was `new_state == "docked" and old_state != "docked"`, above the
+                # words "filter out ... unknown → docked startup noise". It does not:
+                # "unknown" != "docked", so unknown→docked passes, and so do
+                # unavailable→docked and None→docked (no prior state at all — the
+                # first sighting after a restart). Only docked→docked was filtered.
+                #
+                # WHAT THAT COST, and it is not cosmetic. Every HA restart where the
+                # vacuum comes back docked fired a full discovery pass at RAW STARTUP
+                # — the exact timing the `config_entry_reload` trigger above is
+                # deferred through `async_at_started` to avoid, for the reason its own
+                # comment gives (a service-response source may not be registered yet).
+                # For a service_response brand (Roborock: `roborock.get_maps`) the
+                # flattened cache lives in `hass.data` and is therefore EMPTY on
+                # restart, so the pass discovers NO rooms — and `update_drift_history`
+                # has no empty-read guard, so it increments `missing_passes` for EVERY
+                # configured room. At `removal_confirmation_passes` (3 by default and 3
+                # for Eufy) every room is flagged removed.
+                #
+                # ⚠ BE PRECISE ABOUT THE DAMAGE, because a later SUCCESSFUL pass resets
+                # `missing_passes` to 0. A clean restart therefore usually self-heals:
+                # the spurious early passes add strikes, then the deferred
+                # `config_entry_reload` pass — which runs after HA has started, when
+                # `get_maps` IS registered — sees the rooms and zeroes them. The strikes
+                # BITE when the later pass does not succeed either: the vacuum offline,
+                # the cloud unreachable, the account rate-limited. That is precisely
+                # when a user is least likely to be watching, and the strikes are
+                # recorded as evidence the rooms are GONE from a read that never
+                # happened. An unreadable source and an empty source are not the same
+                # fact, and this path cannot tell them apart.
+                #
+                # NOTHING LOSES A STARTUP PASS BY THIS. Both shipped brands declare
+                # `config_entry_reload` alongside `vacuum_docked`, and so does the
+                # framework default trigger tuple, so the one-shot start pass is
+                # already provided — correctly deferred. This removes a DUPLICATE that
+                # ran at the wrong moment, not the coverage.
+                if is_dock_trigger_edge(old_state, new_state, _DOCKED_TRIGGER):
                     _run_pass()
 
             unsubs.append(
@@ -186,8 +231,24 @@ def register(hass: HomeAssistant) -> None:
                 old_state_obj = event.data.get("old_state")
                 new_value = getattr(new_state_obj, "state", None)
                 old_value = getattr(old_state_obj, "state", None)
+                # L11-SIBLING: the SAME defect as the vacuum_docked trigger above, one
+                # guard short. This tested the NEW value against the sentinels and left
+                # the OLD one unguarded — so `None -> "6"` and `unknown -> "6"` both
+                # counted as "the active map CHANGED", and both are what a restart
+                # looks like: the entity is created fresh, so its first real reading is
+                # an edge from nothing.
+                #
+                # Found only because L11 sent me to look at the sibling — the same way
+                # C16's hang turned up its own sibling in `trail_window_seconds`. The
+                # existing test `[LS-11]` asserts the new-value half and reads as
+                # covering this; it never supplied a sentinel OLD value.
+                #
+                # An arrival is not a change. Guarding both ends means a genuine map
+                # switch still fires, and a restart no longer runs a discovery pass at
+                # raw startup on top of the one the reload trigger already schedules.
                 if (
                     new_value not in (None, "unknown", "unavailable")
+                    and old_value not in (None, "unknown", "unavailable")
                     and new_value != old_value
                 ):
                     _run_pass()

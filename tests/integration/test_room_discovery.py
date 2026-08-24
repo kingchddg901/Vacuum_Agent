@@ -21,6 +21,13 @@ Coverage targets
 [RD-11] implicit map only applies to the vacuum-attribute source.
 [RD-12] end-to-end: scalar/Tuya path imports rooms under the implicit id.
 [RD-13] BOOT RACE: active_map declared + REGISTERED but stateless → None (must NOT fork
+[RD-14] R25: the disambiguation pass must not MANUFACTURE the duplicate it exists
+        to prevent. Rewriting a colliding sibling to `{slug}_r{room_id}` never
+        checked whether that value was already taken, and "Kitchen R7" slugifies
+        to exactly the value the second "Kitchen" is rewritten to.
+[RD-15] R25: the outcome depends on the SET of (name, room_id) pairs, not on the
+        order the source listed them -- the anchor promises re-discovery of the
+        same physical rooms converges on the same identities.
         a phantom map for a novel device whose sensor hasn't materialised yet).
 """
 
@@ -357,3 +364,69 @@ def test_rd_shape_4_unresolvable_single_map_falls_back_but_a_resolved_miss_does_
     # A RESOLVED map id that misses is never substituted.
     hass.states.async_set("sensor.alfred_map", "Missing")
     assert discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC) == []
+
+
+# ---------------------------------------------------------------------------
+# [RD-14] - [RD-15] R25: the uniqueness pass must not create a duplicate
+# ---------------------------------------------------------------------------
+
+
+def _rooms_named(hass, names_and_ids):
+    """Discover rooms from the vacuum attribute carrying these (name, id) pairs."""
+    _discovery_adapter()
+    hass.states.async_set(_VAC, "docked", {
+        "segments": [{"id": rid, "name": name} for name, rid in names_and_ids],
+    })
+    return discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC, map_id="6")
+
+
+async def test_rd14_the_disambiguator_does_not_manufacture_a_duplicate(hass, manager):
+    """[RD-14] RED BEFORE THE FIX.
+
+    Two rooms named "Kitchen" (ids 3 and 7) plus one named "Kitchen R7" (id 9).
+    `slugify_room_name` maps "Kitchen R7", "Kitchen r7" and "Kitchen_r7" all to
+    `kitchen_r7` -- which is exactly what the single-pass disambiguator rewrote the
+    id-7 "Kitchen" to. Result: kitchen, kitchen_r7, kitchen_r7.
+
+    The colliding name is not contrived. A user who has already disambiguated two
+    kitchens BY HAND writes precisely this.
+
+    Asserted as "all slugs distinct" rather than against a hardcoded expected list:
+    the anchor's promise is UNIQUENESS, and pinning one exact spelling would go red
+    for a different-but-still-unique scheme, which is not the defect.
+    """
+    rooms = _rooms_named(hass, [("Kitchen", 3), ("Kitchen", 7), ("Kitchen R7", 9)])
+
+    slugs = [r["slug"] for r in rooms]
+    assert len(slugs) == 3
+    assert len(set(slugs)) == 3, f"the uniqueness pass produced a duplicate: {slugs}"
+    # the lowest id keeps the bare slug -- the documented, convergent half
+    assert next(r["slug"] for r in rooms if r["room_id"] == 3) == "kitchen"
+
+
+async def test_rd15_disambiguation_is_order_independent(hass, manager):
+    """[RD-15] RED IF THE FIXPOINT IS MADE ORDER-DEPENDENT.
+
+    The anchor promises "re-discovery of the same physical rooms always converges on
+    the same suffixed identities". A source that lists the same rooms in a different
+    order on the next poll must not re-key them -- the slug is what reconciliation
+    matches on and what the learning baselines hang durable per-room data from, so a
+    reshuffle would orphan settings and history.
+
+    A fixpoint loop is where this is easy to lose: resolving collisions in iteration
+    order rather than by a property of the rooms themselves would pass [RD-14] and
+    silently fail here.
+    """
+    forward = _rooms_named(
+        hass, [("Kitchen", 3), ("Kitchen", 7), ("Kitchen R7", 9)]
+    )
+    reverse = _rooms_named(
+        hass, [("Kitchen R7", 9), ("Kitchen", 7), ("Kitchen", 3)]
+    )
+
+    by_id_forward = {r["room_id"]: r["slug"] for r in forward}
+    by_id_reverse = {r["room_id"]: r["slug"] for r in reverse}
+
+    assert by_id_forward == by_id_reverse, (
+        f"slug assignment depends on source order: {by_id_forward} vs {by_id_reverse}"
+    )
