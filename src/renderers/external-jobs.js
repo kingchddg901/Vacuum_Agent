@@ -66,7 +66,7 @@ export function applyExternalJobsRenderers(proto) {
         <div class="evcc-external-card-main">
           <div class="evcc-external-card-title">${this.escapeHtml(String(when))}</div>
           <div class="evcc-external-card-meta">
-            ${roomsPhrase} · ${totalArea.toFixed(0)} m² ·
+            ${roomsPhrase} · ${this.t("saved_zones.area_m2", { area: totalArea.toFixed(0) })} ·
             ${segsPhrase}
           </div>
         </div>
@@ -121,9 +121,9 @@ export function applyExternalJobsRenderers(proto) {
     const mode = settings.clean_mode
       ? this.tVocab("clean_mode", settings.clean_mode, String(settings.clean_mode))
       : this.t("external_jobs.clean_mode_unknown");
-    return `${(Number(seg.area_m2) || 0).toFixed(0)} m² · `
-      + `${Math.round((Number(seg.time_wall_s) || 0) / 60)} min · `
-      + `${mode} · ${seg.pass_count || 1}×`;
+    const areaStr = this.t("saved_zones.area_m2", { area: (Number(seg.area_m2) || 0).toFixed(0) });
+    const minStr = `${Math.round((Number(seg.time_wall_s) || 0) / 60)} ${this.t("run_profiles.minutes_unit")}`;
+    return `${areaStr} · ${minStr} · ${mode} · ${seg.pass_count || 1}×`;
   };
 
   // v2 (samples saved) — the count stepper + per-boundary split/merge re-segment
@@ -272,7 +272,7 @@ export function applyExternalJobsRenderers(proto) {
 
     return `
       <div class="evcc-ext-room">
-        <div class="evcc-ext-room-head">${this.t("external_jobs.room_n", { n: idx + 1 })} · ${area.toFixed(0)} m²
+        <div class="evcc-ext-room-head">${this.t("external_jobs.room_n", { n: idx + 1 })} · ${this.t("saved_zones.area_m2", { area: area.toFixed(0) })}
           ${group.orders.length > 1 ? `· ${this.t("external_jobs.segments_merged", { count: group.orders.length })}` : ""}</div>
         <div class="evcc-editor-field-group">
           <div class="evcc-field-label">${this.t("external_jobs.which_room")}${

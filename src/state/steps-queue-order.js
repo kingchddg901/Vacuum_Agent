@@ -1,3 +1,5 @@
+import { translate, resolveLang } from "../i18n/index.js";
+
 // Steps-queue order adapter: presents the live ad-hoc queue (enabled rooms + charge/wait
 // breaks) as ONE reorderable list for the shared ordering engine, so the move-to-position
 // modal shows rooms AND breaks as chips and reordering either kind flows through one path.
@@ -47,13 +49,20 @@ export function applyStepsQueueOrderState(proto) {
         (Array.isArray(savedZones) ? savedZones : []).forEach((z) => {
           if (z && z.id != null) zoneNameById[String(z.id)] = z.name;
         });
+        // State has hass + config; the module-level translate + resolveLang
+        // give i18n access without a card round-trip. A prior version tried
+        // `this.t?.(...)` here — state has NO t() method, so the optional
+        // chain always yielded undefined and the ?? fallback silently kept
+        // the English literal; the "load-bearing translated unit" claim
+        // read as fixed while doing nothing.
+        const lang = resolveLang(this.hass, this.config);
+        const pct = translate(lang, "metrics.unit_percent");
+        const min = translate(lang, "run_profiles.minutes_unit");
         const _breakLabel = (step) => {
           // Route the unit through i18n so an RTL locale gets a script-strong
           // suffix ("دقيقة" not "min"); the label is text-only (order-modal
           // escapeHtmls it), so bdi tags cannot go here — the translated unit
           // is the load-bearing fix.
-          const pct = this.t?.("metrics.unit_percent") ?? "%";
-          const min = this.t?.("run_profiles.minutes_unit") ?? "min";
           if (step.type === "charge_wait") return `⚡ ${Number(step.target_battery_percent ?? 100)}${pct}`;
           if (step.type === "wait") return `⏱ ${Number(step.wait_minutes ?? 30)} ${min}`;
           if (step.type === "zone") {

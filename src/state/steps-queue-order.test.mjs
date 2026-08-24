@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyStepsQueueOrderState } from "./steps-queue-order.js";
+import { registerLocale } from "../i18n/index.js";
 
 function makeState({ rooms = [], breaks = [], prev, savedZones = [] } = {}) {
   const proto = {};
@@ -68,14 +69,41 @@ test("[SQO-filter] drops disabled rooms and sorts by order", () => {
   assert.deepEqual(items.map((i) => i._id), ["room:1", "room:3"]);
 });
 
-test("[SQO-label] break labels use the compact translator-free format", () => {
+test("[SQO-label] break labels compose the compact format with the resolved unit strings", () => {
   const state = makeState({
     rooms: [room("1", 1), room("2", 2)],
     breaks: [chargeBreak(1, 85), waitBreak(1, 15)],
   });
   const items = state.getOrderAdapter("steps").getItems.call(state);
   const labels = items.filter((i) => i.kind === "break").map((i) => i._label);
+  // Default hass = undefined → resolveLang → "en" → % and min.
   assert.deepEqual(labels, ["⚡ 85%", "⏱ 15 min"]);
+});
+
+test("[SQO-label-i18n] break labels use the ACTUAL translated unit — the bite prior fix missed", () => {
+  // Bite: the prior fix used `this.t?.(...) ?? "%"` — state has NO t() method,
+  // so the optional chain always yielded undefined and the ?? fallback silently
+  // kept the English literal. Set the state's hass to an ar locale and prove the
+  // Arabic unit is actually threaded through.
+  //
+  // Node test env has only en registered at import time (no loadLocale runs);
+  // register a minimal ar catalog inline so the assertion actually bites.
+  registerLocale("ar", { "run_profiles.minutes_unit": "دقيقة",
+                         "metrics.unit_percent": "%" });
+  const state = makeState({
+    rooms: [room("1", 1)],
+    breaks: [chargeBreak(1, 85), waitBreak(1, 15)],
+  });
+  // ar is draft in LOCALE_STATUS, so resolveLang would fall back to en on the
+  // system-language path. A per-dashboard PIN bypasses the draft-gate — use
+  // that so the test proves the ar path.
+  state.hass = { locale: { language: "en" } };
+  state.config = { i18n: { locale: "ar" } };
+  const items = state.getOrderAdapter("steps").getItems.call(state);
+  const labels = items.filter((i) => i.kind === "break").map((i) => i._label);
+  // If the fix regresses to `this.t?.(...)`, this ALWAYS reads "⏱ 15 min".
+  assert.equal(labels[0], "⚡ 85%", "% unit still % in ar (pack value)");
+  assert.equal(labels[1], "⏱ 15 دقيقة", "minutes_unit MUST be the ar 'دقيقة', not English 'min'");
 });
 
 test("[SQO-zone] a zone break resolves its ids to saved-zone names in the label", () => {

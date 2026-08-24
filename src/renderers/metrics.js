@@ -772,7 +772,7 @@ export function applyMetricsRenderers(proto) {
    */
   proto._formatMetricsDuration = function (value) {
     const minutes = Number(value);
-    if (!Number.isFinite(minutes)) return "0 min";
+    if (!Number.isFinite(minutes)) return `0 ${this.t("run_profiles.minutes_unit")}`;
     return this._formatLearningDuration(minutes);
   };
 
