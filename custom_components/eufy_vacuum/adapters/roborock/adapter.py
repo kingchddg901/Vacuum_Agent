@@ -618,9 +618,18 @@ def register_roborock_adapter_for_vacuum(
         # [27, 25, 23, 22], read back identical, ack ['ok'], and the vendor app rendered
         # it as badges 1-2-3-4 on its own Sequence screen. `[]` means no order saved.
         #
-        # READ ONLY for now. Writing is the override feature and is deliberately not
-        # declared yet — a declaration that promises a write nothing implements is worse
-        # than an absent one.
+        # READ + WRITE. The write landed 2026-08-24; until then this block was read-only
+        # under the note "a declaration that promises a write nothing implements is worse
+        # than an absent one", which is why the write half arrives WITH its implementation
+        # rather than ahead of it.
+        #
+        # ⚠ THE WRITE IS MODEL-GATED, NOT BRAND-GATED. `set_clean_sequence` is the V1
+        # device protocol. Newer Qrevo/B01 models answer `service.set_room_order` on a
+        # DIFFERENT transport, so declaring the write brand-wide would hand those owners a
+        # control that can never land. `supports_clean_sequence_write` comes from the model
+        # catalog and is False for an unknown model. Core needs no branch for this: an
+        # absent `write` key simply means `can_write` is False and the control never
+        # appears — the declaration IS the gate.
         #
         # via: v1_debug_log — `vacuum.send_command` is SupportsResponse.NONE, so the
         # reply is observable ONLY on python-roborock's decode DEBUG line, captured for
@@ -639,6 +648,44 @@ def register_roborock_adapter_for_vacuum(
                 "source_logger": "roborock.protocols.v1_protocol",
                 "decoded_prefix": "Decoded V1 message result: ",
             },
+            # The adapter declares the LITERAL payload with one named hole; core
+            # substitutes `$order` WHOLESALE and knows nothing about the shape. Core owns
+            # the key (`device_clean_order`); "sequence" is Roborock's word and stays HERE
+            # (RULING, Chris 2026-08-20: core may own a closed set of SHAPE names, never a
+            # BRAND name).
+            #
+            # `clear` is declared rather than derived from an empty `payload`, because
+            # "the empty case" is a brand fact -- an empty list clears Roborock, another
+            # brand might need an explicit null, a sentinel, or a different command.
+            # Deriving it would be core inventing a brand's word.
+            #
+            # The ack is free: every write acks ['ok'] on the SAME decode line the read
+            # already captures, so the write self-confirms through machinery that exists,
+            # and it works before any upstream service lands.
+            **(
+                {
+                    "write": {
+                        "via": "v1_send_command",
+                        "service": {"domain": "vacuum", "service": "send_command"},
+                        "payload": {
+                            "command": "set_clean_sequence",
+                            "params": "$order",
+                        },
+                        "clear": {
+                            "command": "set_clean_sequence",
+                            "params": [],
+                        },
+                        "ack": {
+                            "via": "v1_debug_log",
+                            "equals": ["ok"],
+                            "source_logger": "roborock.protocols.v1_protocol",
+                            "decoded_prefix": "Decoded V1 message result: ",
+                        },
+                    }
+                }
+                if profile.get("supports_clean_sequence_write")
+                else {}
+            ),
         },
 
         "setup": {

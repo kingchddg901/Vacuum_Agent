@@ -88,6 +88,21 @@ STATUS_OK = "ok"
 STATUS_UNAVAILABLE = "unavailable"
 STATUS_NEVER_READ = "never_read"
 
+#: Write outcomes. THREE, not two, and the third is the point: a write we could not
+#: CONFIRM is not a write we know failed. The device may well have taken it. Reporting
+#: `unconfirmed` keeps "checked and wrong" apart from "could not check" -- the same
+#: three-state distinction the UI design calls for (amber / green / grey), and the
+#: reason an infrastructure failure never has to read as a device refusal.
+WRITE_OK = "ok"
+WRITE_UNCONFIRMED = "unconfirmed"
+WRITE_UNSUPPORTED = "unsupported"
+WRITE_REFUSED = "refused"
+
+#: The marker an adapter puts where the ordered ids belong. Replaced WHOLESALE, never
+#: string-interpolated -- a template that stringifies its substitution is how a list
+#: becomes "[27, 25]" on the wire (Chris, 2026-08-20).
+ORDER_SENTINEL = "$order"
+
 
 def parse_decoded_result(line: str, decoded_prefix: str) -> Any | None:
     """The decoded python literal from one log line, or None if it isn't one.
@@ -125,22 +140,33 @@ def is_clean_order(result: Any, known_room_ids: set[int]) -> bool:
 
 
 class _MatchHandler(logging.Handler):
-    """Collects decoded results matching the clean-order shape. Best effort.
+    """Collects decoded results matching a PREDICATE. Best effort.
 
     A logging handler that raises would surface as a logging error on an unrelated
     library's emit path, so every failure is swallowed.
+
+    The predicate is a parameter rather than the hardcoded clean-order shape because
+    the WRITE path captures a reply off the same line with a different shape: the read
+    matches a flat list of known room ids, the write matches the literal ack
+    ``['ok']`` — which ``is_clean_order`` correctly REFUSES (it is a ``list[str]``).
+    One capture window, two questions.
+
+    ⚠ THE READ'S PREDICATE STAYS MEMBERSHIP-BASED AND THAT IS LOAD-BEARING. The module
+    docstring records the ablation: drop the known-room-id membership check and the
+    ``[0]`` emitted every poll tick is accepted as a clean order. Parameterising the
+    question must not become an invitation to weaken it to a type check.
     """
 
-    def __init__(self, *, decoded_prefix: str, known_room_ids: set[int]) -> None:
+    def __init__(self, *, decoded_prefix: str, predicate) -> None:
         super().__init__(level=logging.DEBUG)
         self._prefix = decoded_prefix
-        self._known = known_room_ids
+        self._predicate = predicate
         self.matches: list[Any] = []
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
             result = parse_decoded_result(record.getMessage(), self._prefix)
-            if result is not None and is_clean_order(result, self._known):
+            if result is not None and self._predicate(result):
                 self.matches.append(result)
         except Exception:  # pragma: no cover - defensive, must never break logging
             pass
@@ -158,6 +184,10 @@ class CleanOrderManager:
         self._manager = manager
         #: vacuum_entity_id -> {"order": list[int]|None, "read_at": iso, "status": str}
         self._cache: dict[str, dict[str, Any]] = {}
+        #: vacuum_entity_id -> the order WE last wrote. Provenance for Clear; see
+        #: last_written. In-memory like the cache: after a restart we no longer claim
+        #: authorship, which fails toward asking rather than toward wiping.
+        self._written: dict[str, list[int]] = {}
         #: Serialises reads. The logger's level is PROCESS-GLOBAL state, so two
         #: concurrent reads would fight: the first to finish restores the level and
         #: truncates the other's capture. Reads are rare; serialising is cheaper than
@@ -282,7 +312,10 @@ class CleanOrderManager:
             return None
 
         logger = logging.getLogger(source_logger)
-        handler = _MatchHandler(decoded_prefix=decoded_prefix, known_room_ids=known)
+        handler = _MatchHandler(
+            decoded_prefix=decoded_prefix,
+            predicate=lambda result: is_clean_order(result, known),
+        )
         prior_level = logger.level
         prior_propagate = logger.propagate
         try:
@@ -314,22 +347,202 @@ class CleanOrderManager:
             logger.setLevel(prior_level)
             logger.propagate = prior_propagate
 
+    # ------------------------------------------------------------------ write
+
+    def can_write(self, vacuum_entity_id: str) -> bool:
+        """Whether this vacuum's adapter declares a clean-order WRITE.
+
+        Separate from ``is_supported`` (which gates the read and the sensor) because
+        the two are genuinely independent: every declaring brand can be READ, and only
+        a brand whose write mechanism has been established declares the write half.
+
+        ⚠ THE ROBOROCK DECLARATION IS MODEL-GATED, NOT BRAND-GATED. ``set_clean_sequence``
+        is the V1 device protocol; newer Qrevo/B01 models answer a DIFFERENT transport
+        (``service.set_room_order`` on ``RoborockB01Q7Methods``). Declaring the write
+        for every Roborock would ship a control that silently does nothing on those —
+        the exact declaration-with-no-wire shape this codebase keeps finding. The
+        adapter includes the block only for families where the V1 namespace applies,
+        and an unknown model gets nothing.
+        """
+        cfg = self._config(vacuum_entity_id)
+        return bool(isinstance(cfg, dict) and isinstance(cfg.get("write"), dict))
+
+    def last_written(self, vacuum_entity_id: str) -> list[int] | None:
+        """The order WE last wrote, or None.
+
+        PROVENANCE, and it is what makes Clear honest. If the device order matches this,
+        we put it there and clearing it destroys nothing of the user's. If it differs,
+        they changed it in their own app since — say so before wiping it. Without this
+        the two cases are indistinguishable and Clear becomes a coin flip on someone
+        else's data.
+        """
+        return self._written.get(vacuum_entity_id)
+
+    async def async_write(
+        self, vacuum_entity_id: str, order: list[int]
+    ) -> dict[str, Any]:
+        """Write an explicit clean order to the device. Returns {"status", "order"}.
+
+        ⚠ THIS EDITS A PERSISTENT, MAP-LEVEL USER SETTING IN THE VENDOR APP. It is not
+        scoped to one run: a saved sequence orders EVERY start, including ones the user
+        begins from the Roborock app, and it renders in their app's own Sequence screen
+        as numbered badges. Anything user-facing that triggers this must say so —
+        "this changes the saved sequence in your Roborock app", never "for this run".
+
+        SET IS A FULL REPLACE (proven live 2026-08-19): one write of [27, 25, 23, 22]
+        overwrote [24, 22, 25] outright. There is no merge, no incremental op and so no
+        partial state to recover from, which is why a failed verify can simply re-fire.
+        """
+        cfg = self._config(vacuum_entity_id)
+        write_cfg = (cfg or {}).get("write")
+        if not isinstance(write_cfg, dict):
+            return {"status": WRITE_UNSUPPORTED, "order": None}
+
+        # Refuse an order we cannot vouch for. Every id must be a managed room on the
+        # active map: writing an id the user does not manage puts a room into their
+        # saved sequence that our UI will never show them.
+        known = self.known_room_ids(vacuum_entity_id)
+        clean: list[int] = []
+        for raw in order or []:
+            try:
+                rid = int(raw)
+            except (TypeError, ValueError):
+                return {"status": WRITE_REFUSED, "order": None}
+            if isinstance(raw, bool) or rid not in known:
+                return {"status": WRITE_REFUSED, "order": None}
+            if rid in clean:
+                return {"status": WRITE_REFUSED, "order": None}  # a duplicate is not an order
+            clean.append(rid)
+
+        return await self._write_payload(vacuum_entity_id, write_cfg, "payload", clean)
+
+    async def async_clear(self, vacuum_entity_id: str) -> dict[str, Any]:
+        """Clear the device's saved order so it path-optimises again.
+
+        ``clear`` is declared by the adapter rather than derived from an empty
+        ``payload``, because "the empty case" is a BRAND FACT: an empty list clears
+        Roborock, but another brand might need an explicit null, a sentinel, or a
+        different command entirely. Deriving it would be core inventing a brand's word.
+        """
+        cfg = self._config(vacuum_entity_id)
+        write_cfg = (cfg or {}).get("write")
+        if not isinstance(write_cfg, dict) or not isinstance(write_cfg.get("clear"), dict):
+            return {"status": WRITE_UNSUPPORTED, "order": None}
+        return await self._write_payload(vacuum_entity_id, write_cfg, "clear", [])
+
+    async def _write_payload(
+        self,
+        vacuum_entity_id: str,
+        write_cfg: dict[str, Any],
+        key: str,
+        order: list[int],
+    ) -> dict[str, Any]:
+        """Substitute, fire, and try to confirm. Never raises."""
+        via = str(write_cfg.get("via") or "")
+        if via != "v1_send_command":
+            _LOGGER.debug(
+                "eufy_vacuum: clean-order write strategy %r not implemented for %s",
+                via, vacuum_entity_id,
+            )
+            return {"status": WRITE_UNSUPPORTED, "order": None}
+
+        template = write_cfg.get(key)
+        service = write_cfg.get("service") or {}
+        domain, name = service.get("domain"), service.get("service")
+        if not (isinstance(template, dict) and domain and name):
+            return {"status": WRITE_UNSUPPORTED, "order": None}
+
+        # WHOLESALE substitution: the sentinel is replaced by the LIST, not rendered
+        # into a string. Only an exact-match value is a hole -- a sentinel embedded in
+        # a longer string is left alone rather than half-substituted, because a partial
+        # match here would put a mangled payload on the wire.
+        payload = {
+            k: (list(order) if v == ORDER_SENTINEL else v)
+            for k, v in template.items()
+        }
+
+        ack_cfg = write_cfg.get("ack") if isinstance(write_cfg.get("ack"), dict) else {}
+        expected = ack_cfg.get("equals")
+        source_logger = str(ack_cfg.get("source_logger") or "")
+        decoded_prefix = str(ack_cfg.get("decoded_prefix") or "")
+
+        # No ack declared, or no capture machinery for it: fire and report UNCONFIRMED.
+        # Never OK -- an unverified write must not present as a verified one.
+        if not (expected is not None and source_logger and decoded_prefix):
+            await self._fire(domain, name, vacuum_entity_id, payload=payload)
+            self._written[vacuum_entity_id] = list(order)
+            return {"status": WRITE_UNCONFIRMED, "order": list(order)}
+
+        logger = logging.getLogger(source_logger)
+        handler = _MatchHandler(
+            decoded_prefix=decoded_prefix,
+            predicate=lambda result: result == expected,
+        )
+        prior_level = logger.level
+        prior_propagate = logger.propagate
+        confirmed = False
+        try:
+            logger.setLevel(logging.DEBUG)
+            logger.propagate = False
+            logger.addHandler(handler)
+
+            await self._fire(domain, name, vacuum_entity_id, payload=payload)
+
+            waited = 0.0
+            while waited < _READ_TIMEOUT_S and not handler.matches:
+                await asyncio.sleep(_POLL_S)
+                waited += _POLL_S
+            confirmed = bool(handler.matches)
+        except Exception:  # pragma: no cover - defensive
+            _LOGGER.debug(
+                "eufy_vacuum: clean-order write failed for %s", vacuum_entity_id,
+                exc_info=True,
+            )
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(prior_level)
+            logger.propagate = prior_propagate
+
+        # Record provenance on EITHER outcome. An unconfirmed write may well have
+        # landed -- the ack is how we learn, not whether it happened -- so forgetting it
+        # would make a Clear we DID cause look like the user's own sequence.
+        self._written[vacuum_entity_id] = list(order)
+        # The cache now describes a device we just changed; the old read is stale.
+        self._store(vacuum_entity_id, list(order) if confirmed else None,
+                    STATUS_OK if confirmed else STATUS_UNAVAILABLE)
+        return {
+            "status": WRITE_OK if confirmed else WRITE_UNCONFIRMED,
+            "order": list(order),
+        }
+
     async def _fire(
-        self, domain: str, name: str, vacuum_entity_id: str, command: Any
+        self,
+        domain: str,
+        name: str,
+        vacuum_entity_id: str,
+        command: Any = None,
+        payload: dict[str, Any] | None = None,
     ) -> None:
-        """Send the read command. Swallows a missing/unsupported service — the caller
-        then simply finds no match and caches ``unavailable``."""
+        """Send a command. Swallows a missing/unsupported service — the caller
+        then simply finds no match and reports unavailable/unconfirmed.
+
+        Takes either a bare ``command`` (the read) or a whole adapter-declared
+        ``payload`` (the write). One firing point rather than two, so the
+        service-unavailable degradation is written once.
+        """
         from homeassistant.exceptions import HomeAssistantError
 
+        data = {"entity_id": vacuum_entity_id}
+        data.update(payload if payload is not None else {"command": command})
         try:
             await self.hass.services.async_call(
                 domain,
                 name,
-                {"entity_id": vacuum_entity_id, "command": command},
+                data,
                 blocking=True,
             )
         except HomeAssistantError as err:
             _LOGGER.debug(
-                "eufy_vacuum: clean-order read service %s.%s unavailable for %s (%s)",
+                "eufy_vacuum: clean-order service %s.%s unavailable for %s (%s)",
                 domain, name, vacuum_entity_id, err,
             )

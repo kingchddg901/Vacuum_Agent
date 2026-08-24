@@ -44,6 +44,8 @@ MODEL_PROFILES: dict[str, dict] = {
         # + isReSegmentSupported). Multi-map capable (isMultiFloorSupported) even
         # though the current single-floor setting caps stored maps at 1.
         "supports_segments": True,
+        # V1 device protocol => RoborockCommand.SET_CLEAN_SEQUENCE applies.
+        "supports_clean_sequence_write": True,
         # No path/route axis on this unit — owner-confirmed on hardware.
         "has_path_control": False,
     },
@@ -64,6 +66,8 @@ MODEL_PROFILES: dict[str, dict] = {
         # binary_sensor.<obj>_water_box_attached reads unavailable.
         "mop_settable": False,
         "supports_segments": True,
+        # V1 device protocol => RoborockCommand.SET_CLEAN_SEQUENCE applies.
+        "supports_clean_sequence_write": True,
         "has_path_control": False,
     },
     # Settable-mop models. device.model codes are best-effort from python-roborock's
@@ -94,6 +98,8 @@ MODEL_PROFILES: dict[str, dict] = {
         "has_mop": True,
         "mop_settable": True,
         "supports_segments": True,
+        # V1 device protocol => RoborockCommand.SET_CLEAN_SEQUENCE applies.
+        "supports_clean_sequence_write": True,
         "has_path_control": False,
     },
     "roborock.vacuum.a70": {  # S8
@@ -103,6 +109,8 @@ MODEL_PROFILES: dict[str, dict] = {
         "has_mop": True,
         "mop_settable": True,
         "supports_segments": True,
+        # V1 device protocol => RoborockCommand.SET_CLEAN_SEQUENCE applies.
+        "supports_clean_sequence_write": True,
         "has_path_control": False,
     },
 }
@@ -144,6 +152,24 @@ DEFAULT_PROFILE: dict = {
     "mop_settable": True,
     "supports_segments": True,
     "has_path_control": False,
+    # ⚠ FAILS CLOSED, UNLIKE mop_settable ABOVE, AND THE ASYMMETRY IS DELIBERATE.
+    #
+    # `mop_settable` guesses True because a wrong guess is ABSORBED: the device rejects
+    # the call, we catch and log it, and the user sees nothing. The clean-sequence write
+    # has no such absorber. `set_clean_sequence` is the **V1** device protocol; newer
+    # Qrevo/B01 models answer a DIFFERENT transport entirely (`service.set_room_order`
+    # on `RoborockB01Q7Methods`). On one of those the write cannot land and the user is
+    # left with a control that is permanently amber -- a control that LOOKS BROKEN is
+    # worse than a control that is absent.
+    #
+    # Proven end to end on the S6 (2026-08-19, Ivy): read, write, replace, clear, all
+    # verified, with the vendor app rendering our write as numbered badges on its own
+    # Sequence screen. The other three catalogued entries share the V1 command namespace,
+    # which is INFERENCE, not measurement -- but the ack check means a wrong inference
+    # degrades to "could not confirm" rather than to a false green.
+    #
+    # Promoting an unknown model is a one-line catalog entry once someone confirms it.
+    "supports_clean_sequence_write": False,
 }
 
 
