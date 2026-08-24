@@ -16,11 +16,13 @@ Coverage targets
 [SL-8] the trail is read from the pose ring: null anchors dropped, order preserved, and
        the ±window is the one the caller asked for.
 [SL-9] the window comes from the brand's DECLARED pose cadence, not a constant.
+[SL-10] the write is DURABLE (fsync before rename) and leaves no orphan tmp on failure.
 """
 
 from __future__ import annotations
 
 import base64
+import os
 from datetime import datetime, timezone
 
 import pytest
@@ -333,3 +335,72 @@ def test_a_brand_declaring_no_cadence_reports_none(monkeypatch, declared):
     monkeypatch.setattr(sc, "get_adapter_value", lambda vid, *path, **kw: declared)
 
     assert sc.pose_refresh_seconds("vacuum.mystery") is None
+
+
+# ---------------------------------------------------------------------------
+# durability of the write (C29)
+# ---------------------------------------------------------------------------
+
+def test_the_tmp_is_fsynced_before_the_rename(tmp_path, monkeypatch):
+    """[SL-10] `os.replace` is rename-atomic but NOT durable.
+
+    Without the fsync, a power loss between the write and the OS lazily flushing dirty
+    pages leaves a ZERO-LENGTH PNG at the stable path an automation hardcodes -- after
+    `stall.capture.written` already reported P. The ORDER is the whole claim: an fsync
+    after the rename would not protect the tmp's contents, so the assertion is that the
+    sync landed while the tmp was still the file being synced.
+    """
+    order: list[str] = []
+    real_fsync = os.fsync
+    real_replace = os.replace
+
+    def _spy_fsync(fd):
+        # Prove the sync is aimed at the tmp, not at some unrelated descriptor: its
+        # size at sync time must already be the full payload.
+        order.append(f"fsync:{os.fstat(fd).st_size}")
+        return real_fsync(fd)
+
+    def _spy_replace(src, dst):
+        order.append("replace")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(os, "fsync", _spy_fsync)
+    monkeypatch.setattr(os, "replace", _spy_replace)
+
+    path = str(tmp_path / "stall" / "12.png")
+    sc._write_atomic(path, b"\x89PNG-payload")
+
+    assert order == ["fsync:12", "replace"], (
+        "the tmp must be fsynced -- with its full contents -- BEFORE the rename; "
+        f"observed {order}"
+    )
+    assert (tmp_path / "stall" / "12.png").read_bytes() == b"\x89PNG-payload"
+
+
+def test_a_failed_rename_does_not_strand_the_floor_plan(tmp_path, monkeypatch):
+    """[SL-10] The tmp lives at a FIXED `<path>.tmp`, so a failure leaks a real picture.
+
+    A rendered floor-plan of the user's home left beside the capture breaks the
+    one-file-per-(vacuum, map) contract the module promises, and nothing ever reclaims
+    it -- every subsequent failure just overwrites the same orphan.
+    """
+    real_replace = os.replace
+
+    def _boom(src, dst):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(os, "replace", _boom)
+
+    path = str(tmp_path / "stall" / "12.png")
+    with pytest.raises(OSError):
+        sc._write_atomic(path, b"\x89PNG-payload")
+
+    assert not os.path.exists(f"{path}.tmp"), (
+        "a failed rename must not leave the rendered PNG at <path>.tmp"
+    )
+    assert not os.path.exists(path)
+
+    # And the caller can retry cleanly once the disk frees up.
+    monkeypatch.setattr(os, "replace", real_replace)
+    sc._write_atomic(path, b"\x89PNG-payload")
+    assert os.path.exists(path)

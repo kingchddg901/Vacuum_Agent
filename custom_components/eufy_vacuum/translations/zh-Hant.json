@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} 不是此整合管理的掃地機。"
+    },
+    "room_update_refused": {
+      "message": "無法更新 {room}：{reason}"
     }
   },
   "entity": {

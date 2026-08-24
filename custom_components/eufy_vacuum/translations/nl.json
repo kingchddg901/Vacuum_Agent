@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} is geen stofzuiger die door deze integratie wordt beheerd."
+    },
+    "room_update_refused": {
+      "message": "Kan {room} niet bijwerken: {reason}"
     }
   },
   "entity": {

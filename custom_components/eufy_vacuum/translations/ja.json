@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} はこの統合が管理している掃除機ではありません。"
+    },
+    "room_update_refused": {
+      "message": "{room} を更新できませんでした: {reason}"
     }
   },
   "entity": {

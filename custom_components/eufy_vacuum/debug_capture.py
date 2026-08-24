@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import contextlib
 import functools
 import itertools
 import logging
@@ -554,9 +555,25 @@ def _write_dump(hass: HomeAssistant, domain: str, records: list[dict[str, Any]])
     tmp = f"{path}.tmp"
     # Write-then-rename so a reader that grabs the file the instant the service returns
     # can't catch a half-written dump.
-    with open(tmp, "w", encoding="utf-8") as handle:
-        handle.write(render_text(records))
-    os.replace(tmp, path)
+    #
+    # C29. The rename is atomic against a READER but not durable against a power
+    # loss — without the fsync the OS can rename a file whose dirty pages have not
+    # reached disk, leaving a zero-length dump. That matters more here than the
+    # size of the change suggests: this file is what a user attaches to a bug
+    # report, so the failure lands exactly when someone is already trying to
+    # capture something that went wrong. Fourth copy of the idiom; the canonical
+    # one is learning/history_store.py (IO-7), which has always had this.
+    # The unlink stops a failed dump leaving a .tmp in the user's config dir.
+    try:
+        with open(tmp, "w", encoding="utf-8") as handle:
+            handle.write(render_text(records))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
     return path
 
 

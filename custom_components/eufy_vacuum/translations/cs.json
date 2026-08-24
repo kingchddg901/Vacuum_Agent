@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} není vysavač spravovaný touto integrací."
+    },
+    "room_update_refused": {
+      "message": "Nepodařilo se aktualizovat {room}: {reason}"
     }
   },
   "entity": {

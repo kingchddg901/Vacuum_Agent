@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} n'est pas un aspirateur géré par cette intégration."
+    },
+    "room_update_refused": {
+      "message": "Impossible de mettre à jour {room} : {reason}"
     }
   },
   "entity": {

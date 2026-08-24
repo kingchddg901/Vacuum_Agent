@@ -189,22 +189,25 @@ def register(hass: HomeAssistant) -> None:
                 # comment gives (a service-response source may not be registered yet).
                 # For a service_response brand (Roborock: `roborock.get_maps`) the
                 # flattened cache lives in `hass.data` and is therefore EMPTY on
-                # restart, so the pass discovers NO rooms — and `update_drift_history`
-                # has no empty-read guard, so it increments `missing_passes` for EVERY
-                # configured room. At `removal_confirmation_passes` (3 by default and 3
-                # for Eufy) every room is flagged removed.
+                # restart, so the pass discovers NO rooms.
                 #
-                # ⚠ BE PRECISE ABOUT THE DAMAGE, because a later SUCCESSFUL pass resets
-                # `missing_passes` to 0. A clean restart therefore usually self-heals:
-                # the spurious early passes add strikes, then the deferred
-                # `config_entry_reload` pass — which runs after HA has started, when
-                # `get_maps` IS registered — sees the rooms and zeroes them. The strikes
-                # BITE when the later pass does not succeed either: the vacuum offline,
-                # the cloud unreachable, the account rate-limited. That is precisely
-                # when a user is least likely to be watching, and the strikes are
-                # recorded as evidence the rooms are GONE from a read that never
-                # happened. An unreadable source and an empty source are not the same
-                # fact, and this path cannot tell them apart.
+                # ⚠ THE REST OF THIS NOTE USED TO READ "and `update_drift_history` has
+                # no empty-read guard, so it increments `missing_passes` for EVERY
+                # configured room ... at `removal_confirmation_passes` every room is
+                # flagged removed". That WAS true, and describing the damage was never
+                # a ruling to accept it. C58 (Chris, 2026-08-24) closed it at the
+                # scoring end: `setup/drift.py#update_drift_history` now returns on an
+                # empty `discovered_room_ids`, warns that the pass was UNREADABLE, and
+                # leaves every stored counter untouched — neither struck nor reset. A
+                # pass fired at raw startup can no longer cost a room a strike.
+                #
+                # THAT DID NOT MAKE THIS TRIGGER CORRECT, which is why the edge test
+                # below stays. Guarding the scorer classifies the bad pass; it does not
+                # stop this listener firing one at the exact moment the reload trigger
+                # is deferred to avoid, and each such pass now costs a warning in the
+                # log for a read nobody asked for. An unreadable source and an empty
+                # source are still not the same fact — this path simply no longer gets
+                # to spend a user's rooms on the difference.
                 #
                 # NOTHING LOSES A STARTUP PASS BY THIS. Both shipped brands declare
                 # `config_entry_reload` alongside `vacuum_docked`, and so does the

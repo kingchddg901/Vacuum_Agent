@@ -28,7 +28,8 @@ Home Assistant.
 
 One file per (vacuum, map), overwritten each time: no accumulation, no pruning, and a
 STABLE path an automation can hardcode. The write is atomic (tmp + ``os.replace``) so an
-automation reading while we render never sees half a PNG.
+automation reading while we render never sees half a PNG, and the tmp is FSYNCED before
+the rename so a power loss cannot leave a zero-length file at that hardcoded path.
 
 Public surface:
     register(hass: HomeAssistant) -> None
@@ -38,6 +39,7 @@ Public surface:
 from __future__ import annotations
 
 import base64
+import contextlib
 import logging
 import os
 from collections.abc import Callable
@@ -216,12 +218,36 @@ def map_label(hass: HomeAssistant, vacuum_entity_id: str, map_id: Any) -> str:
 
 
 def _write_atomic(path: str, data: bytes) -> None:
-    """Write via tmp + replace so a reader never sees a half-written PNG."""
+    """Write via tmp + replace so a reader never sees a half-written PNG.
+
+    THE RENAME IS ATOMIC BUT NOT DURABLE, and this was the shortest of the package's
+    four atomic writes — the only one with neither half, while
+    ``history_store.write_json`` four files away documents both as IO-7. Without the
+    fsync, a power loss between the write and the OS lazily flushing dirty pages
+    leaves a ZERO-LENGTH PNG at the stable path the docs tell an automation to
+    hardcode, AFTER ``stall.capture.written`` has already reported P and the
+    notification has already fired: the picture is announced and the file is empty.
+
+    The unlink is the other half. The tmp sits at a FIXED ``<path>.tmp``, so an
+    ``os.replace`` that raises (a vanished directory, a full disk, permissions)
+    stranded a full rendered floor-plan of the user's home beside the capture —
+    outside the one-file-per-(vacuum, map) contract this module's docstring promises,
+    where nothing ever reclaims it, and re-readable at ``/local`` if the user ever
+    relocates their learning directory. ``BaseException`` because a cancelled
+    executor job leaks the same file a failed one does.
+    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = f"{path}.tmp"
-    with open(tmp, "wb") as fh:
-        fh.write(data)
-    os.replace(tmp, path)
+    try:
+        with open(tmp, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:

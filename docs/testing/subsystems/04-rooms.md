@@ -21,7 +21,7 @@ Two rules, both declaration-driven: **DROP** a field no declared profile carries
 `default_profile` value. No nearest-match — the option lists are declared sets
 with no ordering to be nearest in.
 
-`test_vocabulary_migration.py` (18 tests) weights the refusals as heavily as the
+`test_vocabulary_migration.py` (19 tests) weights the refusals as heavily as the
 repairs, because this rewrites real user rooms and an over-reach is silent:
 
 | id | what it holds |
@@ -39,6 +39,7 @@ repairs, because this rewrites real user rooms and an over-reach is silent:
 | `MIG-10b` | with no alias it still falls back to the brand's default |
 | `MIG-10c` | an alias pointing at an undeclared option is ignored, never written |
 | `MIG-11` | **a run that could not evaluate every target does not latch** — see below |
+| `MIG-12` | an UNADJUDICATABLE target defers at DEBUG, not WARNING — see below |
 
 **MIG-5 is the one to read.** An early draft keyed DROP on "the brand declares no
 options for this field". That reads correct and would have stripped `clean_mode`
@@ -87,6 +88,19 @@ has set up, and fires immediately when HA is already running, so a live reload s
 repairs promptly. `listeners/discovery.py` already used that primitive for the same
 reason (`get_maps` is not registered at setup time); this call site was its forgotten
 sibling.
+
+**MIG-12 pins the VOLUME of that deferral, which MIG-11 does not.** The latch was
+designed against a cold-boot RACE, where waiting works. It was never reconciled with
+the unsupported-brand arm that shipped later: `brands.resolve_brand` registers no
+adapter for an unsupported vacuum while the vacuum stays managed, so `get_config`
+returns `None` forever, the target is pending on every run, and the deferral message
+was re-emitted at WARNING on every Home Assistant start for the life of the install.
+Ruled 2026-08-24 (C61): downgrade the line to DEBUG and give the target no terminal
+disposition — a persisted "gave up" verdict outlives its reason once the brand becomes
+supported. MIG-12 asserts both directions, because a downgrade that dropped the
+message would pass a bare "no warning" check while destroying the only record a
+diagnoser has, and it re-asserts the latch so a quieter line that also stopped
+retrying cannot pass as this fix. Ablated: restoring `_LOGGER.warning` reddens it.
 
 **MIG-9 is why `normalize_clean_intensity` could be deleted rather than moved.**
 It folded the retired Eufy values `standard`/`normal` to `"Quick"` on every read,

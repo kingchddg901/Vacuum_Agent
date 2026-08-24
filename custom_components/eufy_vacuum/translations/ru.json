@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} — не пылесос, управляемый этой интеграцией."
+    },
+    "room_update_refused": {
+      "message": "Не удалось обновить {room}: {reason}"
     }
   },
   "entity": {

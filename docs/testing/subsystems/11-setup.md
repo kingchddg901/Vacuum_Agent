@@ -31,6 +31,9 @@ Architecture reference: [31 — The Setup Layer](../../dev/31-setup-layer.md)
 - **Drift** — new-segment / removed-segment detection vs the last recorded room
   set, including the deep threshold/guard branches and the configured-vs-discovered
   exclusion gate (a room in a bucket with `is_configured=False` is not drift-tracked).
+  Also the C58 read-failure classification: a pass that discovers NO rooms is an
+  unreadable pass, not an empty map — it warns, and leaves every stored counter
+  unchanged rather than striking (or clearing the strikes on) every configured room.
 - **Delete** — map deletion teardown and its remove summary.
 - **Entry wiring** (`SD`) — `run_discovery_pass` and the manager-side setup
   helpers reachable without a full boot.

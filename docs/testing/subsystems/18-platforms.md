@@ -29,14 +29,14 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `button.py` | 139 | 89% | `test_button_entity.py` | **bare x1** |
 | `number.py` | 129 | 98% | `test_number_entity.py` | clean |
 | `switch.py` | 64 | 98% | `test_switch_entity.py` | clean |
-| `binary_sensor.py` | 65 | 91% | `test_platform_files.py` | **bare x10** |
-| `room_entities.py` | 85 | 98% | `test_platform_files.py` | **bare x10** |
+| `binary_sensor.py` | 65 | 91% | `test_platform_files.py` | **bare x8** |
+| `room_entities.py` | 85 | 98% | `test_platform_files.py` | **bare x8** |
 | `config_flow.py` | 90 | 71% | `test_config_flow.py` | clean |
 | `timestamp_utils.py` | 38 | 98% | `test_timestamp_utils.py` (unit) | clean |
 | `models/models.py` | 124 | 98% | `test_models.py` (unit) | clean |
 | `maps/map_manager.py` | 93 | 94% | `test_maps_map_manager.py` (unit) | clean |
-| `entity_helpers.py` | 43 | 98% | `test_platform_files.py` | **bare x10** |
-| `_frontend_url.py` | 18 | 89% | `test_platform_files.py` | **bare x10** |
+| `entity_helpers.py` | 43 | 98% | `test_platform_files.py` | **bare x8** |
+| `_frontend_url.py` | 18 | 89% | `test_platform_files.py` | **bare x8** |
 
 ---
 

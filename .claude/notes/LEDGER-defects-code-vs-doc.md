@@ -1686,7 +1686,30 @@ non-uniform cadence it is neither.
 Documented as current behaviour in `docs/dev/16-battery-record.md` §5, explicitly labelled an
 open defect rather than an invariant.
 
-### C55 [OPEN-DRIFTED] — **OPEN.** Reconciliation pairs any 1-and-1 leftover and calls it an identity
+### C55 [ACCEPTED] — **ACCEPTED RISK (Chris, 2026-08-24).** Reconciliation pairs any 1-and-1 leftover and calls it an identity
+  ⤷ **RULED 2026-08-24 (Chris): ACCEPTED RISK. No code change — the defect ships.**
+  The fix for this was BUILT AND MEASURED, then rejected, and that measurement is the
+  reason. Dropping the access-graph position turns a COMPLETE graph PARTIAL for the
+  GENUINE rename-and-renumber the branch exists to serve, because the real case and the
+  wrong guess arrive through the SAME elimination. `access_graph_block_code` maps partial
+  → `incomplete_access_graph` and `planning/run_plan.py:1142` then refuses EVERY run on
+  that map before the queue is built — its own docstring says "a PARTIAL one (every run
+  refused)". Probed on real stored data: Dock(1)→Hall(2)→Study(4), Study renamed AND
+  renumbered to Office(9), went `valid: True, complete` → `missing_dependency, partial,
+  blocked`. Both of this house's boxes (alfred map 12, ivy Main floor) are fully wired,
+  so both would have been exposed.
+  **THE TRADE ACCEPTED:** a RARE wrong pairing the user confirms, against a COMMON hard
+  stop with nothing connecting it to the rename they just confirmed.
+  **THE UNDERLYING TENSION, which is why no partial fix helps:** the access-graph
+  position IS what makes the graph valid, so removing it necessarily invalidates the
+  graph. `is_dock_room` rides the same `carried = dict(source)` and has the same
+  property — zeroing it makes the graph *more* invalid, not less.
+  **WHAT WOULD REOPEN THIS:** a review row that states the room needs re-linking before
+  runs resume (card work — `src/renderers/setup.js` folds this kind into "Renamed" and
+  reads neither `inferred` nor `match_basis`), or a similarity floor with a threshold
+  somebody has measured. Neither existed at 2.1.0.
+  Stated at the site in `rooms/reconciliation.py` above the pairing branch, per the
+  ACCEPTED contract.
 
 Found 2026-08-22 by the rooms comment audit; verified directly against source.
 
@@ -5713,7 +5736,21 @@ fixpoint. The ablation worth remembering: converging by ITERATION ORDER instead 
 passes the collision test and silently breaks the convergence promise — two different properties,
 and only one of them is obvious.
 
-## C58 [NEEDS-RULING] — an unreadable room source and an empty one are the same fact to drift
+## C58 [FIXED] — an unreadable room source and an empty one are the same fact to drift
+  ⤷ **CLOSED 2026-08-24 by ruling (Chris): guard + name it a failure.** `update_drift_history`
+  now classifies an empty `discovered_room_ids` as an UNREADABLE pass and returns before touching
+  any counter — an empty read is evidence in NEITHER direction, so it neither strikes a room nor
+  resets a run of strikes. It says so in the log rather than skipping silently, and only when
+  there are configured rooms to protect (a not-yet-set-up vacuum would otherwise warn forever).
+  The message names the CLASSIFICATION but not a cause: a genuinely-cleared map and an
+  unreachable cloud produce the same signature here and asserting either would be a claim the
+  function cannot support.
+  **SCOPE HELD:** `discover_rooms_for_vacuum`'s return contract is UNCHANGED — the two-module
+  "distinguishable unreadable" fix Chris deferred was not built, and nothing already stored in
+  drift history is re-judged.
+  Tests: `[DR-16]` deep-equals the WHOLE history across five empty passes on a non-zero counter
+  (red without the guard: room 1 went 2 → 7); `[DR-17]` proves an empty pass creates no
+  `setup_progress` record at all.
 
 Found while verifying L11's blast radius. **Not fixed — this one needs a ruling.**
 
@@ -5879,7 +5916,15 @@ behaviour) or *"approve nothing new"*? Four places already assert the second —
 outlier, but four docs agreeing is a signal, not a ruling. Whichever way it goes, the docstring and
 the doc line move with it.
 
-## C61 [NEEDS-RULING] — R10: comment CORRECTED 2026-08-24; the design question stays open
+## C61 [FIXED] — R10: comment CORRECTED 2026-08-24; the design question stays open
+  ⤷ **CLOSED 2026-08-24 by ruling (Chris): option (b), downgrade only.** The un-adjudicatable
+  case (an UNSUPPORTED brand registers nothing, so `get_config` returns None forever) no longer
+  re-emits a WARNING on every Home Assistant start. Log level only.
+  **SCOPE HELD, and this is the part worth checking on any future edit:** the latch expression and
+  the single `migrations[MIGRATION_KEY] = True` write are BYTE-IDENTICAL. Option (a) — a terminal
+  disposition — was rejected because it adds a persisted key, and `[MIG-12]` pins `migrations == {}`
+  precisely so that rejected fix cannot later pass itself off as this one.
+  Test: `[MIG-12]` — red when only `_LOGGER.debug` is reverted to `_LOGGER.warning`.
 
 **The comment is false as filed and that half is safe to correct**: `_validate_room_profiles` only
 RETURNS issue strings, and `register_adapter_config` hard-raises only for `source == "config"`; a
@@ -6200,6 +6245,45 @@ synthesis phase 529'd. The pattern is clearly buildable in principle — A9 and 
 it catches (declared-but-unread and read-but-undeclared, opposite ends of one axis) — but building
 it properly needs to enumerate the current violations and the false positives (branch-local
 honouring like A6 would pass such a gate). Filed as C63 below.
+
+## C64 [OPEN] — the carpet/mop invariant is still breakable through save_managed_rooms
+
+FOUND 2026-08-24 by the adversary on the C9 fix, and **PROVEN BY PROBE, not inferred.**
+
+C9 closed the generic-merge path in `room_entities.py` by routing it through
+`_finalize_room_update`. `rooms/room_manager.py::build_managed_rooms` has the same
+gap and — unlike C9's site — a LIVE SERVICE CALLER that accepts `floor_types`
+(`save_managed_rooms`). Probe: `build_managed_rooms(discovered_rooms=[room 1],
+existing_rooms={'1': {clean_mode: 'vacuum_mop', water_level: 'High', edge_mopping:
+True, is_configured: True}}, enabled_room_ids=[1], floor_types={1:
+'carpet_high_pile'})` returns a room that is carpet AND still `vacuum_mop` with
+water on.
+
+⚠ **C9 MAKES THIS SLIGHTLY WORSE, WHICH IS WHY IT IS FILED RATHER THAN LEFT.** The
+entity path now finalizes, so a phantom produced here looks MORE like a correctly
+finalized room than it used to. The two paths must agree.
+
+Not fixed in the release batch: it is a second caller of a shared invariant and
+wants the same treatment as C9, but it is a service-facing write path and deserves
+its own bite test rather than being tacked onto a batch that was already verified.
+
+## C65 [OPEN] — a maintenance component id could silently overwrite a role's resolution reason
+
+FOUND 2026-08-24 by the adversary on the C14 fix. `_reasons` is filled for ROLES by
+`_find` (`core/capabilities.py:948`), then handed to `_detect_maintenance_sources`
+(`:1121`), which writes `_reasons[component]` at `:357`. Maintenance COMPONENT ids
+and ROLE names therefore share one flat dict with no collision guard, and the
+maintenance write happens LAST.
+
+No overlap exists today — the role names are a closed set (`task_status`,
+`work_mode`, `dock_status`, `active_map`, `active_cleaning_target`, `cleaning_area`
+…) and no shipped component id collides. So this is latent, not live. It is filed
+because the cost of the collision is silent: a role's diagnostic reason would be
+replaced by a component's, on the Setup → System screen whose whole purpose is
+explaining why a binding resolved the way it did — the one surface where a wrong
+answer is worse than no answer.
+
+Remedy is a namespace or a collision assert, not a rename.
 
 ## C63 [OPEN] — a declaration-proving gate for ADAPTER_CONFIG_SCHEMA
 

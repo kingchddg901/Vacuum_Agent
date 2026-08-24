@@ -7,7 +7,10 @@ Setup flow:
   [CF-2]  Valid input with all fields → entry created, vacuum_entity_id in data.
   [CF-3]  Valid input with vacuum field left blank → entry created,
           vacuum_entity_id absent from data.
-  [CF-4]  Duplicate setup (unique_id already configured) → aborted.
+  [CF-4]  Duplicate setup is refused at flow START (manifest single_config_entry),
+          before any form is rendered.
+  [CF-5]  The flow's own unique_id guard still refuses a duplicate on the paths
+          the manifest gate does not cover.
 
 Options flow:
   [OF-1]  Opening options shows the form pre-populated from existing data.
@@ -28,6 +31,7 @@ from unittest.mock import patch
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.eufy_vacuum.const import (
     CONF_NOTES,
@@ -100,9 +104,22 @@ async def test_setup_flow_creates_entry_without_vacuum(hass: HomeAssistant):
     assert CONF_VACUUM_ENTITY_ID not in result["data"]
 
 
-async def test_setup_flow_aborts_on_duplicate(hass: HomeAssistant):
-    """[CF-4] A second setup flow is aborted when the unique_id is already configured."""
-    # First install
+async def test_setup_flow_aborts_before_showing_the_form(hass: HomeAssistant):
+    """[CF-4] C43: a second setup attempt is refused at async_init, not after the form.
+
+    The refusal itself was never in doubt — async_step_user has always called
+    _abort_if_unique_id_configured. But that guard lives INSIDE the submit branch,
+    so it can only fire once the user has picked a vacuum, typed a model and
+    submitted: the whole form filled in for a flow that was doomed before it
+    opened. manifest.json declaring ``single_config_entry`` is what moves the
+    refusal to flow start (HA aborts in ConfigEntriesFlowManager.async_init with
+    ``single_instance_allowed``).
+
+    Asserting FlowResultType.ABORT alone would pass for either mechanism — the
+    step_id assertion is the one that bites, because without the manifest key
+    this call returns the ``user`` FORM.
+    """
+    # First install, through the real flow.
     result = await hass.config_entries.flow.async_configure(
         (await _start_flow(hass))["flow_id"],
         user_input={
@@ -112,16 +129,44 @@ async def test_setup_flow_aborts_on_duplicate(hass: HomeAssistant):
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
 
-    # Second attempt
-    result2 = await hass.config_entries.flow.async_configure(
-        (await _start_flow(hass))["flow_id"],
+    # Second attempt: merely STARTING the flow must already be the end of it.
+    result2 = await _start_flow(hass)
+    assert result2["type"] == FlowResultType.ABORT
+    assert result2["reason"] == "single_instance_allowed"
+    assert result2.get("step_id") is None  # no form was ever rendered
+    assert not hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+
+
+async def test_setup_flow_unique_id_guard_still_refuses_duplicate(hass: HomeAssistant):
+    """[CF-5] The in-flow unique_id guard survives as defence in depth.
+
+    The manifest gate covers the ordinary user path only. It does not run for
+    SOURCE_IGNORE/reauth/reconfigure, and it cannot see an entry that appears
+    while a flow is already open — the case reproduced here: the flow is started
+    while nothing is configured, the entry arrives (added directly, not via a
+    flow, so HA does not cancel flows in progress), and only then is the form
+    submitted. Ablated (guard removed on the grounds that the manifest now
+    covers it) this goes red while CF-4 stays green — the flow runs to
+    completion and is refused later, by HA's finish-flow gate, as the generic
+    ``single_instance_allowed`` instead of this integration's own
+    ``already_configured``. No duplicate entry either way; what the guard buys
+    is the specific reason and the refusal happening in our step.
+    """
+    flow = await _start_flow(hass)
+    assert flow["type"] == FlowResultType.FORM  # nothing configured yet
+
+    MockConfigEntry(domain=DOMAIN, data={CONF_TESTED_MODEL: SUPPORTED_TESTED_MODEL},
+                    unique_id=DOMAIN).add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_configure(
+        flow["flow_id"],
         user_input={
             CONF_TESTED_MODEL: SUPPORTED_TESTED_MODEL,
             CONF_NOTES: "",
         },
     )
-    assert result2["type"] == FlowResultType.ABORT
-    assert result2["reason"] == "already_configured"
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
 
 
 # ---------------------------------------------------------------------------

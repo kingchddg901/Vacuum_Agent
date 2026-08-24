@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} ist kein Staubsauger, den diese Integration verwaltet."
+    },
+    "room_update_refused": {
+      "message": "{room} konnte nicht aktualisiert werden: {reason}"
     }
   },
   "entity": {

@@ -139,11 +139,20 @@ def _unadjudicated_targets(*, data: dict[str, Any], get_config) -> list[str]:
     ⚠ THE DEFERRED-LATCH DESIGN BELOW WAS WRITTEN AGAINST A COLD-BOOT RACE, WHERE
     WAITING WORKS. It has never been reconciled with the unsupported-brand arm, which
     shipped later and makes "not registered yet" permanently false rather than
-    temporarily so. Whether a target that can never be adjudicated should reach a
-    terminal disposition, or whether a permanent WARNING is the honest answer, is an
-    OPEN DESIGN QUESTION — filed as C61, deliberately not patched here: every candidate
-    fix either adds a persisted key under ``migrations`` or changes how already-stored
-    rooms are judged.
+    temporarily so. THIS TEXT CALLED THAT AN OPEN DESIGN QUESTION UNTIL 2026-08-24; IT
+    IS RULED (C61). A target that can never be adjudicated does NOT get a terminal
+    disposition — the option that gave it one wrote a persisted key under
+    ``migrations``, and a stored "gave up on this vacuum" verdict outlives the reason
+    for it: the brand it gave up on becomes supported in a later release and the repair
+    never runs. Only the VOLUME changed. ``migrate_room_vocabulary``'s deferral line
+    moved from WARNING to DEBUG, so an unadjudicatable target no longer shouts once per
+    Home Assistant start for the life of the install.
+
+    NOTHING ELSE MOVED, deliberately: this function still returns every unadjudicated
+    target, the latch still refuses to record the migration as done while one exists,
+    and stored rooms are judged exactly as before. The deferral is still retried on the
+    next start — which is what makes the quieter level safe, and what a terminal
+    disposition would have thrown away.
 
     On this house's boxes the site is currently inert: ``vacuum.robin`` (an unsupported
     Dreame) is in ``vacuums`` with a ``maps`` bucket holding zero rooms, so only the
@@ -317,7 +326,24 @@ def migrate_room_vocabulary(
     if _latched:
         migrations[MIGRATION_KEY] = True
     else:
-        _LOGGER.warning(
+        # DEBUG, NOT WARNING — downgraded 2026-08-24 by the C61 ruling.
+        #
+        # The failure mode this line had: a vacuum on an UNSUPPORTED brand can never be
+        # adjudicated. ``brands.resolve_brand`` registers no adapter for it while the
+        # vacuum stays managed, so ``get_config`` returns None forever, ``_pending``
+        # never empties, and this message was re-emitted at WARNING on EVERY Home
+        # Assistant start, permanently, with nothing the user could do about it.
+        # (``vacuum.robin``, the unsupported Dreame on this house's boxes, is one saved
+        # room away from being exactly that.) A warning that can never be acted on and
+        # never stops trains people to mute the integration's log, which costs them the
+        # warnings that DO mean something.
+        #
+        # The information is not gone, it is just not shouted: the full count and the
+        # entity ids stay here for anyone debugging a repair that has not happened, and
+        # every caller still gets ``latched: False`` in the return value. The latch
+        # condition itself is untouched — this run still did not record itself as done
+        # and still retries on the next start.
+        _LOGGER.debug(
             "vocabulary_migration: %d vacuum(s) with stored rooms had no adapter "
             "declaration to judge against (%s), so their rooms could not be evaluated; "
             "NOT recording the migration as done — it will retry on the next start",

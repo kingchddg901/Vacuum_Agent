@@ -231,6 +231,33 @@ def compute_reconciliation(
     # two left — are they the same room?" rather than "this room was renamed and
     # renumbered". Anything more than one on either side is genuinely ambiguous and is
     # still left unpaired.
+    # ⚠ ACCEPTED RISK (Chris, 2026-08-24), ledger C55. THIS IS A KNOWN DEFECT THAT
+    # SHIPS DELIBERATELY. A stored room DELETED plus an unrelated room ADDED in the
+    # same re-map lands in exactly this 1-and-1 shape, so the pairing can be wrong,
+    # and `plan_migration` then carries the old room's durable settings AND its
+    # access-graph position (`grants_access_to`, and `is_dock_room` via
+    # `carried = dict(source)`) onto a room that is not the same room.
+    #
+    # THE FIX WAS BUILT, MEASURED, AND REJECTED — do not rebuild it without reading
+    # this. Dropping the access-graph position turns a COMPLETE graph PARTIAL for the
+    # GENUINE rename-and-renumber this branch exists to serve, because the real case
+    # and the wrong guess arrive through the same elimination. `access_graph_block_code`
+    # maps partial -> `incomplete_access_graph`, and `planning/run_plan.py` refuses
+    # EVERY run on that map before the queue is built. Probed against real stored data:
+    # Dock(1)->Hall(2)->Study(4) with Study renamed+renumbered to Office(9) went from
+    # `valid: True, complete` to `missing_dependency, partial, blocked`. The user would
+    # confirm a review saying "Office — formerly Study" and then find nothing runs, with
+    # nothing connecting the two. Both of this house's boxes are fully wired graphs.
+    #
+    # So the accepted trade is: a RARE wrong pairing that the user confirms, against a
+    # COMMON hard stop with no explanation. The access-graph position is what makes the
+    # graph valid, so removing it necessarily invalidates the graph — that tension is
+    # the finding, and it is why no partial version of the fix helps either.
+    #
+    # WHAT WOULD CHANGE THE RULING: a review row that says outright the room will need
+    # re-linking before runs resume (card work, `src/renderers/setup.js` folds this kind
+    # into "Renamed" and reads neither `inferred` nor `match_basis`), or a similarity
+    # floor with a threshold somebody has actually measured. Neither existed at 2.1.0.
     unmatched_existing = [
         room for slug, room in existing_by_slug.items() if slug not in matched_existing_slugs
     ]

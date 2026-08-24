@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} אינה שואב אבק המנוהל על ידי אינטגרציה זו."
+    },
+    "room_update_refused": {
+      "message": "לא ניתן היה לעדכן את {room}: {reason}"
     }
   },
   "entity": {

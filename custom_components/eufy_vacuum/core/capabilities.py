@@ -70,6 +70,8 @@ REASON_ABSENT = "absent"
 #: pinning a dead id, but a user choice that has quietly stopped working must be
 #: VISIBLE; silently substituting our guess for their stated intent is the
 #: failure mode this whole effort exists to remove (live:ENT-7).
+#: Recorded for MAINTENANCE COMPONENTS too, not only roles — that half of ENT-7
+#: was missing there until 2026-08-24; see `_detect_maintenance_sources`.
 REASON_OVERRIDE_UNRESOLVED = "override_unresolved"
 
 #: WHICH rung of the live:ENT-9 ladder decided a contested role. First-class
@@ -293,8 +295,14 @@ def _detect_maintenance_sources(
     overrides: dict[str, str] | None = None,
     universe: Iterable[str] = (),
     translation_keys: dict[str, str] | None = None,
+    reasons: dict[str, str] | None = None,
 ) -> dict[str, str | None]:
     """Return a component → source entity_id map for maintenance tracking.
+
+    ``reasons``, when given, is written INTO — the same dict ``detect_capabilities``
+    fills for roles, because ``overrides`` is one flat namespace shared by roles and
+    components (``services/setup.py::set_entity_override`` takes ``role`` as free
+    text) and a component's stale choice has to reach the same readers as a role's.
 
     maintenance_components is the adapter's component catalog dict:
     {component_id: {sensor_suffix, proxy_for, label, icon, …}}.
@@ -317,13 +325,36 @@ def _detect_maintenance_sources(
         )
 
     user_choices = overrides if isinstance(overrides, dict) else {}
+    _reasons = reasons if isinstance(reasons, dict) else {}
     sources: dict[str, str | None] = {}
     for component, meta in maintenance_components.items():
         # live:ENT-7 — a user's explicit choice outranks derivation here too.
         chosen = user_choices.get(component)
         if isinstance(chosen, str) and "." in chosen:
-            sources[component] = chosen
-            continue
+            # ONLY THE PRECEDENCE HALF OF live:ENT-7 WAS CARRIED ACROSS (fixed
+            # 2026-08-24). This path took the user's id and `continue`d — no
+            # existence check, no reason — while `detect_capabilities._find` has
+            # always had the other half: an override that no longer resolves
+            # falls THROUGH to the derived candidates and reports
+            # `override_unresolved` rather than pinning a dead id.
+            #
+            # Pinning it costs more here than on a role, because nothing
+            # downstream complains. `get_maintenance_remaining` finds no state,
+            # leaves `source_available` False and reports 0 usage hours, so the
+            # component's Replacement row AND its integration-tracked
+            # Maintenance row both go quiet — the "one unresolved source kills
+            # both halves" cost named in `_rescue_maintenance_source` above. The
+            # user renames or deletes the sensor they pinned, their stated
+            # choice stops working, and the System screen that exists to explain
+            # bindings says nothing at all.
+            #
+            # Same existence bar as `_resolve` below and as the role path:
+            # REGISTERED counts. A disabled entity is a toggle in the user's own
+            # UI, not a dead id, and must not be second-guessed as one.
+            if _state_exists(hass, chosen) or _registry_entry_exists(hass, chosen):
+                sources[component] = chosen
+                continue
+            _reasons[component] = REASON_OVERRIDE_UNRESOLVED
         own = _resolve(meta.get("sensor_suffix"))
         proxy_id = meta.get("proxy_for")
         if proxy_id:
@@ -1079,6 +1110,15 @@ def detect_capabilities(
             overrides=_overrides,
             universe=_maint_universe,
             translation_keys=_maint_tkeys,
+            # live:ENT-7 — the SAME reasons dict the roles write to. A stale
+            # maintenance override has to land somewhere a reader looks, and
+            # `entity_resolution_reasons` is that place: `config_flow.
+            # _resolution_gaps` renders a picker for every key in it that is not
+            # `resolved`, so the user gets the pre-filled field to correct their
+            # dead choice instead of a component that has quietly gone blank.
+            # Only an override that FAILED is recorded — a derivation miss is an
+            # ordinary absent source and must not conjure a picker.
+            reasons=_reasons,
         )
 
     # --- live state values --------------------------------------------------

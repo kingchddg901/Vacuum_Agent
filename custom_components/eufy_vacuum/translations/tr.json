@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id}, bu entegrasyonun yönettiği bir süpürge değil."
+    },
+    "room_update_refused": {
+      "message": "{room} güncellenemedi: {reason}"
     }
   },
   "entity": {

@@ -25,9 +25,13 @@ Coverage targets
 [MIG-9] the retired-value fold is subsumed without any retired-value map.
 [MIG-11] a run that saw NO adapter does not latch the one shot; an install with no
          stored rooms does (nothing to come back for).
+[MIG-12] a target that can NEVER be adjudicated defers quietly (DEBUG), and still
+         defers — the C61 ruling moved the volume, not the latch.
 """
 
 from __future__ import annotations
+
+import logging
 
 import pytest
 
@@ -438,3 +442,50 @@ def test_mig_10c_an_alias_pointing_at_an_undeclared_option_is_ignored():
     data = _data({"1": _room(clean_intensity="Standard")})
     migrate_room_vocabulary(data=data, get_config=_getter(eufy_config))
     assert data["maps"][_VAC]["map1"]["rooms"]["1"]["clean_intensity"] == "Quick"
+
+
+# ---------------------------------------------------------------------------
+# How loudly it defers
+# ---------------------------------------------------------------------------
+
+_MIGRATION_LOGGER = "custom_components.eufy_vacuum.rooms.vocabulary_migration"
+
+
+def test_mig_12_a_target_that_can_never_be_adjudicated_defers_quietly(caplog):
+    """[MIG-12] The deferral line is DEBUG, not WARNING — MAINTAINER RULING, C61.
+
+    MIG-11 pins the deferral itself. This pins its VOLUME, which is a separate
+    property and used to be wrong. A vacuum on an UNSUPPORTED brand registers no
+    adapter while staying managed, so ``get_config`` returns None FOREVER: it is
+    pending on this run and on every run after it, unlike the cold-boot race the
+    latch was designed against, which resolves on the next start. At WARNING that
+    made an unactionable message reappear on every single Home Assistant start for
+    the life of the install — which is how a user learns to mute the integration's
+    log, taking the warnings that do mean something with it.
+
+    Both halves are asserted, because a downgrade that also dropped the message
+    would pass a "no warning" check while destroying the only record a diagnoser
+    has. So does the latch: a quieter line that ALSO stopped retrying would be the
+    rejected terminal-disposition fix wearing this one's diff.
+    """
+    caplog.set_level(logging.DEBUG, logger=_MIGRATION_LOGGER)
+    data = _data({"1": _room(fan_speed="Max")})
+
+    result = migrate_room_vocabulary(data=data, get_config=lambda _v: None)
+
+    shouted = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+    assert shouted == [], f"a permanently-pending target must not warn: {shouted}"
+
+    deferrals = [
+        r.getMessage() for r in caplog.records
+        if r.levelno == logging.DEBUG and "could not be evaluated" in r.getMessage()
+    ]
+    assert len(deferrals) == 1, "the detail must survive the downgrade, at DEBUG"
+    assert _VAC in deferrals[0]
+
+    # Untouched by the ruling: still deferred, still retried, still nothing persisted.
+    assert result["latched"] is False
+    assert MIGRATION_KEY not in data.get("migrations", {})
+    assert dict(data.get("migrations", {})) == {}, (
+        "the rejected fix was a persisted disposition; no key may appear here"
+    )

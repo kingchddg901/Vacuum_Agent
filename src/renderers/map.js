@@ -1336,7 +1336,23 @@ export function applyMapRenderers(proto) {
     if (diffH < 24)   return this.t("relative.hours_ago", { count: diffH });
     const diffD = Math.floor(diffH / 24);
     if (diffD < 14)   return this.t("relative.days_ago", { count: diffD });
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    // The >14d tail is the only branch that is not already a `t()` lookup, and it
+    // used `undefined` — the browser/OS locale — so a card pinned to Arabic showed
+    // Arabic relative strings above this line and an English date below it. Same
+    // defect formatTimestamp carried, one file over, and it was missed by that
+    // sweep because it calls toLocaleDateString rather than toLocaleString.
+    // RangeError is absorbed for the same reason as shared.js: the tag comes from
+    // hand-written YAML (`config.i18n.locale`), and `pt_BR` is enough to throw —
+    // which would escape into a renderer that assembles one HTML string and blank
+    // the whole card over a typo.
+    const lang = String(this._i18nLanguage?.() ?? "");
+    const opts = { month: "short", day: "numeric" };
+    try {
+      return d.toLocaleDateString(lang || undefined, opts);
+    } catch (err) {
+      if (!(err instanceof RangeError)) throw err;
+      return d.toLocaleDateString(undefined, opts);
+    }
   };
 
   /* =========================================================

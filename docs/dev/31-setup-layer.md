@@ -71,6 +71,16 @@ prompt is noise; a premature "room removed" prompt asks someone to clean up some
 there. Both floors are clamped to at least one pass, so a brand cannot declare a zero-pass cadence
 and get instant removals.
 
+**A pass that discovers NOTHING is a third case, and it scores neither direction.**
+`update_drift_history` warns and returns without touching history when `discovered_room_ids` is
+empty. The producer cannot tell the two readings apart — `run_discovery_pass` flattens
+`discover_rooms_for_vacuum` into a plain set, so "read the map, it lists no rooms" and "could not
+read the map at all" arrive identically — and treating that as a miss made a cold cache, an offline
+vacuum or an unreachable cloud into positive evidence that *every* configured room was gone, three
+passes from confirming it. Because `missing_passes` counts CONSECUTIVE misses, the guard neither
+adds a strike nor clears the run already recorded: an unreadable pass is not an observation of the
+rooms in either direction (C58, ruled 2026-08-24).
+
 ---
 
 ## 4. A rejection belongs to one map, because ids do
