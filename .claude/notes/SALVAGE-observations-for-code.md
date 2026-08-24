@@ -1,5 +1,22 @@
 # Salvaged observations owed to the code
 
+> ⚠ **STATUS 2026-08-24 — PARTIALLY LANDED, and this file cannot say which.** The prose
+> waves of 2026-08-24 planted several of these observations at their sites (notably in
+> `adapters/eufy/segmentor.py` and `adapters/entity_resolve.py`). The walking agents
+> referred to them as "SALVAGE_1…SALVAGE_9" — labels they invented for their own reports.
+> **This file numbers nothing**, so those labels map to nothing here and the per-entry
+> stamper refused them rather than guessing.
+>
+> The durable record is the SITE: a landed observation now sits in the source it explains,
+> which is the whole point of this file — it exists to empty itself. To reconcile, re-run
+> the greps recorded against each entry; an observation that is now present in source has
+> been delivered and the entry can be struck.
+>
+> **Number the entries before the next pass.** Chris's ruling on `segmentor.py` (the CV
+> path is the uploaded-image case, not a superseded one — see
+> `WALK-rulings-2026-08-24.md`) is the framing SALVAGE_7 was asking for and is now
+> recorded there rather than here.
+
 Facts recovered from retired documents that **exist nowhere in source** and belong as comments
 at the site they explain. Each one was verified absent before being listed — the grep is
 recorded so the check can be repeated rather than trusted.

@@ -171,9 +171,11 @@ Status: nothing fixed. Nothing written to `00b-h`.
 | C5 [OPEN] | `rooms/vocabulary_migration.py:135` vs `:171` | Predicate gap. `_unadjudicated_targets` asks "is the block a non-empty dict?"; the planner asks "did `declared_profile_fields` return anything?". A non-empty block declaring no profile fields is skipped unjudged by the planner AND counted adjudicated by the latch — the one shot burns having judged nothing. Same species as the rule stated at `:70`. | MED |
 | C6 [OPEN] | `receipts` gate | `scripts/check_receipts.py` captures station / outcome / prov as VALUES but facts only as a COUNT (`:63-64`, `max(0, len(args) - 4)`). `DECLINE_REASONS` and `READABILITY` ride as positional facts, so the gate cannot see them. Probe-proven with an ablation (a derived station correctly yields `None`, so the probe can bite). Symptom already in tree: `"no_map"` declared, emitted by nothing, invisible. | MED |
 | C7 [OPEN] | `.github/workflows/tests.yml` | `check_receipts.py` is not run by CI or any test — `tests.yml:69` runs only `check_generated_docs.py`. The gate is author-time-and-remembered. A gate you added is not one you have run. | MED |
-| C8 [OPEN] | `receipts/__init__.py:109` | Station `"core"` is misaligned by construction: the hub is `core/manager.py`, so the gate derives `core.manager` and would REFUSE `"core"` the first time it speaks. Three of seven declared stations never emit (`core`, `pose_store`, `mapping.stall_capture_render`) and the gate has no dead-station check (it has one for catalog keys and outcomes). | LOW/latent |
+| C8 [FIXED-UNPROVEN] | `receipts/__init__.py:109` | Station `"core"` is misaligned by construction: the hub is `core/manager.py`, so the gate derives `core.manager` and would REFUSE `"core"` the first time it speaks. Three of seven declared stations never emit (`core`, `pose_store`, `mapping.stall_capture_render`) and the gate has no dead-station check (it has one for catalog keys and outcomes). | LOW/latent |
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C8 → `[FIXED-UNPROVEN]`. STATIONS — text now states: Adds a ⚠ block: three declared stations are silent and one is UNSPEAKABLE; names which two stations actually transmit; states that the gate has no dead-station check while it does have one for catalog No named test — prose only.
 | C9 [OPEN] | `room_entities.py:156-159` | Generic merge writes `current` straight into `rooms[room_key]`, bypassing `_finalize_room_update` and so the carpet/mop protection rules. `floor_type` is a protection input (`profiles/manager.py:141-147`) and is NOT in `managed_field_names`. No caller writes `floor_type` this way today — latent, but that is the input that makes it bite. | LOW/latent |
-| C10 [OPEN] | `rooms/vocabulary_migration.py` + `__init__.py:537` | A run that latches with zero changes writes nothing (`if _migration["changes"] or ...: await manager.async_save()`), so `"latched": True` is not evidence the flag survived a restart — it rides the next unrelated save. Fails safe (harmless re-run). | LOW |
+| C10 [FIXED-UNPROVEN] | `rooms/vocabulary_migration.py` + `__init__.py:537` | A run that latches with zero changes writes nothing (`if _migration["changes"] or ...: await manager.async_save()`), so `"latched": True` is not evidence the flag survived a restart — it rides the next unrelated save. Fails safe (harmless re-run). | LOW |
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C10 → `[FIXED-UNPROVEN]`. async_setup_entry -> _schedule_vocabulary_migration — text now states: Latch paragraph kept, followed by "⚠ THE LATCH IS SET IN MEMORY HERE, NOT NECESSARILY PERSISTED (ledger C10, open)" quoting the actual save condition, stating that a returned `"latched": True` is not No named test — prose only.
 | C11 [ACCEPTED] | `adapters/roborock/vocabulary.py:95` | `MOP_MODE_OPTIONS` — zero consumers anywhere. Never placed in the `vocabulary` block, so the card cannot see it either. Dead constant; its comment claims it is "kept here for the card". Decision needed: wire or delete. | LOW ⟵ **RESOLVED 2026-08-21 as LEAVE-WITH-A-NOTE (Chris).** No code change: not deleted, not wired. A note now sits above `MOP_MODE_OPTIONS` recording that it is callerless BY DESIGN and verified so across twelve declaration surfaces, that `git log -S` returns ONE commit (callerless SINCE BIRTH — never wired, not unwired), that the deferral is stated twice independently, and — the part that matters — that **the real risk is the NEIGHBOUR**: a block-level tidy of "the unused option lists in this file" takes `PATH_TYPE_OPTIONS` with it, which is live. Wiring is five layers, starting with a schema that rejects the key today. |
 | C12 [OPEN] | `services/stall_capture.py:82` | `manager.data.setdefault("vacuums", {})` mutates before the authorization decision; the canonical `is_managed_vacuum` is non-mutating. Leaves `data["vacuums"] = {}` on the refusal path. Also drops the `translation_key="unmanaged_vacuum"` the canonical refusal carries (`INNPA4ZV`). Only service module in the package that hand-rolls the check. | LOW |
 | C13 [ACCEPTED] — **ACCEPTED, NOT A DEFECT (Chris, 2026-08-21). No code change. Remedy is a DOC LINE, and it does NOT gate the doc rewrite — it is an item FOR it.** RULING: *"we're going to log that as an accepted non... if somebody tries to make an impossible shape, we can note about it — all shapes are reduced to 4-point shapes."* **THE FRAMING THAT IS ACTUALLY RIGHT (Chris, 2026-08-21): a door that opens into a NARROW HALLWAY. We do not need a map from the door to the end of the hall.** The protection here is STRUCTURAL and DOWNSTREAM, not documentary: both shipped brands take exactly 4 points, and dispatch reduces every stored shape to its bbox before the wire. A permissive door costs nothing while the hallway past it is narrow. The doc line is a courtesy to the reader, NOT the safeguard — do not record it as the safeguard. ⚠ **REOPENING CONDITION, and it is not hypothetical — it is the exact thing the polygon storage was left open FOR: the day any brand declares a zone shape richer than a 4-point rect, the hallway widens and this becomes a REAL bad-input problem requiring validation.** At that moment `CREATE_SAVED_ZONE_SCHEMA`'s `Length(min=3)` stops being harmless, because a malformed polygon can then actually reach a device instead of being flattened. PLACEMENT OF THE TRIGGER MATTERS MORE THAN THIS LEDGER LINE: nobody reads a ledger at the moment they add a brand. It belongs as an inline note at the WIDENING SITE — the adapter `dispatch` contract in `config_schema.py` beside `zone_command`/`zone_coords`, where a `zone_shape` key would be added. The file already uses exactly this pattern one field over: the `kind` allow-list carries *"widen this allow-list only alongside a real dispatch-side consumer for the new kind"*. Same shape, same file, proven. NOT APPLIED — a code comment is trivial but unrequested. THE COST REASONING, which is secondary to the above and must not be mistaken for the whole of it: *"the only reason I'm willing to call that a non-defect is the amount of effort it takes to generate an incorrect shape THAT IS THEN THROWN AWAY. It's easier to tell somebody don't make the effort than for us to make the effort to prevent it."* ⚠ **THE LOAD-BEARING CLAUSE IS "THEN THROWN AWAY", NOT "HARD TO REACH".** Reachability alone is NOT grounds to accept a defect here — SETUP-REJ-2 was also hard to reach and nearly deleted a real room. What makes this one acceptable is that the malformed input is DISCARDED rather than persisted or dispatched: the bbox is computed fresh at dispatch, the polygon is never acted on, nothing downstream trusts it. Flip that clause and the calculus flips — if a bad shape were STORED as authoritative or reached the device, cost-of-prevention would stop being the deciding factor. This is also NOT in tension with "rarely-used is not OK to half-build": that governs FEATURES, this governs a discarded bad INPUT. So the reduction stops being a silent downgrade by being STATED: the documented contract is that a saved zone is stored as a polygon and **every shape is reduced to its 4-point bounding rectangle at dispatch**, because that is the only shape either brand's command can represent (Eufy `zone_clean` `[[x0,y0,x1,y1],...]`, Roborock `app_zoned_clean` `[[x0,y0,x1,y1,repeat],...]`). Polygon storage is deliberately left open for a future brand that could take a richer shape; the `zone_shape` adapter-contract seam remains UNBUILT and is not required until such a brand exists. DOC TARGET when the corpus is rebuilt: wherever `create_saved_zone` and the saved-zone clean handlers are described — one sentence, stating the reduction as behaviour rather than leaving a reader to infer their polygon survives. | `mapping/mapping_services.py:371` (schema), `:2960-2975` + the single-zone twin (bbox reduction), `dispatch/zone_dispatch.py` | **Saved-zone storage accepts a shape no brand can dispatch, and degrades it SILENTLY.** `CREATE_SAVED_ZONE_SCHEMA` takes `vol.All([_SAVED_ZONE_POINT], vol.Length(min=3))` — any polygon of 3+ points. Both shipped brands are rectangle-only: Eufy `zone_clean` `{zones:[[x0,y0,x1,y1],...]}`, Roborock `app_zoned_clean` `[[x0,y0,x1,y1,repeat],...]`. Both clean handlers reduce the stored polygon to its bbox (`[min(xs),min(ys),max(xs),max(ys)]`) and dispatch that, so a non-rectangular zone cleans its notch with no signal to the caller. ⚠ This CONTRADICTS the dispatch module's own stated contract — `zone_dispatch.py:11-15` declares **"refuse rather than mis-dispatch"** and honours it for the affine fit (returns `None`, caller refuses); the bbox reduction does the opposite on the same axis. ⚠ SAME BUG, SAME SCHEMA, ALREADY FIXED ONE FIELD OVER: the `kind` key three lines below carries `RP-032/RF-28 (INJSETB0) (A6-ZONE-C-7)` — *"an unconstrained string (e.g. `no_go`) got persisted and was then dispatched as a clean anyway. Restrict to what dispatch actually honors"*. `geometry` has the identical storage-wider-than-dispatch mismatch and was not narrowed. ⚠ AND THE CONTRACT HAS NO SEAM: the adapter `dispatch` block declares `zone_command`, `zone_coords`, `zone_max`, `zone_max_side_m`, `zone_min_side_m`, `zone_max_area_m2`, `zone_min_area_m2` — and NO shape. A brand can declare where its coordinates live and how big a zone may be, but not what shape it accepts. The precedent is `config_schema.py:912` `room_list_shape`, whose own text says *"SHAPE … declared independently of the SOURCE … conflated until 2026-08-07"* — that conflation was fixed for room lists and still stands for zones. REACHABILITY (Chris, 2026-08-21): **no UI path reaches it.** `src/bindings/saved-zones.js:110` builds geometry via `rectToPolygon` (`zone-geometry.js`), which returns exactly 4 corners or `null`, and the card has no polygon editor. Reachable ONLY by a hand-crafted `create_saved_zone` service call from an automation, script or dev-tools. FIX (not applied — schema narrowing on a user-data service is stop-and-approve): either `vol.Length(min=4, max=4)` plus a rect check, or — better, and matches the expansion rule — add `zone_shape` to the adapter contract with both brands declaring `"rect"`, keep the polygon storage for a future brand, and make dispatch REFUSE an undeclared shape instead of bbox-ing it. ⚠ NO DEVICE-FACING EXPOSURE — established 2026-08-21 by reading, NOT by dispatching. Two independent guards reject a non-4-element zone before the wire: `dispatch/manager.py:178` `if not isinstance(_z,(list,tuple)) or len(_z)!=4: raise ValueError("zone must be [x0,y0,x1,y1], got ...")`, and `zone_dispatch.normalized_rects_to_mm` returns `None` on the same test (caller must then refuse). **Neither ever fires from the saved-zone path**, because the upstream bbox reduction always yields exactly four numbers — so a 6-point L never arrives as an L, it arrives as its bounding rect and cleans. The failure is a SILENT GEOMETRIC DOWNGRADE, not a malformed command, not a crash, and not a robot-safety case. The guards are sound; they simply protect a different input (a direct malformed `dispatch_zone_clean` call). Chris's triage, and it is the right one: reaching this at all requires doing the coordinate transform mentally, then hand-authoring a DevTools/automation call for a shape no device can represent. | LOW — contract tidiness. Not a live user-facing bug, no device exposure. Value is the PATTERN (3rd instance of storage-wider-than-dispatch in one schema), not the defect |
@@ -190,15 +192,18 @@ Status: nothing fixed. Nothing written to `00b-h`.
 |---|---|---|
 | D1 [OPEN-DRIFTED] | `services.yaml:3796-3799` (+ `docs/dev/deltas/README.md`, `services/stall_capture.py:31-33`) | **User-facing.** Claims an injected stall "will be recorded as having stalled when it did not, and the card's snapshot will say so. Do not call this on a run whose learning data you care about." The dependency runs the other way: `detect_run_anomalies` FIRES `EVENT_STALL_DETECTED` (`active_job.py:1186`) and never subscribes; the event has exactly one subscriber (`listeners/stall_capture.py:412`). The service cannot pollute learning data. This text scares users off a maintainer tool for no reason. |
   ⤷ DRIFT 2026-08-24 ledger-truth pass · D1 stays OPEN, but the text above misdescribes it. CORRECTED: The entry names 3 sites; there are 5 LIVE ones, and a repair from the entry text would leave 2 behind — exactly the partial-fix shape. Live: (1) services.yaml:3840-3843; (2) services/stall_capture.py:32-33 ('It reaches detect_run_anomalies and therefore the card's snapshot'); (3) docs/dev/deltas/README.md:75+77 (quotes 04 §6a and endorses the services.yaml warning); (4) MISSED BY THE ENTRY — liste
-| D2 [OPEN] | `adapters/roborock/vocabulary.py:47` | "the framework never reads these" — refuted by `active_job.py:1892` (`vocabulary.get(options_key)` filtering at dispatch), `vocabulary_migration.py:167`, `config_schema.py:474-545`. The same file contradicts it at `:60-64` and `:108`. Consequence of believing it: dropping an entry looks card-only and safe, but silently stops that setting reaching the robot — the exact bug narrated at `adapter.py:897`. |
+| D2 [FIXED-UNPROVEN] | `adapters/roborock/vocabulary.py:47` | "the framework never reads these" — refuted by `active_job.py:1892` (`vocabulary.get(options_key)` filtering at dispatch), `vocabulary_migration.py:167`, `config_schema.py:474-545`. The same file contradicts it at `:60-64` and `:108`. Consequence of believing it: dropping an entry looks card-only and safe, but silently stops that setting reaching the robot — the exact bug narrated at `adapter.py:897`. |
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D2 → `[FIXED-UNPROVEN]`. header comment above FAN_SPEED_OPTIONS / the *_OPTIONS block — text now states: Header reads "Card-facing dropdown option lists — AND THE FRAMEWORK READS THEM." A ⚠ was: block quotes the retired parenthetical and lists the three live consumers as bullets in the sibling file's `# No named test — prose only.
 | D3 [OPEN-DRIFTED] | `adapters/registry.py:462-463` | "The framework merges it over the in-code defaults (`resolve_profile_catalog`), so a partial block is fine." `resolve_profile_catalog`'s own docstring opens **"There is NO framework default"** and explains the merge was removed because a brand inherited `"Max"` and applied no suction. The comment names the function that refutes it. Tells a porter a partial block is safe when it now resolves EMPTY — `IN40W49E`'s exact failure. |
   ⤷ DRIFT 2026-08-24 ledger-truth pass · D3 stays OPEN, but the text above misdescribes it. CORRECTED: The defect is real but the repair is 2 sites, not 1. A SECOND live copy of the same false premise sits at custom_components/eufy_vacuum/queue/queue_engine.py:247-249: 'Resolve this vacuum's room-profile catalog ... from the adapter's room_profiles block; absent -> the in-code defaults (byte-identical for Eufy)'. It is three lines above the very call (:254-256 resolve_profile_catalog) that refutes
 | D4 [OPEN] | `room_entities.py:145` | Premise false: "update_room_fields only understands the managed subset above". `manager.py:1847-1851` shows the callee also accepts `color`, `is_dock_room`, `is_transition`, `grants_access_to`, `rules` — `color` being the comment's own example of an unmanaged field. `managed_field_names` (`:113-121`) is a hand-copy drifted from the callee signature. True sentence: "this call site only PASSES the managed subset." |
 | D5 [FIXED-UNPROVEN] | `rooms/vocabulary_migration.py:115-120` | Overstates: claims `_validate_room_profiles` rejects an adapter whose `room_profiles` is missing/empty. It only REPORTS; `register_adapter_config` hard-raises only for `source == "config"` (`INYA5T84`'s deliberate asymmetry). A code-sourced adapter missing the block registers anyway. |
   ⤷ CLOSED 2026-08-24 ledger-truth pass · D5 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/rooms/vocabulary_migration.py:110-168 — corrected `_unadjudicated_targets` docstring; the old claim survives only at :117-127 as an explicit dated retraction ('AN ABSENT BLOCK DOES NOT RELIABLY MEAN "not registered YET", AND THIS DOCSTRING CLAIMED IT DID UNTIL 2026-08-24 (R10/C61)'). custom_components/eufy_vacuum/adapters/registry.py:313-350 — `_validate_room_profiles No named test — prose only.
-| D6 [OPEN] | `receipts/__init__.py:45-48` | "these are tuples, and the gate rejects anything outside them" — true for `STATIONS`/`OUTCOMES`/`PROVENANCE`, **false for the two it sits directly above** (`DECLINE_REASONS`, `READABILITY`). **Coupled to C6** — which way C6 is fixed determines the words. |
+| D6 [FIXED-UNPROVEN] | `receipts/__init__.py:45-48` | "these are tuples, and the gate rejects anything outside them" — true for `STATIONS`/`OUTCOMES`/`PROVENANCE`, **false for the two it sits directly above** (`DECLINE_REASONS`, `READABILITY`). **Coupled to C6** — which way C6 is fixed determines the words. |
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D6 → `[FIXED-UNPROVEN]`. the "Closed vocabularies" banner above OUTCOMES / DECLINE_REASONS / READABILITY / STATIONS / PROVENANCE — text now states: Keeps the motive (free text is prose by the back door), then a per-vocabulary table: STATIONS / OUTCOMES / PROVENANCE marked ENFORCED with the exact check, DECLINE_REASONS + READABILITY marked NOT ENF No named test — prose only.
 | D7 [OPEN] | `user_fonts.py:148-150` | Docstring: "A present-but-unreadable face returns an empty set — which correctly verifies as covering nothing." `:165-166`, same function: "This is 'cannot verify', never 'covers nothing': the two verdicts must not be conflated." **Coupled to C3.** |
-| D8 [OPEN] | `tests/unit/test_receipts_criterion.py:59-60` + `PROTOCOL-semantic-flight-recorder.md:957-961` | ":59-60 says "everything it causes inherits the marker"; `:83-84` in the SAME test asserts the opposite ("provenance is not inherited forward"), and the code agrees with `:83`. The spec item 8 it derives from still states the reversed rule, while the module docstring at `receipts/__init__.py:3-5` still instructs "Read item 8 before changing anything here." |
+| D8 [FIXED-UNPROVEN] | `tests/unit/test_receipts_criterion.py:59-60` + `PROTOCOL-semantic-flight-recorder.md:957-961` | ":59-60 says "everything it causes inherits the marker"; `:83-84` in the SAME test asserts the opposite ("provenance is not inherited forward"), and the code agrees with `:83`. The spec item 8 it derives from still states the reversed rule, while the module docstring at `receipts/__init__.py:3-5` still instructs "Read item 8 before changing anything here." |
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D8 → `[FIXED-UNPROVEN]`. test_rcc_the_dump_alone_says_not_armed (comment immediately above the `await sc._capture(...)` call) — text now states: "# `dev_inject_stall` puts `"injected": True` in the event payload; nothing here reads it, / # and no consumer branches on provenance either way (`receipts.PROVENANCE`: "Record it; / # do not read it" No named test — prose only.
 | D9 [FIXED-UNPROVEN] | `docs/dev/frontend/styles-system.md:204-209` (+ `.claude/notes/synthesis/DOC-PASS-TRIAGE.md:170-171`) | Says the requirement is `fonttools[woff2]`; `manifest.json` declares `fonttools>=4.47.0` + `brotli>=1.1.0`. The source comment is right and the doc is stale — the exact drift `user_fonts.py:165-166` exists to prevent. |
 
 **D6 and D7 are not independently fixable.** They describe behaviour that is itself defective (C6, C3). Writing authoritative words for them requires the code decision first — they are gated, same as the code list.
@@ -326,20 +331,21 @@ defect here, not an occasional one.
   the whole point; assertions check DIMENSIONS only. 90 and 270 swap axes identically, so the sign
   is untested and it passes either way. Prose better than the assertion is the deceptive form.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** SC-11's docstring makes the negated rotation angle the whole point; the assertions compare PNG dimensions only, and I proved the test stays green with the sign flipped.
-- [OPEN-DRIFTED] **T2** `health_qualifying_sessions` and `SESSION_MAX_HOURS`: ZERO hits in `tests/`. Delete
+- [FIXED-UNPROVEN] **T2** `health_qualifying_sessions` and `SESSION_MAX_HOURS`: ZERO hits in `tests/`. Delete
   `battery/manager.py:1288` and the suite stays green.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Neither health_qualifying_sessions nor SESSION_MAX_HOURS is touched by any pytest test; both claims are decorative.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The cited line 1288 is now 1299 — navigate by the `health_qualifying_sessions` assignment inside `rebaseline`, not by line number.
   ⤷ DRIFT 2026-08-24 ledger-truth pass · T2 stays OPEN, but the text above misdescribes it. CORRECTED: The DEFECT is intact and confirmed, but the ledger's own 2026-08-21 correction is now stale and actively misdirects. It says "The cited line 1288 is now 1299". In the current tree custom_components/eufy_vacuum/battery/manager.py:1299 is inside the signature of `_compute_regime_pct` (def at :1296) — a different method entirely. The real site is manager.py:1401, `record["health_qualifying_sessions"]
-- [OPEN] **T3** DR-BAT-2 untested; `test_charge_rates` works AROUND it, nulling the anchor fields.
+- [FIXED-UNPROVEN] **T3** DR-BAT-2 untested; `test_charge_rates` works AROUND it, nulling the anchor fields.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The DR-BAT-2 out-of-order anchor guard has no test; the only test that gets near it deliberately nulls the anchor to avoid it.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · T3 → `[FIXED-UNPROVEN]`. _process_sample (DR-BAT-2 out-of-order anchor guard) — text now states: A `⚠ UNTESTED, AND THE ONE TEST THAT TOUCHES IT ROUTES AROUND IT` note names the test file and function, quotes the two fields it nulls, disambiguates the RP-042 test, states the ablation consequence, No named test — prose only.
 - [OPEN] **T4** No rename test on the button platform (the sensor sibling exists, INIT-13/SN-4).
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The button platform's rename-swap branch (the SN-4 sibling fix) exists in code and is completely untested.
 - [OPEN] **T5** `ro_dx`/`ro_dy`/`flip_y` never reach `render_room_capture` in ANY test.
 
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** ro_dx/ro_dy/flip_y are tested on both sides of the seam but never through it — no test passes them to render_room_capture.
 ## DOC / RELATIONAL
-- [OPEN-DRIFTED] **D10 `adapters/eufy/vocabulary.py:249` — the campaign thesis in one line.** `a38cac4a` wrote
+- [FIXED-UNPROVEN] **D10 `adapters/eufy/vocabulary.py:249` — the campaign thesis in one line.** `a38cac4a` wrote
   "total_error_seconds is subtracted from cleaning_time_seconds" describing the then-current
   arithmetic; `5b21a1a3`, same day, same RP-046 series, changed it to deduct only the invalidating
   subset and never returned for the sentence. Accurate at birth, invalidated by the fix it was
@@ -351,7 +357,7 @@ defect here, not an occasional one.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Comment at the RF-DOCK fault table still says the FULL error window is subtracted from cleaning_time_seconds; only the invalidating subset is.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The ledger names three replica sites. There is a FOURTH live one it misses: `docs/testing/subsystems/15-adapters.md:349` carries the same sentence (`total_error_seconds` is subtracted from `cleaning_time_seconds`, so a fault…). A fifth copy sits in `docs/dev/maintenance/highly-aggressive-audit.md:1816`, but that is a historical audit record describing the pre-fix state and should be left alone. So the fix is 4 sites, not 3.
   ⤷ DRIFT 2026-08-24 ledger-truth pass · D10 stays OPEN, but the text above misdescribes it. CORRECTED: The entry's site list AND its supporting citation are both wrong now — repair from this. (a) SEVEN live sites carry the false sentence, not 3 (or the 4 in the ledger's own appended note): adapters/eufy/vocabulary.py:266; learning/job_finalizer.py:938-943 ('Total seconds the run spent in error state. Subtracted from the upstream-reported cleaning_time_seconds below') — still at the exact cited line
-- [OPEN-DRIFTED] **D11 `src/i18n/en.js:2645`** — annotates `fault.eufy.base_station_power_off` with
+- [FIXED-UNPROVEN] **D11 `src/i18n/en.js:2645`** — annotates `fault.eufy.base_station_power_off` with
   `// Eufy code 5014`; `vocabulary.py:753` maps 5014 to `fault.eufy.power_low_shutdown` and `:463`
   puts it in the ROBOT set on Eufy's own protos. The next editor re-maps it and reintroduces the
   bug `64b3c577` fixed — a robot battery death filed as a dock fault, so learning accepts a
@@ -366,9 +372,10 @@ defect here, not an occasional one.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The ledger cites one site; the identical wrong text is pasted at a SECOND site — `adapters/entity_resolve.py:595-607`, inside `resolve_declared_entities` (def at :432) — where it likewise names itself and omits `_rescue_maintenance_source`. Only the third copy, `core/capabilities.py:258-270` inside `_rescue_maintenance_source`, happens to be correct ("this one" there resolves to the missing member). So it is 2 wrong copies of 3, not 1.
 - [FIXED-UNPROVEN] **D13 `core/capabilities.py::detect_capabilities`** — the `live:ENT-1` comment pasted three times verbatim.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The three-line `live:ENT-1` comment is pasted three times verbatim in `detect_capabilities`.
-- [OPEN] **D14 `docs/testing/subsystems/07-mapping.md:84-88`** — claims SC-2 pins "must NOT be flipped";
+- [FIXED-UNPROVEN] **D14 `docs/testing/subsystems/07-mapping.md:84-88`** — claims SC-2 pins "must NOT be flipped";
   SC-2 tests only the opposite half.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The mapping test doc still sells SC-2 as the pin for "anchor and trail must NOT be flipped"; SC-2 only exercises the raster half.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D14 → `[FIXED-UNPROVEN]`. stall-capture render section — the `SC-2` paragraph — text now states: SC-2 is now described as pinning the RASTER half only (offset by ro_dx/ro_dy, mirrored about canvas_height when flip_y). A ⚠ block quotes the old sentence, states the rule is real and names the mechan No named test — prose only.
 - [UNVERIFIABLE] **D15 `button.py:181-183`** — rule right, NAMED CONSEQUENCE WRONG: claims a silent collapse;
   measured against pinned HA 2026.5.3 it raises loudly. A reader trusting "silent" mis-triages.
   ⟵ **DISPOSITION 2026-08-21 — UNVERIFIABLE.** Cannot settle whether HA's Entity.name raises or returns a falsy sentinel pre-platform, which is the single fact separating OPEN from NOT-A-DEFECT.
@@ -432,19 +439,20 @@ diagnosis in two directions:
   sticky-disable. The most literally-permanent failure is the one the permanent branch cannot see,
   and it lands in a branch its own pragma calls untestable.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** A voluptuous schema rejection of the pulse service falls past all three classified except-clauses into the defensive `except Exception`, so the most permanent failure never sticky-disables.
-- [OPEN] **C25 Roborock external runs take the UNREPAIRED attribution path.** The presence fallback that
+- [FIXED-UNPROVEN] **C25 Roborock external runs take the UNREPAIRED attribution path.** The presence fallback that
   rescues a first room dropped by stale `cleaning_area` lives only on the counter-enrich path.
   `build_attributed_job` gates hard (`if rid is None or rid not in cleaned: continue`) with no
   fallback and returns None when `cleaned` is empty. Roborock declares `job_segmenter: noop`
   EXPLICITLY, so every Roborock external run is on the unrepaired path.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Every Roborock external run routes to build_attributed_job, which drops any room the swept-area gate missed instead of rescuing it by presence.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C25 → `[FIXED-UNPROVEN]`. _apply_pose_identity (docstring) + build_attributed_job (docstring) — text now states: _apply_pose_identity gains a ⚠ paragraph: the fallback is LOCAL to that function, build_attributed_job has no equivalent (naming the exact gate and the empty-cleaned return), and every Roborock extern No named test — prose only.
 - [OPEN-DRIFTED] **C26 `dwell_min_ticks` is DEAD for Roborock.** Declared `3` with a comment explaining it means a
   15 s minimum hold. No anchor means `winding` is structurally `0.0`, so the transit branch always
   wins first — measured: 60 ticks in one room, `cleaned = []`, verdict "straight pass".
   `validate_tuning` accepts it (only checks positive-number-ness). A knob with no reachable effect.
   ⟵ **DISPOSITION 2026-08-21 — OPEN-DRIFTED.** dwell_min_ticks really is inert for Roborock in normal operation, but not for the reason given — the anchor premise the entry rests on was invalidated nine days before the ledger was written.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** Roborock pose samples DO carry anchors since dd690f44 (2026-08-09), so `winding` is not structurally 0.0 and the anchor-only dwell gate IS reachable whenever `cleaning_area` is unreadable for a whole run. The real reason `dwell_min_ticks: 3` has no effect in normal operation is that `_classify` consults it ONLY in the anchor-only branch, and Roborock declares a `cleaning_area` entity so its runs classify in ROBUST mode. Two comments at the declaration site are now false and were not flagged: adapters/roborock/adapter.py:766 says "No decoded-map pose is decoded here (anchor/heading stay None)", and :785 says "dwell_min_ticks x interval_s = 15 s minimum hold to count a room" — which describes…
-- [OPEN] **C27 attribution merges two DIFFERENT aggregations into one row.** `_swept_area_by_room` SUMS
+- [FIXED-UNPROVEN] **C27 attribution merges two DIFFERENT aggregations into one row.** `_swept_area_by_room` SUMS
   across sightings; `_best_run_by_room` keeps ONE sighting. Merged at `_classify:213-217`, so
   `dwell_s`/`spread`/`winding` are one sighting while `swept_area_m2` is all of them. Measured:
   a room in-room 7 ticks reports `dwell_s` 4.0, BELOW a room with 8.0 — ordering inverted. Latent
@@ -453,6 +461,7 @@ diagnosis in two directions:
   degenerates to FIRST-WINS — the selector's stated rationale is structurally false for Roborock.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The per_room row still mixes a summed-across-sightings swept area with a single-sighting dwell/spread/winding; the entry's trailing spread claim has gone stale.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The trailing "Related" clause is stale: `spread` is NOT always 0.0 for a native_current_room brand any more. dd690f44 (2026-08-09) declared Roborock's `map_state_source.live_pose` (adapters/roborock/adapter.py:729-732) and listeners/pose_sampler.py:280 now banks `robot_anchor` on that path, so `_run_metrics` produces a real spread and `_best_run_by_room` no longer degenerates to first-wins for Roborock. The primary aggregation-mismatch mechanism is unaffected and remains exactly as described.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C27 → `[FIXED-UNPROVEN]`. RoomAttributionResult (docstring), _best_run_by_room (docstring), _classify (inline) — text now states: RoomAttributionResult carries a ⚠ block naming both aggregations and both source functions, states that comparing rooms on dwell_s can invert real in-room time, and records exactly which field is read No named test — prose only.
 - [OPEN-DRIFTED] **C28 onboarding remap purges SOURCES, never TARGETS.** `remap_confirmed_floor_types:245-250`
   filters `key not in remap` (source keys). A pre-existing confirmation sitting on an id that
   BECOMES a remap target survives, so a room reads `confirmed` the user never confirmed — start
@@ -484,18 +493,20 @@ diagnosis in two directions:
   `async_remove_entry` said *"Clear persistent storage when the entry is deleted"* while
   clearing one of two layers. Fixed. The entry's stall-capture framing is also too narrow —
   it is the whole tree, 1.9 MB across four directories on the live box.
-- [OPEN] **C31 zone dispatch rotation mismatch (FRONTEND, hardware).** The panel RENDERS at
+- [FIXED-UNPROVEN] **C31 zone dispatch rotation mismatch (FRONTEND, hardware).** The panel RENDERS at
   `effectiveMapRotation()` but DISPATCHES zones at raw `mapRotation()`; they differ when VA render
   is wanted but absent, and `canDrawZone()` does not gate on that. A zone dispatched a quarter-turn
   from where it was drawn. Derived from predicates, NOT executed.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Panel renders the map at effectiveMapRotation() but un-rotates dispatched zones at raw mapRotation(); the two diverge when VA render is wanted but its raster is absent.
-- [OPEN] **C32 adapter-config schema check runs on WRITE, not LOAD.** `_validate_adapter` never calls
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C31 → `[FIXED-UNPROVEN]`. the `---- Live-map rotation ----` block above `proto._mapRotationOverlay` / `proto.mapRotation` (plus the coupled comments in src/actions/map.js `rotateLiveMap` JSDoc and src/bindings/map.js `[data-action='map-rotate']` handler) — text now states: Heading is now "a VIEW control that IS a dispatch input". The block keeps the original WHY (orientation matching, backend-stored, optimistic overlay, square container) and adds a ⚠ was: block quoting No named test — prose only.
+- [FIXED-UNPROVEN] **C32 adapter-config schema check runs on WRITE, not LOAD.** `_validate_adapter` never calls
   `validate_against_schema`; the schema walk has ONE caller (`services/adapter_config.py:106`). So
   `save_adapter_config` refuses a config carrying `entity_overrides` while the startup load path
   registers it silently, and the code adapter then clobbers it — the exact silent failure
   `const.py:43` describes, through the door its enforcement does not cover.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The full ADAPTER_CONFIG_SCHEMA walk runs only on the save service; the startup load path validates with _validate_adapter, which has no unknown-key check, so a config the write door refuses loads silently.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The ledger's `const.py:43` citation has drifted: the ENTITY_OVERRIDES_KEY contract block is now const.py:48-72, with the clobber sentence at :68-71. Mechanism as described is exact.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C32 → `[FIXED-UNPROVEN]`. validate_adapter_config — text now states: Retitled "The SAVE-door entry point", with the original (accurate) description of what the save check buys kept intact. A ⚠ block states it is NOT "the production entry point", names the single caller No named test — prose only.
 - [OPEN] **C33 `"unusable"` means five different things.** `listeners/stall_capture.py` emits it from TWO
   sites for missing raster / undecodable base64 / zero dimensions / empty room — in the module
   whose comment at `:320` condemns exactly that collapse and split `no_pillow` out to fix it. The
@@ -507,14 +518,15 @@ diagnosis in two directions:
 
   ⟵ **DISPOSITION 2026-08-21 — NOT-A-DEFECT.** Confirmed unreachable, and confirmed explicitly accepted — the leave-with-a-note ruling is landed in the tree, not just in the ledger.
 ## DOC
-- [OPEN] **D17 `const.py:98-100` documents the REJECTED DRAFT.** Claims `dev_inject_stall` is "registered
+- [FIXED-UNPROVEN] **D17 `const.py:98-100` documents the REJECTED DRAFT.** Claims `dev_inject_stall` is "registered
   only when `<config>/eufy_vacuum/dev_mode` exists… Never registered on a normal install." The
   token `dev_mode` appears EXACTLY ONCE in the whole codebase — in that comment.
   `services/stall_capture.py:24` says outright: "IT IS REGISTERED UNCONDITIONALLY, AND FLAGGED HARD
   INSTEAD (Chris, 2026-08-08). An earlier draft gated it behind a marker file." Combined with D1,
   BOTH pieces of documentation about this service are wrong, in opposite directions.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** const.py still documents the rejected marker-file draft for dev_inject_stall; the service is registered unconditionally.
-- [OPEN] **D18 `const.py:190` "display only — never affects dispatch" is STALE.** `live_map_rotation`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D17 → `[FIXED-UNPROVEN]`. SERVICE_DEV_INJECT_STALL — text now states: "DEV-ONLY IN INTENT, REGISTERED UNCONDITIONALLY IN FACT", the old sentence quoted as a REJECTED DRAFT (ledger D17), the present-tense registration call named, the `dev_mode` grep result stated, and th No named test — prose only.
+- [FIXED-UNPROVEN] **D18 `const.py:190` "display only — never affects dispatch" is STALE.** `live_map_rotation`
   reaches `start_zone_clean` via `draftsToNormalizedRects(..., this._mapRotation())`. Zone clean is
   by GEOMETRY, not room id, so the "cleaning is by room id" rationale died when zone-draw-at-any-
   rotation shipped 5 days after the comment. Test ZG-9 already proves the negation. Replicated with
@@ -522,17 +534,19 @@ diagnosis in two directions:
   `src/state/map.js:102`.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** "Display only — never affects dispatch" is still asserted at all four sites while live_map_rotation is an input to the start_zone_clean geometry.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** Path drift only, not mechanism: the ledger's `mapping_services.py:2460` is actually `custom_components/eufy_vacuum/mapping/mapping_services.py:2460` (same line number, deeper path — there is no top-level mapping_services.py). const.py:190 is now const.py:214-216; src/state/map.js:102 is the middle of the :100-103 block. Worth noting alongside C31, which is the executable consequence of the same coupling (panel renders at effectiveMapRotation() but dispatches at raw mapRotation()).
-- [OPEN-DRIFTED] **D19 `listeners/stall_capture.py:60`** — the event carries RAW `map_id` while the filename is
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D18 → `[FIXED-UNPROVEN]`. SERVICE_SET_LIVE_MAP_ROTATION — text now states: const.py: "⚠ was: 'Display only — never affects dispatch.' FALSE for anything dispatched by GEOMETRY, and it is the RATIONALE that rotted", keeping the true half (room clean is by id), naming the un-r No named test — prose only.
+- [FIXED-UNPROVEN] **D19 `listeners/stall_capture.py:60`** — the event carries RAW `map_id` while the filename is
   SANITISED, so an automation reconstructing the path from the event's own fields gets the wrong
   path TODAY on Roborock ("Main floor" vs "Main_floor.png"). The comment warns of a hypothetical
   future break and misses the shipped one.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The EVENT_STALL_CAPTURED comment warns only about a future layout move and never mentions that the event's map_id is raw while the filename is sanitised — a mismatch that is live on Roborock today.
   ⤷ DRIFT 2026-08-24 ledger-truth pass · D19 stays OPEN, but the text above misdescribes it. CORRECTED: The DEFECT is real but the ledger's named consequence overstates it and would misdirect the repair. The same payload already carries `image_path` (listeners/stall_capture.py:379), so an automation is handed the correct path and only gets a wrong one if it ignores that field and rebuilds from `map_id` — the ledger's "an automation reconstructing the path from the event's own fields gets the wrong p
-- [OPEN] **D20 `setup/protection.py:38` parity claim is doubly stale.** It copied only the `isinstance`
+- [FIXED-UNPROVEN] **D20 `setup/protection.py:38` parity claim is doubly stale.** It copied only the `isinstance`
   half of drift.py's two-part idiom on day one; drift.py then centralised the predicate into
   `map_manager.map_ids_with_rooms` (MAP-GHOST-1), leaving protection.py the un-migrated 4th copy.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Both halves of the ledger's claim hold: protection.py copied only the isinstance half of drift.py's idiom, and it never migrated to map_ids_with_rooms.
-- [OPEN-DRIFTED] **D21 three stale line references in `onboarding/manager.py`** (`:217`, `:238`, `:344`) — drifted
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D20 → `[FIXED-UNPROVEN]`. evaluate_map_protection (DR-SETUP-4 comment) — text now states: The parity claim is replaced by a `⚠ THE PARITY WITH drift.py IS PARTIAL` block that quotes both halves of drift.py's idiom, names the exact `.get("rooms", {})` line as the un-copied half and the inpu No named test — prose only.
+- [FIXED-UNPROVEN] **D21 three stale line references in `onboarding/manager.py`** (`:217`, `:238`, `:344`) — drifted
   17-70 lines. Constructs still exist; the parity claim at `:217` is substantively wrong, not just
   mislocated.
 
@@ -557,7 +571,7 @@ floor-plan of the user's home at a fetchable URL on every stall." No test. A one
 # BATCH 5 — 6 files + 1 blind duplicate (2026-08-20). CLOSES THE PRODUCTION .py SWEEP: 29 files, 57 rows.
 
 ## LIVE DATA DEFECT — measured on Chris's store, verified by me
-- [OPEN] **C35 learning teaches the COARSE duration when the refined one is in the same record.**
+- [FIXED-UNPROVEN] **C35 learning teaches the COARSE duration when the refined one is in the same record.**
   `build_room_stats_payload:481` reads `job_info["duration_minutes"]`; `history_store.py:1932`
   writes `room_cleaning_minutes` = cleaning time minus overhead. **Verified on
   `ivy/jobs/job_2026-06-15T12-57-43.json`: `room_count=1`, `duration_minutes=5.4`,
@@ -572,6 +586,7 @@ floor-plan of the user's home at a fetchable URL on every stall." No test. A one
   collapse. True for THAT route only. This is a second, unprotected path into the same numbers.
 
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Per-room learning still divides the COARSE job duration across rooms even when the refined single-room value sits in the same record.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C35 → `[FIXED-UNPROVEN]`. LearningStatsRebuilder.build_room_stats_payload (total_duration / per_room_duration) — text now states: A ⚠ block above total_duration says this is the COARSE duration and is NOT refined for a single-room job unlike its two siblings in the file (both named), explains that dividing it counts the transit No named test — prose only.
 ## CODE
 - [FIXED] **C36 `core/manager.py:4925` reads the wrong key — the guard is permanently inert.** ⟵ **FIXED 2026-08-21 (b4b0bf80).** Independently re-derived before acting: run_plan stamps `phase_type` (:887/:961/:968/:986), queue_engine:512 passes it verbatim, a bare `type` is stamped on a PHASE nowhere. Fix is one key. Two tests landed IN THE SAME COMMIT as the precondition the reviewer required — [SWT-4] parametrised over all three of NON_CLEANING_PHASE_TYPES and built with `phase_type` so it CAN fail (a test written with `type` would pass against the bug), and [SWT-5] asserting a cleaning phase does NOT exempt, so the fix cannot be a blanket mute. Bite proven: fix reverted -> 3 red, restored -> green, sha256-identical.
   `(phases[idx] or {}).get("type")`, but live phases are stamped `phase_type`
@@ -615,11 +630,12 @@ floor-plan of the user's home at a fetchable URL on every stall." No test. A one
   `no_cancel_like_transition` — ABOVE the `_MIN_FLOOR_MINUTES` check written to catch false
   starts. It archives `completed`, `used_for_learning: True`, and graduates into the baselines.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Roborock's cancel-detection active list (5 states) omits `starting`/`going_to_target`, so a run cancelled before the first room escapes cancel detection above the floor check and graduates into the baselines.
-- [OPEN] **C38 `history_store.py:1692` answers the return question with a frozen literal.**
+- [FIXED-UNPROVEN] **C38 `history_store.py:1692` answers the return question with a frozen literal.**
   `== "returning"`, no entity filter, feeding `actual_cleaning_minutes` -> per-room learning. The
   finalizer answers the identical question adapter-driven AND entity-filtered. Works for Roborock
   only by accident (the vacuum entity's HA state also passes through `returning`).
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The single-room return-time derivation still matches a hardcoded `"returning"` against transitions from EVERY watched entity.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C38 → `[FIXED-UNPROVEN]`. the actual_cleaning_minutes derivation (single-room 'Returning transition' block) — text now states: A ⚠ block states the match is neither adapter-resolved nor entity-filtered, enumerates the watched entities whose rows can satisfy it, notes each row carries an entity_id the loop ignores, contrasts t No named test — prose only.
 - [OPEN] **C39 index and CSV disagree on the same record.** `stats_rebuilder:1057` carries the
   `True if is_external` guard; `:1264` and `:1331` are bare `bool(outcome.get(...))` into a column
   named `sanity_passed`, and `rebuild_all` feeds them the same records. CSV headers carry no
@@ -632,7 +648,7 @@ floor-plan of the user's home at a fetchable URL on every stall." No test. A one
   sandwiches it between room groups.
   ⟵ **DISPOSITION 2026-08-21 — FIXED.** A leading zone is now refused on the write path and reported (not silently dropped) on apply; the ledger's zone-LAST half was already legal and works.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The ledger's mechanism is half wrong on two counts. (1) It is not `_reject_unbracketed_break` that loses the zone — that helper only ever policed charge_wait/wait, correctly, and the fix was deliberately NOT put there. The loss happened in apply_run_profile's break derivation, which anchors each break by `after_index = rooms emitted so far` and skips any step emitted before the first room. (2) "zone-first / zone-last" is wrong on the zone-last half: set_queue_breaks explicitly permits after_index == room_count for a zone, so a trailing zone never went missing. The ledger's opening clause "The break-trim uses the dock-polled set" does not correspond to anything in this code path.
-- [OPEN] **C41 entity-override merge is defeated through the other store.** `config_flow` merges within
+- [FIXED-UNPROVEN] **C41 entity-override merge is defeated through the other store.** `config_flow` merges within
   `config_entry.options`; the panel writes `manager.data[ENTITY_OVERRIDES_KEY]`;
   `__init__.py:409-412` reconciles them with a shallow merge keyed by VACUUM, not by ROLE. Set
   role A via the panel, then save the options flow having picked role B — role A is dropped. That
@@ -640,6 +656,7 @@ floor-plan of the user's home at a fetchable URL on every stall." No test. A one
   arriving through the store it does not cover. `ENTITY_OVERRIDES_KEY` appears nowhere in
   `test_config_flow.py`.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The two entity-override stores are reconciled with a merge keyed by vacuum, so saving the options flow replaces the panel's whole role map for that vacuum.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C41 → `[FIXED-UNPROVEN]`. async_setup_entry ENTITY_OVERRIDES_KEY reconciliation (live:ENT-7) / EufyVacuumOptionsFlow.async_step_init merge comment — text now states: __init__.py: "⚠ \"WIN\" IS PER VACUUM, NOT PER ROLE — and that is a real hole, not a nuance (ledger C41, open; needs a code change...)", with the shallow-merge mechanism, the concrete A-then-B repro, No named test — prose only.
 - [OPEN-DRIFTED] **C42 the setup form pre-fills a Eufy model for every brand.** `config_flow.py:76`
   `vol.Required(CONF_TESTED_MODEL, default=SUPPORTED_TESTED_MODEL)` -> `"Eufy X10 Pro Omni"`, on
   the first screen a Roborock user sees. `f/eufy_is_not_the_default`. The field is also WRITE-ONLY
@@ -703,51 +720,60 @@ floor-plan of the user's home at a fetchable URL on every stall." No test. A one
   no reader · `CONF_TESTED_MODEL` write-only.
   ⟵ **DISPOSITION 2026-08-21 — SUPERSEDED.** The parent 'declared, not read' bundle no longer stands on its own — it was split into C45a-e on 2026-08-21 and every sub-entry is resolved in the tree.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The parent line as written still reads as one open five-item finding; it is now purely a header for C45a-e and should not be actioned as a batch — which is the lesson recorded at ledger :396-399.
-- [OPEN] **C46 silent drop in `build_graduated_job`** (`external_ingest.py:1050-1052`): an assignment
+- [FIXED-UNPROVEN] **C46 silent drop in `build_graduated_job`** (`external_ingest.py:1050-1052`): an assignment
   whose `segment_orders` match no segment hits `continue` WITHOUT appending to `blocked`, so the
   atomic "graduate only when all pass" contract at `:1027` does not cover it — the assignment
   vanishes and the record graduates without it.
 
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** build_graduated_job still drops an assignment whose segment_orders match no segment, silently, and graduates without it.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C46 → `[FIXED-UNPROVEN]`. build_graduated_job (docstring + the `if not covered` branch) — text now states: The docstring gains a ⚠ '"ATOMIC" IS NARROWER THAN IT READS' block naming the two branches it does cover, describing the empty-`covered` hole, and warning not to read 'graduate only when all pass' as No named test — prose only.
 ## DOC
-- [OPEN] **D22 `step_types.py:40`** claims `STEPPED_STEP_TYPES` is used by the `add_queue_break` schema.
+- [FIXED-UNPROVEN] **D22 `step_types.py:40`** claims `STEPPED_STEP_TYPES` is used by the `add_queue_break` schema.
   `services/queue.py` never imports `step_types`, and that schema deliberately uses the OTHER set.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** step_types.py:40 still claims the add_queue_break schema uses STEPPED_STEP_TYPES; nothing outside step_types.py uses that constant at all.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The schema does not use "the OTHER set" either: it uses a bare literal `["charge_wait", "wait"]`, which happens to match DOCK_POLLED_PHASE_TYPES' membership but is not that constant — so the two are free to drift, exactly the drift this module was created to stop.
-- [OPEN] **D23 `capabilities.py:1093`** — *"Both are diagnostics-facing only; nothing branches on them."*
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D22 → `[FIXED-UNPROVEN]`. STEPPED_STEP_TYPES — text now states: States the real reach (helpers only; no other module imports the frozenset), then "⚠ was: '… and by the add_queue_break service schema.' FALSE (ledger D22)" quoting both bare literals, explaining that No named test — prose only.
+- [FIXED-UNPROVEN] **D23 `capabilities.py:1093`** — *"Both are diagnostics-facing only; nothing branches on them."*
   `config_flow.py:282` reads `entity_resolution_reasons` and branches on it to decide which
   override pickers render. The `CNAYBZY3` anchor was placed on the READER side only.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** capabilities.py still says entity_resolution_reasons is diagnostics-only with nothing branching on it, while the options flow branches on it to decide which pickers render.
-- [OPEN-DRIFTED] **D24 two live citations of the RETIRED numeric invariant scheme** — `stats_rebuilder.py:508`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D23 → `[FIXED-UNPROVEN]`. detect_capabilities — the live:ENT-2/ENT-3 comment above "entity_resolution_reasons" — text now states: The issue-#49 motive is kept; "⚠ was: 'Both are diagnostics-facing only; nothing branches on them.' FALSE (ledger D23)" names the branching reader and the exact predicate, states that these keys decid No named test — prose only.
+- [FIXED-UNPROVEN] **D24 two live citations of the RETIRED numeric invariant scheme** — `stats_rebuilder.py:508`
   "Invariant 4" and `:1400` "Invariant 8". The only numbered-invariant references left in the
   tree; a reader cannot resolve either. `f/retirement_isnt_done_until_uncited`, inside the
   campaign's own subject matter.
   ⟵ **DISPOSITION 2026-08-21 — OPEN-DRIFTED.** Both numbered-invariant citations are still live and still unresolvable — but there are four such citations in the tree, not two.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** "The only numbered-invariant references left in the tree" is false, and acting on the entry as written leaves half the job undone. Two more exist: custom_components/eufy_vacuum/jobs/phase_runner.py:602 `# Per-phase battery bounds (invariant 3: one child must not inherit another's counters)` and tests/unit/test_learning_stats_rebuilder.py:871 `# Wave 3 / invariant 4 — an ALLOCATED timing is arithmetic, never an observation`. Four sites, three distinct numbers.
-- [OPEN] **D25 `config_flow.py:65-69`** — the drop-blank-vacuum branch is dead twice over: no consumer
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D24 → `[FIXED-UNPROVEN]`. build_room_stats_payload ('Invariant 4'), rebuild_all ('Invariant 8'), PhaseRunner phase-finish battery stamp ('invariant 3') — text now states: Each site now states the rule directly with no number, plus a ⚠ note recording what it said until 2026-08-24, that the numbering's only register is a git-ignored planning note, that nothing under docs No named test — prose only.
+- [FIXED-UNPROVEN] **D25 `config_flow.py:65-69`** — the drop-blank-vacuum branch is dead twice over: no consumer
   does a key-presence check (all use truthiness/equality), and the selector rejects `""`/`None`
   before the branch runs, so the falsy case is reachable only when the key is already absent.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The drop-blank-vacuum branch and the comment justifying it are both dead — proven by running the selector.
-- [OPEN] **D26 `config_flow.py:63`** — the behaviour is right, the causal claim is wrong.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D25 → `[FIXED-UNPROVEN]`. EufyVacuumConfigFlow.async_step_user — drop-blank-vacuum branch — text now states: "⚠ THIS BRANCH IS DEAD, AND SO WAS THE JUSTIFICATION PRINTED HERE UNTIL 2026-08-24 (ledger D25, open — deleting the branch is a code change, so it still stands below)", the old sentence quoted, then t No named test — prose only.
+- [FIXED-UNPROVEN] **D26 `config_flow.py:63`** — the behaviour is right, the causal claim is wrong.
   `reload_on_update=False` is never read, because `updates=None` makes the branch that consults it
   dead. The comment credits the flag; the call shape does the work.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The comment credits `reload_on_update=False` for suppressing the reload; the flag is never read because `updates=None`.
-- [OPEN] **D27 `manager.py:2120-2123`** states *"the index stores the key as None"* — false since v0.9.0;
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D26 → `[FIXED-UNPROVEN]`. EufyVacuumConfigFlow.async_step_user — `self._abort_if_unique_id_configured(reload_on_update=False)` — text now states: "SINGLE INSTANCE — this call aborts; it neither updates nor reloads", then "⚠ THE MOTIVE WAS ALWAYS RIGHT, THE MECHANISM WAS NOT" with the HA 2026.5.3 short-circuit spelled out and the discovery-sourc No named test — prose only.
+- [FIXED-UNPROVEN] **D27 `manager.py:2120-2123`** states *"the index stores the key as None"* — false since v0.9.0;
   `stats_rebuilder:1057` emits `bool(...)`. The guard it justifies cannot bite on index data.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The comment justifying the `is False` sanity guard still rests on a None the index cannot contain.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The stated premise is false but the code is fine, and the ledger's inference ("the guard it justifies cannot bite") overstates: `is False` still fires on a genuine False. What is dead is the None-vs-False DISTINCTION the comment claims to preserve; the old-external-run rescue is done upstream by the is_external force, not here. The emitter is stats_rebuilder:1084, not :1057.
-- [OPEN] **D28 `adapters/eufy/room_profiles.py:20`** cites `tests/unit/test_profile_catalog.py` as pinning
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D27 → `[FIXED-UNPROVEN]`. LearningManager.get_learning_history_snapshot — the `item.get("sanity_passed") is False` guard — text now states: The false premise is quoted back and marked measured-false against the tree on 2026-08-24, with the actual emitter expression named. It then states explicitly that the GUARD IS STILL CORRECT and shoul No named test — prose only.
+- [FIXED-UNPROVEN] **D28 `adapters/eufy/room_profiles.py:20`** cites `tests/unit/test_profile_catalog.py` as pinning
   the values; that file is synthetic and imports nothing from `adapters.eufy`. The version
   described exists only in a stale worktree. Also `[RP-8]` is now VACUOUS — with the hard-floor arm
   removed nothing can make it red.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The Eufy catalog still cites a synthetic core test as pinning its values, and [RP-8]'s hard-floor claim has no counterparty left.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** "The version described exists only in a stale worktree" is wrong on both halves — no worktree copy imports adapters.eufy (checked all 8 under .claude/worktrees), and the version that made the sentence TRUE is in git history, not a worktree: `git show 33df98e2:tests/unit/test_profile_catalog.py` asserts `cat["builtins"] is BUILT_IN_ROOM_PROFILES` imported from profiles/room_profiles.py, back when core still carried Eufy's words. Commit ad8c074c ("core owns the key space, not a brand's words") moved the values out and rewrote the test synthetic, which is what falsified the citation.
-- [OPEN] **D29 `adapters/roborock/vocabulary.py:190`** — the LONGER copy is the stale one: it still opens
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D28 → `[FIXED-UNPROVEN]`. module docstring — text now states: Headed "⚠ NOTHING PINS THESE LITERALS", quoting the retired sentence, dating it, explaining it was true at birth and falsified by ad8c074c (with the old assertion quoted), then a two-bullet list of wh No named test — prose only.
+- [FIXED-UNPROVEN] **D29 `adapters/roborock/vocabulary.py:190`** — the LONGER copy is the stale one: it still opens
   *"hard floors get a per-surface water default"*, contradicting the retirement note three lines
   below IN THE SAME BLOCK. The Eufy copy lacks that sentence. **Counterexample to "the shorter copy
   is the bug."**
 
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The Roborock water-defaults comment still opens by asserting the per-surface rule it retires three lines later.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D29 → `[FIXED-UNPROVEN]`. comment block above FLOOR_TYPE_WATER_DEFAULTS — text now states: Opening sentence is now just "Carpet suppresses water and raises suction." A ⚠ was: line quotes the deleted clause, dates it false from 2026-08-17, points at the retirement note three lines below IN T No named test — prose only.
 ## A CLAIM CLASS WORTH AUTOMATING
 "Nothing reads / nothing branches on this" was refuted THREE times today
 (`roborock/vocabulary.py:47`, `capabilities.py:1093`, and the `entity_helpers.py` case where an
@@ -801,7 +827,7 @@ the detection, the less this has to be run."*
 Four gates examined. **Three have a branch that cannot fire, or a vocabulary they cannot see.**
 Every one of them exits 0 today and reads as verification.
 
-- [OPEN] **G1 `check_receipts.py` — 11 ablation probes run against the real `main()` with vocabularies
+- [FIXED-UNPROVEN] **G1 `check_receipts.py` — 11 ablation probes run against the real `main()` with vocabularies
   rebound in memory (zero file edits).** What BITES: phantom catalog key (exit 1), dead outcome on
   a key (exit 1), removed station that IS emitted (exit 1, 14 problems). What DOES NOT: delete
   `pose_store` from `STATIONS` -> **exit 0 OK**; delete `no_room` from `DECLINE_REASONS` while a
@@ -815,13 +841,15 @@ Every one of them exits 0 today and reads as verification.
   both directions."*
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The receipts gate has no declared-but-never-emitted direction for its four vocabularies; four dead declarations sit in the tree and it exits 0.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** One over-statement worth correcting: "the only check touching those vocabularies fires when the tuple is EMPTY" is not quite right. STATIONS is also touched by the membership check at :123-127 and the self-alignment check at :137-144, and all four are touched by the duplicate-members check at :186-188. None of those can bite on a DELETION, so the finding stands — but the accurate statement is 'no check runs in the declared-to-emitted direction', not 'no check touches them'.
-- [OPEN] **G2 `"core"` IS UNSATISFIABLE BY CONSTRUCTION.** VERIFIED: `own_station = ".".join(rel.parts)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · G1 → `[FIXED-UNPROVEN]`. module docstring + the vocabulary section at the end of main() — text now states: A ⚠ paragraph scopes "both directions" to CATALOG keys and per-key OUTCOMES and states it holds for no vocabulary; it distinguishes what IS checked (`STATIONS`/`PROVENANCE` emitted-to-declared, `PROVE No named test — prose only.
+- [FIXED-UNPROVEN] **G2 `"core"` IS UNSATISFIABLE BY CONSTRUCTION.** VERIFIED: `own_station = ".".join(rel.parts)`
   so `core/manager.py` -> `core.manager`. Emit `frm="core"` -> fails the alignment check ("a
   station may only transmit as itself"). Emit `frm="core.manager"` -> fails the membership check
   ("not declared in STATIONS"). No file in the package can produce `core` as `own_station`. The
   gate cannot report it because it only inspects stations that WERE emitted.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The station `"core"` is declared in STATIONS but no file in the package can ever transmit as it, and the receipt gate structurally cannot notice.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** One refinement the ledger leaves implicit: `"core"` is unsatisfiable only as a TRANSMITTER (`frm`). As an address (`to=`) it would pass, because the alignment check at :136 is applied to `frm` alone. Today nothing addresses it either — the only non-broadcast `to=` in the tree is `mapping.map_source` — so the declaration is entirely inert, but the "by construction" impossibility is specific to the transmit side.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · G2 → `[FIXED-UNPROVEN]`. the own_station derivation comment in main() — text now states: A ⚠ COROLLARY block states that a declared station no module path can produce is unsatisfiable by construction and invisible to this gate; walks `"core"` through both failure modes (`frm="core"` fails No named test — prose only.
 - [OPEN-DRIFTED] **G3 `check_doc_citations.py` — the live ablation: 0 OF 5 drifted references flagged.** Four are
   out of corpus: it reads `docs/**/*.md` ONLY (citations in `.py` comments are never scanned) and
   **backticks are mandatory** (an unbackticked citation gets no check AND appears in no
@@ -835,22 +863,25 @@ Every one of them exits 0 today and reads as verification.
   identical shape to the `::` bug memorialised 70 lines above. Worse, the footer prints those
   twelve as **"refactor-proof"**, a positive claim for citations that received no check.
   ⟵ **DISPOSITION 2026-08-21 — FIXED-UNPROVEN.** The NO-ANCHOR branch is no longer unexercised — 12 non-ID-form anchor citations now flow through body.count(), and an ablation shows the branch bites.
-- [OPEN] **G5 a missing docs directory exits 0 with a fully-formed clean report.** MEASURED by setting
+- [FIXED-UNPROVEN] **G5 a missing docs directory exits 0 with a fully-formed clean report.** MEASURED by setting
   `DOC_ROOTS = ("doc",)` and running `main()`: *"0 docs · 0 citations checked · 0 wrong"*, exit 0.
   Asymmetry: `SOURCE_ROOTS` has an `is_dir()` check and fails LOUD; `DOC_ROOTS` has none.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** A missing/typo'd docs directory makes check_doc_citations.py print a fully-formed clean report and exit 0.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** Minor: the ledger says SOURCE_ROOTS "has an is_dir() check and fails LOUD". The is_dir() check itself makes SOURCE_ROOTS fail QUIETLY (it `continue`s); the loudness is a downstream consequence — an empty index turns every citation into an UNRESOLVED problem and exit 1. The asymmetry and the DOC_ROOTS half of the claim are exactly right.
-- [OPEN] **G6 `EVT-3` CANNOT GO RED.** It asserts the blind-spot ledger is non-empty;
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · G5 → `[FIXED-UNPROVEN]`. module docstring exit-code line + the DOC_ROOTS declaration — text now states: The exit-code line reads "0 = every citation that was CHECKED resolves", with a ⚠ explaining that zero citations checked also exits 0 with a fully-formed clean report and directing the reader to the D No named test — prose only.
+- [FIXED-UNPROVEN] **G6 `EVT-3` CANNOT GO RED.** It asserts the blind-spot ledger is non-empty;
   `gen_event_docs.py:647-655` appends three blinds UNCONDITIONALLY. Proven: a probe that hid six
   real shapes rendered a ledger of exactly the three hardcoded rows, EVT-3 green.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** EVT-3's non-empty assertion is satisfied by three hardcoded blind rows; it still cannot go red.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** One addition the ledger does not make: docs/testing/04-patterns-and-conventions.md:498-503 repeats EVT-3's guarantee in prose ("`EVT-3` asserts the blind-spot ledger is present **and non-empty**") as though it bites. The false confidence is not confined to the test — it is documented as a covered case, which is the campaign's own unifying finding aimed at this gate.
-- [OPEN] **G7 `hass.bus.fire()` and `async_fire_internal()` are invisible to the event generator** —
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · G6 → `[FIXED-UNPROVEN]`. the comment above the three module-level blind() calls — text now states: Reads "THREE honest ledger lines ... appended UNCONDITIONALLY, on every run", with a ⚠ noting the count drifted but that the misleading part was 'unconditionally', which was never stated. It names `[E No named test — prose only.
+- [FIXED-UNPROVEN] **G7 `hass.bus.fire()` and `async_fire_internal()` are invisible to the event generator** —
   `:503` matches `async_fire` exactly. Worse than silence: such an event lands under *"an `EVENT_*`
   constant that nothing fires"*, an affirmative false negative. (Currently benign — MEASURED, only
   `async_fire` is used in the package.)
 
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The event-doc generator matches the attribute name `async_fire` exactly, so hass.bus.fire() / async_fire_internal() sites are invisible and their constants get listed as "nothing fires".
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · G7 → `[FIXED-UNPROVEN]`. module docstring SOURCE OF TRUTH paragraph + the site-scan attribute test in section 4 — text now states: The docstring adds "— and ONLY that spelling", names both invisible spellings, explains the failure is an affirmative false negative rather than silence, states it is MEASURED benign today so this is No named test — prose only.
 ## DOC
 - [FIXED-UNPROVEN] **D30 `docs/testing/04-patterns-and-conventions.md:459` — THE SELF-ROTTED EXAMPLE.** The document
   that TEACHES the ban on line citations uses one as its example: *"`capabilities.py:187` lands on
@@ -872,23 +903,26 @@ Every one of them exits 0 today and reads as verification.
   citations** — which is the file I regenerated this morning (`dcc24ccb`) after the anchor pass
   shifted 163 of them. I fixed the symptom without knowing the recorded diagnosis pointed elsewhere.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** STATE-documentation-restructure.md still blames EVENTS.md for gate churn in two places; the migration it lists as pending shipped on 08-16.
-- [OPEN] **D33 `gen_floor_masks.py:34-37` "NOT TOUCHED" misdescribes 9 of 11 outputs.** Names wood,
+- [FIXED-UNPROVEN] **D33 `gen_floor_masks.py:34-37` "NOT TOUCHED" misdescribes 9 of 11 outputs.** Names wood,
   carpet and granite as hand-authored and left alone; `main()` overwrites all of them. Only marble
   and the tile grout line are genuinely untouched.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The script's "NOT TOUCHED" list still names wood, carpet and granite as hand-authored while `main()` overwrites all nine of their masks.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The same docstring has a SECOND, unrecorded instance of the identical drift that the ledger does not mention: the PURPOSE section at :8-13 still says "Regenerate the TWO floor-texture luminance masks" and lists only `tile/tile-mask.png` and `concrete/concrete-micro-mask.png`. It is 11 masks. A reader who fixes only :34-37 leaves the file still claiming it writes two files.
-- [OPEN] **D34 `check_receipts.py:11-12` — one outward claim REFUTED, and INHERITED.** Claims it adds a
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D33 → `[FIXED-UNPROVEN]`. module docstring — PURPOSE and NOT TOUCHED sections — text now states: PURPOSE says ELEVEN and lists every output in the order `main()` writes it, with a ⚠ recording that the old text listed only the first two because the wood generator and the three photo splits were ad No named test — prose only.
+- [FIXED-UNPROVEN] **D34 `check_receipts.py:11-12` — one outward claim REFUTED, and INHERITED.** Claims it adds a
   direction `check:i18n` lacks; `check-i18n.mjs:565` HAS a dead-key check — it is just non-fatal.
   The true novelty is fatality, not direction. The same overstatement is in the source doc
   (`PROTOCOL-semantic-flight-recorder.md:823-826`), so it was propagated, not invented.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** check_receipts' docstring still claims a direction check:i18n lacks; check-i18n.mjs has it, just non-fatally.
-- [OPEN] **D35 stale 512-era figures in three places** — `gen_floor_masks.py:92`,
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D34 → `[FIXED-UNPROVEN]`. module docstring — text now states: Header reads "AND MAKES THE OTHER DIRECTION FATAL", followed by a dated retraction naming the `dead` list, the `⚠`-without-`fail()` mechanism, and the conclusion "The novelty here is FATALITY, not dir No named test — prose only.
+- [FIXED-UNPROVEN] **D35 stale 512-era figures in three places** — `gen_floor_masks.py:92`,
   `src/styles/floor-texture-styles.js:23`, `docs/dev/frontend/module-reference.md:270`. Assets are
   2048; a 4x discrepancy.
 
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** All three sites still state 512 px for masks that are measurably 2048x2048.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D35 → `[FIXED-UNPROVEN]`. gen_concrete_micro.speckle docstring — text now states: Reads "NEAREST-upscaled to SIZE (2048) ... (SIZE // m) px wide", with a ⚠ noting the 512 figure was stale by 4x while the resize had always been to `(SIZE, SIZE)`, and naming the two call sites as the No named test — prose only.
 ## CODE / ASSETS
-- [OPEN] **C47 a regeneration would DESTROY provenance stored in the assets.** MEASURED: all 22 masks are
+- [FIXED-UNPROVEN] **C47 a regeneration would DESTROY provenance stored in the assets.** MEASURED: all 22 masks are
   2048x2048 (two independent methods: raw IHDR parse + Pillow) and all 11 generated ones reproduce
   with ZERO differing pixels — but **two are not byte-identical**. `carpet-high-base-mask.png` and
   `-detail-mask.png` carry a hand-added PNG `tEXt` chunk: *"re-encoded 2026-07-04 to bump asset-ver
@@ -896,26 +930,30 @@ Every one of them exits 0 today and reads as verification.
   "byte-identical output keeps the cache-bust token stable" is FALSE for those two, a re-run
   silently strips the note, and `__ASSET_VER__` changes.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Regenerating the floor masks silently strips a hand-added PNG provenance note from two carpet masks.
-- [OPEN] **C48 the canvas invariant holds by authoring luck and nothing checks it.** `gen_tile_base` never
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C47 → `[FIXED-UNPROVEN]`. module docstring — the Deterministic paragraph — text now states: Says re-running reproduces every mask PIXEL-for-pixel (and credits both RNG seeds, wood as well as concrete), then a ⚠ block: pixel-identical is not byte-identical, names the two carpet-high files, qu No named test — prose only.
+- [FIXED-UNPROVEN] **C48 the canvas invariant holds by authoring luck and nothing checks it.** `gen_tile_base` never
   references `SIZE` at all — it inherits its source's dimensions. Where a mismatch BITES is
   `src/bindings/map.js`: `FLOOR_TEXTURE_MASK_SCALE` constants are hardcoded, tuned by eye against
   2048, and the code never reads `bmp.width`. An off-canvas mask changes tile period AND feature
   size, and same-material layers desynchronize — silent misalignment. Zero tests, zero CI, zero
   build steps check mask dimensions. A hand-authored replacement at the wrong canvas ships green.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Mask feature scale is a hardcoded constant, the bitmap's own width is never read, and nothing anywhere asserts 2048.
-- [OPEN] **C49 the floor-mask candidate is STALE for an unusually clean reason.** The named consequence
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C48 → `[FIXED-UNPROVEN]`. the header comment above `FLOOR_TEXTURE_MASK_SCALE` / `FLOOR_TEXTURE_MASK_SCALE_BY_TYPE` — text now states: A ⚠ block states the constants are tuned by eye against a 2048² mask and NOTHING ENFORCES THAT CANVAS; names the authoring source, says the size is never read on the mask path, spells out the failure No named test — prose only.
+- [FIXED-UNPROVEN] **C49 the floor-mask candidate is STALE for an unusually clean reason.** The named consequence
   CANNOT occur: percentage `mask-position` under `mask-size: cover` is scale-invariant, so a 1024
   mask lands byte-for-byte where a 2048 one lands. The rule is real but lives at a different site
   with a different mechanism. **New taxonomy entry: RIGHT RULE, RIGHT-SOUNDING CONSEQUENCE,
   WRONG SITE.**
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** gen_floor_masks.py:58-59 justifies a real rule with a consequence that cannot happen; the comment is untouched.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C49 → `[FIXED-UNPROVEN]`. the SIZE = 2048 comment — text now states: Keeps the rule as the lead line, then a ⚠ retracting the mask-position mechanism as scale-invariant and warning that anyone who tested the stated failure would find the rule 'disproved' and drop it. A No named test — prose only.
 - [FIXED-UNPROVEN] **C50 `marble/marble-vein-mask.png`** — referenced by no registry entry, still feeds `hashDir()` ⟵ **FIXED 2026-08-21 (03ecb1c3).** Deleted. 0 references vs 32/18/2/2 for the four siblings, all of which are registered layers in `src/textures/floor-texture-registry.js`. Shipped bundles reference it zero times. ⚠ NO `--deploy` REBUILD, against the reviewer's advice: `__ASSET_VER__` is a cache-buster on texture URLs, no URL points at the deleted file, no gate asserts bundle freshness, and a 2 MB+ binary diff is a worse trade than a stale cache-buster the release rebuild will refresh.
   and therefore `__ASSET_VER__`.
   ⟵ **DISPOSITION 2026-08-21 — FIXED-UNPROVEN.** marble-vein-mask.png is gone from the tree; the ledger's own inline FIXED annotation checks out.
-- [OPEN] **C51 `check_receipts.py` visitor tuple has 7 fields**; `:44` docstring says 4, `:48` comment says
+- [FIXED-UNPROVEN] **C51 `check_receipts.py` visitor tuple has 7 fields**; `:44` docstring says 4, `:48` comment says
   6. Two stale descriptions of one structure, in the same file.
 
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** _Emits appends a 7-tuple; its docstring says 4 fields and the adjacent comment says 6.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C51 → `[FIXED-UNPROVEN]`. _Emits (class docstring) + _Emits.__init__ self.found comment — text now states: The docstring names the seven fields in unpack order and points at the `main()` loop as the check; it records that the 4-field form predates the `to`/`frm` station pair and the 6-field form predates t No named test — prose only.
 ## VERDICTS
 `check_doc_citations:74` CONVENTION — and it SPLITS: *"must be spelled with two colons"* is TRUE
 and load-bearing (the one-colon pattern genuinely never matched `::symbol`), *"MUST come first"* is
@@ -988,7 +1026,7 @@ itself was clean and merged as `953c9aca`.
 # 2026-08-21 — surfaced while drafting the 18 rulings
 
 ## DOC
-- [OPEN-DRIFTED] **D36 `docs/dev/design/shipped/notation-anchors.md` — the SPEC and the REGISTRY disagree about `PN`,
+- [FIXED-UNPROVEN] **D36 `docs/dev/design/shipped/notation-anchors.md` — the SPEC and the REGISTRY disagree about `PN`,
   and the spec is the one you would reach for.** Its status block (lines 3–7) states **`SN`, `HN` and
   `PN` remain reserved and unused** — three `PN`s are live in `00b` — and **`IN` in use (1)** — 33 are
   live, with 35 `anchor: IN` sites planted across the tree. Measured 2026-08-21 by grep, not by
@@ -1089,7 +1127,7 @@ land AFTER the backfill, or it fails 35/36 on day one and gets deleted for cryin
 exact failure the ratchet's own docstring warns about.
 
 ## DOC — the frontend corpus, and WHAT KIND of sentence rots
-- [OPEN] **D37 `docs/dev/frontend/responsive-shell.md` — a STALE COVERAGE CLAIM, the worst class of
+- [FIXED-UNPROVEN] **D37 `docs/dev/frontend/responsive-shell.md` — a STALE COVERAGE CLAIM, the worst class of
   CURRENT-DRIFT.** It states: *"The shortest viewport any harness test uses is 780px, so none of
   the `(max-height: 500px)` rules fire in the visual gate — landscape has no baseline coverage and
   must be checked on a device."* **FALSE since 2026-08-14.** `34f8bc9e` added a `720x344` case to
@@ -1106,6 +1144,7 @@ exact failure the ratchet's own docstring warns about.
 
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Both perishable sentences in responsive-shell.md are still there and still wrong; the doc has never been touched since it was written.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** D37b's own correction figure has itself drifted since the ledger measured it. The ledger says "ten occurrences across four files (`styles/index.js`, `mobile.js`, `theme-preview.js`, `theme.js`)". Measured today: ELEVEN occurrences across FIVE files — src/renderers/theme.js, src/styles/mobile.js, src/styles/modal-host.js, src/styles/theme-preview.js, src/styles/theme.js. src/styles/index.js now carries ZERO (verified, `grep -c` = 0), and modal-host.js and renderers/theme.js are new. Do not paste the ledger's list into the fix — recount. That the correction rotted in under a day is itself the entry's thesis.
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D37 → `[FIXED-UNPROVEN]`. §6 "Measuring this" (D37) and the "Reuse this threshold" paragraph in §1 (D37b) — text now states: §6 now states that landscape HAS baseline coverage from exactly one spec, names the spec and the viewport list verbatim, scopes it to the theme editor's `tokens` and `palette` tabs, and preserves the No named test — prose only.
 ## NOT A DEFECT — a measurement worth keeping
 - **WHAT ROTS IS THE SENTENCE THAT ASSERTS CURRENT STATE. Nothing else.** Verified by hand on two
   frontend docs 2026-08-21. `floor-texture-map-view.md`: all eight `FLOOR_TEXTURE_MASK_SCALE_BY_TYPE`
@@ -1882,7 +1921,7 @@ docstring rather than moved, because that docstring is the definition sheet for 
 and is what a maintainer reasons from when deciding whether blank needs a block path — it already
 has one. **`[FIXED-UNPROVEN]`**.
 
-### R4 · MEDIUM · over-scoped — `rooms/reconciliation.py::plan_migration`
+### R4 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `rooms/reconciliation.py::plan_migration`
 
 **SAYS.** Saved rooms whose slug vanished from discovery (merged/deleted in the re-map) are
 dropped and reported under ``dropped`` — the user confirmed the re-map, and drift surfaces
@@ -1904,6 +1943,7 @@ rename+renumber loses the room's settings — the precise loss REC-3 exists to p
 caller treating `dropped` as the authoritative removal list gets both a false negative and, in
 the missing-room_id case, a false positive.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R4 → `[FIXED-UNPROVEN]`. plan_migration (docstring) + the `if old_id is not None` site — text now states: The original paragraph is kept, followed by a ⚠ block: "``dropped`` IS NOT THE AUTHORITATIVE REMOVAL LIST, and this docstring read as if it were until 2026-08-24 (R4 / RM10)", with the two directions No named test — prose only.
 ### R5 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference — `rooms/source_refresh.py::module docstring`
 
 **SAYS.** Public surface: async_refresh_room_source(hass, vacuum_entity_id) -> None (async)
@@ -1955,7 +1995,7 @@ comment's two-type enumeration reads as the complete set of set-valued issues, s
 already handled.
 
   ⤷ DRIFT 2026-08-24 ledger-truth pass · R6 stays OPEN, but the text above misdescribes it. CORRECTED: FIXED half: custom_components/eufy_vacuum/rooms/access_graph.py:1129-1136 (comment now names multiple_inbound/source_room_ids, tagged 'before R6 (2026-08-24)') and :1139-1140 `for value in issue.get("source_room_ids", []) or []: room_ids.append(_safe_int(value, -1))`. OPEN half: access_graph.py:1108-1109 still reads 'Reads the RAW validation issues (``type`` + ``room_id``), not the card-facing for
-### R7 · MEDIUM · over-scoped — `rooms/access_graph.py::AccessGraphManager._validate_room_access_graph`
+### R7 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `rooms/access_graph.py::AccessGraphManager._validate_room_access_graph`
 
 **SAYS.** # Single-inbound constraint: each non-dock room may only be # granted access by
 exactly one other room.
@@ -1974,7 +2014,8 @@ is. Someone debugging an unexpected multiple_inbound on the dock room reads this
 concludes the dock is exempt, and looks for the bug elsewhere; someone relying on 'exactly one'
 assumes zero-inbound is caught by this pass.
 
-### R8 · MEDIUM · false — `rooms/reconciliation.py::module docstring`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R7 → `[FIXED-UNPROVEN]`. AccessGraphManager._validate_room_access_graph — the inbound-count comment — text now states: Retitled "At-most-one-inbound constraint: NO room — the dock included — may be granted access by more than one other room", followed by a `⚠ was:` block quoting the old sentence and taking both halves No named test — prose only.
+### R8 ✅ APPLIED 2026-08-24 · MEDIUM · false — `rooms/reconciliation.py::module docstring`
 
 **SAYS.** This module compares a fresh discovery against the stored (saved) rooms by slug and
 reports what changed: - ``id_changed`` — a known slug now carries a different segment id (the
@@ -1991,7 +2032,8 @@ reports, and the third kind is the one with the weakest evidential basis and the
 migration consequence (see the singleton-pairing finding). A consumer switching on
 review['kind'] from this list has no branch for renamed_and_renumbered.
 
-### R9 · MEDIUM · reason-obsolete — `rooms/access_graph.py::get_room_access_editor._issue_applies`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R8 → `[FIXED-UNPROVEN]`. module docstring — text now states: A third bullet documents `renamed_and_renumbered` as PAIRED BY ELIMINATION with both extra keys quoted verbatim and a pointer to the C55 block in `compute_reconciliation`, followed by "⚠ This list nam No named test — prose only.
+### R9 ✅ APPLIED 2026-08-24 · MEDIUM · reason-obsolete — `rooms/access_graph.py::get_room_access_editor._issue_applies`
 
 **SAYS.** The ``is not None`` filter is load-bearing rather than tidiness:
 _format_access_graph_issue's multiple_inbound branch can emit a literal None inside room_ids,
@@ -2011,6 +2053,7 @@ one names the other as its source. A maintainer chasing a None in the issue cont
 hunting in a branch that cannot produce one; conversely, anyone who checks and finds the filter
 dead may delete it along with the only note explaining why the None case was ever possible.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R9 → `[FIXED-UNPROVEN]`. get_room_access_editor._issue_applies (docstring) + the A6-AGX-4 comment in _format_access_graph_issue — text now states: `_issue_applies` now says the filter is DEFENCE IN DEPTH, with `⚠ was:` quoting the old claim and citing the exact rewritten expression as why it is false — plus a KEEP THE FILTER paragraph preserving No named test — prose only.
 ### R10 ✅ APPLIED 2026-08-24 (COMMENT; behaviour = C61, still open) · MEDIUM · over-scoped — `rooms/vocabulary_migration.py::_unadjudicated_targets`
 
 **SAYS.** An absent block reliably means "not registered YET", never "this brand declares
@@ -2033,7 +2076,7 @@ WARNING on every single start forever, and the state that means "this brand genu
 nothing" is indistinguishable from "not registered yet" — the exact ambiguity the comment claims
 is closed.
 
-### R11 · MEDIUM · over-scoped — `rooms/room_discovery.py::get_active_map_id`
+### R11 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `rooms/room_discovery.py::get_active_map_id`
 
 **SAYS.** - Entity absent from BOTH state machine and registry → the sensor is never created: an
 attribute-mode device (e.g. Eufy on the scalar/Tuya transport) that surfaces its room list as a
@@ -2053,6 +2096,7 @@ map-selector entity resolves a map id — or auditing whether this function can 
 anchor — would conclude from this docstring that it cannot, and would miss the one path that
 can.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R11 → `[FIXED-UNPROVEN]`. get_active_map_id (docstring) — text now states: The bullet now says TWO fallbacks are tried in order and the ladder does not stop at the first, naming `_implicit_attribute_map_id` then `_single_cached_map_id`. A ⚠ paragraph records that the branch No named test — prose only.
 ### R12 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `rooms/room_crud.py::RoomMapManager.discover_rooms`
 
 **SAYS.** Does not create a map bucket. Map buckets are created only when ``save_managed_rooms``
@@ -2072,7 +2116,7 @@ this line, including reconcile_room(action="ignore"), which creates a bucket for
 has never confirmed just to stamp a dismissal timestamp on it.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · R12 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/rooms/room_crud.py::RoomMapManager.discover_rooms docstring: "⚠ Map buckets are NOT ONLY created by ``save_managed_rooms``. This docstring said they were until 2026-08-24 (R12)... The full set: ``save_managed_rooms``..., ``rebuild_map`` (this file, via ``rebuild_map_bucket``), and ``reconcile_room`` in BOTH the ``action="ignore"`` and ``action="migrate"`` arms... ``ma No named test — prose only.
-### R13 · MEDIUM · stale-reference — `rooms/room_defaults.py::resolve_new_room_defaults`
+### R13 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference — `rooms/room_defaults.py::resolve_new_room_defaults`
 
 **SAYS.** ``catalog`` is a resolved ``room_profiles`` block (``resolve_profile_catalog``); None
 resolves the framework's in-code catalog, which is what a brand that declares no
@@ -2093,6 +2137,7 @@ silently falls through to build_managed_rooms' own literals. The same phrase rep
 sibling `resolve_new_room_defaults_for_vacuum`: "an unregistered adapter resolves the framework
 catalog, exactly as a brand declaring no ``room_profiles`` block does."
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R13 → `[FIXED-UNPROVEN]`. resolve_new_room_defaults (and sibling resolve_new_room_defaults_for_vacuum) — text now states: A `⚠ None DOES NOT RESOLVE A FRAMEWORK CATALOG` block traces the actual return value key by key, states that every setting then falls through to the caller's own literals, and notes the degradation is No named test — prose only.
 ### R14 ✅ APPLIED 2026-08-24 (CODE, by ruling) · MEDIUM · over-scoped — `rooms/room_manager.py::build_managed_rooms`
 
 **SAYS.** Q5 (verbatim): a room with NO existing match — the room this discovery pass has never
@@ -2115,7 +2160,7 @@ drift signals — so a never-approved room gets entities created and counts towa
 precisely what the quoted requirement exists to prevent. A reader auditing approval flow would
 treat Q5 as the settled contract.
 
-### R15 · MEDIUM · stale-reference — `rooms/room_discovery.py::discover_rooms_for_vacuum`
+### R15 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference — `rooms/room_discovery.py::discover_rooms_for_vacuum`
 
 **SAYS.** Reads discovery config from the adapter registry: room_list_entity — "vacuum_entity"
 or a full entity ID room_list_attribute — attribute name that holds the room list room_id_key —
@@ -2135,6 +2180,7 @@ the attribute branch, and discover zero rooms — which is the same failure the 
 283-289 comment records happening to Dreame when SHAPE was conflated with SOURCE. The docstring
 was never updated when the two axes were split on 2026-08-07.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R15 → `[FIXED-UNPROVEN]`. discover_rooms_for_vacuum (docstring) — text now states: Six keys listed with `source` first and each tagged (both sources) / (attribute only), then a ⚠ paragraph: the four-key version stood until 2026-08-24 (R15), was written before SOURCE and SHAPE were s No named test — prose only.
 ### R16 ✅ APPLIED 2026-08-24 (FIXED) · MEDIUM · false — `rooms/room_crud.py::RoomMapManager.remove_map`
 
 **SAYS.** # RP-016/RF-20 (INJ7VXE7): consume the SAME registry RP-017's id-remap walker # reads,
@@ -2155,7 +2201,7 @@ their own flags in `removed` too"), so the two comments contradict each other. A
 RP-016 one converts a silent-survival bug into a hard crash on the delete-map service path.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · R16 → `[FIXED]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/maps/map_manager.py:38-56 (three-tuple registry + R16 note); custom_components/eufy_vacuum/rooms/room_crud.py:34 (import), :606-618 (flag-derived response shape), :645-671 (single loop); tests/integration/test_room_crud.py:382-441; ledger row .claude/notes/LEDGER-defects-code-vs-doc.md:1968-1985 Test: tests/integration/test_room_crud.py::test_rc16_adding_a_new_per_map_store_does_not_crash_remove_map (plus ::test_rc16_the_response_shape_is_the_declared_flag_set for the flag-name contract).
-### R17 · LOW · reason-obsolete — `rooms/access_graph.py::structural_issue_key`
+### R17 ✅ APPLIED 2026-08-24 · LOW · reason-obsolete — `rooms/access_graph.py::structural_issue_key`
 
 **SAYS.** A6-AGX-2. ``update_room_fields`` validates the WHOLE graph after an edit and rejects
 the edit if any structural issue exists — absolute, not a delta. So a violation already stored
@@ -2175,7 +2221,8 @@ marks history explicitly elsewhere ('this used to be'). A reader concludes the a
 still live and that structural_issue_key is only aspirational, or duplicates the delta fix
 believing it was never applied.
 
-### R18 · LOW · reason-obsolete — `rooms/source_refresh.py::module invariant header`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R17 → `[FIXED-UNPROVEN]`. structural_issue_key (module-level) docstring — text now states: Split into WHAT IT WAS (the old absolute gate, past tense, motive and the reconciliation-remap origin preserved) and WHAT IT IS (delta-scoped, uses this key, `baseline_keys`), with a leading `⚠ Until No named test — prose only.
+### R18 ✅ APPLIED 2026-08-24 · LOW · reason-obsolete — `rooms/source_refresh.py::module invariant header`
 
 **SAYS.** A4-SRC-4: No in-flight coalescing or lock on the refresh: triggers spawn unbounded
 concurrent get_maps cloud calls, and an older response landing last becomes the resident cached
@@ -2194,7 +2241,8 @@ three not, the unmarked three read as still live in a file that visibly fixed th
 own header warns 'Verify before citing one as closed' but says nothing about the reverse —
 citing an already-closed one as open, which is what this shape produces.
 
-### R19 · LOW · over-scoped — `rooms/access_graph.py::get_room_access_editor`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R18 → `[FIXED-UNPROVEN]`. module invariant header — the A4-SRC-1 / A4-SRC-3 / A4-SRC-4 entries — text now states: Each of the three now carries `(closed RP-007; stamped 2026-08-24, R18)`, its finding text moved to past tense, and a `NOW, in this file:` line naming the concrete symbol that closes it — verified by No named test — prose only.
+### R19 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `rooms/access_graph.py::get_room_access_editor`
 
 **SAYS.** # Now genuinely a last resort: every known structural type is handled above # and
 _names_edge reaches all of them.
@@ -2212,7 +2260,8 @@ In practice multiple_dock_rooms is filtered out by baseline_keys (dock rooms are
 the candidate graph, so the key matches the baseline) — but that is the reason, and it is not
 the reason the comment gives.
 
-### R20 · LOW · over-scoped — `rooms/source_refresh.py::flatten_maps_response`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R19 → `[FIXED-UNPROVEN]`. get_room_access_editor — the `graph_illegal` else-branch of the reason ladder (+ the `missing_room` elif) — text now states: The else-branch quotes the old sentence under `⚠ was:`, notes it is "wrong in BOTH directions and checkable in twenty seconds against the frozenset in this file", enumerates the frozenset and both err No named test — prose only.
+### R20 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `rooms/source_refresh.py::flatten_maps_response`
 
 **SAYS.** If there is no active-map value, use Roborock's numeric flag as the same "Map <flag>"
 fallback HA shows.
@@ -2229,7 +2278,8 @@ states. Someone reconciling a multi-map cache key that came back as 'Map 3' inst
 select value will look for a bug that isn't there, and the 'Map {index}' key is documented
 nowhere at all.
 
-### R21 · LOW · stale-reference — `rooms/access_graph.py::module docstring`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R20 → `[FIXED-UNPROVEN]`. flatten_maps_response — the unnamed-map fallback comment — text now states: Rewritten as a numbered three-fallback ladder with "the CONDITIONS matter more than the values": (1) active-map value, ONLY on single-map responses, with the reason the restriction exists; (2) `flag`, No named test — prose only.
+### R21 ✅ APPLIED 2026-08-24 · LOW · stale-reference — `rooms/access_graph.py::module docstring`
 
 **SAYS.** Owns: - _normalize_grants_access_to / _normalize_room_rule / _normalize_room_rules -
 _normalized_managed_rooms_with_automation - _build_room_access_views -
@@ -2251,7 +2301,8 @@ exactly the parts a reader needs to find. Someone looking for where 'do runs blo
 graph?' is answered will not find it named here — the same discoverability problem A6-AGX-1 was
 opened to fix.
 
-### R22 · LOW · over-scoped — `rooms/access_graph.py::AccessGraphManager.get_access_graph_health`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R21 → `[FIXED-UNPROVEN]`. module docstring — the `Owns:` inventory — text now states: All five names added to the list, followed by `⚠ COMPLETED 2026-08-24 (R21)` stating it was INCOMPLETE not wrong, and a per-symbol paragraph saying what each is for and who reads it — including that ` No named test — prose only.
+### R22 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `rooms/access_graph.py::AccessGraphManager.get_access_graph_health`
 
 **SAYS.** # The rooms that will become missing_dependency the MOMENT a dock room # is set — i.e.
 the cost of following this report's own advice.
@@ -2267,6 +2318,7 @@ states that cost by one on a blank graph. The code cannot know which room become
 this is a wording problem, not a fixable computation — which is precisely why the comment should
 say 'all but the one you promote' rather than asserting the list is what will fire.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R22 → `[FIXED-UNPROVEN]`. AccessGraphManager.get_access_graph_health — the `unlinked_room_ids` annotation — text now states: Now reads "…MINUS whichever one the user promotes — i.e. all but one of them. Read it as 'all but the one you promote'", with `⚠ was:` quoting the flat assertion and naming the `if room_id == dock_roo No named test — prose only.
 ### R23 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `rooms/room_crud.py::RoomMapManager.reconcile_room`
 
 **SAYS.** Requires a prior ``discover_rooms`` to have cached the discovery payload.
@@ -2284,7 +2336,7 @@ dismissed_plan_token contract, suppresses only an identical (empty) review set, 
 is effectively inert rather than doing what the user asked.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · R23 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/rooms/room_crud.py:167 (def reconcile_room), :201-216 (⚠ R23 qualification block), :221-253 (ignore arm: ensure_map_bucket -> empty-set plan token -> early return), :278-287 (migrate-only no_discovery guard the old sentence actually described). No named test — prose only.
-### R24 · LOW · stale-reference — `rooms/vocabulary_migration.py::migrate_room_vocabulary`
+### R24 ✅ APPLIED 2026-08-24 · LOW · stale-reference — `rooms/vocabulary_migration.py::migrate_room_vocabulary`
 
 **SAYS.** Apply the migration once, recording that it ran. Idempotent. Returns ``{"ran": bool,
 "changes": [...], "rooms_touched": int}``. The caller is responsible for persisting ``data``;
@@ -2302,6 +2354,7 @@ the already-migrated path.
 The enumerated return shape is the contract a caller codes against; "latched" — the only signal
 that the run deferred — is invisible in it, and is not present on every return path.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R24 → `[FIXED-UNPROVEN]`. migrate_room_vocabulary — text now states: Summary now says recording happens ONLY IF every target could be judged, quoting the file's own "missing runtime information is DEFERRED, never SUCCESS" rule, with a `⚠ was:` note. Both return shapes No named test — prose only.
 ### R25 ✅ APPLIED 2026-08-24 (CODE) · LOW · over-scoped — `rooms/room_discovery.py::discover_rooms_for_vacuum`
 
 **SAYS.** # anchor: INCFMPP1 one slug derivation, at ONE admission boundary, unique within # its
@@ -2368,7 +2421,7 @@ Ablated 3 ways: the original single pass → `[RD-14]` red; **converge by iterat
 entirely → 3 red, confirming the tests still cover the ORIGINAL RP-015 guarantee and not just the
 new half. **`[FIXED]`**.
 
-### R26 · LOW · stale-reference — `rooms/room_discovery.py::module`
+### R26 ✅ APPLIED 2026-08-24 · LOW · stale-reference — `rooms/room_discovery.py::module`
 
 **SAYS.** Adapter config shape consumed here (adapters/config_schema.py § discovery):
 room_list_entity: "vacuum_entity" | <full entity_id> room_list_attribute: str — attribute name
@@ -2387,7 +2440,8 @@ functions" additionally dates the paragraph to before discover_rooms_payload and
 private helpers were added, so a reader cannot tell which functions the degradation guarantee
 actually covers.
 
-### R27 · LOW · stale-reference — `rooms/__init__.py::module`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R26 → `[FIXED-UNPROVEN]`. module docstring — text now states: All seven keys are listed, `source` first and flagged as the one that selects the whole branch, with the attribute-only keys marked as such; a paragraph explains that the four-key version read as the No named test — prose only.
+### R27 ✅ APPLIED 2026-08-24 · LOW · stale-reference — `rooms/__init__.py::module`
 
 **SAYS.** The existing room_discovery.py, room_manager.py, and utils.py modules are unchanged
 and continue to be importable directly.
@@ -2405,9 +2459,24 @@ as "nothing here has moved since the split" — the opposite of the truth for ro
 and it gives no pointer at all to room_defaults.py, reconciliation.py, source_refresh.py or
 vocabulary_migration.py.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R27 → `[FIXED-UNPROVEN]`. package docstring — text now states: Lists all nine modules, notes only AccessGraphManager and RoomMapManager are re-exported, and a `⚠ was:` block explains that only the importable clause survived, that "unchanged" read as "nothing here No named test — prose only.
 ---
 
 ## ROOMS MAP — reader-would-get-wrong (from the same pass, not comment defects)
+
+> ⚠ **UNNUMBERED — STAMPED AT SECTION LEVEL, 2026-08-24.** These 29 bullets carry no ids,
+> so the per-entry stamper cannot touch them and deliberately refused rather than
+> fuzzy-matching prose into a 6000-line file. **17 of them were nonetheless FIXED in the
+> 2026-08-24 prose waves** (the walking agents referred to them as "RM1…RM29", labels of
+> their own invention that match nothing in this file). The repairs are in the tree —
+> `rooms/access_graph.py`, `room_crud.py`, `room_discovery.py`, `reconciliation.py`,
+> `source_refresh.py` — each carrying its own `⚠ was:` line at the site, which is the
+> durable record. **The remaining bullets are NOT known to be closed.**
+>
+> **THIS SECTION NEEDS IDS BEFORE IT CAN BE RECONCILED AGAIN.** Without them there is no
+> way to say which bullet is which, and the next pass will re-derive all 29 from scratch.
+> Assigning them is cheap and nobody has done it; that is the actual blocker here, not the
+> work.
 
 29 items the map flagged as things a reader would conclude wrongly. Several are real
 code findings rather than comment problems and are worth reading before the repair window:
@@ -2660,9 +2729,10 @@ misbehaves between rooms. The same file at lines 364-374 contradicts it directly
 Roborock docking between phases as live behaviour.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · L1 → `[FIXED-UNPROVEN]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/listeners/lifecycle.py L421-436 (corrected comment immediately above maybe_advance_phase at L436). Uncorrected sibling: C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/queue/queue_engine.py L509-510. Landed siblings: custom_components/eufy_vacuum/core/manager.py L7064-7074; custom_co No named test — prose only.
-### L2 · HIGH · adopted-alternative · seen in run1+run2 — `listeners/pose_sampler.py:388-391 (register())`
+### L2 ✅ APPLIED 2026-08-24 · HIGH · adopted-alternative · seen in run1+run2 — `listeners/pose_sampler.py:388-391 (register())`
 
 **SAYS.** # LIMITATION (F4, deferred): if a future 2nd brand declares a DIFFERENT interval, its
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L2 → `[FIXED-UNPROVEN]`. register() — the LIMITATION (F4, deferred) block above the `intervals`/`min()` computation — text now states: The three true lines above it are untouched. The LIMITATION note is replaced by a dated retraction that names both dead halves separately — the shipped Roborock 5.0 vs Eufy 2.0 declarations refuting " No named test — prose only.
 # slower vacuums get over-sampled vs the engine's dwell = n*interval_s assumption. Each # sample
 already carries a wall-clock `t`, so the fix is per-vacuum tickers (or have the # engine derive
 dwell from `t` deltas). Unreachable while only Eufy declares attribution.
@@ -2683,7 +2753,7 @@ every Roborock external-run attribution as over-sampled. It also asserts a false
 adapter set — that only Eufy declares room_attribution — which is exactly the premise anyone
 scoping a third brand would build on.
 
-### L3 · MEDIUM · false · seen in run1 — `listeners/lifecycle.py:194-195`
+### L3 ✅ APPLIED 2026-08-24 · MEDIUM · false · seen in run1 — `listeners/lifecycle.py:194-195`
 
 **SAYS.** # Vocabulary params omitted — manager reads them from the # adapter registry directly,
 with brand-specific fallbacks.
@@ -2707,7 +2777,8 @@ their adapter omits `vocabulary`; they will instead get an empty set and a lifec
 reads mid_job_service, with no error. Worse, someone "restoring" the documented behaviour would
 add brand literals into core.
 
-### L4 · MEDIUM · reason-obsolete · seen in run1+run2 — `listeners/job_metrics.py:128-132`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L3 → `[FIXED-UNPROVEN]`. the `get_lifecycle_state(...)` call in the state-change handler — the omitted-vocabulary-params comment — text now states: First line corrected to name the real reader (`get_lifecycle_state`, core/manager.py) with no fallback claim. Then a dated ⚠ note calling out that "with brand-specific fallbacks" was the exact INVERSI No named test — prose only.
+### L4 ✅ APPLIED 2026-08-24 · MEDIUM · reason-obsolete · seen in run1+run2 — `listeners/job_metrics.py:128-132`
 
 **SAYS.** # RP-013e/METRICS-2/REC-5: battery has NO writer today even though both # shipped
 adapters declare entities.battery — every counter sample reads # last_battery_percent, and with
@@ -2728,7 +2799,8 @@ and goes looking for a missing writer that is on the next line — while the rea
 not declaring entities.battery, entity unavailable, or a downstream consumer) goes unexamined.
 The wrong direction of error: it accuses working code.
 
-### L5 · MEDIUM · stale-reference · seen in run1 — `listeners/job_metrics.py:75-82`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L4 → `[FIXED-UNPROVEN]`. register() — the RP-013e/METRICS-2/REC-5 comment immediately above `battery_entity = entities.get("battery")` — text now states: Rewritten to the file's own past-tense history convention: "battery HAD no writer" with the original OBS-B-3 motive preserved, then "The three lines below ARE that missing writer" tracing the full pat No named test — prose only.
+### L5 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference · seen in run1 — `listeners/job_metrics.py:75-82`
 
 **SAYS.** """Register listeners that push job-metric sensor values into active_job_state. Tracks
 cleaning_time, cleaning_area, and station water level. ...""" — and the module docstring at line
@@ -2745,7 +2817,8 @@ battery is not listed, and looks elsewhere — or, registering a new metric, ass
 watcher is vestigial and prunes it. It also compounds the stale METRICS-2 comment above: the
 docstring appears to corroborate "battery has no writer".
 
-### L6 · MEDIUM · over-scoped · seen in run1+run2 — `listeners/lifecycle.py:373-374`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L5 → `[FIXED-UNPROVEN]`. module docstring (line 1) and register() docstring — the watcher enumerations — text now states: Both enumerations now name battery. Module line reads "cleaning_time / cleaning_area / battery / station water"; `register()` reads "Tracks FOUR: cleaning_time, cleaning_area, battery (→ ``last_batter No named test — prose only.
+### L6 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · seen in run1+run2 — `listeners/lifecycle.py:373-374`
 
 **SAYS.** # No-op for non-sequenced jobs (the flag is only set on a phase # advance,
 queue_engine.advance_active_job_phase).
@@ -2764,7 +2837,8 @@ first tick after an HA restart mid-run) would rule this suppression branch out o
 of the parenthetical, when it is exactly the branch holding finalization off — and would not
 think to look at manager.py:6975 or phase_runner.py:373 because the comment names one owner.
 
-### L7 · MEDIUM · over-scoped · seen in run1+run2 — `listeners/dock_events.py:3-4`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L6 → `[FIXED-UNPROVEN]`. the strict-order dispatch guard — `if should_finalize_completed and active_job.get("_phase_dispatch_pending")` — text now states: Keeps the whole surrounding rationale untouched. The parenthetical becomes "No-op for non-sequenced jobs — all three setters are gated on `phases`", followed by a dated ⚠ note that separates the two h No named test — prose only.
+### L7 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · seen in run1+run2 — `listeners/dock_events.py:3-4`
 
 **SAYS.** Subscribes to each managed vacuum's dock_status entity (per adapter config). When the
 state transitions into a configured trigger value, records the event into the manager's
@@ -2784,7 +2858,8 @@ downstream — the trigger vocabulary, the edge test, record_dock_event — inst
 enabled gate that returned before any of it ran. The REG-4 comment inside register() states the
 real rule, but the module docstring is what a reader opens first.
 
-### L8 · MEDIUM · false · seen in run1+run2 — `listeners/lifecycle.py:80-82 (above _DEFAULT_COMPLETION_TASK_STATUS / _DEFAULT_CLEAR_SENTINELS)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L7 → `[FIXED-UNPROVEN]`. module docstring — text now states: Names the enabled gate as the first thing register() applies, states the fallback=False default and both shipped adapters' declarations, points at the REG-4 comment inside register(), and carries a `⚠ No named test — prose only.
+### L8 ✅ APPLIED 2026-08-24 · MEDIUM · false · seen in run1+run2 — `listeners/lifecycle.py:80-82 (above _DEFAULT_COMPLETION_TASK_STATUS / _DEFAULT_CLEAR_SENTINELS)`
 
 **SAYS.** # Generic completion fallbacks. Used by get_adapter_value when the adapter # registry
 is absent. The task_status value is the normalized "job done" # string; the clear sentinels are
@@ -2808,6 +2883,7 @@ Roborock completion gate's degradation path — the sentinel check
 surrounding code is built around. Grepping for `get_adapter_value` to find the fallback's
 consumers also misses the real call site.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L8 → `[FIXED-UNPROVEN]`. _DEFAULT_COMPLETION_TASK_STATUS / _DEFAULT_CLEAR_SENTINELS — text now states: Keeps the true first sentence (what each constant means). Adds a dated ⚠ block with the two errors as labelled bullets — WRONG FUNCTION (naming `get_adapter_vocab` vs `get_adapter_value` and noting th No named test — prose only.
 ### L9 ✅ APPLIED 2026-08-24 (CODE) · MEDIUM · over-scoped · seen in run1+run2 — `listeners/_common.py:243-249 (completed_finalize_signals, the job_active_present comment)`
 
 **SAYS.** # PRESENCE, not value. `completion_secondary_satisfied` used to accept a # DECLARED
@@ -2963,7 +3039,7 @@ disable auto-discovery" are indistinguishable, and the second is worse). Ablated
 predicate → 3 red, drop the old-value guard → 3 red, mute the trigger → `[LS-19]` red.
 **`[FIXED]`**.
 
-### L12 · MEDIUM · stale-reference · seen in run1+run2 — `listeners/discovery.py:14-16 (module docstring)`
+### L12 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference · seen in run1+run2 — `listeners/discovery.py:14-16 (module docstring)`
 
 **SAYS.** Manual rescan via ``setup_discover_rooms`` service also updates drift history (wired
 separately in services.py — the service path is always available regardless of which auto
@@ -2980,7 +3056,8 @@ looks plausible because a `setup_unreject_rooms` service really does exist (serv
 so a reader assumes the setup_ prefix is the convention and that the call is correct. The
 "services.py" pointer sends anyone verifying the claim to a file that does not exist.
 
-### L13 · MEDIUM · reason-obsolete · seen in run1+run2 — `listeners/discovery.py:11 (module docstring, trigger list)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L12 → `[FIXED-UNPROVEN]`. module docstring (manual-rescan paragraph) — text now states: Names `discover_rooms`, the const, the services.yaml declaration and the services/rooms.py handler, then a `⚠ was:` block noting that `eufy_vacuum.setup_discover_rooms` fails with "Action not found", No named test — prose only.
+### L13 ✅ APPLIED 2026-08-24 · MEDIUM · reason-obsolete · seen in run1+run2 — `listeners/discovery.py:11 (module docstring, trigger list)`
 
 **SAYS.** - ``config_entry_reload`` — one-shot pass right now (setup time)
 
@@ -2997,7 +3074,8 @@ after a config-entry setup at boot would conclude the pass already ran; someone 
 documented behaviour would reintroduce the Roborock get_maps warning the deferral exists to
 avoid.
 
-### L14 · MEDIUM · reason-obsolete · seen in run1 — `adapters/roborock/adapter.py:765-766 (room_attribution block) — adjacent file, found while verifying pose_sampler`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L13 → `[FIXED-UNPROVEN]`. module docstring (trigger list, config_entry_reload) — text now states: Bullet now reads "one-shot pass, DEFERRED to HA-started", followed by a paragraph restating the async_at_started mechanism and the get_maps rationale, and a `⚠ was:` block noting the old line contradi No named test — prose only.
+### L14 ✅ APPLIED 2026-08-24 · MEDIUM · reason-obsolete · seen in run1 — `adapters/roborock/adapter.py:765-766 (room_attribution block) — adjacent file, found while verifying pose_sampler`
 
 **SAYS.** `source: native_current_room` makes the pose sampler read that entity, slugify # the
 name, and match it to a managed room id (listeners/pose_sampler.py). No # decoded-map pose is
@@ -3017,6 +3095,7 @@ authority it says Roborock captures carry no position — which is precisely the
 no dot for months" state stall_capture.py:275-277 now emits a receipt to detect. Anyone
 reasoning about whether the pose ring holds Roborock anchors would conclude it does not.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L14 → `[FIXED-UNPROVEN]`. register_roborock_adapter_for_vacuum — the "room_attribution" block comment — text now states: The `source: native_current_room` sentence keeps its true half (read the NAME entity, slugify, match to a managed room id). A ⚠ was: block quotes the retired claim, states that `source` selects how th No named test — prose only.
 ### L15 ✅ APPLIED 2026-08-24 (CODE) · MEDIUM · over-scoped · seen in run1+run2 — `listeners/path_blockers.py:55-58 (_PATH_BLOCKER_INFLIGHT)`
 
 **SAYS.** #: RP-008 (A6-GUARD-2): per-run single-flight for _process — a burst of blocker #:
@@ -3066,7 +3145,7 @@ Rewritten to COUNT evaluations, it then produced 5 instead of the expected 2, be
 synchronous so nothing ever overlapped; forcing the run through `await async_save()` gave real
 concurrency. **`[FIXED]`**.
 
-### L16 · LOW · stale-reference · seen in run1+run2 — `listeners/lifecycle.py:3-4`
+### L16 ✅ APPLIED 2026-08-24 · LOW · stale-reference · seen in run1+run2 — `listeners/lifecycle.py:3-4`
 
 **SAYS.** Watches the vacuum entity + adapter-declared lifecycle entities (task_status,
 dock_status, active_cleaning_target, active_map).
@@ -3084,7 +3163,8 @@ conclude from this docstring that the binary is not watched and that a new subsc
 needed — when it is already in the set and the fault lies elsewhere (e.g. the HA 2026.7 never-
 created case documented in job_active_signal.py).
 
-### L17 · LOW · stale-reference · seen in run1+run2 — `listeners/pause_timeout.py:212`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L16 → `[FIXED-UNPROVEN]`. module docstring, the watch-set parenthetical — text now states: `job_active` added to the parenthetical, plus a dated ⚠ paragraph noting the parenthetical reads as exhaustive, naming `get_lifecycle_watch_entities` and its FIVE keys, explaining why `job_active` is No named test — prose only.
+### L17 ✅ APPLIED 2026-08-24 · LOW · stale-reference · seen in run1+run2 — `listeners/pause_timeout.py:212`
 
 **SAYS.** """Cancel paused jobs that exceed their configured timeout."""
 
@@ -3102,7 +3182,8 @@ reaping and the app/robot-side pause reconciliation — someone disabling "the p
 stop unwanted cancels would silently also strand every interrupted run, with no indication from
 the contract that they had done so.
 
-### L18 · LOW · over-scoped · seen in run1 — `listeners/pose_sampler.py:95-97 (_FALLBACK_INTERVAL_S)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L17 → `[FIXED-UNPROVEN]`. register() — text now states: Enumerates all three behaviours with the symbols named, then a `⚠ was:` block explaining that register()/remove() are the module's declared public surface, so the one-line version hid that removing th No named test — prose only.
+### L18 ✅ APPLIED 2026-08-24 · LOW · over-scoped · seen in run1 — `listeners/pose_sampler.py:95-97 (_FALLBACK_INTERVAL_S)`
 
 **SAYS.** # Absolute last-resort cadence — only if the resolved engine declares no interval_s
 default # at all (e.g. the noop engine). The OPERATIVE default comes from the engine's
@@ -3121,7 +3202,8 @@ noop-engine vacuum is not sampled at all. In fact a malformed interval_s on a no
 silently replaced with Eufy's 2.0 s — the over-sampling POSE-1 exists to prevent — with no
 signal beyond a registration warning.
 
-### L19 · LOW · over-scoped · seen in run1 — `listeners/path_blockers.py:4 (module docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L18 → `[FIXED-UNPROVEN]`. _FALLBACK_INTERVAL_S — text now states: Keeps the single-source WHY (DEFAULT_TUNING is the operative default, the adapter's tuning the operative value), then a dated ⚠ note enumerating both paths as (a) and (b), stating that (b) is reachabl No named test — prose only.
+### L19 ✅ APPLIED 2026-08-24 · LOW · over-scoped · seen in run1 — `listeners/path_blockers.py:4 (module docstring)`
 
 **SAYS.** Watches every blocker rule's trigger entity across all managed rooms.
 
@@ -3135,7 +3217,8 @@ delivery or timing problem rather than a registration exclusion. The "unknown" m
 silent one — a configured blocker on a room that has not yet been bound to a real map id never
 gets a watcher, and nothing logs that.
 
-### L20 · LOW · false · seen in run1+run2 — `listeners/stall_capture.py:8-10 (module docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L19 → `[FIXED-UNPROVEN]`. module docstring — text now states: States the four conditions a rule must meet to be watched, plus a `⚠ was:` block noting that "every … across all" invited a reader to treat a missing path-block event as a delivery/timing problem when No named test — prose only.
+### L20 ✅ APPLIED 2026-08-24 · LOW · false · seen in run1+run2 — `listeners/stall_capture.py:8-10 (module docstring)`
 
 **SAYS.** ``EVENT_STALL_DETECTED`` is NOT this feature's event. It already feeds
 ``detect_run_anomalies``, which sets the ``stall`` / ``running_long`` / ``skipped`` fields the
@@ -3151,7 +3234,8 @@ on will not find one, and may conclude the paragraph is stale in some larger way
 itself is sound — the detector does fire unconditionally and gating it would break anomaly
 reporting — only the stated direction of flow is inverted.
 
-### L21 · LOW · false · seen in run1 — `listeners/pose_sampler.py:377 (register docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L20 → `[FIXED-UNPROVEN]`. module docstring ("WHY IT IS A CONSUMER AND NOT PART OF THE DETECTOR") — text now states: States detect_run_anomalies as the producer, keeps the unchanged argument for why the detector must fire unconditionally, and adds a `⚠ was:` block saying only the direction of flow was wrong, that no No named test — prose only.
+### L21 ✅ APPLIED 2026-08-24 · LOW · false · seen in run1 — `listeners/pose_sampler.py:377 (register docstring)`
 
 **SAYS.** Sample pose into external runs at the adapter's room_attribution cadence.
 
@@ -3165,7 +3249,8 @@ Anyone gating or short-circuiting this listener on "is this an external run" wou
 break the dispatched-run identity reconcile, which the module docstring warns is not an inert
 capture buffer.
 
-### L22 · LOW · stale-reference · seen in run1+run2 — `listeners/_common.py:15 (module docstring, Public surface)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L21 → `[FIXED-UNPROVEN]`. register() docstring (summary line) — text now states: Summary is now "Sample pose into ACTIVE runs — external AND dispatched — at the adapter's room_attribution cadence", followed by a dated ⚠ body quoting `_SAMPLED_STATUSES` verbatim, naming `reconcile_ No named test — prose only.
+### L22 ✅ APPLIED 2026-08-24 · LOW · stale-reference · seen in run1+run2 — `listeners/_common.py:15 (module docstring, Public surface)`
 
 **SAYS.** - completed_finalize_signals(hass, vacuum_entity_id) -> dict[str, str]
 
@@ -3178,7 +3263,8 @@ landed. The other eight entries in this Public surface list match their function
 `"False"` is truthy, so a str()-shaped guard written against this signature would invert the
 presence check it is guarding.
 
-### L23 · LOW · false · seen in run2 — `listeners/job_metrics.py:1-2 (module docstring) and :77 (register docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L22 → `[FIXED-UNPROVEN]`. module docstring, Public surface list — text now states: Signature corrected to `dict[str, Any]` with a `⚠ NOT dict[str, str]` note naming `job_active_present` as the bool, explaining that a caller trusting the old signature would treat it as a string and t No named test — prose only.
+### L23 ✅ APPLIED 2026-08-24 · LOW · false · seen in run2 — `listeners/job_metrics.py:1-2 (module docstring) and :77 (register docstring)`
 
 **SAYS.** Module: "Job metrics listeners — push cleaning_time / cleaning_area / station water
 sensor values into active_job_state as they update." register(): "Tracks cleaning_time,
@@ -3195,7 +3281,8 @@ somewhere else — or, when battery_delta comes out wrong, does not look in this
 is also the one watcher of the four with no unit/normalization handling, so it is the one most
 likely to need attention.
 
-### L24 · LOW · stale-reference · seen in run2 — `listeners/job_progress.py:22-23 (module docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L23 → `[FIXED-UNPROVEN]`. module docstring (line 1) and register() docstring — same two enumerations as L5 — text now states: Fixed by the same two docstring edits as L5, and L23's specific stakes are carried in the ⚠ paragraph: it names `jobs/active_job.py`'s `job.get("last_battery_percent")` read as the `battery_delta` inp No named test — prose only.
+### L24 ✅ APPLIED 2026-08-24 · LOW · stale-reference · seen in run2 — `listeners/job_progress.py:22-23 (module docstring)`
 
 **SAYS.** can refresh its snapshot if it's open. Cost per tick: one method call and one event
 per active vacuum/map; negligible.
@@ -3213,7 +3300,8 @@ vacuums?" will quote. It now understates the per-tick work by roughly 3x, and
 (core/manager.py:4776-4786) — i.e. it holds the event loop, which is exactly the property a
 "negligible" budget invites people to stop checking.
 
-### L25 · LOW · stale-reference · seen in run2 — `listeners/_common.py:270-272 (completion_secondary_satisfied docstring, the require_job_active_clear bullet)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L24 → `[FIXED-UNPROVEN]`. module docstring (cost budget) — text now states: States "UP TO THREE manager calls plus the one event", names all three with their conditions, and a `⚠ was:` block noting this sentence is the stated cost budget anyone quotes when weighing another ti No named test — prose only.
+### L25 ✅ APPLIED 2026-08-24 · LOW · stale-reference · seen in run2 — `listeners/_common.py:270-272 (completion_secondary_satisfied docstring, the require_job_active_clear bullet)`
 
 **SAYS.** RP-033/COMMON-2: only honored when ``entities.job_active`` is actually declared — the
 flag names the entity that supplies the real signal, so a config that sets it without declaring
@@ -3231,7 +3319,8 @@ reasoning about why a Roborock run failed to finalize checks only that entities.
 declared, finds it is, and rules this branch out — when the actual refusal came from the second
 condition. It also under-sells the guard to anyone auditing whether issue #51 is closed.
 
-### L26 · LOW · stale-reference · seen in run2 — `listeners/pose_sampler.py:7-8 (module docstring, opening paragraph)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L25 → `[FIXED-UNPROVEN]`. completion_secondary_satisfied (require_job_active_clear bullet) — text now states: Bullet now states both conditions and that the entity must RESOLVE to a readable, determinate state, with a `⚠ was:` block noting the old line documented a tightening it had itself been superseded by, No named test — prose only.
+### L26 ✅ APPLIED 2026-08-24 · LOW · stale-reference · seen in run2 — `listeners/pose_sampler.py:7-8 (module docstring, opening paragraph)`
 
 **SAYS.** buffers one ``{current_room, anchor, cleaning_area}`` sample per tick into the
 external slot's ``pose_samples`` (via ``record_pose_sample``).
@@ -3249,6 +3338,7 @@ The stale triple has already propagated: pose_store.py's own module docstring re
 identical three-field set, so a second file now corroborates the wrong shape and a reader who
 cross-checks gets agreement rather than the correction.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L26 → `[FIXED-UNPROVEN]`. module docstring, opening paragraph (the sample-shape brace list) — text now states: The brace list is now `{current_room, anchor, cleaning_area, heading}`, plus a dated ⚠ paragraph stating the braces are the sample's SHAPE and not an example, listing all four code sites that carry `h No named test — prose only.
 ## BATTERY COMMENT AUDIT — 2026-08-22. 33 findings. **1 APPLIED 2026-08-24 (B2 — a CODE fix); 32 NOT APPLIED.**
 
 Severity {'high': 5, 'medium': 17, 'low': 11}. Kind {'false': 6, 'over-scoped': 22, 'reason-obsolete': 2, 'adopted-alternative': 1, 'stale-reference': 2}.
@@ -3338,7 +3428,7 @@ a session to a crash"), and a second `[BM-32]` asserting **which manager call
 methods doing opposite things: asserting the method exists would prove nothing. Both original
 docstrings now state the correction and why it mattered. **`[FIXED]`**.
 
-### B3 · HIGH · over-scoped — `battery/manager.py::module docstring 'Charge sessions' (L34-45)`
+### B3 ✅ APPLIED 2026-08-24 · HIGH · over-scoped — `battery/manager.py::module docstring 'Charge sessions' (L34-45)`
 
 **SAYS.** "...and closes when one of: - ``charging`` transitions to False - battery reaches 100%
 - a sanity timeout (``SESSION_MAX_HOURS``) elapses without a closing event Closed sessions are
@@ -3357,6 +3447,7 @@ the front-door docstring that a timed-out session is summarized and persisted li
 is silently thrown away. Two of the three listed close events persist; the third destroys — and
 the list presents them as equivalent.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B3 → `[FIXED-UNPROVEN]`. module docstring, "Charge sessions" — text now states: Section retitled "TWO EVENTS CLOSE A SESSION; A THIRD DESTROYS ONE", each of the three arrow-annotated with where it goes, the timeout spelled out as a discard naming `session_was_discarded`; then a ⚠ No named test — prose only.
 ### B4 ✅ APPLIED 2026-08-24 (FIXED) · HIGH · over-scoped — `battery/sensors.py::_bucket_means / _MEAN_SAMPLE_FIELD`
 
 **SAYS.** #: Which honest denominator belongs to which mean (C17). ``count`` counts every job #:
@@ -3383,7 +3474,7 @@ samples field, even though `all_jobs["samples_area"]` exists and is one `.get()`
 the partial-guard-reads-as-complete shape: the guard exists, so it reads as total.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · B4 → `[FIXED]`. custom_components/eufy_vacuum/battery/sensors.py, LastJobMetricSensor.extra_state_attributes: `"all_jobs_samples": (all_jobs.get(_MEAN_SAMPLE_FIELD[mean_field]) if mean_field and _MEAN_SAMPLE_FIELD.get(mean_field) else None)` under the comment `# B4: this is the C17 repair applied to `all_jobs` — was missing when the `by_*` buckets got it`. _MEAN_SAMPLE_FIELD (same file, below the class) maps drai Test: tests/unit/test_battery_sensors.py::test_bs_7b_all_jobs_samples_reads_its_own_denominator.
-### B5 · HIGH · over-scoped — `battery/sensors.py::LastJobMetricSensor`
+### B5 ✅ APPLIED 2026-08-24 · HIGH · over-scoped — `battery/sensors.py::LastJobMetricSensor`
 
 **SAYS.** """Generic sensor exposing one of the last-job battery_metrics fields. State is the
 most recent completed job's metric (None if no job yet).
@@ -3405,6 +3496,7 @@ has run since restart, when the routine cause is a recorded job whose area read 
 finalize race. The module the sensor reads from documents that exact failure as common; the
 sensor docstring hides it behind "no job yet".
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B5 → `[FIXED-UNPROVEN]`. LastJobMetricSensor (class docstring) — text now states: State described as "the most recent completed job's value for ``stat_key``", followed by a ⚠ block headed "NONE DOES NOT MEAN 'no job yet'" with a per-metric bullet list naming `compute_job_battery_me No named test — prose only.
 ### B6 · MEDIUM · reason-obsolete — `battery/manager.py::REGIME_PCT_MIN / REGIME_PCT_MAX (L117-120)`
 
 **SAYS.** "The ceiling is the load- bearing one: charging measurably FASTER than when the
@@ -3424,7 +3516,7 @@ artefact. On the CC side a ratio climbing toward 150 is the degradation signal, 
 or removing the ceiling would be arguing against a rationale that was never evaluated for the
 regime it is applied to.
 
-### B7 · MEDIUM · false — `battery/manager.py::_compute_regime_pct (docstring, L1240-1241)`
+### B7 ✅ APPLIED 2026-08-24 · MEDIUM · false — `battery/manager.py::_compute_regime_pct (docstring, L1240-1241)`
 
 **SAYS.** "Exactly one of the two is ever non-None."
 
@@ -3437,7 +3529,8 @@ infer 'value is None, therefore rejected is populated, therefore a figure WAS co
 thrown out'. That is the precise confusion the adjacent live:BATT-CV-1 comments say RP-045
 'spent a whole packet undoing' — rejected vs never-computed.
 
-### B8 · MEDIUM · over-scoped — `battery/manager.py::compute_time_to_target_pct (docstring, L411-417)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B7 → `[FIXED-UNPROVEN]`. _compute_regime_pct (docstring) — text now states: "AT MOST one of the two is ever non-None. ``(None, None)`` is a normal return, and on a fresh install it is the DOMINANT one" — the three paths enumerated — plus a ⚠ noting "Exactly one" invited the i No named test — prose only.
+### B8 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `battery/manager.py::compute_time_to_target_pct (docstring, L411-417)`
 
 **SAYS.** " 2. The cross-session ``stats.rate_*_zone_per_min`` — but ONLY when there ISN'T a
 currently open session that could have produced its own sample for this zone and simply hasn't
@@ -3456,7 +3549,8 @@ frozen reading, or not'. A CV-span ETA computed from a low-zone overall rate is 
 card as a high-zone measurement. Anyone reasoning about RP-044's cold-start contract from this
 docstring cannot see the fallback.
 
-### B9 · MEDIUM · false — `battery/manager.py::_update_mid_job_rate_stat (docstring, L1082-1084) and _new_record L280-281 / _close_session L1026-1028`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B8 → `[FIXED-UNPROVEN]`. compute_time_to_target_pct (docstring, tier 2) — text now states: New tier `2b.` marked ⚠ AN UNLABELLED SUB-TIER, quoting the actual `or` expression, saying a CV-span ETA can be computed from a low-zone reading and reported to the card as a high-zone measurement, th No named test — prose only.
+### B9 ✅ APPLIED 2026-08-24 · MEDIUM · false — `battery/manager.py::_update_mid_job_rate_stat (docstring, L1082-1084) and _new_record L280-281 / _close_session L1026-1028`
 
 **SAYS.** "These sessions are the cleanest health signal we get — same start/end zone, same
 thermal state — so a drop in the mean is an early sign of capacity loss before the 0→100
@@ -3477,7 +3571,8 @@ moves with charge-window mix, not cell health. A reader would trust this stat as
 second opinion' it is not, and would not think to add the gate because the comment says it is
 already the case.
 
-### B10 · MEDIUM · over-scoped — `battery/manager.py::record_job_metrics (docstring, L1431-1433)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B9 → `[FIXED-UNPROVEN]`. _update_mid_job_rate_stat (docstring), _new_record mid_job comment, _close_session call-site comment — text now states: All three sites corrected consistently. The motive is preserved ("a firmware auto-recharge mid-clean tends to be a narrow, repeatable window ... a drop would be an early sign of capacity loss"), then No named test — prose only.
+### B10 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `battery/manager.py::record_job_metrics (docstring, L1431-1433)`
 
 **SAYS.** "- Single-bucket runs additionally feed ``by_clean_mode``, ``by_fan_speed``, and
 ``by_water_level`` aggregates — only those jobs can be cleanly attributed to a single setting."
@@ -3493,7 +3588,8 @@ exclusion has its own, different reason, documented only at the call site (L1355
 they know ran will find it short and go hunting for a lost-write bug. The exclusion is
 deliberate; the public docstring of the entry point does not say so.
 
-### B11 · MEDIUM · adopted-alternative — `battery/manager.py::module docstring 'Battery health proxy' (L48-51)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B10 → `[FIXED-UNPROVEN]`. record_job_metrics (docstring) — text now states: New bullet ⚠ SINGLE-BUCKETNESS IS NOT THE ONLY GATE, quoting `not metrics.get("mid_job_recharge")`, giving the real reason (the recharge nets out of the raw start−end drain), and warning that `by_clea No named test — prose only.
+### B11 ✅ APPLIED 2026-08-24 · MEDIUM · adopted-alternative — `battery/manager.py::module docstring 'Battery health proxy' (L48-51)`
 
 **SAYS.** "We compute "minutes per 1% gained" for each completed deep-enough session (start ≤
 50%, end ≥ 90%). The FIRST such session this install observes anchors the baseline. Average of
@@ -3515,7 +3611,8 @@ looks for a start<=50 gate on the comparison set; there is none on the CV side. 
 the 'start ≤ 50%' criterion look like it governs health_pct, when it governs only the CC index
 and the baseline anchor.
 
-### B12 · MEDIUM · over-scoped — `battery/manager.py::module docstring 'Battery health proxy' (L53-54)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B11 → `[FIXED-UNPROVEN]`. module docstring, "Battery health proxy" — text now states: Opens by stating `health_pct` is an ALIAS of `cv_charge_speed_pct` and not a whole-session figure, names both per-window fields and the one shared formula, then ⚠ THIS PARAGRAPH DESCRIBED A RETIRED MO No named test — prose only.
+### B12 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `battery/manager.py::module docstring 'Battery health proxy' (L53-54)`
 
 **SAYS.** "While the baseline is being seeded (no qualifying sessions yet), health_pct is None."
 
@@ -3531,7 +3628,8 @@ a deep charge' and waits — when the real state may be 'a value was computed an
 impossible', which points at the session data, not at charging habits. That is exactly the
 distinction L1206-1209 says the reason-code exists to preserve.
 
-### B13 · MEDIUM · over-scoped — `battery/manager.py::compute_time_to_target_pct (docstring, L421-424)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B12 → `[FIXED-UNPROVEN]`. module docstring, "Battery health proxy" (the None sentence) — text now states: "``health_pct`` IS NONE IN FOUR DISTINCT STATES, NOT ONE", the old sentence quoted as having read as the sole cause, all four bulleted with the rejection path naming the reason code and `stats["cv_cha No named test — prose only.
+### B13 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `battery/manager.py::compute_time_to_target_pct (docstring, L421-424)`
 
 **SAYS.** "4. None of the above -> ``minutes=None`` — a cold-start install, where the caller
 shows a live wall-clock "charging..." instead of a fabricated ETA (the charge-rate baseline
@@ -3549,7 +3647,8 @@ by this docstring that the condition clears within a sample or two, so they look
 the accumulators rather than recognising expected behaviour. The claim is true of the CC span
 and false of the CV span, and the docstring makes it about the estimate as a whole.
 
-### B14 · MEDIUM · over-scoped — `battery/manager.py::_is_charging (docstring, L635-636)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B13 → `[FIXED-UNPROVEN]`. compute_time_to_target_pct (docstring, tier 4) — text now states: The self-healing motive is kept, then a ⚠ block stating the sentence is true of CC and FALSE of CV, naming `_zone_for`, `HIGH_ZONE_MIN` (80) and the `cc_minutes is None or cv_minutes is None` return, No named test — prose only.
+### B14 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `battery/manager.py::_is_charging (docstring, L635-636)`
 
 **SAYS.** "The local ``except`` branch below only fires for a legacy runtime manager that
 doesn't expose ``_is_charging`` at all."
@@ -3568,7 +3667,8 @@ branch is unreachable outside legacy managers. If any AttributeError arises mid-
 integration silently reverts to the exact heuristic the design rejected, with no log line — and
 the comment is what stops anyone looking for that.
 
-### B15 · MEDIUM · false — `battery/store.py::_SAMPLES_FIELDS`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B14 → `[FIXED-UNPROVEN]`. _is_charging (docstring) — text now states: ⚠ THE LOCAL ``except`` BRANCH IS NOT LEGACY-ONLY, spelling out the two-hop chain, naming the setup-ordering case as the realistic one, stating that the integration then silently reverts to the exact s No named test — prose only.
+### B15 ✅ APPLIED 2026-08-24 · MEDIUM · false — `battery/store.py::_SAMPLES_FIELDS`
 
 **SAYS.** # Non-null only when the per-sample MAX_DELTA_PCT guard rejected the # observed
 raw_delta (firmware X-to-0 / 0-to-X flip, HA restart gap, # multi-hour self-discharge, etc.).
@@ -3594,7 +3694,8 @@ filter correctly they still believe they are seeing every rejection, while an en
 rejection class (implausible rate) is invisible in the audit trail the module docstring calls
 "the long-term raw audit trail".
 
-### B16 · MEDIUM · over-scoped — `battery/sensors.py::BatteryHealthSensor`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B15 → `[FIXED-UNPROVEN]`. _SAMPLES_FIELDS (rejected_delta_pct comment) — text now states: Gives the working filter `grep -v '"rejected_delta_pct": null' samples.jsonl`, a `⚠` explaining exactly why the old grep cannot work (quoting the comprehension) and how it reads to someone who runs it No named test — prose only.
+### B16 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `battery/sensors.py::BatteryHealthSensor`
 
 **SAYS.** Headline alias of cv_charge_speed_pct (the resistance-proxy regime). Kept under the
 _battery_health entity_id for continuity with installs that pre-date the regime split. None
@@ -3616,7 +3717,8 @@ bug. The actual cause — the plausibility rejection that the whole RP-045(iii) 
 machinery exists to explain — is described nowhere in this class's prose, only in an attribute
 the docstring does not connect to the None.
 
-### B17 [OPEN-DRIFTED] (verified 2026-08-24) · MEDIUM · over-scoped — `battery/sensors.py::RegimeChargeSpeedSensor`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B16 → `[FIXED-UNPROVEN]`. BatteryHealthSensor (class docstring) — text now states: ⚠ NONE HAS THREE CAUSES, NOT ONE — each named, with the note that the rejection case can ONLY happen with an anchored baseline, so the docstring previously told readers that anchored-baseline-plus-unk No named test — prose only.
+### B17 [FIXED-UNPROVEN] (verified 2026-08-24) · MEDIUM · over-scoped — `battery/sensors.py::RegimeChargeSpeedSensor`
 
 **SAYS.** Reads ``stats.<stat_key>`` and surfaces the matching baseline anchor in attributes.
 Returns None until the baseline is anchored. Two instances live side-by-side (CC and CV) so
@@ -3639,7 +3741,7 @@ the docstring's confident account of the None is the only account a user gets, a
 wrong one.
 
   ⤷ DRIFT 2026-08-24 ledger-truth pass · B17 stays OPEN, but the text above misdescribes it. CORRECTED: custom_components/eufy_vacuum/battery/sensors.py:344 still literally 'in attributes. Returns None until the baseline is anchored. Two' (class docstring :341-347, unchanged vs LEDGER-defects-code-vs-doc.md:3446-3448 SAYS quote); fix present only at :380-387 (# B17 comment) and :389/:395 (`rejected_pct`); None-on-rejection path re-derived at custom_components/eufy_vacuum/battery/manager.py:1248-1261
-### B18 · MEDIUM · stale-reference — `battery/sensors.py::BatteryHealthSensor`
+### B18 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference — `battery/sensors.py::BatteryHealthSensor`
 
 **SAYS.** A raw reading above 100 (the cell charging faster than its install baseline, common
 while the baseline is young) is clamped for this headline; the uncapped value stays on the
@@ -3658,7 +3760,8 @@ entity was not created. Separately, anyone acting on the docstring by adding
 `_attr_entity_category = EntityCategory.DIAGNOSTIC` to make the code match would silently move a
 live entity out of the default dashboard and out of recorder defaults for existing installs.
 
-### B19 · MEDIUM · over-scoped — `battery/sensors.py::LastChargeDurationSensor`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B18 → `[FIXED-UNPROVEN]`. BatteryHealthSensor (class docstring, uncapped-value sentence) — text now states: Sentence rewritten to "stays in the ``uncapped_pct`` attribute here and on the separate ``_cv_charge_speed`` entity", followed by ⚠ ``_cv_charge_speed`` IS NOT A DIAGNOSTIC ENTITY — no `_attr_entity_c No named test — prose only.
+### B19 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `battery/sensors.py::LastChargeDurationSensor`
 
 **SAYS.** """Minutes the most recent completed charge session took.""" (and in the module
 docstring: "- {object_id}_last_charge_duration — minutes for the last completed session")
@@ -3676,7 +3779,8 @@ bug. The correct statement is "the most recent completed charge session that gai
 and the paired `last_charge_delta_pct` attribute is stale in lockstep, so the two agreeing with
 each other gives false reassurance that they are current.
 
-### B20 · MEDIUM · over-scoped — `battery/job_metrics.py::module docstring (WEIGHTING)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B19 → `[FIXED-UNPROVEN]`. LastChargeDurationSensor (class docstring) and module docstring entity list — text now states: Docstring now "Minutes the most recent completed charge session THAT GAINED BATTERY took", quoting the write gate, then ⚠ the old wording, the worked case (a vacuum at 100% cycling charging on and off No named test — prose only.
+### B20 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `battery/job_metrics.py::module docstring (WEIGHTING)`
 
 **SAYS.** Per-room m² is not reported by the device. We prorate the total m² across rooms by
 ``estimated_minutes`` (from the learning enrichment). When estimates aren't available we fall
@@ -3698,6 +3802,7 @@ the unenriched rooms' buckets report `rooms: N, share: 0.0` with no `area_m2` ke
 209 only writes area when the weight-product is truthy). Nothing in the label distinguishes a
 fully-estimated job from a one-room-estimated one.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B20 → `[FIXED-UNPROVEN]`. module docstring, WEIGHTING — text now states: Fallback condition stated precisely against `if total_est > 0`, then ⚠ PARTIAL ENRICHMENT IS NOT THE FALLBACK CASE with the ten-rooms-one-enriched worked example, the note that the weights still summi No named test — prose only.
 ### B21 ✅ APPLIED 2026-08-24 · MEDIUM · reason-obsolete — `battery/sensors.py::_bucket_means`
 
 **SAYS.** Emits ``samples`` beside ``mean``: the number of jobs the mean was actually computed
@@ -3719,7 +3824,7 @@ unable to tell whether the fix landed. Flagging as medium confidence because the
 subject is arguably the attribute payload, not the render.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · B21 → `[FIXED-UNPROVEN]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/src/renderers/metrics.js L1006-1023 (`// B21` + jobsCell), L1040-1046 (allJobsB), L1032-1037 + L1068-1072 (renderBucketRows applied to all three bucket tables), L1065 (all_jobs row uses jobsCell). C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/battery/sensors.py L461-471 (all_jobs_samples), ::_bucket_means L527- No named test — prose only.
-### B22 · MEDIUM · over-scoped — `battery/store.py::module docstring`
+### B22 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `battery/store.py::module docstring`
 
 **SAYS.** - ``sessions.csv`` — every completed charge session as a CSV row. Reviewable in any
 spreadsheet for trend charting. ... The files are the long-term raw audit trail.
@@ -3739,7 +3844,8 @@ every health computation are absent from the CSV, and once a session rotates out
 storage rings the values are gone. The claim is true of the session-level trend data it names
 (durations, deltas, rates) and false of the regime data the health sensors are built on.
 
-### B23 · LOW · over-scoped — `battery/manager.py::module docstring 'Charge sessions' (L34-35) and _update_session comment (L887)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B22 → `[FIXED-UNPROVEN]`. module docstring — text now states: Says the CSV carries only the _SESSION_HEADER subset and is a session-level export, names samples.jsonl as the raw trail, and a `⚠` block gives the measured 19-vs-11 split, enumerates all eight omitte No named test — prose only.
+### B23 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `battery/manager.py::module docstring 'Charge sessions' (L34-35) and _update_session comment (L887)`
 
 **SAYS.** module: "A session opens on the first sample where ``charging=True`` after a non-
 charging sample" · _update_session: "# Force-close stale sessions"
@@ -3754,7 +3860,8 @@ it discards without summarizing (see the separate finding on the timeout).
 the record is corrupt. And 'force-close' primes the reader to expect _close_session semantics —
 the very confusion that makes the timeout-discard finding above possible.
 
-### B24 · LOW · over-scoped — `battery/manager.py::module docstring 'Charge sessions' (L45)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B23 → `[FIXED-UNPROVEN]`. module docstring (session-open condition) and _update_session "# Force-close stale sessions" — text now states: Module docstring adds the DR-BAT-3 path with its reason (without it, tracking goes dark until charging flips false and true again) and says the single condition made a perfectly good record look corru No named test — prose only.
+### B24 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `battery/manager.py::module docstring 'Charge sessions' (L45)`
 
 **SAYS.** "- contribute to the baseline + current health windows" (as one of three things that
 happen to every closed session)
@@ -3769,7 +3876,8 @@ reads as universal by company.
 crosses the 50→80 CC window and may carry no cv attribution either. The health proxy looks
 broken when it is behaving as designed.
 
-### B25 · LOW · over-scoped — `battery/manager.py::rebaseline (docstring, L1292-1297)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B24 → `[FIXED-UNPROVEN]`. module docstring, "Charge sessions" third bullet — text now states: Bullet rewritten to name both qualification predicates verbatim and the stricter anchor test, with a ⚠ explaining it read as universal by company beside two bullets that genuinely do apply to every cl No named test — prose only.
+### B25 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `battery/manager.py::rebaseline (docstring, L1292-1297)`
 
 **SAYS.** "Does not touch cycles, aggregates, session history, mid-job stats, or job metrics —
 only the health proxy's anchor point (and, per RP-045, the separately-retained qualifying-
@@ -3789,6 +3897,7 @@ cell, and expects the first deep recharge to re-anchor when it may not. _update_
 docstring (L1136-1138) states the stricter anchor rule correctly — rebaseline's is the copy that
 drifted, and it is the one the service points at.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B25 → `[FIXED-UNPROVEN]`. rebaseline (docstring) — text now states: ⚠ ONE PRE-SWAP FIGURE SURVIVES THIS CALL — names `stats["rejected_rate_per_min"]`, says the two regime rejections beside it ARE cleared and points at the C21 note that closed those two and did not rea No named test — prose only.
 ### B26 · LOW · over-scoped — `battery/manager.py::_process_sample, MAX_PLAUSIBLE_RATE_PCT_PER_MIN warning (L714-720)`
 
 **SAYS.** "battery: implausible charge rate %.4f %%/min (%.2f%% over %.0fs, zone=%s) — above
@@ -3823,7 +3932,7 @@ no change, and have to discover by grep that the value is dead and the real deci
 hardcoded 1 and the `break`.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · B27 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/battery/manager.py:195-204 — '#: ⚠ Documentation ONLY, not a live tunable — B27 (2026-08-24). The anchor code below hardcodes `baseline["session_count"] = 1` at the seed site and `break`s after the first qualifying session; changing THIS constant does nothing.' then `BASELINE_SAMPLE_COUNT = 1  # ← immutable in practice; see note above`. Claims verified at manager.py:1 No named test — prose only.
-### B28 · LOW · over-scoped — `battery/manager.py::_new_aggregate_bucket (L302-304)`
+### B28 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `battery/manager.py::_new_aggregate_bucket (L302-304)`
 
 **SAYS.** "# Total drain over every job in the bucket. A real quantity, but NOT a ratio #
 numerator — the two partnered sums below are. See C17."
@@ -3838,7 +3947,8 @@ disagree.
 the population mismatch the C17 repair was about. The field's other comment states the correct,
 narrower population; this one is the copy that reads as complete.
 
-### B29 · LOW · over-scoped — `battery/job_metrics.py::module docstring (PER-BUCKET DRAIN)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B28 → `[FIXED-UNPROVEN]`. _new_aggregate_bucket, drain_pct_sum comment — text now states: "Raw total over every job in the bucket THAT REPORTED A DRAIN", naming the `drain is not None` gate and the unconditional `count`, plus a ⚠ noting the old wording invites dividing it by `count` — the No named test — prose only.
+### B29 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `battery/job_metrics.py::module docstring (PER-BUCKET DRAIN)`
 
 **SAYS.** The cross-job aggregator (BatteryHealthManager) feeds per-bucket drain stats only from
 jobs that were **single-bucket** for that key — i.e. every room used the same clean_mode (resp.
@@ -3858,7 +3968,8 @@ it True, and look for a bug in the aggregator. The exclusion is deliberate and i
 the manager end ("A mid-job recharge nets out of the raw start−end drain") but this docstring —
 the one that owns the explanation of the gating — does not know about it.
 
-### B30 · LOW · false — `battery/sensors.py::module docstring`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B29 → `[FIXED-UNPROVEN]`. module docstring, PER-BUCKET DRAIN — text now states: The false clause removed from the paragraph; a ⚠ THERE ARE TWO GATES, AND THE SECOND IS NOT OURS block quotes `single_ok` verbatim, gives the reason (a mid-job recharge nets out of the raw start−end d No named test — prose only.
+### B30 ✅ APPLIED 2026-08-24 · LOW · false — `battery/sensors.py::module docstring`
 
 **SAYS.** All sensors pull from the same in-memory record; a single update listener fans out
 state writes whenever the manager processes a new sample.
@@ -3877,6 +3988,7 @@ removal, would look for one registration and find thirteen per vacuum. And someo
 why the job-metric sensors update outside charging would be told by this docstring that they
 shouldn't.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B30 → `[FIXED-UNPROVEN]`. module docstring (listener paragraph) — text now states: ⚠ THERE IS NO SINGLE UPDATE LISTENER, and a new sample is not the only trigger — wrong in both halves. One entry per entity per vacuum (twelve, as `build_battery_sensors` stands — I counted the return No named test — prose only.
 ### B31 ✅ APPLIED 2026-08-24 (FIXED) · LOW · over-scoped — `battery/store.py::append_sample`
 
 **SAYS.** """Append one sample as a JSONL line. Best-effort; logs and swallows errors."""
@@ -3897,7 +4009,7 @@ at low severity because the promise is broader than the code and someone widenin
 isn't there.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · B31 → `[FIXED]`. custom_components/eufy_vacuum/battery/store.py::append_sample — docstring "Append one sample as a JSONL line. Best-effort; logs and swallows errors." plus "⚠ B31 (2026-08-24): the swallow was narrower than this docstring claimed... Broadened to ``Exception`` so the docstring's contract is what the code does."; handler `except Exception as err:  # pragma: no cover` with `# B31: was `except OSError` Test: tests/unit/test_battery_store.py::test_append_sample_swallows_any_exception_not_just_oserror.
-### B32 · LOW · over-scoped — `battery/job_metrics.py::_bucketed_share`
+### B32 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `battery/job_metrics.py::_bucketed_share`
 
 **SAYS.** # ISSUE #48, and this one is already on disk. _bucket_key folds case and # nothing
 else, so "Vacuum and mop" and "vacuum_mop" bucket separately
@@ -3915,7 +4027,8 @@ is_single_clean_mode is True, single_clean_mode is the truthy string "unknown", 
 manager.py:1360 folds it into a real by_clean_mode bucket named "unknown" — behaviour the
 comment's "folds case and nothing else" gives no hint of.
 
-### B33 · LOW · over-scoped — `battery/sensors.py::MidJobRechargeRateSensor`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B32 → `[FIXED-UNPROVEN]`. _bucketed_share (ISSUE #48 comment) — text now states: Opening clause now "_bucket_key does NOT canonicalise spellings" (the point that was correct), with a new ⚠ paragraph: it also `.strip()`s and folds both None and "" to `"unknown"`, tracing that throu No named test — prose only.
+### B33 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `battery/sensors.py::MidJobRechargeRateSensor`
 
 **SAYS.** """Mean charge rate observed during mid-job recharges (the 15→75 window). The cleanest
 health signal available: tight start/end zone, pure CC charging region, consistent thermal load.
@@ -3937,7 +4050,8 @@ signal available", and a manual mid-job dock satisfies none of them while still 
 If the 15→75 figure is a firmware observation rather than an invariant, saying so would cost one
 clause and stop a reader treating the window as enforced.
 
-### C56 [OPEN] — **OPEN (FRONTEND).** The `@media (hover: hover)` preview rule rests on a false premise
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B33 → `[FIXED-UNPROVEN]`. MidJobRechargeRateSensor (class docstring) and the build_battery_sensors call-site comment — text now states: The ledger flagged this UNSURE on whether 15→75 is a firmware observation; resolved the way it suggested — the motive is kept as device behaviour ("TYPICALLY a roughly 15→75 window ... That is the mot No named test — prose only.
+### C56 [FIXED-UNPROVEN] — **OPEN (FRONTEND).** The `@media (hover: hover)` preview rule rests on a false premise
 
 Found 2026-08-22 and verified directly. **Frontend — parked by Chris pending the frontend pass.**
 
@@ -3972,6 +4086,7 @@ specimens hoverable is weaker than stated. The rule may still be right; the reas
 number even rots — resolve sibling-first or you get the wrong file. I got this wrong on the first
 attempt and only caught it with a control case.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · C56 → `[FIXED-UNPROVEN]`. the comment above the `@media (hover: hover) and (pointer: fine)` rule (plus rotted citations in src/main.js, src/renderers/theme.js, src/styles/theme.js) — text now states: Quotes the old premise and states BOTH HALVES ARE FALSE, with three bullets: the count (measured, with the instruction to grep rather than trust a number in a comment), the failing universal (naming t No named test — prose only.
 ## PROFILES COMMENT AUDIT — 2026-08-22. 37 findings (UNION OF FOUR PASSES). **1 APPLIED 2026-08-24 (P5); 36 NOT APPLIED.**
 
 Severity {'high': 6, 'medium': 17, 'low': 14}. Kind {'reason-obsolete': 4, 'adopted-alternative': 1, 'false': 10, 'over-scoped': 14, 'stale-reference': 8}.
@@ -4008,7 +4123,7 @@ comment, and it should be filed as one.
 
 ---
 
-### P1 · HIGH · reason-obsolete · passes=2 — `profiles/manager.py:1184 (_enrich_saved_run_profile, has_stops)`
+### P1 ✅ APPLIED 2026-08-24 · HIGH · reason-obsolete · passes=2 — `profiles/manager.py:1184 (_enrich_saved_run_profile, has_stops)`
 
 **SAYS.** # The step-type tuple MUST mirror the stepped-path gates at #
 profiles/manager.py:1308, planning/run_plan.py:1348/1353 and # core/manager.py:1647 — "zone" was
@@ -4033,9 +4148,11 @@ its docstring forbids ("a caller that reaches for the set is one ``and`` clause 
 creating the drift this module removes") — or (b) follows three file:line pointers into
 unrelated code and concludes the gates have been deleted.
 
-### P2 · HIGH · reason-obsolete · passes=1 — `profiles/manager.py:1886 (start_run_profile)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P1 → `[FIXED-UNPROVEN]`. ProfileManager._enrich_saved_run_profile (has_stops gate) — text now states: Opens `⚠ was: "The step-type tuple MUST mirror…"` quoting the old claim in full, then states it "read as an OPEN bug report AT the defect site, and the bug was already closed; retired 2026-08-24 (P1)" No named test — prose only.
+### P2 ✅ APPLIED 2026-08-24 · HIGH · reason-obsolete · passes=1 — `profiles/manager.py:1886 (start_run_profile)`
 
 **SAYS.** # Stash the profile's step sequence so the plan builder materializes a multi-phase job
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P2 → `[FIXED-UNPROVEN]`. ProfileManager.start_run_profile (_pending_run_steps stash comment) — text now states: Corrects the fallback chain ("absent -> that builder falls back to the LIVE QUEUE's own breaks, and only then to normal atomic dispatch"), then `⚠ was: "… WHICH NEVER WRITES QUEUE_BREAKS …" That descr No named test — prose only.
 # (e.g. [clean, charge_wait, clean] or [clean, zone]). Consumed (popped) in #
 run_plan._build_effective_start_plan; absent -> normal atomic dispatch. The gate MUST # mirror
 run_plan's stepped-path gate (charge_wait/wait/zone) — a zone is a real clean # step, so a
@@ -4061,7 +4178,7 @@ second tab runs the profile FLAT with no charge stop. The claim is also the stat
 for including "zone" in the stash gate, so disproving it invites removing zone from the gate
 too.
 
-### P3 · HIGH · false · passes=2 — `profiles/room_profiles.py:84-89 (module banner above PROTECTED_ROOM_PROFILE_NAMES)`
+### P3 ✅ APPLIED 2026-08-24 · HIGH · false · passes=2 — `profiles/room_profiles.py:84-89 (module banner above PROTECTED_ROOM_PROFILE_NAMES)`
 
 **SAYS.** There is NO framework default catalog and no fallback. An adapter declares its own
 profiles, or declares the contract supported with none (``builtins: {}``). A MISSING key is
@@ -4087,7 +4204,8 @@ but hours later and far from the cause" outcome DC-2c says the registration gate
 prevent. A maintainer trusting this line would also see no reason to add the per-key check that
 would actually deliver it.
 
-### P4 · HIGH · false · passes=2 — `profiles/room_profiles.py:224-227 (resolve_profile_catalog docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P3 → `[FIXED-UNPROVEN]`. module banner above PROTECTED_ROOM_PROFILE_NAMES — text now states: Keeps the fail-soft motive verbatim, then adds a ⚠ block: THE GATE IS THE BLOCK, NOT EACH KEY, naming the three failing states, the `if present` type check, and the pinning test; states the ambiguity No named test — prose only.
+### P4 ✅ APPLIED 2026-08-24 · HIGH · false · passes=2 — `profiles/room_profiles.py:224-227 (resolve_profile_catalog docstring)`
 
 **SAYS.** Absent and declared-empty resolve the SAME WAY here, and that is deliberate — this
 function's job is resolution, not judgement. The two states are distinguished where the
@@ -4109,6 +4227,7 @@ distinction is caught upstream and stops looking; it is not caught anywhere, so 
 ambiguity the surrounding prose says was removed is still open for the `builtins` key
 specifically.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P4 → `[FIXED-UNPROVEN]`. resolve_profile_catalog (docstring) — text now states: The "absent and declared-empty resolve the same way, deliberately" rationale and its fail-soft motive survive; a ⚠ paragraph then says WHERE THE TWO STATES ARE ACTUALLY TOLD APART IS THE WHOLE `room_p No named test — prose only.
 ### P5 ✅ APPLIED 2026-08-24 · HIGH · stale-reference · passes=2 — `profiles/room_profiles.py:586-588 (resolve_room_profile_for_room docstring)`
 
 **SAYS.** ``catalog`` (a resolved adapter ``room_profiles`` block) sources the built-ins, legacy
@@ -4163,7 +4282,7 @@ suction applied at all" incident this module's rework exists to prevent. The par
 hands a reader three literals to grep for that were deliberately deleted from core.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · P6 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/profiles/room_profiles.py:818 (def), :824-840 (rewritten docstring, :831 'ABSENT CATALOG DOES NOT MEAN EUFY DEFAULTS'); behaviour cross-check at :290-291 (`brand_defaults = (catalog or {}).get("normalize_defaults") or {}`), :300-304 (fan_speed/water_level/clean_intensity fall to ""), :113 (`coerce_axis_value` returns "" for None/""); sibling docstrings :604-608, :273- No named test — prose only.
-### P7 · MEDIUM · adopted-alternative · passes=1 — `profiles/manager.py:439-440 (get_effective_room_details, mop_required)`
+### P7 ✅ APPLIED 2026-08-24 · MEDIUM · adopted-alternative · passes=1 — `profiles/manager.py:439-440 (get_effective_room_details, mop_required)`
 
 **SAYS.** # If that tolerance is ever wanted back it belongs in # is_mop_clean_mode, once, not
 in a fourth private copy.
@@ -4180,6 +4299,7 @@ substring/wash modes — the exact collapse the canonical owner forbids — loos
 predicate that gates dispatch payloads and the carpet mop-downgrade, while the tolerant sibling
 that already answers this question (`may_wet_floor`) goes unnoticed and unused.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P7 → `[FIXED-UNPROVEN]`. ProfileManager.get_effective_room_details (mop_required comment) — text now states: `⚠ was: "If that tolerance is ever wanted back it belongs in is_mop_clean_mode, once" — wrong owner, and acting on it would collapse a deliberate split (P7, 2026-08-24).` Names `room_profiles.may_wet_ No named test — prose only.
 ### P8 ✅ APPLIED 2026-08-24 (FIXED) · MEDIUM · false · passes=1 — `profiles/manager.py:112 and :117 (_generate_room_profile_id / _generate_run_profile_id)`
 
 **SAYS.** """Generate a stable unique key for a new custom room profile.""" / """Generate a
@@ -4199,7 +4319,7 @@ documents the resulting silent data loss, so the docstring contradicts the file'
 list.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · P8 → `[FIXED]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/profiles/manager.py::ProfileManager._timestamp_id (L111-142, UTC + 'Z' + `if base not in keys` + '-N' loop); ::_generate_room_profile_id (L145-147); ::_generate_run_profile_id (L149-158); ::_get_custom_room_profile_store (L370-374) returns _data['profiles']['room_profiles']; write site ::save_user_room_profile L541; Test: tests/integration/test_profiles_manager.py::test_pm32_the_room_profile_id_generator_has_the_same_fix (sibling: ::test_pm31_the_id_is_drawn_from_utc).
-### P9 · MEDIUM · false · passes=2 — `profiles/manager.py:1339-1342 (set_run_profile_steps docstring)`
+### P9 ✅ APPLIED 2026-08-24 · MEDIUM · false · passes=2 — `profiles/manager.py:1339-1342 (set_run_profile_steps docstring)`
 
 **SAYS.** """Replace one saved profile's ordered steps (room_group | charge_wait). The steps
 list holds the sequence — room groups and the charge boundaries between them. Requires at least
@@ -4216,7 +4336,8 @@ caller (or a YAML author reading the generated service docs) would believe wait 
 are not accepted here, and a maintainer could "tidy" the normalizer to match the docstring —
 which would drop every wait/zone step the card already saves through this path.
 
-### P10 · MEDIUM · over-scoped · passes=2 — `profiles/manager.py:1764 (apply_run_profile, break derivation)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P9 → `[FIXED-UNPROVEN]`. ProfileManager.set_run_profile_steps (docstring) — text now states: Summary now reads "(room_group | charge_wait | wait | zone)". A `⚠` paragraph records that the set "read \"(room_group | charge_wait)\" until 2026-08-24 (P9) and named half of it", names the normalize No named test — prose only.
+### P10 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=2 — `profiles/manager.py:1764 (apply_run_profile, break derivation)`
 
 **SAYS.** # set_queue_breaks clamps # to an interior slot and drops breaks entirely below two
 rooms, which is # also where a leading/trailing break resolves -- unsupported per RP-021a #
@@ -4240,7 +4361,8 @@ silently deleting the zone phase of every rooms->zone profile applied through th
 exact C40 failure the code below is trying to surface — or, debugging a trailing zone that did
 survive, concludes set_queue_breaks is broken and tightens its zone clamp to room_count-1.
 
-### P11 · MEDIUM · false · passes=1 — `profiles/manager.py:482 (save_user_room_profile)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P10 → `[FIXED-UNPROVEN]`. ProfileManager.apply_run_profile (_derived_breaks derivation comment) — text now states: Lead sentence corrected to "drops breaks entirely below two enabled rooms, and clamps after_index into [1, max_after] so nothing can LEAD". Then `⚠ was: "…which is also where a leading/TRAILING break No named test — prose only.
+### P11 ✅ APPLIED 2026-08-24 · MEDIUM · false · passes=1 — `profiles/manager.py:482 (save_user_room_profile)`
 
 **SAYS.** # ISSUE #48, the fifth and last copy — and the worst-placed, because #
 get_effective_room_details forty lines up produces the SAME mop_required # field through the
@@ -4264,7 +4386,8 @@ test" that must be aligned with the "canonical" one at :441, and rewrites :490 t
 :441 keeps it — manufacturing the exact divergence the comment claims already exists. The
 comment is an accusation against a currently-consistent pair.
 
-### P12 · MEDIUM · over-scoped · passes=1 — `profiles/manager.py:198 (_catalog_for docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P11 → `[FIXED-UNPROVEN]`. ProfileManager.save_user_room_profile (ISSUE #48 comment above _mop_required) — text now states: "ISSUE #48, the THIRD and last copy in this file … Two producers of one field, in one file, kept in step BY HAND." Then `⚠ was: "the fifth and last copy … disagreeing by construction … a substring tes No named test — prose only.
+### P12 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `profiles/manager.py:198 (_catalog_for docstring)`
 
 **SAYS.** Every resolution path goes through here. Core ships no catalog of its own, so a caller
 that cannot name a vacuum cannot resolve a profile — which is the point: the four call sites
@@ -4285,7 +4408,8 @@ every path and will not touch queue_engine.py:254 — which is the path that act
 wire. The dispatch-time resolution would keep whatever behaviour the chokepoint was added to
 change, invisibly.
 
-### P13 · MEDIUM · stale-reference · passes=1 — `profiles/manager.py:428 (get_effective_room_details)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P12 → `[FIXED-UNPROVEN]`. ProfileManager._catalog_for (docstring) — text now states: The false opener is gone from the lead paragraph, which keeps the motive intact (core ships no catalog; requiring a vacuum is the point). A `⚠ NOT the chokepoint` block records that it "opened with 'E No named test — prose only.
+### P13 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference · passes=1 — `profiles/manager.py:428 (get_effective_room_details)`
 
 **SAYS.** # ISSUE #48: the LAST private copy of the predicate. [...] If that tolerance is ever
 wanted back it belongs in # is_mop_clean_mode, once, not in a fourth private copy.
@@ -4302,7 +4426,8 @@ stops searching at line 441, and never reaches the copy at :490 — leaving the 
 file itself calls "the worst-placed" in the tree. The contradictory counts also make either
 comment unusable as a completeness check for the consolidation work.
 
-### P14 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:67 (EffectiveRoomSettings field annotation)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P13 → `[FIXED-UNPROVEN]`. ProfileManager.get_effective_room_details (mop_required comment, "LAST private copy" / "fourth private copy") — text now states: Opens "ISSUE #48: the SECOND of THREE private copies of this predicate in this file" and names all three by symbol. A `⚠ was: "the LAST private copy" … "not in a fourth private copy" — false on both c No named test — prose only.
+### P14 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:67 (EffectiveRoomSettings field annotation)`
 
 **SAYS.** path_type: str # always present after Wave 2
 
@@ -4320,7 +4445,8 @@ gets a KeyError on every Eufy device and on any Roborock model without path cont
 case, not the edge case. The neighbouring `# always present after Wave 2` also makes the correct
 `.get` guard in queue_engine look like defensive redundancy someone could tidy away.
 
-### P15 · MEDIUM · false · passes=2 — `profiles/room_profiles.py:582-583 (resolve_room_profile_for_room docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P14 → `[FIXED-UNPROVEN]`. EffectiveRoomSettings.path_type (field annotation comment) — text now states: `path_type: str              # resolver always emits it ("" = undeclared); the gate drops it` — trailing comment only; the annotation itself is untouched. No named test — prose only.
+### P15 ✅ APPLIED 2026-08-24 · MEDIUM · false · passes=2 — `profiles/room_profiles.py:582-583 (resolve_room_profile_for_room docstring)`
 
 **SAYS.** Resolution order: selected profile → floor-type defaults → hard constraints (carpet
 forces vacuum-only) → per-room overrides.
@@ -4340,7 +4466,8 @@ follows a stated order in which per-room overrides win last and concludes the cl
 or, restoring "floor-type defaults" as a general stage, re-adds the per-surface water table that
 was deliberately retired.
 
-### P16 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:407 (get_available_profile_names docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P15 → `[FIXED-UNPROVEN]`. resolve_room_profile_for_room (docstring, resolution order) — text now states: States the real ladder (room-explicit > profile > ABSENT, carpet clamp above it), explains that carpet-is-water-off is a safety property so the override losing is deliberate, and notes `resolve_profil No named test — prose only.
+### P16 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:407 (get_available_profile_names docstring)`
 
 **SAYS.** Mop profiles are excluded entirely when the vacuum does not support mopping.
 
@@ -4357,7 +4484,8 @@ picker reads a single stated condition, confirms supports_mop_features is True, 
 the bug elsewhere — or "fixes" the code to match the docstring by dropping the supports_water
 conjunct, restoring mop profiles on hardware that rejects every mop command.
 
-### P17 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:732-733 (inline comment on the mop-downgrade block in apply_capability_gate)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P16 → `[FIXED-UNPROVEN]`. get_available_profile_names (docstring) — text now states: Opens "THE GATE IS A CONJUNCTION: ``supports_mop_features`` AND ``supports_water_control``. Fail either one and the caller gets the two vacuum-only names." Same fix as P21 — see P21 for the ⚠ paragrap No named test — prose only.
+### P17 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:732-733 (inline comment on the mop-downgrade block in apply_capability_gate)`
 
 **SAYS.** A brand that declares only one of the two axes carries only that one through the
 downgrade; the other stays "" and is dropped below.
@@ -4374,7 +4502,8 @@ Anything downstream that distinguishes an absent key from an empty value — the
 _finalize_room_update and vocabulary_migration are built around — sees clean_intensity as
 declared-empty on a brand that has no intensity axis at all.
 
-### P18 · MEDIUM · stale-reference · passes=2 — `profiles/__init__.py:7-9 (module docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P17 → `[FIXED-UNPROVEN]`. apply_capability_gate (inline comment on the mop-downgrade block) — text now states: The first clause is kept and truncated at "the other stays \"\"". A ⚠ block follows naming which axis is dropped and which is not, the exact write sites, the Roborock case, and the downstream cost (`_ No named test — prose only.
+### P18 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference · passes=2 — `profiles/__init__.py:7-9 (module docstring)`
 
 **SAYS.** The existing room_profiles.py module (built-in presets, normalize helpers, resolve
 logic) is unchanged and continues to be importable directly via profiles.room_profiles.
@@ -4391,7 +4520,8 @@ catalog is sent to room_profiles.py and finds none, and the word "unchanged" pos
 discourages checking whether the module still works the way this paragraph describes — which is
 the whole point of the core-owns-keys-not-words split.
 
-### P19 · MEDIUM · false · passes=1 — `profiles/room_profiles.py:179-183 — no_water_value docstring`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P18 → `[FIXED-UNPROVEN]`. package docstring — text now states: States that room_profiles.py holds the key space, normalize helpers and resolve logic and NO presets, quotes the banner and get_default_room_profiles, names the 2026-08-07 move to the Eufy adapter, an No named test — prose only.
+### P19 ✅ APPLIED 2026-08-24 · MEDIUM · false · passes=1 — `profiles/room_profiles.py:179-183 — no_water_value docstring`
 
 **SAYS.** ``resolve_room_profile_for_room`` already reads it this way; ``apply_capability_gate``
 did not, and assigned the literal ``"Off"`` at three sites. Roborock's value is ``"off"``, which
@@ -4411,7 +4541,8 @@ option list", which inverts the lesson. The plausible "fix" is to change the car
 carpet-water-off guarantee this very helper exists to source. The distinction that actually
 matters (case: "Off" vs "off") is destroyed by the sentence.
 
-### P20 · MEDIUM · stale-reference · passes=1 — `profiles/room_profiles.py:53-55 vs 67 — EffectiveRoomSettings`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P19 → `[FIXED-UNPROVEN]`. no_water_value (docstring) — text now states: "...assigned the Eufy literal ``\"Off\"`` at three sites. THE DEFECT IS CASE." — names Roborock's real option list and its source file, identifies capital-O `"Off"` as the value `options_key` dropped. No named test — prose only.
+### P20 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference · passes=1 — `profiles/room_profiles.py:53-55 vs 67 — EffectiveRoomSettings`
 
 **SAYS.** Docstring: "``path_type`` is brand-conditional, NOT always present — it is carried
 only by a brand that declares the axis, and ``apply_capability_gate`` drops the key outright for
@@ -4431,7 +4562,8 @@ at face value writes `settings["path_type"]` against a gated payload and gets a 
 every Eufy device. Conversely a reader taking the docstring at face value adds a needless
 presence check to resolver output. One of the two will get "fixed" on the strength of the other.
 
-### P21 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:405-407 — get_available_profile_names docstring`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P20 → `[FIXED-UNPROVEN]`. EffectiveRoomSettings (docstring) — the half that contradicts the P14 annotation — text now states: "``path_type`` DEPENDS ON WHICH PRODUCER MADE THE DICT", then a two-bullet split: the resolver always emits it (with `""`), the gate removes it (quoting the `if path_type:` / `gated.pop(...)` pair) an No named test — prose only.
+### P21 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:405-407 — get_available_profile_names docstring`
 
 **SAYS.** Return the list of profile names allowed for the given vacuum capabilities. Mop
 profiles are excluded entirely when the vacuum does not support mopping.
@@ -4449,7 +4581,8 @@ mop, and this docstring says that cannot happen. Anyone debugging "why did the m
 disappear on a mop-equipped robot" is sent away from the actual predicate; anyone changing the
 condition will believe they are preserving documented behaviour when they are not.
 
-### P22 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:433 — get_available_profiles docstring`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P21 → `[FIXED-UNPROVEN]`. get_available_profile_names (docstring) — same site as P16 — text now states: The ⚠ paragraph names the live counter-example end to end — `has_mop: True`, `"supports_water_control": mop_settable`, `SET_WATER_BOX_CUSTOM_MODE` / `SET_MOP_MODE` rejected on-device, `_hint_wins` — s No named test — prose only.
+### P22 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:433 — get_available_profiles docstring`
 
 **SAYS.** Return normalized profiles filtered to those allowed by the vacuum's capabilities.
 
@@ -4467,7 +4600,8 @@ sees none of them in the sensor and no stated reason; a maintainer reading this 
 cue that the function silently discards user data, and would "fix" the sensor rather than the
 whitelist.
 
-### P23 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:455-460 — resolve_profile_name_for_constraints docstring`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P22 → `[FIXED-UNPROVEN]`. get_available_profiles (docstring) — text now states: Summary line rewritten to "surviving BOTH filters below — not capabilities alone", then a ⚠ paragraph naming the whitelist (`PROTECTED_ROOM_PROFILE_NAMES`), the comprehension predicate, and what it di No named test — prose only.
+### P23 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `profiles/room_profiles.py:455-460 — resolve_profile_name_for_constraints docstring`
 
 **SAYS.** Resolve the final profile name after applying hard constraints. Rule: - carpet floor
 forces vacuum-only behavior - vacuum_mop_quick -> vacuum_quick - vacuum_mop_deep -> vacuum_deep
@@ -4486,7 +4620,8 @@ custom or brand-specific profile — the carpet water clamp in the caller still 
 mode does not. The undocumented third mapping also means a reader enumerating the rules from
 this docstring will miss a live branch.
 
-### P24 · LOW · false · passes=1 — `profiles/manager.py:428-429 (get_effective_room_details, mop_required)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P23 → `[FIXED-UNPROVEN]`. resolve_profile_name_for_constraints (docstring) — text now states: Summary is now "Remap a carpet room's profile NAME off the three mop built-ins. Names only." All three mappings are listed, the third marked "undocumented until 2026-08-24, and live" with its reachabi No named test — prose only.
+### P24 ✅ APPLIED 2026-08-24 · LOW · false · passes=1 — `profiles/manager.py:428-429 (get_effective_room_details, mop_required)`
 
 **SAYS.** # ISSUE #48: the LAST private copy of the predicate. Expressed exactly as #
 _protected_room_config expresses it — same file, same question
@@ -4503,7 +4638,8 @@ complete, and misses the copy at :490 (and the one at :148). The two comments al
 about the same line: :483 describes :441 as produced "through the shared owner", while :428
 calls it a private copy.
 
-### P25 · LOW · over-scoped · passes=1 — `profiles/manager.py:1095-1097 (_reject_unbracketed_break)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P24 → `[FIXED-UNPROVEN]`. ProfileManager.get_effective_room_details (mop_required comment, "LAST private copy" / "Expressed exactly as _protected_room_config") — text now states: Same block as P13. The false "LAST" claim is replaced by "the SECOND of THREE private copies … All three are the byte-identical `is_mop_clean_mode(x) or \"wash\" in x`", the true "expressed exactly as No named test — prose only.
+### P25 ✅ APPLIED 2026-08-24 · LOW · over-scoped · passes=1 — `profiles/manager.py:1095-1097 (_reject_unbracketed_break)`
 
 **SAYS.** # single-entry list (every ``queue_breaks`` call site normalizes one already- #
 positioned break in isolation) is never "leading" or "trailing" in this sense,
@@ -4521,7 +4657,8 @@ reader takes it to mean no queue_breaks path can ever trip the leading/trailing 
 could drop get_queue_steps' self-heal except-block as dead code — the one place that recovers a
 break stranded by a room being disabled after placement.
 
-### P26 · LOW · stale-reference · passes=1 — `profiles/manager.py:1789-1791 (apply_run_profile, C40 dropped-leading-zone comment)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P25 → `[FIXED-UNPROVEN]`. ProfileManager._reject_unbracketed_break (Q17 comment) — text now states: The false parenthetical is lifted out of the lead sentence, which keeps the real justification for the `len(out) > 1` guard. A `⚠ was: "(every ``queue_breaks`` call site normalizes one already-positio No named test — prose only.
+### P26 ✅ APPLIED 2026-08-24 · LOW · stale-reference · passes=1 — `profiles/manager.py:1789-1791 (apply_run_profile, C40 dropped-leading-zone comment)`
 
 **SAYS.** # this reports the ones already saved, which is the case the comment # at :1723 says
 this method exists to serve: "an automation that calls # apply_run_profile then start_cleaning
@@ -4537,7 +4674,8 @@ Both pointers are ~25 lines short, consistent with an insertion above them.
 prose and concludes the cited rule was removed. Both quote enough text to be re-found by grep,
 which is the only reason this is low rather than worse.
 
-### P27 · LOW · over-scoped · passes=1 — `profiles/manager.py:1828-1831 (apply_run_profile return, unsnapshotted_room_ids)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P26 → `[FIXED-UNPROVEN]`. ProfileManager.apply_run_profile (dropped-leading-zone comment) and ProfileManager.set_run_profile_steps (C40 comment) — text now states: Both pointers are replaced with symbol/positional references ("the RP-021c block above this loop", "its `if _rooms_emitted >= 1:` gate"). A `⚠` note at each site records the old citation, what actuall No named test — prose only.
+### P27 ✅ APPLIED 2026-08-24 · LOW · over-scoped · passes=1 — `profiles/manager.py:1828-1831 (apply_run_profile return, unsnapshotted_room_ids)`
 
 **SAYS.** # RP-021b / #8:A4-PP-RP-1: rooms the profile had no saved settings # snapshot for, so
 they kept their CURRENT settings. Empty for any # profile saved since settings were snapshotted,
@@ -4556,7 +4694,8 @@ non-empty list as proof of a legacy profile, so the real cause — steps and roo
 steps-only write — gets misdiagnosed as "old profile, just re-save it", which does not fix the
 desync.
 
-### P28 · LOW · reason-obsolete · passes=1 — `profiles/manager.py:1361-1362 (set_run_profile_steps, C40 comment)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P27 → `[FIXED-UNPROVEN]`. ProfileManager.apply_run_profile (unsnapshotted_room_ids return-dict comment) — text now states: The over-scoped clause is removed from the lead ("Empty for every legacy rooms-only profile…" remains, which is true). A `⚠ was: "Empty for any profile saved since settings were snapshotted" — over-sc No named test — prose only.
+### P28 ✅ APPLIED 2026-08-24 · LOW · reason-obsolete · passes=1 — `profiles/manager.py:1361-1362 (set_run_profile_steps, C40 comment)`
 
 **SAYS.** # C40: a profile whose FIRST step is a zone is saveable today and its # zone never
 runs.
@@ -4575,7 +4714,8 @@ used to be a bare `steps: []`", "an unconditional write put path_type=...", "Was
 file or chase a defect that the line below already closes, or add a duplicate guard on another
 path.
 
-### P29 · LOW · over-scoped · passes=1 — `profiles/manager.py:987 (normalize_run_profile_steps docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P28 → `[FIXED-UNPROVEN]`. ProfileManager.set_run_profile_steps (C40 comment) — text now states: Rewritten to past tense — "a profile whose FIRST step is a zone WAS saveable, and its zone never ran. The `leading_zone_unsupported` raise that closes this `try` block is the fix" — then explains the No named test — prose only.
+### P29 ✅ APPLIED 2026-08-24 · LOW · over-scoped · passes=1 — `profiles/manager.py:987 (normalize_run_profile_steps docstring)`
 
 **SAYS.** Invalid/empty entries are dropped.
 
@@ -4595,7 +4735,8 @@ normalize at :1143 — which sits inside the except block — raises uncaught.
 nothing. On a stored profile with an edge break it raises out of a read path, and the failure
 surfaces as "saved run profile will not load" rather than as a validation result.
 
-### P30 · LOW · over-scoped · passes=1 — `profiles/manager.py:1094 (_reject_unbracketed_break)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P29 → `[FIXED-UNPROVEN]`. ProfileManager.normalize_run_profile_steps (docstring) and ProfileManager.run_profile_steps (recovery except-block) — text now states: The docstring gains a "NOT total — this can RAISE" paragraph naming `_reject_unbracketed_break`, both translation keys verbatim, and the RP-021a Q17 reason; a `⚠` sentence records that it said only "I No named test — prose only.
+### P30 ✅ APPLIED 2026-08-24 · LOW · over-scoped · passes=1 — `profiles/manager.py:1094 (_reject_unbracketed_break)`
 
 **SAYS.** # A # single-entry list (every ``queue_breaks`` call site normalizes one already- #
 positioned break in isolation) is never "leading" or "trailing" in this sense, # so the check
@@ -4615,7 +4756,8 @@ and gets deleted. It is not dead — disabling a room after a break was placed s
 at an edge, and the handler is what keeps the derived queue readable instead of throwing on
 every fetch.
 
-### P31 · LOW · false · passes=1 — `profiles/manager.py:14 (module docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P30 → `[FIXED-UNPROVEN]`. ProfileManager._reject_unbracketed_break (Q17 comment, "every queue_breaks call site") — text now states: Closed by the same edit as P25. The ⚠ block additionally names the specific harm this phrasing caused: it "made the raise look UNREACHABLE from the queue_breaks store", so the self-heal try/except in No named test — prose only.
+### P31 ✅ APPLIED 2026-08-24 · LOW · false · passes=1 — `profiles/manager.py:14 (module docstring)`
 
 **SAYS.** Receives a reference to the parent EufyVacuumManager so it can call
 get_effective_room_details (from room profile save-from-room), _notify_run_profiles_updated,
@@ -4637,7 +4779,8 @@ logic onto the core manager — inverting the ownership the same docstring's "Ow
 asserts. The stale enumeration also understates the coupling for anyone assessing how
 extractable this subsystem is.
 
-### P32 · LOW · over-scoped · passes=1 — `profiles/manager.py:258 (_match_profile_from_fields)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P31 → `[FIXED-UNPROVEN]`. module docstring — text now states: The list is now the six-plus-three things the PARENT actually owns, in the order they appear. A `⚠` paragraph records that it "named ``get_effective_room_details`` as one of them until 2026-08-24 (P31 No named test — prose only.
+### P32 ✅ APPLIED 2026-08-24 · LOW · over-scoped · passes=1 — `profiles/manager.py:258 (_match_profile_from_fields)`
 
 **SAYS.** # Only this leg. The other five compare a BRAND's vocabulary, which # core does not
 own and has no canonical form for; widening the shared # normalizer would assert a framework
@@ -4658,7 +4801,8 @@ codebase's own doctrine permits — core does own those two — so a real matchi
 numeric/boolean legs would be left alone on a stated brand-ownership ground that does not apply
 to them.
 
-### P33 · LOW · stale-reference · passes=1 — `profiles/manager.py:1364 and :1789 (C40 comments)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P32 → `[FIXED-UNPROVEN]`. ProfileManager._match_profile_from_fields (clean_mode leg comment) — text now states: "Only this leg goes through the canonical owner. THREE of the other five compare a BRAND's vocabulary — fan_speed, water_level, clean_intensity —" with the "Max"/"Quick" motive preserved. A `⚠ was: "T No named test — prose only.
+### P33 ✅ APPLIED 2026-08-24 · LOW · stale-reference · passes=1 — `profiles/manager.py:1364 and :1789 (C40 comments)`
 
 **SAYS.** :1363-1364 — "# `after_index = rooms emitted so far` and only emits a break once at\n#
 least one room has gone out (:1758)". :1788-1789 — "# this reports the ones already saved, which
@@ -4676,7 +4820,8 @@ the referenced logic was removed, or reads the wrong construct as the anchoring 
 individually, but these two are the file's only same-file line pointers and both are wrong, so
 the convention cannot be trusted anywhere in it.
 
-### P34 · LOW · over-scoped · passes=1 — `profiles/room_profiles.py:613-616 (inline comment above the last-resort fallbacks in resolve_room_profile_for_room)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P33 → `[FIXED-UNPROVEN]`. ProfileManager.set_run_profile_steps (":1758" pointer) and ProfileManager.apply_run_profile (":1723" pointer) — text now states: Both pointers replaced by symbol references. The `set_run_profile_steps` site records "That gate used to be cited here as ':1758'; this file's intra-file line pointers have rotted by ~25 lines (P26/P3 No named test — prose only.
+### P34 ✅ APPLIED 2026-08-24 · LOW · over-scoped · passes=1 — `profiles/room_profiles.py:613-616 (inline comment above the last-resort fallbacks in resolve_room_profile_for_room)`
 
 **SAYS.** Last-resort fallbacks are "" ("nobody said"), NOT Eufy display literals. They fire
 only when the room AND the brand's profile both omit the key; a value here would be this module
@@ -4695,7 +4840,8 @@ exception by changing "vacuum" to "" — which would be a real regression, since
 framework-owned field per the ProfileRecord docstring. The fix belongs in the comment, not the
 code.
 
-### P35 · LOW · false · passes=1 — `profiles/room_profiles.py:756-758 (inline comment on the vacuum-only block in apply_capability_gate)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P34 → `[FIXED-UNPROVEN]`. resolve_room_profile_for_room (inline comment above the last-resort fallbacks) — text now states: Rule restated as "Last-resort fallbacks carry NO brand vocabulary" (motive and the `rooms/room_defaults.py` reference preserved), then a ⚠ block: NOT ALL OF THEM ARE "", naming `clean_mode` -> `"vacuu No named test — prose only.
+### P35 ✅ APPLIED 2026-08-24 · LOW · false · passes=1 — `profiles/room_profiles.py:756-758 (inline comment on the vacuum-only block in apply_capability_gate)`
 
 **SAYS.** The two halves failed in opposite directions from one root — the mop test UNDER-fired,
 this one under-fired too, and only the canonical spelling ever exercised either.
@@ -4711,7 +4857,8 @@ opposite failure directions.
 over-firing half that never existed, and may conclude one of the two predicates needs loosening
 in the other direction. The remedy is deleting three words from the comment; no code is at risk.
 
-### P36 · LOW · stale-reference · passes=1 — `profiles/room_profiles.py:132-133 (coerce_clean_intensity docstring, closing paragraph)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P35 → `[FIXED-UNPROVEN]`. apply_capability_gate (inline comment on the vacuum-only block) — text now states: "BOTH halves UNDER-fired, from the one root." — records that the comment said "failed in opposite directions" until 2026-08-24 and contradicted itself two clauses later, spells out both retired predic No named test — prose only.
+### P36 ✅ APPLIED 2026-08-24 · LOW · stale-reference · passes=1 — `profiles/room_profiles.py:132-133 (coerce_clean_intensity docstring, closing paragraph)`
 
 **SAYS.** Kept as its own name because nine call sites read as intensity questions; the coercion
 is ``coerce_axis_value``, shared with every other axis.
@@ -4727,7 +4874,8 @@ one-line alias rather than calling coerce_axis_value directly. Someone re-evalua
 decision counts seven, and the rationale reads as already stale — or they hunt for two call
 sites that no longer exist.
 
-### P37 · LOW · reason-obsolete · passes=1 — `profiles/room_profiles.py:271-280 — normalize_room_profile docstring`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P36 → `[FIXED-UNPROVEN]`. coerce_clean_intensity (docstring, closing paragraph) — text now states: "...SEVEN of them in the package as of 2026-08-24, three in ``profiles/manager.py`` and four in this module" (counted by module, not by line, so it does not re-rot into a stale pointer). A ⚠ paragraph No named test — prose only.
+### P37 ✅ APPLIED 2026-08-24 · LOW · reason-obsolete · passes=1 — `profiles/room_profiles.py:271-280 — normalize_room_profile docstring`
 
 **SAYS.** Framework-canonical fields (label/clean_mode/clean_passes/ edge_mopping/mop_required)
 fall back to the catalog's ``normalize_defaults`` (the adapter's ``normalize_defaults``; empty
@@ -4750,6 +4898,7 @@ preserve — or will "clean up" by re-merging `d` and `brand_defaults` under one
 realising the duplicate pair is the only trace of the removed tier. The dangling "byte-
 identical" belongs to the same retired-fallback family as lines 588 and 812.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P37 → `[FIXED-UNPROVEN]`. normalize_room_profile (docstring, Q2/RP-025 paragraph) — text now states: Q2/RP-025 clause (i) is reframed as the WHY and marked HISTORY, keeping the "Max"/"Off"/"Quick" motive and the note that Eufy's own behaviour is unchanged. A ⚠ paragraph states THERE IS ONE SECOND-LEV No named test — prose only.
 ## ADAPTER CONTRACT COMMENT AUDIT — 2026-08-23. 30 findings (UNION OF THREE PASSES). **4 APPLIED 2026-08-24 (A4, A6, A7, A9 — A7 a SCHEMA declaration); 26 NOT APPLIED.**
 
 Severity {'high': 5, 'medium': 15, 'low': 10}. Kind {'false': 7, 'reason-obsolete': 1, 'over-scoped': 11, 'stale-reference': 7, 'adopted-alternative': 4}.
@@ -4789,7 +4938,7 @@ skipped", describes a check that was never implemented. `entities.work_mode` IS 
 
 ---
 
-### A1 · HIGH · false · passes=1 — `adapters/config_schema.py:271-279 (entities.work_mode)`
+### A1 ✅ APPLIED 2026-08-24 · HIGH · false · passes=1 — `adapters/config_schema.py:271-279 (entities.work_mode)`
 
 **SAYS.** "Work mode sensor. Used by the start-blocker check in core/manager.py to detect
 blocked work modes. Degradation: work mode block check skipped."
@@ -4807,6 +4956,7 @@ while the robot is in a blocked work mode, and gets no protection. Worse in the 
 someone debugging "why did a job start during Smart Follow?" goes looking for a bug inside a
 core/manager.py check that does not exist, instead of discovering the feature was never wired.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A1 → `[FIXED-UNPROVEN]`. ADAPTER_CONFIG_SCHEMA["entities"]["fields"]["work_mode"] description — text now states: States the real reader (core/capabilities.py, presence only, state never consulted), then a "⚠ was:" block quoting the old sentence and naming build_start_blocker_from_lifecycle and its actual arms. K No named test — prose only.
 ### A2 ✅ APPLIED 2026-08-24 · HIGH · false · passes=1 — `adapters/config_schema.py:348-365 (vocabulary.blocked_work_mode_states, vocabulary.blocked_task_status_states)`
 
 **SAYS.** blocked_work_mode_states: "Work mode strings that block job start. These are raw (non-
@@ -4828,7 +4978,7 @@ job start is guarded against mid-wash / mid-clean dispatch. The sibling key one 
 read, which makes the dormancy of these two invisible on a skim.
 
   ⤷ CLOSED 2026-08-24 ledger-truth pass · A2 → `[FIXED-UNPROVEN]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/adapters/config_schema.py:356-388 (preamble + both rewritten descriptions), :391-397 (sibling blocked_dock_status_states, correctly still live); reader check custom_components/eufy_vacuum/jobs/active_job.py:3185; ledger row .claude/notes/LEDGER-defects-code-vs-doc.md:4629-4647 No named test — prose only.
-### A3 · HIGH · reason-obsolete · passes=1 — `adapters/registry.py:462-464 (room_profiles catalog check comment)`
+### A3 ✅ APPLIED 2026-08-24 · HIGH · reason-obsolete · passes=1 — `adapters/registry.py:462-464 (room_profiles catalog check comment)`
 
 **SAYS.** "# Room-profile catalog check — a declared block must be a dict with sane field // #
 types. The framework merges it over the in-code defaults (resolve_profile_catalog), // # so a
@@ -4850,6 +5000,7 @@ and approves it; what actually happens is those axes resolve empty. The correct 
 partial block is fine' is one screen away in the same file (undeclared keys resolve empty, which
 is a defined answer), so the two comments teach opposite mechanisms for the same conclusion.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A3 → `[FIXED-UNPROVEN]`. _validate_adapter — room-profile catalog check comment — text now states: Scopes the check (malformed only; presence is _validate_room_profiles' job), then dates the false claim, quotes it, and gives the real mechanism verbatim (`_catalog_key(block, <key>, {})`, default_pro No named test — prose only.
 ### A4 ✅ APPLIED 2026-08-24 · HIGH · over-scoped · passes=1 — `adapters/config_schema.py:1943 (capability_hints block description)`
 
 **SAYS.** "A hint here is authoritative: it overrides the derived default, and it is what
@@ -4873,7 +5024,7 @@ That is precisely the failure `_hint_wins` was written to prevent ("exactly how
 supports_edge_mopping stayed True for a brand declaring it False"), and the schema tells the
 author the OR'd half behaves like the override half.
 
-### A5 · HIGH · adopted-alternative · passes=1 — `adapters/registry.py:353-362 (_validate_adapter docstring)`
+### A5 ✅ APPLIED 2026-08-24 · HIGH · adopted-alternative · passes=1 — `adapters/registry.py:353-362 (_validate_adapter docstring)`
 
 **SAYS.** "Currently checks:\n - mapping.segmenter_engine resolves to a known engine\n -
 mapping.segmenter_tuning passes the engine's own tuning validator\n\n More rules (required
@@ -4899,6 +5050,7 @@ a list that is missing the only check that can reject one. config_schema.py:1797
 :1868-1883 already cite _validate_adapter as validating room_profiles, job_segmenter and
 room_attribution, so the two files contradict each other.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A5 → `[FIXED-UNPROVEN]`. _validate_adapter docstring — text now states: Enumerates all nine checks in body order with the two RNTKY81M replica markers noted. Adds the load-bearing fact the old list hid: _validate_room_profiles is the only check that fires on an ABSENT blo No named test — prose only.
 ### A6 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=2 — `adapters/config_schema.py:1429-1433 (capabilities.supports_zone_repeat)`
 
 **SAYS.** "Whether the zone-clean command accepts a repeat count. False (or omitted
@@ -4942,7 +5094,7 @@ misdirecting prose is inside the schema itself, which makes it read as a declara
 rather than a reference to an undeclared one. Code adapters never notice because they bypass the
 schema walk.
 
-### A8 · MEDIUM · over-scoped · passes=1 — `adapters/config_loader.py:7-9 (module docstring)`
+### A8 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `adapters/config_loader.py:7-9 (module docstring)`
 
 **SAYS.** "Called from async_setup_entry before code adapter registration so that code adapters
 always take precedence over stored configs for the same vacuum."
@@ -4962,6 +5114,7 @@ maintainer who trusts this line will not look for that as the cause of 'my saved
 works until I reboot Home Assistant', and may skip the ordering question entirely when touching
 either registration path.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A8 → `[FIXED-UNPROVEN]`. module docstring + load_stored_adapter_configs docstring — text now states: An ORDERING section states the startup fact plainly, followed by a ⚠ was: block: "always" states an invariant the system does not hold; the save service registers directly and outranks the live code a No named test — prose only.
 ### A9 ✅ APPLIED 2026-08-24 · MEDIUM · false · passes=1 — `adapters/config_schema.py:570-577 (completion.secondary_clear_entity)`
 
 **SAYS.** "Entity key from entities dict whose cleared state is required alongside
@@ -4981,7 +5134,7 @@ ignored — completion then keys on active_cleaning_target, which for that brand
 may never sentinel. The failure surfaces as 'jobs never finalize', with the adapter config
 looking correct.
 
-### A10 · MEDIUM · over-scoped · passes=1 — `adapters/config_schema.py:174-181 (entities.cleaning_time)`
+### A10 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `adapters/config_schema.py:174-181 (entities.cleaning_time)`
 
 **SAYS.** "Cleaning time sensor in seconds. Used by job finalizer for actual duration.
 Degradation: duration derived from job timestamps only."
@@ -5000,7 +5153,8 @@ says the result is stored 60x low. The correcting seam is 1700 lines away in the
 is flagged there as 'the ONE BrandFacts property only Roborock declares, so it is the seam most
 likely to be missed' — this line is precisely how it gets missed.
 
-### A11 · MEDIUM · over-scoped · passes=1 — `adapters/config_schema.py:183-189 (entities.cleaning_area)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A10 → `[FIXED-UNPROVEN]`. ADAPTER_CONFIG_SCHEMA["entities"]["fields"]["cleaning_time"] description — text now states: States the real resolution order — entity unit_of_measurement first, then the adapter's top-level `cleaning_time_unit` ("min" or "s"), then assume seconds — followed by a "⚠ was:" block quoting the ol No named test — prose only.
+### A11 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `adapters/config_schema.py:183-189 (entities.cleaning_area)`
 
 **SAYS.** "Cleaning area sensor in m². Used by job finalizer. Degradation: area omitted from job
 record."
@@ -5020,7 +5174,8 @@ entities.cleaning_area takes the schema at its word and reads `state` bare, rein
 swept_area_min_m2. The unit is a property of the user's HA locale, not of the adapter, so it
 cannot be fixed by the adapter author the line is addressed to.
 
-### A12 · MEDIUM · over-scoped · passes=1 — `adapters/config_schema.py:1077-1086 (setup.steps)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A11 → `[FIXED-UNPROVEN]`. ADAPTER_CONFIG_SCHEMA["entities"]["fields"]["cleaning_area"] description — text now states: States the real contract — declare the entity, the framework reads its unit — and names cleaning_area_to_m2 and _AREA_TO_M2 with the covered units. The "⚠ was:" block explains why the old sentence was No named test — prose only.
+### A12 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `adapters/config_schema.py:1077-1086 (setup.steps)`
 
 **SAYS.** "'import_active_map' is needed by brands whose integration surfaces one map at a time
 and requires an explicit import operation (Eufy)."
@@ -5041,7 +5196,8 @@ practice mandatory for both shipped brands but is documented as a Eufy quirk, an
 setup/drift.py's `_DEFAULT_SETUP_STEPS` ("add_vacuum", "save_rooms") omits it, so an adapter
 that declares no setup block inherits exactly the broken shape.
 
-### A13 · MEDIUM · adopted-alternative · passes=1 — `adapters/registry.py:355-362 (_validate_adapter docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A12 → `[FIXED-UNPROVEN]`. ADAPTER_CONFIG_SCHEMA["setup"]["fields"]["steps"] description — text now states: Reframes the step as brand-agnostic "discover + create the map bucket" and in practice required, gives both shipped adapters' opposite reasons, then a "⚠ was:" block explaining that the old wording re No named test — prose only.
+### A13 ✅ APPLIED 2026-08-24 · MEDIUM · adopted-alternative · passes=1 — `adapters/registry.py:355-362 (_validate_adapter docstring)`
 
 **SAYS.** "Currently checks: - mapping.segmenter_engine resolves to a known engine -
 mapping.segmenter_tuning passes the engine's own tuning validator. More rules (required
@@ -5062,7 +5218,8 @@ someone adding dispatch-template validation writes a second, duplicate check, an
 auditing 'what does registration actually reject?' concludes only the mapping block is enforced
 and misses that room_profiles absence is a hard ServiceValidationError for stored configs.
 
-### A14 · MEDIUM · false · passes=1 — `adapters/config_schema.py:1736 (water_model_configs.entry_fields.robot_internal_tank_ml description)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A13 → `[FIXED-UNPROVEN]`. _validate_adapter docstring (same site as A5 — one edit closes both) — text now states: Closed by the A5 rewrite. A13 and A5 are the same docstring found by two different passes; the single replacement discharges both. No named test — prose only.
+### A14 ✅ APPLIED 2026-08-24 · MEDIUM · false · passes=1 — `adapters/config_schema.py:1736 (water_model_configs.entry_fields.robot_internal_tank_ml description)`
 
 **SAYS.** "Capacity of the robot's onboard water reservoir in ml. Used to convert wash-frequency
 intervals into volume."
@@ -5083,7 +5240,8 @@ porter measuring a new model's onboard reservoir believes the number feeds the w
 and will size or debug the estimate against it — e.g. treat an estimate that ignores robot tank
 capacity as a bug in their measurement. It is inert everywhere except the reported payload.
 
-### A15 · MEDIUM · false · passes=1 — `adapters/registry.py:725-726 (adapter_honors_clean_order docstring, core/manager.py bullet)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A14 → `[FIXED-UNPROVEN]`. ADAPTER_CONFIG_SCHEMA["water_model_configs"]["entry_fields"]["robot_internal_tank_ml"] description — text now states: Labelled REPORTED ONLY with the single reader named by function, then "⚠ was:" quoting the old sentence and naming the fields that actually do that arithmetic. Preserves the motive for `required: True No named test — prose only.
+### A15 ✅ APPLIED 2026-08-24 · MEDIUM · false · passes=1 — `adapters/registry.py:725-726 (adapter_honors_clean_order docstring, core/manager.py bullet)`
 
 **SAYS.** "- ``core/manager.py`` — clears the bounds-exit gate, and exports the flag\n into the
 dashboard snapshot the card reads."
@@ -5106,7 +5264,8 @@ adds the hard-zero that was deliberately removed for suppressing stall detection
 optimising brands) or mis-scopes the blast radius of the change. The bullet also revives the
 retired name the code was renamed to stop propagating.
 
-### A16 · MEDIUM · over-scoped · passes=1 — `adapters/config_schema.py:47-50 (source field description)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A15 → `[FIXED-UNPROVEN]`. adapter_honors_clean_order docstring — core/manager.py bullet — text now states: "ONE read, in ``get_dashboard_snapshot`` ... That is all it does there." followed by a dated ⚠ note: no such gate is left to clear, the rename, the removal, and the fact that the very next bullet alre No named test — prose only.
+### A16 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `adapters/config_schema.py:47-50 (source field description)`
 
 **SAYS.** "How this adapter config was produced. 'code' = registered by a code adapter at
 startup. 'config' = written by the UI config flow. The framework treats both identically at
@@ -5128,7 +5287,8 @@ consumer (nothing else in the tree branches on adapter-config source) but false 
 boundary where source is the whole point, and the description presents it without that
 qualifier.
 
-### A17 · MEDIUM · adopted-alternative · passes=1 — `adapters/entity_resolve.py:532-540 — anchor RNZM4AYY, above the _claimed_by closure in resolve_declared_entities`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A16 → `[FIXED-UNPROVEN]`. ADAPTER_CONFIG_SCHEMA["source"] description — text now states: Producer half now reads "written to storage by the UI/service adapter-config path (save_adapter_config)", which is what actually writes it. The invariant is replaced by a ⚠ block quoting the old sente No named test — prose only.
+### A17 ✅ APPLIED 2026-08-24 · MEDIUM · adopted-alternative · passes=1 — `adapters/entity_resolve.py:532-540 — anchor RNZM4AYY, above the _claimed_by closure in resolve_declared_entities`
 
 **SAYS.** # anchor: RNZM4AYY longest-suffix ownership test — the replica set # # REPLICA, three
 copies. The same rule — a candidate belongs to the declaration # that explains the MOST of its
@@ -5162,6 +5322,7 @@ other) and that build_suffix_universe/claimed_by were extracted to end. Inverse 
 who believes the copies are independent may edit only capabilities and not realise the change
 lands in every caller of the shared function, including the maintenance path.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A17 → `[FIXED-UNPROVEN]`. resolve_declared_entities — anchor RNZM4AYY block above the _claimed_by closure — text now states: Opens "TWO MEMBERS, and the SUFFIX half is ONE implementation", names `build_suffix_universe`/`claimed_by` as the single home, names both wrappers and the capabilities import header verbatim, and iden No named test — prose only.
 ### A18 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference · passes=1 — `adapters/entity_resolve.py:595-607 — REPLICA RNF2RCXP block inside resolve_declared_entities' suffix-exhausted branch`
 
 **SAYS.** # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree # # REPLICA — the
@@ -5188,7 +5349,7 @@ comment itself warns about ('The first fix (`ef810519`) landed in two of the thr
 green tests said nothing'). The maintenance copy is the one that historically had no guard, so
 it is the worst one to drop off the list.
 
-### A19 · MEDIUM · over-scoped · passes=1 — `adapters/entity_resolve.py:27-32 — module docstring, SAFETY PROPERTIES item 1`
+### A19 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `adapters/entity_resolve.py:27-32 — module docstring, SAFETY PROPERTIES item 1`
 
 **SAYS.** SAFETY PROPERTIES, in order of importance: 1. **It never changes a resolution that
 already works.** A declared ID present in the state machine is returned untouched, so no working
@@ -5213,7 +5374,8 @@ the adapters or the options flow, where it is not. The mirrored claim in
 adapters/eufy/adapter.py:353 IS correct at its own site because `_rescue_select_block` passes
 `overrides=None`, which makes the module-level version look corroborated.
 
-### A20 · MEDIUM · over-scoped · passes=1 — `adapters/entity_resolve.py:460-463 — comment over the overrides pass in resolve_declared_entities`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A19 → `[FIXED-UNPROVEN]`. module docstring — SAFETY PROPERTIES item 1 — text now states: Item 1 is scoped to "The RESCUE never changes a resolution that already works", quoting the actual guard `if hass.states.get(declared) is not None: continue`. A ⚠ was: paragraph quotes the retired cla No named test — prose only.
+### A20 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped · passes=1 — `adapters/entity_resolve.py:460-463 — comment over the overrides pass in resolve_declared_entities`
 
 **SAYS.** # THE USER'S CHOICE IS A DECLARATION, not a candidate. Pinned before anything else #
 runs so it is what the rescue and exclusivity passes below reason about: its # suffix joins
@@ -5244,7 +5406,8 @@ argument a third brand can simply omit. That is the live:ENT-4 collision shape (
 vs `_total_cleaning_area`) reopening silently at exactly the point the comment promises it is
 closed.
 
-### A21 · LOW · adopted-alternative · passes=1 — `adapters/registry.py:504-507 (dispatch template check comment)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A20 → `[FIXED-UNPROVEN]`. resolve_declared_entities — comment over the overrides pass — text now states: Keeps the headline ("THE USER'S CHOICE IS A DECLARATION, not a candidate. Pinned before anything else runs so it is what the rescue and exclusivity passes below reason about") and drops the false clau No named test — prose only.
+### A21 ✅ APPLIED 2026-08-24 · LOW · adopted-alternative · passes=1 — `adapters/registry.py:504-507 (dispatch template check comment)`
 
 **SAYS.** "# Dispatch template check — a declared template must resolve to a registered // #
 dispatch engine. A schema-valid template with no engine yet (e.g. // # dreame_room_clean before
@@ -5262,7 +5425,8 @@ reader testing the comment by declaring dreame_room_clean sees it accepted and m
 check is dead or the comment describes something that never happened — when the guard is live
 and correct, it just needs an example that is still unregistered.
 
-### A22 · LOW · stale-reference · passes=2 — `adapters/config_schema.py:1769-1784 (low_clean_water_margin_ml block comment + description)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A21 → `[FIXED-UNPROVEN]`. _validate_adapter — dispatch template check comment — text now states: Keeps the WHY and makes it concrete by naming the fallback mechanism (get_dispatch_engine, _FALLBACK_TEMPLATE "eufy_room_clean", log warning). A ⚠ note dates the example's expiry — DreameSegmentEngine No named test — prose only.
+### A22 ✅ APPLIED 2026-08-24 · LOW · stale-reference · passes=2 — `adapters/config_schema.py:1769-1784 (low_clean_water_margin_ml block comment + description)`
 
 **SAYS.** "# Undeclared until 2026-08-15 while being READ by run_plan.py:539 ..." and, in the
 description, "Read in planning/run_plan.py (_build_effective_start_plan, the water block)."
@@ -5279,7 +5443,8 @@ the function name to a method that never touches the key. Someone changing the l
 semantics opens _build_effective_start_plan, finds nothing, and either concludes the key is
 unused or edits the wrong plan-assembly path.
 
-### A23 · LOW · stale-reference · passes=1 — `adapters/config_schema.py:1826-1828 (map_render)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A22 → `[FIXED-UNPROVEN]`. water_model_configs.entry_fields.low_clean_water_margin_ml — block comment + description — text now states: Both pointers now read `planning/run_plan.py::estimate_job_water_usage`. A ⚠ note dates the old citations, says both had rotted into dead ends (:539 is blank space in the wash-cycle-count block; _buil No named test — prose only.
+### A23 ✅ APPLIED 2026-08-24 · LOW · stale-reference · passes=1 — `adapters/config_schema.py:1826-1828 (map_render)`
 
 **SAYS.** "VA-owned client-side map render declaration (doc 22 §13a.3). Presence is the gate for
 supports_va_render (core/manager.py ~:4055) — presence only; the interior is not validated."
@@ -5294,7 +5459,8 @@ no map_render anywhere in sight, and has to grep anyway. The '~' signals approxi
 drift is ~1800 lines into a different section of a 7000-line file, which is past what a reader
 will scan around.
 
-### A24 · LOW · stale-reference · passes=2 — `adapters/registry.py:726-734 (adapter_honors_clean_order docstring, jobs/active_job.py bullet)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A23 → `[FIXED-UNPROVEN]`. ADAPTER_CONFIG_SCHEMA["map_render"] description — text now states: Cites core/manager.py::get_dashboard_snapshot by symbol and quotes the gate expression verbatim so it is greppable. A ⚠ note says what :4055 actually is (get_known_vacuum_ids), that the drift is ~1800 No named test — prose only.
+### A24 ✅ APPLIED 2026-08-24 · LOW · stale-reference · passes=2 — `adapters/registry.py:726-734 (adapter_honors_clean_order docstring, jobs/active_job.py bullet)`
 
 **SAYS.** "- ``jobs/active_job.py`` — gates RUNNING-LONG (:1185) and SKIPPED (:1223). NOT stall:
 the hard-zero that used to gate it was removed in ``26c4b2d7`` ..."
@@ -5312,7 +5478,8 @@ correct.
 stall code under a claim about running-long and may 'correct' the docstring, or worse, conclude
 stall is still gated and go looking to remove a gate that was already removed in 26c4b2d7.
 
-### A25 · LOW · stale-reference · passes=1 — `adapters/registry.py:541-546 (setup-steps check comment)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A24 → `[FIXED-UNPROVEN]`. adapter_honors_clean_order docstring — jobs/active_job.py bullet — text now states: The two gates are named as constructs — "the ``running_long`` band and the ``skipped_room_ids`` computation" — with a parenthetical ⚠ recording that they were cited as :1185/:1223 until 2026-08-24, th No named test — prose only.
+### A25 ✅ APPLIED 2026-08-24 · LOW · stale-reference · passes=1 — `adapters/registry.py:541-546 (setup-steps check comment)`
 
 **SAYS.** "# Setup-steps check — RP-033/SETUP-9. Three places in this codebase already // #
 claim an unknown step id is \"rejected at registration\" // # (config_schema.py's own
@@ -5334,7 +5501,8 @@ boilerplate, which makes the justification unverifiable at the moment someone qu
 this check is worth keeping — and 'there is no docstring at :102-104' invites the conclusion
 that the claim was overstated.
 
-### A26 · LOW · false · passes=2 — `adapters/config_schema.py:2048-2050 (UNKNOWN KEYS scope note)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A25 → `[FIXED-UNPROVEN]`. _validate_adapter — setup-steps check comment — text now states: Still names three sites, now correctly and by symbol: config_schema.py's setup.steps description, the header comment over setup/drift.py::SETUP_STEP_IDS (quoted verbatim), and setup/drift.py::get_adap No named test — prose only.
+### A26 ✅ APPLIED 2026-08-24 · LOW · false · passes=2 — `adapters/config_schema.py:2048-2050 (UNKNOWN KEYS scope note)`
 
 **SAYS.** "# Only applied where the schema actually enumerates the shape. Nine blocks are
 declared // # as bare `dict` with no `fields` (settings_selects, mapping, map_render,
@@ -5353,7 +5521,8 @@ reads as 'a block was added since this was written and nobody reconciled the not
 invites either a wrong edit to the count or doubt about the surrounding (correct) reasoning. The
 likeliest true history is that map_state_source or device_clean_order landed after the note.
 
-### A27 · LOW · false · passes=1 — `adapters/config_loader.py:4-5 (module docstring)`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A26 → `[FIXED-UNPROVEN]`. validate_against_schema — UNKNOWN KEYS scope note — text now states: Reads TEN and writes the set out in full rather than four-plus-ellipsis, with the reason stated inline ("Written out in full, because the count is the part that rots"). A ⚠ note quotes the old text, s No named test — prose only.
+### A27 ✅ APPLIED 2026-08-24 · LOW · false · passes=1 — `adapters/config_loader.py:4-5 (module docstring)`
 
 **SAYS.** "Reads adapter configs written by the UI wizard from integration storage and registers
 them with the adapter registry at startup."
@@ -5373,7 +5542,8 @@ service. registry.py:153 gets this right by calling it "UI/service-authored", an
 config_schema.py:10 gets it right by marking it future — the three files disagree with each
 other about whether the path has shipped.
 
-### A28 · LOW · stale-reference · passes=1 — `adapters/entity_resolve.py:440-443 — resolve_declared_entities docstring, report shape`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A27 → `[FIXED-UNPROVEN]`. module docstring — text now states: Opens "Reads stored adapter configs from integration storage and registers them with the adapter registry at startup", then a ⚠ was: block naming the false claim, listing the two real writers, citing No named test — prose only.
+### A28 ✅ APPLIED 2026-08-24 · LOW · stale-reference · passes=1 — `adapters/entity_resolve.py:440-443 — resolve_declared_entities docstring, report shape`
 
 **SAYS.** Return ``(entities, report)`` with unresolvable IDs repaired where unambiguous.
 ``report`` maps role -> ``{"declared": ..., "resolved": ...}`` for each remap, and is empty when
@@ -5391,7 +5561,8 @@ diagnostics and the card. A consumer written from it — or a test asserting the
 equals a two-key literal — is written against a shape the function never produces, and 'via' is
 exactly the field a future 'why did this bind?' surface would key off.
 
-### A29 · LOW · over-scoped · passes=1 — `adapters/entity_resolve.py:294-296 — resolve_action_entity docstring, rung 1 of the ladder`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A28 → `[FIXED-UNPROVEN]`. resolve_declared_entities docstring — report shape — text now states: The spec now reads `{"declared": ..., "resolved": ..., "via": ...}` and states that `via` names the rung that won — `"suffix"` or `"translation_key"`, quoted verbatim. A ⚠ paragraph records that the s No named test — prose only.
+### A29 ✅ APPLIED 2026-08-24 · LOW · over-scoped · passes=1 — `adapters/entity_resolve.py:294-296 — resolve_action_entity docstring, rung 1 of the ladder`
 
 **SAYS.** The ladder, in order — the first rung that answers wins: 1. the derived id
 ``<domain>.<object_id>_<suffix>``, when it has state;
@@ -5411,7 +5582,8 @@ docstring says the disabled/missing split exists to prevent. The branch needs th
 to be absent from the registry, so it is rare in production but reachable from tests and from a
 partially-set-up install.
 
-### A30 · LOW · over-scoped · passes=1 — `adapters/entity_resolve.py:452-454 — resolve_declared_entities docstring, the argument for applying overrides in the shared resolver`
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A29 → `[FIXED-UNPROVEN]`. resolve_action_entity docstring — the ladder — text now states: The ladder is unchanged; a following paragraph headed "THE LADDER IS NOT THE WHOLE ALGORITHM" says the docstring read as if it were until 2026-08-24 and names exactly what "when it has state" wrongly No named test — prose only.
+### A30 ✅ APPLIED 2026-08-24 · LOW · over-scoped · passes=1 — `adapters/entity_resolve.py:452-454 — resolve_declared_entities docstring, the argument for applying overrides in the shared resolver`
 
 **SAYS.** while ``detect_capabilities`` sees only a 14-role candidate subset — so an override
 applied only there was a no-op for ``battery`` and ten other declared-only roles.
@@ -5434,6 +5606,7 @@ Eufy-specific.
 
 
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A30 → `[FIXED-UNPROVEN]`. resolve_declared_entities docstring — why overrides are applied in the shared resolver — text now states: The load-bearing sentence is now brand-neutral — "``detect_capabilities`` sees only the brand's ``entity_candidates`` subset — so an override applied only there was a no-op for every declared-only rol No named test — prose only.
 ---
 
 # LEDGER WORK RESUMED 2026-08-24 — BATCH 1 (5 entries closed, 1 new finding)
