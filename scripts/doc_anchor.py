@@ -132,6 +132,25 @@ PREFIXES = {
 PREFIX_LETTERS = "ABCDEFGHJKMNPQRSTVWXYZ"
 
 SOURCE_ROOTS = ("custom_components", "scripts", "src", "harness")
+
+# GENERATED BUNDLES ARE NOT DECLARATION SITES. esbuild inlines every `src/**` module
+# into these, comments included, so each anchor declared in `src/styles/*.js` also
+# appears in both shipped bundles — three "declarations" of one anchor.
+#
+# ⚠ THIS GATE PASSED ONLY WHILE THE BUNDLE WAS STALE, which is the worst shape a gate
+# can have: it was green on 2026-08-24 with a bundle last built 2026-08-16, and went
+# red the moment the bundle was REBUILT to pick up `d5fecf93`'s anchors (2026-08-21).
+# So it reported failure for doing the right thing and success for leaving the shipped
+# artifact 8 days behind `src/`. A gate that punishes correctness trains people to
+# avoid the correct action, and the stale bundle it was rewarding is a user-facing
+# problem in its own right.
+#
+# Matched by SUFFIX rather than by an explicit file list so a newly-added bundle is
+# covered on the day it is added. The directory is build output by construction —
+# `scripts/build-card.mjs --deploy` writes it — and an anchor DECLARED there rather
+# than in `src/` would be a defect regardless, since editing it is edited-then-
+# overwritten work.
+_GENERATED_BUNDLE_DIR = ("custom_components", "eufy_vacuum", "frontend")
 DOC_ROOTS = ("docs",)
 
 MARKER = "anchor:"
@@ -167,6 +186,8 @@ def source_files() -> list[pathlib.Path]:
                 continue
             if "__pycache__" in p.parts or "node_modules" in p.parts:
                 continue
+            if p.parent.parts[-3:] == _GENERATED_BUNDLE_DIR:
+                continue  # esbuild output - a COPY of a src/ declaration, not one
             if p.name == "doc_anchor.py":
                 continue  # its docstring shows the FORM; those are not declarations
             out.append(p)

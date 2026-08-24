@@ -1620,7 +1620,7 @@ threshold nobody has measured. Bring it to Chris before choosing.
 
 Documented as current behaviour in the rooms NOW doc, stated as an open defect.
 
-## ROOMS COMMENT AUDIT — 2026-08-22. 27 findings. **4 APPLIED 2026-08-24 (R2, R3, R5, R25 — R25 a CODE fix); 23 NOT APPLIED.**
+## ROOMS COMMENT AUDIT — 2026-08-22. 27 findings. **6 APPLIED 2026-08-24 (R2, R3, R5, R25, R14, R10 — R25 and R14 CODE fixes); 21 NOT APPLIED.**
 
 Run alongside the `rooms/` doc pass (docs 17 + 18). Two auditors, both clusters read in full,
 read-only. Severity: {'high': 1, 'medium': 15, 'low': 11}. Kind: {'over-scoped': 15, 'stale-reference': 7, 'false': 2, 'reason-obsolete': 3}.
@@ -1842,7 +1842,7 @@ one names the other as its source. A maintainer chasing a None in the issue cont
 hunting in a branch that cannot produce one; conversely, anyone who checks and finds the filter
 dead may delete it along with the only note explaining why the None case was ever possible.
 
-### R10 · MEDIUM · over-scoped — `rooms/vocabulary_migration.py::_unadjudicated_targets`
+### R10 ✅ APPLIED 2026-08-24 (COMMENT; behaviour = C61, still open) · MEDIUM · over-scoped — `rooms/vocabulary_migration.py::_unadjudicated_targets`
 
 **SAYS.** An absent block reliably means "not registered YET", never "this brand declares
 nothing": ``registry._validate_room_profiles`` rejects an adapter whose ``room_profiles`` is
@@ -1923,7 +1923,7 @@ silently falls through to build_managed_rooms' own literals. The same phrase rep
 sibling `resolve_new_room_defaults_for_vacuum`: "an unregistered adapter resolves the framework
 catalog, exactly as a brand declaring no ``room_profiles`` block does."
 
-### R14 · MEDIUM · over-scoped — `rooms/room_manager.py::build_managed_rooms`
+### R14 ✅ APPLIED 2026-08-24 (CODE, by ruling) · MEDIUM · over-scoped — `rooms/room_manager.py::build_managed_rooms`
 
 **SAYS.** Q5 (verbatim): a room with NO existing match — the room this discovery pass has never
 seen before — is enabled on a FIRST import (``existing_rooms`` was empty before this call) and
@@ -5622,3 +5622,354 @@ touches stored drift history on live installs. That is the
 
 This is the same family as `check_reality_before_asserting`: absent, unavailable, never-created
 and unreadable all look alike, and a signature two causes produce is not evidence for either.
+
+
+---
+
+# TIER A — THE LAST THREE ARE ALL RULINGS, NOT PATCHES (2026-08-24)
+
+R10, R14 and P22 were each verified at their sites by an investigator and then attacked by an
+adversary told to refute the disposition. **All three came back NEEDS-RULING, with the adversary
+agreeing at HIGH confidence in every case** — and the adversarial pass earned its keep: it caught
+that R14's headline fix would have broken onboarding outright.
+
+Every live claim below was re-verified by me directly, not taken from an agent.
+
+## C59 [FIXED] — P22 was a LIVE REGRESSION, 17 days old, and the ledger said otherwise
+
+⚠ **THE FILED FINDING UNDERSTATES THIS AND `P21` CONTRADICTS IT. Both are wrong.**
+
+`sensor/profile.py:67` is the **only caller of `get_available_profiles` in the entire
+integration** (grepped; the other two hits are the definition and an internal call). It omits
+`catalog=`. Since **`ad8c074c` (2026-08-07)** — *"core owns the key space, not a brand's words — no
+framework catalog"* — `get_default_room_profiles(catalog=None)` returns `{}`, so `merge_profile_dicts`
+yields only stored profiles and the built-in whitelist filter then drops those too.
+
+**MEASURED ON THE LIVE BOX 2026-08-24** (`/api/states`, read-only):
+
+```
+sensor.alfred_available_profiles  state='0'  capability_filtered=True  profiles={}
+sensor.ivy_available_profiles     state='0'  capability_filtered=True  profiles={}
+sensor.robin_available_profiles   state='0'  capability_filtered=True  profiles={}
+```
+
+So the finding's "custom profiles are dropped" is too narrow — **everything** is dropped. And
+`capability_filtered: True` is published alongside an empty set, asserting that a capability
+removed them when no capability was involved. That is the `confident and empty` shape again, in a
+user-facing attribute.
+
+⚠ **LEDGER ENTRY `P21` IS FACTUALLY FALSE AND MUST BE RE-BASED.** It says "on Chris's own S6 the
+profile sensor reports 2 profiles for a vacuum that has a mop". It reports `0`. The 2026-07-30
+audit it rests on concluded "the sensor can only ever report 2 or 4" — true when written,
+falsified by `ad8c074c` on 2026-08-07. **Anything in the profiles ledger verified before
+2026-08-07 should be re-based against HEAD**, because that commit moved the built-ins out from
+under it.
+
+**THE FRAMING THAT MATTERS IS NOT THE DOCSTRING.** This module declares "fail loudly, never
+silently" and pins it with `tests/adapters/test_declaration_contract.py`. `resolve_room_profile_for_room(catalog=None)`
+RAISES `UndeclaredProfileCatalogError` — that is P5/D22, verified by calling it earlier today.
+`get_available_profiles(catalog=None)` is **the one path in the same module that fails silently**,
+returning `{}` instead of raising. The docstring is a symptom; the silent path is the defect, and
+it is why a whole-integration regression sat live for 17 days with a green suite.
+
+⚠ **CHRIS CALLED IT: THE CARD CONSUMES THIS LIST, AND THE FEATURE IS DEAD.** He said "the card
+consumes that list i think" — one sentence, and it was the half six agents did not surface (the
+workflow noted `review.js:403` reads the sensor but framed it as "trusted by", not as a dead
+control). Traced and confirmed by reading:
+
+  * `src/state/review.js::reviewProfileMatcherCatalog` takes `definition` **only** from
+    `sensorAttrs.profiles`. Entries sourced from learning history are explicitly given
+    `definition: null`.
+  * `reviewProfileMatcherMatches` then filters `if (!entry?.definition) return false`.
+  * So with `profiles = {}`, **every** candidate is dropped and the matcher returns `[]`
+    unconditionally. `src/renderers/review.js:319` therefore always renders
+    `review.matcher_no_matches` / `review.matcher_empty`.
+
+**The Review tab's profile matcher has been a DEAD CONTROL for every user since 2026-08-07.** It
+renders, the clean_mode / water_level / edge_mopping selectors work, and it can only ever say "no
+matches". It fails as an empty result, not as an error — so it reads to a user as "you have no
+matching profiles", which is why nobody reported it. That is the difference between a diagnostic
+sensor reading a wrong number and a shipped feature being non-functional, and it is why this stops
+being a docstring row.
+
+It is also `retirement_isnt_done_until_uncited` exactly: `ad8c074c` was architecturally right —
+core must not own a brand's words — and the sweep of live consumers missed the one call site that
+fed the card. `sensor/profile.py`'s newest commit is `5b87e4f2` (2026-05-30); `ad8c074c` never
+touched it.
+
+**THE RULING NEEDED IS TWO SEPARATE QUESTIONS.** (A) restore the catalog at the call site —
+mechanical, restores pre-`ad8c074c` behaviour (4 on alfred, 2 on ivy), but every user's sensor
+jumps 0 -> 4 with a visible discontinuity in recorder history. (B) what "available profiles" MEANS:
+the built-ins this device can use (custom profiles correctly excluded, whitelist stays) or
+everything the picker offers (whitelist must become catalog- and stored-aware). (B) decides
+whether the docstring or the code is what is wrong, and it is a product call.
+
+**(A) IS NOW A REGRESSION FIX, NOT A BEHAVIOUR CHANGE**, which is a different question from the one
+I first framed. It restores documented, previously-working behaviour and revives a dead control.
+Against the three stop-for-approval triggers: no persisted key, no new service. The adversary found
+the one real reinterpretation risk — `merge_profile_dicts` normalizes STORED profiles with the
+catalog, so a stored profile would gain brand defaults on axes the user never set (`fan_speed ''`
+-> `'Max'`). **Enumerated rather than argued** (`adversarial_self_break`): that is observable only
+for a stored profile saved under one of the four protected names, every write path has guarded
+those since the FIRST commit (`eae291fa`, 2026-04-30), so it is reachable only from the 57 pre-git
+days — and Chris's live `.storage` holds **zero** stored room profiles, so the edge is empty here.
+Per `never_is_uncheckable_pre_git` the honest phrasing is "not present at `eae291fa`", not
+"impossible".
+
+## C60 [FIXED] — R14: a room nobody approved gets entities, and the sibling was already fixed
+
+`build_managed_rooms`, the `enabled_room_ids is None` branch, sets `is_configured = True`
+unconditionally — for carried AND brand-new rooms. A never-approved room therefore comes out
+`enabled=False, is_configured=True`.
+
+Not discarded: persisted to `.storage`; **dispatched** into entity creation (`sort_room_items`
+filters on `is_configured` ONLY, never `enabled`, so switches/numbers/sensors materialise); and
+**trusted** by `compute_room_drift`, whose `new_candidate_ids = discovered - configured - rejected`
+therefore never surfaces it — the defect suppresses the very "new room found, review it" prompt
+that would have caught it.
+
+Reachable by the documented use of a shipped service: `services.yaml` and
+`docs/advanced/03-services.md` both say *"Omit the key to keep the current selection unchanged"*,
+and omitting it is what produces the `None`. The onboarding and panel paths were both checked and
+**cannot** reach it — one is gated on an empty map bucket, the other always sends a non-empty list.
+
+**THE SIBLING IS ALREADY FIXED AND NOBODY PORTED IT.** `maps/map_manager.py:351` carries
+`is_configured=bool(previous.get("is_configured", False if is_new_room else True))` with a comment
+diagnosing this exact bug. Shorter-copy-is-the-bug, again.
+
+⚠ **AND A CLOSED LEDGER ROW IS HIDING IT.** `docs/dev/maintenance/highly-aggressive-audit.md:1173`
+marks **A3-CRUD-6 `[x]` DONE** — while its own text names *"the live instance is save_managed_rooms,
+not rebuild_map"*. The auto-approve half landed in `rebuild_map_bucket` and, in
+`build_managed_rooms`, only on the `enabled_room_ids`-supplied branch. **The row is checked off on
+the writer it explicitly calls the live one.** Chris should see that specifically — a closed row is
+exactly what stops anyone re-checking.
+
+⚠ **THE OBVIOUS FIX IS WRONG, AND THE ADVERSARIAL PASS IS WHAT CAUGHT IT.** Copying
+`map_manager`'s expression verbatim keys on `is_new_room`, not `is_first_import` — and on a first
+import every room is new, so it would write `is_configured=False` for every room of a brand-new
+map. `setup/workflow.py::_import_active_map` calls with `enabled_room_ids=None`, so **onboarding
+would finish with zero room entities.** Worse than R14. The viable narrow form is
+`is_configured = not (is_new_room and not is_first_import)`.
+
+The ruling: is an `enabled_room_ids=None` re-sync *"re-approve everything it touches"* (today's
+behaviour) or *"approve nothing new"*? Four places already assert the second — the Q5 docstring,
+`models.py`, `entity_helpers.py`, `docs/dev/17-room-identity.md:218` — so the code reads as the
+outlier, but four docs agreeing is a signal, not a ruling. Whichever way it goes, the docstring and
+the doc line move with it.
+
+## C61 [OPEN] — R10: comment CORRECTED 2026-08-24; the design question stays open
+
+**The comment is false as filed and that half is safe to correct**: `_validate_room_profiles` only
+RETURNS issue strings, and `register_adapter_config` hard-raises only for `source == "config"`; a
+code-sourced adapter is warn-only and registers anyway. Correctly-scoped wording already exists
+260 lines away at `registry.py:576`.
+
+⚠ **BUT THE FINDING'S SEVERITY IS OVERSTATED AND ITS ROUTE IS NOT LIVE.** "Such an adapter parks
+that vacuum in pending permanently" describes a state **no shipped path produces**: both adapters
+declare `room_profiles` as unconditional dict literals, nothing mutates it post-hoc, the config
+path forces `source="config"`, and there is no third code adapter. A reader would take the finding
+as live. It is not.
+
+**THE LIVE ROUTE IS ONE THE FINDING NEVER MENTIONS.** `brands.resolve_brand -> UNSUPPORTED`
+registers nothing while the vacuum stays managed, so `get_adapter_config` returns `None` FOREVER —
+the identical permanent-pending symptom with no adapter defect at all. The deferred-latch design
+note was written against a cold-boot RACE, where waiting works; it has never been reconciled with
+`brands.py`'s unsupported arm, which shipped later and makes "not registered yet" permanently
+false.
+
+**`vacuum.robin` — the unsupported Dreame — is one saved room away from this state** (it is in
+`vacuums` with a `maps` bucket holding 0 rooms, and only the zero-rooms guard keeps it out). That
+box has already latched, so the site is inert there today.
+
+The real question is not the one the finding asks. It is: **should a target that can never be
+adjudicated ever reach a terminal disposition, or is a permanent WARNING on every start the honest
+answer?** Every candidate fix trips two stop-for-approval triggers (a persisted attempt-counter
+key, and changing how already-stored rooms are judged).
+
+## Method note — the adversarial pass paid for itself
+
+Six agents, three findings. The investigators were right on all three dispositions; the value came
+from the **refutation** step, which found that R14's named fix would break onboarding, that P22's
+trigger analysis was unsound, and that R10's proposed red input was vacuous (it inverted a
+deliberately-pinned invariant, so it would go red by construction and bite the DESIGN, not the
+defect — exactly the `green ablation` failure wearing the opposite sign).
+
+
+---
+
+# THE MATCHER, AND THE TWO GATES THAT WERE GREEN ONLY WHILE THE BUNDLE WAS STALE (2026-08-24)
+
+## The matcher — how C59 was actually ruled, and what his one-line hunch changed
+
+> Disposition and evidence live at the **C59** entry above. This is the closure detail;
+> the id is declared once, there.
+
+I put C59 to him as "restore the sensor, hold the semantics". He replied **"the card consumes that
+list i think"** — and then, when the history disagreed with his first recollection, **"oh lets fix
+the matcher because that is where i built the suggestion for new profiles to be surfaced over
+time. runs you do often but are not default."**
+
+That second sentence is the design intent, and nothing in the code, the docs, the ledger or six
+audit agents contained it. It changed the fix.
+
+⚠ **HIS FIRST RECOLLECTION WAS OF A REAL DECISION, ONE CONTROL OVER.** He remembered deliberately
+reducing profiles in the review surface as redundant — and `fe5cf2b5` (2026-08-07) is exactly that,
+quoting him: *"it should filter by saved profiles not room + profiles"*, *"the combined keys kinda
+make the first set useless"*. It re-keyed the profile FILTER CHIP ROW from `_room_profile_key` (a
+per-room settings signature) to `profile_name`. **It did not touch the MATCHER** — the four hits in
+that commit's diff are in the rebuilt `frontend/` bundle, not in `src/`. The matcher's death came
+from `ad8c074c`, THE SAME DAY. Two changes one afternoon, one intentional and one not, which is
+why the memory blended them. Checking beat assuming in both directions: his premise was true, and
+it pointed at the wrong control.
+
+**TWO INDEPENDENT DEFECTS, and fixing only the filed one would not have delivered what he built.**
+
+1. **BACKEND (the saved half).** `sensor/profile.py` omitted `catalog=`, so `profiles: {}` shipped
+   on every vacuum from 2026-08-07. Saved and built-in profiles had no `definition` to match
+   against. Measured live before the fix: alfred/ivy/robin all `'0'`.
+2. **CARD (the suggestion half — the reason the surface exists).**
+   `reviewProfileMatcherCatalog` merged learning-DISCOVERED profiles into the catalog and then set
+   `definition: null` on every one, while `reviewProfileMatcherMatches` drops any entry without a
+   definition. So the discovered half was built and thrown away one line later. Those entries
+   already carry the exact six axes `_buildComparableProfileFields` reads — they ARE definitions,
+   no synthesis needed. Saved profiles still win for a shared key, so a real definition always
+   beats an inferred one.
+
+Both the nulling and the filter are present at `eae291fa`, and the project has 57 pre-git days —
+so the honest statement is **"not present at `eae291fa`"**, not "never worked".
+
+Also fixed: `capability_filtered` no longer asserts `True` over an empty set. Published alongside
+`profiles: {}` it is the `confident and empty` shape — it tells a reader the absence was EXPLAINED,
+so nobody looks further. For 17 days that is precisely what it did.
+
+**WHY A GREEN SUITE MISSED A WHOLE-INTEGRATION REGRESSION.** `[SE-5]` asserted
+`"profiles" in attrs` and `isinstance(attrs["profiles"], dict)`; its sibling asserted
+`int(value) >= 0`. **An empty dict and a zero satisfy all three.** That is
+`claim_must_be_able_to_bite` verbatim — "my own test passed on an EMPTY DICT" — and it is now
+recorded as a warning at `[SE-5]` itself so the next reader does not mistake it for coverage.
+
+Tests `[SE-13]`, `[SE-14]` (python) and a new node file `src/state/review-profile-matcher.test.mjs`
+carrying `[PM-1]`–`[PM-5]`. Five ablations, all red — including two aimed at fixing-by-muting:
+`capability_filtered` forced always-False, and giving discovered entries an EMPTY definition so
+everything matches (a matcher that matches everything looks like it works).
+
+## C62 [FIXED] — TWO CI GATES WERE GREEN ONLY WHILE THE SHIPPED BUNDLE WAS STALE
+
+Found by rebuilding the bundle, which the card fix required. **This is the more valuable finding of
+the two and it was invisible until someone did the correct thing.**
+
+`doc_anchor.source_files()` scans `SOURCE_ROOTS = ("custom_components", "scripts", "src",
+"harness")` and excluded only `__pycache__` and `node_modules`. esbuild inlines every `src/**`
+module into the two shipped bundles under `custom_components/eufy_vacuum/frontend/`, **comments
+included**, so each anchor declared once in `src/styles/*.js` appeared three times.
+
+Both consumers of that scanner failed:
+
+  * `scripts/doc_anchor.py --check` — 19 DUPLICATE problems.
+  * `tests/test_replica_ratchet.py::test_replica_sets_are_well_formed` —
+    `RN1RX2AT: 3 primary, 1 replica` and two siblings. **This one is in pytest, i.e. it gates CI.**
+
+⚠ **SO THE GATES REPORTED FAILURE FOR DOING THE RIGHT THING AND SUCCESS FOR LEAVING THE SHIPPED
+ARTIFACT BEHIND.** Both were green on 2026-08-24 against a bundle last built `e7a4423e`
+(2026-08-16), while `src/styles/` had changed on 2026-08-21 (`d5fecf93`, which ADDED the anchors).
+They went red the instant the bundle was rebuilt. **Nobody could ship a card change without
+breaking CI** — which is the mechanism that kept the bundle 8 days behind `src/`, and a stale
+shipped bundle is a user-facing problem in its own right (`font_accessibility`'s dist trap, in a
+new place).
+
+A gate that punishes correctness trains people away from the correct action. It does not read as a
+defect — it reads as a passing build.
+
+**FIXED IN ONE PLACE**, because both gates share the scanner: `source_files()` now skips the
+generated-bundle directory. Matched by directory suffix rather than an explicit file list, so a
+newly-added bundle is covered the day it is added. Declared count is UNCHANGED at 345, which
+confirms no real declaration was lost — every anchor is declared in `src/` too.
+
+Pinned by `[ANC-4]`, two tests, **built on a THROWAWAY root** so the guard cannot go green again
+just because someone lets the bundle drift — the real tree's answer depends on bundle freshness,
+which is the whole disease. Ablated 2 ways: remove the exclusion → the first test red; blindfold
+the DUPLICATE detector → the second test red. That pair is what stops "exclude the bundles"
+degrading into "stop detecting duplicates".
+
+⚠ **THE SHIPPED BUNDLE IS NOW REBUILT** (`npm run build:deploy` — plain `build` writes `dist/`,
+not the shipped path). It carries 8 days of `src/` work that users did not have, so this commit is
+larger on the frontend than the card fix alone accounts for.
+
+
+---
+
+# THE TWO RULINGS, APPLIED (2026-08-24)
+
+Chris ruled on C60 and C61 directly. Both are recorded here with what was NOT decided, because the
+narrowness is the ruling.
+
+## The C60 ruling, applied — "a re-sync approves NOTHING NEW"
+
+> Disposition and evidence live at the **C60** entry above.
+
+RULING (Chris, 2026-08-24): **approve nothing new**, NARROW FORM. The
+`enabled_room_ids is None` branch now reads `is_configured = is_first_import or not is_new_room`
+instead of an unconditional `True`.
+
+⚠ **WHAT WAS NOT DECIDED, and it matters more than what was.** A CARRIED room keeps its
+unconditional `True`. Whether a stored `is_configured: false` should also stop being flipped to
+`true` on the next re-save is a SEPARATE question about existing user data, was raised by the
+adversarial pass, and **was not put to him or ruled on**. Stated at the site so the next reader
+does not mistake the narrow fix for the broad one.
+
+⚠ **THE OBVIOUS FIX WOULD HAVE BROKEN ONBOARDING, and only the adversarial pass caught it.** The
+already-fixed sibling `maps/map_manager.py:351` reads
+`bool(previous.get("is_configured", False if is_new_room else True))` — keyed on `is_new_room`.
+On a FIRST import every room is new, so copying it here writes `is_configured=False` for every
+room of a brand-new map, and `setup/workflow.py::_import_active_map` calls with
+`enabled_room_ids=None` — so **onboarding would have finished with ZERO room entities**. Strictly
+worse than R14, and it passes the two obvious tests. The gate has to be `is_first_import`. That
+trap is now written AT THE SITE, not only here: nobody reads a ledger at the moment they edit.
+
+Tests `[RM-C60-1]`, four of them, each aimed at a different way to get this wrong: the defect, the
+onboarding trap, over-applying to every room, and leaking into carried rooms. Ablated 4 ways — all
+red, and the map_manager-copy ablation fails FOUR tests, which is the shape a genuinely dangerous
+mutation should have.
+
+**DOCS MOVED WITH THE CODE**, which was half the finding: the Q5 docstring contradicted itself
+inside one docstring (asserting "unconfirmed" at the top and conceding "unconditional True"
+further down — which is likely why neither half was ever trusted enough to check), and
+`docs/dev/17-room-identity.md:218` asserted the same false rule. Both now state what the code does
+and that it was aspirational until today.
+
+⚠ **AND A CLOSED AUDIT ROW WAS HIDING IT FOR 22 DAYS.** `highly-aggressive-audit.md` marks
+**A3-CRUD-6 `[x]` DONE** (RP-018, 2026-08-02) while its own text names *"the live instance is
+save_managed_rooms, not rebuild_map"*. RP-018 closed the auto-ENABLE half in both writers and the
+auto-APPROVE half everywhere EXCEPT the branch on the writer the row calls live. **Annotated in
+place rather than only in this ledger** — a closed row is precisely what stops anyone re-checking,
+so the correction has to live where the re-checker looks.
+
+## The C61 ruling, applied — comment corrected, design question deliberately still open
+
+> Disposition and evidence live at the **C61** entry above.
+
+RULING (Chris, 2026-08-24): **correct the comment, file the design question.**
+
+The comment credited `registry._validate_room_profiles` with REJECTING an adapter whose
+`room_profiles` is missing — it only returns issue strings, and `register_adapter_config`
+hard-raises **only for `source == "config"`**. Corrected, using the correctly-scoped wording that
+already existed 460 lines away ("hard-raised for a stored config by the caller").
+
+⚠ **THE CORRECTION ALSO HAD TO SAY WHICH ROUTE IS REAL, or it would send the next reader to audit
+the adapters and find nothing.** The filed route is NOT live: both shipped adapters declare
+`room_profiles` as unconditional dict literals, nothing mutates it afterwards, the config path
+forces `source="config"`, and no third code adapter exists. The live route is
+`brands.resolve_brand → UNSUPPORTED`, which registers nothing while the vacuum stays managed — so
+`get_config` returns `None` forever, with the WARNING re-emitted every start, and no adapter defect
+involved. The finding never mentions it.
+
+**STILL OPEN, and this is the actual question:** should a target that can NEVER be adjudicated
+reach a terminal disposition, or is a permanent WARNING the honest answer? The deferred-latch
+design was written against a cold-boot RACE, where waiting works; it has never been reconciled
+with the unsupported-brand arm, which shipped later and makes "not registered yet" permanently
+false rather than temporarily so. Every candidate fix either adds a persisted key under
+`migrations` or changes how already-stored rooms are judged — two stop-for-approval triggers.
+
+On this house's boxes the site is inert: `vacuum.robin` (the unsupported Dreame) sits in `vacuums`
+with a `maps` bucket holding zero rooms, so only the no-stored-rooms guard keeps it out — one
+saved room away — and that box has already latched.

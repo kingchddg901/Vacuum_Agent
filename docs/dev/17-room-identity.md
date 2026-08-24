@@ -220,6 +220,16 @@ arrive together from one wizard submission, so "approved but no floor type" is a
 call not passing `enabled_room_ids` is not asking an approval question at all, and a
 previously-confirmed room stays confirmed.
 
+> ⚠ **This was ASPIRATIONAL until 2026-08-24.** The `enabled_room_ids is None` branch stamped
+> `is_configured = True` unconditionally, so a room the user had never seen was approved by a bare
+> re-sync — `save_managed_rooms` with the key omitted, which `services.yaml` and
+> [the service reference](../advanced/03-services.md) both document as the way to keep the current
+> selection unchanged. Because `is_configured` is the entity-creation gate AND the input to
+> `compute_room_drift`'s new-room candidates, the room got entities and could never appear in the
+> "new room found" review. **RULED (Chris, 2026-08-24): a re-sync approves nothing new.** A
+> genuinely-new room on an incremental save is now left unconfirmed; a carried room keeps its
+> approval unchanged.
+
 ---
 
 ## 8. Removing a map

@@ -114,10 +114,41 @@ def _unadjudicated_targets(*, data: dict[str, Any], get_config) -> list[str]:
     distinct from targets it evaluated and found nothing to do for. The planner skips
     both (neither licenses an edit), but only the second means the work is finished.
 
-    An absent block reliably means "not registered YET", never "this brand declares
-    nothing": ``registry._validate_room_profiles`` rejects an adapter whose
-    ``room_profiles`` is missing or empty, so a registered adapter always presents one.
-    That is what makes the two states safely distinguishable here.
+    ⚠ AN ABSENT BLOCK DOES NOT RELIABLY MEAN "not registered YET", AND THIS DOCSTRING
+    CLAIMED IT DID UNTIL 2026-08-24 (R10/C61). It credited
+    ``registry._validate_room_profiles`` with REJECTING an adapter whose
+    ``room_profiles`` is missing or empty. That function only RETURNS issue strings;
+    ``register_adapter_config`` logs them at WARNING and **hard-raises only when
+    ``config.get("source") == "config"``**. A CODE-sourced adapter is warn-only and
+    registers anyway, so ``get_config`` can return a live config with no
+    ``room_profiles`` — exactly the state the old text called impossible. The
+    correctly-scoped wording already existed 460 lines away, at
+    ``registry._warn_completion_gate_orphan``: "hard-raised for a stored config by the
+    caller".
+
+    THE ROUTE THAT ACTUALLY REACHES THIS IS A DIFFERENT ONE, and it is worth stating
+    because the obvious reading sends a reader to audit the adapters, where they will
+    find nothing. Both shipped adapters declare ``room_profiles`` as unconditional dict
+    literals, nothing mutates it afterwards, the config path forces
+    ``source="config"``, and there is no third code adapter — so the ADAPTER-DEFECT
+    route is not live today. The live one is ``brands.resolve_brand`` returning
+    UNSUPPORTED: it registers NOTHING while the vacuum stays managed, so
+    ``get_config`` returns ``None`` forever and the vacuum is permanently pending, with
+    the WARNING re-emitted on every start. No adapter defect required.
+
+    ⚠ THE DEFERRED-LATCH DESIGN BELOW WAS WRITTEN AGAINST A COLD-BOOT RACE, WHERE
+    WAITING WORKS. It has never been reconciled with the unsupported-brand arm, which
+    shipped later and makes "not registered yet" permanently false rather than
+    temporarily so. Whether a target that can never be adjudicated should reach a
+    terminal disposition, or whether a permanent WARNING is the honest answer, is an
+    OPEN DESIGN QUESTION — filed as C61, deliberately not patched here: every candidate
+    fix either adds a persisted key under ``migrations`` or changes how already-stored
+    rooms are judged.
+
+    On this house's boxes the site is currently inert: ``vacuum.robin`` (an unsupported
+    Dreame) is in ``vacuums`` with a ``maps`` bucket holding zero rooms, so only the
+    no-stored-rooms guard below keeps it out — one saved room away — and that box has
+    already latched.
 
     Vacuums with no stored rooms are not targets — there is nothing to judge and nothing
     to come back for, and rooms created later are born under current rules.

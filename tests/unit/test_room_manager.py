@@ -133,9 +133,14 @@ def test_build_defaults_for_new_room(brand):
 
     RP-018/CRUD-3 does not change this case: is_configured's floor_types gate
     only applies to an explicit-approval call (enabled_room_ids given) — this
-    call passes neither, so it isn't asking an approval question at all and
-    is_configured keeps its unconditional True (see test_build_managed_rooms
-    _requires_floor_type_when_explicitly_approved for the gated case).
+    call passes neither, so it isn't asking an approval question at all (see
+    test_build_managed_rooms_requires_floor_type_when_explicitly_approved for
+    the gated case).
+
+    ⚠ is_configured IS TRUE HERE BECAUSE THIS IS A FIRST IMPORT, not because the
+    branch is unconditional. It said "unconditional True" until 2026-08-24, when
+    R14/C60 established that a re-sync approves nothing new — see [RM-C60-1]. On an
+    INCREMENTAL call the same shape yields False, and that difference is the ruling.
     """
     defaults = resolve_new_room_defaults(brand)
     profile = brand["builtins"][brand["default_profile"]]
@@ -518,3 +523,114 @@ def test_map_rebuild_preserves_approval_rather_than_stamping_it():
 
     assert room["is_configured"] is False, "a rebuild silently auto-approved a room"
     assert room["is_transition"] is True, "a rebuild dropped the transition marking"
+
+
+# ---------------------------------------------------------------------------
+# [RM-C60-1] R14/C60 - a bare re-sync approves NOTHING NEW (Chris, 2026-08-24)
+# ---------------------------------------------------------------------------
+
+
+def _existing(room_id: int, **over) -> dict:
+    """A room already on disk, as save_managed_rooms would have stored it."""
+    base = {
+        "room_id": room_id, "map_id": "1", "name": "Kitchen",
+        "slug": "kitchen", "enabled": True, "is_configured": True, "order": 0,
+    }
+    base.update(over)
+    return base
+
+
+def test_rm_c60_1_a_brand_new_room_on_a_resync_is_not_approved():
+    """[RM-C60-1] RED BEFORE THE FIX.
+
+    `enabled_room_ids=None` is a RE-SYNC, not an approval question -- and it is the
+    documented way to call the shipped `save_managed_rooms` service ("Omit the key to
+    keep the current selection unchanged"). The branch stamped `is_configured = True`
+    unconditionally, so a room the user had never seen came out enabled=False and
+    is_configured=True.
+
+    That combination is not inert. `entity_helpers.sort_room_items` gates entity
+    creation on `is_configured` ALONE and never consults `enabled`, so the unapproved
+    room got switches, numbers and sensors. And `compute_room_drift` derives
+    `new_candidate_ids = discovered - configured - rejected`, so the room was already
+    counted as configured and could never surface in the "new room found, review it"
+    prompt -- the defect suppressed its own review.
+    """
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
+        discovered_rooms=[_disc(5, name="Kitchen"), _disc(9, name="Study")],
+        existing_rooms={"5": _existing(5)},
+        # enabled_room_ids deliberately omitted -- this IS the reachable call
+    )
+
+    assert result["9"]["is_configured"] is False, (
+        "a room the user has never seen was auto-approved by a re-sync"
+    )
+    assert result["9"]["enabled"] is False, "precondition: Q5's enabled half already held"
+
+
+def test_rm_c60_1_a_carried_room_keeps_its_approval():
+    """[RM-C60-1] RED IF THE RULING IS OVER-APPLIED TO CARRIED ROOMS.
+
+    The ruling was NARROW: only a genuinely-new room is withheld. A room already on
+    disk keeps its unconditional True, exactly as before. Widening this to "inherit
+    the stored value" would be a different change -- it would alter how EXISTING user
+    data is interpreted, and it was explicitly NOT decided.
+    """
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
+        discovered_rooms=[_disc(5, name="Kitchen")],
+        existing_rooms={"5": _existing(5)},
+    )
+
+    assert result["5"]["is_configured"] is True
+
+
+def test_rm_c60_1_a_first_import_still_approves_everything():
+    """[RM-C60-1] RED IF THE GATE KEYS ON is_new_room INSTEAD OF is_first_import.
+
+    THIS IS THE TRAP, and it is why the fix is not a copy of the already-fixed sibling.
+    `maps/map_manager.py` uses `False if is_new_room else True`. On a FIRST import every
+    room is new, so adopting that expression here would write is_configured=False for
+    every room of a brand-new map. `setup/workflow.py::_import_active_map` calls
+    save_managed_rooms with enabled_room_ids=None, so ONBOARDING WOULD FINISH WITH ZERO
+    ROOM ENTITIES -- a worse defect than the one being fixed, and one that passes the
+    other two tests above.
+
+    The import IS the approval; that is what `is_first_import` means.
+    """
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
+        discovered_rooms=[_disc(5, name="Kitchen"), _disc(9, name="Study")],
+        existing_rooms={},          # first import
+    )
+
+    assert all(r["is_configured"] is True for r in result.values()), result
+    assert all(r["enabled"] is True for r in result.values()), result
+
+
+def test_rm_c60_1_an_explicit_approval_call_is_unchanged():
+    """[RM-C60-1] RED IF THE RULING LEAKS INTO THE CRUD-3 BRANCH.
+
+    A call that DOES pass enabled_room_ids is asking an approval question, and CRUD-3
+    already answers it: approval requires a floor_type entry this call, unless the room
+    was confirmed on a prior save. That branch is untouched, and must stay untouched --
+    the ruling was about the re-sync branch only.
+    """
+    approved = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
+        discovered_rooms=[_disc(9, name="Study")],
+        existing_rooms={"5": _existing(5)},
+        enabled_room_ids=[9],
+        floor_types={9: "hardwood"},
+    )
+    assert approved["9"]["is_configured"] is True
+
+    unapproved = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
+        discovered_rooms=[_disc(9, name="Study")],
+        existing_rooms={"5": _existing(5)},
+        enabled_room_ids=[9],
+        # no floor_types -> CRUD-3 withholds confirmation
+    )
+    assert unapproved["9"]["is_configured"] is False

@@ -1169,8 +1169,9 @@ landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
   delete_room_profile / rename_room_profile leave dangling profile_name references on rooms, which then silently resolve to a built-in preset
 - [x] **DQ-Q-5** `maps/map_manager.py:197` · both — **RP-018** (`5af0fa2`, 2026-08-02)  
   A map rebuild silently auto-enables AND auto-approves rooms that never existed before, adding them to the clean queue unseen
-- [x] **A3-CRUD-6** `maps/map_manager.py:181` · both — **RP-018** (`5af0fa2`, 2026-08-02)  
-  Both room writers auto-enable and auto-approve rooms the user has never seen (DQ-Q-5 extension: the live instance is save_managed_rooms, not rebuild_map)
+- [x] **A3-CRUD-6** `maps/map_manager.py:181` · both — **RP-018** (`5af0fa2`, 2026-08-02); the `save_managed_rooms` half closed 2026-08-24 (R14/C60)  
+  Both room writers auto-enable and auto-approve rooms the user has never seen (DQ-Q-5 extension: the live instance is save_managed_rooms, not rebuild_map)  
+  ⚠ **THIS ROW WAS CHECKED OFF WITH ITS OWN NAMED LIVE INSTANCE STILL OPEN, FOR 22 DAYS.** RP-018 landed the auto-ENABLE half in both writers, and the auto-APPROVE half in `rebuild_map_bucket` and — in `build_managed_rooms` — only on the branch that receives `enabled_room_ids` (CRUD-3). The `None` branch, on the writer this row explicitly calls *"the live instance"*, was never touched until 2026-08-24. A closed row is exactly what stops anyone re-checking, which is why this note lives here and not only in the ledger.
 - [x] **A3-CRUD-3** `rooms/room_crud.py:279` · both — **RP-018** (`5af0fa2`, 2026-08-02)  
   save_managed_rooms auto-confirms floor type for every room it writes, permanently satisfying the onboarding_required start gate with the guessed value "hardwood"
 - [x] **A2-REC-8** `rooms/room_manager.py:64` · both — **RP-018** (`5af0fa2`, 2026-08-02)  
