@@ -77,7 +77,20 @@ class PoseSample(TypedDict, total=False):
 
 
 class RoomAttributionResult(TypedDict):
-    """Output of ``attribute`` — the cleaned-room SET plus per-room evidence + mode."""
+    """Output of ``attribute`` — the cleaned-room SET plus per-room evidence + mode.
+
+    ⚠ ``per_room`` ROWS MIX TWO DIFFERENT AGGREGATIONS — they are not one measurement of one
+    visit. ``_classify`` builds each row from ``per_room_best`` (``_best_run_by_room``, which
+    keeps the SINGLE max-spread contiguous run for the room) for ``dwell_s`` / ``spread`` /
+    ``winding`` / ``bbox_area``, and from ``_swept_area_by_room`` (which SUMS every run of that
+    room) for ``swept_area_m2``. So a room seen in several separate runs reports the swept area
+    of ALL of them next to the dwell/spread/winding of ONE. Comparing two rooms on ``dwell_s``
+    can therefore invert their real in-room time. The only ``per_room`` field read outside this
+    module today is ``swept_area_m2`` (``external_ingest.build_attributed_job``), which is the
+    summed one and is fine; ``dwell_s`` / ``spread`` / ``winding`` / ``bbox_area`` currently have
+    no external reader. Treat those four as single-sighting diagnostics, not run totals, before
+    building anything on them.
+    """
 
     cleaned: set[int]
     verdicts: dict[Any, tuple[str, str]]
@@ -168,7 +181,12 @@ def _run_metrics(run: dict[str, Any], interval_s: float) -> dict[str, Any]:
 
 def _best_run_by_room(run_metric_list: list[dict[str, Any]]) -> dict[Any, dict[str, Any]]:
     """Aggregate to per-room BEST run (max spread = strongest clean-evidence run).
-    A wash/park run never dilutes or fakes a clean — we take the best, not the total."""
+    A wash/park run never dilutes or fakes a clean — we take the best, not the total.
+
+    ⚠ "BEST, NOT THE TOTAL" GOVERNS THIS FUNCTION ONLY. ``_swept_area_by_room`` is the
+    opposite policy — it SUMS every run of a room — and ``_classify`` puts both into the
+    same ``per_room`` row, so ``swept_area_m2`` there is a total sitting beside this
+    function's single-run ``dwell_s`` / ``spread`` / ``winding`` / ``bbox_area``."""
     by_room: dict[Any, dict[str, Any]] = {}
     for m in run_metric_list:
         cur = by_room.get(m["room"])
@@ -213,6 +231,11 @@ def _classify(
     per_room: dict[int, dict[str, float]] = {}
     for rid, m in per_room_best.items():
         if rid is not None:
+            # ⚠ MIXED AGGREGATION, deliberate for `cleaned` and a trap for anything else:
+            # the four anchor metrics come from ONE run (`_best_run_by_room` max-spread),
+            # `swept_area_m2` from ALL runs of the room (`_swept_area_by_room` sums). The
+            # gate below only needs the summed area, so the row is correct for its one job
+            # and NOT a coherent description of a single visit. See RoomAttributionResult.
             per_room[rid] = {
                 "dwell_s": m["dwell_s"], "spread": m["spread"],
                 "winding": m["winding"], "bbox_area": m["bbox_area"],

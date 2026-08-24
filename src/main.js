@@ -163,8 +163,11 @@ class EufyVacuumCommandCenter extends HTMLElement {
 
        Scroll direction rather than a tap target on a hidden edge: reversing a
        scroll is reflex, finding an invisible strip is a discovery, and a strip
-       thin enough to be worth hiding is thinner than the 44px tap floor at
-       styles/mobile.js:831.
+       thin enough to be worth hiding is thinner than the 44px tap floor —
+       styles/mobile.js's `.evcc-shell[data-viewport="mobile"] .evcc-view-stage
+       button:not(...)` rule, under its "generic touch-target pass" heading. (The
+       ":831" pinned here had rotted; cite the selector, nothing checks a line
+       number in a source comment.)
 
        Everything here is chrome-only. It never changes what is on screen, only
        whether two panes are drawn, so the worst failure is cosmetic. */

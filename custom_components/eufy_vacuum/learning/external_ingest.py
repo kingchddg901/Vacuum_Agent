@@ -527,7 +527,18 @@ def _apply_pose_identity(
     cleaning segment (a time/area plateau the segmenter split out): the only open question is
     *which* room, and the room the robot dwelt in answers it. Without the fallback the segment
     keeps its settings-ranked ``shortlist[0]`` (a wrong room) and the dropped first room is lost.
-    ``pose_confidence`` records which path named the segment (``cleaned`` vs ``presence``)."""
+    ``pose_confidence`` records which path named the segment (``cleaned`` vs ``presence``).
+
+    ⚠ THE PRESENCE FALLBACK IS LOCAL TO THIS FUNCTION, NOT A REPAIR OF THE STALE-
+    ``cleaning_area`` DROP IN GENERAL. It only reaches segments the counter segmenter
+    produced — i.e. the ENRICH path. The STAND-ALONE sibling ``build_attributed_job`` has no
+    equivalent: it returns ``None`` when ``attribution["cleaned"]`` is empty and skips every
+    pose sample whose ``current_room`` is not in ``cleaned``, so a first room the engine never
+    credited any swept area is dropped there with no presence rescue. That matters most for a
+    brand whose runs never take this path at all: ``adapters/roborock/adapter.py`` declares
+    ``job_segmenter.engine = "noop_job_fallback"`` explicitly, whose ``build_segments`` returns
+    no segments, so EVERY Roborock external run routes to ``build_attributed_job``. Read the
+    paragraph above as scoped to counter-segmented (Eufy-style) runs only."""
     if attribution.get("mode") != "robust":
         return
     cleaned = attribution.get("cleaned") or set()
@@ -680,6 +691,13 @@ def build_attributed_job(
     segment per cleaned room: area = the engine's swept m² (authoritative), active time = the
     room's tick count × cadence, identity pre-filled as ``shortlist[0]``. Returns ``None`` when
     there is no usable attribution (so finalize writes nothing, exactly as pre-W5c).
+
+    ⚠ CLEANED-SET ONLY — no presence fallback here. ``if rid is None or rid not in cleaned:
+    continue`` skips every pose sample the swept-area engine did not credit, and an empty
+    ``cleaned`` returns ``None`` outright. The presence rescue described in
+    ``_apply_pose_identity`` does NOT apply on this path, so a first room lost to a stale
+    ``cleaning_area`` is dropped rather than named by dwell. This is the path EVERY Roborock
+    external run takes (``job_segmenter.engine = "noop_job_fallback"`` → no counter segments).
 
     NOT counter-resegmentable (no counter samples embedded → the card hides the room-count /
     split-here controls); the user can still re-assign or merge rooms in the wizard. The raw
@@ -1033,6 +1051,15 @@ def build_graduated_job(
     (id->{slug, name, floor_type, clean_*}); ``bands_by_slug`` the learned area
     band per slug. Settings come from the segment's recovered selects, then any
     explicit override, then the room config; passes from the segment estimate.
+
+    ⚠ "ATOMIC" IS NARROWER THAN IT READS — it covers the two branches that append to
+    ``blocked`` (``unknown_room`` and a failed ``gate_segment_identity``). It does NOT cover
+    an assignment whose ``segment_orders`` resolve to nothing: ``covered`` is built by
+    filtering ``orders`` through ``segs_by_order``, and an empty ``covered`` takes a bare
+    ``continue`` with no ``blocked`` entry. That assignment is neither graduated nor
+    reported — it vanishes, and the rest of the record graduates without it. Do not read
+    "graduate only when all pass" as "every assignment is accounted for". Making the drop
+    visible would be a code change (append a ``blocked`` row), not a comment change.
     """
     segs_by_order = {s.get("order"): s for s in pending_record.get("segments", [])}
     rooms = rooms or {}
@@ -1047,6 +1074,9 @@ def build_graduated_job(
             orders = [assignment["segment_order"]]
         covered = [segs_by_order[o] for o in (orders or []) if o in segs_by_order]
         if not covered:
+            # ⚠ SILENT DROP — the one hole in the "atomic" contract above. No ``blocked``
+            # row is appended here, so this assignment is neither graduated nor reported
+            # back to the caller; the record graduates as if it had never been assigned.
             continue
         room_id = _safe_int(assignment.get("room_id"), -1)
         room_cfg = rooms.get(str(room_id), {}) if isinstance(rooms.get(str(room_id)), dict) else {}

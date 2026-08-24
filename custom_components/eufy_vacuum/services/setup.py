@@ -461,9 +461,22 @@ def register(hass: HomeAssistant) -> None:
                 "reason": result.get("reason"),
                 "message": f"Save refused: {result.get('reason')}",
             }
-        # is_configured stamping is handled by build_managed_rooms —
-        # every room returned by save_managed_rooms now carries True
-        # plus a configured_at timestamp. Mark the step complete here.
+        # is_configured stamping is handled by build_managed_rooms, but NOT every
+        # room comes back True — this comment claimed it did until 2026-08-24
+        # (RM19). CRUD-3: on the explicit-approval path, which is exactly the path
+        # this service takes whenever the user selects rooms
+        # (``enabled_room_ids`` supplied), build_managed_rooms computes
+        # ``is_configured = bool(existing.get("is_configured", False)) or
+        # floor_type_entry is not None``. A room that is approved but has NO entry
+        # in ``floor_types`` and NO prior confirmation therefore comes back
+        # ``is_configured=False``. ``configured_at`` IS always stamped
+        # (``existing_configured_at or _iso_now()``), so the timestamp half of the
+        # old sentence held while the flag half did not.
+        #
+        # We mark the ``save_rooms`` step complete regardless — that records that
+        # the user submitted the form, not that every room ended up configured.
+        # Anyone reasoning from "step complete" to "all rooms configured" is
+        # making the inference this comment used to license.
         _record_setup_step(
             manager, data["vacuum_entity_id"], "save_rooms"
         )

@@ -17,7 +17,33 @@ switch — while the settings behind each key are the brand's own words.
 Copied from the framework constants so Eufy resolves as it did before, with ONE
 deliberate subtraction since: ``path_type``, which was a second name for the axis
 ``clean_intensity`` already carries (see the note under the profiles below).
-``tests/unit/test_profile_catalog.py`` pins the values that remain.
+
+⚠ NOTHING PINS THESE LITERALS. This said "``tests/unit/test_profile_catalog.py`` pins
+the values that remain" until 2026-08-24 (ledger D28). That test imports nothing from
+``adapters.eufy`` — every catalog in it is SYNTHETIC by design, and its own docstring
+says why ("if a core test needed a real brand's words to pass, core would still own
+them"). The citation was true when written and was falsified by commit ad8c074c ("core
+owns the key space, not a brand's words"): before it, the test asserted
+``cat["builtins"] is BUILT_IN_ROOM_PROFILES`` against ``profiles/room_profiles.py``,
+back when core still carried Eufy's words. The move rewrote the test synthetic, and the
+sentence was not revisited.
+
+WHAT DOES READ THESE VALUES, so the gap is sized rather than merely reported:
+  * ``tests/brand_catalogs.py`` imports the real dicts to build ``EUFY_BLOCK`` for the
+    brand-parametrized suites — but it asserts RELATIONSHIPS, never literals, on
+    purpose ("a literal in a core test is a brand's word wearing a framework badge").
+  * ``tests/adapters/eufy/test_intensity_wire_mapping.py`` [CIW-4] walks these profiles
+    and asserts each ``clean_intensity`` is one the adapter declares.
+  * ``tests/integration/conftest.py`` imports six of them to build fixtures, and
+    asserts no literal at all.
+Those THREE are the importers of these dicts in ``tests/`` as of 2026-08-24, and none
+asserts a literal except CIW-4's membership check.
+⚠ this paragraph said "those TWO are the ONLY importers" and omitted the conftest, while
+CITING a grep as its evidence — a receipt for a count that was wrong. The conclusion
+survives (conftest pins nothing), but a measured-sounding claim that is wrong is worse
+than an unmeasured one, because the next reader stops checking.
+Treat these as un-pinned values: if one must not move, give it a test that names the
+input which makes it red, rather than adding another citation.
 
 Values only. Nothing here is a framework default for anybody else: a brand
 declares its own catalog, or declares it unused (``builtins: {}``). There is no

@@ -1,8 +1,16 @@
 """Path-blocker listeners — react to blocker entity state changes during
 active jobs.
 
-Watches every blocker rule's trigger entity across all managed rooms.
-When one fires during an active job, builds a runtime path-block report
+Watches the trigger entity of each ENABLED ``kind: "blocker"`` rule that
+carries a non-empty ``entity_id``, on every managed room of every map whose
+id does not normalize to ``"unknown"``. ``register()`` applies all four
+skips explicitly.
+⚠ was: "every blocker rule's trigger entity across all managed rooms" — the
+"every … across all" invited a reader to treat a missing path-block event
+as a delivery or timing problem when it is a REGISTRATION exclusion. The
+``"unknown"`` map skip is the silent one: a configured blocker on a room
+not yet bound to a real map id never gets a watcher, and nothing logs that.
+When a watched entity fires during an active job, builds a runtime path-block report
 and applies the job's configured `path_block_action` (event_only,
 pause_and_event, cancel_and_event). Re-registers itself whenever room
 configuration changes via a manager callback.

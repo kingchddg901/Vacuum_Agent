@@ -2669,7 +2669,7 @@
       "base_station_no_dust_bag_installed": "Base station no dust bag installed",  // Eufy code 6113
       "base_station_not_found": "Base station not found",  // Eufy code 7055
       "base_station_power_fault": "Base station power fault",  // Eufy code 6110
-      "base_station_power_off": "Base station power off",  // Eufy code 5014
+      "base_station_power_off": "Base station power off",  // no Eufy code maps here; 5014 now uses fault.eufy.power_low_shutdown
       "base_station_pressure_sensor_fault": "Base station pressure sensor fault",  // Eufy code 6115
       "base_station_temperature_sensor_not_responding": "Base station temperature sensor not responding",  // Eufy code 6043
       "base_station_tray_full": "Base station tray full",  // Eufy code 6031

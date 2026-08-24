@@ -6,11 +6,25 @@ GENERATE PROCEDURAL FLOOR MASKS
 
 PURPOSE
 -------
-Regenerate the two floor-texture luminance masks that are derived by
-RULE rather than authored by hand:
+Regenerate the ELEVEN floor-texture luminance masks that are derived by
+RULE rather than authored by hand. `main()` writes, in order:
 
-    tile/tile-mask.png            (tile BASE layer)
-    concrete/concrete-micro-mask.png (concrete MICRO / accent layer)
+    tile/tile-mask.png                     (tile BASE — invert of pure-tile-grout)
+    concrete/concrete-micro-mask.png       (concrete MICRO / accent layer)
+    wood/wood-directional-depth-mask.png   |
+    wood/wood-grain-mask.png               | procedural seamless planks
+    wood/wood-seam-mask.png                |
+    carpet/carpet-low-base-mask.png        |
+    carpet/carpet-low-detail-mask.png      |
+    carpet/carpet-high-base-mask.png       | frequency splits of a source photo
+    carpet/carpet-high-detail-mask.png     |
+    granite/granite-base-mask.png          |
+    granite/granite-detail-mask.png        |
+
+⚠ was: "Regenerate the two floor-texture luminance masks", listing only the
+first two. The wood generator and the three photo splits were added to `main()`
+later and this section was never rewritten, so a reader planning a run saw two
+files and got eleven.
 
 WHY THE COMPOSITING MODEL FORCES THESE SHAPES
 ---------------------------------------------
@@ -33,17 +47,49 @@ src/styles/floor-texture-styles.js). Therefore:
 
 NOT TOUCHED
 -----------
-The hand/externally-authored masks (wood, marble, carpet, granite, and
-the tile grout LINE itself) are left alone.
+Genuinely never written by `main()`: everything under marble/; the tile grout LINE
+itself (tile/pure-tile-grout.png), which is READ as the source for tile-mask.png;
+and two shipped masks no generator produces at all —
+concrete/concrete-broad-mask.png and tile/grout-mask.png. The three photographic
+sources the splits read are likewise read-only —
+carpet/texture-floor-carpet-low.png, carpet/texture-floor-carpet-high.png,
+granite/texture-floor-granite-light.png.
+
+⚠ the two orphan masks were missing from this list when it was rewritten on
+2026-08-24 — it under-claimed what is protected, which errs safe but is still
+wrong for a section presented as the authoritative never-written set. If you are
+deciding whether a hand edit survives a regeneration, that is the exact question
+this list is asked, so an omission here reads as "not protected".
+
+⚠ was: "The hand/externally-authored masks (wood, marble, carpet, granite, and
+the tile grout LINE itself) are left alone." False for three of the five names.
+`main()` overwrites all three wood masks, all four carpet masks and both
+granite masks — nine of the eleven outputs are files this list called
+hand-authored and promised were safe. Only marble and the grout line were ever
+right. Believing it is how a hand edit to a wood or carpet mask gets erased by
+the next routine regeneration.
 
 USAGE
 -----
     py scripts/gen_floor_masks.py            # write into the repo textures dir
     py scripts/gen_floor_masks.py --check    # report source stats, write nothing
 
-Deterministic: the concrete specks use a fixed RNG seed, so re-running
-produces byte-identical output (keeps the build's content-hash cache-bust
-token stable unless this recipe actually changes).
+Deterministic: the concrete specks use a fixed RNG seed and the wood planks
+another, so re-running reproduces every mask PIXEL-for-pixel.
+
+⚠ PIXEL-identical is not BYTE-identical, and the gap destroys data. Two
+outputs — carpet/carpet-high-base-mask.png and carpet/carpet-high-detail-mask.png
+— carry a hand-added PNG `tEXt` chunk (keyword `note`) reading: "re-encoded
+2026-07-04 to bump asset-ver and bypass a poisoned service-worker cache entry
+(browser could not decode the prior bytes though they were valid + served 200)".
+Pillow does not carry that chunk through, so a regeneration silently strips the
+only record of why those two files were re-encoded, and `__ASSET_VER__` moves
+even though no pixel did. Re-add the note after any run that rewrites the
+carpet-high pair.
+
+⚠ was: "re-running produces byte-identical output (keeps the build's
+content-hash cache-bust token stable unless this recipe actually changes)".
+True of the other nine outputs; false of those two since 2026-07-04.
 ============================================================
 """
 from __future__ import annotations
@@ -55,8 +101,22 @@ import numpy as np
 from PIL import Image
 
 TEXTURES = Path(__file__).resolve().parents[1] / "custom_components" / "eufy_vacuum" / "textures"
-# All masks are authored at 2048x2048 — the per-room mask-position "shift" is
-# calibrated for that canvas, so every mask must match or the shift misaligns.
+# All masks are authored at 2048x2048, and every mask must match that canvas.
+#
+# ⚠ was: "the per-room mask-position 'shift' is calibrated for that canvas, so every mask
+# must match or the shift misaligns." The RULE is real; that CONSEQUENCE cannot happen. The
+# card sets `mask-size: cover` (src/styles/floor-texture-styles.js) and shifts with
+# PERCENTAGE `mask-position`, which is scale-invariant — a 1024 mask lands exactly where a
+# 2048 one lands. The per-room shift is the one thing an off-canvas mask does NOT break, so
+# anyone testing the stated failure would find the rule "disproved" and drop it.
+#
+# WHERE IT ACTUALLY BITES is the card, not this file: `FLOOR_TEXTURE_MASK_SCALE` and
+# `FLOOR_TEXTURE_MASK_SCALE_BY_TYPE` in src/bindings/map.js are hardcoded feature-scale
+# constants tuned by eye against 2048, and the decode path never reads the bitmap's own
+# width. A mask at another canvas changes tile PERIOD and feature SIZE together, and two
+# same-material layers authored at different canvases desynchronize — silent misalignment,
+# no error. Nothing in tests, CI or the build asserts mask dimensions, so a hand-authored
+# replacement at the wrong canvas ships green.
 SIZE = 2048
 
 
@@ -89,8 +149,18 @@ def gen_concrete_micro(check: bool) -> None:
     rng = np.random.default_rng(7)
 
     def speckle(m: int, thr: float, lo: int, hi: int) -> np.ndarray:
-        """Sparse specks authored at m x m, NEAREST-upscaled to 512 so each
-        speck is (512/m) px wide and survives the card's mask downscale."""
+        """Sparse specks authored at m x m, NEAREST-upscaled to SIZE (2048) so each
+        speck is (SIZE // m) px wide and survives the card's mask downscale.
+
+        ⚠ was: "upscaled to 512 ... (512/m) px wide" — a 512-era figure, stale by 4x.
+        The resize below has always been to `(SIZE, SIZE)`; only the prose kept 512.
+        The two call sites are the check: m = SIZE // 2 gives 2 px and m = SIZE // 4
+        gives 4 px, which is exactly what their own trailing comments claim.
+
+        Two sibling copies of the same stale 512 figure live outside this file and
+        were NOT touched by this pass: the `mask-mode:luminance` comment in
+        src/styles/floor-texture-styles.js, and the Floor-textures row of
+        docs/dev/frontend/module-reference.md ("512px PNGs")."""
         a = np.zeros((m, m), dtype=np.float64)
         mask = rng.random((m, m)) > thr
         a[mask] = rng.integers(lo, hi, size=int(mask.sum()))

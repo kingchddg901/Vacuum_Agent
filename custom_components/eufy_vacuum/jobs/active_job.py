@@ -1715,6 +1715,22 @@ class ActiveJobTracker:
         (queue_room_ids) by slug. Returns the matched target's room_id, or None for
         a transit room / the dock / a sentinel / any name not among the job
         targets — the transit filter that keeps a cross-room hop from advancing.
+
+        ⚠ THIS INVERTS ``INCFMPP1`` AND THE INVERSION IS NOT SOUND FOR SAME-NAMED ROOMS.
+        The anchor (``rooms/room_discovery.py``) guarantees slugs are unique within a map
+        by giving the lowest-id sibling the bare slug and every colliding sibling
+        ``{slug}_r{room_id}``. That makes name -> slug NON-INVERTIBLE: the device publishes
+        a room NAME, so two "Kitchen" rooms both slugify to ``kitchen`` here, while their
+        STORED slugs are ``kitchen`` and ``kitchen_r7``. Consequences, both silent:
+        the suffixed sibling can never match (its stored slug carries a suffix the signal
+        cannot reproduce), so native rollover simply never fires for it; and while the
+        robot is in THAT room the signal still matches the bare-slug sibling, so rollover
+        can complete the WRONG room. Do not read the collision suffix as making same-named
+        rooms safe everywhere — it makes the identity KEY unique, which is a different
+        claim from making the name resolvable back to it. ``listeners/pose_sampler.py``
+        does the same inversion against ``get_managed_rooms``. A real fix needs a
+        name+id-aware resolution, i.e. a CODE change; this note only stops a reader
+        assuming the match is exact.
         """
         cfg = _get_adapter_config(vacuum_entity_id) or {}
         entity_id = cfg.get("entities", {}).get("active_cleaning_target")

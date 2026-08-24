@@ -37,7 +37,23 @@ from __future__ import annotations
 from typing import Any
 
 #: Step types that make a run STEPPED (sequenced) rather than a flat queue.
-#: Used by the "is this plan stepped?" gates and by the add_queue_break service schema.
+#: Reached only through this module's helpers — `is_stepped_step_type`, and through it
+#: `step_requires_stepped_execution` / `plan_requires_stepped_execution`, which is what
+#: the "is this plan stepped?" gates call. No PRODUCTION module imports the frozenset
+#: itself — `tests/unit/test_step_types.py` does, and asserts on it (its relationship to
+#: `DOCK_POLLED_PHASE_TYPES`), which is the point: the set is pinned by a test rather
+#: than re-spelled by a consumer.
+#:
+#: ⚠ was: "… and by the add_queue_break service schema." FALSE (ledger D22).
+#: `services/queue.py` does not import `step_types` at all, and neither of its break
+#: schemas is built from a constant here: `_ADD_QUEUE_BREAK_SCHEMA` carries a bare
+#: literal `vol.In(["charge_wait", "wait"])`, and `_QUEUE_BREAK_ENTRY_SCHEMA`
+#: (`set_queue_breaks`) a bare literal `vol.In(["charge_wait", "wait", "zone"])`. The
+#: second happens to have the same MEMBERS as this set today, which is what let the
+#: claim read as true — but it is a hand-copy, free to drift, which is the exact failure
+#: this module exists to stop. Claiming a consumer that does not exist made the module
+#: look more load-bearing than it is; wiring the schema to it would make the sentence
+#: true, and is a code change, not a comment one.
 STEPPED_STEP_TYPES: frozenset[str] = frozenset({"charge_wait", "wait", "zone"})
 
 #: Phase types the DOCK POLLER drives (battery target / timer at the dock).

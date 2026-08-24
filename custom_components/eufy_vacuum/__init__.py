@@ -405,6 +405,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Entry options WIN: the options flow is the guaranteed-reachable rescue
         # path, the one still available when the frontend is not, so a choice
         # made there must not be overruled by a stale panel value.
+        #
+        # ⚠ "WIN" IS PER VACUUM, NOT PER ROLE — and that is a real hole, not a
+        # nuance (ledger C41, open; needs a code change, not a wording change).
+        # The dict built below is SHALLOW: its outer key is the vacuum
+        # entity id, so `**_entry_overrides` replaces that vacuum's WHOLE role map
+        # with whatever the options flow last stored. Set role A from the panel's
+        # Setup tab (which writes `manager.data[ENTITY_OVERRIDES_KEY]`), then save
+        # the options flow having picked only role B, and role A is dropped — the
+        # options store never contained it. That is precisely the "oscillating
+        # between fixed and broken" that `config_flow.py`'s own merge comment says
+        # merging prevents; it prevents it WITHIN the options store and cannot see
+        # the panel's store at all. A role-level merge here is the fix.
         _brand_data = manager.data
         _entry_overrides = entry.options.get(ENTITY_OVERRIDES_KEY)
         if isinstance(_entry_overrides, dict) and _entry_overrides:
@@ -532,6 +544,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # The migration's own latch is the second half: a run that cannot evaluate every
         # target no longer records itself as done, so a deferral is retried rather than
         # silently consumed.
+        #
+        # ⚠ THE LATCH IS SET IN MEMORY HERE, NOT NECESSARILY PERSISTED (ledger C10,
+        # open). `migrate_room_vocabulary` sets `migrations[MIGRATION_KEY] = True`
+        # inside `manager.data`, but the save below runs only `if _migration["changes"]
+        # or _pause_migration["changes"]` — so a run that latches having changed nothing
+        # writes nothing, and a returned `"latched": True` is NOT evidence the flag
+        # survived a restart. It rides whatever unrelated `async_save()` happens next.
+        # This FAILS SAFE, which is why it still reads this way: the only consequence is
+        # that the same no-op migration is planned again on the next start. Do not treat
+        # the return value as a persistence receipt.
         @callback
         def _schedule_vocabulary_migration(_hass: HomeAssistant) -> None:
             async def _do() -> None:

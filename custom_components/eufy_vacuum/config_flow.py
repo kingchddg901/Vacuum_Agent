@@ -56,15 +56,43 @@ class EufyVacuumConfigFlow(ConfigFlow, domain=DOMAIN):
         """Single step: collect vacuum entity + model + optional notes, then finish."""
         if user_input is not None:
             await self.async_set_unique_id(DOMAIN)
-            # reload_on_update=False: the entry-update reload is handled by the
-            # add_update_listener in __init__ (options changes need it). HA 2026.6
-            # deprecates having BOTH a reloading config-flow method and an update
-            # listener (double-reload/race) — error from 2026.12 — so this flow
-            # must NOT also reload. Single-instance anyway, so this just aborts.
+            # SINGLE INSTANCE — this call aborts; it neither updates nor reloads.
+            #
+            # ⚠ THE MOTIVE WAS ALWAYS RIGHT, THE MECHANISM WAS NOT. This comment
+            # credited `reload_on_update=False` for suppressing the reload until
+            # 2026-08-24 (ledger D26). The flag is never read. In HA 2026.5.3,
+            # `ConfigFlow._abort_if_unique_id_configured` consults `reload_on_update`
+            # only inside a conjunction that begins `updates is not None`; this call
+            # passes no `updates`, so the test short-circuits before reaching the flag.
+            # The sibling `elif` arm cannot fire either — it requires
+            # `self.source in DISCOVERY_SOURCES`, and this is the user step.
+            #
+            # THE REASON IS KEPT, because it still governs: the entry-update reload
+            # belongs to the `add_update_listener` in `__init__` (options changes need
+            # it), and HA 2026.6 deprecates having BOTH a reloading config-flow method
+            # and an update listener (double-reload/race; error from 2026.12) — so this
+            # flow must NOT also reload. If an `updates=` mapping is ever passed here
+            # the flag stops being decorative and must stay False.
             self._abort_if_unique_id_configured(reload_on_update=False)
-            # Drop the vacuum field from data if blank — keeps the config-entry
-            # data clean and the integration's setup_entry can detect "no
-            # vacuum chosen yet" by checking for key absence.
+            # Drop the vacuum field from data if blank.
+            #
+            # ⚠ THIS BRANCH IS DEAD, AND SO WAS THE JUSTIFICATION PRINTED HERE UNTIL
+            # 2026-08-24 (ledger D25, open — deleting the branch is a code change, so
+            # it still stands below). It read: "keeps the config-entry data clean and
+            # the integration's setup_entry can detect 'no vacuum chosen yet' by
+            # checking for key absence." Neither half holds:
+            #   1. NO CONSUMER TESTS FOR THE KEY. Both readers of
+            #      `CONF_VACUUM_ENTITY_ID` outside this flow go through `.get()` and
+            #      then truthiness or equality — `__init__.py`'s `if configured_vacuum:`
+            #      at setup, and the device-removal path's
+            #      `if configured == vacuum_entity_id:`. Absent and blank are already
+            #      the same fact to every reader.
+            #   2. THE FALSY CASE CANNOT ARRIVE WITH THE KEY PRESENT. The field is
+            #      `vol.Optional` with no default behind an `EntitySelector`, and the
+            #      selector rejects `""`/`None` before this runs (proven by running it,
+            #      ledger D25) — so an unfilled field never sets the key at all, and a
+            #      set key always carries a real entity id.
+            # It is inert rather than wrong, which is why it is still here.
             if not user_input.get(CONF_VACUUM_ENTITY_ID):
                 user_input.pop(CONF_VACUUM_ENTITY_ID, None)
             return self.async_create_entry(title=DEFAULT_TITLE, data=user_input)
@@ -170,6 +198,16 @@ class EufyVacuumOptionsFlow(OptionsFlow):
             # The cost of merging is that this screen cannot CLEAR an override;
             # removal belongs to the panel's Setup tab, which renders the ones
             # already set and can offer an explicit remove.
+            #
+            # ⚠ THE MERGE IS WITHIN THIS STORE ONLY, so the oscillation described
+            # above is still reachable THROUGH THE OTHER ONE (ledger C41, open —
+            # the repair is a code change in `__init__.py`, not here). The panel's
+            # Setup tab writes overrides into `manager.data[ENTITY_OVERRIDES_KEY]`,
+            # a different store, which this flow neither reads nor writes.
+            # `__init__.py` reconciles the two with a shallow merge keyed by VACUUM,
+            # not by role, so whatever this screen saves for a vacuum replaces that
+            # vacuum's whole panel-set role map. Set role A from the panel, then save
+            # here having picked only role B, and role A is dropped.
             target_vacuum = vacuum_entity_id or previous_vacuum
             picked = {
                 key[len(_OVERRIDE_FIELD_PREFIX):]: str(value).strip()

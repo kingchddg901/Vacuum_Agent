@@ -2136,10 +2136,23 @@ class LearningManager:
             )
 
             outlier_score = 0.0
-            # Only an EXPLICIT False is a sanity failure. A missing/None value (e.g.
-            # graduated external runs that don't carry the key) must NOT count as
-            # failed — the index stores the key as None, so a `.get(key, True)` default
-            # never fired and flagged every such run.
+            # Only an EXPLICIT False is a sanity failure.
+            #
+            # ⚠ THE PREMISE UNDER THIS USED TO READ: "the index stores the key as None, so
+            # a `.get(key, True)` default never fired and flagged every such run." Measured
+            # false against the tree on 2026-08-24. `stats_rebuilder.build_jobs_index_payload`
+            # — the sole writer of the rows iterated here (`load_jobs_index()["jobs"]`) —
+            # emits `"sanity_passed": True if is_external else bool(outcome.get(
+            # "sanity_passed", False))`. Both arms are a real bool, so a `None` cannot
+            # reach this dict from the index at all, and the old-external-run rescue the
+            # sentence described happens UPSTREAM in that `is_external` force, not here.
+            #
+            # The GUARD IS STILL CORRECT — keep it. `is False` fires on a genuine False,
+            # which is what a sanity failure is. What is dead is only the None-vs-False
+            # DISTINCTION the comment claimed to be preserving; `.get(key, True)` and
+            # `is False` would behave identically on index data today. Treat the
+            # identity check as cheap insurance against a hand-edited or
+            # future-schema row, not as a live rescue of missing keys.
             if item.get("sanity_passed") is False:
                 outlier_score += 3.0
             if str(item.get("status", "")).strip().lower() != "completed":

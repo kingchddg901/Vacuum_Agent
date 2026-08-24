@@ -61,9 +61,21 @@ def resolve_new_room_defaults(
 ) -> dict[str, Any]:
     """Return the settings a new room starts with, for this brand.
 
-    ``catalog`` is a resolved ``room_profiles`` block (``resolve_profile_catalog``); None
-    resolves the framework's in-code catalog, which is what a brand that declares no
-    ``room_profiles`` block gets today.
+    ``catalog`` is a resolved ``room_profiles`` block (``resolve_profile_catalog``).
+
+    ⚠ None DOES NOT RESOLVE A FRAMEWORK CATALOG — THERE IS NO LONGER ONE, and this
+    docstring said there was until 2026-08-24 (R13). Killing that catalog is the whole
+    point of this module and of anchor IN40W49E. ``resolve_profile_catalog(None)``
+    returns ``builtins={}`` and ``custom_template={}``, with ``default_profile`` the one
+    key still carrying a framework value (``DEFAULT_ROOM_PROFILE_NAME``, currently
+    ``"vacuum_quick"`` — a NAME, never settings). So ``resolve_new_room_defaults(None)``
+    looks ``"vacuum_quick"`` up in an empty ``builtins``, finds nothing, and returns
+    exactly ``{"profile_name": "vacuum_quick"}``: a profile name pointing at a profile
+    that does not exist, and ZERO setting fields. Every setting then falls through to the
+    caller's own literals (e.g. ``build_managed_rooms``').
+
+    That degradation is correct and is described below — the danger is only that a reader
+    believed the None path yields a working set of default room settings. It does not.
 
     The result always carries ``profile_name`` plus whichever of
     ``NEW_ROOM_SETTING_FIELDS`` the named profile declares. A profile that declares none of
@@ -89,8 +101,10 @@ def resolve_new_room_defaults_for_vacuum(vacuum_entity_id: str) -> dict[str, Any
 
     The convenience wrapper for the two production room-creation call sites, which each
     have a ``vacuum_entity_id`` and no catalog. Never raises — an unregistered adapter
-    resolves the framework catalog, exactly as a brand declaring no ``room_profiles``
-    block does.
+    passes None down, exactly as a brand declaring no ``room_profiles`` block does, and
+    that yields ``{"profile_name": <DEFAULT_ROOM_PROFILE_NAME>}`` and nothing else.
+    ⚠ was: "resolves the framework catalog" — the same stale phrase corrected on
+    ``resolve_new_room_defaults`` above (R13); there is no framework catalog to resolve.
     """
     from ..adapters.registry import get_adapter_config
 

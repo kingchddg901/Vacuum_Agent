@@ -17,6 +17,26 @@ const NO_VALUE_OPERATORS = new Set(["is_on", "is_off", "exists", "missing"]);
 // Each adapter declares what its hardware supports — Eufy declares
 // 4 fan speeds, Roborock with Max+ would declare 5, etc. The card
 // renders whatever the adapter says is valid for this brand.
+//
+// ⚠ ONE FIELD IS EXEMPT FROM THAT CONTRACT: clean_passes. Read the sentence
+// above as covering it and you will be wrong. _renderModifierChanges below
+// builds the passes chips from a literal `[1, 2].map(...)` instead of an
+// adapter option list (the chipRow helper beside it DOES honour the contract,
+// for clean_mode / fan_speed / water_level / clean_intensity), and both
+// validation sites agree with the literal rather than with the adapter:
+// bindings/room-rules.js keeps the value only when `normalizedPasses === 1 ||
+// normalizedPasses === 2`, and state/room-rules.js counts a clean_passes change
+// as meaningful only for `Number(value) === 1 || Number(value) === 2`.
+//
+// 2 is EUFY's cap. The Roborock adapter declares `dispatch.passes_max` = 3,
+// which the backend surfaces as `max_clean_passes` in the dashboard snapshot.
+// The room SETTINGS editor was migrated to that capability (state/room-editor.js
+// `maxCleanPasses`, and the standalone room card's passes row); the room RULES
+// editor was not — `max_clean_passes` appears in none of the three room-rules
+// files. So a Roborock user can set 3 passes on a room but cannot express a
+// 3-pass modifier RULE, and the binding SILENTLY DROPS a 3 rather than refusing
+// it. Closing that is a code change, not a comment; this note exists so the
+// contract above is not read as already true of clean_passes.
 
 /**
  * Mix room rules renderer methods onto the given prototype.

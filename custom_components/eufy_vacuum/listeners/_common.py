@@ -12,7 +12,14 @@ Public surface:
 - is_dock_trigger_edge(old_state_value, new_state_value, trigger_vocabulary) -> bool
 - get_lifecycle_watch_entities(vacuum_entity_id) -> list[str]
 - is_job_active(hass, vacuum_entity_id, *, unavailable_is_active=False) -> bool
-- completed_finalize_signals(hass, vacuum_entity_id) -> dict[str, str]
+- completed_finalize_signals(hass, vacuum_entity_id) -> dict[str, Any]
+    ⚠ NOT dict[str, str], which this list claimed until 2026-08-24 (L22).
+    The returned mapping is NOT homogeneous: four keys hold the lowercased
+    state string, but ``job_active_present`` holds a bool (a PRESENCE test,
+    added with the issue #51 fix). A caller trusting the old signature would
+    treat it as a string — and ``"False"`` is truthy, so a str()-shaped guard
+    written against it inverts the very presence check it guards. The other
+    eight entries in this list do match their functions.
 - completion_secondary_satisfied(vacuum_entity_id, completion_signals, clear_sentinels) -> bool
 - job_finished_event_data(*, vacuum_entity_id, map_id, finalize_result) -> dict
 - run_incomplete_event_data(*, vacuum_entity_id, finalize_result) -> dict | None
@@ -322,13 +329,23 @@ def completion_secondary_satisfied(
         because Roborock's active_cleaning_target (``current_room``) reverts to
         the DOCK room's name at the end of a run, never a sentinel, so the
         default check below would never pass and the job would never finalize.
-        RP-033/COMMON-2: only honored when ``entities.job_active`` is actually
-        declared — the flag names the entity that supplies the real signal, so a
-        config that sets it without declaring the entity used to short-circuit
-        to True unconditionally with nothing backing it. Registration now warns
-        on this combination (adapters/registry.py._warn_completion_gate_orphan);
-        at runtime it falls through to the default sentinel check below instead,
-        i.e. behaves as if the flag were never set.
+        Declaration is NECESSARY BUT NO LONGER SUFFICIENT. The body requires
+        BOTH ``entities.job_active`` declared AND
+        ``completion_signals["job_active_present"]`` — the entity must also
+        RESOLVE to a readable, determinate state — before returning True.
+        ⚠ was: "RP-033/COMMON-2: only honored when ``entities.job_active`` is
+        actually declared", which documents the tightening this has since been
+        superseded by (issue #51), and the correction lived only in the body
+        comment a reader of the contract never reaches. Someone asking why a
+        Roborock run failed to finalize would check that ``entities.job_active``
+        is declared, find that it is, and rule this branch out — when the actual
+        refusal came from the second condition. The motive is unchanged: the
+        flag names the entity that supplies the real signal, so a config that
+        sets the flag with nothing readable behind it must not short-circuit to
+        True. Registration warns on the un-declared combination
+        (adapters/registry.py._warn_completion_gate_orphan); at runtime EITHER
+        failure falls through to the default sentinel check below, i.e. behaves
+        as if the flag were never set.
 
       - default (Eufy): the active_cleaning_target must read a clear sentinel.
     """

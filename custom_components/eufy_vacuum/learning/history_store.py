@@ -1862,6 +1862,23 @@ class LearningHistoryStore:
 
         # For single-room jobs derive actual cleaning time from the Returning
         # transition so the return trip doesn't inflate per-room stats.
+        #
+        # ⚠ "THE RETURNING TRANSITION" IS NOT ADAPTER-RESOLVED HERE, AND IT IS NOT
+        # ENTITY-FILTERED. The loop below matches the frozen literal `"returning"` against
+        # `to_state` on ANY row of `state_transitions`. That list is written by
+        # `jobs/active_job.record_active_job_transition` for every entity in
+        # `get_lifecycle_watch_entities` — the vacuum entity itself plus the adapter's
+        # declared `task_status`, `dock_status`, `active_cleaning_target`, `active_map` and
+        # `job_active` — and each row carries an `entity_id` this loop ignores. So the first
+        # watched entity of any kind whose state reads `returning` sets the boundary.
+        # The SAME question is answered properly one file away:
+        # `job_finalizer._detect_cancel_likely_run` resolves
+        # `brand_facts_for(...).entity_id("task_status")`, refuses when it is absent, and
+        # compares against `cancel_detection_states` from the adapter. This path does
+        # neither, and its answer feeds `actual_cleaning_minutes` → `room_cleaning_minutes`
+        # → per-room learning. It works today because HA's own vacuum state machine uses
+        # the literal `returning`, not because any adapter declared it.
+        # Adapter-resolving it would be a CODE change, not a comment change.
         actual_cleaning_minutes: float | None = None
         if room_count == 1 and started_dt is not None:
             transitions = active_job_state.get("state_transitions", []) if isinstance(active_job_state, dict) else []

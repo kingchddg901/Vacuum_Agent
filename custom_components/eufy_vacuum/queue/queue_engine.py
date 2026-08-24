@@ -245,10 +245,19 @@ def build_room_clean_payload(
     selected_ids = set(queue_room_ids or [])
 
     # Resolve this vacuum's room-profile catalog (default_profile, built-ins, floor-type
-    # defaults) from the adapter's room_profiles block; absent → the in-code defaults
-    # (byte-identical for Eufy). Threaded into per-room resolution + the capability gate
-    # so a brand's profile vocabulary reaches the dispatched settings. Deferred import
-    # keeps queue_engine free of the registry at import time.
+    # defaults) from the adapter's room_profiles block. Threaded into per-room resolution
+    # + the capability gate so a brand's profile vocabulary reaches the dispatched
+    # settings. Deferred import keeps queue_engine free of the registry at import time.
+    #
+    # ⚠ was: "absent → the in-code defaults (byte-identical for Eufy)". FALSE, and it
+    # inverted the invariant it sits under — D3 (second of two sites; the first is the
+    # matching comment in `adapters/registry.py`). `resolve_profile_catalog` resolves an
+    # undeclared key to EMPTY: "Core holds no brand's vocabulary, so an undeclared key
+    # resolves EMPTY rather than to somebody else's words." The sentence described the
+    # world BEFORE that changed, when a brand declaring nothing inherited `"Max"` and
+    # `"Boost"`, the card matched no option, and an unedited room applied no suction at
+    # all. Believing it means reading an empty catalog as a working Eufy-shaped default
+    # and looking for the bug somewhere else entirely.
     from ..adapters.registry import get_adapter_config
 
     _catalog = resolve_profile_catalog(

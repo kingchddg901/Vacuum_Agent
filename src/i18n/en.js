@@ -2675,7 +2675,17 @@ export const en = {
   "fault.eufy.base_station_no_dust_bag_installed": "Base station no dust bag installed",  // Eufy code 6113
   "fault.eufy.base_station_not_found": "Base station not found",  // Eufy code 7055
   "fault.eufy.base_station_power_fault": "Base station power fault",  // Eufy code 6110
-  "fault.eufy.base_station_power_off": "Base station power off",  // Eufy code 5014
+  // ⚠ ORPHANED KEY. This entry was annotated "// Eufy code 5014" — false since 5014 was
+  // re-mapped. Eufy's own error protos declare E5014_LOW_BATTERY_SHUTDOWN, i.e. the ROBOT's
+  // pack dying, not the station losing power (upstream robovac_mqtt mislabels it "DOCKING
+  // STATION POWER OFF" and we mirrored that). adapters/eufy/vocabulary.py now lists 5014 in
+  // EUFY_ROBOT_SOURCED_ERROR_CODES and EUFY_ERROR_LABEL_KEYS points it at
+  // `fault.eufy.power_low_shutdown`, so NOTHING maps to the key below any more. Do not
+  // re-point 5014 at it: a dock-sourced fault is evidence-safe ("the robot can be cleaning
+  // normally throughout"), and a run that ended because the battery died is truncated by
+  // definition — learning would accept it as complete. The string is left defined (already
+  // translated in all 18 locales) rather than deleted.
+  "fault.eufy.base_station_power_off": "Base station power off",  // no Eufy code maps here; 5014 now uses fault.eufy.power_low_shutdown
   "fault.eufy.base_station_pressure_sensor_fault": "Base station pressure sensor fault",  // Eufy code 6115
   "fault.eufy.base_station_temperature_sensor_not_responding": "Base station temperature sensor not responding",  // Eufy code 6043
   "fault.eufy.base_station_tray_full": "Base station tray full",  // Eufy code 6031

@@ -347,15 +347,50 @@ export const themePreviewStyles = `
     pointer-events: none;
   }
 
-  /* HOVER STATES ARE REAL STATES, and some tokens live nowhere else.
+  /* HOVER STATES ARE REAL STATES: on a device with a real pointer, let the
+     specimen be hovered and the product's own :hover rules do the work.
 
-     --evcc-border-strong has SIX consumers and every one of them is a :hover
-     rule (rooms.js:352, foundation.js:105, maintenance.js:316, map.js:1802,
-     theme.js:339; the sixth, modals.js:382, reaches it only as a third-level
-     fallback). A preview that renders the product truthfully therefore cannot
-     show it standing still — so on a device with a real pointer, let the
-     specimen be hovered and the product's own :hover rules do the work. No
-     forced-state class, so nothing to duplicate and nothing to drift.
+     ⚠ was: "--evcc-border-strong has SIX consumers and every one of them is a
+     :hover rule (rooms.js:352, foundation.js:105, maintenance.js:316,
+     map.js:1802, theme.js:339; the sixth, modals.js:382, reaches it only as a
+     third-level fallback). A preview that renders the product truthfully
+     therefore cannot show it standing still." BOTH HALVES ARE FALSE:
+
+       - The count is far short. Walked over src/ at the time of writing, the
+         token is referenced in a dozen files: styles/base-station.js,
+         foundation.js (both the .evcc-chip:hover rule and the
+         --evcc-chip-hover-border alias), maintenance.js, map.js (four separate
+         rules), metrics.js, modal-host.js, modals.js, order.js, rooms.js,
+         theme.js and this file, plus its registry entry in
+         theme-tokens/borders.js. No hand-kept consumer list survives contact
+         with a themeable token — grep it instead of trusting a number here.
+
+       - The universal fails, so the "cannot show it standing still" premise is
+         simply untrue. .evcc-rooms-view-toggle-btn.active (styles/map.js)
+         paints it in a RESTING state; .evcc-chip-search:focus
+         (styles/metrics.js) reaches it under :focus as the --evcc-accent
+         fallback; and .evcc-theme-preview-border-sample--strong in THIS FILE
+         renders it standing still, as does .evcc-theme-preview-chip--hover
+         via --evcc-chip-hover-border. The premise was contradicted by the pane
+         it was written to justify.
+
+       - Five of the six cited line numbers still resolve; theme.js:339 has
+         rotted — the :hover consumer in styles/theme.js is
+         .evcc-preset-card:hover. Cite the SELECTOR: nothing verifies a line
+         citation living in a source comment (check_doc_citations.py gates
+         docs/ only), and with five files named theme.js and six named map.js a
+         bare basename is under-specified before the number even rots.
+
+     THE RULE IS KEPT, on the motive the false premise was standing in for: a
+     preview that only ever shows resting states under-reports what a theme
+     does, and hover-only tokens (--evcc-chip-hover-bg/-border/-text,
+     --evcc-shadow-hover, --evcc-hover-lift) have nowhere else to be seen.
+
+     ⚠ also was: "No forced-state class, so nothing to duplicate and nothing to
+     drift." Not true of this pane — .evcc-theme-preview-shadow-sample--hover
+     and .evcc-theme-preview-chip--hover above ARE forced-state specimens and
+     do carry that duplication risk. What is true is narrower: THIS rule adds no
+     forced state, it just lets the real :hover rules fire.
 
      Gated on (hover: hover) and (pointer: fine) for two reasons. A touch device
      has no hover, so the token genuinely does not render there either and the
@@ -365,9 +400,11 @@ export const themePreviewStyles = `
 
      ACTIONS stay blocked by the inert attribute on the containers in the
      renderer, NOT by this rule: the specimens are real room cards, and
-     data-action="open-order-selector" is bound host-wide at
-     bindings/index.js:237 — so these cards carry a live handler, and
-     pointer-events was the only thing holding it. inert blocks activation and
+     data-action="open-order-selector" is bound host-wide in bindings/index.js
+     (the querySelectorAll("[data-action='open-order-selector']") bind; the
+     ":237" that used to be pinned here is stale — cite the selector) — so these
+     cards carry a live handler, and pointer-events was the only thing holding
+     it. inert blocks activation and
      tab-stops while leaving :hover alone, which is exactly the line wanted here:
      states yes, actions no. */
   @media (hover: hover) and (pointer: fine) {

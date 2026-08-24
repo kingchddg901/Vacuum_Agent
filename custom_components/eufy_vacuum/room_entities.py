@@ -192,9 +192,20 @@ class EufyVacuumRoomEntity(Entity):
                 self.async_write_ha_state()
                 return
             # EP-7: the call carried BOTH managed and unmanaged fields (e.g. an
-            # "enabled"+"color" batch) -- update_room_fields only understands the
-            # managed subset above, so anything else must still reach the generic
-            # merge below instead of being silently dropped by an early return.
+            # "enabled"+"color" batch), so anything outside `managed_field_names`
+            # must still reach the generic merge below instead of being silently
+            # dropped by an early return.
+            #
+            # ⚠ was: "update_room_fields only understands the managed subset above."
+            # FALSE (ledger D4). The callee's signature
+            # (`core/manager.py::EufyVacuumManager.update_room_fields`) also accepts
+            # `color`, `is_dock_room`, `is_transition`, `grants_access_to` and
+            # `rules` — `color` being this comment's own example of a field it
+            # supposedly could not take. The true statement is narrower and is about
+            # THIS CALL SITE, not the callee: `managed_field_names` above is a
+            # hand-maintained copy that has drifted from that signature, so this call
+            # site only PASSES the managed subset, and everything else must be routed
+            # to the merge. Splitting here is therefore a choice, not a constraint.
 
         map_bucket = (
             self.manager.data.setdefault("maps", {})

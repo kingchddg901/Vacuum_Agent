@@ -5,12 +5,32 @@ Two append-only files per vacuum, both under
 
 - ``samples.jsonl`` — every accepted sample (battery_level, charging, rate,
   drain delta, ts). One JSON object per line. Easy to truncate / tail / parse.
-- ``sessions.csv`` — every completed charge session as a CSV row. Reviewable in
-  any spreadsheet for trend charting.
+- ``sessions.csv`` — every completed charge session as a CSV row, but only the
+  ``_SESSION_HEADER`` SUBSET of that session's fields. Reviewable in any
+  spreadsheet for session-level trend charting (durations, deltas, rates).
 
 These files are write-only from this module's perspective; the manager keeps
 its own in-memory aggregates for sensor state and persists those to
-``eufy_vacuum.storage``. The files are the long-term raw audit trail.
+``eufy_vacuum.storage``.
+
+⚠ ``sessions.csv`` IS NOT A COMPLETE AUDIT TRAIL, and this docstring called both
+files "the long-term raw audit trail" until 2026-08-24 (B22). Counted against the
+current tree: the session summary built in ``battery/manager.py`` carries 19 keys;
+``_SESSION_HEADER`` below carries 11. The 8 that never reach the CSV are
+``rate_samples``, ``kind`` (idle / mid_job / post_job — the field the mid-job
+recharge stats gate on, ``if kind == "mid_job" and ...``), and all six regime
+fields: ``cc_duration_min``, ``cc_delta_pct``, ``cv_duration_min``,
+``cv_delta_pct``, ``cc_min_per_pct``, ``cv_min_per_pct``.
+
+That matters because ``cc_min_per_pct`` / ``cv_min_per_pct`` are the sole inputs
+to the health baseline and to every charge-speed sensor. Their only durable home
+is the ``.storage`` record, where ``session_history_recent`` is a
+``HISTORY_LIMIT``-item ring and ``health_qualifying_sessions`` is capped at
+``HEALTH_QUALIFYING_RETENTION_LIMIT``. So a reader who sees a health figure look
+wrong CANNOT go back to sessions.csv and re-derive it: the numerator and
+denominator of every health computation are absent from the file, and once a
+session rotates out of both in-storage rings the values are gone. ``samples.jsonl``
+is the raw trail; ``sessions.csv`` is a session-level export.
 """
 
 from __future__ import annotations
@@ -36,8 +56,27 @@ _SAMPLES_FIELDS = (
     # Non-null only when the per-sample MAX_DELTA_PCT guard rejected the
     # observed raw_delta (firmware X-to-0 / 0-to-X flip, HA restart gap,
     # multi-hour self-discharge, etc.). Carries the rejected magnitude
-    # for post-hoc analysis. Grep `rejected_delta_pct` in samples.jsonl
-    # to find every rejection.
+    # for post-hoc analysis.
+    #
+    # ⚠ THE WORKING FILTER IS `grep -v '"rejected_delta_pct": null' samples.jsonl`.
+    # This comment said `grep rejected_delta_pct samples.jsonl` until 2026-08-24
+    # (B15), and that CANNOT work: `append_sample` writes
+    # `{k: sample.get(k) for k in _SAMPLES_FIELDS}` — a comprehension over ALL of
+    # _SAMPLES_FIELDS using `.get()` — so the literal key appears on EVERY line,
+    # null when nothing was rejected. The documented grep matches 100% of the file,
+    # which reads either as "every sample was rejected" or as a broken field.
+    #
+    # ⚠ AND IT IS NOT "EVERY REJECTION" EVEN ONCE FILTERED CORRECTLY. This field
+    # covers the MAX_DELTA_PCT guard alone. Two other per-sample rejections leave
+    # NO trace in samples.jsonl at all:
+    #   * an implausible charge rate (> MAX_PLAUSIBLE_RATE_PCT_PER_MIN) is
+    #     discarded inside `battery/manager.py::_process_sample` and recorded only
+    #     as `record["stats"]["rejected_rate_per_min"]` — a key that is not in
+    #     _SAMPLES_FIELDS, and a LAST-value scalar on the live record rather than a
+    #     per-sample marker, so it never reaches this file (ledger C67, open);
+    #   * an out-of-order sample (`elapsed_sec <= 0`, the DR-BAT-2 guard) skips the
+    #     whole delta block, so `delta_pct` AND `rejected_delta_pct` are both left
+    #     None — indistinguishable in the JSONL from a first-ever sample.
     "rejected_delta_pct",
 )
 

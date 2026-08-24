@@ -8,12 +8,33 @@ trigger semantics; the adapter just opts in.
 Triggers wired here:
   - ``vacuum_docked``        — vacuum entity transitions to "docked"
   - ``active_map_changed``   — active_map sensor value changes
-  - ``config_entry_reload``  — one-shot pass right now (setup time)
+  - ``config_entry_reload``  — one-shot pass, DEFERRED to HA-started
   - periodic safety net      — every N seconds, adapter-configurable
 
-Manual rescan via ``setup_discover_rooms`` service also updates drift
-history (wired separately in services.py — the service path is always
-available regardless of which auto triggers are declared).
+``config_entry_reload`` is not a pass "right now": ``register()`` wraps it
+in ``async_at_started``, so at boot it waits until HA has finished starting
+and only runs immediately when HA is already up (a live config-entry
+reload mid-session). The rationale is stated at the site, in the
+``config_entry_reload`` block of ``register()``: a service-response source
+(Roborock ``get_maps``) may not be registered yet at raw setup time, so an
+at-setup pass logs a spurious warning and falls back to the cached source.
+⚠ was: "one-shot pass right now (setup time)" — which contradicted both the
+code and that inline rationale, so someone debugging a stale room list just
+after a boot-time setup would conclude the pass had already run, and anyone
+"restoring" the documented behaviour would reintroduce the warning the
+deferral exists to avoid.
+
+Manual rescan via the ``discover_rooms`` service also updates drift history
+(``SERVICE_DISCOVER_ROOMS = "discover_rooms"`` in const.py, declared in
+services.yaml, handled by ``_handle_discover_rooms`` in services/rooms.py,
+which runs the drift update itself) — the service path is always available
+regardless of which auto triggers are declared.
+⚠ was: "``setup_discover_rooms`` service … wired separately in services.py".
+Neither exists: ``eufy_vacuum.setup_discover_rooms`` fails with "Action not
+found", and the ``setup_`` prefix looks right only because
+``setup_unreject_rooms`` really is a service. There is no services.py
+either — ``services/`` is a package — so the pointer sent anyone verifying
+the claim to a file that is not there.
 
 Public surface:
     register(hass: HomeAssistant) -> None

@@ -3120,12 +3120,22 @@ set_hidden_regions:
       selector:
         object: {}
 
+# ⚠ THIS IS NOT A DISPLAY-ONLY SETTING, and the description below said it was until
+# 2026-08-24 (ledger D18). Room clean is by room id and is genuinely rotation-blind;
+# ZONE clean is by rectangle, and the card un-rotates every drawn rect by the current
+# live_map_rotation before it becomes a start_zone_clean rect (zoneDraftsToNormalizedRects
+# in src/state/map.js, [ZG-9] in src/cards/zone-geometry.test.mjs). The "dispatch is by
+# room" rationale predates zone-draw-at-any-rotation and was never revisited when it
+# landed. Keep the user-facing wording honest about that.
 set_live_map_rotation:
   name: Set live map rotation
   description: >
     Set the display rotation (0/90/180/270°) of the live map image in the card's
-    Map view, so it matches how you picture your home. Display only — never affects
-    cleaning (dispatch is by room). Stored per map so it follows you across devices.
+    Map view, so it matches how you picture your home. Cleaning a ROOM is unaffected —
+    rooms are sent by id, not by position. Drawing a ZONE is affected: a zone you draw
+    on the rotated view is un-rotated back to the map's own frame before it is sent, so
+    the rotation you are viewing at is part of where that zone lands. Stored per map so
+    it follows you across devices.
   fields:
     vacuum_entity_id:
       name: Vacuum
@@ -3831,18 +3841,31 @@ set_stall_capture:
       selector:
         boolean:
 
+# ⚠ THE WARNING BELOW USED TO RUN THE DEPENDENCY BACKWARDS (corrected 2026-08-24,
+# ledger D1). It said the injected event "also reaches run-anomaly reporting, so the run
+# will be recorded as having stalled when it did not… Do not call this on a run whose
+# learning data you care about." The arrow points the other way: detect_run_anomalies
+# FIRES EVENT_STALL_DETECTED (jobs/active_job.py) and never subscribes to it. The only
+# hass.bus.async_listen for that event in the package is listeners/stall_capture.py, so
+# an injection reaches stall capture and nothing else — it cannot mark a run anomalous
+# and cannot alter learning data. The false warning scared maintainers off a maintainer
+# tool. NOTE the same claim is replicated outside this file (services/stall_capture.py's
+# module docstring, docs/dev/deltas/README.md); those copies are NOT corrected here.
 dev_inject_stall:
   name: "DEVELOPER — inject a synthetic stall"
   description: >-
     MAINTAINER TOOL. NOT FOR NORMAL USE. Fires a SYNTHETIC stall event for a vacuum that
     is currently cleaning a room, using its real map and room, so the stall-capture chain
     can be exercised without physically wedging a vacuum. It does NOT move the robot and
-    does NOT command any hardware — it only fires an event. BUT the event is not private
-    to stall capture: it also reaches run-anomaly reporting, so the run will be recorded
-    as having stalled when it did not, and the card's snapshot will say so. Do not call
-    this on a run whose learning data you care about. Refuses unless the vacuum is
-    actually cleaning a room, because a stall with no current room has no pose history
-    and renders nothing.
+    does NOT command any hardware — it only fires an event, and stall capture is the only
+    thing listening for it: run-anomaly reporting FIRES this event, it does not consume
+    one, so an injected stall does not mark the run as anomalous and does not change your
+    learning data. What it DOES do, if stall capture is armed for that vacuum, is produce
+    a real capture — a rendered image written under the learning folder, and the capture
+    event that follows it — exactly as a genuine stall would; if it is not armed, the
+    capture declines and nothing is written. Refuses unless the vacuum is actually
+    cleaning a room, because a stall with no current room has no pose history and
+    renders nothing.
   fields:
     vacuum_entity_id:
       name: Vacuum

@@ -6,16 +6,30 @@ How the card turns a state change into DOM: the microtask-batched `_scheduleRend
 
 ## `_scheduleRender`: microtask, not `setTimeout`
 
-```js
-_scheduleRender() {
-  if (this._renderScheduled) return;
-  this._renderScheduled = true;
-  Promise.resolve().then(() => {
-    this._renderScheduled = false;
-    this._render();
-  });
-}
-```
+`_scheduleRender` (`src/main.js`) guarantees three things, in this order — two
+early returns, then one queued render:
+
+1. **`this._furnishedGestureActive` → return.** A furnished-art alignment gesture
+   (pointer-drag or fine-trim slider) updates the art element's `transform`
+   inline, and must not be interrupted: the live-map poll and frequent `set hass`
+   updates would otherwise rebuild the DOM mid-gesture, detach the dragged
+   element, and lose the move with it — its pointer listeners die on the detached
+   node. The gesture's finish handler clears the flag and calls `_scheduleRender`
+   once to settle the committed result.
+2. **`this._renderScheduled` → return.** The deduplication guard: set before the
+   microtask is queued, cleared inside it.
+3. Otherwise `Promise.resolve().then(...)` clears `_renderScheduled` and calls
+   `_render()`.
+
+⚠ **This section used to inline the function body verbatim, and the transcription
+had rotted:** the quoted snippet opened straight at the `_renderScheduled` guard
+and carried no `_furnishedGestureActive` guard at all, so a reader would conclude
+a render is always scheduled when the dedup flag is clear. Every CLAIM the section
+makes — microtask, coalescing, `_renderScheduled` as the dedup flag — was and
+remains true; only the copied source went stale. **The authoring rule this
+earned: transcribe closed sets, never function bodies.** A closed set changes by a
+deliberate act; a function body accretes guards, which is the drift predicate
+exactly.
 
 Using `Promise.resolve()` schedules the render as a **microtask** — it runs at the end of the current synchronous turn of the event loop, before the browser paints, and crucially before any `setTimeout(fn, 0)` callbacks. This means multiple synchronous calls to `_scheduleRender()` (e.g. from a state setter and a hass setter both firing in the same turn) coalesce into a single render. The flag `_renderScheduled` is the deduplication guard.
 

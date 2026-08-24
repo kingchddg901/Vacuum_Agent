@@ -81,11 +81,22 @@ Architecture reference: [11 — A Map’s Stored State](../../dev/11-map-stored-
   and without an anchor, so a `None` silently coerced to `(0, 0)` fails rather
   than drawing a dot in the corner.
 
-  `SC-2` is the one to read: `flip_y` describes the RASTER only (raw row 0 is the
-  image bottom). The anchor and trail arrive already normalized in the rendered
-  frame, so they must NOT be flipped. Getting that wrong renders a plausible
-  image of the wrong part of the map, which is the failure most likely to pass a
-  glance.
+  `SC-2` is the one to read for the RASTER half. It calls `_to_rendered`
+  directly and pins that room cells are offset by `ro_dx`/`ro_dy` and, when
+  `flip_y` is set, mirrored about `canvas_height` (raw row 0 is the image
+  bottom) — `flip_y` describes the RASTER only.
+
+  ⚠ This paragraph used to end *"the anchor and trail arrive already normalized
+  in the rendered frame, so they must NOT be flipped"* and sold that as
+  something `SC-2` pins. The RULE is true — `render_room_capture` puts `anchor`
+  and `trail` through `_norm_to_px` only, never `_to_rendered`, because they
+  arrive already normalized 0–1 against the canvas — but `SC-2` does not pin it:
+  `SC-2` never calls `render_room_capture` at all, and no test in
+  `tests/unit/test_stall_capture_render.py` passes `ro_dx`, `ro_dy` or `flip_y`
+  into it. The two sides of that seam are exercised separately and never
+  through it. Getting the rule wrong renders a plausible image of the wrong part
+  of the map, which is the failure most likely to pass a glance — and today
+  nothing but review catches it.
 
   **`SC-10` is an evidence rule, not a threshold.** Below four DISTINCT points no
   trail is drawn at all. A line between two samples asserts the robot travelled

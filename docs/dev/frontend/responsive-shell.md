@@ -45,8 +45,20 @@ normal desktop window. A desktop browser dragged shorter than that *does* get
 the compact shell, and that is intended rather than a side effect — it has no
 vertical room either.
 
-**Reuse this threshold.** `(max-height: 500px)` also appears in three media
-queries; a second definition of "short" would drift from this one.
+**Reuse this threshold.** A second definition of "short" would drift from this
+one, so reuse the value rather than restating it. `(max-height: 500px)` is not
+confined to this file: measured 2026-08-24 it is in **seven** live `@media`
+queries across four files — `src/styles/mobile.js` (2),
+`src/styles/theme-preview.js` (3), `src/styles/modal-host.js` (1) and
+`src/styles/theme.js` (1) — with five further mentions inside comments
+(`src/renderers/theme.js` and the same style files).
+
+⚠ Was: *"also appears in three media queries."* True when written, then wrong.
+This count is the perishable part of the paragraph and it has moved more than
+once: an intermediate correction naming `src/styles/index.js` among the carriers
+is also dead, since that file now contains the string zero times. **Recount
+before you cite the number**; the reuse rule above does not perish, the figure
+does.
 
 ---
 
@@ -227,6 +239,21 @@ render 0×0 there (they are Home Assistant's own elements) and `.evcc-chip` is
 exempt from the 44px tap floor. Its heights for chrome are a **floor**, not the
 figure.
 
-The shortest viewport any harness test uses is **780px**, so none of the
-`(max-height: 500px)` rules fire in the visual gate — landscape has no baseline
-coverage and must be checked on a device or in device emulation.
+**Landscape has baseline coverage, from exactly one spec.**
+`harness/tests/theme-mobile-layout.spec.mjs` runs its layout cases over
+`[[390, 900], [500, 900], [720, 344]]`, so the `720x344` case is **below** the
+500px threshold and the `(max-height: 500px)` rules DO fire in the visual gate —
+for the theme editor's `tokens` and `palette` tabs. Every other harness spec sets
+its viewport to height 780, 800 or 844, so a short-viewport rule anywhere OUTSIDE
+the theme editor is still device-only and must be checked on a device or in
+device emulation.
+
+⚠ **Was, until 2026-08-24:** *"The shortest viewport any harness test uses is
+**780px**, so none of the `(max-height: 500px)` rules fire in the visual gate —
+landscape has no baseline coverage and must be checked on a device."* False since
+2026-08-14, when `34f8bc9e` added the `720x344` case; this doc was written
+2026-08-13 and went stale the next day. The test's own comment says it exists
+precisely because *"LANDSCAPE is a viewport this gate could not see"*. A stale
+COVERAGE claim is the worst kind to leave standing — a stale constant is merely
+wrong, but a coverage claim DIRECTS BEHAVIOUR: it told readers to distrust a gate
+that works and to go re-test by hand.

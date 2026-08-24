@@ -46,7 +46,40 @@ _LOGGER = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
+# THE POSITION FRAME THESE CONSTANTS LIVE IN — salvaged 2026-08-24 from the retired
+# `11-mapping-system.md`; stated nowhere else in source.
+#
+# The origin AND the axis directions are ROBOT-SPECIFIC. On Eufy `map_6` the Y axis
+# increases UPWARD in the robot's reference frame, but that is an observation of one
+# firmware, NOT a guarantee of the protocol.
+#
+# LOW LIVE VALUE TODAY, recorded for one reason. The only current consumers of
+# vacuum-space position are this module's Euclidean delta — axis-direction agnostic, it
+# only ever squares the difference — and the passive dock-drift log. But
+# `adapters/eufy/adapter.py` deliberately keeps `position_lock_reliable` against "a
+# possible trace-bounds revival", and a revival WOULD need the axis direction. Do not
+# read a sign convention out of this file; there isn't one to read.
+#
+# ⚠ NOT THE SAME AS THE Y-FLIP COMMENTS elsewhere in this package. `map_source` and
+# `roborock_raw_map` flip Y in the PROVIDER'S RENDERED-IMAGE space (0–1, top-left
+# origin). That is an image convention. This is the raw robot position sensor, a
+# different frame with a different unknown.
+
 # Minimum robot movement (vacuum units) to count as a movement sample.
+#
+# SCALE — the premise the number rests on, salvaged 2026-08-24 from the retired
+# `11-mapping-system.md` because it exists nowhere else in source. On Eufy devices the
+# raw position scale is APPROXIMATELY 1 unit ≈ 1 mm — INFERRED, and NOT verified across
+# models. That is what makes 10.0 readable as "about a centimetre of robot travel";
+# without it the constant is an unscaled number and nobody can tell a re-tune from a
+# typo.
+#
+# ⚠ KEEP THE HEDGE — it is the fact, not padding. The tree already carries a CONFIDENT
+# "1 unit = 1 mm", and it is ROBOROCK's: `mapping/map_source_runtime.py` states it as a
+# documented Roborock convention and `adapters/roborock/adapter.py` says `app_zoned_clean`
+# wants world millimetres. A reader who finds those nearby and generalises them treats an
+# unverified Eufy approximation as guaranteed. Anyone who needs certainty here has to go
+# and measure; no one has.
 MOVEMENT_DELTA_THRESHOLD = 10.0
 
 # Seconds the robot must stay in a room polygon before confidence builds.

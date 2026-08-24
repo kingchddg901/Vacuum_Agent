@@ -97,16 +97,29 @@ export function applyMapState(proto) {
     this.setMapViewActive(!this.isMapViewActive());
   };
 
-  // ---- Live-map rotation (display only, BACKEND-stored per map) ----
+  // ---- Live-map rotation (a VIEW control that IS a dispatch input, BACKEND-stored per map) ----
   // The live map image (Roborock) can be oriented differently from how the user
-  // pictures their home; let them rotate it in 90° steps to match. Display only —
-  // never touches dispatch (cleaning is by room id). Stored on the map bucket +
-  // surfaced in the dashboard snapshot (write via the set_live_map_rotation
-  // action/service) so the orientation FOLLOWS THE USER across browsers/devices,
-  // like the dot anchors. An optimistic overlay covers the click → service-ack →
-  // snapshot-refresh window so the turn is instant. Applied only to the live-image
-  // element (which fills a SQUARE container, so a 90° turn about its centre stays
-  // perfectly in frame) — NOT to CV/custom maps, whose polygons would drift.
+  // pictures their home; let them rotate it in 90° steps to match. Stored on the
+  // map bucket + surfaced in the dashboard snapshot (write via the
+  // set_live_map_rotation action/service) so the orientation FOLLOWS THE USER across
+  // browsers/devices, like the dot anchors. An optimistic overlay covers the click →
+  // service-ack → snapshot-refresh window so the turn is instant. Applied only to the
+  // live-image element (which fills a SQUARE container, so a 90° turn about its centre
+  // stays perfectly in frame) — NOT to CV/custom maps, whose polygons would drift.
+  //
+  // ⚠ was: "Display only — never touches dispatch (cleaning is by room id)". That is
+  // FALSE for anything dispatched by GEOMETRY, and the rationale is what rotted: room
+  // clean IS by room id and stays rotation-blind, but zone clean is by rectangle, and
+  // the rotation is an input to two paths in this file —
+  //   • zoneDraftsToNormalizedRects un-rotates every drawn rect by
+  //     effectiveMapRotation() (via _unrotateRectPct) before it becomes a
+  //     start_zone_clean rect, so the angle chosen here decides where the robot goes;
+  //   • canDrawHideArea refuses the hide-area draw unless effectiveMapRotation() is 0.
+  // The by-room-id sentence was written before the zone-draft un-rotation existed and
+  // was never revisited when it landed; C31 (see zoneDraftsToNormalizedRects below) is
+  // the mis-dispatch that coupling actually produced. The same stale sentence is
+  // replicated backend-side in const.py, services.yaml and mapping/mapping_services.py
+  // — tracked as D18; do not re-derive "display only" from those copies.
   // ---- Stall capture armed (BACKEND-stored per VACUUM) ----
   // Whether a detected stall renders the room and notifies. Absent means OFF: a feature
   // that writes an image of someone's home must be opted into, never inherited by an

@@ -131,9 +131,21 @@ SERVICE_RESET_MAINTENANCE = "reset_maintenance"
 SERVICE_SET_MAINTENANCE_INTERVAL = "set_maintenance_interval"
 SERVICE_SET_DOCK_EVENT_COUNT = "set_dock_event_count"
 SERVICE_SET_STALL_CAPTURE = "set_stall_capture"
-# DEV-ONLY: registered only when <config>/eufy_vacuum/dev_mode exists. Fires a
-# SYNTHETIC EVENT_STALL_DETECTED so the capture chain can be exercised without
-# physically wedging a vacuum. Never registered on a normal install.
+# DEV-ONLY IN INTENT, REGISTERED UNCONDITIONALLY IN FACT. Fires a SYNTHETIC
+# EVENT_STALL_DETECTED so the capture chain can be exercised without physically
+# wedging a vacuum.
+#
+# ⚠ was: "registered only when <config>/eufy_vacuum/dev_mode exists … Never registered
+# on a normal install." That describes a REJECTED DRAFT (ledger D17). In today's tree
+# `services/stall_capture.py` calls `hass.services.async_register(DOMAIN,
+# SERVICE_DEV_INJECT_STALL, ...)` with no marker-file test of any kind, and the token
+# `dev_mode` appears nowhere else — this comment was its only occurrence. The ruling
+# that replaced the draft (Chris, 2026-08-08,
+# written up in `services/stall_capture.py`'s module docstring) is the opposite:
+# register it always and FLAG IT HARD, because a conditionally-registered service is
+# one nobody can find when they need it and nobody is warned about when they don't. The
+# warning therefore lives where a caller actually reads it — the `services.yaml`
+# description, which IS the Developer Tools field editor.
 SERVICE_DEV_INJECT_STALL = "dev_inject_stall"
 
 SERVICE_GET_ROOM_PROFILES = "get_room_profiles"
@@ -228,8 +240,21 @@ SERVICE_SET_HIDDEN_REGIONS = "set_hidden_regions"
 # Per-room AREA-LABEL position (the m² chip) so it can be dragged off the room-name label.
 # Stored map-level as {room_id: {pct_x, pct_y}}; null pct resets to the room centre.
 # Live-map display rotation (0/90/180/270), stored on the per-map bucket as
-# `live_map_rotation` and surfaced in the dashboard snapshot. Display only — never
-# affects dispatch. Backend-stored so the orientation follows the user across devices.
+# `live_map_rotation` and surfaced in the dashboard snapshot. Backend-stored so the
+# orientation follows the user across devices.
+#
+# ⚠ was: "Display only — never affects dispatch." FALSE for anything dispatched by
+# GEOMETRY, and it is the RATIONALE that rotted, not the sentence (ledger D18). Room
+# clean is by room id and stays rotation-blind — that part was and is true. Zone clean
+# is by rectangle: the card un-rotates every drawn rect by the current
+# `live_map_rotation` before it becomes a `start_zone_clean` rect
+# (`zoneDraftsToNormalizedRects` in `src/state/map.js`; the dashboard card's copy is
+# `draftsToNormalizedRects` in `src/cards/zone-geometry.js`, pinned by `[ZG-9]` in
+# `src/cards/zone-geometry.test.mjs`). So this value decides where the robot goes. The
+# by-room-id sentence predates zone-draw-at-any-rotation and was never revisited when
+# that landed. The same claim was replicated at three other sites: `src/state/map.js`
+# and the `set_live_map_rotation` description in `services.yaml` are corrected;
+# `mapping/mapping_services.py::_handle_set_live_map_rotation` still carries it.
 SERVICE_SET_LIVE_MAP_ROTATION = "set_live_map_rotation"
 # Power-user override for the post-map-switch coordinate-frame gate: force-clear the
 # "frame un-grounded, zone drawing paused" state until the next switch re-arms it.

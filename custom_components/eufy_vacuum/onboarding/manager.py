@@ -210,14 +210,34 @@ class OnboardingManager:
         confirmation and the start gate blocks cleaning with onboarding_required until
         the user re-confirms each one. No-op when id_remap is empty (no renumbering).
 
-        CONTRACT, independent of dict iteration order: ``after[str(new)]`` is True iff
-        ``before[str(old)]`` was True, for every (old, new) in id_remap; a key never
-        named as an old_id survives verbatim; a key named only as an old_id is dropped.
+        CONTRACT, independent of dict iteration order: for every (old, new) in id_remap,
+        ``after[str(new)]`` is True IF ``before[str(old)]`` was True; a key never named
+        as an old_id survives verbatim; a key named only as an old_id is dropped.
+
+        ⚠ NOT "iff" — this said "iff" until 2026-08-24 and that is false (C28). The
+        rebuild filters SOURCE keys only (``if key not in remap``), and the loop only
+        ever WRITES True, never False. So a pre-existing confirmed key that is a remap
+        TARGET but is never itself an old_id survives even when the room migrating onto
+        it was unconfirmed: ``before={'27': True}`` with ``id_remap={16: 27}`` and 16
+        unconfirmed leaves ``after={'27': True}``, so the migrated room reads
+        ``confirmed`` for a user who never confirmed it — the start gate opens and the
+        robot runs an unverified floor type (mop-on-carpet). STILL OPEN, and closing it
+        is a CODE change (purge targets as well as sources), so it is not made here.
+        No test covers it: [OB-6] passes because both of its keys are sources.
 
         One residual ambiguity, resolved deliberately: if a target new_id is ALSO a
-        pre-existing confirmed key that no remap entry names as an old_id, the migrated
-        room's confirmation WINS. That matches rooms/room_crud.py:323-325, which purges
-        rule-status in both directions on exactly this hazard."""
+        pre-existing confirmed key that no remap entry names as an old_id, a CONFIRMED
+        migrated room's confirmation WINS. (An UNCONFIRMED one does not clear the stale
+        key — that is the ⚠ above, not the deliberate part.)
+
+        ⚠ was: "That matches rooms/room_crud.py:323-325, which purges rule-status in
+        both directions on exactly this hazard." Wrong twice (D21). The line numbers are
+        stale — navigate by symbol: the rule-status purge is the
+        ``rule_status_map.pop(str(old_id)) / .pop(str(new_id))`` loop inside
+        ``rooms/room_crud.py::RoomMapManager.reconcile_room``'s migrate arm, a few lines
+        above the call into this method. And it is not a parity at all: that loop
+        DISCARDS both sides, so neither wins and both rebuild on the next preflight,
+        whereas this method lets one side win. Same hazard, opposite resolution."""
         if not id_remap:
             return
         map_ob = self._get_map_onboarding(
@@ -236,10 +256,13 @@ class OnboardingManager:
         #   swap  {1:2, 2:1}, both confirmed            -> {'1': True}
         #
         # A disjoint remap like {16: 27} is correct, which is exactly why [OB-6]
-        # never saw it. The damage is silent and card-reachable: reconcile_room's
-        # migrate branch (rooms/room_crud.py:330) is the only caller, and a lost
-        # confirmation makes the start gate refuse with onboarding_required until
-        # the user re-confirms a room they already did.
+        # never saw it. The damage is silent and card-reachable:
+        # `RoomMapManager.reconcile_room`'s migrate arm (rooms/room_crud.py) is the
+        # only caller, and a lost confirmation makes the start gate refuse with
+        # onboarding_required until the user re-confirms a room they already did.
+        # (⚠ the ":330" that used to be on this line was a stale pointer — navigate
+        # by the symbol. The "only caller" claim itself still holds: outside tests
+        # and the frozen reproducers, that call is the sole one in the package.)
         confirmed = map_ob.setdefault("floor_types_confirmed", {})
         before = dict(confirmed)                       # every read is of the OLD state
         remap = {str(old): str(new) for old, new in id_remap.items()}
@@ -343,8 +366,11 @@ class OnboardingManager:
 
         # DR-ONB-3: any_incomplete is only ever set True INSIDE the loop
         # above, so a vacuum with zero maps leaves it False -- vacuously
-        # "complete". Mirrors setup/status.py's `bool(managed) and ...`
-        # guard (line 218) that already rejects the identical shape.
+        # "complete". Mirrors the `setup_complete = bool(managed) and ...` guard
+        # in `setup/status.py::get_setup_status`, which already rejects the
+        # identical shape. (⚠ the "(line 218)" that used to be here was a stale
+        # pointer, and being prose-form it was invisible to a path-based citation
+        # grep. Navigate by the symbol; do not re-add a line number.)
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "all_complete": bool(maps) and not any_incomplete,

@@ -263,12 +263,24 @@ NOT_ERROR_SENTINELS: frozenset[str] = frozenset({
 # anchor: BNZZZXW7
 # Fault policy (RF-DOCK) -- SOURCE, and whether the fault invalidates cleaning evidence
 # ---------------------------------------------------------------------------
-# WHY THIS EXISTS. total_error_seconds is subtracted from cleaning_time_seconds, so a
-# fault that never stopped the robot cleaning silently zeroes a productive run. Observed
-# live: alfred job_2026-08-01T23-23-35 cleaned 4 m2 for 360 s and recorded
-# cleaning_time_seconds 0, because five STATION CLEAN WATER PUMP SHORT (6013) faults --
-# the dock complaining while the robot was out on the floor -- were charged against it.
-# used_for_learning was true, so the model learned that 4 m2 takes no time.
+# WHY THIS EXISTS. A fault that never stopped the robot cleaning was silently zeroing a
+# productive run. Observed live: alfred job_2026-08-01T23-23-35 cleaned 4 m2 for 360 s and
+# recorded cleaning_time_seconds 0, because five STATION CLEAN WATER PUMP SHORT (6013)
+# faults -- the dock complaining while the robot was out on the floor -- were charged
+# against it. used_for_learning was true, so the model learned that 4 m2 takes no time.
+#
+# ⚠ was: "total_error_seconds is subtracted from cleaning_time_seconds". That described
+# the arithmetic at the moment this table was written (a38cac4a, RP-046 groundwork) and
+# stopped being true the SAME DAY, when 5b21a1a3 ("RP-046 clause 2: only
+# evidence-invalidating faults reduce cleaning time") landed the fix these tables exist to
+# make possible. Corrected 2026-08-24 (ledger D10). WHAT ACTUALLY HAPPENS NOW, in
+# learning/job_finalizer.py: the error window is split three ways by
+# core.error_tracker.classify_error_code into "invalidating" / "safe" / "unclassified",
+# and only `deductible_error_seconds = _split["invalidating"]` is subtracted from
+# cleaning_time_seconds. total_error_seconds is still COMPUTED and still stored on the job
+# record -- it reports the FULL window so nothing that used to be visible stops being
+# visible -- but it is not what gets deducted. Believing the old sentence makes this table
+# look like a list of codes to subtract, when it is the list that decides what may NOT be.
 #
 # TWO DIMENSIONS, BOTH STATIC. Source alone does not answer the question the defect
 # poses. The failure was not a mislabel; it was a DOCK FAULT INVALIDATING A RUN'S

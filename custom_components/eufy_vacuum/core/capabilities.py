@@ -1144,9 +1144,25 @@ def detect_capabilities(
     return {
         "vacuum_entity_id": vacuum_entity_id,
         # live:ENT-2/ENT-3 — WHY each role resolved as it did, and whether the
-        # device-sibling rescue ran at all. Both are diagnostics-facing only;
-        # nothing branches on them. They exist because issue #49 could not be
-        # answered from a dump that reported a bare `null` per role.
+        # device-sibling rescue ran at all. They exist because issue #49 could not
+        # be answered from a dump that reported a bare `null` per role.
+        #
+        # ⚠ was: "Both are diagnostics-facing only; nothing branches on them."
+        # FALSE (ledger D23). `config_flow.EufyVacuumOptionsFlow._resolution_gaps`
+        # — the site carrying anchor `CNAYBZY3` — branches on both of the keys that
+        # sentence covered: every role in `entity_resolution_reasons` whose reason is
+        # not `REASON_RESOLVED`, plus every role named in
+        # `entity_augmentation["ambiguous"]`, becomes an entity-override picker
+        # rendered on the options form. These keys therefore decide what the user is
+        # OFFERED, not merely what a dump says. The `reasons=_reasons` argument to
+        # the `_detect_maintenance_sources` call earlier in this function already
+        # states that correctly for the maintenance half; only this sentence was
+        # left behind.
+        #
+        # Why it rotted: the anchor was placed on the READER side only, so nothing
+        # led back here when the reader landed. A negative claim about consumers is
+        # the most rot-prone sentence class in this repo — it is true when written
+        # and the new consumer always arrives in a different file.
         "entity_resolution_reasons": dict(_reasons),
         "entity_sources": dict(_sources),
         "entity_augmentation": dict(_aug_report),

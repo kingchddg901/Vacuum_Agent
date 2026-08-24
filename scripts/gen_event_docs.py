@@ -15,8 +15,17 @@ and invisibly. Reasons still belong in prose: this file states WHAT is fired and
 WITH WHAT, never why.
 
 SOURCE OF TRUTH is every `hass.bus.async_fire(...)` call site in
-`custom_components/eufy_vacuum/`. Three things have to be resolved from it, and
-each one has its own way of being confidently wrong:
+`custom_components/eufy_vacuum/` — and ONLY that spelling. The site scan matches the
+attribute name `async_fire` exactly, so `hass.bus.fire(...)` and
+`hass.bus.async_fire_internal(...)` are invisible to it. That is worse than silence:
+an event fired only through one of those lands in the "an `EVENT_*` constant that
+nothing fires" table, an affirmative false negative in a generated reference. Benign
+today — MEASURED, neither spelling occurs anywhere in the package — so this is a note
+for whoever adds one, not a description of a current wrong row. Widening the match is a
+code change in the site scan (§4).
+
+Three things have to be resolved from a site, and each has its own way of being
+confidently wrong:
 
   1. THE EVENT NAME. It is BUILT, not literal:
         EVENT_JOB_FINISHED = f"{DOMAIN}_job_finished"        # const.py
@@ -505,6 +514,12 @@ for fname, tree in TREES.items():
         if not isinstance(node, ast.Call):
             continue
         fn = node.func
+        # EXACT attribute-name match, and that is a blind spot rather than a filter:
+        # `hass.bus.fire(...)` and `hass.bus.async_fire_internal(...)` never reach the
+        # `blind()` calls below — they are not seen at all, so their event surfaces as an
+        # `EVENT_*` constant "nothing fires". Only `async_fire` is used in the package
+        # today (measured), so nothing is currently misreported; widen this test, do not
+        # add a doc caveat, if either spelling appears.
         if not (isinstance(fn, ast.Attribute) and fn.attr == "async_fire"):
             continue
         owner = fn.value
@@ -649,7 +664,18 @@ UNFIRED_CONSTS = sorted(
 
 
 
-# a single honest ledger line for the two things this generator structurally cannot do
+# THREE honest ledger lines for the things this generator structurally cannot do. They are
+# appended UNCONDITIONALLY, on every run, before the reference is emitted.
+#
+# ⚠ was: "a single honest ledger line for the two things" — the count drifted (three
+# `blind()` calls follow), but the misleading part is "unconditionally", which was never
+# said at all. `[EVT-3]` in tests/unit/test_generated_doc_gate.py asserts the blind-spot
+# ledger is present and NON-EMPTY, and docs/testing/04-patterns-and-conventions.md repeats
+# that guarantee in prose as though it bites. These three rows satisfy it by themselves:
+# a probe that hid six real payload shapes still rendered a ledger of exactly these three,
+# and EVT-3 stayed green. So EVT-3 pins that the SECTION is emitted, and cannot detect a
+# static pass that saw nothing. A test that could go red has to assert on the DERIVED
+# rows — the ones carrying a real `where` — not on the ledger's length.
 blind("no-type-inference", "—",
       f"payload value TYPES are not inferred; the reference prints the value EXPRESSION for "
       f"{sum(len(MODEL[e]['keys']) for e in EVENTS)} key slots instead")

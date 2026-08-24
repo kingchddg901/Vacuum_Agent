@@ -9,7 +9,17 @@ import unicodedata
 
 
 def slugify_room_name(name: str) -> str:
-    """Return a stable, URL-safe slug derived from a room name.
+    """Return a stable slug derived from a room name. NOT URL-safe.
+
+    ⚠ was: "a stable, URL-safe slug" — false, and contradicted three lines later by
+    this same docstring (RM24). Percent-encode before putting a slug in a URL. The
+    transform lower-cases, strips outer whitespace, deletes the ASCII ``'`` and
+    ``"``, maps ``&`` to ``and``, maps the ASCII SPACE to ``_``, and NFC-normalizes
+    — and does nothing else. So a slug can still carry: any non-ASCII codepoint
+    (deliberately — see below), typographic quotes (U+2018/U+2019/U+201C/U+201D are
+    NOT the two that get deleted), tabs and other whitespace that is not U+0020, and
+    reserved URL characters such as ``/``, ``?``, ``#`` and ``%``. STABLE is the
+    property that is true and the property callers actually need.
 
     The slug is the room's *load-bearing identity key*: reconciliation
     (``rooms/reconciliation.py``) and the learning baselines key durable data on

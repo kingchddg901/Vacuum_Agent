@@ -161,6 +161,20 @@ def _unadjudicated_targets(*, data: dict[str, Any], get_config) -> list[str]:
 
     Vacuums with no stored rooms are not targets — there is nothing to judge and nothing
     to come back for, and rooms created later are born under current rules.
+
+    ⚠ "PRESENTED NO DECLARATION" IS NARROWER HERE THAN IN THE PLANNER — C5, STILL OPEN,
+    and closing it is a CODE change (aligning the two predicates), so it is not made
+    here. This function asks only "is ``room_profiles`` a NON-EMPTY DICT?"
+    (``isinstance(block, dict) and block``). ``plan_room_vocabulary_migration`` applies
+    that same test and then a SECOND one: ``declared_profile_fields`` over the block's
+    ``builtins``/``custom_template``, with ``if not declared: continue`` — and that
+    ``continue`` does not even log. So a vacuum whose adapter declares a non-empty
+    ``room_profiles`` block that yields no profile FIELDS is skipped unjudged by the
+    planner while this function reports it adjudicated, and the latch burns the one
+    shot having judged nothing for it — the exact failure the deferred-latch design
+    below was written to prevent, entering through a predicate it does not cover. It is
+    the same species as the safety rule stated in the module docstring: a "cannot judge"
+    result must be treated as cannot-judge by EVERY caller.
     """
     pending: list[str] = []
     for vacuum_entity_id, maps in (data.get("maps") or {}).items():
@@ -275,10 +289,31 @@ def migrate_room_vocabulary(
     get_config,
     force: bool = False,
 ) -> dict[str, Any]:
-    """Apply the migration once, recording that it ran. Idempotent.
+    """Apply the migration once, recording that it ran ONLY IF IT COULD JUDGE
+    EVERY TARGET. Idempotent.
 
-    Returns ``{"ran": bool, "changes": [...], "rooms_touched": int}``. The caller is
-    responsible for persisting ``data``; nothing here writes to disk.
+    Recording is conditional, not automatic: the deferred-latch block below sets
+    ``migrations[MIGRATION_KEY]`` only when ``_unadjudicated_targets`` comes back
+    empty. Otherwise it deliberately DECLINES to record, logs at DEBUG, and leaves
+    the run to be retried on the next start — "missing runtime information is
+    DEFERRED, never SUCCESS", the file's most carefully argued behaviour.
+    ⚠ was: "Apply the migration once, recording that it ran" — the opposite of that
+    rule, and it is the line a caller reads.
+
+    RETURN SHAPE, and it is NOT uniform across the two exits:
+
+      * the run path returns FOUR keys —
+        ``{"ran": True, "changes": [...], "rooms_touched": int, "latched": bool}``;
+      * the already-migrated early return (``migrations[MIGRATION_KEY]`` set and
+        ``force`` false) returns ``{"ran": False, "changes": [], "rooms_touched": 0}``
+        with NO ``latched`` key, so ``result["latched"]`` raises KeyError there.
+        Read it with ``.get("latched")``.
+
+    ⚠ was: a three-key enumeration that omitted ``latched`` entirely. That
+    enumeration is the contract a caller codes against, and ``latched`` is the ONLY
+    signal that a run deferred.
+
+    The caller is responsible for persisting ``data``; nothing here writes to disk.
     """
     migrations = data.setdefault("migrations", {})
     if migrations.get(MIGRATION_KEY) and not force:

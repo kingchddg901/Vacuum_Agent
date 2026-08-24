@@ -36,7 +36,14 @@ Run:
   python scripts/check_doc_citations.py docs/dev/21-adapter-system.md
   python scripts/check_doc_citations.py --summary            # per-doc counts only
 
-Exit code: 0 = every citation resolves, 1 = at least one is wrong.
+Exit code: 0 = every citation that was CHECKED resolves, 1 = at least one is wrong.
+
+⚠ was: "0 = every citation resolves". The qualifier is load-bearing, because zero
+citations checked also exits 0 — with a fully-formed clean report. `DOC_ROOTS` gets no
+existence check, so a missing or misspelled docs directory yields an empty target list and
+prints "0 docs · 0 citations checked · 0 wrong", which reads exactly like a clean run over
+a real corpus. Read the DOCS count in the footer, not the exit code. See the note on
+`DOC_ROOTS` below for why the source side does not fail the same way.
 """
 from __future__ import annotations
 
@@ -69,6 +76,21 @@ SOURCE_ROOTS = ("custom_components", "scripts", "tests", "harness", "src")
 # Extensions the resolver indexes. A citation into any of these is checkable.
 SOURCE_SUFFIXES = (".py", ".mjs", ".js")
 
+# Where the corpus is walked from, in `main()`: `(ROOT / root).rglob("*.md")`.
+#
+# ⚠ NO EXISTENCE CHECK, AND THE ASYMMETRY IS THE DEFECT. Rename or misspell this and the
+# glob simply yields nothing: `targets` is empty, no doc is opened, and the run prints
+# "0 docs · 0 citations checked · 0 wrong" and exits 0 — a fully-formed clean report for a
+# corpus that was never read. MEASURED by setting `DOC_ROOTS = ("doc",)` and calling
+# `main()`.
+#
+# `SOURCE_ROOTS` does not fail this way, but not because it is loud: `Index.__init__`
+# skips a missing root QUIETLY, with a bare `continue`. The loudness is downstream — an
+# empty index makes every citation UNRESOLVED, so the run turns red on the problems rather
+# than on the missing directory. The doc side has no equivalent downstream tripwire,
+# because "no docs" produces no problems at all. Fixing it is a code change (an `is_dir()`
+# check here that raises); until then, trust the DOCS COUNT in the footer, not the exit
+# code.
 DOC_ROOTS = ("docs",)
 
 # Generated/build output. Present only after a build, so a citation into it is not

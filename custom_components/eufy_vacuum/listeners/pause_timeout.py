@@ -209,7 +209,25 @@ async def _reap_one_slot(
 
 
 def register(hass: HomeAssistant) -> None:
-    """Cancel paused jobs that exceed their configured timeout."""
+    """Install the 1-minute stale-job ticker — THREE behaviours, not one.
+
+    Each tick runs ``_reap_one_slot`` per managed vacuum/map, which does:
+      0. pause-flag reconciliation with the robot's own state, in BOTH
+         directions — including calling ``resume_active_job`` on a job
+         still marked paused when the robot is not;
+      1. the paused-timeout cancel;
+      2. the stranded-``started`` reap (FN-1), which finalizes a run that
+         never hit its completion terminal as ``interrupted`` and fires
+         ``EVENT_JOB_FINISHED`` plus ``EVENT_RUN_INCOMPLETE``.
+
+    ⚠ was: "Cancel paused jobs that exceed their configured timeout" — only
+    item 1, and this is the contract a caller reads, because register()/
+    remove() are the module's declared public surface. It hid that removing
+    this listener to stop unwanted pause cancels ALSO disables stranded-run
+    reaping and app/robot-side pause reconciliation, with nothing in the
+    contract to say so. The module docstring above has always described all
+    of it; this line was simply not updated when FN-1 landed.
+    """
     remove(hass)
 
     domain_data = hass.data.get(DOMAIN, {})

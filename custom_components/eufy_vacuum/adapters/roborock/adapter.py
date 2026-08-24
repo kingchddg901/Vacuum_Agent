@@ -837,8 +837,24 @@ def register_roborock_adapter_for_vacuum(
             # live_pose) — Roborock PUBLISHES the live room directly as a NAME sensor
             # (sensor.<id>_current_room = entities.active_cleaning_target), so
             # `source: native_current_room` makes the pose sampler read that entity, slugify
-            # the name, and match it to a managed room id (listeners/pose_sampler.py). No
-            # decoded-map pose is decoded here (anchor/heading stay None).
+            # the name, and match it to a managed room id (listeners/pose_sampler.py).
+            #
+            # ⚠ was: "No decoded-map pose is decoded here (anchor/heading stay None)." False
+            # since the pose wiring landed; corrected 2026-08-24 (ledger L14). `source`
+            # selects how the ROOM is read, NOT whether a position is recorded — the two are
+            # separate facts with separate best sources.
+            # pose_sampler._read_native_current_room_sample banks BOTH `anchor` and `heading`
+            # from async_get_map_live_pose on every non-docked tick where the adapter declares
+            # `map_state_source.live_pose` — which THIS adapter does, in its own
+            # `map_state_source` block above:
+            # `"live_pose": {"backend": "parsed_mapdata", "pose_refresh_s": 30.0}`. Its
+            # own docstring records the change: the literal None "was the only thing keeping
+            # the pose ring anchor-less, which in turn is why a stall capture had no trail to
+            # draw". They stay None only when no pose is declared, when the robot is parked, or
+            # when the pose read misses — and the engine's swept-area path attributes pose-free
+            # in that case, as it always did. Read as authority the old sentence said Roborock
+            # captures carry no position, which is exactly the "a brand having no dot for
+            # months" state listeners/stall_capture.py now emits a receipt to detect.
             #
             # The engine is brand-AGNOSTIC despite the Eufy-flavoured name: eufy_anchor_winding_v1's
             # ROBUST clean-vs-transit decision keys on the cleaning_area (swept m²) delta over each

@@ -72,6 +72,18 @@ def build_managed_rooms(
     ``rebuild_map``) are responsible for guarding an empty result against a non-empty
     stored map via ``room_crud._refuse_destructive_replace`` before assigning it.
 
+    ⚠ THOSE TWO ARE NOT PEERS TODAY. ``save_managed_rooms`` is live (the
+    ``save_managed_rooms`` service, the setup wizard, ``import_active_map``);
+    ``RoomMapManager.rebuild_map`` has ZERO production callers — its only references
+    anywhere are the ``core.manager.rebuild_map`` pass-through delegate, two tests
+    (tests/integration/test_manager_delegation.py, tests/integration/test_room_crud.py)
+    and comments like this one. It is not registered in services.yaml, is not in
+    services/rooms.py's service tuple, and appears in no frontend bundle. Naming it here
+    as a live CRUD operation on a par with ``save_managed_rooms`` is what the reader gets
+    wrong; the RP-005/RF-02 rule itself is unchanged and still binds any caller that does
+    persist the result. (Not to be confused with ``maps/map_manager.rebuild_map_bucket``,
+    which IS reached — ``rebuild_map`` calls it.)
+
     anchor: INMKEHPQ  room identity is the SLUG, scoped to its map; the id renumbers
 
     RP-018/RF-25b: carry-over is SLUG-LED with id fallback (REC-8/CRUD-2) — a
@@ -176,10 +188,23 @@ def build_managed_rooms(
         # form submission, so "approved but no floor type" is a real,
         # meaningful gap there.
         #
-        # RULING (Chris, 2026-08-24) — R14/C60. A call with NO enabled_room_ids is a
-        # re-sync, not an approval question, and **a re-sync approves NOTHING NEW**.
+        # RULING (Chris, 2026-08-24) — R14/C60. A RE-SYNC approves NOTHING NEW.
         # This branch read `is_configured = True` unconditionally, so a room the user
         # had never seen came out `enabled=False, is_configured=True`.
+        #
+        # ⚠ "NO enabled_room_ids" IS NOT SYNONYMOUS WITH "a re-sync", and this comment
+        # said it was (RM20). There are TWO production shapes of a None call and the
+        # branch below tells them apart by `is_first_import`, deliberately:
+        #   * FIRST IMPORT — `setup/workflow.py::import_active_map` calls
+        #     `save_managed_rooms(enabled_room_ids=None, floor_types={})` before any
+        #     user has ever seen the room list. `is_first_import` is True (the map
+        #     bucket held no rooms — that is the gate import_active_map returns
+        #     "already_done" on), so every discovered room is stamped
+        #     `is_configured=True` and `enabled=True`. That is onboarding, and it is
+        #     the OPPOSITE of "approves nothing new" — it approves everything, once.
+        #   * RE-SYNC of an already-populated map — `is_first_import` is False, so a
+        #     brand-new room comes out `is_configured=False` and gets its review.
+        # `is_configured = is_first_import or not is_new_room` IS that distinction.
         #
         # That is not cosmetic. `is_configured` is the ENTITY-CREATION GATE:
         # `entity_helpers.sort_room_items` filters on it ALONE and never consults

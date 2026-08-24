@@ -58,6 +58,15 @@ duration, avg/min/max rate) and:
   ``_session_cc_qualifies`` or ``_session_cv_qualifies``; anchoring the baseline needs
   the stricter both-windows-plus-both-regimes test in ``_update_health``.
 
+  ⚠ DECORATIVE — NOT PINNED BY ANY TEST (T2, verified 2026-08-24). ``grep -rn
+  health_qualifying_sessions tests/`` returns nothing, and neither does
+  ``SESSION_MAX_HOURS`` (see the timeout bullet above). Both claims read as contract
+  and neither can go red: the promotion could stop happening, or the retention store
+  could be dropped entirely, with the suite green. Per ``f/claim_must_be_able_to_bite``
+  that makes them PREFERENCES stated as rules. Closing this is a test, not a comment
+  change, so nothing here is being retracted — the described behaviour is what the code
+  does today; it is simply undefended.
+
   ⚠ This bullet read "contribute to the baseline + current health windows", sitting
   beside two bullets that genuinely do apply to every closed session, so it read as
   universal by company. It is not: an ordinary 60→100 charge never crosses the 50→80 CC
@@ -226,7 +235,14 @@ LOW_ZONE_MAX = 29
 #: Battery range that counts as "high zone" — slow CV taper.
 HIGH_ZONE_MIN = 80
 
-#: Maximum age of an open session before it is force-closed and discarded.
+#: Maximum age of an open session before ``_update_session`` DISCARDS it in place.
+#: ⚠ NOT "force-closed", which this line said until 2026-08-24 — ``_close_session`` is
+#: never reached from that branch, so no summary is built, no sessions.csv row is
+#: written and nothing reaches the history ring. The module docstring's "TWO EVENTS
+#: CLOSE A SESSION; A THIRD DESTROYS ONE" is the accurate statement.
+#: ⚠ DECORATIVE — ZERO hits for ``SESSION_MAX_HOURS`` under ``tests/`` (T2, verified
+#: 2026-08-24). The 12-hour threshold and the discard behaviour can both change without
+#: turning anything red. Closing that is a test, not a comment change.
 SESSION_MAX_HOURS = 12.0
 
 #: Sessions kept in the storage ring buffer for recent-trend computation.
@@ -823,9 +839,10 @@ class BatteryHealthManager:
                         # as a huge rate. Caught by VALUE because the device's sample
                         # cadence rules out catching it by interval (see the constant).
                         #
-                        # ⚠ ONLY THE RATE IS DISCARDED — B26. The warning below
-                        # says "discarding the sample rather than publishing it", and
-                        # the SAMPLE is not discarded. Only `rate_per_min` is set to
+                        # ⚠ ONLY THE RATE IS DISCARDED — B26. The warning below said
+                        # "discarding the sample rather than publishing it" until
+                        # 2026-08-24; it now says it discards the RATE. The SAMPLE was
+                        # never discarded. Only `rate_per_min` is set to
                         # None. The sample still reaches `_update_session`, which
                         # increments `session["samples"]` unconditionally while
                         # charging (so the closed session's reported `samples` counts
@@ -839,14 +856,26 @@ class BatteryHealthManager:
                         # division onto `rate_samples`, which this sample does not
                         # increment. That was the sharpest edge of B26 and it is
                         # already closed — recorded here so nobody re-derives it.
-                        # Correcting the log STRING itself is a code change and is
-                        # deliberately not made here; this comment carries the
-                        # correction.
+                        #
+                        # The log string was corrected 2026-08-24 and now says it
+                        # discards the RATE, not the sample. This comment stays
+                        # because the log line cannot carry the rest: which fields
+                        # the sample still advances, and the marker asymmetry below.
+                        #
+                        # ⚠ STILL OPEN, and it is a CODE change so it is filed not
+                        # fixed (C67): the MAX_DELTA_PCT rejections write a
+                        # `rejected_*` marker into samples.jsonl and this one does
+                        # not, so a rate rejected here is invisible to post-hoc
+                        # analysis — the row looks like an ordinary sample. The
+                        # in-memory `stats["rejected_rate_per_min"]` below is a
+                        # LAST-value scalar on the live record, not a per-sample
+                        # marker, and it does not reach the file at all.
                         if rate_per_min > MAX_PLAUSIBLE_RATE_PCT_PER_MIN:
                             _LOGGER.warning(
                                 "battery: implausible charge rate %.4f %%/min "
                                 "(%.2f%% over %.0fs, zone=%s) — above %.2f, discarding "
-                                "the sample rather than publishing it",
+                                "the RATE for this sample; the sample itself is still "
+                                "recorded",
                                 rate_per_min, delta_pct, elapsed_sec, zone,
                                 MAX_PLAUSIBLE_RATE_PCT_PER_MIN,
                             )
@@ -964,6 +993,18 @@ class BatteryHealthManager:
         # sample see a false transition and restart a live one. Either half alone
         # is worse than neither. (Ledger C15; the drafted invariant "a rejected
         # datum is rejected for every purpose" would say close it.)
+        #
+        # ⚠ UNTESTED, AND THE ONE TEST THAT TOUCHES IT ROUTES AROUND IT (T3, verified
+        # 2026-08-24). No test in tests/ asserts the DR-BAT-2 behaviour — that an
+        # out-of-order sample leaves `last_battery_level`/`last_sample_ts` where they
+        # were and is excluded from the delta/rate/drain accounting.
+        # `tests/integration/test_battery_manager.py::test_charge_rates` gets nearest
+        # and deliberately NULLS `rec["last_battery_level"]` and `rec["last_sample_ts"]`
+        # between its zone blocks so the guard never fires; its own docstring says why.
+        # (`test_unreadable_battery_is_a_gap_not_a_sample` is a different guard —
+        # `battery_level is None`, RP-042 — not this one.) So the block below could be
+        # deleted with the suite green. Closing this is a TEST, not a comment change,
+        # and nothing above is retracted: the guard does what it says today.
         #
         # LEFT OPEN ON EVIDENCE, NOT OVERSIGHT. elapsed_sec <= 0 needs the wall
         # clock to step BACKWARDS: ts is minted per-sample from datetime.now() and

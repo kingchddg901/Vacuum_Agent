@@ -599,8 +599,14 @@ class PhaseRunner:
                       phased_job_id=phased_job_id, phase_index=idx,
                       vacuum=vacuum_entity_id)
                 return
-            # Per-phase battery bounds (invariant 3: one child must not inherit
-            # another's counters). Stamped here because this runs once per finishing
+            # Per-phase battery bounds — RULE: one child must not inherit another's
+            # counters. (⚠ This cited "invariant 3" until 2026-08-24. That number came
+            # from the retired 1..8 phased-jobs numbering, whose only register is a
+            # git-ignored planning note under `.claude/notes/synthesis/`; nothing under
+            # `docs/` carries it and no `IN` anchor in `docs/dev/00b-invariants.md`
+            # covers it, so the number was unresolvable for any reader of the shipped
+            # tree. The clause above is the whole rule.)
+            # Stamped here because this runs once per finishing
             # phase; a phase starts where the previous one ended, and phase 0 at the
             # run's own start. Unreadable stays None — never 0, which would read as a
             # flat battery and teach a phase that drained nothing as draining everything.

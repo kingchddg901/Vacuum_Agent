@@ -2306,11 +2306,31 @@ def validate_against_schema(config: Any, schema: dict[str, dict], path: str = ""
 def validate_adapter_config(config: Any) -> list[str]:
     """Validate ``config`` against ADAPTER_CONFIG_SCHEMA. Empty list = clean.
 
-    The production entry point: services/adapter_config.py calls this BEFORE
+    The SAVE-door entry point: services/adapter_config.py calls this BEFORE
     persisting/registering a stored (UI/service-authored) adapter config, so a
     config missing a required block (entities, dispatch, dispatch.template,
     dispatch.service_domain, dispatch.service_name, ...) is refused up front
     instead of silently shadowing the live adapter with every omitted block
     falling through to that block's own absent-default behaviour.
+
+    ⚠ IT IS NOT "THE PRODUCTION ENTRY POINT", which is what this docstring said
+    until 2026-08-24 (ledger C32). This function has exactly ONE caller in
+    ``custom_components/``: ``services/adapter_config.py::_handle_save_adapter_config``.
+    THE STARTUP LOAD DOOR DOES NOT PASS THROUGH HERE.
+    ``config_loader.load_stored_adapter_configs`` calls
+    ``registry.register_adapter_config`` directly, and that runs
+    ``registry._validate_adapter`` — a hand-written
+    block-by-block check with NO unknown-key rejection and no schema walk. So the
+    same stored config can be REFUSED at save time for a key the schema does not
+    declare and REGISTERED SILENTLY at the next restart from storage. Code adapters
+    never touch this function at all (both shipped brands register via
+    ``register_brand_adapter``), which is the same asymmetry ``const.py`` records
+    above ``HA_ACTIVE_VACUUM_STATES``.
+
+    A reader who takes an "unknown key is rejected" guarantee from this docstring
+    and applies it to what is on disk gets the wrong answer. The gate is real; it
+    covers one of the two doors. Closing the gap is a CODE change (route the load
+    path through the same walk, or state a deliberate reason not to) and is not
+    done here.
     """
     return validate_against_schema(config, ADAPTER_CONFIG_SCHEMA)

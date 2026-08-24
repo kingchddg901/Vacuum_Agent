@@ -580,7 +580,34 @@ floor-plan of the user's home at a fetchable URL on every stall." No test. A one
   stalled. The comment above it warns about a hypothetical FUTURE silent inheritance while sitting
   in an actual present one.
   ⟵ **DISPOSITION 2026-08-21 — FIXED.** The stall-watch phase exemption read `type` on a dict stamped `phase_type`, so it was inert; fixed and tested on 2026-08-21.
-- [OPEN] **C37 Roborock's two active-state lists disagree.** `ACTIVE_RUN_TASK_STATES` (9) vs
+- [ACCEPTED] **C37 Roborock's two active-state lists disagree.** `ACTIVE_RUN_TASK_STATES` (9) vs
+  ⤷ **ACCEPTED 2026-08-24 (Chris) — LATENT ON SHIPPED BRANDS, and the entry's framing was wrong.**
+  **THE FRAMING FIRST.** This entry says the two lists "disagree", which implies they are copies that
+  drifted. They are not. `ACTIVE_RUN_TASK_STATES` answers "is a job running"; `CANCEL_DETECTION_STATES
+  ["active"]` answers "which states count as pre-return ACTIVELY CLEANING for cancel detection". The
+  divergence is deliberate and documented at the site. Only one narrow question was ever real: do
+  `starting` and `going_to_target` belong in the second list.
+  **THE MECHANISM, derived in full.** `job_finalizer._detect_cancel_likely_run` gates on
+  `direct_returning = from_state in _active_states and to_state == returning_home`, and returns
+  `no_cancel_like_transition` before the duration floor or the estimate comparison ever run. So a
+  cancel taken from a state outside that list is not labelled `cancelled` at all — it is recorded as
+  a normal run that cleaned nothing, which is the exact spuriously-fast record that drags room
+  estimates down.
+  **WHY IT IS NOT BEING FIXED.** Chris: "`going_to_target` is not a status for my current brands."
+  Measured against every recorded trace and fixture in the repo: `cleaning` 708, `charging` 265,
+  `idle` 119, `paused` 96, `segment_cleaning` 29, `returning_home` 18 — and **ZERO** occurrences of
+  `going_to_target`, `starting`, `spot_cleaning`, `zoned_cleaning`, `segment_mopping` or `docking`.
+  A cancel before the first room therefore surfaces as `cleaning → returning_home`, which the existing
+  five-member list already catches.
+  ⚠ **WHAT THE EVIDENCE IS AND IS NOT.** Two independent signals — the maintainer's direct statement
+  and zero occurrences in curated fixtures. Neither proves the state can never be emitted: fixtures are
+  curated, and `ACTIVE_RUN_TASK_STATES` covers the Roborock BRAND, not just the S6. A Qrevo or S8 may
+  well emit it. So the declaration is correct and must NOT be deleted — it is the omission from the
+  cancel list that is deliberate.
+  **AND THE FIX WOULD NOT HAVE BEEN FREE.** A mid-job recharge takes the SAME `going_to_target →
+  returning_home` transition, so adding that state risks labelling a recharge a cancel. There is a
+  `service_exclusion_states` check upstream that may cover it, but live:RECHARGE-ATTR-1 treats mid-job
+  recharge as its own distinct shape and nobody has traced it. Reopen with a recharge trace in hand.
   `CANCEL_DETECTION_STATES["active"]` (5); the difference is `docking`, `going_to_target`,
   `returning_home`, `starting`. Two are justified (they are the return side). **`starting` and
   `going_to_target` are not.** A run cancelled before reaching the first room emits
@@ -6298,6 +6325,27 @@ speculation. See C55, which is accepted on the same reasoning.
 **Blocked on wave 1**: `reconciliation.py` is being edited by a comment-correction agent
 as this is filed. Apply after that lands, and sweep the five sibling sites in the same
 pass — fixing the docstring alone leaves the overclaim shipping in five other files.
+
+## C67 [OPEN] — a rate rejected for implausibility leaves no marker in samples.jsonl
+
+FOUND 2026-08-24 while closing B26's log string. `battery/manager.py::_process_sample`
+rejects an implausible `rate_per_min` (above `MAX_PLAUSIBLE_RATE_PCT_PER_MIN`) and writes
+`record["stats"]["rejected_rate_per_min"]`. That is a LAST-value scalar on the live
+in-memory record — it does not reach `samples.jsonl` and is overwritten by the next
+rejection.
+
+**THE ASYMMETRY IS THE FINDING.** The `MAX_DELTA_PCT` rejections on the same path DO
+stamp a `rejected_*` marker into the persisted sample row. So one class of rejection is
+visible to post-hoc analysis and the other is not: a rate rejected here produces a
+samples.jsonl row that looks like an ordinary sample, carrying its `delta_pct` intact.
+Anyone reconstructing why a charge curve looks wrong cannot tell the two apart.
+
+Not fixed with B26 because adding a field to a persisted row is a CODE change to a
+stored shape, not a comment. Low severity — it costs diagnosis, not correctness, and
+C54 already removed the arithmetic edge (the rejected sample no longer increments
+`rate_samples`, so it cannot deflate `avg_rate_per_min`).
+
+Stated at the site above the guard.
 
 ## C64 [OPEN] — the carpet/mop invariant is still breakable through save_managed_rooms
 
