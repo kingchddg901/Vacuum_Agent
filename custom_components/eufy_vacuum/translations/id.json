@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} Dipilih untuk Dibersihkan"
+      },
+      "clean_order_override": {
+        "name": "Timpa Urutan Pembersihan"
       }
     }
   }

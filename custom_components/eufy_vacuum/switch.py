@@ -160,6 +160,44 @@ class EufyVacuumCleanOrderOverrideSwitch(SwitchEntity):
         self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
 
     @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Carry the owning vacuum so the CARD CAN FIND THIS ENTITY BY SEARCH.
+
+        ⚠ THE CARD MUST NOT DEPEND ON THIS ENTITY'S ID, and that is not a style
+        preference — it is a measured failure. With `_attr_has_entity_name` plus a
+        `translation_key`, Home Assistant composes the entity_id from the device
+        name and the entity NAME, and the name is not resolvable at the moment the
+        platform ADDS the entity. Observed on the live box 2026-08-24: the registry
+        recorded `original_name: 'Clean Order Override'` — the translation resolved
+        fine — while `entity_id` was plain `switch.ivy`, the bare device name, and
+        an entity_id is STICKY once assigned. Removing and re-registering it, with
+        the translation present, produced the same id three times. The friendly name
+        catches up later; the id never does.
+
+        So `switch.<object_id>_clean_order_override` is an id nobody guarantees. It
+        is also LANGUAGE-DEPENDENT wherever the name does resolve in time, because
+        the slug comes from the translated name.
+
+        `theme_state` hit this first and answered it with a two-tier lookup — build
+        the expected id, and fall back to scanning states for this attribute. The
+        theme doc calls the fallback a collision-suffix guard (`_2`); the failure is
+        broader than that, and this comment records the wider case. Same seam, so
+        the same attribute name: a card-side scan keys on `vacuum_entity_id`.
+
+        `role` is the DISCRIMINATOR, and it is a stable slug on purpose. Twenty other
+        switches already carry `vacuum_entity_id` (every per-room "selected for
+        cleaning" switch), so that attribute alone cannot identify this one. The
+        obvious alternative — matching the friendly name — fails in exactly the case
+        the fallback exists for, because the name is TRANSLATED: a Chinese install
+        reads `覆盖清扫顺序`, and a card matching English text finds nothing. A slug is
+        language-independent and needs no locale pack to stay readable.
+        """
+        return {
+            "vacuum_entity_id": self._vacuum_entity_id,
+            "role": "clean_order_override",
+        }
+
+    @property
     def is_on(self) -> bool:
         clean_order = getattr(self._manager, "clean_order", None)
         if clean_order is None:

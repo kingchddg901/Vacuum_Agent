@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} נבחר לניקוי"
+      },
+      "clean_order_override": {
+        "name": "עקיפת סדר הניקוי"
       }
     }
   }

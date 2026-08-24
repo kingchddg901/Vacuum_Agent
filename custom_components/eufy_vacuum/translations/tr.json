@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} Temizlik İçin Seçildi"
+      },
+      "clean_order_override": {
+        "name": "Temizlik sırasını geçersiz kıl"
       }
     }
   }

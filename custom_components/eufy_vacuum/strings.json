@@ -138,6 +138,9 @@
       },
       "room_rule_status": {
         "name": "{room} Rule Status"
+      },
+      "clean_order": {
+        "name": "Clean Order"
       }
     },
     "binary_sensor": {
@@ -164,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} Selected for Cleaning"
+      },
+      "clean_order_override": {
+        "name": "Clean Order Override"
       }
     }
   }

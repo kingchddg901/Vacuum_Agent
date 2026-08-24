@@ -501,13 +501,54 @@ class EufyDashboardCard extends HTMLElement {
   // vacuum's adapter+model declares the write (Roborock V1 today); on other
   // models the switch entity does not exist and this row renders nothing.
   //
+  /**
+   * The Override Order switch for this vacuum, or null.
+   *
+   * TWO-TIER, and the fallback is the load-bearing half. `theme_state` established
+   * this shape (see docs/dev/frontend/theme-system.md) and this is the same seam.
+   *
+   * ⚠ THE CONSTRUCTED ID IS A GUESS, NOT A CONTRACT. The switch sets
+   * `_attr_has_entity_name` + a `translation_key`, so Home Assistant builds its
+   * entity_id from the device name and the entity NAME — and the name is not
+   * resolvable when the platform ADDS the entity. Measured on the live box
+   * 2026-08-24: the registry held `original_name: 'Clean Order Override'` while
+   * `entity_id` was bare `switch.ivy`, and entity_ids are STICKY, so it never
+   * corrects itself. Three remove-and-re-register cycles reproduced it. Where the
+   * name DOES resolve in time the slug comes from the TRANSLATED name, so the
+   * constructed id is wrong in another language instead.
+   *
+   * Either way the card must be able to find the entity without knowing its id,
+   * which is what `vacuum_entity_id` in the switch's attributes is for.
+   *
+   * @param {object} hass
+   * @param {string} vacuumEntityId
+   * @returns {object|null} the switch state object, or null when there is none.
+   */
+  _findOverrideSwitch(hass, vacuumEntityId) {
+    if (!hass || !vacuumEntityId) return null;
+    const primary = hass.states?.[ENTITY.overrideOrderSwitch(vacuumEntityId)];
+    if (primary) return primary;
+    // `role` is the discriminator, NOT the name. Twenty other switches carry
+    // `vacuum_entity_id` (the per-room ones), so that alone is ambiguous — and
+    // matching the friendly name would fail in exactly the case this fallback
+    // exists for, because the name is translated (`覆盖清扫顺序` on a Chinese
+    // install). A slug is language-independent.
+    return (
+      Object.values(hass.states || {}).find(
+        (s) =>
+          s.entity_id.startsWith("switch.") &&
+          s.attributes?.vacuum_entity_id === vacuumEntityId &&
+          s.attributes?.role === "clean_order_override",
+      ) ?? null
+    );
+  }
+
   // Five states — see src/state/sequence-override.js.
   _renderSequenceOverrideRow(rooms) {
     const vid = this._vacuumId();
     if (!vid) return "";
-    const overrideEntityId = ENTITY.overrideOrderSwitch(vid);
     const sensorEntityId = ENTITY.cleanOrderSensor(vid);
-    const switchState = this._hass?.states?.[overrideEntityId] ?? null;
+    const switchState = this._findOverrideSwitch(this._hass, vid);
     if (!switchState) return "";  // adapter/model does not declare the write
     const sensorState = this._hass?.states?.[sensorEntityId] ?? null;
 
@@ -774,10 +815,15 @@ class EufyDashboardCard extends HTMLElement {
     // FINDINGS-roborock-clean-sequence design, and pinned by [CO-OV-4]).
     this.shadowRoot.getElementById("sequence-override-toggle")?.addEventListener("click", async () => {
       const vid = this._vacuumId();
-      const switchId = ENTITY.overrideOrderSwitch(vid);
-      const cur = this._hass?.states?.[switchId]?.state;
-      const next = cur === "on" ? "turn_off" : "turn_on";
-      await this._hass.callService("switch", next, { entity_id: switchId });
+      // Resolve through the SAME two-tier lookup the row renders from. Building
+      // the id here instead would toggle nothing on any install where HA did not
+      // give the entity the id we guessed — and the row would still be on screen,
+      // because it rendered from the entity the lookup DID find. A control that is
+      // visible and inert is worse than one that is absent.
+      const sw = this._findOverrideSwitch(this._hass, vid);
+      if (!sw) return;
+      const next = sw.state === "on" ? "turn_off" : "turn_on";
+      await this._hass.callService("switch", next, { entity_id: sw.entity_id });
       // Do NOT force a re-render here — the state change flows back via
       // hass.states, and the card re-renders on the next update tick. Forcing
       // it would show the wrong state briefly if the call fails.

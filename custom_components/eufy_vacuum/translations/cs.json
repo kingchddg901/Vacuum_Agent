@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} vybrána k úklidu"
+      },
+      "clean_order_override": {
+        "name": "Přepsání pořadí úklidu"
       }
     }
   }

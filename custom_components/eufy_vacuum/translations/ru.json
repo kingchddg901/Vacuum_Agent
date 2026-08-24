@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} выбрана для уборки"
+      },
+      "clean_order_override": {
+        "name": "Переопределить порядок уборки"
       }
     }
   }

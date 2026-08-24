@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room}已選擇清潔"
+      },
+      "clean_order_override": {
+        "name": "覆蓋清掃順序"
       }
     }
   }

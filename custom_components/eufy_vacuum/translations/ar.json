@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} محددة للتنظيف"
+      },
+      "clean_order_override": {
+        "name": "تجاوز ترتيب التنظيف"
       }
     }
   }

@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} 청소 대상으로 선택됨"
+      },
+      "clean_order_override": {
+        "name": "청소 순서 재정의"
       }
     }
   }

@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} selecionada para limpeza"
+      },
+      "clean_order_override": {
+        "name": "Substituir ordem de limpeza"
       }
     }
   }

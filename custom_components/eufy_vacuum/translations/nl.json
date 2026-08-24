@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} geselecteerd voor schoonmaak"
+      },
+      "clean_order_override": {
+        "name": "Schoonmaakvolgorde overschrijven"
       }
     }
   }

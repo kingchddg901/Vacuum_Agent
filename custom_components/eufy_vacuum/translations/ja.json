@@ -167,6 +167,9 @@
     "switch": {
       "room_selected": {
         "name": "{room} を清掃対象に選択"
+      },
+      "clean_order_override": {
+        "name": "清掃順序の上書き"
       }
     }
   }
