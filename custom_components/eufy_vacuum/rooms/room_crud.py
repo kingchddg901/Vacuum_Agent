@@ -90,8 +90,22 @@ class RoomMapManager:
     ) -> dict[str, Any]:
         """Discover rooms for one vacuum and cache them in ``data["discovery"]``.
 
-        Does not create a map bucket.  Map buckets are created only when
-        ``save_managed_rooms`` is called after the user confirms the room list.
+        Does not create a map bucket. This method uses the non-mutating
+        ``get_map_bucket`` read path, so it never persists a skeleton.
+
+        ⚠ Map buckets are NOT ONLY created by ``save_managed_rooms``. This
+        docstring said they were until 2026-08-24 (R12); it was one of the
+        checkable premises behind "where do these phantom map buckets come
+        from" and the answer was more paths than the wording admitted. The full
+        set: ``save_managed_rooms`` (this file, user-confirmed), ``rebuild_map``
+        (this file, via ``rebuild_map_bucket``), and ``reconcile_room`` in
+        BOTH the ``action="ignore"`` and ``action="migrate"`` arms (this file,
+        via ``ensure_map_bucket``). The ``ignore`` arm in particular creates a
+        bucket for a map the user has never confirmed, just to stamp a
+        dismissal token — see the reconcile_room docstring for its own note on
+        that. ``maps/map_manager.py::map_ids_with_rooms``'s docstring names
+        ~38 total ``ensure_map_bucket`` sites across the tree, so a full audit
+        starts from that helper, not from this one.
         """
         self._manager.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)
 
@@ -184,7 +198,21 @@ class RoomMapManager:
             same reviews stop surfacing until the next real change. No token
             needed — dismissing doesn't apply anything.
 
-        Requires a prior ``discover_rooms`` to have cached the discovery payload.
+        ⚠ Only ``action="migrate"`` requires a prior ``discover_rooms``. This
+        docstring said BOTH did until 2026-08-24 (R23); it was true of migrate
+        (it returns ``skipped="no_discovery"`` without one) and false of ignore.
+        The ignore arm reads ``discovery.get("rooms", [])`` off an empty dict,
+        computes its plan token over an EMPTY discovered set, and stamps
+        ``reconciliation_dismissed_at`` + ``reconciliation_dismissed_token``
+        into a bucket it creates via ``ensure_map_bucket``. Because
+        ``compute_reconciliation``'s dismissed-token contract only suppresses
+        an IDENTICAL review set, the dismissal that lands is effectively inert
+        (it fingerprints nothing) — but the phantom map bucket does persist,
+        contributing to the R12 problem. Refusing the ignore arm without prior
+        discovery would be more honest, but is not being changed here because
+        the shipped card and services flow always discover first; this note
+        exists so a future refactor can act on the real contract rather than
+        the aspirational one.
         """
         from ..learning.utils import _iso_now
 
@@ -575,26 +603,19 @@ class RoomMapManager:
         room on the map being removed, so there is nothing to strip.
         """
         map_id_str = str(map_id)
-        # Named flags for the buckets that predate PER_MAP_STORES -- callers
-        # (tests, the delete-map service response) already key off these
-        # exact names. New buckets (run_profiles/queue/onboarding) get their
-        # own flags in `removed` too, so nothing the registry clears is
-        # invisible to a caller inspecting the summary.
-        FLAG_NAMES = {
-            "maps": None,  # handled separately below (needs rooms_removed count)
-            "discovery": "discovery_removed",
-            "room_history": "history_removed",
-            "room_rule_status": "rule_status_removed",
-            "run_profiles": "run_profiles_removed",
-            "queue": "queue_removed",
-            "onboarding": "onboarding_removed",
-            "active_jobs": "active_job_cleared",
-        }
+        # R16: flag names come from PER_MAP_STORES itself so a new store cannot be
+        # added there without also declaring the response-flag it will report against.
+        # Was TWO hand-maintained lists; the sibling dict raised KeyError on
+        # divergence and took remove_map down entirely. Now one source of truth.
         removed: dict[str, Any] = {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": map_id_str,
             "rooms_removed": 0,
-            **{name: False for name in FLAG_NAMES.values() if name},
+            **{
+                flag: False
+                for (_key, _mode, flag) in PER_MAP_STORES
+                if flag
+            },
         }
 
         vacuum_maps = self._manager.data.get("maps", {}).get(vacuum_entity_id, {})
@@ -621,15 +642,16 @@ class RoomMapManager:
                 if str(r).lstrip("-").isdigit()
             )
 
-        # RP-016/RF-20 (INJ7VXE7): consume the SAME registry RP-017's id-remap walker
-        # reads, so a bucket added there is reachable here too without a
-        # second hand-maintained list -- the defect this packet closes
-        # (run_profiles/queue/onboarding survived remove_map for however
-        # long they existed as real per-map stores nobody added here).
-        for store_key, mode in PER_MAP_STORES:
+        # RP-016/RF-20 (INJ7VXE7): consume the SAME registry an id-remap walker or any
+        # future map-scoped operation reads, so a bucket added there is reachable here
+        # too from ONE list -- the defect this packet closed (run_profiles/queue/
+        # onboarding survived remove_map for however long they existed as real per-map
+        # stores nobody added here). R16 (2026-08-24) completed the promise: the flag
+        # name lives on each row too, so a new store cannot be added without declaring
+        # its response flag, and the loop can never KeyError on divergence.
+        for store_key, mode, flag in PER_MAP_STORES:
             if store_key == "maps":
                 continue  # handled above -- needs the room count
-            flag = FLAG_NAMES[store_key]
             bucket = self._manager.data.get(store_key, {}).get(vacuum_entity_id, {})
             if map_id_str not in bucket:
                 continue
@@ -642,7 +664,8 @@ class RoomMapManager:
                     vacuum_entity_id=vacuum_entity_id,
                     map_id=map_id_str,
                 )
-            removed[flag] = True
+            if flag:
+                removed[flag] = True
 
         return removed
 

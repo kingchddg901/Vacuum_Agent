@@ -25,15 +25,35 @@ from ..models.models import RoomConfig
 #   presence check). The reset VALUE is caller-specific (needs the manager's
 #   default-state builder), so this registry names the bucket, not the
 #   default -- the caller supplies it.
-PER_MAP_STORES: tuple[tuple[str, str], ...] = (
-    ("maps", "delete"),               # rooms/room_manager.py -- the map bucket itself
-    ("discovery", "delete"),          # rooms/room_discovery.py -- cached discovery snapshot
-    ("room_history", "delete"),       # rooms/room_crud.py -- per-room cleaning history
-    ("room_rule_status", "delete"),   # rooms/room_crud.py -- rule-evaluation cache
-    ("run_profiles", "delete"),       # profiles/manager.py -- saved run-profile library
-    ("queue", "delete"),              # core/manager.py build_queue -- built dispatch payload
-    ("onboarding", "delete"),         # onboarding/manager.py -- per-map setup/onboarding state
-    ("active_jobs", "reset"),         # core/manager.py -- active-job slot, reset not deleted
+# EACH ROW: (store_key, mode, removed_flag_name).
+#
+# ``removed_flag_name`` names the KEY the deletion response uses to report that this
+# store was cleared. Two rules:
+#
+# * The name is PART OF THE PUBLIC RESPONSE SHAPE. Tests and the delete-map service
+#   caller key off exact names, so the naming is not algorithmic ("discovery" ->
+#   "discovery_removed", but "active_jobs" -> "active_job_cleared"). It has to be
+#   declared, not derived.
+# * ``None`` means "no flag" and is used only for ``maps``, whose count-carrying
+#   ``rooms_removed`` field is reported separately.
+#
+# ⚠ THE THREE-TUPLE IS WHAT MAKES ADDING A NEW STORE SAFE (R16). This registry was a
+# two-tuple until 2026-08-24, and ``rooms/room_crud.py::remove_map`` maintained a
+# SECOND hand-written list (``FLAG_NAMES``) keyed by ``store_key`` with a bare
+# subscript ``flag = FLAG_NAMES[store_key]``. Adding a ninth entry HERE without also
+# editing that list did not merely leave the ninth store unreported — it raised
+# ``KeyError`` and took remove_map down entirely, deleting NOTHING for the map the
+# user was trying to remove. The comment right next to the loop told the maintainer
+# that consuming this registry alone was sufficient. It wasn't. It is now.
+PER_MAP_STORES: tuple[tuple[str, str, str | None], ...] = (
+    ("maps",             "delete", None),                        # bucket + rooms_removed reported separately
+    ("discovery",        "delete", "discovery_removed"),         # rooms/room_discovery.py -- cached discovery
+    ("room_history",     "delete", "history_removed"),           # rooms/room_crud.py -- per-room cleaning history
+    ("room_rule_status", "delete", "rule_status_removed"),       # rooms/room_crud.py -- rule-evaluation cache
+    ("run_profiles",     "delete", "run_profiles_removed"),      # profiles/manager.py -- saved run-profile library
+    ("queue",            "delete", "queue_removed"),             # core/manager.py -- built dispatch payload
+    ("onboarding",       "delete", "onboarding_removed"),        # onboarding/manager.py -- per-map setup state
+    ("active_jobs",      "reset",  "active_job_cleared"),        # core/manager.py -- reset not deleted
 )
 
 
