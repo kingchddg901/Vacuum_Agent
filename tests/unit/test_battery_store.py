@@ -144,6 +144,31 @@ def test_append_sample_missing_fields_written_as_none(tmp_path):
     assert parsed["ts"] is None
 
 
+def test_append_sample_swallows_any_exception_not_just_oserror(tmp_path):
+    """[B31] The docstring promised "swallows errors" but the handler was OSError
+    only. A non-OS error raised out to the fire-and-forget executor caller and
+    surfaced as an unretrieved traceback. Verify the promise is now honoured.
+
+    Uses a sample whose repr / json serialization RAISES: a value whose __repr__
+    throws, wrapped in a way that survives ``json.dumps(..., default=str)`` (the
+    call the code uses) triggering the fallback.
+    """
+    class _RaisesOnStr:
+        def __repr__(self):
+            raise ValueError("crafted")
+        __str__ = __repr__
+
+    # Non-OSError raised by json.dumps -> default=str -> our raiser. Previously
+    # this would have escaped; now it must be swallowed.
+    append_sample(
+        config_dir=str(tmp_path),
+        vacuum_entity_id="vacuum.alfred",
+        sample={"battery_level": _RaisesOnStr()},
+    )
+    # No raise, no assertion on the file contents — a non-OS error may leave no
+    # file at all, and that is fine. The contract is silence, not persistence.
+
+
 # ---------------------------------------------------------------------------
 # append_session
 # ---------------------------------------------------------------------------

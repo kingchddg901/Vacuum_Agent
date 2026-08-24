@@ -1126,9 +1126,17 @@ class AccessGraphManager:
             single = issue.get("room_id")
             if single is not None:
                 room_ids.append(_safe_int(single, -1))
-            # cycle_detected / multiple_dock_rooms name a SET of rooms; a cycle
-            # chain repeats its entry room, so dedup below is load-bearing.
+            # cycle_detected / multiple_dock_rooms name a SET of rooms in `rooms`;
+            # multiple_inbound names its SOURCE ROOMS in `source_room_ids` — the
+            # payload field structural_issue_key treats as load-bearing, and the
+            # two rooms the user must edit to fix the invalid graph. A comment on
+            # this file before R6 (2026-08-24) enumerated only the first two
+            # set-valued types and read as complete, so the third was silently
+            # missing from the "which rooms?" answer for multiple_inbound refusals.
+            # A cycle chain repeats its entry room, so dedup below is load-bearing.
             for value in issue.get("rooms", []) or []:
+                room_ids.append(_safe_int(value, -1))
+            for value in issue.get("source_room_ids", []) or []:
                 room_ids.append(_safe_int(value, -1))
 
         names: dict[int, str] = {}

@@ -192,11 +192,16 @@ HISTORY_LIMIT = 50
 #: so a very old, very active install doesn't grow this unboundedly.
 HEALTH_QUALIFYING_RETENTION_LIMIT = 500
 
-#: Qualifying sessions used to anchor the baseline. The baseline is
-#: per-install ("your battery as it was when you set this up"), not an
-#: estimate of factory-fresh performance, so the first valid session
-#: anchors it. CURRENT_WINDOW_DAYS smooths comparison-side noise.
-BASELINE_SAMPLE_COUNT = 1
+#: ⚠ Documentation ONLY, not a live tunable — B27 (2026-08-24). The anchor code
+#: below hardcodes `baseline["session_count"] = 1` at the seed site and `break`s
+#: after the first qualifying session; changing THIS constant does nothing.
+#: Kept for the reasoning (the baseline is per-install, "your battery as it was
+#: when you set this up", not a factory-fresh estimate — so the first valid
+#: session anchors it) and the CURRENT_WINDOW_DAYS pointer to comparison-side
+#: smoothing. Actually raising the sample count is a design decision Chris owns:
+#: it interacts with how quickly a swapped pack rebases and with how the
+#: rebaseline path clears which stats.
+BASELINE_SAMPLE_COUNT = 1  # ← immutable in practice; see note above
 
 #: Window for the "current" health average. Wider than 7 days because
 #: single-room users rarely produce qualifying sessions — the rolling

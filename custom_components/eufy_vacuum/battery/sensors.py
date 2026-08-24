@@ -377,11 +377,22 @@ class RegimeChargeSpeedSensor(_BatteryBase):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        # B17: expose the `_rejected_pct` sibling that BatteryHealthManager
+        # already preserves ("kept so the failure is diagnosable"). Without
+        # this, a native_value of None had two indistinguishable causes — no
+        # baseline yet, OR every recent read was rejected as an outlier — and
+        # the docstring's "still waiting for the baseline" was the only account
+        # the user got. A user seeing a rejected number knows a baseline exists
+        # but recent charging is unusual; that is the diagnostic value the
+        # rejection was preserved for.
+        stats = self._record().get("stats", {})
+        rejected_key = self._stat_key.replace("_pct", "_rejected_pct")
         baseline = self._record().get("baseline", {})
         return {
             "baseline_min_per_pct": baseline.get(self._baseline_key),
             "baseline_session_count": baseline.get("session_count"),
             "baseline_anchored_at": baseline.get("anchored_at"),
+            "rejected_pct": stats.get(rejected_key),
         }
 
 
@@ -447,6 +458,18 @@ class LastJobMetricSensor(_BatteryBase):
             "post_job_charge": last.get("post_job_charge"),
             "all_jobs_mean": all_jobs.get(mean_field) if mean_field else None,
             "all_jobs_count": all_jobs.get("count"),
+            # B4: this is the C17 repair applied to `all_jobs` — was missing when the
+            # `by_*` buckets got it, so a reader auditing the fix by looking at the card
+            # saw the original symptom ("mean over 6, Jobs: 10") on the very row the
+            # comment on `_MEAN_SAMPLE_FIELD` cites. `all_jobs` is a `_new_aggregate_bucket`
+            # and carries the same `samples_duration` / `samples_area` fields the
+            # `by_*` buckets read from — this line just puts the honest denominator next
+            # to the mean, using the same lookup.
+            "all_jobs_samples": (
+                all_jobs.get(_MEAN_SAMPLE_FIELD[mean_field])
+                if mean_field and _MEAN_SAMPLE_FIELD.get(mean_field)
+                else None
+            ),
             # Per-bucket means — only populated from single-bucket jobs.
             "by_clean_mode_mean": _bucket_means(agg.get("by_clean_mode", {}), mean_field),
             "by_fan_speed_mean": _bucket_means(agg.get("by_fan_speed", {}), mean_field),

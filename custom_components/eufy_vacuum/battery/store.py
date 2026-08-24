@@ -74,14 +74,32 @@ def append_sample(
     vacuum_entity_id: str,
     sample: dict[str, Any],
 ) -> None:
-    """Append one sample as a JSONL line. Best-effort; logs and swallows errors."""
+    """Append one sample as a JSONL line. Best-effort; logs and swallows errors.
+
+    ⚠ B31 (2026-08-24): the swallow was narrower than this docstring claimed.
+    The handler was ``except OSError`` only, and the call site is
+    ``hass.async_add_executor_job(...)`` fire-and-forget (its Future is
+    deliberately not retained), so any non-OSError raised out of here surfaced
+    as an unretrieved-exception traceback rather than being logged and
+    swallowed. That was low-impact today (the sample values are a bounded
+    shape), but the promise made the manager stop guarding itself, and a
+    future widening of the sample payload — a value whose repr raises, say —
+    would have surfaced there instead of here. Broadened to ``Exception`` so
+    the docstring's contract is what the code does.
+    """
     try:
         directory = ensure_dirs(config_dir, vacuum_entity_id)
         path = os.path.join(directory, "samples.jsonl")
         line = json.dumps({k: sample.get(k) for k in _SAMPLES_FIELDS}, default=str)
         with open(path, "a", encoding="utf-8") as fh:
             fh.write(line + "\n")
-    except OSError as err:  # pragma: no cover - best-effort I/O, logs and swallows
+    except Exception as err:  # pragma: no cover - best-effort I/O, logs and swallows
+        # B31: was `except OSError`. The docstring above says "swallows errors"
+        # in the general form because that is what the fire-and-forget executor
+        # submission relies on — a narrower handler put a slice of failure
+        # modes on an unrecoverable path this file cannot see. Losing one
+        # sample to a bug is fine; taking out the battery-sample writer with a
+        # ValueError is not.
         _LOGGER.debug("battery: failed to append sample for %s: %s", vacuum_entity_id, err)
 
 
