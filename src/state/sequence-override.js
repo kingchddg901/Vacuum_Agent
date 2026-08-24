@@ -62,20 +62,30 @@ export function deriveSequenceRowState({ switchState, sensorState, queueRooms })
     return { kind: "unverifiable", overrideOn };
   }
 
-  const deviceOrder = Array.isArray(sensorState?.attributes?.order)
-    ? sensorState.attributes.order.map((v) => Number(v)).filter(Number.isFinite)
+  // Ids and names are PARALLEL ARRAYS the card renders index-by-index, so the
+  // finite-filter has to drop the id and its name TOGETHER. Filtering only the
+  // id array (the first cut of this function) silently shifts every later name
+  // up by one the moment a single id fails Number.isFinite — the mismatch row
+  // then names the wrong rooms while looking perfectly well-formed. Build each
+  // pair in one pass so there is no shape in which they can disagree.
+  const rawDeviceOrder = Array.isArray(sensorState?.attributes?.order)
+    ? sensorState.attributes.order
     : [];
-  const deviceNames = Array.isArray(sensorState?.attributes?.order_names)
-    ? sensorState.attributes.order_names.map(String)
+  const rawDeviceNames = Array.isArray(sensorState?.attributes?.order_names)
+    ? sensorState.attributes.order_names
     : [];
+  const devicePairs = rawDeviceOrder
+    .map((v, i) => ({ id: Number(v), name: String(rawDeviceNames[i] ?? v ?? "") }))
+    .filter((p) => Number.isFinite(p.id));
+  const deviceOrder = devicePairs.map((p) => p.id);
+  const deviceNames = devicePairs.map((p) => p.name);
 
-  const queueOrder = (queueRooms || [])
+  const queuePairs = (queueRooms || [])
     .filter((r) => r?.on !== false)
-    .map((r) => Number(r?.room_id))
-    .filter(Number.isFinite);
-  const queueNames = (queueRooms || [])
-    .filter((r) => r?.on !== false)
-    .map((r) => String(r?.name ?? r?.room_id ?? ""));
+    .map((r) => ({ id: Number(r?.room_id), name: String(r?.name ?? r?.room_id ?? "") }))
+    .filter((p) => Number.isFinite(p.id));
+  const queueOrder = queuePairs.map((p) => p.id);
+  const queueNames = queuePairs.map((p) => p.name);
 
   // Switch OFF branch: only two states, because comparison is meaningless without
   // the user's intent to override.

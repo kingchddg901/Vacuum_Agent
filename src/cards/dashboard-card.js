@@ -446,7 +446,7 @@ class EufyDashboardCard extends HTMLElement {
         <span class="title">${esc(title)}</span>
         <span class="meta">
           ${status}
-          ${Number.isFinite(battery) ? `<span class="batt">🔋 ${esc(Math.round(battery))}%</span>` : ""}
+          ${Number.isFinite(battery) ? `<span class="batt">🔋 ${esc(Math.round(battery))}${esc(this.t("metrics.unit_percent"))}</span>` : ""}
         </span>
         ${renderLangControl({
           t: (k, v) => this.t(k, v),

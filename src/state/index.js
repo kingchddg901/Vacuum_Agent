@@ -1,5 +1,6 @@
 // Defines VacuumCardState and mixes all state domain modules onto its prototype.
 
+import { resolveLang          } from "../i18n/index.js";
 import { applyCoreState       } from "./core.js";
 import { applyDockState       } from "./dock.js";
 import { applyMetricsState    } from "./metrics.js";
@@ -55,6 +56,48 @@ export class VacuumCardState {
     this.config = config;
     this._migrateLegacyVacKeys?.();   // retry the one-time prefs migration once the vacuum is known
     return this;
+  }
+
+  /**
+   * Install the card's language resolver.
+   *
+   * State holds `hass` and `config` but NOT `_langOverride` — the per-user globe
+   * lives on the card element, because it is a per-user choice persisted per
+   * browser rather than card config. State-level modules that render localized
+   * text (the steps-queue order adapter's break chips, and anything that follows)
+   * therefore cannot reach the globe on their own: `resolveLang(hass, config)`
+   * silently resolves to the HA/pin language, so a user who picks Arabic on the
+   * globe sees an Arabic modal with English chips inside it.
+   *
+   * Same shape as `setConfirmationsRenderTrigger` (anchor CNMY8CY9) — a callback
+   * from the card rather than a back-reference, so state never holds the element.
+   *
+   * @param {() => string} fn - returns the card's resolved BCP-47 language.
+   * @returns {this}
+   */
+  setLangResolver(fn) {
+    this._langResolver = typeof fn === "function" ? fn : null;
+    return this;
+  }
+
+  /**
+   * The language state-level renderers should translate into.
+   *
+   * Prefers the card's resolver (globe-aware). Falls back to hass+config so a
+   * state constructed without a card — every unit test, and the window between
+   * construction and the first hass sync — still resolves a real language rather
+   * than throwing. The fallback is the OLD behaviour, so an uninstalled resolver
+   * degrades to HA/pin rather than to English literals; [SI-lang-*] pins that the
+   * card actually installs it, because a seam nobody wires is decorative.
+   *
+   * @returns {string} BCP-47 code.
+   */
+  i18nLanguage() {
+    if (this._langResolver) {
+      const code = this._langResolver();
+      if (code) return String(code);
+    }
+    return resolveLang(this.hass, this.config);
   }
 }
 

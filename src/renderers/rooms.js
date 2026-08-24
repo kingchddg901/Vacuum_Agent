@@ -847,7 +847,7 @@ proto.renderRoomsActionBar = function (
 
             const liveLabel =
               stateClass === "evcc-queue-chip--current"
-                ? `${Math.max(0, Math.min(99, Math.floor(chipProgress)))}%`
+                ? `${Math.max(0, Math.min(99, Math.floor(chipProgress)))}${this.t("metrics.unit_percent")}`
                 : minutes;
 
             // anchor: CNPK5534  the room queue-progress chip and its --job-progress custom property
@@ -981,11 +981,11 @@ proto.renderRoomsActionBar = function (
         const bi = breakIdx; breakIdx += 1;
         const target = Number(step.target_battery_percent ?? 100);
         const valuePart = displayOnly
-          ? `<span class="evcc-queue-chip-time">${this.escapeHtml(String(target))}%</span>`
+          ? `<span class="evcc-queue-chip-time">${this.escapeHtml(String(target))}${this.t("metrics.unit_percent")}</span>`
           : `<input type="number" min="1" max="100" step="1"
               value="${this.escapeHtml(String(target))}"
               class="evcc-queue-chip-input" ${queueMode ? `data-queue-break-charge-index="${bi}"` : `data-chip-charge-index="${si}"`}
-              aria-label="${this.t("rooms.chip_charge_to", { target: this.escapeHtml(String(target)) })}" /><span class="evcc-queue-chip-unit">%</span>`;
+              aria-label="${this.t("rooms.chip_charge_to", { target: this.escapeHtml(String(target)) })}" /><span class="evcc-queue-chip-unit">${this.t("metrics.unit_percent")}</span>`;
         chips.push(`
           <div class="evcc-queue-chip evcc-queue-chip--charge">
             ${moveHandle(`break:${bi}`)}
@@ -1149,7 +1149,7 @@ proto.renderRoomsActionBar = function (
       const target = Number(step.target_battery_percent ?? 100);
       return `<div class="evcc-queue-chip evcc-queue-chip--charge ${stateCls}">
         ${order}<span class="evcc-queue-chip-charge-icon" aria-hidden="true">⚡</span>
-        <span class="evcc-queue-chip-label">${this.t("rooms.chip_charge_label")} ${this.escapeHtml(String(target))}%</span>${etaPart(step.eta_minutes)}${doneMark}</div>`;
+        <span class="evcc-queue-chip-label">${this.t("rooms.chip_charge_label")} ${this.escapeHtml(String(target))}${this.t("metrics.unit_percent")}</span>${etaPart(step.eta_minutes)}${doneMark}</div>`;
     }
     if (step?.kind === "wait") {
       const mins = Number(step.wait_minutes ?? 30);
@@ -1168,7 +1168,7 @@ proto.renderRoomsActionBar = function (
     const name = step?.name
       || this.t("run_profiles.room_fallback", { id: this.escapeHtml(String(step?.room_id ?? "")) });
     const pct = (st === "current" && step?.progress_percent != null)
-      ? `<span class="evcc-queue-chip-time">${Math.max(0, Math.min(99, Math.floor(Number(step.progress_percent))))}%</span>`
+      ? `<span class="evcc-queue-chip-time">${Math.max(0, Math.min(99, Math.floor(Number(step.progress_percent))))}${this.t("metrics.unit_percent")}</span>`
       : "";
     return `<div class="evcc-queue-chip evcc-queue-chip--queued ${stateCls}">
       ${order}<span class="evcc-queue-chip-label">${this.escapeHtml(name)}</span>${pct}${doneMark}</div>`;
@@ -1353,7 +1353,7 @@ proto.renderRoomCard = function (room, state) {
     const pct       = Number.isFinite(missRate) ? Math.round(missRate * 100) : null;
     notes.push({
       type: "trouble",
-      text: `⚠ ${this.t("rooms.trouble_missed", { miss: missCount, count: runCount })}${pct !== null ? ` (${pct}%)` : ""}`,
+      text: `⚠ ${this.t("rooms.trouble_missed", { miss: missCount, count: runCount })}${pct !== null ? ` (${pct}${this.t("metrics.unit_percent")})` : ""}`,
       variant: "warning",
       title: this.t("rooms.trouble_note_title", { pct: pct ?? "?" }),
     });

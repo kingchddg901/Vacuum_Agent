@@ -293,7 +293,7 @@ export function applyMapRenderers(proto) {
                     title="${this.t("map.draw_zone")}" aria-label="${this.t("map.draw_zone")}">▢</button>` : ""}
             ${(state.embeddedInCard?.() ?? false) ? this._renderMapSwitch(state) : ""}
             <span class="evcc-map-zoom-readout"
-                  aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}%</span>
+                  aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}${this.t("metrics.unit_percent")}</span>
           </div>
 
           ${this._renderMapFrameGateBanner(state)}
@@ -1247,7 +1247,7 @@ export function applyMapRenderers(proto) {
                    <button class="evcc-map-zoom-btn" data-action="map-zoom-in"
                            title="${this.t("map.zoom_in")}" aria-label="${this.t("map.zoom_in")}">+</button>
                    <span class="evcc-map-zoom-readout"
-                         aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}%</span>
+                         aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}${this.t("metrics.unit_percent")}</span>
                  </div>`
               : `<div class="evcc-map-unavailable">
                    <p>${this.t("map.config_no_image")}</p>
@@ -1634,7 +1634,7 @@ export function applyMapRenderers(proto) {
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="0.9" title="${this.t("map.scale_shrink")}">${this.t("map.scale_minus")}</button>
           <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="1.111" title="${this.t("map.scale_grow")}">${this.t("map.scale_plus")}</button>
-          <span class="evcc-map-config-adj-meta">${Math.round((Number(t.scale) || 1) * 100)}%</span>
+          <span class="evcc-map-config-adj-meta">${Math.round((Number(t.scale) || 1) * 100)}${this.t("metrics.unit_percent")}</span>
         </div>
         <div class="evcc-map-furnished-rotate">
           <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-90" title="${this.t("map.rotate_left_90")}">↺ 90°</button>

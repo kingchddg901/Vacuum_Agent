@@ -828,7 +828,7 @@ export function applyThemeBindings(proto) {
       const shellWidth = shell.clientWidth;
       const bubbleX = ratio * shellWidth;
       bubble.style.left = `${bubbleX}px`;
-      bubble.textContent = `${sliderValue}%`;
+      bubble.textContent = `${sliderValue}${this.t("metrics.unit_percent")}`;
     }
   };
 
@@ -964,7 +964,7 @@ export function applyThemeBindings(proto) {
 
       const ratio = Math.max(0, Math.min(100, Math.round(Number(e.currentTarget.value))));
       const label = row.querySelector(`[data-colormix-ratio-label="${token}"]`);
-      if (label) label.textContent = `${ratio}%`;
+      if (label) label.textContent = `${ratio}${this.t("metrics.unit_percent")}`;
 
       const expr = this._readColorMixExpr(row, token, { ratio });
       if (!expr) return;

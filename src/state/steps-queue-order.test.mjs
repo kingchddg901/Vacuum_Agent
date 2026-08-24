@@ -194,3 +194,54 @@ test("[SQO-after] after_index is derived from the NEW order (break dragged befor
   await adapter.persist.call(ctx, nextItems, { itemId: "break:0" });
   assert.deepEqual(calls.breaks, [{ after_index: 1, break_type: "wait", wait_minutes: 20 }]);
 });
+
+/* =========================================================
+   THE GLOBE CHANNEL — state has no _langOverride of its own
+   ========================================================= */
+
+test("[SQO-globe] the break label follows the CARD's globe language, not just HA/pin", () => {
+  // Round-2 adversary finding. resolveLang(hass, config) resolves the HA
+  // language or the dashboard pin — it cannot see the per-user globe, which
+  // lives on the card element. A user whose HA runs English but who picks
+  // Arabic on the globe got an Arabic modal with English chips inside it.
+  // VacuumCardState.i18nLanguage() is the channel; this proves the adapter
+  // reads it in preference to hass/config.
+  registerLocale("ar", { "run_profiles.minutes_unit": "دقيقة",
+                         "metrics.unit_percent": "%" });
+  const state = makeState({
+    rooms: [room("1", 1)],
+    breaks: [waitBreak(1, 15)],
+  });
+  state.hass = { locale: { language: "en" } };   // HA is English
+  state.config = {};                             // no dashboard pin
+  state.i18nLanguage = () => "ar";               // ...but the globe says Arabic
+  const items = state.getOrderAdapter("steps").getItems.call(state);
+  const label = items.find((i) => i.kind === "break")._label;
+  assert.equal(label, "⏱ 15 دقيقة",
+    "the chip must follow the globe; reading hass/config alone yields English 'min'");
+});
+
+test("[SQO-globe-wired] VacuumCardState exposes the channel AND main.js installs it", async () => {
+  // A seam nobody wires is decorative. The fallback inside i18nLanguage() is
+  // the OLD hass/config behaviour, so a missing installation degrades silently
+  // to exactly the defect this fixes — which is why the wiring itself is pinned
+  // here rather than left to inspection.
+  const { VacuumCardState } = await import("./index.js");
+  const s = new VacuumCardState({ locale: { language: "en" } }, {});
+  assert.equal(typeof s.setLangResolver, "function", "state must expose setLangResolver");
+  assert.equal(typeof s.i18nLanguage, "function", "state must expose i18nLanguage");
+
+  // Resolver wins when installed...
+  s.setLangResolver(() => "ar");
+  assert.equal(s.i18nLanguage(), "ar");
+  // ...and an empty/absent answer falls back to hass+config rather than throwing.
+  s.setLangResolver(() => "");
+  assert.equal(s.i18nLanguage(), "en");
+  s.setLangResolver(null);
+  assert.equal(s.i18nLanguage(), "en");
+
+  const fs = await import("node:fs");
+  const main = fs.readFileSync(new URL("../main.js", import.meta.url), "utf-8");
+  assert.match(main, /setLangResolver\?\.\(\s*\(\)\s*=>\s*this\._i18nLanguage\(\)\s*\)/,
+    "main.js must install the resolver — without it every state-level renderer silently ignores the globe");
+});

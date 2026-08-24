@@ -49,13 +49,17 @@ export function applyStepsQueueOrderState(proto) {
         (Array.isArray(savedZones) ? savedZones : []).forEach((z) => {
           if (z && z.id != null) zoneNameById[String(z.id)] = z.name;
         });
-        // State has hass + config; the module-level translate + resolveLang
-        // give i18n access without a card round-trip. A prior version tried
-        // `this.t?.(...)` here — state has NO t() method, so the optional
-        // chain always yielded undefined and the ?? fallback silently kept
-        // the English literal; the "load-bearing translated unit" claim
-        // read as fixed while doing nothing.
-        const lang = resolveLang(this.hass, this.config);
+        // `this.i18nLanguage()` (VacuumCardState) is globe-aware — the card
+        // installs a resolver via setLangResolver. Going straight to
+        // `resolveLang(this.hass, this.config)` here resolves the HA/pin
+        // language instead, so a user who picks Arabic on the per-user globe
+        // gets an Arabic modal with English chips inside it.
+        //
+        // An earlier version tried `this.t?.(...)` — state has NO t() method,
+        // so the optional chain always yielded undefined and the ?? fallback
+        // silently kept the English literal; the "load-bearing translated
+        // unit" claim read as fixed while doing nothing.
+        const lang = this.i18nLanguage?.() ?? resolveLang(this.hass, this.config);
         const pct = translate(lang, "metrics.unit_percent");
         const min = translate(lang, "run_profiles.minutes_unit");
         const _breakLabel = (step) => {

@@ -511,7 +511,7 @@ export function applyMaintenanceRenderers(proto) {
     const numericValue = Number(stationWater);
     const isNumeric = Number.isFinite(numericValue);
     const rawValue = String(stationWaterLabel ?? "").trim() || (hasValue
-      ? (isNumeric ? `${Math.round(numericValue)}%` : String(stationWater))
+      ? (isNumeric ? `${Math.round(numericValue)}${this.t("metrics.unit_percent")}` : String(stationWater))
       : this.t("maintenance.value_unknown"));
 
     const normalized = String(rawValue).trim().toLowerCase();

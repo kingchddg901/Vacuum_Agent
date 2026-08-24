@@ -76,6 +76,26 @@ _GET_VACUUM_CAPABILITIES_SCHEMA = vol.Schema(
     }
 )
 
+# Module-level schemas so tests/unit/test_service_declaration_parity.py can walk
+# the schema field set for services.yaml <-> code parity. Inline schemas at the
+# register site read fine, but the parity ratchet resolves by name only.
+_SAVE_ADAPTER_CONFIG_SCHEMA = vol.Schema({
+    vol.Required("vacuum_entity_id"): cv.entity_id,
+    vol.Required("config"): dict,
+})
+_DELETE_ADAPTER_CONFIG_SCHEMA = vol.Schema({
+    vol.Required("vacuum_entity_id"): cv.entity_id,
+})
+_GET_ADAPTER_CONFIG_SCHEMA = vol.Schema({
+    vol.Required("vacuum_entity_id"): cv.entity_id,
+})
+_DISCOVER_ADAPTER_ENTITIES_SCHEMA = vol.Schema({
+    vol.Required("vacuum_entity_id"): cv.entity_id,
+})
+_OBSERVE_ENTITY_STATES_SCHEMA = vol.Schema({
+    vol.Required("entity_ids"): [cv.entity_id],
+})
+
 
 async def _handle_save_adapter_config(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Save a UI-submitted adapter config for one vacuum."""
@@ -287,38 +307,27 @@ def register(hass: HomeAssistant) -> None:
 
     hass.services.async_register(
         DOMAIN, SERVICE_SAVE_ADAPTER_CONFIG, save_adapter_config,
-        schema=vol.Schema({
-            vol.Required("vacuum_entity_id"): cv.entity_id,
-            vol.Required("config"): dict,
-        }),
+        schema=_SAVE_ADAPTER_CONFIG_SCHEMA,
         supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_ADAPTER_CONFIG, delete_adapter_config,
-        schema=vol.Schema({
-            vol.Required("vacuum_entity_id"): cv.entity_id,
-        }),
+        schema=_DELETE_ADAPTER_CONFIG_SCHEMA,
         supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_GET_ADAPTER_CONFIG, get_adapter_config,
-        schema=vol.Schema({
-            vol.Required("vacuum_entity_id"): cv.entity_id,
-        }),
+        schema=_GET_ADAPTER_CONFIG_SCHEMA,
         supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_DISCOVER_ADAPTER_ENTITIES, discover_adapter_entities,
-        schema=vol.Schema({
-            vol.Required("vacuum_entity_id"): cv.entity_id,
-        }),
+        schema=_DISCOVER_ADAPTER_ENTITIES_SCHEMA,
         supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_OBSERVE_ENTITY_STATES, observe_entity_states,
-        schema=vol.Schema({
-            vol.Required("entity_ids"): [cv.entity_id],
-        }),
+        schema=_OBSERVE_ENTITY_STATES_SCHEMA,
         supports_response=True,
     )
     hass.services.async_register(

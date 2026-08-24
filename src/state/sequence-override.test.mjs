@@ -115,3 +115,52 @@ test("[SEQ-7] queue rooms filtered to those actually turned on (off rooms are no
   assert.equal(s.kind, "matching",
     `off rooms leaked into the queue comparison: got ${s.kind}`);
 });
+
+test("[SEQ-8] a non-numeric room_id drops its NAME with it — ids and names stay aligned", () => {
+  // The bite for the round-2 adversary finding. The first cut filtered
+  // Number.isFinite on the id array ONLY, so a single unparseable room_id
+  // shifted every later name up by one: the mismatch row then confidently
+  // named the wrong rooms. Ids and names are rendered index-by-index, so they
+  // must be filtered as pairs.
+  const s = deriveSequenceRowState({
+    switchState: _switch(true),
+    sensorState: _sensor([27, 25], ["Kitchen", "Study"]),
+    queueRooms: [
+      _room(27, "Kitchen"),
+      _room("not-a-number", "Ghost"),   // survives the on-filter, fails isFinite
+      _room(25, "Study"),
+    ],
+  });
+  assert.deepEqual(s.queueOrder, [27, 25], "the unparseable id must be dropped");
+  assert.deepEqual(s.queueNames, ["Kitchen", "Study"],
+    "'Ghost' must be dropped WITH its id — if this reads ['Kitchen','Ghost'] the arrays have desynced");
+  assert.equal(s.queueOrder.length, s.queueNames.length,
+    "order and names must always be the same length");
+  // And with the arrays aligned, the comparison itself is correct.
+  assert.equal(s.kind, "matching");
+});
+
+test("[SEQ-8b] the same pairing rule holds for the DEVICE side", () => {
+  // sensor attributes `order` and `order_names` are parallel arrays from the
+  // backend; a bad element in `order` must not shift `order_names`.
+  const s = deriveSequenceRowState({
+    switchState: _switch(false),
+    sensorState: _sensor([27, "junk", 23], ["Kitchen", "Ghost", "Study"]),
+    queueRooms: [_room(27, "Kitchen")],
+  });
+  assert.deepEqual(s.deviceOrder, [27, 23]);
+  assert.deepEqual(s.deviceNames, ["Kitchen", "Study"],
+    "'Ghost' must be dropped with its id, leaving 23 still labelled 'Study'");
+});
+
+test("[SEQ-8c] a name missing from order_names falls back to the id, not to the NEXT name", () => {
+  // order_names shorter than order: index 2 has no name. It must fall back to
+  // its own id — reading ahead into the array is the desync in another dress.
+  const s = deriveSequenceRowState({
+    switchState: _switch(false),
+    sensorState: _sensor([27, 25, 23], ["Kitchen", "Hallway"]),
+    queueRooms: [_room(27, "Kitchen")],
+  });
+  assert.deepEqual(s.deviceOrder, [27, 25, 23]);
+  assert.deepEqual(s.deviceNames, ["Kitchen", "Hallway", "23"]);
+});

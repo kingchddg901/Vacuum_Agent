@@ -863,6 +863,12 @@ class EufyVacuumCommandCenter extends HTMLElement {
       this._confirmationsWired = true;
       // anchor: CNMY8CY9
       this._state.setConfirmationsRenderTrigger?.(() => this._scheduleRender());
+      // Same one-shot wiring for the language resolver: state-level renderers
+      // (the steps-queue break chips) need the per-user globe, which lives here
+      // on the element and never reaches state through hass/config. Read through
+      // a callback rather than copying the value, so a later globe change is
+      // picked up without another sync point to keep in step.
+      this._state.setLangResolver?.(() => this._i18nLanguage());
     }
 
     // Restore last-active view exactly once on first hass sync.

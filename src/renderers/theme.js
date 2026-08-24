@@ -1045,7 +1045,7 @@ export function applyThemeRenderers(proto) {
                 data-theme-alpha-bubble="${this.escapeHtml(token.key)}"
                 style="left: ${alphaPercent}%"
               >
-                ${alphaPercent}%
+                ${alphaPercent}${this.t("metrics.unit_percent")}
               </div>
             </div>
           </div>
@@ -1105,7 +1105,7 @@ export function applyThemeRenderers(proto) {
           </div>
 
           <div class="token-colormix-ratio-label" data-colormix-ratio-label="${this.escapeHtml(token.key)}">
-            ${ratio}%
+            ${ratio}${this.t("metrics.unit_percent")}
           </div>
 
           <div class="token-colormix-slot">

@@ -170,7 +170,7 @@ export function applyLearningRenderers(proto) {
         return `${this.t("rooms.chip_wait_label")} ${this.escapeHtml(String(Number(st.wait_minutes ?? 0)))} ${this.t("run_profiles.minutes_unit")}`;
       }
       if (kind === "charge") {
-        return `${this.t("rooms.chip_charge_label")} ${this.escapeHtml(String(Number(st.target_battery_percent ?? 100)))}%`;
+        return `${this.t("rooms.chip_charge_label")} ${this.escapeHtml(String(Number(st.target_battery_percent ?? 100)))}${this.t("metrics.unit_percent")}`;
       }
       if (kind === "zone") {
         const names = (Array.isArray(st.zone_names) ? st.zone_names : []).filter(Boolean).join(", ");
@@ -180,7 +180,7 @@ export function applyLearningRenderers(proto) {
     };
 
     const pct = (String(step.kind || "room") === "room" && step.progress_percent != null)
-      ? ` · ${Math.max(0, Math.min(99, Math.floor(Number(step.progress_percent))))}%`
+      ? ` · ${Math.max(0, Math.min(99, Math.floor(Number(step.progress_percent))))}${this.t("metrics.unit_percent")}`
       : "";
     const eta = step.eta_minutes != null
       ? ` · ${this.t("learning.minutes_left", { minutes: this.escapeHtml(this._formatLearningMinutes(step.eta_minutes)) })}`
@@ -343,7 +343,7 @@ export function applyLearningRenderers(proto) {
                 <span>
                   ${this.escapeHtml(this._formatLearningMilliliters(waterEstimate.available_clean_tank_ml))}
                   ${Number.isFinite(Number(waterEstimate.station_clean_water_percent))
-                    ? ` (${this.escapeHtml(`${Math.round(Number(waterEstimate.station_clean_water_percent))}%`)})`
+                    ? ` (${this.escapeHtml(String(Math.round(Number(waterEstimate.station_clean_water_percent))))}${this.t("metrics.unit_percent")})`
                     : ""}
                 </span>
               </div>
@@ -358,7 +358,7 @@ export function applyLearningRenderers(proto) {
                 <span>
                   ${this.escapeHtml(this._formatLearningMilliliters(waterEstimate.estimated_clean_tank_remaining_ml))}
                   ${Number.isFinite(Number(waterEstimate.estimated_clean_tank_remaining_percent))
-                    ? ` (${this.escapeHtml(`${Math.round(Number(waterEstimate.estimated_clean_tank_remaining_percent))}%`)})`
+                    ? ` (${this.escapeHtml(String(Math.round(Number(waterEstimate.estimated_clean_tank_remaining_percent))))}${this.t("metrics.unit_percent")})`
                     : ""}
                 </span>
               </div>
@@ -789,7 +789,7 @@ proto._renderLearningCurrentRow = function (entry) {
     this.card?._learningController?.getRoomProgressSnapshot?.(entry.room_id) ?? null;
 
   const progressMeta = snapshot?.isCurrent
-    ? `${snapshot.percent}%${Number.isFinite(snapshot.remainingMinutes) ? ` · ${this.t("learning.minutes_left", { minutes: this.escapeHtml(this._formatLearningMinutes(snapshot.remainingMinutes)) })}` : ""}`
+    ? `${snapshot.percent}${this.t("metrics.unit_percent")}${Number.isFinite(snapshot.remainingMinutes) ? ` · ${this.t("learning.minutes_left", { minutes: this.escapeHtml(this._formatLearningMinutes(snapshot.remainingMinutes)) })}` : ""}`
     : (entry.eta_at ? this.t("learning.done_at", { time: this.escapeHtml(this._formatLearningWallClock(entry.eta_at)) }) : "");
 
   return `
