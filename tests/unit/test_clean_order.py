@@ -333,3 +333,156 @@ def _run(coro, after_fire=None):
         return await task
 
     return asyncio.run(_go())
+
+
+# ---------------------------------------------------------------------------
+# [CO-OV] override switch state — persisted, no-op-safe, does NOT clear on off
+# ---------------------------------------------------------------------------
+
+def _mgr_with_data(monkeypatch):
+    """A manager that also exposes .data + async_save (persistence spy)."""
+    class _CoreWithData(_FakeManager):
+        def __init__(self, cfg, known=KNOWN):
+            super().__init__(cfg, known)
+            self.data = {"vacuums": {}}
+            self.saves = 0
+
+        async def async_save(self):
+            self.saves += 1
+
+    core = _CoreWithData(_WRITE_CFG, KNOWN)
+    com = CleanOrderManager(manager=core)
+    monkeypatch.setattr(com, "_config", lambda vacuum_entity_id: _WRITE_CFG)
+    return com, core
+
+
+def test_co_ov1_override_defaults_false(monkeypatch):
+    """[CO-OV-1] A vacuum with no stored setting is OFF, not unknown."""
+    com, _ = _mgr_with_data(monkeypatch)
+    assert com.override_enabled(_VAC) is False
+
+
+def test_co_ov2_set_override_persists(monkeypatch):
+    """[CO-OV-2] set_override_enabled(True) flips the record AND saves.
+
+    Persistence is the whole point -- a user setting must survive a restart, and the
+    only way to make it survive is to reach the manager's storage layer. Asserting
+    both halves prevents a fix that "works" in memory but drops on reload.
+    """
+    import asyncio
+    com, core = _mgr_with_data(monkeypatch)
+
+    asyncio.run(com.set_override_enabled(_VAC, True))
+
+    assert com.override_enabled(_VAC) is True
+    assert core.data["vacuums"][_VAC]["clean_order_override_enabled"] is True
+    assert core.saves == 1
+
+
+def test_co_ov3_setting_the_same_value_does_not_save(monkeypatch):
+    """[CO-OV-3] RED IF THE NO-OP PATH WRITES.
+
+    Every entity refresh calls into is_on -> async_write_ha_state; a set-to-current-
+    value must not thrash the storage layer, or the flight-recorder chain and the
+    room-update dispatch both eat unnecessary disk writes for a control that changed
+    nothing.
+    """
+    import asyncio
+    com, core = _mgr_with_data(monkeypatch)
+    asyncio.run(com.set_override_enabled(_VAC, False))
+    assert core.saves == 0, "an off->off write hit storage"
+
+    asyncio.run(com.set_override_enabled(_VAC, True))
+    assert core.saves == 1
+    asyncio.run(com.set_override_enabled(_VAC, True))
+    assert core.saves == 1, "an on->on write hit storage"
+
+
+def test_co_ov4_toggling_off_does_NOT_clear_the_device(monkeypatch):
+    """[CO-OV-4] RED IF `set_override_enabled(False)` FIRES A DEVICE CALL.
+
+    The whole point of Clear being a separate service is that toggling off must not
+    destroy a sequence the user set in their own Roborock app. This is the invariant
+    that makes the switch safe to toggle in an automation.
+    """
+    import asyncio
+    com, core = _mgr_with_data(monkeypatch)
+    asyncio.run(com.set_override_enabled(_VAC, True))
+    core.calls.clear()
+
+    asyncio.run(com.set_override_enabled(_VAC, False))
+
+    assert com.override_enabled(_VAC) is False
+    assert not core.calls, f"toggling off fired a device call: {core.calls}"
+
+
+# ---------------------------------------------------------------------------
+# [CO-AP] apply_current_queue — the switch is the gate, empty queue REFUSED
+# ---------------------------------------------------------------------------
+
+def _mgr_with_queue(monkeypatch, queue_order):
+    """A manager whose _enabled_room_ids_in_order returns `queue_order`."""
+    com, core = _mgr_with_data(monkeypatch)
+    # Simulate a live active map with these enabled rooms in this order.
+    core._enabled_room_ids_in_order = lambda bucket, vac, mid: list(queue_order)
+    # get_map_bucket is imported deferred; make it a passthrough for the fake.
+    import custom_components.eufy_vacuum.maps.map_manager as mm
+    monkeypatch.setattr(mm, "get_map_bucket", lambda **kw: {"rooms": {}})
+    return com, core
+
+
+def test_co_ap1_apply_refuses_when_override_off(monkeypatch):
+    """[CO-AP-1] RED IF APPLY CAN FIRE WITHOUT THE SWITCH.
+
+    The switch IS the gate. Without it, a service call from an automation could push a
+    sequence with no explicit user intent -- which is the exact promise the switch
+    exists to make.
+    """
+    import asyncio
+    com, core = _mgr_with_queue(monkeypatch, [27, 25, 23])
+
+    result = asyncio.run(com.apply_current_queue(_VAC))
+
+    assert result["status"] == WRITE_REFUSED
+    assert result.get("reason") == "override_off"
+    assert not core.calls, "apply fired with the switch off"
+
+
+def test_co_ap2_apply_refuses_an_empty_queue(monkeypatch):
+    """[CO-AP-2] RED IF APPLY WRITES [] WHEN THE QUEUE IS EMPTY.
+
+    An empty queue is not the same as a clear. Silently writing [] would wipe the
+    user's app-set sequence just because they happened to hit Apply with every room
+    disabled -- a surprise wipe of somebody else's data. Refuse, so the card can show
+    a visible "nothing to apply" state instead.
+    """
+    import asyncio
+    com, core = _mgr_with_queue(monkeypatch, [])
+    asyncio.run(com.set_override_enabled(_VAC, True))
+    core.calls.clear()
+
+    result = asyncio.run(com.apply_current_queue(_VAC))
+
+    assert result["status"] == WRITE_REFUSED
+    assert result.get("reason") == "empty_queue"
+    assert not core.calls, f"apply wrote a payload for an empty queue: {core.calls}"
+
+
+def test_co_ap3_apply_writes_the_current_queue(monkeypatch):
+    """[CO-AP-3] Apply is a thin wrapper on async_write that supplies the queue as
+    the order. The queue is the intended order, so sequence-to-queue matching is what
+    the card's "green" state asserts."""
+    import asyncio
+    com, core = _mgr_with_queue(monkeypatch, [27, 25, 23])
+    asyncio.run(com.set_override_enabled(_VAC, True))
+    core.calls.clear()
+
+    result = asyncio.run(com.apply_current_queue(_VAC))
+
+    # No ack was emitted -> unconfirmed, never OK. But the payload did go.
+    assert result["status"] == WRITE_UNCONFIRMED, result
+    assert result["order"] == [27, 25, 23]
+    assert core.calls, "apply did not fire a call"
+    _, _, data = core.calls[-1]
+    assert data["command"] == "set_clean_sequence"
+    assert data["params"] == [27, 25, 23]

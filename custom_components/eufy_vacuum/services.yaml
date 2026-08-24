@@ -3851,3 +3851,43 @@ dev_inject_stall:
       selector:
         entity:
           domain: vacuum
+
+# ============================================================
+# CLEAN ORDER (device-side saved sequence)
+# ============================================================
+# ⚠ Both services below edit a PERSISTENT, MAP-LEVEL setting in the vendor
+# app. A saved sequence orders every start, including ones the user begins
+# from the Roborock app, and renders on that app's own Sequence screen.
+# This is not a per-run concept. Gated on the Override Order switch.
+
+apply_clean_sequence:
+  name: Apply device clean order
+  description: >-
+    Write the CURRENT QUEUE ORDER to the device's saved sequence. Only fires
+    when the vacuum's Override Order switch is on and the adapter+model
+    declares the write half of device_clean_order (Roborock V1 today; a
+    control that would silently do nothing on other models is absent by
+    design). This edits a persistent setting in the Roborock app — not just
+    for this run.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+clear_clean_sequence:
+  name: Clear device clean order
+  description: >-
+    Wipe the device's saved sequence so it path-optimises again. Explicit —
+    turning the Override Order switch OFF does NOT do this (that would
+    destroy a sequence the user set in their own Roborock app). Reports
+    unsupported for a vacuum whose adapter does not declare the write.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          domain: vacuum

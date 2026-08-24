@@ -349,6 +349,91 @@ class CleanOrderManager:
 
     # ------------------------------------------------------------------ write
 
+    #: The persisted key under `data["vacuums"][vac_id]`. Kept as a module constant
+    #: rather than a magic string so the switch, services, tests and any migration
+    #: reference exactly one name.
+    OVERRIDE_ENABLED_KEY = "clean_order_override_enabled"
+
+    def override_enabled(self, vacuum_entity_id: str) -> bool:
+        """Whether the Override Order switch is ON for this vacuum.
+
+        DECOUPLED FROM `can_write` DELIBERATELY. A brand where the write is not
+        implemented (or a model not on the V1 catalogue) simply reports False here — the
+        switch entity is never created, so nothing can turn it ON in the first place,
+        and any leftover key from a previous supported install is inert.
+
+        Stored on the vacuum record for persistence; the switch is a user setting that
+        must survive a restart, and the manager's storage layer is the one debounced
+        saver that touches it.
+        """
+        rec = self._manager.data.get("vacuums", {}).get(vacuum_entity_id) or {}
+        return bool(rec.get(self.OVERRIDE_ENABLED_KEY, False))
+
+    async def set_override_enabled(
+        self, vacuum_entity_id: str, on: bool
+    ) -> None:
+        """Set the switch and persist. **NO WRITE IS FIRED HERE.**
+
+        Toggling off is EXPLICITLY not the same as clearing the device — doing so would
+        destroy a sequence the user set in their own Roborock app. Clearing the device
+        is a separate service (`clean_order.async_clear` / `clear_clean_sequence`), the
+        way the UI design mandates. This method's whole job is switch-state persistence.
+        """
+        rec = self._manager.data.setdefault("vacuums", {}).setdefault(
+            vacuum_entity_id, {"vacuum_entity_id": vacuum_entity_id, "is_managed": True}
+        )
+        if bool(rec.get(self.OVERRIDE_ENABLED_KEY, False)) == bool(on):
+            return  # no-op writes don't need a save
+        rec[self.OVERRIDE_ENABLED_KEY] = bool(on)
+        await self._manager.async_save()
+
+    # ------------------------------------------------------------------ queue writers
+
+    async def apply_current_queue(self, vacuum_entity_id: str) -> dict[str, Any]:
+        """Write the CURRENT queue order to the device.
+
+        The queue is the source of truth for the intended order: it is what a Start
+        would dispatch, and matching sequence-to-queue is the property the "green"
+        matcher state asserts. Sidesteps the OPEN question of whether a saved sequence
+        constrains a subset dispatch — always writing exactly the queue means sequence
+        and dispatch always match.
+
+        Returns the write result unchanged — refused/unsupported/unconfirmed/ok all
+        surface to the caller (the service, then the card).
+        """
+        if not self.override_enabled(vacuum_entity_id):
+            # The switch is the gate. Never write without explicit intent.
+            return {"status": WRITE_REFUSED, "order": None, "reason": "override_off"}
+
+        order = self._current_queue_order(vacuum_entity_id)
+        if not order:
+            # Nothing to apply is not the same as a clear; refuse rather than silently
+            # writing []. A user staring at a queue of zero enabled rooms and hitting
+            # Apply gets a visible refusal, not a surprise wipe of their app's sequence.
+            return {"status": WRITE_REFUSED, "order": None, "reason": "empty_queue"}
+
+        return await self.async_write(vacuum_entity_id, order)
+
+    def _current_queue_order(self, vacuum_entity_id: str) -> list[int]:
+        """Enabled room ids, in queue order, for the active map.
+
+        Reuses `_enabled_room_ids_in_order` — the same helper the dispatcher walks — so
+        "what Apply writes" and "what Start dispatches" cannot drift.
+        """
+        map_id = self._manager.resolve_active_map_id(vacuum_entity_id)
+        if not map_id:
+            return []
+        from ..maps.map_manager import get_map_bucket  # deferred: no circular import
+
+        bucket = get_map_bucket(
+            data=self._manager.data,
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+        )
+        return self._manager._enabled_room_ids_in_order(  # noqa: SLF001
+            bucket, vacuum_entity_id, str(map_id)
+        )
+
     def can_write(self, vacuum_entity_id: str) -> bool:
         """Whether this vacuum's adapter declares a clean-order WRITE.
 

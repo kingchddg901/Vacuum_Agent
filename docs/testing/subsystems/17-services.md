@@ -56,6 +56,7 @@ Covered by `tests/unit/test_services_repair_renamed_vacuum.py`. Two targets carr
 | `snapshots.py` | 43 | 100% | `test_services_snapshots.py`, `test_services_unmanaged_vacuum.py` | clean |
 | `errors.py` | 37 | 95% | `test_services_errors_setup.py`, `test_services_unmanaged_vacuum.py` | **bare x2** |
 | `access_graph.py` | 34 | 88% | `test_services_access_graph.py` | clean |
+| `clean_order.py` | 32 | 100% | `test_services_clean_order.py` | spec'd |
 | `_common.py` | 43 | 96% | `test_services_common.py`, `test_services_misc.py`, `test_services_unmanaged_vacuum.py` | clean |
 | `stall_capture.py` | 43 | 37% | — | - |
 | `debug.py` | 8 | 100% | `test_services_misc.py` | clean |

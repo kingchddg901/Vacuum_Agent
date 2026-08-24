@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from . import (
     access_graph,
     adapter_config,
+    clean_order,
     debug,
     dock,
     errors,
@@ -47,6 +48,7 @@ _DOMAINS = (
     job_control,
     snapshots,
     dock,
+    clean_order,
     maintenance,
     errors,
     room_profiles,
