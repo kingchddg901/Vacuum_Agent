@@ -44,42 +44,19 @@ const BANNER =
 
 const animalSub = THEME_GROUPS.filter((g) => /^Animal Companion — /.test(g));
 const collapse = new Set(animalSub.slice(1));
+//: token -> its default VALUE. Filled by the USAGE pass below and consumed by
+//: the catalog block, which is why the catalog is now written SECOND: the
+//: value only exists once the CSS has been scanned. The catalog used to name
+//: a token and say what it CONTROLS while never saying what COLOUR it is,
+//: which is a half-answer -- you can confirm a token once you have guessed
+//: its name, but you cannot go from "I need a translucent amber surface" to
+//: --evcc-surface-warning. So you mix your own, and the palette grows a
+//: second amber. That is the lookup this column exists to make possible.
+const DEFAULT_VALUES = new Map();
+
 const range = (t) => (t.min === undefined && t.max === undefined)
   ? "" : `${t.min ?? ""}–${t.max ?? ""}${t.step !== undefined ? ` step ${t.step}` : ""}`;
 
-/* ===================== THEME_TOKEN_MAP.md ===================== */
-{
-  const tmpl = animalSub[0];
-  const L = [];
-  L.push("# Theme Token Map");
-  L.push("");
-  L.push("> Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. "
-    + "Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).");
-  L.push("");
-  L.push(`The themeable control-surface tokens exposed in the theme editor: `
-    + `**${THEME_TOKEN_REGISTRY.length} tokens** across **${THEME_GROUPS.length} groups**. Each is a `
-    + "`--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the "
-    + "input kind; bounded scalars list their slider range.");
-  L.push("");
-  L.push(`The 5 companion sub-groups share one identical ${(THEME_GROUP_MAP[tmpl] || []).length}-token shape — `
-    + `only **${tmpl.replace("Animal Companion — ", "")}** is listed in full; `
-    + `${animalSub.slice(1).map((s) => s.replace("Animal Companion — ", "")).join(", ")} repeat it with their own \`-<animal>-\` key segment.`);
-  L.push("");
-  L.push("---");
-  L.push("");
-  for (const g of THEME_GROUPS) {
-    if (collapse.has(g)) continue;
-    const tokens = THEME_GROUP_MAP[g] || [];
-    L.push(`## ${g}  ·  ${tokens.length}`);
-    if (g === tmpl) L.push("\n*(template — repeats per companion)*");
-    L.push("");
-    L.push("| Token | Controls | Type | Range |");
-    L.push("|---|---|---|---|");
-    for (const t of tokens) L.push(`| \`${t.key}\` | ${t.label} | ${t.type} | ${range(t)} |`);
-    L.push("");
-  }
-  writeFileSync(join(OUT, "THEME_TOKEN_MAP.md"), BANNER + L.join("\n") + "\n");
-}
 
 /* ===================== THEME_TOKEN_USAGE.md ===================== */
 {
@@ -115,7 +92,15 @@ const range = (t) => (t.min === undefined && t.max === undefined)
   const catalog = new Map(THEME_TOKEN_REGISTRY.map((t) => [t.key, t]));
   const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
   const VARG = /var\(\s*(--evcc-[A-Za-z0-9-]+)\s*[,)]/g;
-  const DEFG = /(--evcc-[A-Za-z0-9-]+)\s*:/g;
+  // Captures the VALUE as well as the name. It used to take the name only and
+  // record where the default lived, which left the catalog able to say what a
+  // token is FOR ("Surface Warning", consumed as a background) but never what
+  // COLOUR it is. That half-answer is what makes the reverse lookup impossible:
+  // you can confirm a token once you have guessed its name, but you cannot go
+  // from "I need a translucent amber surface" to --evcc-surface-warning, so you
+  // mix your own instead. [^;{}] stops at the declaration end and cannot run
+  // past a rule boundary, while still spanning a wrapped multi-line value.
+  const DEFG = /(--evcc-[A-Za-z0-9-]+)\s*:\s*([^;{}]+);/g;
   const SETG = /setProperty\(\s*["'`](--evcc-[A-Za-z0-9-]+)/g;
   // getComputedStyle(...).getPropertyValue("--evcc-x") is a REAL consumer — JS reads
   // the token and acts on it. Missing this reported --evcc-floor-texture-map-rotate
@@ -135,7 +120,25 @@ const range = (t) => (t.min === undefined && t.max === undefined)
     for (SETG.lastIndex = 0; (m = SETG.exec(text)); ) if (catalog.has(m[1])) push(setp, m[1], `${r}:${lineAt(text, m.index)}`);
     for (GETG.lastIndex = 0; (m = GETG.exec(text)); ) if (catalog.has(m[1])) push(uses, m[1], { file: r, line: lineAt(text, m.index), prop: "getPropertyValue" });
     if (r.endsWith(".js")) {
-      for (DEFG.lastIndex = 0; (m = DEFG.exec(text)); ) if (catalog.has(m[1])) push(defaults, m[1], `${r}:${lineAt(text, m.index)}`);
+      for (DEFG.lastIndex = 0; (m = DEFG.exec(text)); ) if (catalog.has(m[1])) {
+        push(defaults, m[1], `${r}:${lineAt(text, m.index)}`);
+        // ONLY a :host / :root declaration is the DEFAULT. A token set inside a
+        // narrower selector is a scoped OVERRIDE and means the opposite of a
+        // default -- it is what this state does INSTEAD. Taking the first
+        // definition found made the catalog report --evcc-chip-active-bg's
+        // default as the success colour, which is true only inside
+        // .evcc-sequence-override.is-matching. Tokens with no :host declaration
+        // correctly show no default: they are consumed with inline fallbacks and
+        // genuinely ship without one, and saying so is the useful answer.
+        const brace = text.lastIndexOf("{", m.index);
+        const selStart = Math.max(
+          text.lastIndexOf("}", brace), text.lastIndexOf(";", brace), text.lastIndexOf("`", brace),
+        );
+        const selector = text.slice(selStart + 1, brace);
+        if (/:host|:root/.test(selector) && !DEFAULT_VALUES.has(m[1])) {
+          DEFAULT_VALUES.set(m[1], m[2].replace(/\s+/g, " ").trim());
+        }
+      }
     }
     for (VARG.lastIndex = 0; (m = VARG.exec(text)); ) {
       const tok = m[1];
@@ -258,7 +261,10 @@ const range = (t) => (t.min === undefined && t.max === undefined)
       const u = uses.get(t.key) || [];
       const d = (defaults.get(t.key) || []).join(", ") || "—";
       const sp = setp.get(t.key) ? ` · apply ${setp.get(t.key).join(", ")}` : "";
-      L.push(`**\`${t.key}\`** — ${t.label} · default ${d}${sp}`);
+      // The VALUE next to the location, so this file answers "what colour is it"
+      // without a second hop into foundation.js.
+      const dv = DEFAULT_VALUES.get(t.key);
+      L.push(`**\`${t.key}\`** — ${t.label} · default ${dv ? `\`${dv}\` ` : ""}${d}${sp}`);
       if (u.length === 0) {
         const fam = dynFamilyOf(t.key);
         L.push(fam
@@ -305,4 +311,41 @@ const range = (t) => (t.min === undefined && t.max === undefined)
   }
   writeFileSync(join(OUT, "THEME_TOKEN_USAGE.md"), BANNER + L.join("\n") + "\n");
   console.log(`wrote docs/dev/reference/THEME_TOKEN_MAP.md (${THEME_TOKEN_REGISTRY.length} tokens) + THEME_TOKEN_USAGE.md (${totalUses} uses, ${bDead.length} dead, ${orphan.size} orphan, ${covPct.toFixed(1)}% CSS coverage, ${covStray} stray)`);
+}
+
+/* ===================== THEME_TOKEN_MAP.md ===================== */
+{
+  const tmpl = animalSub[0];
+  const L = [];
+  L.push("# Theme Token Map");
+  L.push("");
+  L.push("> Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. "
+    + "Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).");
+  L.push("");
+  L.push(`The themeable control-surface tokens exposed in the theme editor: `
+    + `**${THEME_TOKEN_REGISTRY.length} tokens** across **${THEME_GROUPS.length} groups**. Each is a `
+    + "`--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the "
+    + "input kind; **Default** is the value the card ships (the reverse lookup: scan a group for the colour you need instead of inventing one); bounded scalars list their slider range.");
+  L.push("");
+  L.push(`The 5 companion sub-groups share one identical ${(THEME_GROUP_MAP[tmpl] || []).length}-token shape — `
+    + `only **${tmpl.replace("Animal Companion — ", "")}** is listed in full; `
+    + `${animalSub.slice(1).map((s) => s.replace("Animal Companion — ", "")).join(", ")} repeat it with their own \`-<animal>-\` key segment.`);
+  L.push("");
+  L.push("---");
+  L.push("");
+  for (const g of THEME_GROUPS) {
+    if (collapse.has(g)) continue;
+    const tokens = THEME_GROUP_MAP[g] || [];
+    L.push(`## ${g}  ·  ${tokens.length}`);
+    if (g === tmpl) L.push("\n*(template — repeats per companion)*");
+    L.push("");
+    L.push("| Token | Controls | Type | Default | Range |");
+    L.push("|---|---|---|---|---|");
+    // `|` inside a value would split the cell; nothing in the palette uses one
+    // today, but a gradient or a font stack could.
+    const cell = (v) => (v ? `\`${v.replace(/\|/g, "\|")}\`` : "—");
+    for (const t of tokens) L.push(`| \`${t.key}\` | ${t.label} | ${t.type} | ${cell(DEFAULT_VALUES.get(t.key))} | ${range(t)} |`);
+    L.push("");
+  }
+  writeFileSync(join(OUT, "THEME_TOKEN_MAP.md"), BANNER + L.join("\n") + "\n");
 }

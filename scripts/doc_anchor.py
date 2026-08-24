@@ -150,7 +150,21 @@ SOURCE_ROOTS = ("custom_components", "scripts", "src", "harness")
 # `scripts/build-card.mjs --deploy` writes it — and an anchor DECLARED there rather
 # than in `src/` would be a defect regardless, since editing it is edited-then-
 # overwritten work.
-_GENERATED_BUNDLE_DIR = ("custom_components", "eufy_vacuum", "frontend")
+# ⚠ AND IT HAPPENED AGAIN THE SAME DAY, one directory over. `harness/dist/mount.js`
+# is the HARNESS bundle — same esbuild, same reason, same copy-of-src/ content — and
+# it is gitignored, so it is invisible to `git status` while being fully visible to
+# this rglob. Building the harness (which every frontend spec run does) therefore
+# turned the suite red with three anchors reporting "2 primary" and nothing in the
+# diff to explain it. The exclusion above already existed and read as complete; it
+# simply stopped at the shoulder of its own window.
+#
+# So this is a SET, and matched by directory suffix, because the next generated
+# bundle will be somewhere else again. Being gitignored is not protection: this walks
+# the filesystem, not the index.
+_GENERATED_BUNDLE_DIRS = (
+    ("custom_components", "eufy_vacuum", "frontend"),
+    ("harness", "dist"),
+)
 DOC_ROOTS = ("docs",)
 
 MARKER = "anchor:"
@@ -186,7 +200,7 @@ def source_files() -> list[pathlib.Path]:
                 continue
             if "__pycache__" in p.parts or "node_modules" in p.parts:
                 continue
-            if p.parent.parts[-3:] == _GENERATED_BUNDLE_DIR:
+            if any(p.parent.parts[-len(d):] == d for d in _GENERATED_BUNDLE_DIRS):
                 continue  # esbuild output - a COPY of a src/ declaration, not one
             if p.name == "doc_anchor.py":
                 continue  # its docstring shows the FORM; those are not declarations

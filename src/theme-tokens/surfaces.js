@@ -36,6 +36,7 @@ export const SURFACE_TOKENS = [
   surfaceToken.color("--evcc-surface-panel", "Surface Panel"),
   surfaceToken.color("--evcc-surface-raised", "Surface Raised"),
   surfaceToken.color("--evcc-surface-subtle", "Surface Subtle"),
+  surfaceToken.color("--evcc-surface-success", "Surface Success"),
   surfaceToken.color("--evcc-surface-sunken", "Surface Sunken"),
   surfaceToken.color("--evcc-surface-warning", "Surface Warning"),
 ];
