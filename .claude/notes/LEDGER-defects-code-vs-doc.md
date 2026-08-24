@@ -57,19 +57,54 @@ backlog* had no finish line anyone could compute.
 > ⚠ Do NOT count `| Cnn |` rows in the tokenisation summary table at the bottom — its id cells
 > are backticked (`` | `C1` | ``) precisely so they cannot be mistaken for entry rows.
 
+## ⟵ TRUTH PASS 2026-08-24 — every token below was re-verified against the tree
+
+**The counts in this table are now MEASURED, not remembered.** Two independent passes ran,
+each with an adversarial stage that defaulted to overturning a close it could not reproduce:
+
+* **The 81 numbered `[OPEN]` entries** were walked against the tree. **Only ONE (D5) was
+  actually already fixed.** 64 stay OPEN, 13 became `[OPEN-DRIFTED]` (real defect, entry
+  text misdescribes it — a `⤷ DRIFT` line now carries the corrected mechanism), 3 became
+  `[NEEDS-RULING]`. One proposed close (C20) was **overturned** by the adversary.
+* **The 34 audit-section rows the backlog walk had judged ALREADY_FIXED** were attacked,
+  because that walk ran its refute stage only on rows it left OPEN — every one of its
+  closes was unexamined. **8 of 34 were wrong** and are now OPEN or OPEN-DRIFTED again.
+
+⚠ **THE 24% FALSE-CLOSE RATE IS THE FINDING, AND IT HAS ONE SHAPE.** Six of those eight
+were **multi-part entries closed after doing one part** — B17's code half landed while the
+class docstring it was filed against went untouched; R6's loop comment was fixed and the
+second limb of the row was not; FE_architecture-overview names two sites and one was edited.
+The recurring failure is NOT forgetting to stamp. It is **stamping a compound entry after
+satisfying one of its clauses.** An entry that files two claims needs both discharged, or a
+`⤷` line saying which half remains.
+
+⚠ **WHERE THE STALENESS ACTUALLY LIVED.** 1 of 81 numbered entries was stale-open, versus
+26 of 34 audit-section rows. The numbered ledger was broadly honest; the AUDIT SECTIONS
+(P/B/A/R/L/FE) were where work landed without being recorded. Scope a future reconciliation
+there first.
+
 | token | n | means |
 |---|---:|---|
-| `[OPEN]` | 63 | still present in the tree exactly as described |
-| `[OPEN-DRIFTED]` | 4 | real, but **the text below it is WRONG** — a corrected-mechanism line follows the entry |
-| `[NEEDS-RULING]` | 0 | blocked on a decision, not on work |
-| `[FIXED]` | 3 | gone, **and** a named test goes red if it returns |
-| `[FIXED-UNPROVEN]` | 9 | gone, but nothing would notice if it came back |
-| `[ACCEPTED]` | 2 | **a real defect, ruled not worth fixing, and stated AT THE SITE** — not a backlog item |
-| `[NOT-A-DEFECT]` | 1 | verified by-design or explicitly accepted |
-| `[SUPERSEDED]` | 1 | overtaken by another entry or a redesign |
-| `[UNVERIFIABLE]` | 1 | undecidable from the repo alone |
+| `[OPEN]` | 86 | still present in the tree exactly as described |
+| `[OPEN-DRIFTED]` | 23 | real, but **the text below it is WRONG** — a `⤷ DRIFT` line follows with the corrected mechanism |
+| `[NEEDS-RULING]` | 4 | blocked on a decision, not on work |
+| `[FIXED]` | 29 | gone, **and** a named test goes red if it returns |
+| `[FIXED-UNPROVEN]` | 42 | gone, but nothing would notice if it came back |
+| `[ACCEPTED]` | 8 | **a real defect, ruled not worth fixing, and stated AT THE SITE** — not a backlog item |
+| `[NOT-A-DEFECT]` | 3 | verified by-design or explicitly accepted |
+| `[SUPERSEDED]` | 5 | overtaken by another entry or a redesign |
+| `[UNVERIFIABLE]` | 3 | undecidable from the repo alone |
 
-**Actual remaining work: 66 entries** — 18 user-visible, 32 trivial, 30 small, 4 medium, **0 large.** (C17 and C15 were closed after the pass ran; their rows are current.)
+**Canonical open count: 64** (the grep below, run 2026-08-24). The table's `[OPEN]` row counts
+every OPEN token anywhere in the file, including inside the audit sections the grep cannot see —
+the two numbers measure different sets and BOTH are correct. Quote the grep for "how much is
+left"; quote the table for "what state is everything in".
+
+⚠ **TWO ROWS COULD NOT BE STAMPED AND ARE NOT REFLECTED ANYWHERE ABOVE.** The `## ROOMS MAP`
+section's 29 items are unnumbered bullets with no ids at all. The backlog walk referred to two
+of them as "RM3"/"RM7", but those labels are the walker's own invention and match nothing in
+this file, so they were deliberately left alone rather than fuzzy-matched into place. If that
+section is worth reconciling, it needs ids first.
 
 ⚠ **A `[FIXED]` CALL WAS OVERTURNED BY THE ADVERSARIAL PASS AND THAT IS WHY THERE WAS ONE.**
 Every close was independently attacked, defaulting to overturning when the evidence could not
@@ -106,7 +141,9 @@ Status: nothing fixed. Nothing written to `00b-h`.
 | # | Site | Defect | Severity |
 |---|---|---|---|
 | C1 [SUPERSEDED] | `button.py:84` | Entity deletion by `unique_id.startswith(prefix)` then `registry.async_remove()`. The other three platforms (`switch`, `number`, `sensor`) all route through `entity_belongs_to`; `switch.py:72` carries the comment "never a unique_id prefix". `button.py` has neither the import nor the `IN4CW5Y9` token. Has condition 1 (complement of a forward-built set), lacks condition 2 (the remainder guard at `entity_helpers.py:180`). Structural cause: `EufyVacuumSavedRunProfileButton` copied the SN-4 half of the pattern and not the ownership half, so it has no public `vacuum_entity_id`/`map_id` and *cannot* call `entity_belongs_to`. | HIGH |
-| C2 [OPEN] | `room_entities.py:103`, `:133` | Both `apply_room_profile` and `update_room_fields` are called with the return discarded, then `async_save()` + `async_write_ha_state()` run unconditionally. Callees return `{"ok": False, "error": "room_not_found"}` (`manager.py:1877`), `"no_dock_room"`, `"invalid_access_graph"`, `"profile_not_found"`. Reachable: toggle a room deleted between state write and press — user sees a successful toggle. Shape of `IN5BRA39` / `INT62M7A`. | HIGH |
+| C2 [OPEN-DRIFTED] | `room_entities.py:103`, `:133` | Both `apply_room_profile` and `update_room_fields` are called with the return discarded, then `async_save()` + `async_write_ha_state()` run unconditionally. Callees return `{"ok": False, "error": "room_not_found"}` (`manager.py:1877`), `"no_dock_room"`, `"invalid_access_graph"`, `"profile_not_found"`. Reachable: toggle a room deleted between state write and press — user sees a successful toggle. Shape of `IN5BRA39` / `INT62M7A`. | HIGH |
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · C2 stays OPEN, but the text above misdescribes it. CORRECTED: The FINDING is sound; the stated error-payload mechanism is wrong in two ways that would misdirect a repair.
+(1) THE apply_room_profile HALF NEVER RETURNS `ok`. profiles/manager.py:903-910 returns `{vacuum_entity_id, map_id, profile_name, updated_room_ids: [], error: "profile_not_found"}` — no `ok` key. Worse, for the entry's OWN reachability scenario (room deleted between state write and press),
 | C3 [OPEN] | `user_fonts.py:168-170` | `except Exception` → `return set(), False`. Caller (`:303`) sees a non-None value → `status = "verified"`. An unreadable font is catalogued as a completed verification. Sharpest case: two-face font, face A parses, face B corrupt → `cpsA & set()` → `verified`, `locales: []`. Directly collapses the distinction `:165-166` says must not be conflated. | HIGH |
 | C4 [OPEN] | `user_fonts.py:162` | `except ImportError` wraps the whole parse block, so ANY ImportError from a lazily-imported fontTools table module returns None and sets `fonttools_missing = True` (`:296`) — firing an INFO line asserting fontTools is not installed when it is. The branch logs nothing itself, so the real cause is lost and only the asserted one survives. | MED |
 | C5 [OPEN] | `rooms/vocabulary_migration.py:135` vs `:171` | Predicate gap. `_unadjudicated_targets` asks "is the block a non-empty dict?"; the planner asks "did `declared_profile_fields` return anything?". A non-empty block declaring no profile fields is skipped unjudged by the planner AND counted adjudicated by the latch — the one shot burns having judged nothing. Same species as the rule stated at `:70`. | MED |
@@ -129,11 +166,14 @@ Status: nothing fixed. Nothing written to `00b-h`.
 
 | # | Site | Defect |
 |---|---|---|
-| D1 [OPEN] | `services.yaml:3796-3799` (+ `docs/dev/deltas/README.md`, `services/stall_capture.py:31-33`) | **User-facing.** Claims an injected stall "will be recorded as having stalled when it did not, and the card's snapshot will say so. Do not call this on a run whose learning data you care about." The dependency runs the other way: `detect_run_anomalies` FIRES `EVENT_STALL_DETECTED` (`active_job.py:1186`) and never subscribes; the event has exactly one subscriber (`listeners/stall_capture.py:412`). The service cannot pollute learning data. This text scares users off a maintainer tool for no reason. |
+| D1 [OPEN-DRIFTED] | `services.yaml:3796-3799` (+ `docs/dev/deltas/README.md`, `services/stall_capture.py:31-33`) | **User-facing.** Claims an injected stall "will be recorded as having stalled when it did not, and the card's snapshot will say so. Do not call this on a run whose learning data you care about." The dependency runs the other way: `detect_run_anomalies` FIRES `EVENT_STALL_DETECTED` (`active_job.py:1186`) and never subscribes; the event has exactly one subscriber (`listeners/stall_capture.py:412`). The service cannot pollute learning data. This text scares users off a maintainer tool for no reason. |
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · D1 stays OPEN, but the text above misdescribes it. CORRECTED: The entry names 3 sites; there are 5 LIVE ones, and a repair from the entry text would leave 2 behind — exactly the partial-fix shape. Live: (1) services.yaml:3840-3843; (2) services/stall_capture.py:32-33 ('It reaches detect_run_anomalies and therefore the card's snapshot'); (3) docs/dev/deltas/README.md:75+77 (quotes 04 §6a and endorses the services.yaml warning); (4) MISSED BY THE ENTRY — liste
 | D2 [OPEN] | `adapters/roborock/vocabulary.py:47` | "the framework never reads these" — refuted by `active_job.py:1892` (`vocabulary.get(options_key)` filtering at dispatch), `vocabulary_migration.py:167`, `config_schema.py:474-545`. The same file contradicts it at `:60-64` and `:108`. Consequence of believing it: dropping an entry looks card-only and safe, but silently stops that setting reaching the robot — the exact bug narrated at `adapter.py:897`. |
-| D3 [OPEN] | `adapters/registry.py:462-463` | "The framework merges it over the in-code defaults (`resolve_profile_catalog`), so a partial block is fine." `resolve_profile_catalog`'s own docstring opens **"There is NO framework default"** and explains the merge was removed because a brand inherited `"Max"` and applied no suction. The comment names the function that refutes it. Tells a porter a partial block is safe when it now resolves EMPTY — `IN40W49E`'s exact failure. |
+| D3 [OPEN-DRIFTED] | `adapters/registry.py:462-463` | "The framework merges it over the in-code defaults (`resolve_profile_catalog`), so a partial block is fine." `resolve_profile_catalog`'s own docstring opens **"There is NO framework default"** and explains the merge was removed because a brand inherited `"Max"` and applied no suction. The comment names the function that refutes it. Tells a porter a partial block is safe when it now resolves EMPTY — `IN40W49E`'s exact failure. |
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · D3 stays OPEN, but the text above misdescribes it. CORRECTED: The defect is real but the repair is 2 sites, not 1. A SECOND live copy of the same false premise sits at custom_components/eufy_vacuum/queue/queue_engine.py:247-249: 'Resolve this vacuum's room-profile catalog ... from the adapter's room_profiles block; absent -> the in-code defaults (byte-identical for Eufy)'. It is three lines above the very call (:254-256 resolve_profile_catalog) that refutes
 | D4 [OPEN] | `room_entities.py:145` | Premise false: "update_room_fields only understands the managed subset above". `manager.py:1847-1851` shows the callee also accepts `color`, `is_dock_room`, `is_transition`, `grants_access_to`, `rules` — `color` being the comment's own example of an unmanaged field. `managed_field_names` (`:113-121`) is a hand-copy drifted from the callee signature. True sentence: "this call site only PASSES the managed subset." |
-| D5 [OPEN] | `rooms/vocabulary_migration.py:115-120` | Overstates: claims `_validate_room_profiles` rejects an adapter whose `room_profiles` is missing/empty. It only REPORTS; `register_adapter_config` hard-raises only for `source == "config"` (`INYA5T84`'s deliberate asymmetry). A code-sourced adapter missing the block registers anyway. |
+| D5 [FIXED-UNPROVEN] | `rooms/vocabulary_migration.py:115-120` | Overstates: claims `_validate_room_profiles` rejects an adapter whose `room_profiles` is missing/empty. It only REPORTS; `register_adapter_config` hard-raises only for `source == "config"` (`INYA5T84`'s deliberate asymmetry). A code-sourced adapter missing the block registers anyway. |
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D5 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/rooms/vocabulary_migration.py:110-168 — corrected `_unadjudicated_targets` docstring; the old claim survives only at :117-127 as an explicit dated retraction ('AN ABSENT BLOCK DOES NOT RELIABLY MEAN "not registered YET", AND THIS DOCSTRING CLAIMED IT DID UNTIL 2026-08-24 (R10/C61)'). custom_components/eufy_vacuum/adapters/registry.py:313-350 — `_validate_room_profiles No named test — prose only.
 | D6 [OPEN] | `receipts/__init__.py:45-48` | "these are tuples, and the gate rejects anything outside them" — true for `STATIONS`/`OUTCOMES`/`PROVENANCE`, **false for the two it sits directly above** (`DECLINE_REASONS`, `READABILITY`). **Coupled to C6** — which way C6 is fixed determines the words. |
 | D7 [OPEN] | `user_fonts.py:148-150` | Docstring: "A present-but-unreadable face returns an empty set — which correctly verifies as covering nothing." `:165-166`, same function: "This is 'cannot verify', never 'covers nothing': the two verdicts must not be conflated." **Coupled to C3.** |
 | D8 [OPEN] | `tests/unit/test_receipts_criterion.py:59-60` + `PROTOCOL-semantic-flight-recorder.md:957-961` | ":59-60 says "everything it causes inherits the marker"; `:83-84` in the SAME test asserts the opposite ("provenance is not inherited forward"), and the code agrees with `:83`. The spec item 8 it derives from still states the reversed rule, while the module docstring at `receipts/__init__.py:3-5` still instructs "Read item 8 before changing anything here." |
@@ -165,11 +205,12 @@ gate on doc work, the gate needs a sweep scoped by subsystem, not the residue of
 Four agents, no visibility of each other, same shape. `f/partial_guard_blind_spot` is the MODAL
 defect here, not an occasional one.
 
-- [OPEN] **C13 `core/error_tracker.py:326` `_safe_int`** — the `int()` guard fires at COMPARISON
+- [NEEDS-RULING] **C13 `core/error_tracker.py:326` `_safe_int`** — the `int()` guard fires at COMPARISON
   (`_code_key`); `_safe_int` is `try: int(value)` with no bool/float check, at `:892` on the
   CAPTURE path. `int(3.7)` → `3` is minted when the code is read off the entity. Needs an
   upstream entity exposing `error_code` as float/bool: mechanism certain, occurrence unobserved.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Error codes are captured through an unguarded int() while the bool/float guard lives only on the comparison path.
+  ⤷ RULING NEEDED 2026-08-24 ledger-truth pass · C13 is blocked on a decision, not on work. THE DEFECT IS STILL PHYSICALLY PRESENT — NOT FIXED. custom_components/eufy_vacuum/core/error_tracker.py:302-326: `_safe_int` body is `try: return int(value)` / `except (TypeError, ValueError): return None` (:324-326). No bool check, no float check. `_code_key` at :262-299 does carry both (`if isinstance(value, bool): return None` at :287-288, and the docstring rule at :276-280). The capture-path c
 - [OPEN] **C14 `core/capabilities.py:314-318`** — the ROLE override path checks existence and records
   `REASON_OVERRIDE_UNRESOLVED` (`:900-902`). The MAINTENANCE path does `sources[component] =
   chosen; continue` — no check, no reason. A stale maintenance override PINS A DEAD ID, the exact
@@ -227,10 +268,11 @@ defect here, not an occasional one.
 - [FIXED-UNPROVEN] **C19 `adapters/eufy/vocabulary.py:57`** — `HA_ACTIVE_VACUUM_STATES` imported and never ⟵ **FIXED 2026-08-21 (reading A, Chris's ruling: "the stronger proof is there").** Deleted `HA_ACTIVE_VACUUM_STATES` from `adapters/eufy/vocabulary.py` and its import from `adapters/eufy/adapter.py`; the dangling cross-reference above `ACTIVE_RUN_TASK_STATES` now states the boundary instead of pointing at a deleted symbol. **THE PROOF THAT SETTLED IT:** `git log -S` returns ONE commit — the constant was born with all four values marked `[HA standard]` and has NEVER held a `[Eufy]` value, despite its own comment providing for them. A brand file that has never contained a brand value is a category error. Corroborated three times in code: `job_monitor.py:26` ("not brand-specific firmware strings... regardless of brand"), `job_monitor.py:174` (`active_vacuum_states` defaults to the platform standard while the three genuinely brand-specific sets "must pass values from the adapter registry"), and `core/manager.py:162` ("defined by the HA vacuum integration, not by any specific brand"). ⚠ THE WIRING DIRECTION WAS REJECTED FOR A REASON WORTH KEEPING: declaring it as `active_vacuum_states` would have made a platform-universal concept brand-supplied — behaviour-identical, boundary-INVERTED — and left a trap where a future editor adds a state to a set core never consults and assumes it took effect.
   referenced; core uses its own copy. **Editing this set does nothing at all.**
   ⟵ **DISPOSITION 2026-08-21 — FIXED-UNPROVEN.** The dead HA_ACTIVE_VACUUM_STATES is gone from the Eufy brand file and lives once in const.py — but nothing would catch it coming back.
-- [OPEN] **C20 `adapters/eufy/vocabulary.py:564`** — `_exact_error_code` has NO production caller; the ⟵ **DISPOSITION SETTLED 2026-08-21, after TWO wrong answers of mine.** The observation always stood (no production caller). ⚠ FIRST WRONG ANSWER: I queued them for deletion beside the dead core island (C18). ⚠ SECOND WRONG ANSWER: told they related to upstream error work, I reclassified them as PENDING on **jeppesens/eufy-clean PR #161, "feat: capture and persist the full ErrorCode proto", opened 2026-07-26, still OPEN.** Until it lands the fork does not surface the fault detail these tables classify, so a caller would classify data that never arrives. Built ahead of the source deliberately — the tables and their reasoning were authored while the codes were in hand, which is the only cheap moment to write that reasoning down. ⚠ **NEAR MISS, AND THE REASON THIS ENTRY NOW CARRIES A WARNING:** a reachability sweep the same day queued these three for deletion beside the genuinely dead int island (C18, correctly removed). **The two cases are INDISTINGUISHABLE to any tool** — identical zero callers, identical green suite when broken. Only the upstream PR separates them, and nothing in the code said so. A banner now sits above the functions in `adapters/eufy/vocabulary.py` stating the dependency, because a ledger is not read at the moment someone runs a dead-code sweep. **GENERAL RULE THIS EARNS: "no callers" is not a disposition. Callerless code is either DEAD or PENDING, the difference lives outside the repo, and the pending case must say so AT THE SITE or it will be deleted by someone doing good work.** — and that was also wrong. **THE TRUTH: the TABLES are LIVE and the FUNCTIONS are SUPERSEDED.** Every set (`EUFY_DOCK_SOURCED_ERROR_CODES` etc.) is wired into core by the adapter DECLARATION at `adapters/eufy/adapter.py` and read generically by `core.error_tracker.error_source_for_code`. The adapter's own comment records the history: *"eufy_error_source() had built these tables and had ZERO callers until this declaration wired them."* The function built the tables, the declaration wired the tables, the function stayed. **`adapters/roborock/vocabulary.py` is the proof and the correct pattern — same five table kinds, no equivalent functions.** #161 is real and matters (today the fork reads only `warn[0]`; #161 delivers `error[]`/`warn[]`/history to the Error Message sensor) but that data flows into CORE's lookup via the declared tables — MORE CODES TO CLASSIFY, SAME CLASSIFIER. It creates no caller for these functions. ⚠ **THE REAL HAZARD, which neither wrong answer captured: the live tables and the dead functions SHARE A FILE AND A SUBJECT.** A sweep that deletes "the dead error stuff here" takes fault classification for every Eufy vacuum with it. The banner in the file now names which half is which. DISPOSITION: functions deletable on their own merits, with their tests, which test only them. Not urgent. **Never by a sweep.** ⚠ **METHOD NOTE — I got this wrong twice in opposite directions and neither error was detectable from the repo alone.** "No callers" told me DEAD. A pointer to an upstream PR told me PENDING. Only reading the adapter DECLARATION — a different file, wiring by data rather than by call — gave the answer. Callerless code has at least three states (dead / pending / superseded-but-load-bearing-neighbours) and the distinguishing evidence is routinely NOT at the call site.
+- [OPEN-DRIFTED] **C20 `adapters/eufy/vocabulary.py:564`** — `_exact_error_code` has NO production caller; the ⟵ **DISPOSITION SETTLED 2026-08-21, after TWO wrong answers of mine.** The observation always stood (no production caller). ⚠ FIRST WRONG ANSWER: I queued them for deletion beside the dead core island (C18). ⚠ SECOND WRONG ANSWER: told they related to upstream error work, I reclassified them as PENDING on **jeppesens/eufy-clean PR #161, "feat: capture and persist the full ErrorCode proto", opened 2026-07-26, still OPEN.** Until it lands the fork does not surface the fault detail these tables classify, so a caller would classify data that never arrives. Built ahead of the source deliberately — the tables and their reasoning were authored while the codes were in hand, which is the only cheap moment to write that reasoning down. ⚠ **NEAR MISS, AND THE REASON THIS ENTRY NOW CARRIES A WARNING:** a reachability sweep the same day queued these three for deletion beside the genuinely dead int island (C18, correctly removed). **The two cases are INDISTINGUISHABLE to any tool** — identical zero callers, identical green suite when broken. Only the upstream PR separates them, and nothing in the code said so. A banner now sits above the functions in `adapters/eufy/vocabulary.py` stating the dependency, because a ledger is not read at the moment someone runs a dead-code sweep. **GENERAL RULE THIS EARNS: "no callers" is not a disposition. Callerless code is either DEAD or PENDING, the difference lives outside the repo, and the pending case must say so AT THE SITE or it will be deleted by someone doing good work.** — and that was also wrong. **THE TRUTH: the TABLES are LIVE and the FUNCTIONS are SUPERSEDED.** Every set (`EUFY_DOCK_SOURCED_ERROR_CODES` etc.) is wired into core by the adapter DECLARATION at `adapters/eufy/adapter.py` and read generically by `core.error_tracker.error_source_for_code`. The adapter's own comment records the history: *"eufy_error_source() had built these tables and had ZERO callers until this declaration wired them."* The function built the tables, the declaration wired the tables, the function stayed. **`adapters/roborock/vocabulary.py` is the proof and the correct pattern — same five table kinds, no equivalent functions.** #161 is real and matters (today the fork reads only `warn[0]`; #161 delivers `error[]`/`warn[]`/history to the Error Message sensor) but that data flows into CORE's lookup via the declared tables — MORE CODES TO CLASSIFY, SAME CLASSIFIER. It creates no caller for these functions. ⚠ **THE REAL HAZARD, which neither wrong answer captured: the live tables and the dead functions SHARE A FILE AND A SUBJECT.** A sweep that deletes "the dead error stuff here" takes fault classification for every Eufy vacuum with it. The banner in the file now names which half is which. DISPOSITION: functions deletable on their own merits, with their tests, which test only them. Not urgent. **Never by a sweep.** ⚠ **METHOD NOTE — I got this wrong twice in opposite directions and neither error was detectable from the repo alone.** "No callers" told me DEAD. A pointer to an upstream PR told me PENDING. Only reading the adapter DECLARATION — a different file, wiring by data rather than by call — gave the answer. Callerless code has at least three states (dead / pending / superseded-but-load-bearing-neighbours) and the distinguishing evidence is routinely NOT at the call site.
   adapter consumes the SETS. Rule right, site powerless.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** eufy_error_source / eufy_error_invalidates_cleaning / _exact_error_code are still callerless in the tree; only the warning banner landed, not the deletion.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** Ledger cites `:564`; `_exact_error_code` is now at `:602`. Also note the entry line is internally inconsistent after two rounds of appending — the appended prose ends "the TABLES are LIVE and the FUNCTIONS are SUPERSEDED", while the entry's original tail two lines still read "adapter consumes the SETS. Rule right, site powerless." Both happen to agree with the tree, but a reader hitting the tail first gets the pre-correction framing.
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · C20 stays OPEN, but the text above misdescribes it. CORRECTED: Header cites vocabulary.py:564; the helper is now at :622 with its two callers at :594 and :616. NOTE FOR THE PARENT: the residual work (delete the three functions plus tests/adapters/eufy/test_error_source.py) is UNSCHEDULED BY RULING, not done. I propose ACCEPTED because the ruling is landed at the site and durable independent of the ledger; if the parent wants that deletion tracked as outstandi
 - [FIXED] **C21 `battery/manager.py::BatteryHealthManager.rebaseline`** — `rebaseline` clears 5 of 7 `stats` fields, missing
   `cc_/cv_charge_speed_rejected_pct`. Diagnostics-only today.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** rebaseline leaves the two *_charge_speed_rejected_pct stats behind, so a swapped battery inherits the old battery's rejected figures.
@@ -248,10 +290,11 @@ defect here, not an occasional one.
   the whole point; assertions check DIMENSIONS only. 90 and 270 swap axes identically, so the sign
   is untested and it passes either way. Prose better than the assertion is the deceptive form.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** SC-11's docstring makes the negated rotation angle the whole point; the assertions compare PNG dimensions only, and I proved the test stays green with the sign flipped.
-- [OPEN] **T2** `health_qualifying_sessions` and `SESSION_MAX_HOURS`: ZERO hits in `tests/`. Delete
+- [OPEN-DRIFTED] **T2** `health_qualifying_sessions` and `SESSION_MAX_HOURS`: ZERO hits in `tests/`. Delete
   `battery/manager.py:1288` and the suite stays green.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Neither health_qualifying_sessions nor SESSION_MAX_HOURS is touched by any pytest test; both claims are decorative.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The cited line 1288 is now 1299 — navigate by the `health_qualifying_sessions` assignment inside `rebaseline`, not by line number.
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · T2 stays OPEN, but the text above misdescribes it. CORRECTED: The DEFECT is intact and confirmed, but the ledger's own 2026-08-21 correction is now stale and actively misdirects. It says "The cited line 1288 is now 1299". In the current tree custom_components/eufy_vacuum/battery/manager.py:1299 is inside the signature of `_compute_regime_pct` (def at :1296) — a different method entirely. The real site is manager.py:1401, `record["health_qualifying_sessions"]
 - [OPEN] **T3** DR-BAT-2 untested; `test_charge_rates` works AROUND it, nulling the anchor fields.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The DR-BAT-2 out-of-order anchor guard has no test; the only test that gets near it deliberately nulls the anchor to avoid it.
 - [OPEN] **T4** No rename test on the button platform (the sensor sibling exists, INIT-13/SN-4).
@@ -260,7 +303,7 @@ defect here, not an occasional one.
 
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** ro_dx/ro_dy/flip_y are tested on both sides of the seam but never through it — no test passes them to render_room_capture.
 ## DOC / RELATIONAL
-- [OPEN] **D10 `adapters/eufy/vocabulary.py:249` — the campaign thesis in one line.** `a38cac4a` wrote
+- [OPEN-DRIFTED] **D10 `adapters/eufy/vocabulary.py:249` — the campaign thesis in one line.** `a38cac4a` wrote
   "total_error_seconds is subtracted from cleaning_time_seconds" describing the then-current
   arithmetic; `5b21a1a3`, same day, same RP-046 series, changed it to deduct only the invalidating
   subset and never returned for the sentence. Accurate at birth, invalidated by the fix it was
@@ -271,12 +314,14 @@ defect here, not an occasional one.
   `tests/adapters/eufy/test_error_source.py:3-4`.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Comment at the RF-DOCK fault table still says the FULL error window is subtracted from cleaning_time_seconds; only the invalidating subset is.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The ledger names three replica sites. There is a FOURTH live one it misses: `docs/testing/subsystems/15-adapters.md:349` carries the same sentence (`total_error_seconds` is subtracted from `cleaning_time_seconds`, so a fault…). A fifth copy sits in `docs/dev/maintenance/highly-aggressive-audit.md:1816`, but that is a historical audit record describing the pre-fix state and should be left alone. So the fix is 4 sites, not 3.
-- [OPEN] **D11 `src/i18n/en.js:2645`** — annotates `fault.eufy.base_station_power_off` with
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · D10 stays OPEN, but the text above misdescribes it. CORRECTED: The entry's site list AND its supporting citation are both wrong now — repair from this. (a) SEVEN live sites carry the false sentence, not 3 (or the 4 in the ledger's own appended note): adapters/eufy/vocabulary.py:266; learning/job_finalizer.py:938-943 ('Total seconds the run spent in error state. Subtracted from the upstream-reported cleaning_time_seconds below') — still at the exact cited line
+- [OPEN-DRIFTED] **D11 `src/i18n/en.js:2645`** — annotates `fault.eufy.base_station_power_off` with
   `// Eufy code 5014`; `vocabulary.py:753` maps 5014 to `fault.eufy.power_low_shutdown` and `:463`
   puts it in the ROBOT set on Eufy's own protos. The next editor re-maps it and reintroduces the
   bug `64b3c577` fixed — a robot battery death filed as a dock fault, so learning accepts a
   dead-battery run as complete.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** `en.js` still annotates `base_station_power_off` with `// Eufy code 5014` after 5014 was re-mapped away from it and moved into the robot set.
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · D11 stays OPEN, but the text above misdescribes it. CORRECTED: The entry cites one file; the identical stale annotation is pasted at a SECOND SHIPPED site the entry misses — custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc:2672 ('"base_station_power_off": "Base station power off",  // Eufy code 5014'). That is the file a translator reads, so fixing only src/i18n/en.js leaves the re-mapping trap in the surface most likely to be copied. (A thir
 - [FIXED] **D12 `core/capabilities.py` + `adapters/entity_resolve.py` (RNF2RCXP)** — the `RNF2RCXP` replica block says the rescue runs in
   THREE places and **names itself as one of the other two**, dropping `_rescue_maintenance_source`.
   The canonical anchor at `adapters/entity_resolve.py:249-256` has it right. **A replica anchor
@@ -372,13 +417,14 @@ diagnosis in two directions:
   degenerates to FIRST-WINS — the selector's stated rationale is structurally false for Roborock.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The per_room row still mixes a summed-across-sightings swept area with a single-sighting dwell/spread/winding; the entry's trailing spread claim has gone stale.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** The trailing "Related" clause is stale: `spread` is NOT always 0.0 for a native_current_room brand any more. dd690f44 (2026-08-09) declared Roborock's `map_state_source.live_pose` (adapters/roborock/adapter.py:729-732) and listeners/pose_sampler.py:280 now banks `robot_anchor` on that path, so `_run_metrics` produces a real spread and `_best_run_by_room` no longer degenerates to first-wins for Roborock. The primary aggregation-mismatch mechanism is unaffected and remains exactly as described.
-- [OPEN] **C28 onboarding remap purges SOURCES, never TARGETS.** `remap_confirmed_floor_types:245-250`
+- [OPEN-DRIFTED] **C28 onboarding remap purges SOURCES, never TARGETS.** `remap_confirmed_floor_types:245-250`
   filters `key not in remap` (source keys). A pre-existing confirmation sitting on an id that
   BECOMES a remap target survives, so a room reads `confirmed` the user never confirmed — start
   gate opens, robot runs it on an unverified floor type (mop-on-carpet). The docstring documents
   the OPPOSITE resolution. `room_crud.py:344-346` pops BOTH directions; this is the weaker copy.
   No test: OB-6c passes because both its keys are sources.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** remap_confirmed_floor_types filters only SOURCE keys, so a stale confirmation sitting on an id that becomes a remap TARGET survives and the migrated room reads confirmed.
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · C28 stays OPEN, but the text above misdescribes it. CORRECTED: The function was REWRITTEN since the entry (DR-ONB-1, snapshot-based rebuild at :245-258) and moved from :245-250 to :200-258; that rewrite fixed a DIFFERENT bug (drain-while-writing, which ate chained/swapped remaps) and left C28's half undone — the classic partial-fix shape. Two supporting claims in the entry text are now wrong: (a) 'The docstring documents the OPPOSITE resolution' is stale — th
 - [OPEN] **C29 `_write_atomic` is the shortest of FOUR copies.** No `fsync`, no tmp cleanup, where
   `history_store.write_json` documents both as `IO-7`. Power loss leaves a ZERO-LENGTH PNG at the
   path the docs tell users to hardcode, after the receipt already reported success. An
@@ -440,21 +486,23 @@ diagnosis in two directions:
   `src/state/map.js:102`.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** "Display only — never affects dispatch" is still asserted at all four sites while live_map_rotation is an input to the start_zone_clean geometry.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** Path drift only, not mechanism: the ledger's `mapping_services.py:2460` is actually `custom_components/eufy_vacuum/mapping/mapping_services.py:2460` (same line number, deeper path — there is no top-level mapping_services.py). const.py:190 is now const.py:214-216; src/state/map.js:102 is the middle of the :100-103 block. Worth noting alongside C31, which is the executable consequence of the same coupling (panel renders at effectiveMapRotation() but dispatches at raw mapRotation()).
-- [OPEN] **D19 `listeners/stall_capture.py:60`** — the event carries RAW `map_id` while the filename is
+- [OPEN-DRIFTED] **D19 `listeners/stall_capture.py:60`** — the event carries RAW `map_id` while the filename is
   SANITISED, so an automation reconstructing the path from the event's own fields gets the wrong
   path TODAY on Roborock ("Main floor" vs "Main_floor.png"). The comment warns of a hypothetical
   future break and misses the shipped one.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The EVENT_STALL_CAPTURED comment warns only about a future layout move and never mentions that the event's map_id is raw while the filename is sanitised — a mismatch that is live on Roborock today.
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · D19 stays OPEN, but the text above misdescribes it. CORRECTED: The DEFECT is real but the ledger's named consequence overstates it and would misdirect the repair. The same payload already carries `image_path` (listeners/stall_capture.py:379), so an automation is handed the correct path and only gets a wrong one if it ignores that field and rebuilds from `map_id` — the ledger's "an automation reconstructing the path from the event's own fields gets the wrong p
 - [OPEN] **D20 `setup/protection.py:38` parity claim is doubly stale.** It copied only the `isinstance`
   half of drift.py's two-part idiom on day one; drift.py then centralised the predicate into
   `map_manager.map_ids_with_rooms` (MAP-GHOST-1), leaving protection.py the un-migrated 4th copy.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Both halves of the ledger's claim hold: protection.py copied only the isinstance half of drift.py's idiom, and it never migrated to map_ids_with_rooms.
-- [OPEN] **D21 three stale line references in `onboarding/manager.py`** (`:217`, `:238`, `:344`) — drifted
+- [OPEN-DRIFTED] **D21 three stale line references in `onboarding/manager.py`** (`:217`, `:238`, `:344`) — drifted
   17-70 lines. Constructs still exist; the parity claim at `:217` is substantively wrong, not just
   mislocated.
 
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** All three stale line citations are still in onboarding/manager.py, and the one at :217 also claims a parity with room_crud that the code does not have.
   **⚠ THE LEDGER'S MECHANISM IS WRONG — repair from THIS, not from the text above:** Measured drift in today's tree is 21 / 21 / 70 lines, not "17-70"; the third citation is prose-form ("(line 218)"), not a `path.py:NNN` form, so it is invisible to a path-based citation grep.
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · D21 stays OPEN, but the text above misdescribes it. CORRECTED: The drift MEASUREMENTS in both the entry and its 2026-08-21 correction note are now wrong. Today's target drift is 44 / 53 / 70 lines (323→367, 330→383, 218→288), not the entry's "17-70" and not the note's "21 / 21 / 70" — the first two targets moved again after that note was written, so a repairer trusting the note's numbers lands in the wrong block twice. The citation SITES have also moved: the
 ## VERDICTS
 `const.py:43` CITATION `INYA5T84` · `:190` STALE · `stall_capture.py:60` CONVENTION · `:65`
 INVARIANT new (privacy default — nothing in the 36 covers that class; 9 paths verified fail-closed)
@@ -529,11 +577,12 @@ floor-plan of the user's home at a fetchable URL on every stall." No test. A one
   arriving through the store it does not cover. `ENTITY_OVERRIDES_KEY` appears nowhere in
   `test_config_flow.py`.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** The two entity-override stores are reconciled with a merge keyed by vacuum, so saving the options flow replaces the panel's whole role map for that vacuum.
-- [OPEN] **C42 the setup form pre-fills a Eufy model for every brand.** `config_flow.py:76`
+- [OPEN-DRIFTED] **C42 the setup form pre-fills a Eufy model for every brand.** `config_flow.py:76`
   `vol.Required(CONF_TESTED_MODEL, default=SUPPORTED_TESTED_MODEL)` -> `"Eufy X10 Pro Omni"`, on
   the first screen a Roborock user sees. `f/eufy_is_not_the_default`. The field is also WRITE-ONLY
   — collected, stored, read by nothing.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Setup form's model field defaults to the Eufy model for every brand, and nothing ever reads the value.
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · C42 stays OPEN, but the text above misdescribes it. CORRECTED: The Eufy-default half is intact and verified. The SECOND half of the entry is now wrong and would misdirect a repair: 'WRITE-ONLY — collected, stored, read by nothing' was refuted by this ledger's own C45e closure (Chris, 2026-08-21, LEAVE IT BE / closed NOT A DEFECT) — diagnostics.py:985 dumps dict(entry.data) into every diagnostics download, i.e. the field has a human reader. Anyone actioning C4
 - [OPEN] **C43 `manifest.json` does not declare `single_config_entry`.** HA 2026.5.3 supports it and
   aborts at `async_init`. Without it the user completes the whole form before `already_configured`.
   The premise itself holds, but it carries six domain-scoped singletons in `hass.data[DOMAIN]` and
@@ -876,7 +925,7 @@ itself was clean and merged as `953c9aca`.
 # 2026-08-21 — surfaced while drafting the 18 rulings
 
 ## DOC
-- [OPEN] **D36 `docs/dev/design/shipped/notation-anchors.md` — the SPEC and the REGISTRY disagree about `PN`,
+- [OPEN-DRIFTED] **D36 `docs/dev/design/shipped/notation-anchors.md` — the SPEC and the REGISTRY disagree about `PN`,
   and the spec is the one you would reach for.** Its status block (lines 3–7) states **`SN`, `HN` and
   `PN` remain reserved and unused** — three `PN`s are live in `00b` — and **`IN` in use (1)** — 33 are
   live, with 35 `anchor: IN` sites planted across the tree. Measured 2026-08-21 by grep, not by
@@ -921,6 +970,7 @@ itself was clean and merged as `953c9aca`.
   phantom BN declarations and all 4 of `--check`'s problems. Fixtures are now assembled at
   runtime so the file spells no anchor; `--check` reports 0 problems and BN declarations are
   genuinely 0.
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · D36 stays OPEN, but the text above misdescribes it. CORRECTED: The ledger's residual figures are all stale AND the residual list is now INCOMPLETE. Corrected 2026-08-24 via doc_anchor.scan(): CN claims 9, is 100 (ledger said 138); IN claims 1, is 34 (ledger said 35); RN claims 2, is 30 (ledger said 37); HN claimed reserved-and-unused, is 1 real declaration at custom_components/eufy_vacuum/mapping/stall_capture_render.py:46. TWO lines the ledger does NOT name
 ## NOT A DEFECT — recorded so it is not re-derived
 - **Single-site `IN` entries are NORMAL.** Measured: 33 registry entries, ~35 planted `anchor:` sites
   — roughly one primary site each, with bodies discussing 1–9 files. I had been using "spans multiple
@@ -1137,7 +1187,7 @@ STALE-TRANSCRIPTION 3. Severity: 3 HIGH / 26 MED / 38 LOW.
   and nobody goes back. **A doc template must invite capability and contract, never current
   limitation.**
 
-## D39 — `check_doc_citations.py` CANNOT SEE JAVASCRIPT AT ALL
+## D39 ✅ APPLIED 2026-08-24 — `check_doc_citations.py` CANNOT SEE JAVASCRIPT AT ALL
 Its symbol index is built with `base.rglob("*.py")` and Python's `ast` module. There is no JS
 parser. **All 240 frontend line citations are unresolvable to it** — consistent with the 3-strong /
 38-weak of 41 measured 2026-08-20, which were the Python-targeting ones.
@@ -1154,6 +1204,7 @@ so it costs one mint plus one comment line, cited as `path/file.js#CN……`. Al
 **LADDER: symbol name (free) > CN anchor (cheap, no registry) > IN/RN (registry + a rule + a
 consequence).** Most of the 240 stop at rung one.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D39 → `[FIXED-UNPROVEN]`. scripts/check_doc_citations.py:67 `SOURCE_ROOTS = ("custom_components", "scripts", "tests", "harness", "src")`; `SOURCE_SUFFIXES = (".py", ".mjs", ".js")`; `def symbol_ranges_js(path) -> dict[str, list[tuple[int,int]]]` with JS_SYMBOL_RE/JS_KEYWORDS; Index.__init__ `for src in base.rglob("*"): if src.suffix not in SOURCE_SUFFIXES or not src.is_file(): continue`; Index.symbols `self._syms[py] = (sy No named test — prose only.
 ## THE DOC RULE THAT FALLS OUT: CITE IDENTITY, NOT COORDINATES
 
 **"Cite identity, not coordinates. Add coordinates only when identity cannot express the
@@ -1170,7 +1221,7 @@ information than any reader needs.
   4. an actual rule or replica relationship -> `IN` / `RN`. Only these earn a registry entry and a
      stated consequence.
 
-## D39b — `src/` IS NOT IN THE CITATION CHECKER'S SCOPE AT ALL
+## D39b ✅ APPLIED 2026-08-24 (FIXED) — `src/` IS NOT IN THE CITATION CHECKER'S SCOPE AT ALL
 `SOURCE_ROOTS = ("custom_components", "scripts", "tests", "harness")`. **The frontend tree is not
 merely unparsed — it is UNLISTED**, so the gate cannot answer even *"does this file exist?"* about
 any of the 240 frontend citations. Worse than the missing JS parser (D39) and the same root cause:
@@ -1199,6 +1250,7 @@ deprecated. Do NOT build a semantic JS analyser to delete line numbers.
 46 name a symbol the regex misses (fix regex, then rung 1) · 119 name no symbol (rung 2 or 3) ·
 **4 cite a file that does not exist in `src/` — genuine broken references.**
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · D39b → `[FIXED]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/scripts/check_doc_citations.py:67 (SOURCE_ROOTS incl. "src" + the 2026-08-21 note), :70 (SOURCE_SUFFIXES), :286-297 (Index walk), :330-332 (symbols() .py/.js dispatch); ledger row .claude/notes/LEDGER-defects-code-vs-doc.md:1173-1178 Test: `python scripts/check_doc_citations.py` — ablation run this session: with "src" in SOURCE_ROOTS → 1000 citations, 0 wrong, exit 0; with "src" removed → 703 citations, 297 wrong, exit 1.
 ## RETRACTION + a HARD CONSTRAINT on the proposed citation gate
 
 ⚠ **RETRACTED: "4 genuine broken references" in the frontend corpus. The real number is ZERO.**
@@ -1460,7 +1512,23 @@ BLIND. Every one would have been frozen into a permanent anchor pointing at the 
 rule holds: *never convert a citation you have not verified — the fragility was the signal.*
 
   ⟵ **DISPOSITION 2026-08-21 — FIXED-UNPROVEN.** The card-absence claim's bogus backend line citation is gone from both docs, the anchors resolve, and the claim itself is still true — but no gate would catch a reversion.
-## FULL FRONTEND PASS — 12 docs, completed 2026-08-21 after sign-off. NOT APPLIED.
+## FULL FRONTEND PASS — 12 docs, completed 2026-08-21 after sign-off. MOSTLY APPLIED — verified 2026-08-24.
+
+> ⚠ **THIS HEADER SAID "NOT APPLIED" UNTIL 2026-08-24 AND HAD BEEN WRONG FOR DAYS.** The
+> 2026-08-24 truth pass checked all 12 docs against `_frontend-pass2-verified.json`, matching
+> every recorded `old_text` (must be absent) and `new_text` (must be present):
+>
+> * **9 of 12 fully applied** — architecture-overview is NOT among them, see below.
+> * **3 partially applied, still open**: `theme-system.md` (all six headline strings replaced,
+>   but three of those findings carried FURTHER edit sites inside the finding body and none of
+>   those landed), `dashboard-card.md` (4 of 6 extras done; one miss is the sibling half of a
+>   finding whose other half WAS fixed), `architecture-overview.md` (finding F1 names TWO sites
+>   — `:30` and `:89` — and only the first was edited).
+>
+> All three failures are the same shape as the compound-entry problem named at the top of this
+> file: the headline clause was discharged and a second clause inside the same finding was not.
+> **A doc-pass finding is not done when its `old_text` is gone — it is done when every site the
+> finding names has been visited.**
 
 Raw data: `.claude/notes/_frontend-pass2-verified.json` (per-doc, with `evidence` on every entry).
 12 agents, one per doc, each re-deriving its recorded findings from code and judging every citation.
@@ -1582,7 +1650,7 @@ non-uniform cadence it is neither.
 Documented as current behaviour in `docs/dev/16-battery-record.md` §5, explicitly labelled an
 open defect rather than an invariant.
 
-### C55 [OPEN] — **OPEN.** Reconciliation pairs any 1-and-1 leftover and calls it an identity
+### C55 [OPEN-DRIFTED] — **OPEN.** Reconciliation pairs any 1-and-1 leftover and calls it an identity
 
 Found 2026-08-22 by the rooms comment audit; verified directly against source.
 
@@ -1620,6 +1688,7 @@ threshold nobody has measured. Bring it to Chris before choosing.
 
 Documented as current behaviour in the rooms NOW doc, stated as an open defect.
 
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · C55 stays OPEN, but the text above misdescribes it. CORRECTED: This is the C17 partial-fix shape. The comment was rewritten to state the defect honestly and the payload gained `inferred`/`match_basis` with two named tests, so the Python side reads as closed — but no renderer consumes either field, so the user still confirms an elimination-derived pair worded as a determination, which is the harm the entry actually names. Repair from this: the remaining work i
 ## ROOMS COMMENT AUDIT — 2026-08-22. 27 findings. **6 APPLIED 2026-08-24 (R2, R3, R5, R25, R14, R10 — R25 and R14 CODE fixes); 21 NOT APPLIED.**
 
 Run alongside the `rooms/` doc pass (docs 17 + 18). Two auditors, both clusters read in full,
@@ -1638,7 +1707,7 @@ mechanical — but re-verify before editing: an audit finding is a claim, not a 
 
 ---
 
-### R1 · HIGH · over-scoped — `rooms/reconciliation.py::compute_reconciliation`
+### R1 [OPEN-DRIFTED] (verified 2026-08-24) · HIGH · over-scoped — `rooms/reconciliation.py::compute_reconciliation`
 
 **SAYS.** REC-3 (RP-019): a room renamed AND renumbered in the same re-map matches NEITHER a
 slug nor an id, so it is invisible to both branches above. When exactly one existing room and
@@ -1660,6 +1729,7 @@ looking for a confirmation guard. The load-bearing justification for a data-migr
 is a claim the code cannot support, and the resulting review presents a fabricated identity as a
 determination the user is asked to confirm.
 
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · R1 stays OPEN, but the text above misdescribes it. CORRECTED: C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/rooms/reconciliation.py::compute_reconciliation — docstring L128-139, C55 comment L216-233 (the residual claim at L228-230), emission L237-257. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/src/renderers/setup.js L340-357 (the fold-into-two-groups comment), L437 (filter), L466-475 (row render: name + reconcile_
 ### R2 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `rooms/access_graph.py::AccessGraphManager.INDETERMINATE_STATE_VALUES`
 
 **SAYS.** RP-008 (GUARD-1): states that mean "the sensor is not answering", not a value of the
@@ -1766,7 +1836,7 @@ params. The correction is stated AS a correction, with the reason it mattered, b
 `-> None` claim was the exact defect A4-SRC-1 fixed — still asserted at the top of the file that
 fixed it. **`[FIXED-UNPROVEN]`**.
 
-### R6 · MEDIUM · over-scoped — `rooms/access_graph.py::AccessGraphManager.access_graph_block_rooms`
+### R6 [OPEN-DRIFTED] (verified 2026-08-24) · MEDIUM · over-scoped — `rooms/access_graph.py::AccessGraphManager.access_graph_block_rooms`
 
 **SAYS.** # cycle_detected / multiple_dock_rooms name a SET of rooms; a cycle # chain repeats
 its entry room, so dedup below is load-bearing.
@@ -1786,6 +1856,7 @@ rooms are exactly where the user must delete a grant, and they are the two rooms
 comment's two-type enumeration reads as the complete set of set-valued issues, so the gap looks
 already handled.
 
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · R6 stays OPEN, but the text above misdescribes it. CORRECTED: FIXED half: custom_components/eufy_vacuum/rooms/access_graph.py:1129-1136 (comment now names multiple_inbound/source_room_ids, tagged 'before R6 (2026-08-24)') and :1139-1140 `for value in issue.get("source_room_ids", []) or []: room_ids.append(_safe_int(value, -1))`. OPEN half: access_graph.py:1108-1109 still reads 'Reads the RAW validation issues (``type`` + ``room_id``), not the card-facing for
 ### R7 · MEDIUM · over-scoped — `rooms/access_graph.py::AccessGraphManager._validate_room_access_graph`
 
 **SAYS.** # Single-inbound constraint: each non-dock room may only be # granted access by
@@ -1884,7 +1955,7 @@ map-selector entity resolves a map id — or auditing whether this function can 
 anchor — would conclude from this docstring that it cannot, and would miss the one path that
 can.
 
-### R12 · MEDIUM · over-scoped — `rooms/room_crud.py::RoomMapManager.discover_rooms`
+### R12 ✅ APPLIED 2026-08-24 · MEDIUM · over-scoped — `rooms/room_crud.py::RoomMapManager.discover_rooms`
 
 **SAYS.** Does not create a map bucket. Map buckets are created only when ``save_managed_rooms``
 is called after the user confirms the room list.
@@ -1902,6 +1973,7 @@ buckets come from — a known live problem ("a live install carried maps 7, 11 a
 this line, including reconcile_room(action="ignore"), which creates a bucket for a map the user
 has never confirmed just to stamp a dismissal timestamp on it.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R12 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/rooms/room_crud.py::RoomMapManager.discover_rooms docstring: "⚠ Map buckets are NOT ONLY created by ``save_managed_rooms``. This docstring said they were until 2026-08-24 (R12)... The full set: ``save_managed_rooms``..., ``rebuild_map`` (this file, via ``rebuild_map_bucket``), and ``reconcile_room`` in BOTH the ``action="ignore"`` and ``action="migrate"`` arms... ``ma No named test — prose only.
 ### R13 · MEDIUM · stale-reference — `rooms/room_defaults.py::resolve_new_room_defaults`
 
 **SAYS.** ``catalog`` is a resolved ``room_profiles`` block (``resolve_profile_catalog``); None
@@ -1965,7 +2037,7 @@ the attribute branch, and discover zero rooms — which is the same failure the 
 283-289 comment records happening to Dreame when SHAPE was conflated with SOURCE. The docstring
 was never updated when the two axes were split on 2026-08-07.
 
-### R16 · MEDIUM · false — `rooms/room_crud.py::RoomMapManager.remove_map`
+### R16 ✅ APPLIED 2026-08-24 (FIXED) · MEDIUM · false — `rooms/room_crud.py::RoomMapManager.remove_map`
 
 **SAYS.** # RP-016/RF-20 (INJ7VXE7): consume the SAME registry RP-017's id-remap walker # reads,
 so a bucket added there is reachable here too without a # second hand-maintained list -- the
@@ -1984,6 +2056,7 @@ comment even admits it is maintained by hand ("New buckets (run_profiles/queue/o
 their own flags in `removed` too"), so the two comments contradict each other. Acting on the
 RP-016 one converts a silent-survival bug into a hard crash on the delete-map service path.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R16 → `[FIXED]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/maps/map_manager.py:38-56 (three-tuple registry + R16 note); custom_components/eufy_vacuum/rooms/room_crud.py:34 (import), :606-618 (flag-derived response shape), :645-671 (single loop); tests/integration/test_room_crud.py:382-441; ledger row .claude/notes/LEDGER-defects-code-vs-doc.md:1968-1985 Test: tests/integration/test_room_crud.py::test_rc16_adding_a_new_per_map_store_does_not_crash_remove_map (plus ::test_rc16_the_response_shape_is_the_declared_flag_set for the flag-name contract).
 ### R17 · LOW · reason-obsolete — `rooms/access_graph.py::structural_issue_key`
 
 **SAYS.** A6-AGX-2. ``update_room_fields`` validates the WHOLE graph after an edit and rejects
@@ -2096,7 +2169,7 @@ states that cost by one on a blank graph. The code cannot know which room become
 this is a wording problem, not a fixable computation — which is precisely why the comment should
 say 'all but the one you promote' rather than asserting the list is what will fire.
 
-### R23 · LOW · over-scoped — `rooms/room_crud.py::RoomMapManager.reconcile_room`
+### R23 ✅ APPLIED 2026-08-24 · LOW · over-scoped — `rooms/room_crud.py::RoomMapManager.reconcile_room`
 
 **SAYS.** Requires a prior ``discover_rooms`` to have cached the discovery payload.
 
@@ -2112,6 +2185,7 @@ persists a dismissal token fingerprinting nothing — which, per compute_reconci
 dismissed_plan_token contract, suppresses only an identical (empty) review set, so the dismissal
 is effectively inert rather than doing what the user asked.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · R23 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/rooms/room_crud.py:167 (def reconcile_room), :201-216 (⚠ R23 qualification block), :221-253 (ignore arm: ensure_map_bucket -> empty-set plan token -> early return), :278-287 (migrate-only no_discovery guard the old sentence actually described). No named test — prose only.
 ### R24 · LOW · stale-reference — `rooms/vocabulary_migration.py::migrate_room_vocabulary`
 
 **SAYS.** Apply the migration once, recording that it ran. Idempotent. Returns ``{"ran": bool,
@@ -2463,7 +2537,7 @@ finding is a claim, not a fact. The two HIGHs below I verified against source my
 
 ---
 
-### L1 · HIGH · over-scoped · seen in run1+run2 — `listeners/lifecycle.py:407-408`
+### L1 ✅ APPLIED 2026-08-24 · HIGH · over-scoped · seen in run1+run2 — `listeners/lifecycle.py:407-408`
 
 **SAYS.** # Sequenced job model: a completed phase advances to the next # phase (re-dispatch)
 instead of finalizing. Atomic jobs — # every adapter today — return False here and finalize as #
@@ -2487,6 +2561,7 @@ to simplify away, safe to leave untested, and not a suspect when a Roborock stri
 misbehaves between rooms. The same file at lines 364-374 contradicts it directly, describing a
 Roborock docking between phases as live behaviour.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · L1 → `[FIXED-UNPROVEN]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/listeners/lifecycle.py L421-436 (corrected comment immediately above maybe_advance_phase at L436). Uncorrected sibling: C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/queue/queue_engine.py L509-510. Landed siblings: custom_components/eufy_vacuum/core/manager.py L7064-7074; custom_co No named test — prose only.
 ### L2 · HIGH · adopted-alternative · seen in run1+run2 — `listeners/pose_sampler.py:388-391 (register())`
 
 **SAYS.** # LIMITATION (F4, deferred): if a future 2nd brand declares a DIFFERENT interval, its
@@ -3100,7 +3175,7 @@ verified against source myself.
 
 ---
 
-### B1 · HIGH · false — `battery/manager.py::_update_health (docstring, L1111-1113)`
+### B1 [OPEN-DRIFTED] (verified 2026-08-24) · HIGH · false — `battery/manager.py::_update_health (docstring, L1111-1113)`
 
 **SAYS.** - cc_charge_speed_pct: capacity proxy (50→80). Aged cells hold less energy per
 percent, so %/min rises with age and ratio falls below 100. Higher = healthier.
@@ -3119,6 +3194,7 @@ aged pack. It is the inverse: capacity loss drives the CC index UP past 100. Any
 degraded battery would read the CC sensor exactly backwards, and 'Higher = healthier' is wrong
 for that half of the pair.
 
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · B1 stays OPEN, but the text above misdescribes it. CORRECTED: FIXED half: custom_components/eufy_vacuum/battery/manager.py:1166-1181 (CC bullet now 'ratio RISES ABOVE 100 ... Higher is WORSE here'), verified against manager.py:1057 `"cc_min_per_pct": round(cc_dur / cc_pct, 4)` and manager.py:1334 `value = round(baseline_value / current * 100.0, 1)`. OPEN half: docs/advanced/09-battery-health.md:106 'Drops as the cell loses usable capacity.' (contradicts :99
 ### B2 ✅ APPLIED 2026-08-24 (CODE) · HIGH · false — `battery/manager.py::module docstring 'Persistence' (L69-72) and _schedule_save (docstring, L1616-1617)`
 
 **SAYS.** module: "It reads/writes via the main ``EufyVacuumManager``'s storage helpers so it
@@ -3183,7 +3259,7 @@ the front-door docstring that a timed-out session is summarized and persisted li
 is silently thrown away. Two of the three listed close events persist; the third destroys — and
 the list presents them as equivalent.
 
-### B4 · HIGH · over-scoped — `battery/sensors.py::_bucket_means / _MEAN_SAMPLE_FIELD`
+### B4 ✅ APPLIED 2026-08-24 (FIXED) · HIGH · over-scoped — `battery/sensors.py::_bucket_means / _MEAN_SAMPLE_FIELD`
 
 **SAYS.** #: Which honest denominator belongs to which mean (C17). ``count`` counts every job #:
 in the bucket; a mean is computed only over the jobs that carried BOTH of its #: inputs.
@@ -3208,6 +3284,7 @@ the one the comment's own worked example ("Jobs: 10" over six) is about — was 
 samples field, even though `all_jobs["samples_area"]` exists and is one `.get()` away. This is
 the partial-guard-reads-as-complete shape: the guard exists, so it reads as total.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B4 → `[FIXED]`. custom_components/eufy_vacuum/battery/sensors.py, LastJobMetricSensor.extra_state_attributes: `"all_jobs_samples": (all_jobs.get(_MEAN_SAMPLE_FIELD[mean_field]) if mean_field and _MEAN_SAMPLE_FIELD.get(mean_field) else None)` under the comment `# B4: this is the C17 repair applied to `all_jobs` — was missing when the `by_*` buckets got it`. _MEAN_SAMPLE_FIELD (same file, below the class) maps drai Test: tests/unit/test_battery_sensors.py::test_bs_7b_all_jobs_samples_reads_its_own_denominator.
 ### B5 · HIGH · over-scoped — `battery/sensors.py::LastJobMetricSensor`
 
 **SAYS.** """Generic sensor exposing one of the last-job battery_metrics fields. State is the
@@ -3441,7 +3518,7 @@ bug. The actual cause — the plausibility rejection that the whole RP-045(iii) 
 machinery exists to explain — is described nowhere in this class's prose, only in an attribute
 the docstring does not connect to the None.
 
-### B17 · MEDIUM · over-scoped — `battery/sensors.py::RegimeChargeSpeedSensor`
+### B17 [OPEN-DRIFTED] (verified 2026-08-24) · MEDIUM · over-scoped — `battery/sensors.py::RegimeChargeSpeedSensor`
 
 **SAYS.** Reads ``stats.<stat_key>`` and surfaces the matching baseline anchor in attributes.
 Returns None until the baseline is anchored. Two instances live side-by-side (CC and CV) so
@@ -3463,6 +3540,7 @@ rejected value that manager.py deliberately preserved for diagnosability reaches
 the docstring's confident account of the None is the only account a user gets, and it is the
 wrong one.
 
+  ⤷ DRIFT 2026-08-24 ledger-truth pass · B17 stays OPEN, but the text above misdescribes it. CORRECTED: custom_components/eufy_vacuum/battery/sensors.py:344 still literally 'in attributes. Returns None until the baseline is anchored. Two' (class docstring :341-347, unchanged vs LEDGER-defects-code-vs-doc.md:3446-3448 SAYS quote); fix present only at :380-387 (# B17 comment) and :389/:395 (`rejected_pct`); None-on-rejection path re-derived at custom_components/eufy_vacuum/battery/manager.py:1248-1261
 ### B18 · MEDIUM · stale-reference — `battery/sensors.py::BatteryHealthSensor`
 
 **SAYS.** A raw reading above 100 (the cell charging faster than its install baseline, common
@@ -3522,7 +3600,7 @@ the unenriched rooms' buckets report `rooms: N, share: 0.0` with no `area_m2` ke
 209 only writes area when the weight-product is truthy). Nothing in the label distinguishes a
 fully-estimated job from a one-room-estimated one.
 
-### B21 · MEDIUM · reason-obsolete — `battery/sensors.py::_bucket_means`
+### B21 ✅ APPLIED 2026-08-24 · MEDIUM · reason-obsolete — `battery/sensors.py::_bucket_means`
 
 **SAYS.** Emits ``samples`` beside ``mean``: the number of jobs the mean was actually computed
 over. ``count`` stays, because it is a true and separate fact about the bucket — but it is no
@@ -3542,6 +3620,7 @@ does. Anyone verifying the C17 fix by looking at the card would see the original
 unable to tell whether the fix landed. Flagging as medium confidence because the sentence's
 subject is arguably the attribute payload, not the render.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B21 → `[FIXED-UNPROVEN]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/src/renderers/metrics.js L1006-1023 (`// B21` + jobsCell), L1040-1046 (allJobsB), L1032-1037 + L1068-1072 (renderBucketRows applied to all three bucket tables), L1065 (all_jobs row uses jobsCell). C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/battery/sensors.py L461-471 (all_jobs_samples), ::_bucket_means L527- No named test — prose only.
 ### B22 · MEDIUM · over-scoped — `battery/store.py::module docstring`
 
 **SAYS.** - ``sessions.csv`` — every completed charge session as a CSV row. Reviewable in any
@@ -3629,7 +3708,7 @@ which then feeds session summaries and, for mid_job sessions, the mid-job rollin
 auditing why a session average looks low would rule this path out on the strength of the word
 'discarding'.
 
-### B27 · LOW · stale-reference — `battery/manager.py::BASELINE_SAMPLE_COUNT (L186-190)`
+### B27 ✅ APPLIED 2026-08-24 · LOW · stale-reference — `battery/manager.py::BASELINE_SAMPLE_COUNT (L186-190)`
 
 **SAYS.** "#: Qualifying sessions used to anchor the baseline. The baseline is #: per-install
 ... so the first valid session #: anchors it. CURRENT_WINDOW_DAYS smooths comparison-side
@@ -3645,6 +3724,7 @@ to anchor the baseline' next to `= 1`. Someone wanting a 3-session anchor would 
 no change, and have to discover by grep that the value is dead and the real decision is the
 hardcoded 1 and the `break`.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B27 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/battery/manager.py:195-204 — '#: ⚠ Documentation ONLY, not a live tunable — B27 (2026-08-24). The anchor code below hardcodes `baseline["session_count"] = 1` at the seed site and `break`s after the first qualifying session; changing THIS constant does nothing.' then `BASELINE_SAMPLE_COUNT = 1  # ← immutable in practice; see note above`. Claims verified at manager.py:1 No named test — prose only.
 ### B28 · LOW · over-scoped — `battery/manager.py::_new_aggregate_bucket (L302-304)`
 
 **SAYS.** "# Total drain over every job in the bucket. A real quantity, but NOT a ratio #
@@ -3699,7 +3779,7 @@ removal, would look for one registration and find thirteen per vacuum. And someo
 why the job-metric sensors update outside charging would be told by this docstring that they
 shouldn't.
 
-### B31 · LOW · over-scoped — `battery/store.py::append_sample`
+### B31 ✅ APPLIED 2026-08-24 (FIXED) · LOW · over-scoped — `battery/store.py::append_sample`
 
 **SAYS.** """Append one sample as a JSONL line. Best-effort; logs and swallows errors."""
 
@@ -3718,6 +3798,7 @@ at low severity because the promise is broader than the code and someone widenin
 `sample` (a value whose repr raises, a circular structure) would be relying on a guarantee that
 isn't there.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · B31 → `[FIXED]`. custom_components/eufy_vacuum/battery/store.py::append_sample — docstring "Append one sample as a JSONL line. Best-effort; logs and swallows errors." plus "⚠ B31 (2026-08-24): the swallow was narrower than this docstring claimed... Broadened to ``Exception`` so the docstring's contract is what the code does."; handler `except Exception as err:  # pragma: no cover` with `# B31: was `except OSError` Test: tests/unit/test_battery_store.py::test_append_sample_swallows_any_exception_not_just_oserror.
 ### B32 · LOW · over-scoped — `battery/job_metrics.py::_bucketed_share`
 
 **SAYS.** # ISSUE #48, and this one is already on disk. _bucket_key folds case and # nothing
@@ -3963,7 +4044,7 @@ pinned by `tests/adapters/test_declaration_contract.py`.
 one because I reasoned about the call chain instead of running it. Both wrong versions read as
 confident, and the second was written during a pass whose entire purpose was accuracy.
 
-### P6 · HIGH · stale-reference · passes=2 — `profiles/room_profiles.py:808-812 (apply_room_profile_to_config docstring)`
+### P6 ✅ APPLIED 2026-08-24 · HIGH · stale-reference · passes=2 — `profiles/room_profiles.py:808-812 (apply_room_profile_to_config docstring)`
 
 **SAYS.** ``catalog`` (the adapter's resolved room-profile catalog) supplies the
 ``normalize_defaults`` for any field the profile omits, so a non-Eufy brand's rooms fill from
@@ -3983,6 +4064,7 @@ writes empty vocabulary into every omitted axis — the same shape as the shippe
 suction applied at all" incident this module's rework exists to prevent. The parenthetical also
 hands a reader three literals to grep for that were deliberately deleted from core.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P6 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/profiles/room_profiles.py:818 (def), :824-840 (rewritten docstring, :831 'ABSENT CATALOG DOES NOT MEAN EUFY DEFAULTS'); behaviour cross-check at :290-291 (`brand_defaults = (catalog or {}).get("normalize_defaults") or {}`), :300-304 (fan_speed/water_level/clean_intensity fall to ""), :113 (`coerce_axis_value` returns "" for None/""); sibling docstrings :604-608, :273- No named test — prose only.
 ### P7 · MEDIUM · adopted-alternative · passes=1 — `profiles/manager.py:439-440 (get_effective_room_details, mop_required)`
 
 **SAYS.** # If that tolerance is ever wanted back it belongs in # is_mop_clean_mode, once, not
@@ -4000,7 +4082,7 @@ substring/wash modes — the exact collapse the canonical owner forbids — loos
 predicate that gates dispatch payloads and the carpet mop-downgrade, while the tolerant sibling
 that already answers this question (`may_wet_floor`) goes unnoticed and unused.
 
-### P8 · MEDIUM · false · passes=1 — `profiles/manager.py:112 and :117 (_generate_room_profile_id / _generate_run_profile_id)`
+### P8 ✅ APPLIED 2026-08-24 (FIXED) · MEDIUM · false · passes=1 — `profiles/manager.py:112 and :117 (_generate_room_profile_id / _generate_run_profile_id)`
 
 **SAYS.** """Generate a stable unique key for a new custom room profile.""" / """Generate a
 stable unique key for a new saved run profile."""
@@ -4018,6 +4100,7 @@ exists check — which is precisely why both save paths have none. The header of
 documents the resulting silent data loss, so the docstring contradicts the file's own finding
 list.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · P8 → `[FIXED]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/profiles/manager.py::ProfileManager._timestamp_id (L111-142, UTC + 'Z' + `if base not in keys` + '-N' loop); ::_generate_room_profile_id (L145-147); ::_generate_run_profile_id (L149-158); ::_get_custom_room_profile_store (L370-374) returns _data['profiles']['room_profiles']; write site ::save_user_room_profile L541; Test: tests/integration/test_profiles_manager.py::test_pm32_the_room_profile_id_generator_has_the_same_fix (sibling: ::test_pm31_the_id_is_drawn_from_utc).
 ### P9 · MEDIUM · false · passes=2 — `profiles/manager.py:1339-1342 (set_run_profile_steps docstring)`
 
 **SAYS.** """Replace one saved profile's ordered steps (room_group | charge_wait). The steps
@@ -4626,7 +4709,7 @@ while the robot is in a blocked work mode, and gets no protection. Worse in the 
 someone debugging "why did a job start during Smart Follow?" goes looking for a bug inside a
 core/manager.py check that does not exist, instead of discovering the feature was never wired.
 
-### A2 · HIGH · false · passes=1 — `adapters/config_schema.py:348-365 (vocabulary.blocked_work_mode_states, vocabulary.blocked_task_status_states)`
+### A2 ✅ APPLIED 2026-08-24 · HIGH · false · passes=1 — `adapters/config_schema.py:348-365 (vocabulary.blocked_work_mode_states, vocabulary.blocked_task_status_states)`
 
 **SAYS.** blocked_work_mode_states: "Work mode strings that block job start. These are raw (non-
 normalized) values from the work_mode sensor. Degradation: work mode block check skipped." —
@@ -4646,6 +4729,7 @@ declared safety vocabulary counts these as live; a brand-3 porter transcribes th
 job start is guarded against mid-wash / mid-clean dispatch. The sibling key one entry below IS
 read, which makes the dormancy of these two invisible on a skim.
 
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A2 → `[FIXED-UNPROVEN]`. C:/Users/CKing/Documents/GITHUB/eufy-vacuum-manager/custom_components/eufy_vacuum/adapters/config_schema.py:356-388 (preamble + both rewritten descriptions), :391-397 (sibling blocked_dock_status_states, correctly still live); reader check custom_components/eufy_vacuum/jobs/active_job.py:3185; ledger row .claude/notes/LEDGER-defects-code-vs-doc.md:4629-4647 No named test — prose only.
 ### A3 · HIGH · reason-obsolete · passes=1 — `adapters/registry.py:462-464 (room_profiles catalog check comment)`
 
 **SAYS.** "# Room-profile catalog check — a declared block must be a dict with sane field // #
@@ -4980,12 +5064,13 @@ other) and that build_suffix_universe/claimed_by were extracted to end. Inverse 
 who believes the copies are independent may edit only capabilities and not realise the change
 lands in every caller of the shared function, including the maintenance path.
 
-### A18 · MEDIUM · stale-reference · passes=1 — `adapters/entity_resolve.py:595-607 — REPLICA RNF2RCXP block inside resolve_declared_entities' suffix-exhausted branch`
+### A18 ✅ APPLIED 2026-08-24 · MEDIUM · stale-reference · passes=1 — `adapters/entity_resolve.py:595-607 — REPLICA RNF2RCXP block inside resolve_declared_entities' suffix-exhausted branch`
 
 **SAYS.** # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree # # REPLICA — the
 same rescue runs in THREE places, deliberately: this one, plus #
 `entity_resolve.resolve_declared_entities` (the declared `entities` map) and #
 `capabilities.augment_candidates_from_device` (the roles `detect_capabilities` # probes). ... #
+  ⤷ CLOSED 2026-08-24 ledger-truth pass · A18 → `[FIXED-UNPROVEN]`. custom_components/eufy_vacuum/adapters/entity_resolve.py:595-615 (corrected block; :597 'THIS ONE is `entity_resolve.resolve_declared_entities`', :608-610 D12 note), def at :432 with no intervening top-level def; matching corrected copies at custom_components/eufy_vacuum/core/capabilities.py:260-278 and :728-749; gate blind spot at tests/test_replica_ratchet.py (RR-1/RR-2/well-formedness only). No named test — prose only.
 # ⚠ CHANGING ONE MEANS CHECKING THE OTHER TWO.
 
 **DOES.** This block is INSIDE `resolve_declared_entities` (def at line 432; block at 595-607).
@@ -5592,7 +5677,7 @@ fixpoint. The ablation worth remembering: converging by ITERATION ORDER instead 
 passes the collision test and silently breaks the convergence promise — two different properties,
 and only one of them is obvious.
 
-## C58 [OPEN] — an unreadable room source and an empty one are the same fact to drift
+## C58 [NEEDS-RULING] — an unreadable room source and an empty one are the same fact to drift
 
 Found while verifying L11's blast radius. **Not fixed — this one needs a ruling.**
 
@@ -5624,6 +5709,7 @@ This is the same family as `check_reality_before_asserting`: absent, unavailable
 and unreadable all look alike, and a signature two causes produce is not evidence for either.
 
 
+  ⤷ RULING NEEDED 2026-08-24 ledger-truth pass · C58 is blocked on a decision, not on work. custom_components/eufy_vacuum/setup/drift.py:501-558 — update_drift_history takes `discovered_room_ids: set[int]`, builds `relevant_ids = (configured_ids | discovered_room_ids) - rejected_ids` at :531 and increments `entry["missing_passes"]` at :553 for every configured room not in the set; there is no `if not discovered_room_ids` guard anywhere in the function. The producer cannot make the distin
 ---
 
 # TIER A — THE LAST THREE ARE ALL RULINGS, NOT PATCHES (2026-08-24)
@@ -5757,7 +5843,7 @@ behaviour) or *"approve nothing new"*? Four places already assert the second —
 outlier, but four docs agreeing is a signal, not a ruling. Whichever way it goes, the docstring and
 the doc line move with it.
 
-## C61 [OPEN] — R10: comment CORRECTED 2026-08-24; the design question stays open
+## C61 [NEEDS-RULING] — R10: comment CORRECTED 2026-08-24; the design question stays open
 
 **The comment is false as filed and that half is safe to correct**: `_validate_room_profiles` only
 RETURNS issue strings, and `register_adapter_config` hard-raises only for `source == "config"`; a
@@ -5786,6 +5872,7 @@ adjudicated ever reach a terminal disposition, or is a permanent WARNING on ever
 answer?** Every candidate fix trips two stop-for-approval triggers (a persisted attempt-counter
 key, and changing how already-stored rooms are judged).
 
+  ⤷ RULING NEEDED 2026-08-24 ledger-truth pass · C61 is blocked on a decision, not on work. COMMENT HALF APPLIED AT THE SITE: rooms/vocabulary_migration.py:117-127 now states the old text was wrong and correctly scopes the raise ('hard-raises only when config.get("source") == "config"'), matching the code — registry.py:313 `_validate_room_profiles(config) -> list[str]` is pure and called at :369, and the correctly-scoped wording it points to is at registry.py:571-582 (_warn_completion_ga
 ## Method note — the adversarial pass paid for itself
 
 Six agents, three findings. The investigators were right on all three dispositions; the value came
