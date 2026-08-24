@@ -189,6 +189,15 @@ export const foundationStyles = `
     --evcc-surface-action-hover: rgba(255,255,255,0.18);
     --evcc-surface-sunken: rgba(0,0,0,0.18);
     --evcc-surface-warning: rgba(255,180,0,0.12);
+    /* The success half of the same pair, added when the sequence-override row
+       needed a confirmed-state box and found only the warning one. Same alphas
+       as its sibling above and its partner below, so a success box and a
+       warning box weigh the same on the card. Literal, like the warning pair --
+       NOT derived from --evcc-sem-success: the warning surface is its own hue
+       (255,180,0) rather than sem-warning's (245,166,35), and a set where one
+       half tracks the semantic colour and the other does not is worse than
+       either rule applied consistently. */
+    --evcc-surface-success: rgba(76,175,110,0.12);
 
     /* Text */
     --evcc-text-primary:   var(--primary-text-color, #f0f2f5);
@@ -202,6 +211,7 @@ export const foundationStyles = `
     --evcc-border-default: rgba(255,255,255,0.10);
     --evcc-border-strong:  rgba(255,255,255,0.18);
     --evcc-border-warning: rgba(255,180,0,0.35);
+    --evcc-border-success: rgba(76,175,110,0.35);
 
     /* Accent */
     /* anchor: CNQ4HPFN */

@@ -5920,6 +5920,15 @@ ${r}
     --evcc-surface-action-hover: rgba(255,255,255,0.18);
     --evcc-surface-sunken: rgba(0,0,0,0.18);
     --evcc-surface-warning: rgba(255,180,0,0.12);
+    /* The success half of the same pair, added when the sequence-override row
+       needed a confirmed-state box and found only the warning one. Same alphas
+       as its sibling above and its partner below, so a success box and a
+       warning box weigh the same on the card. Literal, like the warning pair --
+       NOT derived from --evcc-sem-success: the warning surface is its own hue
+       (255,180,0) rather than sem-warning's (245,166,35), and a set where one
+       half tracks the semantic colour and the other does not is worse than
+       either rule applied consistently. */
+    --evcc-surface-success: rgba(76,175,110,0.12);
 
     /* Text */
     --evcc-text-primary:   var(--primary-text-color, #f0f2f5);
@@ -5933,6 +5942,7 @@ ${r}
     --evcc-border-default: rgba(255,255,255,0.10);
     --evcc-border-strong:  rgba(255,255,255,0.18);
     --evcc-border-warning: rgba(255,180,0,0.35);
+    --evcc-border-success: rgba(76,175,110,0.35);
 
     /* Accent */
     /* anchor: CNQ4HPFN */
@@ -7687,27 +7697,40 @@ ${r}
      correct and asserting the class passed, because the stylesheet that gives
      the class meaning did not exist.
 
+     BOX COLOUR COMES FROM THE STANDARD SET -- --evcc-surface-warning /
+     --evcc-border-warning, the pair .evcc-incomplete-run-banner already uses,
+     token first with the literal as inline fallback exactly as it does. The
+     first cut of this block hand-rolled color-mix off --evcc-sem-warning
+     instead, which was not merely redundant: the warning SURFACE is its own hue
+     (255,180,0) and sem-warning is (245,166,35), so a second, subtly different
+     amber appeared on a card that already had one. --evcc-surface-success and
+     --evcc-border-success were added alongside their warning siblings for the
+     confirmed state, which had no counterpart.
+
      The chip is recoloured through --evcc-chip-active-*, the variables
      foundation.js already reads with fallbacks, so a semantic state overrides
-     the accent without foundation.js needing to know these states exist.
+     the accent without foundation.js needing to know these states exist. Its
+     fill is the BORDER token rather than the surface one, so the control reads
+     as a control against the 0.12 box instead of dissolving into it -- one hue
+     per state, two weights of it.
 
      is-saved and is-path_optimizing need no rule: the switch is OFF in both, so
      the toggle never takes .active, and the base advisory box already paints the
      grey the design asks for. is-unverifiable DOES need one -- and finding that
      out is why this was checked against a render instead of reasoned about. */
   .evcc-sequence-override.is-matching {
-    background: color-mix(in srgb, var(--evcc-sem-success) 8%, transparent);
-    border-color: color-mix(in srgb, var(--evcc-sem-success) 30%, transparent);
-    --evcc-chip-active-bg: color-mix(in srgb, var(--evcc-sem-success) 18%, transparent);
-    --evcc-chip-active-border: color-mix(in srgb, var(--evcc-sem-success) 40%, transparent);
+    background: var(--evcc-surface-success, rgba(76,175,110,0.12));
+    border-color: var(--evcc-border-success, rgba(76,175,110,0.35));
+    --evcc-chip-active-bg: var(--evcc-border-success, rgba(76,175,110,0.35));
+    --evcc-chip-active-border: var(--evcc-border-success, rgba(76,175,110,0.35));
     --evcc-chip-active-text: var(--evcc-sem-success);
   }
 
   .evcc-sequence-override.is-mismatch {
-    background: color-mix(in srgb, var(--evcc-sem-warning) 8%, transparent);
-    border-color: color-mix(in srgb, var(--evcc-sem-warning) 30%, transparent);
-    --evcc-chip-active-bg: color-mix(in srgb, var(--evcc-sem-warning) 18%, transparent);
-    --evcc-chip-active-border: color-mix(in srgb, var(--evcc-sem-warning) 40%, transparent);
+    background: var(--evcc-surface-warning, rgba(255,180,0,0.12));
+    border-color: var(--evcc-border-warning, rgba(255,180,0,0.35));
+    --evcc-chip-active-bg: var(--evcc-border-warning, rgba(255,180,0,0.35));
+    --evcc-chip-active-border: var(--evcc-border-warning, rgba(255,180,0,0.35));
     --evcc-chip-active-text: var(--evcc-sem-warning);
   }
 
