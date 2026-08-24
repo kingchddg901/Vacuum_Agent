@@ -1,5 +1,11 @@
 # Roborock adapter (Wave 1)
 
+> ⚠ **This README is a Wave-1 scoping document, not a current-state reference.**
+> Several of its "deferred" and "pending" entries have since shipped, and one locked
+> decision below has been reversed (the brand detector — see the strikethrough). Read
+> the module docstrings for what is true now; read this for the design intent it was
+> written to record. Audited 2026-08-23.
+
 Second-brand adapter for the multi-brand framework — proves the adapter boundary
 with a brand whose **discovery and dispatch are completely different from Eufy's**
 (HA `roborock` core integration: native segments via `get_maps`, dispatch via
@@ -12,8 +18,14 @@ with a brand whose **discovery and dispatch are completely different from Eufy's
   (`device.model`, e.g. `roborock.vacuum.s6`) + live entity presence + the
   `model_catalog`. The Eufy technique; the S6 is the first profile under `roborock`.
 - **`DOMAIN` stays `eufy_vacuum`** — Roborock runs inside the same integration.
-- Brand is **auto-detected** per vacuum (manufacturer `Roborock` / model prefix
-  `roborock.`) in `__init__.py`; an explicit UI brand selector is a follow-up.
+- ~~Brand is **auto-detected** per vacuum (manufacturer `Roborock` / model prefix
+  `roborock.`) in `__init__.py`~~ — **REMOVED, and removed on purpose.** Corrected
+  2026-08-23. There is no `is_roborock_vacuum`: identity is declared by
+  `const.UPSTREAM_PLATFORMS`, which names the integration that provides the vacuum
+  entity, and **core** compares. A per-brand detector puts core back in the business of
+  judging brands, which is the thing the adapter boundary exists to stop. The package's
+  own `__init__.py` states this; this README described the detector under its live name,
+  and the module docstring sends readers here first.
 
 ## Wave 1 scope (this package)
 

@@ -6,7 +6,7 @@ dock state, and job state, dispatches the gated action, and records dock-event
 timestamps + debounced counters. Covered by **30 tests in 1 file**.
 
 Source: `custom_components/eufy_vacuum/dock/`
-Architecture reference: [docs/dev/14-dock-manager.md](../../dev/14-dock-manager.md)
+Architecture reference: [41 — Maintenance and the Dock](../../dev/41-maintenance-and-the-dock.md)
 
 ---
 

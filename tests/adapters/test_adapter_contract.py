@@ -660,3 +660,59 @@ def test_every_brand_vocabulary_declares_both_halves_of_the_known_collision():
         "brand vocabulary is missing the lifetime half of a known collision, so "
         "the exclusivity guard cannot exclude it: " + ", ".join(missing)
     )
+
+
+# ---------------------------------------------------------------------------
+# D17 - `blocked_task_status_states` is SUPERSEDED, and that claim needs a bite
+# ---------------------------------------------------------------------------
+
+
+def test_d17_the_dead_block_key_is_fully_covered_by_the_live_gate():
+    """The schema and doc 22 §5 now tell a porter that `blocked_task_status_states` is
+    dead because the gate it named is spelled with different vocabulary, and point them
+    at `active_run_task_states` / `hard_service_states` instead.
+
+    That is a CLAIM about the live code, and without this it rots silently: drop
+    "washing mop" from HARD_SERVICE_STATES and the documentation becomes false while
+    every test stays green — a start during a mop wash would no longer be refused, and
+    the surface a porter reads would still say it is.
+
+    RED IF ANY DECLARED VALUE STOPS BEING COVERED. The point is the equivalence, not the
+    contents of either set, so both sides are read from the real vocabulary rather than
+    retyped.
+    """
+    from custom_components.eufy_vacuum.adapters.eufy.vocabulary import (
+        ACTIVE_RUN_TASK_STATES,
+        HARD_SERVICE_STATES,
+    )
+    from custom_components.eufy_vacuum.jobs.job_monitor import _norm
+
+    declared = ["Cleaning", "Returning", "Washing Mop"]
+    live_gate = set(ACTIVE_RUN_TASK_STATES) | set(HARD_SERVICE_STATES)
+
+    uncovered = [value for value in declared if _norm(value) not in live_gate]
+    assert not uncovered, (
+        "blocked_task_status_states is documented as superseded by the live start gate, "
+        "but these declared values are no longer refused by it: "
+        + ", ".join(repr(v) for v in uncovered)
+        + " — either restore the coverage, or correct adapters/config_schema.py and "
+        "docs/dev/22-adapter-contract.md §5, which currently tell a porter it is safe "
+        "to ignore this key."
+    )
+
+
+def test_d17_the_declared_values_still_match_what_was_verified():
+    """The subsumption above was verified against a specific declared set. If the brand
+    adds a fourth blocked task status, the equivalence has to be re-checked rather than
+    assumed — so this pins the input the claim was measured on.
+    """
+    import inspect
+
+    from custom_components.eufy_vacuum.adapters.eufy import adapter as _eufy
+
+    src = inspect.getsource(_eufy)
+    assert '"blocked_task_status_states": ["Cleaning", "Returning", "Washing Mop"]' in src, (
+        "the declared blocked_task_status_states changed; re-verify the coverage claim "
+        "in adapters/config_schema.py and docs/dev/22-adapter-contract.md §5 against the "
+        "new set before updating this test"
+    )

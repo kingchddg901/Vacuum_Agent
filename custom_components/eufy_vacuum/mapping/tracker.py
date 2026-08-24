@@ -58,9 +58,16 @@ MOVEMENT_THRESHOLD_COUNT = 10
 # Minimum confidence score to fire room_completed.
 CONFIDENCE_THRESHOLD = 0.85
 
-# HA event names.
-EVENT_ROOM_COMPLETED = "eufy_vacuum_room_completed"
-EVENT_BOUNDARY_SAVED = "eufy_vacuum_boundary_saved"
+# HA event names. Re-exported from const.py rather than redeclared, so all eleven
+# outbound events derive from DOMAIN in one place. These two were plain literals here
+# until 2026-08-23 — the values are unchanged; only their source moved. Importers of
+# ``mapping.tracker.EVENT_ROOM_COMPLETED`` (the tracker event tests) keep working.
+from ..const import (  # noqa: E402  (kept beside the names it replaces)
+    EVENT_BOUNDARY_SAVED,
+    EVENT_ROOM_COMPLETED,
+)
+
+__all__ = ["EVENT_BOUNDARY_SAVED", "EVENT_ROOM_COMPLETED"]
 
 # Current-room name sentinels that mean "no usable signal" (hold, never a room exit).
 _BLANK_ROOM_SENTINELS = BLANK_STATE_VALUES  # derived; see entity_helpers

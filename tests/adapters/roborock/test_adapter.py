@@ -790,3 +790,63 @@ def test_adapter_enables_all_three_on_a_full_station(monkeypatch, hass):
     assert hints["supports_mop_wash"] is True
     assert hints["supports_mop_dry"] is True
     assert hints["supports_empty_dust"] is True
+
+
+# ---------------------------------------------------------------------------
+# D18 - a model catalog entry declaring supports_zone_clean False is BELIEVED
+# ---------------------------------------------------------------------------
+
+
+def test_d18_a_catalog_entry_can_actually_refuse_zone_clean(monkeypatch, hass):
+    """[D18] RED BEFORE THE FIX — the declaration had no wire.
+
+    The config block reads `caps.get("supports_zone_clean", True)` under a comment
+    saying a model catalog entry can declare it False "and be believed". Nothing passed
+    it as a capability hint, and `capabilities._hint_wins` honours a declared False only
+    when the key is PRESENT in the hints — so the entry resolved to the derived default
+    True and was silently ignored. Open at the core end (dispatch DOES refuse on False)
+    and unconnected at this one, which is the shape that reads as covered.
+
+    Declared through a real catalog profile rather than by injecting a hint, because the
+    hint is the half that already worked. What was missing is the path FROM the catalog,
+    and that is what this drives.
+    """
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.s6")
+    hass.states.async_set(
+        _RVAC, "cleaning", {"supported_features": 30524, "fan_speed": "max"}
+    )
+
+    zoneless = dict(model_catalog.profile_for_model("roborock.vacuum.s6"))
+    zoneless["supports_zone_clean"] = False
+    monkeypatch.setattr(model_catalog, "profile_for_model", lambda _m: zoneless)
+    monkeypatch.setattr(rb, "profile_for_model", lambda _m: zoneless)
+
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    config = get_adapter_config(_RVAC)
+
+    assert config["capabilities"]["supports_zone_clean"] is False, (
+        "a model catalog entry declared zone cleaning unsupported and the adapter "
+        "ignored it — dispatch/manager.py gates on exactly this key, so the refusal "
+        "never fires"
+    )
+
+
+def test_d18_the_default_is_still_supported(monkeypatch, hass):
+    """[D18] RED IF THE HINT IS HARDCODED FALSE, or sent as False by accident.
+
+    No catalogued model declares the key, and every one of them zone-cleans. A wire that
+    silently disabled zone clean for the whole brand would be a worse defect than the
+    one being repaired, and it would look identical from the catalog.
+    """
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.s6")
+    hass.states.async_set(
+        _RVAC, "cleaning", {"supported_features": 30524, "fan_speed": "max"}
+    )
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+
+    assert get_adapter_config(_RVAC)["capabilities"]["supports_zone_clean"] is True
+    assert "supports_zone_clean" not in model_catalog.profile_for_model(
+        "roborock.vacuum.s6"
+    ), "a catalogued model started declaring this — confirm it from device evidence"

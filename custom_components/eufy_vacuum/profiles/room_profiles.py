@@ -269,9 +269,12 @@ def normalize_room_profile(
     """Return a fully normalized room profile dict with safe defaults for all keys.
 
     Framework-canonical fields (label/clean_mode/clean_passes/
-    edge_mopping/mop_required) fall back to the catalog's ``normalize_defaults``
-    (the adapter's ``normalize_defaults``; empty when the adapter declares none, since
-    is None — byte-identical).
+    edge_mopping/mop_required) fall back to the catalog's ``normalize_defaults``.
+    An adapter that declares none, or a call with no catalog at all, gets an EMPTY
+    mapping — there is no in-code default underneath it. (The trailing "since is
+    None — byte-identical" here was a fragment of the same pre-catalog sentence
+    corrected in the two docstrings below; it survived the edit that removed the
+    thing it referred to.)
 
     Q2/RP-025 clause (i): the DISPLAY-AXIS fields (fan_speed/water_level/
     clean_intensity) do NOT fall through to that same in-code default — it is
@@ -584,8 +587,19 @@ def resolve_room_profile_for_room(
     Returns an ``EffectiveRoomSettings`` dict; does not mutate inputs.
 
     ``catalog`` (a resolved adapter ``room_profiles`` block) sources the built-ins,
-    legacy aliases, and floor-type fan/water defaults; None uses the in-code
-    constants (byte-identical)."""
+    legacy aliases, and floor-type fan/water defaults.
+
+    ``catalog=None`` yields NOTHING, not a fallback. There are no in-code constants
+    left to fall back to — ``None`` flows through ``get_room_profile`` to
+    ``get_default_room_profiles(None)``, which returns ``{}`` by design, the merge
+    yields ``{}``, and both lookups miss. The axis fallbacks below are then ``""``
+    ("nobody said"), which is the intended answer: core owns no brand's profile
+    vocabulary, so a catalog-less call must not be able to invent one.
+
+    This said "None uses the in-code constants (byte-identical)" until 2026-08-23,
+    describing the world before those constants were removed. The behaviour was
+    already correct; the prose described a fallback the repair had deleted, which is
+    the direction of staleness that reads as reassurance."""
     cat = catalog or {}
     fan_defaults = cat.get("floor_type_fan_defaults") or {}
     water_defaults = cat.get("floor_type_water_defaults") or {}
@@ -806,10 +820,19 @@ def apply_room_profile_to_config(
     """Return a copy of ``room_config`` with the given profile's settings applied.
 
     ``catalog`` (the adapter's resolved room-profile catalog) supplies the
-    ``normalize_defaults`` for any field the profile omits, so a non-Eufy brand's
-    rooms fill from ITS defaults rather than the in-code Eufy ones (fan ``"Max"`` /
-    water ``"Off"`` / intensity ``"Standard"``). Absent catalog → the in-code Eufy
-    defaults (byte-identical to the pre-catalog behaviour for Eufy).
+    ``normalize_defaults`` for any field the profile omits, so a brand's rooms fill
+    from ITS declared defaults.
+
+    ABSENT CATALOG DOES NOT MEAN EUFY DEFAULTS. It means ``brand_defaults = {}``, so
+    fan speed, water level and clean intensity all come out ``""`` — empty, not
+    ``"Max"``/``"Off"``/``"Standard"``. That is the contract: an axis nobody declared
+    stays unset rather than acquiring one brand's literals by default.
+
+    This docstring claimed the opposite until 2026-08-23 — that a missing catalog
+    fell back to in-code Eufy values "byte-identical to the pre-catalog behaviour".
+    Those values are gone. The stale half is the reassuring half: a reader checking
+    whether a catalog-less path could leak Eufy vocabulary would have found a
+    sentence saying yes, about code that no longer does it.
     """
     updated = dict(room_config)
     normalized = normalize_room_profile(profile, catalog=catalog)

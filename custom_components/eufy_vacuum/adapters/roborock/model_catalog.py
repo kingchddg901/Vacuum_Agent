@@ -72,6 +72,21 @@ MODEL_PROFILES: dict[str, dict] = {
     # appear — only the display name would read the generic "Roborock". UNVERIFIED
     # on-device (no S7/S8 on hand): the mop dispatch degrades gracefully (a rejected
     # select_option is caught + logged, never aborts the run — see _run_global_pre_calls).
+    # ⚠ NOT TRUE FOR THE SAFEST-WATER ENTRY, which is the water pre-call this brand
+    # declares. When ``mixed_mode_water_policy: "safest"`` is active,
+    # ``dispatch/manager.py::_run_global_pre_calls`` RAISES and aborts the dispatch on
+    # both a missing target entity (issue #51) and any exception from the select —
+    # deliberately, because failing to push safe water before a batch containing dry
+    # rooms is what wet-mops them.
+    #
+    # And that path is not an edge case: it activates whenever the batch contains ANY
+    # non-mop room (``_any_dry_room = _mop_rooms < len(resolved_rooms)``), which
+    # includes the plainest case of all, an all-vacuum batch. Since an uncatalogued
+    # model defaults to mop-settable, this is reachable on any Roborock not in the
+    # catalog whose mop set is actually rejected.
+    #
+    # "Caught + logged, never aborts" remains true for the BEST-EFFORT entries (fan,
+    # single-mode water). Corrected 2026-08-23.
     "roborock.vacuum.a15": {  # S7
         "family": "s7",
         "display_name": "Roborock S7",
@@ -102,6 +117,12 @@ MODEL_PROFILES: dict[str, dict] = {
 # from the hardware the moment a model ships with a different station, which is exactly
 # the failure the vendor lookup exists to prevent.
 
+# ``supports_zone_clean`` — OPTIONAL, defaults True. Draw-a-box zone cleaning via
+#   ``app_zoned_clean``. Every catalogued model supports it, so no entry declares it
+#   today; the key exists because the adapter passes it through as a capability hint
+#   (D18), which means an entry declaring ``False`` is actually refused at dispatch
+#   rather than silently ignored. Declare it only from evidence on the device.
+#
 # ``has_path_control`` — the per-room path/route axis (``path_type``: wide | narrow).
 # The S6 does not have it; better models do, which is why the axis stays declared in
 # ROOM_PROFILES rather than being deleted brand-wide. It is False on every entry above

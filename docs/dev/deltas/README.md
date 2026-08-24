@@ -61,7 +61,7 @@ exists) and because the RETENTION half — a synthetic capture still overwrites 
 a stable path — is untouched and still open.
 
 Note what kind of item this is, because it is the same shape as `RB-ERR-2` below: it is
-**not a current divergence**. [04 §6a](../04-listeners.md) describes the write accurately and
+**not a current divergence**. [19 — The Event Ingress Layer](../19-event-ingress.md) describes the write accurately and
 deliberately — "one file per (vacuum, map), overwritten each time, so there is no
 accumulation, no pruning, and a **stable path** an automation can hardcode" — and that
 rationale is sound for the automation case it was written for. DR is authoritative and
@@ -252,7 +252,7 @@ and it is the larger of the two. Design lives in `PROTOCOL-semantic-flight-recor
 (repo-local). ⚠ **Its implementation has not been reviewed line by line.** 23 tests pass and it
 traces to a decided design; that is the whole claim. The retention half of STALL-PROV-1 — a
 synthetic capture overwrites a real one at a path automations hardcode — is **not** addressed
-here and stays open, because changing retention breaks a contract [04 §6a](../04-listeners.md)
+here and stays open, because changing retention breaks a contract [19 — The Event Ingress Layer](../19-event-ingress.md)
 states explicitly and therefore needs adjudicating rather than patching.
 
 ### The four with no DR surface

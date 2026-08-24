@@ -223,9 +223,24 @@ def register(hass: HomeAssistant) -> None:
                     # mop". Eufy's own adapter DOES declare this trigger set
                     # (adapters/eufy/adapter.py), so live Eufy detection is
                     # unaffected.
+                    #
+                    # D14: `dock_events.enabled` gates BOTH detectors, not just the
+                    # dedicated listener. dock_events.py checks it with fallback=False
+                    # before it will even subscribe (REG-4); this path read the same
+                    # `dock_events.triggers.last_mop_wash` with no `enabled` check at
+                    # all, so an adapter that declares triggers but opts out -- or
+                    # simply omits `enabled`, whose schema default is False -- still had
+                    # wash observations written through here. A guard that EXISTS reads
+                    # as complete: the shorter copy of the predicate is the bug, and the
+                    # comment above already claimed the closed shape.
                     _adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
+                    _dock_events_enabled = bool(
+                        get_adapter_value(
+                            vacuum_entity_id, "dock_events", "enabled", fallback=False
+                        )
+                    )
                     _dock_status_entity = _adapter_cfg.get("entities", {}).get("dock_status")
-                    if _dock_status_entity and entity_id == _dock_status_entity:
+                    if _dock_events_enabled and _dock_status_entity and entity_id == _dock_status_entity:
                         _wash_triggers = frozenset(
                             str(s).strip().lower()
                             for s in _adapter_cfg.get("dock_events", {})
@@ -405,9 +420,15 @@ def register(hass: HomeAssistant) -> None:
                         continue
 
                     # Sequenced job model: a completed phase advances to the next
-                    # phase (re-dispatch) instead of finalizing. Atomic jobs —
-                    # every adapter today — return False here and finalize as
-                    # before. Each phase finalizes only when it is the last.
+                    # phase (re-dispatch) instead of finalizing. An ATOMIC job
+                    # returns False here and finalizes as before. Each phase
+                    # finalizes only when it is the last.
+                    #
+                    # This said "atomic jobs — every adapter today" until
+                    # 2026-08-23, which stopped being true when strict order
+                    # shipped: Roborock's engine emits one phase PER ROOM under
+                    # `strict_order`, so the advance branch below is live in a
+                    # shipped configuration, not scaffolding for a future brand.
                     _dlog("lifecycle.finalize.reached",
                           vacuum=vacuum_entity_id, map_id=str(map_id),
                           job_id=active_job.get("job_id"),

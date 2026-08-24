@@ -5,7 +5,7 @@ The rooms subsystem owns room discovery, the managed-room CRUD lifecycle, and th
 engine that gates/modifies rooms at start). Covered by **308 tests across 11 files**.
 
 Source: `custom_components/eufy_vacuum/rooms/`
-Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.md), [docs/dev/09-room-rules-system.md](../../dev/09-room-rules-system.md)
+Architecture reference: [17 — A Room's Identity](../../dev/17-room-identity.md), [18 — The Access Graph](../../dev/18-access-graph.md)
 
 
 ### `vocabulary_migration.py` — the one-shot repair (added 2026-08-07)

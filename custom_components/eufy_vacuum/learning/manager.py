@@ -1043,6 +1043,25 @@ class LearningManager:
         had_errors=False, destroying the run's error history unrepairably (rebuild_all
         reads FROM these files). Guarding the chokepoint makes any future entry point
         safe by construction.
+
+        ⚠ SCOPE OF THAT CLAIM — read before adding a guard here and assuming it is
+        total. It covers every path that finalizes a DISPATCHED run, because
+        ``active_job["status"] = "completed"`` is written in exactly one place tree-wide
+        (``jobs/active_job.py::ActiveJobTracker.mark_active_job_finalized``) and every
+        such path converges here first. It does NOT cover every way a run can end:
+
+        - ``learning/external_run.py::ExternalRunManager._finalize_external_run`` writes
+          a pending review record and clears the slot to ``idle`` in its ``finally``. Its
+          graduation path calls ``save_completed_job`` directly. It reaches neither
+          chokepoint, yet it writes a durable record and releases the error latch. It is
+          safe TODAY by a different mechanism — the pending file's existence is its
+          exactly-once claim, and ``confirm_external_run`` unlinks it — not by this one.
+        - ``core/manager.py::EufyVacuumManager._reap_stranded_phased_jobs`` closes the
+          on-disk parent only and skips any parent whose run is still live, so it cannot
+          drive the status machine at all.
+
+        So: a guard placed here protects the status machine. A guard that needs to see
+        EVERY run-end has two more sites to cover, and neither will announce itself.
         """
         # --- EXACTLY-ONCE CLAIM ---------------------------------------------------
         # HA is a single event loop, so a claim written synchronously before the first

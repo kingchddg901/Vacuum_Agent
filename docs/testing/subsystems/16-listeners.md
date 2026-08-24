@@ -13,7 +13,7 @@ cases total.
 the integration/unit split can't be computed by the single-header model). -->
 
 Source: `custom_components/eufy_vacuum/listeners/`
-Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
+Architecture reference: [19 — The Event Ingress Layer](../../dev/19-event-ingress.md)
 
 ---
 
@@ -28,6 +28,8 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 | `receipts/` | new | — | `tests/unit/test_receipts.py` | unit | clean |
 | `dock_events.py` | 65 | 92% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration | **bare x28** |
 | `discovery.py` | 81 | 99% | `test_listeners_timers.py` | integration | clean |
+| `entity_rename.py` | new | — | `tests/unit/test_listeners_entity_rename.py` | unit | spec'd |
+| `core/manager.py` (D4 migration) | new | — | `tests/unit/test_manager_entity_rename_migration.py` | unit | clean |
 | `pause_timeout.py` | 89 | 95% | `test_listeners_timers.py` | integration | clean |
 | `_common.py` | 80 | 91% | `test_listeners_common.py` | integration | clean |
 | `job_progress.py` | 48 | 92% | `test_listeners_active.py` | integration | **bare x28** |
@@ -118,6 +120,37 @@ that supplies a name ("on map Main floor"). Declaring the name properly needs a 
 ROLE: the role list in `core/capabilities.py` is fixed, and `active_map` must keep
 resolving to the ID because map-id resolution depends on it. That is a contract change,
 not the one-line adapter tweak it first looked like.
+
+### Entity rename (`ER`) — detection only, on purpose
+
+`entity_rename.py` is the D4 detector: a managed vacuum's entity id is a **storage
+address**, so renaming one strands seventeen store sections plus the learning tree
+while `ensure_vacuum_record` quietly creates a fresh empty one. Until this listener
+existed, nothing noticed.
+
+It **records and does not repair** — moving the data is a migration over the user's
+only copy and lands on its own review. What the listener buys on its own is that the
+old id is captured at the one moment it is observable: once Home Assistant has renamed
+the entity, the old id exists nowhere else.
+
+The tests cover the decisions rather than the plumbing — what counts as a rename
+(`ER-2`: an icon or friendly-name change is not one), whose rename matters (`ER-3`),
+and two that defend specific reasoning:
+
+- **`ER-5`** — two renames APPEND. Keyed by vacuum, `a→b` then `b→c` would let the
+  second overwrite the first and leave `a` unresolvable, which is the loss the
+  listener exists to prevent.
+The **repair** is `core/manager.py::_apply_pending_entity_renames`, covered by
+`tests/unit/test_manager_entity_rename_migration.py` (`RN`). Two of its targets defend specific
+reasoning: **`RN-2`** proves sections are DISCOVERED rather than listed — a section invented after
+the migration was written still moves, which a hardcoded list of seventeen would miss — and
+**`RN-6`** proves the fallible half runs first: the filesystem move is attempted before any dict
+is touched, so a tree failure leaves *nothing* moved rather than a store pointing at a tree still
+under the old name. Ablating the abort turns `RN-6` red on its own.
+
+- **`ER-6`** — the managed check is against the **old** id. Moving it to the new id
+  turns every real rename into "not ours", because the new id is by definition one
+  that was never stored. Ablation confirms `ER-1`, `ER-5` and `ER-6` go red together.
 
 ## How it's tested
 

@@ -461,7 +461,10 @@ class DispatchManager:
         ``off`` option, the value is lowered to the select's MINIMUM available option
         rather than silently leaving the prior (possibly HIGH) value on the device.
 
-        Entry shape::
+        Entry shape (fan_speed is used here as a SHAPE example only — no shipped brand
+        declares a fan pre-call; both shipped brands use this for WATER, and Roborock
+        drives fan through ``per_room_live_settings``. Kept as the example because the
+        rank list reads clearly, but do not infer a live fan pre-call from it)::
 
             {"field": "fan_speed",
              "rank": ["gentle","quiet","balanced","turbo","max"],  # ascending

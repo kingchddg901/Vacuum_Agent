@@ -30,7 +30,7 @@ end to end against a synthetic image.
 > re-stamped by that tool and has fallen behind — see the note there.
 
 Source: `custom_components/eufy_vacuum/mapping/`
-Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-system.md)
+Architecture reference: [11 — A Map’s Stored State](../../dev/11-map-stored-state.md) through [15 — The Stall Capture Image](../../dev/15-stall-capture-image.md)
 
 ---
 

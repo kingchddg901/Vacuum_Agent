@@ -704,6 +704,15 @@ class ActiveJobTracker:
         actual wash cycle. The cooldown (adapter ``dock_events.debounce_seconds``
         keyed by ``last_mop_wash``; 0 = none) collapses those flips into one
         counted event.
+
+        THE SECOND CLOCK IS NOT A DUPLICATE OF THIS ONE. ``dock/manager.py`` debounces
+        the same physical ``dock_status`` edge against its own persisted
+        ``dock_events[…].last_mop_wash_last_counted_at``, and the two deliberately do
+        not consult each other: that counter is LIFETIME and ungated, this one is
+        per-job and only runs while a job is ``started``/``paused``. Pointing this at
+        the persisted marker would let the PREVIOUS job's wash suppress the first wash
+        of the next one, which is an undercount in the number that feeds water
+        consumption. Different populations, so different reference points.
         """
         active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if active_job.get("status") not in {"started", "paused"}:

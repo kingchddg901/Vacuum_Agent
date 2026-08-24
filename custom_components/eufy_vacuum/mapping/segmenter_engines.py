@@ -55,6 +55,34 @@ class Bbox(TypedDict):
 
 
 SegmentQuality = Literal["strong", "good", "usable", "poor"]
+
+# ⚠ THE NEXT TWO LITERALS DO NOT DESCRIBE WHAT SHIPS. They are the INTENDED vocabulary;
+# the emitted set is different, and it is not a subset.
+#
+#   declared here          actually emitted
+#   ---------------------  ---------------------------------------------------------
+#   clean                  clean
+#   needs_review           (never)
+#   ambiguous              (never)
+#                          merged_candidate      | adapters/eufy/segmentor.py::
+#                          fragmented_candidate  |   _segmentation_state
+#                          review                |
+#                          custom                | the hand-authored path
+#
+#   ready                  ready
+#   needs_edit             (never)
+#   blocked                (never)
+#
+# Those four pass through `EufyCVSegmenter._reshape` UNMODIFIED — nothing maps them
+# onto the declared names.
+#
+# WHY THIS IS WORSE THAN AN INCOMPLETE LITERAL. Off-contract is not the same as a
+# subset: an exhaustive match written against these names falls through on MOST real
+# data rather than on an edge case, and a type checker reading the annotation will
+# agree with the match and not with the runtime. Treat the Literals as the intended
+# vocabulary and the emitted set as the live one until the two are reconciled —
+# reconciling them is a contract change with a card-facing surface, not a widening of
+# a type alias. Recorded 2026-08-23 (D30); see docs/dev/13-segmentation.md §1.
 SegmentationState = Literal["clean", "needs_review", "ambiguous"]
 EditReadiness = Literal["ready", "needs_edit", "blocked"]
 

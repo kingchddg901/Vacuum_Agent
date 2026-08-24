@@ -186,7 +186,7 @@ The full `theme` object shape:
 `deleted_core_ids` is a fourth, **optional** top-level key. `_get_theme_data()`
 (`themes/manager.py:119-125`) seeds only `library` / `default_theme_id` / `vacuums`, so the
 key does not exist until the first time a `source: "core"` entry is deleted, at which point
-`delete_theme()` appends the id (`themes/manager.py:428-433`). It is durable and load-bearing:
+`delete_theme()` appends the id (`themes/manager.py::delete_theme`). It is durable and load-bearing:
 `ensure_preloaded_theme_library()` reads it on every construction
 (`themes/preloaded.py:534-535`) and skips any tombstoned id (`:548`) — that is what stops a
 deleted built-in from reappearing on the next restart.

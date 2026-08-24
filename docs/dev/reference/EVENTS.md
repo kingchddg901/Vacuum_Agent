@@ -33,7 +33,7 @@ An `EVENT_*` constant that nothing fires is listed here rather than above — th
 
 | Constant | Defined | Value |
 |---|---|---|
-| `EVENT_BOUNDARY_SAVED` | `custom_components/eufy_vacuum/mapping/tracker.py::EVENT_BOUNDARY_SAVED` | `eufy_vacuum_boundary_saved` |
+| `EVENT_BOUNDARY_SAVED` | `custom_components/eufy_vacuum/const.py::EVENT_BOUNDARY_SAVED` | `eufy_vacuum_boundary_saved` |
 
 ---
 
@@ -153,7 +153,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 
 ## eufy_vacuum_room_completed
 
-Constant: `EVENT_ROOM_COMPLETED` — `custom_components/eufy_vacuum/mapping/tracker.py::EVENT_ROOM_COMPLETED`, string literal `'eufy_vacuum_room_completed'`
+Constant: `EVENT_ROOM_COMPLETED` — `custom_components/eufy_vacuum/const.py::EVENT_ROOM_COMPLETED`, f-string `f'{DOMAIN}_room_completed'`
 
 Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/mapping/tracker.py`
 

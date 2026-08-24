@@ -300,6 +300,26 @@ def _code_key(value: Any) -> Any | None:
 
 
 def _safe_int(value: Any) -> int | None:
+    """Coerce to int, or None.
+
+    ⚠ GUARD ASYMMETRY, deliberate to record rather than silently narrow. ``_code_key``
+    above documents two rules for coercing an error code and enforces both: never
+    ``int()`` on a float, because ``int(3.7)`` is 3 and 3 is a real Eufy code (SIDE
+    BRUSH); and reject ``bool``, because it is an ``int`` subclass so ``True`` would
+    resolve to code 1. This function has NEITHER, and it reads a robot-sourced code
+    attribute at the ``_first_error_code_attr`` call site — ahead of both places that
+    apply the rules.
+
+    That lands on codes whose seconds are deducted by the fault table, which is the
+    exact arithmetic the table exists to protect. No non-integer has been observed
+    arriving there, so this is a named input rather than an observed field failure —
+    which is why the remedy here is the statement and not a narrowing. Narrowing this
+    would also change its two OTHER call sites, which coerce ``error_count`` and want
+    ordinary int semantics.
+
+    If you are giving it the guards, give it a separate code-specific wrapper rather
+    than tightening this one.
+    """
     try:
         return int(value)
     except (TypeError, ValueError):

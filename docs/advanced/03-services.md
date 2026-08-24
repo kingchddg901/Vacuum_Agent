@@ -842,7 +842,7 @@ This is a vacuum-level (not map-level) service — `map_id` is not required. The
 ## External Jobs (app-started runs)
 
 Surface app-started (external) cleans for review and fold confirmed runs into the
-learned baselines. See the [external-run ingestion dev doc](../dev/28-external-run-ingestion.md).
+learned baselines. See the [30 — External Runs](../dev/30-external-runs.md).
 All of them support response, and the review flow depends on it: `get_external_pending_runs`
 is the only source of the `pending_job_id` the other three require.
 

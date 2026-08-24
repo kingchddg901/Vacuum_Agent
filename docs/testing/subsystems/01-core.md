@@ -7,7 +7,7 @@ latch, the post-job water amendment, and the brand-agnostic charging /
 low-battery-return reads. Covered by **341 tests across 16 files**.
 
 Source: `custom_components/eufy_vacuum/core/`
-Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.md), [docs/dev/23-error-tracker.md](../../dev/23-error-tracker.md)
+Architecture reference: [33 — The Orchestrator](../../dev/33-the-orchestrator.md), [35 — The Fault Tracker](../../dev/35-the-fault-tracker.md)
 
 
 ### `vacuum_identity.py` — per-vacuum state needs a real vacuum (added 2026-08-08)
@@ -44,6 +44,43 @@ stored. `test_vacuum_identity.py` (12 tests) pins the shape:
 "HA has the entity", which would delete a renamed vacuum's history. Either proof
 suffices, and VI-5 guards the catastrophic case: if a stored record ever stopped
 counting as proof, this sweep would delete every vacuum on the install.
+
+---
+
+### `battery_aggregates_migration.py` — replaying a ratio's history (added 2026-08-23)
+
+`test_battery_aggregates_migration.py` (13 tests) covers the one-shot replay of drain
+aggregates accumulated before the C17 partnered-numerator repair.
+
+The repair it completes is not the repair itself. C17 gave each drain mean its own
+numerator, gated on both halves of the ratio being present, and is correct for a bucket
+that starts empty — which is what all three of its own tests construct, and why none of
+them could see what happens on an install that was already running. The partnered
+numerators are NEW KEYS: an upgraded bucket keeps a `duration_min_sum` holding all-time
+data while its numerator restarts at 0.0, so the first job folded in afterwards
+publishes roughly one job's drain over every job's duration. Measured on the live
+install on 2026-08-23, before C17 had been deployed to it: the next run would have
+published 0.0 and 0.0066 %/min against honest figures of 0.292 and 0.4613.
+
+[BAM-1] drives that collapse through the real `_update_aggregate_bucket` rather than
+asserting the migration's own bookkeeping. It is the only test here that describes the
+harm; the other twelve exist because of it.
+
+The rest weight the REFUSALS and the retries, because this rewrites a user's own derived
+history and cannot be undone from anything else on disk:
+
+- [BAM-3] an empty pre-C17 bucket is NOT a target. The first draft of this test used a
+  freshly built bucket, which already carries the partnered keys — so it passed against
+  a deliberately broken guard and proved nothing. The shape that bites is a vacuum added
+  before C17 that has never run: old format, no partnered keys, all sums at zero.
+  `vacuum.robin` was in exactly that state on the live install.
+- [BAM-4] a numerator PRESENT and 0.0 is not a target either. That is what an honest
+  run of drain-less jobs produces under the new rule; the arithmetic looks identical to
+  the broken case, so detection keys on absence rather than on the value.
+- [BAM-10] a missing subsystem DEFERS and does not latch — reachable rather than
+  theoretical, because `async_at_started` fires immediately on a config-entry reload.
+- [BAM-11] one unreadable archive does not abort the others, and does not latch.
+- [BAM-9] the previous aggregates are snapshotted first.
 
 ---
 

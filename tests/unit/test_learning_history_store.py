@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import pathlib as _pathlib
+
+#: Repo root, for the D19 no-production-caller ratchet at the bottom of this file.
+ROOT_DIR = _pathlib.Path(__file__).resolve().parents[2]
+
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1310,3 +1315,145 @@ def test_payload_completed_room_ids_empty_when_nothing_finished(tmp_path):
     args["active_job_state"].pop("phases", None)
     payload = store.build_completed_job_payload(**args)
     assert payload["queue"]["completed_room_ids"] == []
+
+
+# ---------------------------------------------------------------------------
+# D5 — the rename alias. The learning key is map::slug and a job record carries the
+# slug it had AT RUN TIME, so a renamed room's history stays under a name nothing
+# asks for again unless the old identity is recorded.
+# ---------------------------------------------------------------------------
+
+def test_slug_alias_is_recorded_and_resolves(tmp_path):
+    """RED WITHOUT THE ALIAS: the old slug resolves to itself, so a rebuild keys a
+    renamed room's past runs under the name it no longer has."""
+    from custom_components.eufy_vacuum.learning.utils import resolve_room_slug
+
+    store = _make_store(tmp_path)
+    assert store.record_slug_alias(
+        vacuum_entity_id="vacuum.alfred", map_id="12",
+        old_slug="office", new_slug="study",
+    ) is True
+
+    aliases = store.load_key_aliases(vacuum_entity_id="vacuum.alfred")
+    assert resolve_room_slug(aliases, "12", "office") == "study"
+    # the current name is not an alias key, and must pass through untouched
+    assert resolve_room_slug(aliases, "12", "study") == "study"
+    # a DIFFERENT map is a different room space — ids and names are reissued per map
+    assert resolve_room_slug(aliases, "7", "office") == "office"
+
+
+def test_slug_alias_collapses_forward_and_never_chains(tmp_path):
+    """The resolver follows ONE hop. That is only correct because the writer
+    collapses: a->b then b->c must store a->c, not a->b plus b->c."""
+    from custom_components.eufy_vacuum.learning.utils import resolve_room_slug
+
+    store = _make_store(tmp_path)
+    store.record_slug_alias(vacuum_entity_id="v.a", map_id="1", old_slug="a", new_slug="b")
+    store.record_slug_alias(vacuum_entity_id="v.a", map_id="1", old_slug="b", new_slug="c")
+
+    aliases = store.load_key_aliases(vacuum_entity_id="v.a")
+    assert aliases["rooms"]["1"] == {"a": "c", "b": "c"}
+    # one hop is enough from either historical name
+    assert resolve_room_slug(aliases, "1", "a") == "c"
+    assert resolve_room_slug(aliases, "1", "b") == "c"
+
+
+def test_slug_alias_refuses_noop_and_self(tmp_path):
+    store = _make_store(tmp_path)
+    assert store.record_slug_alias(
+        vacuum_entity_id="v.a", map_id="1", old_slug="den", new_slug="den") is False
+    assert store.record_slug_alias(
+        vacuum_entity_id="v.a", map_id="1", old_slug="", new_slug="den") is False
+    assert store.load_key_aliases(vacuum_entity_id="v.a") == {}
+
+
+def test_rekey_accuracy_moves_entries_to_the_new_slug(tmp_path):
+    """accuracy_stats is append-only and never rebuilt, so recording the alias alone
+    would leave its entries unreachable forever."""
+    store = _make_store(tmp_path)
+    old_key = "12::office::vacuum::1::0::narrow::0"
+    new_key = "12::study::vacuum::1::0::narrow::0"
+    store.save_accuracy_stats(
+        vacuum_entity_id="v.a",
+        payload={"rooms": {old_key: {"samples": 4}}},
+    )
+    moved = store.rekey_accuracy_slugs(
+        vacuum_entity_id="v.a", map_id="12", slug_remap={"office": "study"})
+    assert moved == 1
+    rooms = store.load_accuracy_stats(vacuum_entity_id="v.a")["rooms"]
+    assert new_key in rooms and old_key not in rooms
+    assert rooms[new_key] == {"samples": 4}
+
+
+def test_rekey_accuracy_fails_closed_on_an_unknown_key_shape(tmp_path):
+    """A key that is not _ROOM_KEY_PARTS components is left alone. If the key shape
+    ever changes this must rewrite NOTHING rather than rebuild a key it cannot parse."""
+    store = _make_store(tmp_path)
+    short = "12::office::vacuum"          # 3 parts, not 7
+    store.save_accuracy_stats(vacuum_entity_id="v.a", payload={"rooms": {short: {"n": 1}}})
+    assert store.rekey_accuracy_slugs(
+        vacuum_entity_id="v.a", map_id="12", slug_remap={"office": "study"}) == 0
+    assert short in store.load_accuracy_stats(vacuum_entity_id="v.a")["rooms"]
+
+
+def test_rekey_accuracy_refuses_a_collision(tmp_path):
+    """A rename ONTO a name that already has history is two populations. Merging them
+    is a data decision this layer is not entitled to make, so neither is touched."""
+    store = _make_store(tmp_path)
+    old_key = "12::office::vacuum::1::0::narrow::0"
+    new_key = "12::study::vacuum::1::0::narrow::0"
+    store.save_accuracy_stats(
+        vacuum_entity_id="v.a",
+        payload={"rooms": {old_key: {"n": 1}, new_key: {"n": 99}}},
+    )
+    assert store.rekey_accuracy_slugs(
+        vacuum_entity_id="v.a", map_id="12", slug_remap={"office": "study"}) == 0
+    rooms = store.load_accuracy_stats(vacuum_entity_id="v.a")["rooms"]
+    assert rooms[old_key] == {"n": 1} and rooms[new_key] == {"n": 99}
+
+
+# ---------------------------------------------------------------------------
+# D19 - append_csv_row stays out of production, on purpose
+# ---------------------------------------------------------------------------
+
+
+def test_d19_append_csv_row_has_no_production_caller():
+    """Its docstring says it has no production caller and explains why it must not gain
+    one: JSON is the single authority and the CSV is a projection regenerated wholesale,
+    which is what makes the projection unable to drift. Appending incrementally
+    reintroduces exactly that drift.
+
+    Without this, the docstring is a comment and nothing more. The function is the
+    obvious O(1) answer to an O(all jobs) refresh, it is correct, and it has passing
+    tests beside it — someone profiling the rebuild will find it and wire it, reasonably.
+    This is what makes them read the reason first.
+
+    RED THE MOMENT IT IS CALLED FROM custom_components/. If wiring it is genuinely
+    right, the docstring and this test are what have to be argued with — which is the
+    point, not an obstacle.
+    """
+    import re
+
+    src_root = ROOT_DIR / "custom_components" / "eufy_vacuum"
+    hits = []
+    for path in src_root.rglob("*.py"):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if "append_csv_row" not in line:
+                continue
+            stripped = line.strip()
+            # the definition itself, and prose about it, are not callers
+            if stripped.startswith("def append_csv_row"):
+                continue
+            if re.match(r"^\s*(#|\*|``)", line) or '"""' in line:
+                continue
+            if "append_csv_row(" not in line:
+                continue
+            hits.append(f"{path.relative_to(ROOT_DIR)}:{lineno}: {stripped}")
+
+    assert not hits, (
+        "append_csv_row gained a production caller. Read its docstring before removing "
+        "this test: the CSV is a projection regenerated wholesale from the JSON so it "
+        "cannot drift, and an incremental append makes it a second source of truth.\n  "
+        + "\n  ".join(hits)
+    )

@@ -46,26 +46,58 @@ _MAX_THEME_TAGS = 16
 _MAX_THEME_TAG_LEN = 32
 
 
-def _clean_theme_tags(raw: Any) -> list[str]:
-    """Normalise a free-text tag list: trim, lowercase, dedupe, drop empties, cap.
+def _clean_theme_tags_with_report(raw: Any) -> tuple[list[str], list[dict[str, str]]]:
+    """Normalise a free-text tag list, and say what was dropped and why.
 
     Format-only — system-word stripping (dark/core/colorblind-safe…) is the card's
     job at display time (the SYSTEM_VOCAB in src/theme-tags), so the vocabulary
     stays single-sourced and a stored system word is simply ignored, not shown.
+
+    The cleaning is unchanged; the REPORT is the point. Dropping silently meant a
+    caller submitting twenty tags and a caller submitting sixteen got byte-identical
+    responses, so the card could not tell the user their last four did not save and an
+    automation could not detect it at all. The limits themselves are defensible — a
+    mutation may refuse with a reason, or succeed carrying what it applied, and quietly
+    applying a subset is the third thing.
+
+    Reasons are SLUGS, not prose: the caller formats them, so this adds no user-facing
+    string and no new key to the eighteen locale files.
     """
+    dropped: list[dict[str, str]] = []
     if not isinstance(raw, list):
-        return []
+        return [], dropped
     out: list[str] = []
     seen: set[str] = set()
-    for item in raw:
+    for index, item in enumerate(raw):
+        if len(out) >= _MAX_THEME_TAGS:
+            # The loop used to `break` here, so everything past the limit was never
+            # examined and never mentioned. Record the remainder rather than stopping:
+            # "you sent twenty and sixteen were kept" is the whole finding.
+            dropped.append({"tag": str(item), "reason": "limit_reached"})
+            continue
         tag = str(item).strip().lower()
-        if not tag or tag in seen or len(tag) > _MAX_THEME_TAG_LEN:
+        if not tag:
+            dropped.append({"tag": str(item), "reason": "empty"})
+            continue
+        if len(tag) > _MAX_THEME_TAG_LEN:
+            dropped.append({"tag": tag, "reason": "too_long"})
+            continue
+        if tag in seen:
+            dropped.append({"tag": tag, "reason": "duplicate"})
             continue
         seen.add(tag)
         out.append(tag)
-        if len(out) >= _MAX_THEME_TAGS:
-            break
-    return out
+    return out, dropped
+
+
+def _clean_theme_tags(raw: Any) -> list[str]:
+    """The cleaned list alone, for the import and duplicate paths.
+
+    Those two copy tags from a theme that already passed through here, so there is
+    nothing to report to anyone — a report they discarded would only make the shape
+    look reported-on.
+    """
+    return _clean_theme_tags_with_report(raw)[0]
 
 
 class ThemeManager:
@@ -402,14 +434,26 @@ class ThemeManager:
         if not isinstance(entry, dict):
             return {"ok": False, "reason": "theme_not_found", "theme_id": theme_id}
 
-        cleaned = _clean_theme_tags(tags)
+        cleaned, dropped = _clean_theme_tags_with_report(tags)
         if cleaned:
             entry["tags"] = cleaned
         else:
             entry.pop("tags", None)
 
         self._notify_updated(vacuum_entity_id=None)
-        return self._minimal_theme_mutation_response(ok=True, theme_id=theme_id)
+        response = self._minimal_theme_mutation_response(ok=True, theme_id=theme_id)
+        # Carry what was APPLIED, not merely that something was. `tags` is the stored
+        # result, so a caller can diff it against what it sent without knowing the
+        # cleaning rules; `dropped_tags` says which ones went and why.
+        response["tags"] = list(cleaned)
+        if dropped:
+            response["dropped_tags"] = dropped
+            _LOGGER.info(
+                "set_theme_tags %s: stored %d of %d tag(s); dropped %s",
+                theme_id, len(cleaned), len(cleaned) + len(dropped),
+                ", ".join(f"{d['tag']!r} ({d['reason']})" for d in dropped),
+            )
+        return response
 
     def delete_theme(self, *, theme_id: str) -> dict[str, Any]:
         """Remove a theme from the library. Clears it from any vacuum that uses it.

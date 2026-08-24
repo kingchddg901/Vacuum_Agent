@@ -7,7 +7,7 @@ confirmation token for a reduced run, and produces the runtime path-block report
 when a rule fires mid-job. Covered by **89 tests across 4 files**.
 
 Source: `custom_components/eufy_vacuum/planning/`
-Architecture reference: [docs/dev/09-room-rules-system.md](../../dev/09-room-rules-system.md)
+Architecture reference: [18 — The Access Graph](../../dev/18-access-graph.md)
 
 ---
 

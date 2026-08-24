@@ -129,8 +129,8 @@ ENTRY → ASK_VACUUM → ASK_ROOM → ASK_MODE → ASK_SUCTION → ASK_WATER →
 - **Per-slot vocabulary + parsing.** The valid answers for each slot come from the
   **adapter's `vocabulary`** for the chosen vacuum. Each spoken answer is normalized with
   the **existing brand-vocab normalization** (the alias maps already used by the card —
-  see [25-eufy-adapter](../../25-eufy-adapter.md) and the `vocabulary` block in
-  [22-adapter-config-reference](../../22-adapter-config-reference.md)). "heavy" → the adapter's
+  see [23 — The Eufy Adapter](../../23-eufy-adapter.md) and the `vocabulary` block in
+  [22 — The Adapter Contract](../../22-adapter-contract.md)). "heavy" → the adapter's
   max-suction code; "two" → `2` (number-word parse); "vacuum and mop" → the mop mode code.
 - **Re-prompt on miss.** If an answer doesn't normalize to a valid slot value, re-ask with
   the options ("I didn't catch that — what suction? You can say quiet, standard, turbo,

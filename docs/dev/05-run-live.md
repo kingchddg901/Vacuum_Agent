@@ -5,9 +5,15 @@ ladder, dispatch, room advance, and the observers that run while the robot works
 is [06 — How a Run Ends](06-run-end.md).
 
 Nothing here decides a run's fate. Every value in this half is derived, observed or reported;
-the authorities that can end a run all live in 06. That separation is enforced, not conventional
-— the progress snapshot is a pure read by default, and the four mid-run observers write records
-that only finalization consumes.
+the authorities that can end a run all live in 06. The progress snapshot is a pure read by
+default, and three of the four mid-run observers write records that only finalization consumes.
+
+**The transition observer is the exception, and it steers the run.** Its
+`_accumulate_current_room_noncleaning` write is subtracted by
+`jobs/active_job.py::ActiveJobTracker._compute_current_room_elapsed_minutes` on every read, which
+is the input to room rollover, to `current_room_overdue` and to the anomaly bar — consumed every
+five seconds, not at finalize. The recharge and mop-wash counts are republished live too, on the
+snapshot and as entity attributes.
 
 ---
 
@@ -181,8 +187,11 @@ active-job record. **None of them decides anything about the run**, and the comp
 none of them — it is suppressed during a recharge dock by a separate signal.
 
 **The recharge pair is a two-phase state machine split across ticks on purpose** — armed on the
-dock, counted on the resume. "Docked and charging" cannot distinguish a mid-run recharge from the
-end of the job, so counting on the dock would count every ending run as a recharge.
+dock, counted on the resume. The arming condition is not "docked and charging" — it is a
+low-battery return (`core/charging.py::is_low_battery_return_state`), so a run that ends with a
+healthy battery never arms the observer at all. The split matters for the run that *does* end
+while low-battery-returning: for that one, "docked and charging" cannot tell a mid-run recharge
+from the end of the job, and counting on the dock would score it as a recharge.
 
 **The mop-wash observer is a debounced counter whose vocabulary is adapter-declared with no brand
 fallback.** A brand that declares nothing observes nothing, rather than inheriting another
@@ -190,8 +199,9 @@ brand's words.
 
 **State-transition and sensor-value recording exist to make finalization independent of live HA
 reads.** The transitions are the segmenter's only window into a gap the counters cannot see; the
-pushed sensor values dodge a packet-ordering race at job end, where a live read can return the
-next run's zeroes.
+pushed sensor values dodge a packet-ordering race at job end, where finalization fires on a
+separate packet that can arrive *before* the sensor values have landed in HA's state machine —
+so a live read returns a stale, too-low figure rather than the run's real total.
 
 ---
 

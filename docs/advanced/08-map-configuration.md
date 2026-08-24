@@ -4,6 +4,28 @@ The **Map Configuration** view lets you upload map image variants and define the
 
 > **This page is the technical reference** — image variants, the segment data model, the services, and the internals. For the hands-on, click-by-click guide to setting a map up, see **[Making your own maps](../user-guide/16-making-your-own-maps.md)** in the user guide.
 
+> ## ⚠️ Do not rename a map in the vendor app
+>
+> **On Roborock, a map's NAME is its identity here.** The integration keys everything it learns
+> about a map — every room's timing history, its battery and area statistics, its accuracy record —
+> under that name, because the map name is what `roborock.get_maps` returns as the map's key.
+>
+> **Renaming the map in the Roborock app therefore looks like a brand-new map.** Every room on it
+> starts again from zero samples, and the history is not deleted so much as filed under a name
+> nothing will ever ask for again. Estimates for those rooms go back to defaults.
+>
+> **This is not something the integration can detect or repair.** A rename presents exactly the
+> same way as genuinely adding a map — one name disappears, another appears — and guessing wrong
+> would merge two real maps' histories together, which is worse than losing one. There is no signal
+> that separates the two cases, so there is no fix; there is only this warning.
+>
+> **Eufy is unaffected.** Eufy maps are keyed by a number that does not change when you rename
+> them, so renaming a Eufy map in the app is safe.
+>
+> If you have already renamed a Roborock map: the old statistics are still on disk under the old
+> name in `config/eufy_vacuum/learning/<vacuum>/learned/`, and rooms simply relearn from the next
+> few runs.
+
 You reach the view by enabling **map view** in the Rooms tab and clicking **Configure map**; it opens the `MAP_CONFIG` view (a "Rooms" back-arrow returns you), with all segment polygons visible in the map panel throughout.
 
 ---

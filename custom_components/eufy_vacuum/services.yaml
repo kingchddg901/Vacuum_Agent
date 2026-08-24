@@ -77,6 +77,50 @@ set_entity_override:
       selector:
         text: {}
 
+setup_repair_renamed_vacuum:
+  name: Repair a renamed vacuum
+  description: >
+    Move a vacuum's stored data to its new entity ID after you renamed the vacuum
+    entity in Home Assistant. You only need this if the rename happened before this
+    integration could detect it — renames are handled automatically now.
+
+    A vacuum's entity ID is how everything about it is filed: its rooms and their
+    settings, saved run profiles, setup progress, maintenance baselines, and the whole
+    learning history. Renaming the entity leaves all of that under the old ID and the
+    vacuum comes back looking brand new. Home Assistant does not keep the old ID
+    anywhere, so only you can say what it used to be.
+
+    Run it once with just the two IDs. If the new ID already holds something — usually
+    the empty record created on the first restart after the rename — nothing is changed
+    and the response says what is in the way. Re-run with overwrite_destination to
+    discard that and move the real data across.
+  fields:
+    old_entity_id:
+      name: Old entity ID
+      description: What the vacuum used to be called, e.g. vacuum.alfred.
+      required: true
+      example: vacuum.alfred
+      selector:
+        text: {}
+    new_entity_id:
+      name: New entity ID
+      description: What it is called now.
+      required: true
+      example: vacuum.butler
+      selector:
+        entity:
+          domain: vacuum
+    overwrite_destination:
+      name: Overwrite the destination
+      description: >
+        Discard whatever is already stored under the new entity ID and replace it with
+        the data from the old one. Leave this off for the first run — the response will
+        tell you exactly what would be discarded.
+      required: false
+      default: false
+      selector:
+        boolean: {}
+
 setup_unreject_rooms:
   name: Un-reject rooms
   description: >

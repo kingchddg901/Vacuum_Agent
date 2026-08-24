@@ -48,15 +48,18 @@ behaviour.
 
 ## 2. Two consumers, one flag, neither of them local
 
-`_active_job` is the mode switch, and **nothing in this unit writes it.** `start_job` and
-`end_job` are called from elsewhere — the lifecycle listener and
-`jobs/active_job.py::mark_active_job_finalized`.
+`_active_job` is the mode switch, and this unit is its **only** writer — `start_job` assigns it,
+`end_job` and `unregister_vacuum` pop it, and nothing outside `tracker.py` touches it. What lives
+elsewhere is the decision to flip it: `start_job` and `end_job` are *called* from the lifecycle
+listener and `jobs/active_job.py::mark_active_job_finalized`.
 
 That placement is the same decision recorded in [06 — How a Run Ends](06-run-end.md): the
 release lives at the terminal chokepoint every path reaches, not in the happy path's `finally`,
 which cancel and strand never traverse. **`end_job` flushes the currently-held room as completed
-before clearing state**, so a cancelled job used to leave the tracker holding a dead job — and
-the next run began carrying the previous run's confidence.
+before clearing state — but only if its confidence already cleared the fire threshold.** A job
+ended below it clears silently, emitting nothing. Either way the hold is released, which is the
+point: a cancelled job used to leave the tracker holding a dead job, and the next run began
+carrying the previous run's confidence.
 
 `start_job` runs synchronously on the loop. The executor hop that preceded it was justified by a
 comment naming two disk-I/O functions that no longer exist anywhere in the tree.
@@ -93,7 +96,7 @@ distinct, so two separate rooms could both match one live signal.
 | `CONFIDENCE_THRESHOLD = 0.85` means 85% sure | it is a product of two saturating factors — a conjunctive gate near both ceilings, not a probability |
 | a hold cannot inflate the room's recorded dwell | not during the hold; the hold's wall clock is credited in full the moment it ends |
 | the dock-drift log records drift whenever the robot sits on the dock | it is the `else` of "is a job held" — a mid-run recharge dock logs nothing |
-| the capability lookup is a cheap read-only call, safe on a per-event path | it still runs full detection and a write |
+| the capability lookup is a cheap read-only call, safe on a per-event path | it is, in the steady state — but it escalates to full detection *and* a write in three cases: no stored snapshot, an empty `detected_model`, or an adapter `model_family` mismatch |
 | the module has something to do with boundaries — the docstring says it feeds boundary traces | residue; that subsystem was deleted |
 | room-completed drives something | nothing in Python subscribes to it; its only live consumer is the card |
 

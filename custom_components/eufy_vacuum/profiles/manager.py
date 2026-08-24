@@ -49,7 +49,7 @@ _refresh_room_derived_state without re-implementing them.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from ..const import DOMAIN
@@ -108,13 +108,54 @@ class ProfileManager:
     # ID generators
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _timestamp_id(prefix: str, existing: Any) -> str:
+        """A unique key of the form ``<prefix>_<UTC>Z``, suffixed only on collision.
+
+        Both id spaces used to be ``<prefix>_<LOCAL time to the second>`` with no
+        uniqueness check at all, so the key was simply whatever the clock said and the
+        caller wrote it straight into the store. Two saves inside one second produced
+        the same key and the second silently REPLACED the first — the user sees one
+        profile where they saved two, and the one they lost is the one they still had
+        open. A second's resolution sounds like enough until you notice the card can
+        submit a save without a name, which is one click.
+
+        UTC for the same reason, one hour a year: under a DST fall-back a local clock
+        repeats an entire hour, so two profiles saved sixty minutes apart could collide
+        exactly as if they were simultaneous. Nothing reads a date back out of these ids
+        — ``created_at`` and ``updated_at`` carry the real timestamps — so the clock
+        this is drawn from is free to be the one that never goes backwards.
+
+        The trailing ``Z`` also means a newly minted id can never equal a pre-existing
+        local-time one, so the two formats cannot collide across the change.
+
+        Bounded by construction: with ``n`` stored keys there are ``n + 1`` candidates,
+        so one of them is always free.
+        """
+        keys = existing if isinstance(existing, dict) else {}
+        base = f"{prefix}_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}Z"
+        if base not in keys:
+            return base
+        for n in range(2, len(keys) + 3):
+            candidate = f"{base}-{n}"
+            if candidate not in keys:
+                return candidate
+        raise RuntimeError("unreachable: more candidates than stored keys")
+
     def _generate_room_profile_id(self) -> str:
         """Generate a stable unique key for a new custom room profile."""
-        return f"user_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
+        return self._timestamp_id("user", self._get_custom_room_profile_store())
 
-    def _generate_run_profile_id(self) -> str:
-        """Generate a stable unique key for a new saved run profile."""
-        return f"rp_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
+    def _generate_run_profile_id(self, existing: Any = None) -> str:
+        """Generate a stable unique key for a new saved run profile.
+
+        ``existing`` is the library the id is about to be inserted into. It is a
+        parameter rather than a lookup because run profiles are stored per vacuum AND
+        per map, so there is no single library this method could find on its own — and
+        a uniqueness check against the wrong one is worse than none, since it reads as
+        covered.
+        """
+        return self._timestamp_id("rp", existing)
 
     # ------------------------------------------------------------------
     # Shared room-config utilities
@@ -944,7 +985,7 @@ class ProfileManager:
 
     def _snapshot_room_for_run_profile(self, room: dict[str, Any]) -> dict[str, Any]:
         """Return the persisted room fields relevant to a saved run profile."""
-        return {
+        snapshot = {
             "room_id": _safe_int(room.get("room_id", room.get("id", -1))),
             "name": str(room.get("name", "")),
             "profile_name": str(room.get("profile_name", "vacuum_quick")),
@@ -958,6 +999,24 @@ class ProfileManager:
             "edge_mopping": bool(room.get("edge_mopping", False)),
             "order": int(room.get("order", 999)),
         }
+        # path_type, and ONLY when the room actually holds one. It is the pass-density
+        # axis Roborock declares (Eufy calls the same physical property
+        # clean_intensity), so without it a Roborock user's path setting was neither
+        # captured here nor restored on apply — the profile brought back the right rooms
+        # in the right order with today's path on all of them, which is precisely the
+        # failure the apply ladder exists to prevent.
+        #
+        # CONDITIONAL, because this dict is persisted verbatim and never passes through
+        # _finalize_room_update. An unconditional write would put path_type="" into every
+        # saved profile on every brand, re-creating the fossil the one-shot store repair
+        # cleared: "" and None stringify to the literal "None" downstream, on units whose
+        # adapter has no dispatch path for the axis at all. Empty must stay
+        # indistinguishable from absent — that is what "this brand has no path axis"
+        # means. See models.py::RoomSettings.as_dict.
+        _path_type = str(room.get("path_type", "") or "").strip()
+        if _path_type:
+            snapshot["path_type"] = _path_type
+        return snapshot
 
     def _run_profile_summary(self, rooms: list[dict[str, Any]]) -> dict[str, Any]:
         """Return a compact human-facing summary for one saved run profile."""
@@ -1292,7 +1351,7 @@ class ProfileManager:
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
         )
-        profile_id = self._generate_run_profile_id()
+        profile_id = self._generate_run_profile_id(library)
         now = utc_now_iso()
         summary = self._run_profile_summary(enabled_rooms)
         library[profile_id] = {
@@ -1693,6 +1752,13 @@ class ProfileManager:
                     ),
                     "clean_passes": int(_field("clean_passes", 1)),
                     "edge_mopping": bool(_field("edge_mopping", False)),
+                    # Unconditional here, unlike the snapshot: this dict goes through
+                    # _finalize_room_update, whose existing guard pops path_type when it
+                    # resolves empty, so a brand with no path axis cannot mint the key.
+                    # Reusing that guard rather than adding a second copy of the rule --
+                    # two copies of "strip the undeclared axis" is how the shorter one
+                    # ends up being the bug.
+                    "path_type": _field("path_type", ""),
                 },
                 vacuum_entity_id=vacuum_entity_id,
             )

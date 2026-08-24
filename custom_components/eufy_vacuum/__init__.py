@@ -64,6 +64,7 @@ from .adapters.brands import register_brand_adapter
 from .adapters.config_loader import load_stored_adapter_configs
 from .adapters.registry import get_adapter_config
 from .core.vacuum_identity import sweep_orphaned_vacuums
+from .core.battery_aggregates_migration import migrate_battery_aggregates
 from .core.pause_timeout_migration import migrate_pause_timeout_defaults
 from .rooms.vocabulary_migration import migrate_room_vocabulary
 from .battery.manager import BatteryHealthManager
@@ -77,6 +78,7 @@ from .learning.services import (
 )
 from .listeners import (
     discovery,
+    entity_rename,
     dock_events,
     job_metrics,
     job_progress,
@@ -615,6 +617,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         battery_manager.start(manager.get_known_vacuum_ids())
         hass.data[DOMAIN][DATA_BATTERY] = battery_manager
 
+        # One-shot replay of drain aggregates accumulated under the pre-C17 rule
+        # (see core/battery_aggregates_migration.py). C17 partnered each mean's
+        # numerator with its own denominator, but the numerators are NEW KEYS: on an
+        # upgraded install the denominator survives with all-time data and the
+        # numerator restarts at 0.0, so the first job folded in afterwards publishes
+        # roughly one job's drain over every job ever recorded's duration. Measured
+        # on this install before C17 shipped to it: the next run would have published
+        # 0.0 and 0.0066 %/min against honest figures of 0.292 and 0.4613.
+        #
+        # REGISTERED HERE, NOT ON THE VOCABULARY MIGRATION'S HOOK, and the ordering is
+        # the whole reason: that hook is installed further up, BEFORE DATA_BATTERY
+        # exists in hass.data. async_at_started fires IMMEDIATELY when HA is already
+        # running — a config-entry reload, which is the common case after an update —
+        # so a migration sharing it can be dispatched while the battery manager is
+        # still unset, find it missing, and defer forever. This one is registered only
+        # once both halves it needs are reachable.
+        #
+        # Deferred rather than run inline for the same reason the room repair is: the
+        # replay reads the learning archive off the event loop and must not extend
+        # setup. Its own latch is the second half — a run that could not replay every
+        # target does not record itself as done.
+        @callback
+        def _schedule_battery_aggregates_migration(_hass: HomeAssistant) -> None:
+            async def _do() -> None:
+                try:
+                    result = await migrate_battery_aggregates(hass=hass, manager=manager)
+                    if result["changes"]:
+                        await manager.async_save()
+                except Exception:  # pragma: no cover
+                    _LOGGER.exception(
+                        "eufy_vacuum: battery aggregates migration failed; aggregates "
+                        "left as stored"
+                    )
+
+            hass.async_create_task(_do())
+
+        entry.async_on_unload(
+            async_at_started(hass, _schedule_battery_aggregates_migration)
+        )
+
         # Active-run error tracker. Wires state-change listeners on each
         # vacuum's error_message + vacuum entity, latches errors, persists
         # them across restarts. The two error sensors and the
@@ -713,6 +755,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _unwind_stack.append(lambda: pose_sampler.remove(hass))
         discovery.register(hass)
         _unwind_stack.append(lambda: discovery.remove(hass))
+
+        # D4: a managed vacuum's entity id is a storage address — seventeen store
+        # sections and the learning tree are keyed by it. Detect a rename so the
+        # loss is stated rather than silent; the repair lands separately.
+        entity_rename.register(hass)
+        _unwind_stack.append(lambda: entity_rename.remove(hass))
 
         # STOP-CONDITION check (RP-039): verified against the installed HA source
         # (ConfigEntries.async_forward_entry_setups / async_unload_platforms,
@@ -843,6 +891,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         job_progress.remove(hass)
         pose_sampler.remove(hass)
         discovery.remove(hass)
+        entity_rename.remove(hass)
 
         await async_unregister_mapping_services(hass)
         await async_unregister_learning_services(hass)

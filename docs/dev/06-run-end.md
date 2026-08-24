@@ -23,8 +23,9 @@ The folder names mislead here.
 writes the dispatch-time planned estimate that finalization later compares against. Reading
 `learning/` as "the part that happens afterwards" will mislead you about half of it.
 
-The import arrow is one-way (`core` imports `learning`; `learning` imports `core` only for two
-pure helpers plus one `TYPE_CHECKING` arrow), but the runtime arrow is two-way through
+The import arrow is one-way (`core` imports `learning`; `learning` imports `core` only for three
+pure helpers — `error_label_key`, `error_source_for_code`, `classify_error_code`, all from
+`core/error_tracker.py` — plus one `TYPE_CHECKING` arrow), but the runtime arrow is two-way through
 `hass.data`. That asymmetry is deliberate and §3 depends on it.
 
 > **One anomaly.**
@@ -50,15 +51,30 @@ to `completed`:
 - charge-wait timeout
 - the cancel-likely reclassification (at finalize)
 - the stranded dispatched-run reaper
-- the phased-parent reaper
-- external-run close
 
-Every one of them converges on two functions:
+Those seven converge on two functions:
 
 | chokepoint | what it does |
 |---|---|
 | `learning/manager.py::LearningManager.async_finalize_completed_job` | holds the exactly-once claim, writes the record |
 | `jobs/active_job.py::ActiveJobTracker.mark_active_job_finalized` | stamps the slot, releases every runtime hold |
+
+> ⚠ **Two further paths end a run without passing either chokepoint.** A guard placed on the
+> two functions above does not cover them.
+>
+> `learning/external_run.py::ExternalRunManager._finalize_external_run` writes a pending record
+> and then calls `clear_active_job` in its `finally`, which reseeds the slot from
+> `_default_active_job_state` — `status: "idle"`, never `completed`. Its graduation path writes
+> the archive through `save_completed_job` directly. It reaches neither chokepoint, yet it
+> writes a durable record, releases the error latch and clears the slot.
+>
+> `core/manager.py::EufyVacuumManager._reap_stranded_phased_jobs` closes the on-disk parent
+> only and explicitly skips any parent whose run is still live, so it cannot drive the status
+> machine at all.
+>
+> `active_job["status"] = "completed"` is written in exactly one place tree-wide —
+> `mark_active_job_finalized`. That is what makes the chokepoint claim true **of the status
+> machine**, and false as a statement about every way a run can end.
 
 The behaviour lives in the mutual-exclusion scheme that decides which authority owns a run, and
 in the ordering of the guards that implements it. Three flags carry nearly all of that
@@ -91,10 +107,14 @@ A second finalize then peeks an already-nulled error latch and `os.replace`s the
 claimed window**, before the claim releases — not left to the caller's
 `mark_active_job_finalized`.
 
-That ordering is load-bearing. `mark_active_job_finalized` runs *after* an await — the
-mapping-tracker hop in the lifecycle listener. A second listener task from the same physical
-event interleaves in that gap, finds the claim released and `finalized` not yet set, and
-finalizes again.
+That ordering is load-bearing. `mark_active_job_finalized` runs *after* an await — the finalize
+call itself. A second listener task from the same physical event interleaves in that gap, finds
+the claim released and `finalized` not yet set, and finalizes again.
+
+The gap used to be wider: the lifecycle listener wrapped the mark in a mapping-tracker executor
+hop. That hop is gone — the tracker release moved **into** `mark_active_job_finalized` — so the
+mark now runs synchronously right after the `await`. The window is narrower and it is still
+real, because the `await` is what creates it.
 
 **The claim is written into the STORED dict** (`manager.data["active_jobs"][vac][map]`), never
 into what `get_active_job` returns. `ActiveJobTracker._normalize_active_job` returns a *copy* — a
@@ -131,8 +151,11 @@ when the finalizer raised. It also clears `_cancel_in_flight`, so a later run re
 does not inherit a stale latch — which is why `maybe_advance_phase` needs its second refusal
 (§4).
 
-**Its three callers apply three different policies, and each site records why.** The lifecycle
-path marks only on success. The cancel path marks unconditionally — a finalizer that raises
+**Its callers apply different policies, and each site records why.** The lifecycle path marks at
+**two** sites: once under the success branch, and again in a separate `elif` when the finalize
+*raised* — passing no result, deliberately, so a throwing finalizer cannot strand the slot. What
+that path excludes is the **refusal** case, not the failure case. The cancel path marks
+unconditionally — a finalizer that raises
 (the recorded case is a run ending on a zone, which it cannot attribute) used to kill the
 cancel before the slot was cleared, leaving the job stranded `started` and clearable only
 through Dev Tools. The stranded reaper marks on success plus a dedicated branch for an
@@ -187,8 +210,9 @@ and it is **universal** — atomic and phased jobs alike. It replaced reuse of
 `_phase_dispatch_pending`, which only ever covered phased jobs, leaving atomic jobs with no latch
 at all.
 
-It is read in four places, because a cancel's own `return_to_base` dock is **indistinguishable
-from a phase completion** on a path-optimising brand — a robot sitting docked and charging
+It is read in eight distinct functions — six in `jobs/phase_runner.py` plus the cancel's own
+single-flight check and the lifecycle completion gate — because a cancel's own `return_to_base`
+dock is **indistinguishable from a phase completion** on a path-optimising brand — a robot sitting docked and charging
 between phases is precisely that brand's completion signal.
 
 Two details:
@@ -294,7 +318,10 @@ records when the vendor *surfaced* the fault, not when it occurred.
 > finalization.
 >
 > This is a known, accepted trade: refusing protects real history, and the alternative destroyed
-> it. But *"retries on the next finalize"* is false and should not be believed.
+> it. The retry half of the warning is honest — `finalize_from_inputs` calls
+> `_update_trouble_rooms_log` on every finalize, and it re-reads the store fresh each time before
+> bailing. It is *"the file self-heals on the next successful atomic write"* that cannot happen,
+> because the only writer returns before writing.
 
 **A cancelled run is skipped entirely by the trouble-rooms counter** — neither a miss nor a
 success, while interrupted and failed still count. Counting cancels inverted the badge's meaning:

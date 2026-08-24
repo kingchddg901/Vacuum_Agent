@@ -2,7 +2,10 @@
 
 **Scope.** The 29 services that write a map's stored representation: its images, its
 segmentation, how it is displayed, and the reusable regions drawn on it. All of them live in
-`mapping/mapping_services.py` and all of them write under `maps[<vacuum>][<map_id>]`.
+`mapping/mapping_services.py`, and all but four write under `maps[<vacuum>][<map_id>]` —
+`acknowledge_map_frame` mutates an in-memory gate and persists nothing, and
+`get_map_render_data`, `get_map_live_pose` and `compare_map_sources` are pure reads that
+delegate to the manager.
 
 Everything here is state anchored to something that can be replaced underneath it. An image
 gets re-uploaded; the active layout changes; rooms renumber. So the recurring question in this
@@ -28,8 +31,17 @@ primitives (`custom`). `segmentation_mode` selects, and `active_custom_layout_id
 custom layout is live.
 
 **`_resolve_active_scope` collapses that pair once**, into a uniform
-`{segments_store, links, anchors, backdrop_variant}`, and every reader and writer goes through
-it. That is what keeps the two modes from being two code paths.
+`{segments_store, links, anchors, backdrop_variant}`. That is what keeps the two modes from
+being two code paths.
+
+Four handlers resolve through it — `get_map_segments`, `set_segmentation_mode`,
+`set_segment_room_link`, `set_companion_anchor`. **It is the sanctioned path, not the only
+one.** `_handle_adjust_map_segment` reads `image_segments` and writes
+`image_segment_adjustments` directly; `_handle_set_custom_segments` addresses a layout by
+explicit id; `_build_segments_response` reads the map-bucket-level `segment_room_links` and
+`companion_anchors` unconditionally, so the payload an analyze returns carries the CV-side
+copies even in custom mode. The furnished-art writers use a different resolver,
+`_active_custom_layout`.
 
 It returns **the same shape in every case**, plus a `resolved` boolean — rather than `None` for
 custom-mode-with-no-layout. Returning `None` would force every read-only caller to branch
@@ -56,10 +68,16 @@ This section owns the only bytes on disk in the mapping system — PNGs under
 When a CV source image is replaced or deleted, the cached segmentation is **marked stale and
 still served** — `image_segments["stale_since"]` gets an ISO stamp. It is not dropped.
 
-Dropping it would orphan every saved zone, custom layout and furnished-art anchor keyed to
-those segment ids for the whole re-analyze window. A user deleting a bad `dark` upload would
-lose their zone filing until a successful CV pass — one that may not even be installable, since
-numpy, Pillow and scipy are all optional.
+Dropping it would orphan the two stores that *are* keyed by CV segment id —
+`segment_room_links` and `image_segment_adjustments` — for the whole re-analyze window, and
+serve an empty segment list to the card meanwhile. A successful CV pass may not even be
+installable, since numpy, Pillow and scipy are all optional.
+
+Saved zones, custom layouts and furnished art are **not** keyed by a CV segment id and survive
+regardless: a zone stores `{id, name, geometry, area_m2, room_number, kind}` and files itself
+via `mapping/map_source.py::zone_membership`, which reads the device `room_pixels` raster; a
+custom layout owns its own `custom_segments`; furnished art and `companion_anchors` are keyed
+by room id.
 
 **Staleness is a flag and a cache-gate clause, not a trigger.** Upload and delete never re-run
 the segmenter; the CV pass is a 10–30 second blocking step. Nothing clears `stale_since` by
@@ -109,15 +127,22 @@ for the caller to name its target.
 
 **Migration copies, it does not move.** `_migrate_custom_layouts` folds only those
 `segment_room_links` and `companion_anchors` entries that resolve against the legacy custom
-segments into the new default layout, and leaves the map-level dicts fully intact. Those dicts
+segments into the new default layout, and leaves the map-level dicts fully intact. The
+`dock` anchor is the one exception — it is copied unconditionally, resolving against no custom
+segment and no linked room. Those dicts
 were *shared* between CV and the single legacy custom store — a move would silently strip CV
 mode of every link that also happened to be a custom one. The copy is why toggling between
 modes is lossless.
 
-**An authored segment is built in the exact shape the CV segmentor produces** —
-`source: "custom"`, `confidence: 1.0`, and every CV field including the ones authoring never
-uses. Trim it to a leaner custom-only schema and every downstream consumer needs a
-`source == "custom"` branch.
+**An authored segment is built CV-COMPATIBLE in every field a consumer reads** —
+`confidence: 1.0`, plus the CV fields authoring itself never uses. Trim it to a leaner
+custom-only schema and every downstream consumer needs a `source == "custom"` branch.
+
+The shapes are compatible, not identical, and it runs both ways: `_build_custom_segment` emits
+17 keys and does not write the CV segmentor's scoring fields (`cluster_index`, `fill_ratio`,
+`compactness`, `variant_agreement` and the rest), which survive into stored CV segments because
+only the underscore-private keys are popped before persistence. `source` is custom-only — CV
+emits no `source` field at all.
 
 **`_apply_segment_adjustments` always returns copies**, even for segments with no adjustment.
 It feeds a service *response* which the caller then enriches in place — pass-through by
@@ -149,8 +174,10 @@ orphaned rows behind.
 
 ## 5. How the map looks · `#BN436BDT`
 
-Ten services that persist how the map is **displayed**, never what gets cleaned. Two storage
-tiers with different rules, and the split is the substance:
+Ten services covering how the map is **displayed**, never what gets cleaned. Six of them
+persist — the three furnished writers plus `set_hidden_regions`, `set_live_map_rotation` and
+`set_map_overlay_visibility`; the other four are the read and gate delegations named in §1.
+The six split across two storage tiers with different rules, and that split is the substance:
 
 | tier | services | why |
 |---|---|---|
@@ -173,8 +200,10 @@ viewport `cx`/`cy` to `[0, 100]`. The renderer coerces with `Number(scale) || 1`
 `tx`/`ty` are deliberately unclamped.
 
 **A blank `room_id` means "layout-level default" for render mode, and is rejected as
-`missing_room_id` by placement and viewport.** A transform or viewport with no room is
-meaningless; a render mode legitimately has a layout-level default. Making it uniform in either
+`missing_room_id` by viewport unconditionally and by placement only when `scope` is `room`.**
+On placement's whole-home path a blank `room_id` is correct and never inspected — the handler
+writes `layout["home_art"]`. A per-room transform or a viewport with no room is meaningless; a
+render mode, and a whole-home placement, legitimately have no room. Making it uniform in either
 direction breaks one of the two.
 
 **Overlay visibility persists deltas only**, merged over the defaults at read time, with

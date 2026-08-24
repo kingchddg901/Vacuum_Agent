@@ -184,6 +184,35 @@ def _room_profile_key(room: dict[str, Any]) -> str:
     )
 
 
+def resolve_room_slug(aliases: Any, map_id: Any, slug: Any) -> str:
+    """Return the CURRENT slug for a possibly-historical one.
+
+    A job record carries the slug the room had at run time. After a rename its
+    samples would key under a name nothing asks for again, so every historical
+    identity is resolved forward through the alias map before a key is built.
+
+    ONE LOOKUP, NOT A WALK. ``record_slug_alias`` collapses forward on write, so
+    the map holds no chains and cannot hold a cycle — following one hop here is
+    the whole resolution. If that ever stops being true this becomes wrong
+    silently, which is why the collapse is asserted by its own test rather than
+    defended by a loop here.
+
+    Absent map, absent alias, or a non-dict alias file all return the slug
+    unchanged: no alias is the normal state.
+    """
+    s = str(slug or "").strip().lower()
+    if not isinstance(aliases, dict) or not s:
+        return s
+    rooms = aliases.get("rooms")
+    if not isinstance(rooms, dict):
+        return s
+    per_map = rooms.get(str(map_id))
+    if not isinstance(per_map, dict):
+        return s
+    target = per_map.get(s)
+    return str(target).strip().lower() if target else s
+
+
 def _room_key(
     map_id: Any,
     slug: Any,

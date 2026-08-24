@@ -6,7 +6,7 @@ applying a profile to a room, and saving/overwriting a profile from a room's
 current settings. Covered by **203 tests across 5 files**.
 
 Source: `custom_components/eufy_vacuum/profiles/`
-Architecture reference: [docs/dev/16-profile-manager.md](../../dev/16-profile-manager.md)
+Architecture reference: [docs/dev/16-profile-manager.md](../../dev/20-room-profiles.md)
 
 ---
 
@@ -51,7 +51,7 @@ Architecture reference: [docs/dev/16-profile-manager.md](../../dev/16-profile-ma
   undeclared block resolving EMPTY rather than to a brand's words. Every catalog in
   that file is SYNTHETIC on purpose: if a core test needed a real brand's words to
   pass, core would still own them. See
-  [16 — profile manager §1.1](../../dev/16-profile-manager.md), and
+  [16 — profile manager §1.1](../../dev/20-room-profiles.md), and
   `tests/adapters/test_declaration_contract.py` for the three declaration states.
 
 ---

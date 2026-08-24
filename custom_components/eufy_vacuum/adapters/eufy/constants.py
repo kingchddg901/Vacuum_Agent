@@ -8,6 +8,27 @@ they transfer.
 
 See porting-guide.md for what each constant controls and what a new
 brand author needs to measure to provide their own.
+
+⚠ RE-MEASURING SOME OF THESE CHANGES NOTHING, WHICH IS THE OPPOSITE OF WHAT
+THE PARAGRAPH ABOVE IMPLIES. Measured 2026-08-23: seven of the fifteen
+constants here are referenced nowhere else in the tree — the three
+``WASH_INTERVAL_*`` bounds and the four ``WATER_RATE_*`` rates.
+
+Their values ARE live; they are live as UNLINKED COPIES:
+
+  * ``WASH_INTERVAL_MIN/MAX/DEFAULT_MINUTES`` (15.0 / 25.0 / 20.0) are
+    restated as literals in ``adapters/eufy/adapter.py`` as
+    ``"wash_frequency_bounds": {"default": 20.0, "min": 15.0, "max": 25.0}``.
+  * ``WATER_RATE_OFF/LOW/MEDIUM/HIGH_ML_PER_MIN`` (0.0 / 3.2 / 4.0 / 5.3) are
+    restated in ``adapters/eufy/water_config.py`` as
+    ``"water_rates": {"off": 0.0, "low": 3.2, "medium": 4.0, "high": 5.3}``.
+
+Nothing makes either pair agree. Editing the constant here leaves the copy
+untouched and the behaviour unchanged, and the two only look consistent because
+nobody has edited one yet. If you are re-measuring, edit the copy that is read —
+or better, make the copy import from here so the next person's edit lands.
+
+The remaining eight constants have real importers and behave as documented.
 """
 
 # ----------------------

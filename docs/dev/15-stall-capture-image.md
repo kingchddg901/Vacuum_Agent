@@ -2,7 +2,7 @@
 
 **Scope.** The renderer that turns room-id raster bytes into a PNG when a stall fires: one room
 as a flat silhouette, the last stretch of travel, a dot where the robot stopped, and a
-black-on-white name pill.
+white-on-black name pill.
 
 It is pure — no Home Assistant imports, no I/O, no adapter lookups. Bytes in, bytes out. The
 single production caller supplies a geometry block the renderer must not re-derive.
@@ -42,8 +42,10 @@ are false on Eufy, and **both fail quietly** — they render a perfectly plausib
 wrong region rather than raising.
 
 **Membership is a shifted compare, with the shift declared by the render-data block and never
-sniffed.** A raw byte compare works on Roborock and matches nothing on Eufy, surfacing as "this
-room has no pixels" — an absence, not an error.
+sniffed.** A raw byte compare works on Roborock. On Eufy a cell holds `room_id << 2`, so a raw
+compare is empty for most ids — but for any id that is a multiple of 4 it matches **another
+room's** cells: room 4 draws room 1, room 8 draws room 2, up to room 28 drawing room 7. That
+failure is not an absence. It is a fully rendered, entirely plausible picture of the wrong room.
 
 **Return `None`, never a blank image**, when Pillow is absent or the room has no cells. Absence
 has to stay distinguishable from "an empty room was rendered"; the caller re-imports the module
@@ -53,8 +55,8 @@ on the failure path purely to tell the two causes apart.
 
 ## 3. The trail, and why its constants are one system
 
-A connected trail needs four **distinct** points, and identical consecutive anchors are deduped
-*before* the draw style is chosen. A polyline asserts the robot travelled straight between
+The dense branch needs four **distinct** points to draw a connected trail; the sparse branch
+connects from two. Identical consecutive anchors are deduped *before* the draw style is chosen. A polyline asserts the robot travelled straight between
 samples — without the dedup, twelve identical samples from a wedged robot render as a trail for
 exactly the case where the robot did not move.
 
@@ -96,9 +98,12 @@ at any map rotation.
 rotates counter-clockwise. Without the negation the capture is correct in every case where the
 angle is symmetric and wrong in the rest.
 
-**Dot radii are multiples of the upscale factor, not of the output size.** The factor is capped,
-so a large room renders at a lower factor — tie radii to output dimensions and dot visibility
-becomes inversely related to room size.
+**Dot radii are multiples of the upscale factor, not of the output size — and that is what makes
+dot visibility inversely related to room size.** The factor is capped, so a large room renders at
+a lower factor and its dots come out relatively smaller. Tying radii to the output dimension
+would give a constant fraction of the frame and remove the inversion; the scheme is kept anyway,
+because a radius validated on a small room is then safe everywhere and helps most where the
+result is currently worst.
 
 ---
 

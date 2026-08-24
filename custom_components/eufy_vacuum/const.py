@@ -28,9 +28,19 @@ CONF_TESTED_MODEL = "tested_model"
 # active_run_task_states.
 #
 # ⚠ NOT AN ADAPTER-DECLARABLE KEY, and that is deliberate. `active_vacuum_states` is not
-# in ADAPTER_CONFIG_SCHEMA's vocabulary section, so a brand that tried to declare it
-# would be REJECTED at validation. Core owns this set; a brand adding to it is a
-# category error, which is what ledger C19 removed from adapters/eufy/vocabulary.py.
+# in ADAPTER_CONFIG_SCHEMA's vocabulary section. Core owns this set; a brand adding to it
+# is a category error, which is what ledger C19 removed from adapters/eufy/vocabulary.py.
+#
+# REJECTED ON ONE PATH ONLY — this said "would be REJECTED at validation" full stop until
+# 2026-08-23, which is true for a CONFIG-declared adapter and false for a CODE-declared
+# one. `validate_adapter_config` (the recursive schema walk that does unknown-key
+# rejection) has exactly one caller: `services/adapter_config.py`, the config-save
+# service. A code adapter calls `register_adapter_config` directly with
+# `"source": "code"` and never gets that walk, so a code brand declaring this key is
+# silently ACCEPTED and simply ignored. Both shipped brands are code-declared.
+#
+# The guarantee that actually holds for them is `tests/adapters/test_adapter_contract.py`,
+# not a runtime raise. See docs/dev/22-adapter-contract.md §1.
 #
 # It lives HERE rather than in either consumer because it had TWO byte-identical copies
 # (core/manager.py and jobs/job_monitor.py, ledger C53) with no mechanism making them
@@ -176,6 +186,7 @@ SERVICE_RUN_LEARNING_ESTIMATE = "run_learning_estimate"
 # Setup services (panel-driven)
 # ----------------------
 
+SERVICE_SETUP_REPAIR_RENAME = "setup_repair_renamed_vacuum"
 SERVICE_SETUP_GET_STATUS    = "setup_get_status"
 SERVICE_SETUP_ADD_VACUUM    = "setup_add_vacuum"
 SERVICE_SETUP_IMPORT_MAP    = "setup_import_active_map"
@@ -356,6 +367,20 @@ EVENT_RUN_INCOMPLETE     = f"{DOMAIN}_run_incomplete"
 # mid-run skip). Payload: vacuum_entity_id, map_id, job_id, room_id, room_name,
 # completed_room_ids. The reliable post-run "missed rooms" remains EVENT_RUN_INCOMPLETE.
 EVENT_ROOM_SKIPPED       = f"{DOMAIN}_room_skipped"
+
+# The mapping tracker's two events. Declared HERE, derived from DOMAIN, like every
+# sibling above — they were plain string literals in ``mapping/tracker.py`` until
+# 2026-08-23, the only two of the eleven outbound events not derived and the only two
+# declared outside this file. The derived form is byte-identical to the literals they
+# replace ("eufy_vacuum_room_completed" / "eufy_vacuum_boundary_saved"), so this is a
+# no-op on the wire and the card's existing subscription is unaffected.
+#
+# Why it mattered anyway: a literal is invisible to anything that reasons about the
+# event surface by deriving from DOMAIN, and a rename of the domain would have moved
+# nine events and stranded these two. ``mapping/tracker.py`` re-exports both so
+# existing importers keep working.
+EVENT_ROOM_COMPLETED     = f"{DOMAIN}_room_completed"
+EVENT_BOUNDARY_SAVED     = f"{DOMAIN}_boundary_saved"
 
 # ----------------------
 # anchor: BNTM6TEN

@@ -462,7 +462,21 @@ class LearningHistoryStore:
 
     def read_json(self, path: Path) -> dict[str, Any] | list[Any] | None:
         """Read a JSON file safely (None-tolerant compat wrapper over the
-        tri-state — read paths keep their existing "no data" behaviour)."""
+        tri-state — read paths keep their existing "no data" behaviour).
+
+        LEGACY SHIM. Prefer ``read_json_outcome``. This is the shorter, more obvious
+        name and it is the one a new caller reaches for, which is the problem: it
+        collapses ABSENT and UNREADABLE into a single ``None``, and that distinction is
+        the whole point of the tri-state. *Nothing was ever written here* and *something
+        is written here and we cannot read it* are different facts, and a destructive
+        read-modify-write that cannot tell them apart will happily overwrite a corrupt
+        file it should have refused and preserved.
+
+        Safe for READ-ONLY paths, which may legitimately treat both non-OK outcomes as
+        "no data" — that is why it still exists and why its callers were not rewritten.
+        Any caller that then WRITES must use ``read_json_outcome`` and refuse on
+        UNREADABLE.
+        """
         return self.read_json_outcome(path)[1]
 
     def write_json(self, path: Path, payload: Any) -> None:
@@ -495,7 +509,32 @@ class LearningHistoryStore:
             raise
 
     def append_csv_row(self, path: Path, header: list[str], row: list[Any]) -> None:
-        """Append a row to CSV, writing header if needed."""
+        """Append a row to CSV, writing header if needed.
+
+        NO PRODUCTION CALLER, AND THAT IS THE DESIGN — not an omission to correct.
+        Every production CSV refresh goes through ``rebuild_jobs_csv`` and its rooms
+        counterpart, which re-read the whole job history and rewrite the file. This
+        function works, is unit-tested, and is called only by those tests.
+
+        WHY IT READS AS LIVE, WHICH IS THE ACTUAL HAZARD. It is the obvious O(1) answer
+        to a refresh that is O(all jobs), it is correct, and it has passing tests beside
+        it — and a passing test demonstrates BEHAVIOUR, never USE. Someone profiling the
+        rebuild will find this and wire it, reasonably.
+
+        WHY NOT TO. JSON is the single authority and CSV is a projection regenerated
+        wholesale from it, which is what makes the projection unable to drift: a store
+        with two authorities has to reconcile them, a store with one only has to
+        regenerate. Appending incrementally reintroduces exactly the drift that design
+        removed — one missed append, one failed write, one job excluded after the fact,
+        and the CSV disagrees with the JSON with nothing to detect it. The O(all jobs)
+        cost is the price of that guarantee and was paid deliberately.
+
+        Kept rather than deleted because it is the right primitive if the export ever
+        gains a second authority-free consumer (an append-only audit log, say), and
+        because deleting a tested function to fix a comprehension problem is the wrong
+        trade. If you are here to make the refresh faster, make ``rebuild_jobs_csv``
+        cheaper — do not make the CSV a second source of truth.
+        """
         path.parent.mkdir(parents=True, exist_ok=True)
         write_header = not path.exists() or path.stat().st_size == 0
 
@@ -1369,6 +1408,145 @@ class LearningHistoryStore:
         """Load derived jobs index JSON."""
         payload = self.read_json(self.get_jobs_index_path(vacuum_entity_id=vacuum_entity_id))
         return payload if isinstance(payload, dict) else None
+
+    def get_key_aliases_path(self, *, vacuum_entity_id: str) -> Path:
+        """Return the learning-key alias map path."""
+        paths = self.ensure_dirs(vacuum_entity_id=vacuum_entity_id)
+        return paths.learned_dir / "key_aliases.json"
+
+    def load_key_aliases(self, *, vacuum_entity_id: str) -> dict[str, Any]:
+        """Return the alias map, or an empty one.
+
+        Shape: ``{"rooms": {<map_id>: {<old_slug>: <new_slug>}}}``. Absent is the
+        normal state — no install has one until something is renamed.
+        """
+        payload = self.read_json(self.get_key_aliases_path(vacuum_entity_id=vacuum_entity_id))
+        return payload if isinstance(payload, dict) else {}
+
+    def record_slug_alias(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        old_slug: str,
+        new_slug: str,
+    ) -> bool:
+        """Record that ``old_slug`` on this map is now ``new_slug``.
+
+        WHY THIS EXISTS. The learning key is ``map_id::slug::…`` and a job record
+        carries the slug it had AT RUN TIME, so renaming a room files its future runs
+        under a new key while every past run stays under the old one. The samples are
+        not lost — they are unreachable, and the room reads as never cleaned.
+
+        FORWARD-COLLAPSING, deliberately. A second rename rewrites every existing entry
+        that pointed at the old name, so the map never grows a chain to walk and can
+        never contain a cycle. ``a->b`` then ``b->c`` stores ``a->c`` and ``b->c``,
+        not ``a->b, b->c``.
+
+        Refuses a no-op and a self-alias. Returns whether anything was written.
+        """
+        old_s = str(old_slug or "").strip().lower()
+        new_s = str(new_slug or "").strip().lower()
+        if not old_s or not new_s or old_s == new_s:
+            return False
+
+        aliases = self.load_key_aliases(vacuum_entity_id=vacuum_entity_id)
+        rooms = aliases.setdefault("rooms", {})
+        if not isinstance(rooms, dict):
+            rooms = {}
+            aliases["rooms"] = rooms
+        per_map = rooms.setdefault(str(map_id), {})
+        if not isinstance(per_map, dict):
+            per_map = {}
+            rooms[str(map_id)] = per_map
+
+        # Collapse: anything that pointed at the old name now points at the new one.
+        for k, v in list(per_map.items()):
+            if str(v).strip().lower() == old_s:
+                per_map[k] = new_s
+        per_map[old_s] = new_s
+        # A rename BACK to a name we alias away from would otherwise strand it.
+        per_map.pop(new_s, None)
+
+        self.write_json(self.get_key_aliases_path(vacuum_entity_id=vacuum_entity_id), aliases)
+        _LOGGER.info(
+            "learning: room slug alias recorded for %s map %s: %s -> %s",
+            vacuum_entity_id, map_id, old_s, new_s,
+        )
+        return True
+
+    #: How many `::`-separated components a room learning key has. Asserted before any
+    #: rekey so a future key-shape change fails CLOSED (nothing rewritten) instead of
+    #: corrupting the store by rebuilding a key it no longer understands.
+    _ROOM_KEY_PARTS = 7
+
+    def rekey_accuracy_slugs(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        slug_remap: dict[str, str],
+    ) -> int:
+        """Rewrite accuracy entries from an old room slug to its new one. Returns the count.
+
+        WHY HERE AND NOT VIA A REBUILD. ``room_stats`` is rebuilt from the job records,
+        so recording an alias is enough for it. ``accuracy_stats`` is APPEND-ONLY and
+        nothing ever rebuilds it, so an entry written under the old name would stay
+        unreachable forever.
+
+        FAILS CLOSED. A key that does not split into exactly ``_ROOM_KEY_PARTS`` is left
+        alone — if the key shape ever changes, this rewrites nothing rather than
+        rebuilding a key it does not understand.
+
+        REFUSES A COLLISION. If the destination key already exists, both are left in
+        place and it is logged: a rename ONTO a name that already has history is two
+        populations, and silently merging them would be a data decision this layer is
+        not entitled to make.
+        """
+        if not slug_remap:
+            return 0
+        payload = self.load_accuracy_stats(vacuum_entity_id=vacuum_entity_id)
+        if not isinstance(payload, dict):
+            return 0
+        rooms = payload.get("rooms")
+        if not isinstance(rooms, dict):
+            return 0
+
+        wanted_map = str(map_id)
+        remap = {
+            str(k).strip().lower(): str(v).strip().lower()
+            for k, v in slug_remap.items()
+            if str(k).strip() and str(v).strip()
+        }
+        moved = 0
+        for key in list(rooms):
+            parts = str(key).split("::")
+            if len(parts) != self._ROOM_KEY_PARTS:
+                continue
+            if parts[0] != wanted_map:
+                continue
+            new_slug = remap.get(parts[1])
+            if not new_slug or new_slug == parts[1]:
+                continue
+            parts[1] = new_slug
+            new_key = "::".join(parts)
+            if new_key in rooms:
+                _LOGGER.warning(
+                    "learning: not merging accuracy history for %s — %r already exists "
+                    "(a rename onto an existing name is two populations)",
+                    vacuum_entity_id, new_key,
+                )
+                continue
+            rooms[new_key] = rooms.pop(key)
+            moved += 1
+
+        if moved:
+            self.save_accuracy_stats(vacuum_entity_id=vacuum_entity_id, payload=payload)
+            _LOGGER.info(
+                "learning: rekeyed %d accuracy entr%s for %s map %s",
+                moved, "y" if moved == 1 else "ies", vacuum_entity_id, map_id,
+            )
+        return moved
 
     def get_accuracy_stats_path(self, *, vacuum_entity_id: str) -> Path:
         """Return per-room estimate accuracy stats path."""

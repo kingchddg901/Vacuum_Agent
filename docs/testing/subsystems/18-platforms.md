@@ -8,7 +8,7 @@ timestamp utils, models, map manager). Covered by **134 tests across 13 files**.
 Source: `custom_components/eufy_vacuum/sensor/`, `binary_sensor.py`, `button.py`,
 `number.py`, `switch.py`, `room_entities.py`, `config_flow.py`,
 `entity_helpers.py`, `_frontend_url.py`, `timestamp_utils.py`, `models/`, `maps/`
-Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md), [docs/dev/17-map-manager.md](../../dev/17-map-manager.md)
+Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md), [45 — The Shared Layer](../../dev/45-the-shared-layer.md)
 
 ---
 

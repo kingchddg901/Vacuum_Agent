@@ -19,8 +19,15 @@ Eufy-specific internals
   heuristics whose numeric thresholds were calibrated on Eufy map images.
 - ``_reclaim_localized_child_mask`` — downward reclaim for vertically truncated
   localized children; relies on Eufy-style saturation/value support masks.
-- Split-strategy cascade in ``_split_suspicious_component`` (erosion, opening,
-  wall cuts, local support, color distance, localized bins, assist hue) — all
+- Split-strategy cascade in ``_split_suspicious_component``, listed here IN THE
+  ORDER IT RUNS, which is ordered by evidence quality and returns the first
+  strategy that succeeds: wall cuts, localized bins, color distance, local
+  support, assist hue, erosion seeds, opening split. Strongest evidence first,
+  falling back toward pure morphology — a wall cut is a real observation about
+  the map, an erosion seed is a guess about shape. (This list read "erosion,
+  opening, wall cuts, ..." until 2026-08-23: source-DEFINITION order, close to
+  the reverse of the real cascade, in the one place a reader looks to find out
+  what is tried first.) All
   tuned to Eufy map characteristics.
 
 Porting a new brand
@@ -301,14 +308,44 @@ def _split_component_via_opening(component_mask: Any, min_area_pixels: int) -> l
     return []
 
 
-def _split_component_via_wall_cuts(component_mask: Any, wall_hint_mask: Any | None, min_area_pixels: int) -> list[Any]:
-    """Try to split a merged component by cutting along nearby wall-hint pixels."""
-    if wall_hint_mask is None or getattr(component_mask, "shape", None) != getattr(wall_hint_mask, "shape", None):
+def _split_component_via_wall_cuts(
+    component_mask: Any,
+    wall_hint_mask: Any | None,
+    min_area_pixels: int,
+    debug_out: list[dict[str, Any]] | None = None,
+) -> list[Any]:
+    """Try to split a merged component by cutting along nearby wall-hint pixels.
+
+    ``debug_out``, when supplied, receives ONE entry describing the outcome — including
+    the declines. This strategy is tried FIRST and used to append a debug row only on
+    success, so a failed wall cut left no row at all: the strategy with the strongest
+    evidence was invisible in diagnostics exactly when it did not fire, and a reader
+    inspecting the per-method list would reasonably conclude it was never attempted.
+
+    The reason is produced HERE rather than inferred by the caller, because the caller
+    would have to re-test this function's own preconditions to guess it — a second copy
+    of a predicate, which is how the copies drift apart. The parameter is optional so the
+    eight existing call sites that only want the masks are unaffected.
+
+    The three declines are genuinely different problems, so they stay three reasons:
+    ``no_wall_hint`` means the second image variant was never available (a user/upload
+    question), ``wall_hint_shape_mismatch`` means two images arrived at different sizes
+    (a pipeline bug), and ``no_split`` means walls were found and no clean cut separated
+    the component (a tuning question).
+    """
+    def _decline(reason: str) -> list[Any]:
+        if debug_out is not None:
+            debug_out.append({"method": "wall_cuts", "accepted": False, "reason": reason})
         return []
+
+    if wall_hint_mask is None:
+        return _decline("no_wall_hint")
+    if getattr(component_mask, "shape", None) != getattr(wall_hint_mask, "shape", None):
+        return _decline("wall_hint_shape_mismatch")
     structure = np.ones((3, 3), dtype=bool)
     local_wall = wall_hint_mask & _NDIMAGE.binary_dilation(component_mask, structure=structure, iterations=1)
     if not bool(np.any(local_wall)):
-        return []
+        return _decline("no_local_wall")
 
     for iterations in (1, 2, 3):
         cut_mask = component_mask & ~_NDIMAGE.binary_dilation(local_wall, structure=structure, iterations=iterations)
@@ -327,7 +364,7 @@ def _split_component_via_wall_cuts(component_mask: Any, wall_hint_mask: Any | No
             grown_masks.append(grown)
         if len(grown_masks) >= 2:
             return grown_masks
-    return []
+    return _decline("no_split")
 
 
 def _split_component_via_local_support(
@@ -770,7 +807,12 @@ def _split_suspicious_component(
     Returns (split_masks, method_name, debug_entries). method_name is None if no split was found.
     """
     debug_entries: list[dict[str, Any]] = []
-    split_masks = _split_component_via_wall_cuts(component_mask, wall_hint_mask, min_area_pixels)
+    # `debug_entries` is passed so a DECLINE is recorded too. Every other strategy below
+    # appends whether it succeeds or fails; this one appended only on success, which made
+    # the first-tried strategy the one whose failure could not be seen.
+    split_masks = _split_component_via_wall_cuts(
+        component_mask, wall_hint_mask, min_area_pixels, debug_entries
+    )
     if len(split_masks) >= 2:
         return split_masks, "wall_cuts", [{"method": "wall_cuts", "accepted": True, "reason": "accepted", "grown_mask_count": len(split_masks)}]
     if int(np.count_nonzero(component_mask)) >= max(int(min_area_pixels * 10), 120000):

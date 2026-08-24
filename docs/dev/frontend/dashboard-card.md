@@ -115,8 +115,8 @@ lives in the **panel**, not this card: the steps editor, the "This run" preview,
 (room toggles / reorder / Select-All / Clear-Queue disabled while a job runs) are all
 `run-profiles.js` / `rooms.js` / `learning.js` renderers — see
 [Module reference](module-reference.md); the phase machinery is in
-[Phase runner](../30-phase-runner.md) and the snapshot shapes (`queue_steps`,
-`live_queue`, `zone_phase_*`) are aggregated in the [Backend contract](backend-contract-and-data-shapes.md#ha-services) (authoritative field-by-field: [05 §6](../05-core-manager.md#6-direct-responsibilities)).
+[05 — While a Run Is Live](../05-run-live.md) and the snapshot shapes (`queue_steps`,
+`live_queue`, `zone_phase_*`) are aggregated in the [Backend contract](backend-contract-and-data-shapes.md#ha-services) (authoritative field-by-field: [33 — The Orchestrator](../33-the-orchestrator.md)).
 The `has_charge_steps` flag is likewise a panel-render concern; the card never reads
 it. (It is a *run-profile record* field — `profiles/manager.py:1176`, surfaced through
 `get_saved_run_profiles` — not a `get_dashboard_snapshot` key.)

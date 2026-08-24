@@ -530,6 +530,11 @@ class DockManager:
         if not should_count:
             return
 
+        # LIFETIME and ungated: every trigger edge counts, whether or not a job is
+        # running. jobs/active_job.py debounces the SAME mop-wash edge against its own
+        # per-job marker and the two are independent on purpose — see
+        # update_active_job_mop_wash_observation. A large gap between the two counters
+        # is the two scopes working, not drift.
         vacuum_events[event_type] = now
         vacuum_events[counter_key] = _safe_int(vacuum_events.get(counter_key), 0) + 1
         vacuum_events[f"{event_type}_last_counted_at"] = now

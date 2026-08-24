@@ -168,8 +168,12 @@ class RoomMapManager:
           - ``migrate`` — atomically rebuild the saved room map from the cached
             discovery, carrying each saved room's durable settings to its new id
             (slug-matched) and rewriting access-graph grants through the same
-            old->new id remap. Learning history is slug-tagged in the job files,
-            so it follows the room regardless. Saved rooms whose slug vanished
+            old->new id remap. Learning is keyed ``map::slug``, so a RENUMBER
+            carries it untouched — the slug did not move. A RENAME does move it,
+            and this used to lose the room's whole history to a name nothing
+            asked for again; the old identity is now recorded as an alias so the
+            past runs stay reachable, and the accuracy store — which nothing ever
+            rebuilds — is rekeyed in the same pass. Saved rooms whose slug vanished
             from discovery are dropped (the user confirmed the re-map) and
             reported. REQUIRES ``plan_token`` (REC-5/RP-019): the fingerprint
             ``discover_rooms`` returned with the reviews the user actually saw.
@@ -353,6 +357,36 @@ class RoomMapManager:
             map_id=map_id_str,
             id_remap=plan["id_remap"],
         )
+
+        # D5: a room carried under a CHANGED name keeps its learned statistics only if
+        # the old identity is recorded. The learning key is map::slug and a job record
+        # carries the slug it had at run time, so without this the room's whole history
+        # stays under a name nothing asks for again and it reads as never cleaned.
+        #
+        # TWO STORES, TWO REMEDIES, because they are maintained differently:
+        #   room_stats  — REBUILT from the job records, so recording the alias is enough;
+        #                 the rebuilder resolves every historical slug forward.
+        #   accuracy_stats — APPEND-ONLY and never rebuilt, so no later pass would repair
+        #                 it. Its existing entries are rekeyed here, once.
+        # Recording the alias is what makes the first work; the rekey is what makes the
+        # second. Doing only one is the partial fix.
+        _slug_remap = plan.get("slug_remap") or {}
+        if _slug_remap:
+            from ..learning.history_store import LearningHistoryStore
+
+            _store = LearningHistoryStore(self._manager.hass)
+            for _old_slug, _new_slug in _slug_remap.items():
+                _store.record_slug_alias(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=map_id_str,
+                    old_slug=_old_slug,
+                    new_slug=_new_slug,
+                )
+            _store.rekey_accuracy_slugs(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id_str,
+                slug_remap=_slug_remap,
+            )
 
         # Room-history is a rebuildable cache derived from slug-tagged job files;
         # invalidate so it re-ingests under the new ids.

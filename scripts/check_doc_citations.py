@@ -53,6 +53,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+# Importable however this script is invoked: `python scripts/check_doc_citations.py`
+# already puts `scripts/` on the path, `python -m scripts.check_doc_citations` does not.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
 # Where a bare basename citation (`manager.py:12`) may be resolved from.
 #
 # `src` was absent until 2026-08-21, so the ENTIRE frontend tree was outside this
@@ -85,7 +89,16 @@ PLACEHOLDERS = {
 
 # An ID-form anchor: two-character class prefix + six Crockford Base32 characters.
 # Owned by scripts/doc_anchor.py — see the note at its use below.
-ANCHOR_ID_RE = re.compile(r"^(?:CN|SN|HN|PN|IN)[0-9A-HJKMNP-TV-Z]{6}$")
+#
+# IMPORTED, NOT RESTATED. This was a second copy of doc_anchor's class list, and a copy
+# of a list that grows is a copy that goes stale: it still read `CN|SN|HN|PN|IN` after
+# `RN`, `BN` and `EN` were minted. A citation whose class is missing here does not fail
+# loudly — it falls PAST the skip below and gets substring-counted in the single file it
+# names, which succeeds by luck whenever the citation and the declaration share a file.
+# Cite one across files and this gate reports NO-ANCHOR while `doc_anchor --check`
+# correctly calls it MOVED: two gates, opposite verdicts, on the class the section pass
+# minted 177 of. Importing makes a newly registered class covered here by construction.
+from doc_anchor import TOKEN_RE as ANCHOR_ID_RE  # noqa: E402
 
 # Tallied by form, because the ban is on the FORM, not on being currently wrong.
 FORMS = {"line": 0, "symbol": 0, "anchor": 0, "strong": 0, "weak": 0}

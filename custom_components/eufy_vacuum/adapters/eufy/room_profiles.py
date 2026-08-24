@@ -74,11 +74,23 @@ BUILT_IN_ROOM_PROFILES: dict[str, dict[str, Any]] = {
     },
 }
 
-# The retired cleaning-path values "Standard" / "Normal" need no map here. Neither is in
-# clean_intensity_options above, so the one-shot store repair in
-# rooms/vocabulary_migration.py resets them to this brand's default_profile value —
-# "Quick" — by the same rule it applies to every out-of-vocabulary setting on every
-# brand. Declaring the real options IS the declaration of what is retired.
+# The retired cleaning-path values "Standard" / "Normal" need no map HERE because they
+# are mapped in `adapters/eufy/vocabulary.py::CLEAN_INTENSITY_ALIASES` — both to
+# "narrow", which IS a declared option. `rooms/vocabulary_migration.py::_alias_target`
+# resolves the alias before any reset, so a stored "Standard" becomes "Narrow": the
+# middle density it always meant.
+#
+# ⚠ CORRECTED 2026-08-23. This comment used to say the store repair "resets them to
+# this brand's default_profile value — Quick". That is the PRE-FIX behaviour, and it is
+# precisely the defect `adapters/eufy/vocabulary.py` was written to condemn: the fold
+# moved every affected room from the middle density to the FASTEST one. The comment
+# predated the fix by one day and sat in the file that owns these values, so it read as
+# the authority on them. A retired premise cited under the live name is worse than no
+# comment — a reader checking "what happens to my old Standard rooms?" got the answer
+# from before the repair.
+#
+# Declaring the real options IS the declaration of what is retired; what the options do
+# NOT say is where a retired value lands, and that is the alias table.
 #
 # path_type is DELIBERATELY ABSENT from every profile above. It was a second name for
 # the axis clean_intensity already carries: the built-ins paired Quick/wide and

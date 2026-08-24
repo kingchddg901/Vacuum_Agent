@@ -5,7 +5,7 @@ guided setup workflow + progress, start-protection state, map deletion, and the
 room-drift detector (new/removed segments since last check). Covered by **140 tests across 9 files**.
 
 Source: `custom_components/eufy_vacuum/setup/` (+ `__init__.py` entry wiring)
-Architecture reference: [docs/dev/15-setup-system.md](../../dev/15-setup-system.md)
+Architecture reference: [31 — The Setup Layer](../../dev/31-setup-layer.md)
 
 ---
 

@@ -277,6 +277,14 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Degradation: work mode block check skipped."
                 ),
             },
+            # ⚠ NEVER BOUND AS A SLOT. The Eufy assembler sources entity roles from the
+            # capability probe's `entities` dict, which has ten fixed keys and does not
+            # include this one — so the expression is unconditionally None and the key is
+            # stripped from the resolved config. The role IS probed, but from the candidate
+            # list as a BOOLEAN feeding path-control support, so the description below is
+            # true of the candidate and not of the slot it annotates. The value is
+            # discarded either way, so this note is the remedy rather than a code change —
+            # but read as written the sentence claims an authority the slot does not have.
             "cleaning_intensity": {
                 "type": "str",
                 "required": False,
@@ -345,22 +353,39 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Degradation: uses framework defaults."
                 ),
             },
+            # NOT CONSUMED — both keys below. Declaring them has no effect, and the
+            # schema is a porter-facing surface, so saying so here is the whole repair.
+            # They are fossils of a start-block ladder this product genuinely used to
+            # run (a Jinja ladder in the generator, ported verbatim to a
+            # `build_start_block_reason` in the first Python integration, orphaned inside
+            # the pre-git window, then correctly deleted as a dead orphan). See
+            # docs/dev/22-adapter-contract.md §5 for the four datable stages.
             "blocked_work_mode_states": {
                 "type": "list[str]",
                 "required": False,
                 "description": (
-                    "Work mode strings that block job start. These are "
-                    "raw (non-normalized) values from the work_mode sensor. "
-                    "Degradation: work mode block check skipped."
+                    "NOT CONSUMED. Nothing reads this key. Historically: work mode "
+                    "strings that blocked job start, raw (non-normalized) values from "
+                    "the work_mode sensor. No start-blocker consults work_mode today — "
+                    "entities.work_mode is read only by core/capabilities.py, for "
+                    "capability detection. Declaring this changes nothing."
                 ),
             },
             "blocked_task_status_states": {
                 "type": "list[str]",
                 "required": False,
                 "description": (
-                    "Task status strings that block job start. Raw "
-                    "(non-normalized) values. "
-                    "Degradation: task status block check skipped."
+                    "NOT CONSUMED, and SUPERSEDED rather than lost — which is the "
+                    "difference that matters. The gate it named still exists; it is "
+                    "spelled with different vocabulary. jobs/job_monitor.py::"
+                    "evaluate_job_lifecycle refuses a start on active_run_task_states "
+                    "and on hard_service_states, and those two cover every value the "
+                    "reference brand declares here (verified 2026-08-23: Cleaning and "
+                    "Returning via active_run_task_states, Washing Mop via "
+                    "hard_service_states). Restoring a reader for this key would add a "
+                    "SECOND, shorter copy of a live rule with its own message — which is "
+                    "how the shorter copy becomes the bug. Declare the two sets above "
+                    "instead."
                 ),
             },
             "blocked_dock_status_states": {
@@ -1293,7 +1318,11 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "SEQUENCED job it re-runs PER PHASE from that phase's own rooms "
                     "(phase_runner._dispatch_active_phase), so a vacuum group then a mop "
                     "group each apply their own value; for an atomic job it fires once at "
-                    "start. Best-effort (a failed pre-call never aborts the run). Absent = "
+                    "start. Best-effort for ordinary entries: a failed pre-call logs and "
+                    "continues. NOT best-effort when mixed_mode_water_policy is 'safest' "
+                    "— that entry RAISES and aborts the dispatch on a missing target or a "
+                    "rejected select, because pushing safe water before a batch with dry "
+                    "rooms is what stops them being wet-mopped. Absent = "
                     "no pre-call. Use per_room_live_settings instead when the device honors "
                     "mid-run per-room changes."
                 ),

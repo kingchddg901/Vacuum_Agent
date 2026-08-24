@@ -119,6 +119,15 @@ MAX_DELTA_PCT = 3.0
 #: bearing one: charging measurably FASTER than when the baseline was taken is
 #: something a cell cannot do, so anything above it is a measurement artefact.
 #:
+#: ⚠ THAT REASONING IS A CV ARGUMENT AND DOES NOT TRANSFER TO CC. An aged pack
+#: holds less energy per percent, so it genuinely does climb through the CC window
+#: faster than its own baseline did — a CC index above 100 is the expected reading
+#: for a worn cell, not an artefact. The bound still applies to both regimes and is
+#: left that way deliberately: 150% is far outside anything real ageing produces, so
+#: it still functions as an implausibility clip on the CC side even though the
+#: sentence above only justifies it on the CV side. Do not tighten it toward 100 on
+#: the strength of that sentence — that would reject true CC readings.
+#:
 #: WHY NONE IS SAFE HERE. These three fields read None on both vacuums for months
 #: before RP-045, so every consumer — sensors, card, diagnostics — already handles
 #: it, and health_unavailable_reason already exists to explain it. Rejecting into a
@@ -912,6 +921,12 @@ class BatteryHealthManager:
                 "start_battery": int(battery_level),
                 "samples": 1,
                 "rate_sum": 0.0,
+                # C54: the DENOMINATOR that partners rate_sum. `samples` counts every
+                # charging sample; rate_sum accumulates only those that produced a
+                # positive rate, so dividing one by the other averaged over two
+                # different populations. Same discipline the three zone/regime pairs
+                # in this dict already use.
+                "rate_samples": 0,
                 "rate_min": None,
                 "rate_max": None,
                 "kind": kind,
@@ -943,6 +958,7 @@ class BatteryHealthManager:
             session["samples"] = int(session.get("samples", 0)) + 1
             if rate_per_min is not None and rate_per_min > 0:
                 session["rate_sum"] = float(session.get("rate_sum") or 0.0) + rate_per_min
+                session["rate_samples"] = int(session.get("rate_samples") or 0) + 1
                 rmin = session.get("rate_min")
                 rmax = session.get("rate_max")
                 session["rate_min"] = rate_per_min if rmin is None else min(rmin, rate_per_min)
@@ -965,9 +981,23 @@ class BatteryHealthManager:
         start_battery = int(session.get("start_battery") or end_battery)
         delta_pct = end_battery - start_battery
         samples = int(session.get("samples", 0))
+        # C54. `samples` is every charging sample; `rate_samples` is the ones that
+        # actually produced a rate, and it is the only honest denominator for
+        # `rate_sum`. Dividing by `samples` let the opening sample, every sample where
+        # the integer percentage did not tick, and every sample dropped by the interval
+        # or plausibility guards each contribute 1 to the count and 0.0 to the sum —
+        # which is how `avg_rate_per_min` could sit BELOW `min_rate_per_min`, since min
+        # and max are taken over observed rates only.
+        #
+        # A session opened before this field existed has no `rate_samples`, so it closes
+        # with avg None rather than resurrecting the old wrong number. None reads as
+        # "not measured"; the old value read as a measurement and was not one. At most
+        # one in-flight session per vacuum is affected. Same choice, and the same
+        # reasoning, as the regime accumulators immediately below.
+        rate_samples = int(session.get("rate_samples") or 0)
         avg = (
-            (session.get("rate_sum") or 0.0) / samples
-            if samples > 0
+            (session.get("rate_sum") or 0.0) / rate_samples
+            if rate_samples > 0
             else None
         )
         kind = str(session.get("kind") or "idle")
@@ -996,6 +1026,7 @@ class BatteryHealthManager:
                 round(session["rate_max"], 4) if session.get("rate_max") is not None else None
             ),
             "samples": samples,
+            "rate_samples": rate_samples,
             "ended_reason": "full" if end_battery >= 100 else "stopped",
             "kind": kind,
             # Regime-split fields. Raw values for audit + future re-derivation;
@@ -1108,12 +1139,28 @@ class BatteryHealthManager:
     def _update_health(self, record: dict[str, Any]) -> None:
         """Update CC and CV regime indices plus the headline health_pct.
 
+        THE TWO INDICES RUN IN OPPOSITE DIRECTIONS, and only one of them is
+        "higher = healthier". Both regimes are stored as MINUTES PER PERCENT and
+        both go through one formula, ``baseline / current * 100``, so the
+        direction of the index follows directly from which way min/pct moves:
+
         - cc_charge_speed_pct: capacity proxy (50→80). Aged cells hold less
-          energy per percent, so %/min rises with age and ratio falls below
-          100. Higher = healthier.
+          energy per percent, so %/min RISES with age — min/pct therefore FALLS,
+          and the ratio RISES ABOVE 100. **Higher is WORSE here.** Nothing in
+          the code inverts it; it is exposed in its raw direction on purpose,
+          as the capacity story rather than a health score.
         - cv_charge_speed_pct: resistance proxy (80→90). Aged cells force
-          earlier/longer taper, so %/min falls with age and ratio falls
-          below 100. Higher = healthier.
+          earlier/longer taper, so %/min FALLS with age — min/pct rises, and the
+          ratio falls below 100. Higher = healthier.
+
+        This docstring had the CC half backwards until 2026-08-23: it claimed CC
+        also "falls below 100" and that higher was healthier for both. The two
+        cannot both fall below 100 through one shared formula, which is the
+        cheapest way to spot the error. The module constants above
+        (``CC_ZONE_MAX`` and neighbours) state the physics correctly, and
+        ``battery/sensors.py`` restates it and stops short of drawing the
+        conclusion — so the inversion lived only here, in the one place a reader
+        goes to find out what the numbers mean.
         - health_pct: alias of cv_charge_speed_pct. CV is the conventional
           "battery health" signal users expect; the headline keeps that
           framing while CC is exposed separately for the capacity story.

@@ -22,6 +22,24 @@ docs, not here:
 
 ---
 
+## Rename repair (`RS`) — the manual half of D4
+
+`setup_repair_renamed_vacuum` exists because the automatic migration is driven by a listener that
+only records renames it was running to see. A rename from before that shipped left no record, and
+Home Assistant does not keep the old entity id anywhere — so only the user can supply it.
+
+Covered by `tests/unit/test_services_repair_renamed_vacuum.py`. Two targets carry the reasoning:
+
+- **`RS-4`** — a collision changes **nothing** by default and names what is in the way. This is the
+  expected first call, not an edge case: the new id normally holds the empty record
+  `ensure_vacuum_record` created on the first restart after the rename. Reporting has to precede
+  destruction, because a user cannot consent to discarding something nobody told them about.
+  Ablating the default to always-overwrite turns `RS-4` red on its own.
+- **`RS-6`** — the response carries `sections_moved` and `tree_moved`, which are written by
+  `core/manager.py::_apply_pending_entity_renames` and not by the service. Their presence is the
+  evidence that the service **delegated** rather than growing a second, divergent migration.
+
+
 ## Coverage map
 
 | Source module | Stmts | Cov | Test file | Mocking |

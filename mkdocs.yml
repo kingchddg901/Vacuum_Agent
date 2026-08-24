@@ -51,6 +51,11 @@ plugins:
 # defect disclosure for people running the released integration.
 exclude_docs: |
   dev/maintenance/
+  # The retired corpus is an as-of-its-date ARCHIVE, not published documentation. It is not
+  # in the nav and nothing live links into it, so building it only surfaced ~83 relative
+  # links that broke when the files were MOVED here. Excluding it leaves every retired file
+  # untouched on disk, which is what `docs/dev/README.md` promises about them.
+  retired/
 
 markdown_extensions:
   - tables

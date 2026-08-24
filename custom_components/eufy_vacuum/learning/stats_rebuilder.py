@@ -48,6 +48,7 @@ from homeassistant.core import HomeAssistant
 from ..timestamp_utils import parse_timestamp
 from .history_store import LearningHistoryStore
 from .utils import (
+    resolve_room_slug,
     _canonical_clean_intensity,
     _canonical_clean_mode,
     _iso_now,
@@ -445,6 +446,12 @@ class LearningStatsRebuilder:
         jobs: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Build learned room stats and room baselines from a list of learning jobs."""
+        # D5: a job record carries the slug the room had AT RUN TIME. Resolve every
+        # historical identity forward before it is keyed, or a renamed room's past runs
+        # stay under a name nothing asks for again and it reads as never cleaned.
+        # Absent file = no rename has happened = every resolve is identity.
+        _aliases = self.store.load_key_aliases(vacuum_entity_id=vacuum_entity_id)
+
         # exact_key → per-room minutes samples + the area paired with each (for the
         # area-quality gate). The paired area is None when the job had no per-room
         # area capture (so that sample is never gated out).
@@ -529,7 +536,9 @@ class LearningStatsRebuilder:
                 if not isinstance(room, dict):
                     continue
 
-                slug = str(room.get("slug", "")).strip().lower()
+                slug = resolve_room_slug(
+                    _aliases, map_id, room.get("slug", "")
+                )
                 if not slug:
                     continue
 
@@ -695,8 +704,8 @@ class LearningStatsRebuilder:
                     to_id = _safe_int(tr.get("to_room_id"), -1)
                     if from_id <= 0 or to_id <= 0:
                         continue
-                    from_slug = str(tr.get("from_slug") or "").strip().lower()
-                    to_slug = str(tr.get("to_slug") or "").strip().lower()
+                    from_slug = resolve_room_slug(_aliases, map_id, tr.get("from_slug"))
+                    to_slug = resolve_room_slug(_aliases, map_id, tr.get("to_slug"))
                     pairkey = f"{map_id}::{from_id}->{to_id}"
                     transit_samples.setdefault(pairkey, []).append(secs)
                     transit_meta.setdefault(

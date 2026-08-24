@@ -97,7 +97,7 @@ step with the corpus being repaired, which is the right rate — an empty histor
 means nothing has been excavated yet, not that nothing was ever tried.
 
 It was already happening before the shelf existed. `room-bounds-from-traces.md` was cut
-out of [11 — Mapping system](11-mapping-system.md) on 2026-08-14 because it was four
+out of `11 — Mapping system` on 2026-08-14 because it was four
 pages of present-tense algorithm describing deleted code; with no history shelf to put it
 on it went to `design/`, where it sat declaring "This is HISTORY" in its own first line
 until 2026-08-16. The excavation was right; only the destination was missing.

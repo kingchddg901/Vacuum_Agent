@@ -30,6 +30,9 @@ Coverage targets
 [SP-keep]      _component_should_keep: every keep/drop branch.
 [SP-cascade]   _split_suspicious_component: wall-cut win + total miss.
 [SP-prune]     _prune_localized_siblings: rank + sibling-overlap dedup + top-4 cap.
+[SP-wall-dbg]  D20: a wall-cut DECLINE is recorded, and says which decline it was. The
+               first-tried strategy appended a debug row only on success, so its failure
+               left no row and read as never-attempted.
 """
 
 from __future__ import annotations
@@ -1134,3 +1137,83 @@ def test_suspicious_erosion_wins():
     masks, method, debug = S._split_suspicious_component(comp, _MIN)
     assert method == "erosion_seeds" and len(masks) >= 2
 
+
+
+# ---------------------------------------------------------------------------
+# D20 - the first-tried strategy records its declines
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "case,expected",
+    [
+        ("no_hint", "no_wall_hint"),
+        ("shape_mismatch", "wall_hint_shape_mismatch"),
+        ("no_local_wall", "no_local_wall"),
+        ("no_split", "no_split"),
+    ],
+)
+def test_sp_wall_dbg_a_decline_is_recorded_with_its_reason(case, expected):
+    """[SP-wall-dbg] RED BEFORE THE FIX — the list stayed empty on every failure.
+
+    The four declines are kept distinct because they send a reader somewhere different:
+    `no_wall_hint` is a missing second image (the user never uploaded the other theme),
+    `wall_hint_shape_mismatch` is two images at different sizes (a pipeline bug),
+    `no_local_wall` is a hint that does not touch this component, and `no_split` is walls
+    found with no clean cut (a tuning question). Collapsing them to "it failed" would
+    close the "never attempted" reading and open a "which of four problems is this" one.
+    """
+    debug: list[dict] = []
+    if case == "no_hint":
+        S._split_component_via_wall_cuts(_dumbbell(), None, _MIN, debug)
+    elif case == "shape_mismatch":
+        S._split_component_via_wall_cuts(_dumbbell(), np.zeros((50, 50), dtype=bool), _MIN, debug)
+    elif case == "no_local_wall":
+        wall = np.zeros((200, 200), dtype=bool)
+        wall[0:5, 0:5] = True
+        S._split_component_via_wall_cuts(_dumbbell(), wall, _MIN, debug)
+    else:
+        # A hint that DOES touch the component but frees no second region: a single
+        # pixel-thin nick at the edge. Anything that actually severs the neck would
+        # return masks and land in the success path instead.
+        comp = _dumbbell()
+        wall = np.zeros((200, 200), dtype=bool)
+        wall[comp] = False
+        ys, xs = np.nonzero(comp)
+        wall[ys[0], xs[0]] = True
+        S._split_component_via_wall_cuts(comp, wall, _MIN, debug)
+
+    assert len(debug) == 1, "a decline left no debug row at all"
+    assert debug[0]["method"] == "wall_cuts"
+    assert debug[0]["accepted"] is False
+    assert debug[0]["reason"] == expected
+
+
+def test_sp_wall_dbg_a_success_does_not_append_a_decline():
+    """[SP-wall-dbg] RED IF THE SINK IS APPENDED TO UNCONDITIONALLY. The success row is
+    written by the caller with its own mask count; a decline row beside it would make the
+    per-method list say the strategy both failed and succeeded."""
+    comp = _dumbbell(neck_width=8)
+    wall = np.zeros((200, 200), dtype=bool)
+    wall[96:104, 40:100] = True
+    debug: list[dict] = []
+    masks = S._split_component_via_wall_cuts(comp, wall, _MIN, debug)
+
+    assert len(masks) >= 2
+    assert debug == []
+
+
+def test_sp_wall_dbg_the_cascade_surfaces_the_decline():
+    """[SP-wall-dbg] The end-to-end point: the row has to reach the per-method debug list
+    the cascade returns, not just the helper's own sink.
+
+    RED IF THE CALLER STOPS PASSING THE SINK — which is exactly the state this repaired,
+    and which no other assertion in this file can see.
+    """
+    comp = _dumbbell()
+    _masks, _method, entries = S._split_suspicious_component(comp, _MIN)
+    methods = [e.get("method") for e in entries]
+    assert "wall_cuts" in methods, (
+        "the first-tried strategy is missing from the per-method debug list, so a reader "
+        "would conclude it was never attempted: " + repr(methods)
+    )

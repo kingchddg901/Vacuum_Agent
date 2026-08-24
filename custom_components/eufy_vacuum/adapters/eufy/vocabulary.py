@@ -44,9 +44,12 @@ DRYING_STATES: frozenset[str] = frozenset({
 # across every HA vacuum integration, so core owns it — ONE definition, in
 # `const.py::HA_ACTIVE_VACUUM_STATES`, imported by core/manager.py and
 # jobs/job_monitor.py (whose `active_vacuum_states` parameter defaults to it). It is
-# also NOT an adapter-declarable key: ADAPTER_CONFIG_SCHEMA has no slot for it, so a
-# brand attempting to declare it is rejected at validation. This file declares only
-# what is
+# also NOT an adapter-declarable key: ADAPTER_CONFIG_SCHEMA has no slot for it. A brand
+# attempting to declare it is rejected at validation ONLY on the config-save path — the
+# schema walk has one caller, and a code-declared adapter like this one never reaches it,
+# so the key would be silently accepted and ignored here. The contract test is what holds
+# this brand to it. See const.py::HA_ACTIVE_VACUUM_STATES and
+# docs/dev/22-adapter-contract.md §1. This file declares only what is
 # BRAND-SPECIFIC — hard_service_states, drying_states, active_run_task_states — which
 # is exactly what adapter.py's vocabulary block passes to core.
 ACTIVE_RUN_TASK_STATES: frozenset[str] = frozenset({
@@ -187,6 +190,22 @@ CLEAN_INTENSITY_ALIASES: dict[str, str] = {
     "normal": "narrow",
 }
 
+# ⚠ THIS ALIAS TARGET IS NOT A DECLARED OPTION, and core is documented to refuse it.
+# Both entries point at "boost", which was removed from `fan_speed_options` once it was
+# established that BoostIQ is not a suction level at all — it is the auto carpet-boost
+# switch, and the payload resolves fan speed by INDEX, so the chip silently applied no
+# suction. The option list was swept; this map was not.
+#
+# The live effect splits by consumer, which is why it survives:
+#   * `rooms/vocabulary_migration.py::_alias_target` IGNORES an alias pointing outside
+#     the declared options — and its docstring calls exactly this shape "an adapter
+#     defect", so core already refuses it by name;
+#   * the learning and card path still emits the code.
+#
+# So the brand declares an alias core is documented to reject. Left in place rather than
+# swept in a prose pass because removing an alias changes what a stored "BoostIQ" value
+# migrates to, which is a data decision with its own review — but nobody should read
+# this table as a working mapping. Ledger: D27.
 FAN_SPEED_ALIASES: dict[str, str] = {
     "boost iq": "boost",
     "boostiq": "boost",

@@ -38,6 +38,15 @@ Coverage targets
         case proving the two spans resolve independently.
 [BM-28] RP-042: an unreadable (None) battery is a GAP — no anchor advance, no drain,
         and nothing reaches the session ring that feeds health_pct.
+[BM-29] C54: avg_rate_per_min is the mean of the rates actually OBSERVED, so it can
+        never sit below min_rate_per_min. Every session opens with samples=1 and
+        rate_sum=0.0, so this was wrong on every charge, not just ragged ones.
+[BM-30] C54: a sample where the integer percentage did not tick counts as a charging
+        sample but produced no rate, and must not dilute the mean. This is the doc's
+        own reproduction: 60→70%% over 21 minutes.
+[BM-31] C54: a session already in flight when this shipped has no rate_samples and
+        closes with avg None — "not measured", rather than the old wrong number
+        wearing the look of a measurement.
 """
 
 from __future__ import annotations
@@ -785,3 +794,93 @@ def test_regime_pct_no_data_is_not_a_rejection(bm):
     assert bm._compute_regime_pct(
         [{"cv_min_per_pct": 0.0, "end_ts": _iso_now()}], 1.0, "cv_min_per_pct"
     ) == (None, None)
+
+
+# ---------------------------------------------------------------------------
+# C54 — the denominator of avg_rate_per_min
+# ---------------------------------------------------------------------------
+
+
+async def test_avg_rate_cannot_sit_below_the_observed_minimum(bm):
+    """[BM-29] RED BEFORE THE FIX on the simplest charge there is.
+
+    min and max are taken over observed rates; the mean was taken over every
+    charging sample. Opening a session sets samples=1 and returns before any rate
+    exists, so even a charge where every single interval measured the same rate
+    reported a mean below it. `avg < min` is arithmetically impossible for a real
+    mean, which is what makes it a sound assertion rather than a restatement of
+    the arithmetic.
+    """
+    samples = [(50, False, 0)] + [(lvl, True, 60) for lvl in range(50, 61)]
+    samples.append((60, False, 60))
+    _feed(bm, samples)
+
+    s = bm.get_record(_VAC)["session_history_recent"][-1]
+    assert s["min_rate_per_min"] == pytest.approx(1.0)
+    assert s["max_rate_per_min"] == pytest.approx(1.0)
+    assert s["avg_rate_per_min"] == pytest.approx(1.0)
+    assert s["avg_rate_per_min"] >= s["min_rate_per_min"]
+
+
+async def test_a_sample_that_did_not_tick_does_not_dilute_the_mean(bm):
+    """[BM-30] The reproduction from doc 16 §5, at the reporting cadence a real
+    vacuum charges at: 60→70%% over 21 samples, ten of which moved the integer
+    percentage and ten of which did not.
+
+    Before the fix this closed at 10.0/21 = 0.4762 %%/min against a stated minimum
+    of 1.0 — a headline number 52%% below the slowest interval it was built from.
+    """
+    samples = [(60, False, 0), (60, True, 60)]
+    lvl = 60
+    while lvl < 70:
+        samples.append((lvl, True, 60))       # reported again, unchanged: rate 0
+        lvl += 1
+        samples.append((lvl, True, 60))       # ticked: rate 1.0/min
+    samples.append((70, False, 60))
+    _feed(bm, samples)
+
+    s = bm.get_record(_VAC)["session_history_recent"][-1]
+    assert s["samples"] == 21                 # every charging sample
+    assert s["rate_samples"] == 10            # the ones that measured a rate
+    assert s["avg_rate_per_min"] == pytest.approx(1.0)
+    assert s["avg_rate_per_min"] != pytest.approx(10.0 / 21, abs=1e-4)
+    # the mean is published with the population it was taken over, so a reader can
+    # tell a ten-interval mean from a one-interval one.
+    assert s["rate_samples"] < s["samples"]
+
+
+async def test_a_session_open_across_the_upgrade_closes_unmeasured(bm):
+    """[BM-31] The store is on disk and this field is new. A session mid-charge when
+    the integration restarts has rate_sum but no rate_samples, and there is no way to
+    recover the population it should have been divided by.
+
+    Falling back to `samples` would reinstate exactly the value C54 removed, so it
+    closes as None. At most one session per vacuum is ever in this state.
+    """
+    t = _T0
+    for level, charging in [(50, False), (50, True), (51, True), (52, True)]:
+        t = t + timedelta(seconds=60)
+        bm._process_sample(vacuum_entity_id=_VAC, battery_level=level, charging=charging, ts=t)
+
+    session = bm.get_record(_VAC)["current_session"]
+    assert session["rate_samples"] == 2
+    del session["rate_samples"]               # the shape an older store holds
+    # a mid_job recharge, so closing actually reaches the health-stat gate below
+    session["kind"] = "mid_job"
+
+    # the SAME clock -- _feed() rewinds to _T0, and since DR-BAT-2 an out-of-order
+    # sample is dropped, so a second _feed() would never reach _close_session.
+    t = t + timedelta(seconds=60)
+    bm._process_sample(vacuum_entity_id=_VAC, battery_level=52, charging=False, ts=t)
+
+    s = bm.get_record(_VAC)["session_history_recent"][-1]
+    assert s["avg_rate_per_min"] is None
+    assert s["rate_samples"] == 0
+    # RED IF THE `avg is not None` GATE IS DROPPED: this is a mid_job session, so
+    # closing it reaches _update_mid_job_rate_stat, which does float(avg_rate_per_min)
+    # and would raise TypeError. An unmeasured session contributes nothing to the
+    # health signal instead — the stat block is seeded by ensure_record, so the
+    # evidence is that its count never moved.
+    stats = bm.get_record(_VAC)["mid_job_recharge_stats"]
+    assert stats["count"] == 0
+    assert stats["rate_mean_per_min"] is None

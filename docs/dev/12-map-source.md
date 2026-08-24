@@ -39,9 +39,17 @@ brand declared the block, and stops being sufficient the moment a second does �
 internals, on the event loop, inside the dashboard snapshot, finding nothing and then paying for
 a full structure dump to say so, on every refresh.
 
-> ⚠ **The test that pins this was green while the gate was removed.** The method wraps its body
-> in `except Exception` by design, so a probe that raises is swallowed. It was rewritten to
-> **record the call** and assert nothing was called — and only ablation caught the difference.
+**The test that pins this was green while the gate was removed.** The method wraps its body in
+`except Exception` by design, so a probe that raises is swallowed. It was rewritten to **record the
+call** and assert nothing was called — and only ablation caught the difference.
+
+Re-verified 2026-08-23, including the two sibling tests that still use a raising stub. Those probe
+`async_get_map_live_pose`, whose dispatch has no `try`/`except` around it, so a raise there does
+propagate and they bite as written — confirmed by ablating each backend gate in turn. **Recorded
+because the distinction is the useful part:** record-the-call and raise-in-a-stub are not
+interchangeable styles, and which one is correct depends entirely on whether the seam under test
+swallows. A raising stub in a never-raises seam proves nothing and looks identical to a passing
+test.
 
 ---
 
@@ -83,8 +91,11 @@ reason.
 callers opt into rejection.
 
 For those callers a clamped point is indistinguishable from a legitimate point *at the edge*, so
-clamping silently reports "off the map" as "at the wall" — and the companion current-room lookup
-then names whichever room owns that wall. For room geometry the opposite holds: a room whose
+clamping silently reports "off the map" as "at the wall". It stops there: the companion
+current-room lookup is handed the RAW pixel, and `current_room_for_pixel` bounds-checks the
+derived raster index, so an off-grid anchor yields `None` rather than the room owning that wall.
+The observed failure is the pair disagreeing — a confident edge position beside no room at all.
+For room geometry the opposite holds: a room whose
 bbox slightly exceeds the grid is still that room, and rejecting it loses a real room.
 
 The same rule is implemented twice, once per brand path, deliberately.
@@ -110,9 +121,11 @@ rather than an absence.*
 unchanged.** The alternative was a second, object-shaped decoder — and two decoders of one map
 is the failure this codebase keeps re-learning.
 
-It returns `None`, not a partial dict, when any of width, height, room-pixels or resolution is
-missing. A partial dict *looks* usable because it carries the raster, and then the geometry step
-hard-requires the four fields it lacks.
+It returns `None`, not a partial dict, when `room_pixels` is not bytes or when any of the four
+`_MAPDATA_REQUIRED_GEOMETRY_FIELDS` — `width`, `height`, `room_outline_width`,
+`room_outline_height` — is missing. A partial dict *looks* usable because it carries the raster,
+and then the geometry step hard-requires the four fields it lacks. `resolution` is **not** in that
+set: a MapData without one converts fine and the geometry step falls back to 5.
 
 **The in-memory content version hashes the raster bytes plus the origin and resolution**, unlike
 the sibling render path which hashes the raster alone. The raster does not say where its pixels
