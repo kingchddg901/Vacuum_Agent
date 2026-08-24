@@ -16,7 +16,7 @@ only.
   your Roborock app, so every start after that — including one you begin from the Roborock
   app — cleans rooms in that order. Five states, three signals: no row on a vacuum that
   can't do this, "vacuum optimises the path itself" when nothing is saved, the saved order
-  when there is one, a green tick when your queue matches the device, an amber "device
+  when there is one, a green confirmation when your queue matches the device, an amber "device
   vs queue" chip with an Apply button when they differ, and a grey "could not check" when
   the sensor isn't reporting. Amber never blocks Start. Two new services back the row —
   `eufy_vacuum.apply_clean_sequence` and `eufy_vacuum.clear_clean_sequence` — both said
@@ -46,6 +46,16 @@ only.
   more of what made the original run behave the way it did.
 
 ### Fixed
+- **A confirmed match no longer looks like a warning.** The Override Order row has three
+  verification states — amber when the device disagrees with your queue, green when it
+  agrees, grey when it could not be read — and none of them were actually coloured. The
+  row borrowed your theme's accent instead, so on an amber-accented theme a *confirmed
+  match* rendered in the exact colour reserved for "this is wrong". The three states now
+  carry their own colours on every theme.
+- **The Override Order buttons no longer run off the edge of the card.** On a phone,
+  "Override device order" and "Clear device sequence" sat on one unwrappable line and the
+  second was clipped mid-word. They now wrap. Longer languages were hit hardest — several
+  render these labels about a third wider than English.
 - **Override Order was unusable on a fresh install — the row could never leave "could not
   check".** Nothing in the integration ever asked the robot what order it currently has, so
   the sensor stayed at "never read" forever. That greyed the row out, and the grey state

@@ -7662,6 +7662,64 @@ ${r}
     display: flex;
     align-items: center;
     gap: 8px;
+    /* WRAP. Without this the row is a nowrap flex line, and two full-width
+       buttons ("Override device order" + "Clear device sequence") run straight
+       off the right edge of the card -- the second one clipped mid-word.
+       The PARENT wraps, which is what made this hard to see: the actions block
+       correctly drops onto its own line, and then overflows from there.
+       Reported from a phone. English is not the worst case either -- several
+       locales render these labels ~1.3x wider. */
+    flex-wrap: wrap;
+  }
+
+  /* ---- Sequence-override VERIFICATION STATES --------------------------------
+     The design names three and only three: amber = checked and WRONG, green =
+     confirmed, grey = could not check. src/i18n/en.js labels the strings
+     "Green state" / "Amber state" / "Grey state" at their definitions.
+
+     NONE OF IT WAS EVER BUILT. The renderer has emitted is-<kind> on this row
+     since the row shipped and NO stylesheet consumed the class, so all five
+     states rendered as the same muted advisory box. The only colour on the row
+     came from the toggle's generic .evcc-chip.active, which resolves to
+     --evcc-accent -- on a theme whose accent is amber, the same amber the design
+     reserves for "wrong". So a CONFIRMED MATCH rendered as a warning, on every
+     install with such a theme. Found by looking at a phone: the class was
+     correct and asserting the class passed, because the stylesheet that gives
+     the class meaning did not exist.
+
+     The chip is recoloured through --evcc-chip-active-*, the variables
+     foundation.js already reads with fallbacks, so a semantic state overrides
+     the accent without foundation.js needing to know these states exist.
+
+     is-saved and is-path_optimizing need no rule: the switch is OFF in both, so
+     the toggle never takes .active, and the base advisory box already paints the
+     grey the design asks for. is-unverifiable DOES need one -- and finding that
+     out is why this was checked against a render instead of reasoned about. */
+  .evcc-sequence-override.is-matching {
+    background: color-mix(in srgb, var(--evcc-sem-success) 8%, transparent);
+    border-color: color-mix(in srgb, var(--evcc-sem-success) 30%, transparent);
+    --evcc-chip-active-bg: color-mix(in srgb, var(--evcc-sem-success) 18%, transparent);
+    --evcc-chip-active-border: color-mix(in srgb, var(--evcc-sem-success) 40%, transparent);
+    --evcc-chip-active-text: var(--evcc-sem-success);
+  }
+
+  .evcc-sequence-override.is-mismatch {
+    background: color-mix(in srgb, var(--evcc-sem-warning) 8%, transparent);
+    border-color: color-mix(in srgb, var(--evcc-sem-warning) 30%, transparent);
+    --evcc-chip-active-bg: color-mix(in srgb, var(--evcc-sem-warning) 18%, transparent);
+    --evcc-chip-active-border: color-mix(in srgb, var(--evcc-sem-warning) 40%, transparent);
+    --evcc-chip-active-text: var(--evcc-sem-warning);
+  }
+
+  /* Grey, and it has to be SAID rather than left to the default: the switch can
+     be on here, so the toggle takes .active and would otherwise borrow the
+     accent -- which on an amber-accented theme is the one colour that must not
+     appear on a state meaning "we could not check". Still visibly ON: filled and
+     600-weight against the flat outline of an off chip, just not semantic. */
+  .evcc-sequence-override.is-unverifiable {
+    --evcc-chip-active-bg: color-mix(in srgb, var(--evcc-text-muted) 18%, transparent);
+    --evcc-chip-active-border: color-mix(in srgb, var(--evcc-text-muted) 45%, transparent);
+    --evcc-chip-active-text: var(--evcc-text-secondary);
   }
 
   .evcc-start-preflight-panel {
