@@ -847,6 +847,17 @@ export const en = {
   "metrics.battery_col_mean_per_m2": "Mean",  // Drain-table column header; the unit lives on the VALUE via metrics.unit_per_m2
   "metrics.unit_per_m2": "%/m²",  // battery drain unit, appended to a value. LOCALIZED — ar/he/ru do not use a Latin m
   "metrics.unit_per_min": "%/min",  // charge-rate unit, appended to a value. Composed from run_profiles.minutes_unit
+  "rooms.override_order.toggle_label": "Override device order",  // Sequence-toggle switch label — the persistent companion to the strict-order chip
+  "rooms.override_order.consent": "Changes the saved sequence in your Roborock app",  // ⚠ Consent text — this UI edits a persistent, map-level user setting in the vendor app
+  "rooms.override_order.path_optimizing": "Vacuum optimises the path itself",  // Row body when the switch is off and no device order is saved
+  "rooms.override_order.matching": "Sequence matches your queue",  // Green state: switch on, device order equals queue
+  "rooms.override_order.mismatch": "Sequence differs from your queue — Apply to update",  // Amber state: switch on, device order != queue
+  "rooms.override_order.unverifiable": "Could not read the device's saved sequence",  // Grey state: sensor unavailable/unknown
+  "rooms.override_order.apply": "Apply queue to device",  // Button: writes the queue order to the device
+  "rooms.override_order.clear": "Clear device sequence",  // Button: wipes the device's saved sequence
+  "rooms.override_order.device_label": "Device:",  // Prefix on the device-order line in the mismatch diff
+  "rooms.override_order.queue_label": "Queue:",  // Prefix on the queue-order line in the mismatch diff
+  "rooms.override_order.empty_placeholder": "(empty)",  // Shown in the mismatch diff when one side has no order
   "metrics.battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",  // Tooltip on the 'samples / count' Jobs cell in the drain table when samples < count. LOCALIZE.
   "metrics.unit_per_hour": "%/h",  // battery drain-per-hour unit, appended to a value; LOCALIZE the 'h' (ar/he use non-Latin scripts)
   "metrics.unit_percent": "%",  // bare percent unit, appended to a value. Most languages keep '%' but some scripts prefer their own numeral marker

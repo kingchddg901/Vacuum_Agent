@@ -763,6 +763,138 @@
     "rooms.mode_mop": [
       "it"
     ],
+    "rooms.override_order.apply": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "rooms.override_order.clear": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "rooms.override_order.consent": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "rooms.override_order.device_label": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "rooms.override_order.empty_placeholder": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "rooms.override_order.matching": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "rooms.override_order.mismatch": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "rooms.override_order.path_optimizing": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "rooms.override_order.queue_label": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "rooms.override_order.toggle_label": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "rooms.override_order.unverifiable": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
     "rooms.pause": [
       "de",
       "fr"

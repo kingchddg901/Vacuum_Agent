@@ -8,7 +8,7 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **406** · consumer `var()` uses **2300**
+- Catalog **406** · consumer `var()` uses **2315**
 - **272** with a STATIC consumer · **134** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
 - `var()` → non-catalog tokens **12** · dynamic `var(--evcc-…${…})` sites **3**
 
@@ -16,7 +16,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 > - **84** `animal` — `src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`
 > - **38** `floor-material` — `src/renderers/floor-texture-surface.js` and `src/bindings/map.js` build `--evcc-floor-${type}-…` from the material key
 > - **12** `room-fill` — `src/cards/map-room-color.js` — `roomFillTokenName(i)` builds `--evcc-room-fill-N`, 1-based and wrapping at 12 (contract pinned by MRC-1..MRC-7)
-- **Token CSS coverage 98.7%** — 1387/1405 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
+- **Token CSS coverage 98.7%** — 1395/1413 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
 
 ---
 
@@ -52,7 +52,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:200
 - custom_components/eufy_vacuum/themes/preloaded.py:509
 - src/cards/_shared.js:222 (color)
-- src/cards/dashboard-card.js:992 (--accent)
+- src/cards/dashboard-card.js:1129 (--accent)
 - src/cards/profile-card.js:35 (--accent)
 - src/room-card.js:374 (--accent)
 - src/styles/external-jobs.js:32
@@ -276,7 +276,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:222
 - src/cards/_shared.js:215 (color)
 - src/cards/_shared.js:219 (color)
-- src/cards/dashboard-card.js:996 (--text-muted)
+- src/cards/dashboard-card.js:1133 (--text-muted)
 - src/cards/profile-card.js:40 (--text-muted)
 - src/cards/vacuum-map-host.js:44 (color)
 - src/room-card.js:378 (--text-muted)
@@ -354,6 +354,13 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:1358 (color)
 - src/styles/rooms.js:1372 (color)
 - src/styles/rooms.js:1373
+- src/styles/rooms.js:1390
+- src/styles/rooms.js:1391
+- src/styles/rooms.js:1408 (color)
+- src/styles/rooms.js:1436 (color)
+- src/styles/rooms.js:1465
+- src/styles/rooms.js:1466
+- src/styles/rooms.js:1469 (color)
 - src/styles/run-profiles.js:82 (color)
 - src/styles/run-profiles.js:141 (color)
 - src/styles/run-profiles.js:235 (color)
@@ -410,8 +417,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/toast-host.js:90 (color)
 
 **`--evcc-text-on-accent`** — Text On Accent · default src/styles/foundation.js:198
-- src/cards/dashboard-card.js:1050 (color)
-- src/cards/dashboard-card.js:1065 (color)
+- src/cards/dashboard-card.js:1187 (color)
+- src/cards/dashboard-card.js:1202 (color)
 - src/cards/profile-card.js:42 (--text-on-accent)
 - src/room-card.js:381 (--text-on-accent)
 - src/styles/map.js:365 (color)
@@ -436,7 +443,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:223
 - src/cards/_shared.js:216 (color)
 - src/cards/_shared.js:220 (color)
-- src/cards/dashboard-card.js:995 (--text-primary)
+- src/cards/dashboard-card.js:1132 (--text-primary)
 - src/cards/profile-card.js:39 (--text-primary)
 - src/room-card.js:377 (--text-primary)
 - src/styles/base-station.js:40 (color)
@@ -777,7 +784,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-surface-action-hover`** — Surface Action Hover · default src/styles/foundation.js:189
 - src/cards/_shared.js:221 (background)
-- src/cards/dashboard-card.js:1035 (background)
+- src/cards/dashboard-card.js:1172 (background)
 - src/room-card.js:489 (background)
 - src/styles/learning.js:687 (background)
 - src/styles/learning.js:815 (background)
@@ -809,7 +816,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-surface-card`** — Surface Card · default src/styles/foundation.js:180
 - custom_components/eufy_vacuum/themes/preloaded.py:71
 - src/cards/_shared.js:218 (background)
-- src/cards/dashboard-card.js:993 (--surface)
+- src/cards/dashboard-card.js:1130 (--surface)
 - src/cards/profile-card.js:36 (--surface)
 - src/room-card.js:375 (--surface)
 - src/styles/foundation.js:245 (--evcc-card-bg)
@@ -1049,8 +1056,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/toast-host.js:71 (background)
 
 **`--evcc-surface-subtle`** — Surface Subtle · default src/styles/foundation.js:185
-- src/cards/dashboard-card.js:1030 (background)
-- src/cards/dashboard-card.js:1034 (background)
+- src/cards/dashboard-card.js:1167 (background)
+- src/cards/dashboard-card.js:1171 (background)
 - src/room-card.js:380 (--surface-subtle)
 - src/styles/maintenance.js:377 (background)
 - src/styles/modal-host.js:791 (background)
@@ -1065,7 +1072,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:716 (background)
 
 **`--evcc-surface-sunken`** — Surface Sunken · default src/styles/foundation.js:190
-- src/cards/dashboard-card.js:1044 (background)
+- src/cards/dashboard-card.js:1181 (background)
 - src/styles/metrics.js:325 (background)
 - src/styles/setup.js:310 (background)
 
@@ -1088,7 +1095,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:211
 - src/cards/_shared.js:215
 - src/cards/_shared.js:218
-- src/cards/dashboard-card.js:994 (--border)
+- src/cards/dashboard-card.js:1131 (--border)
 - src/cards/profile-card.js:38 (--border)
 - src/room-card.js:376 (--border)
 - src/styles/base-station.js:22
@@ -2262,6 +2269,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:989
 - src/styles/rooms.js:1229
 - src/styles/rooms.js:1237
+- src/styles/rooms.js:1458
+- src/styles/rooms.js:1459
 - src/styles/run-profiles.js:174
 - src/styles/run-profiles.js:175
 - src/styles/setup.js:68 (background)
@@ -2379,6 +2388,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:1070
 - src/styles/rooms.js:1078
 - src/styles/rooms.js:1079
+- src/styles/rooms.js:1451
+- src/styles/rooms.js:1452
 - src/styles/run-profiles.js:169
 - src/styles/run-profiles.js:170
 - src/styles/run-profiles.js:191 (color)
@@ -2981,7 +2992,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:656
 
 **`--evcc-radius-card`** — Radius Card · default src/styles/foundation.js:226
-- src/cards/dashboard-card.js:997 (--radius)
+- src/cards/dashboard-card.js:1134 (--radius)
 - src/cards/profile-card.js:41 (--radius)
 - src/room-card.js:379 (--radius)
 - src/styles/external-jobs.js:69 (border-radius)
@@ -3049,6 +3060,10 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:149 (border-radius)
 - src/styles/rooms.js:162 (border-radius)
 - src/styles/rooms.js:1349 (border-radius)
+- src/styles/rooms.js:1389 (border-radius)
+- src/styles/rooms.js:1454 (border-radius)
+- src/styles/rooms.js:1461 (border-radius)
+- src/styles/rooms.js:1468 (border-radius)
 - src/styles/run-profiles.js:59 (border-radius)
 - src/styles/run-profiles.js:89 (border-radius)
 - src/styles/run-profiles.js:158 (border-radius)

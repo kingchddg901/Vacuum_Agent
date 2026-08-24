@@ -1576,7 +1576,20 @@
       "other": "{count} 次运行中遗漏 {miss} 次"
     },
     "stall_capture_enable": "开启卡住抓拍",
-    "stall_capture_disable": "关闭卡住抓拍"
+    "stall_capture_disable": "关闭卡住抓拍",
+    "override_order": {
+      "toggle_label": "覆盖设备顺序",
+      "consent": "将更改 Roborock 应用中已保存的清扫顺序",
+      "path_optimizing": "由扫地机自主规划路径",
+      "matching": "顺序与您的队列一致",
+      "mismatch": "顺序与您的队列不同 — 点击应用以更新",
+      "unverifiable": "无法读取设备保存的顺序",
+      "apply": "将队列应用到设备",
+      "clear": "清除设备顺序",
+      "device_label": "设备:",
+      "queue_label": "队列:",
+      "empty_placeholder": "(空)"
+    }
   },
   "room_card": {
     "carpet_notice": "地毯房间 — 已隐藏拖地设置",

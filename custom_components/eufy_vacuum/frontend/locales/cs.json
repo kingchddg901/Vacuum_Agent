@@ -1566,7 +1566,20 @@
       "other": "Vynecháno {miss}× z {count} běhů"
     },
     "stall_capture_enable": "Zapnout snímek při uvíznutí",
-    "stall_capture_disable": "Vypnout snímek při uvíznutí"
+    "stall_capture_disable": "Vypnout snímek při uvíznutí",
+    "override_order": {
+      "toggle_label": "Override device order",
+      "consent": "Changes the saved sequence in your Roborock app",
+      "path_optimizing": "Vacuum optimises the path itself",
+      "matching": "Sequence matches your queue",
+      "mismatch": "Sequence differs from your queue — Apply to update",
+      "unverifiable": "Could not read the device's saved sequence",
+      "apply": "Apply queue to device",
+      "clear": "Clear device sequence",
+      "device_label": "Device:",
+      "queue_label": "Queue:",
+      "empty_placeholder": "(empty)"
+    }
   },
   "learning": {
     "all_rooms_complete": "Všechny místnosti dokončeny",

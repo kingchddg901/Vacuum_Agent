@@ -1421,7 +1421,20 @@
     },
     "live_queue_label": "Fila em direto",
     "stall_capture_enable": "Ativar captura ao encravar",
-    "stall_capture_disable": "Desativar captura ao encravar"
+    "stall_capture_disable": "Desativar captura ao encravar",
+    "override_order": {
+      "toggle_label": "Override device order",
+      "consent": "Changes the saved sequence in your Roborock app",
+      "path_optimizing": "Vacuum optimises the path itself",
+      "matching": "Sequence matches your queue",
+      "mismatch": "Sequence differs from your queue — Apply to update",
+      "unverifiable": "Could not read the device's saved sequence",
+      "apply": "Apply queue to device",
+      "clear": "Clear device sequence",
+      "device_label": "Device:",
+      "queue_label": "Queue:",
+      "empty_placeholder": "(empty)"
+    }
   },
   "profile_card": {
     "configure": "Selecione um aspirador, um mapa e um perfil no editor do cartão.",

@@ -1576,7 +1576,20 @@
       "other": "{count}回中{miss}回未清掃"
     },
     "stall_capture_enable": "スタック時のキャプチャをオン",
-    "stall_capture_disable": "スタック時のキャプチャをオフ"
+    "stall_capture_disable": "スタック時のキャプチャをオフ",
+    "override_order": {
+      "toggle_label": "デバイスの順序を上書き",
+      "consent": "Roborockアプリの保存済みシーケンスを変更します",
+      "path_optimizing": "掃除機が自動で経路を最適化",
+      "matching": "シーケンスはキューと一致",
+      "mismatch": "シーケンスはキューと異なります — 適用で更新",
+      "unverifiable": "デバイスの保存シーケンスを読み取れませんでした",
+      "apply": "キューをデバイスに適用",
+      "clear": "デバイスのシーケンスをクリア",
+      "device_label": "デバイス:",
+      "queue_label": "キュー:",
+      "empty_placeholder": "(なし)"
+    }
   },
   "room_card": {
     "carpet_notice": "カーペットの部屋 — 水拭き項目は非表示",

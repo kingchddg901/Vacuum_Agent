@@ -1566,7 +1566,20 @@
       "other": "Pominięto {miss}× z {count} przebiegów"
     },
     "stall_capture_enable": "Włącz zdjęcie przy zablokowaniu",
-    "stall_capture_disable": "Wyłącz zdjęcie przy zablokowaniu"
+    "stall_capture_disable": "Wyłącz zdjęcie przy zablokowaniu",
+    "override_order": {
+      "toggle_label": "Override device order",
+      "consent": "Changes the saved sequence in your Roborock app",
+      "path_optimizing": "Vacuum optimises the path itself",
+      "matching": "Sequence matches your queue",
+      "mismatch": "Sequence differs from your queue — Apply to update",
+      "unverifiable": "Could not read the device's saved sequence",
+      "apply": "Apply queue to device",
+      "clear": "Clear device sequence",
+      "device_label": "Device:",
+      "queue_label": "Queue:",
+      "empty_placeholder": "(empty)"
+    }
   },
   "learning": {
     "all_rooms_complete": "Wszystkie pokoje ukończone",

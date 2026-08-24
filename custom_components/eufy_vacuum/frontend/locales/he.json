@@ -1597,7 +1597,20 @@
       "other": "פוספס {miss}× מתוך {count} ריצות"
     },
     "stall_capture_enable": "הפעלת צילום בעת היתקעות",
-    "stall_capture_disable": "כיבוי צילום בעת היתקעות"
+    "stall_capture_disable": "כיבוי צילום בעת היתקעות",
+    "override_order": {
+      "toggle_label": "עקיפת סדר המכשיר",
+      "consent": "משנה את הרצף השמור באפליקציית Roborock שלך",
+      "path_optimizing": "השואב ממטב את המסלול בעצמו",
+      "matching": "הרצף תואם לתור שלך",
+      "mismatch": "הרצף שונה מהתור — לחצו החל לעדכון",
+      "unverifiable": "לא ניתן היה לקרוא את הרצף השמור במכשיר",
+      "apply": "החל תור למכשיר",
+      "clear": "נקה רצף מכשיר",
+      "device_label": "מכשיר:",
+      "queue_label": "תור:",
+      "empty_placeholder": "(ריק)"
+    }
   },
   "room_card": {
     "carpet_notice": "חדר עם שטיח — שדות שטיפה מוסתרים",

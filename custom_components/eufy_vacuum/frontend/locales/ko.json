@@ -1576,7 +1576,20 @@
       "other": "{count}회 실행 중 {miss}회 놓침"
     },
     "stall_capture_enable": "끼임 시 캡처 켜기",
-    "stall_capture_disable": "끼임 시 캡처 끄기"
+    "stall_capture_disable": "끼임 시 캡처 끄기",
+    "override_order": {
+      "toggle_label": "장치 순서 재정의",
+      "consent": "Roborock 앱의 저장된 시퀀스를 변경합니다",
+      "path_optimizing": "청소기가 스스로 경로를 최적화",
+      "matching": "시퀀스가 대기열과 일치",
+      "mismatch": "시퀀스가 대기열과 다릅니다 — 적용을 눌러 업데이트",
+      "unverifiable": "장치의 저장된 시퀀스를 읽을 수 없음",
+      "apply": "대기열을 장치에 적용",
+      "clear": "장치 시퀀스 지우기",
+      "device_label": "장치:",
+      "queue_label": "대기열:",
+      "empty_placeholder": "(비어 있음)"
+    }
   },
   "room_card": {
     "carpet_notice": "카펫 방 — 물걸레 항목 숨김",

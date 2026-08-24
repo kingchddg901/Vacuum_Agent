@@ -1576,7 +1576,20 @@
       "other": "{count} 次清潔中遺漏 {miss} 次"
     },
     "stall_capture_enable": "開啟卡住擷取",
-    "stall_capture_disable": "關閉卡住擷取"
+    "stall_capture_disable": "關閉卡住擷取",
+    "override_order": {
+      "toggle_label": "覆蓋裝置順序",
+      "consent": "將更改 Roborock 應用中已儲存的清掃順序",
+      "path_optimizing": "由掃地機自主規劃路徑",
+      "matching": "順序與您的佇列一致",
+      "mismatch": "順序與您的佇列不同 — 點擊套用以更新",
+      "unverifiable": "無法讀取裝置儲存的順序",
+      "apply": "將佇列套用到裝置",
+      "clear": "清除裝置順序",
+      "device_label": "裝置:",
+      "queue_label": "佇列:",
+      "empty_placeholder": "(空)"
+    }
   },
   "room_card": {
     "carpet_notice": "地毯房間 — 已隱藏拖地欄位",
