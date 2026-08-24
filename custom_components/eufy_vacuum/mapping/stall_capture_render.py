@@ -76,6 +76,7 @@ vacuum coords.
 from __future__ import annotations
 
 import io
+import math
 from typing import Any, Iterable
 
 try:  # Pillow is an OPTIONAL dependency (reqs=[]); the install matrix expects it absent.
@@ -183,7 +184,14 @@ def trail_window_seconds(pose_refresh_s: Any) -> int:
         refresh = float(pose_refresh_s)
     except (TypeError, ValueError):
         return _MIN_TRAIL_SECONDS
-    if refresh != refresh or refresh <= 0:  # NaN or nonsense
+    # Same NaN-only shape as `_norm_to_px` carried, and the same gap: `refresh != refresh`
+    # catches NaN and passes inf. This one does not hang — it RAISES, which contradicts
+    # the promise three lines up that bad input "returns the floor rather than raising".
+    # Measured 2026-08-24: every other bad input (NaN, 0, -1, "x", None) returns 30;
+    # `inf` alone raised `ValueError: cannot convert float NaN to integer`, because the
+    # ceil trick below evaluates `-(-inf // 1)` to NaN. Found while proving C16 — the
+    # predicate's own copy, one function away.
+    if not math.isfinite(refresh) or refresh <= 0:
         return _MIN_TRAIL_SECONDS
     needed = (_MIN_TRAIL_POINTS + 1) * refresh / 2.0
     return max(_MIN_TRAIL_SECONDS, int(-(-needed // 1)))  # ceil
@@ -212,7 +220,15 @@ def _draw_direction_chevrons(draw, pts, rgb, width: int, spacing: float, size: f
     for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
         dx, dy = x1 - x0, y1 - y0
         seg = (dx * dx + dy * dy) ** 0.5
-        if seg <= 0:
+        # `not math.isfinite(seg)` is DEFENCE IN DEPTH, not the fix. `_norm_to_px` is the
+        # gate and it now rejects non-finite points, so nothing on the real path reaches
+        # here with an infinite segment. It is guarded anyway because the failure mode of
+        # this particular loop is not a wrong picture but a HANG -- `while d < seg` with
+        # seg=inf never terminates, on an executor thread, on the job-lifecycle path -- and
+        # a one-line check on a DERIVED quantity is cheap insurance against a future caller
+        # that builds `pts` some other way. Not a copy of the point predicate: that one asks
+        # "is this a real point", this one asks "can this length terminate a loop". (C16)
+        if not math.isfinite(seg) or seg <= 0:
             continue  # a stationary robot is one place, and has no direction to draw
         ux, uy = dx / seg, dy / seg
         px, py = -uy, ux  # unit normal, for the barbs
@@ -351,7 +367,21 @@ def _norm_to_px(pt: Any, width: int, height: int) -> tuple[float, float] | None:
         nx, ny = float(pt[0]), float(pt[1])
     except (TypeError, ValueError):
         return None
-    if nx != nx or ny != ny:  # NaN
+    # NON-FINITE, not just NaN. `nx != nx` catches NaN and lets ±inf straight through,
+    # and inf is REACHABLE here: `pose_store.read_range` parses the ring with a bare
+    # `json.loads`, which accepts the non-standard `Infinity` literal (verified).
+    #
+    # WHAT AN inf COSTS, which is why this is not tidiness. The point reaches
+    # `_draw_direction_chevrons`, where `seg = (dx*dx + dy*dy) ** 0.5` becomes inf and
+    # `while d < seg: ... d += spacing` never terminates. That is a HANG — on an
+    # executor thread, on the job-lifecycle path. Reproduced 2026-08-24: the real
+    # function did not return in 15 s. The `seg <= 0` guard one line below does not
+    # help, because inf is not <= 0.
+    #
+    # Fixed HERE rather than at the loop because this is the function that already
+    # asks "is this a real point", and its docstring already promises None when it is
+    # not. A second guard at the loop would be a copy of this predicate. (C16)
+    if not math.isfinite(nx) or not math.isfinite(ny):
         return None
     return (nx * width, ny * height)
 

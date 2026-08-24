@@ -1,19 +1,42 @@
 """
+SUPERSEDED IN FULL — DO NOT PORT THIS FILE. All three functions below are
+callerless in production, and this docstring used to instruct a porter to
+reimplement them and preserve their return shapes exactly "because the framework
+lifecycle listener depends on them". It does not. Corrected 2026-08-23.
+
+THE LIVE PATH is ``listeners/_common.py::completed_finalize_signals``, which reads
+entity ids from the REGISTERED ADAPTER CONFIG. Its shape has already diverged from
+the one documented below, so a porter who faithfully preserved this contract would
+implement the wrong dict for a function nothing calls.
+
+WORSE FOR A LIVE INSTALL, not just for a porter: this version re-derives entity ids
+by f-string from the object id, which bypasses both user entity overrides and the
+entity rescue. Anything wired to it would silently ignore a user's override on an
+install where the rescue was the reason the entity resolved at all.
+
+ROBOROCK IS THE PROOF: it ships no counterpart. Written after the generic path
+existed, it never needed one.
+
+WHY THE FILE IS STILL HERE rather than deleted: that is a removal decision with its
+own tests attached, and the sibling banner in ``adapters/eufy/vocabulary.py`` records
+the hazard of letting a reachability sweep make it — there, live tables sit beside
+dead functions in one file. Here the whole file is the dead half, so deletion is
+simpler; it is still not a thing to do in passing. What this banner buys immediately
+is that nobody ports it or wires it back.
+
 Eufy-specific lifecycle signal functions for the job lifecycle watcher.
 
-Translates Eufy/robovac_mqtt entity naming conventions and state
+Translated Eufy/robovac_mqtt entity naming conventions and state
 vocabulary into the signals the framework lifecycle listener consumes.
 
-_get_lifecycle_watch_entities() — returns the HA entity IDs to watch.
-_completed_finalize_signals()   — reads current entity states and returns
+_get_lifecycle_watch_entities() — returned the HA entity IDs to watch.
+_completed_finalize_signals()   — read current entity states and returned
                                   completion signal booleans.
-_active_cleaning_target_cleared() — classifies the active cleaning target
+_active_cleaning_target_cleared() — classified the active cleaning target
                                     state as cleared or active.
 
-A port to a different brand replaces these three functions with
-equivalents that read from that brand's entity surface. The return
-shapes must be preserved exactly — the framework lifecycle listener
-depends on them.
+The return shapes recorded below are kept as the historical record of what this
+file did, NOT as a contract to implement against.
 
 Return shape of _get_lifecycle_watch_entities():
     list[str] — full HA entity IDs to pass to

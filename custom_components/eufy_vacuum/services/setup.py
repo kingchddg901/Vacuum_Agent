@@ -57,6 +57,7 @@ from ..const import (
     DATA_RUNTIME,
     DOMAIN,
     SERVICE_SETUP_ADD_VACUUM,
+    SERVICE_SETUP_REPAIR_RENAME,
     SERVICE_SET_ENTITY_OVERRIDE,
     ENTITY_OVERRIDES_KEY,
     SERVICE_SETUP_DELETE_MAP,
@@ -70,7 +71,8 @@ from ..const import (
     SERVICE_SETUP_SET_PANEL_TITLE,
     SERVICE_SETUP_UNREJECT_ROOMS,
 )
-from ._common import resolved_call_data
+from ..learning.utils import _iso_now
+from ._common import get_manager, resolved_call_data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,6 +89,7 @@ SERVICES = (
     SERVICE_SETUP_FORCE_REMOVE_ROOM,
     SERVICE_SETUP_SET_MAP_CAMERA,
     SERVICE_SETUP_SET_PANEL_TITLE,
+    SERVICE_SETUP_REPAIR_RENAME,
 )
 
 
@@ -194,6 +197,97 @@ _SETUP_FORCE_REMOVE_ROOM_SCHEMA = vol.Schema(
         vol.Required("room_id"): vol.Coerce(int),
     }
 )
+
+
+_SETUP_REPAIR_RENAME_SCHEMA = vol.Schema(
+    {
+        vol.Required("old_entity_id"): cv.entity_id,
+        vol.Required("new_entity_id"): cv.entity_id,
+        vol.Optional("overwrite_destination", default=False): cv.boolean,
+    }
+)
+
+
+async def _handle_repair_renamed_vacuum(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Migrate a vacuum's data after a rename this integration never saw.
+
+    WHY A MANUAL SERVICE EXISTS AT ALL. The automatic path
+    (``core/manager.py::_apply_pending_entity_renames``) is driven by
+    ``listeners/entity_rename.py``, which only records renames that happen while it is
+    running. **A rename that happened before that listener shipped left no record, and
+    the old entity id is not recoverable from anywhere** — Home Assistant's registry has
+    moved on. Only the user knows what the vacuum used to be called, so only the user
+    can supply it.
+
+    ONE MIGRATION, NOT TWO. This appends a record and calls the same applier the
+    automatic path uses, so the section discovery, the tree-before-store ordering and
+    the collision rules are identical by construction rather than by review.
+
+    THE COLLISION IS EXPECTED HERE, unlike the automatic path. By the time a user
+    notices, the new id usually holds an auto-created empty shell —
+    ``ensure_vacuum_record`` made one on the first start after the rename. The first
+    call therefore reports what stands in the way and changes nothing; passing
+    ``overwrite_destination`` discards those entries and proceeds.
+    """
+    manager = get_manager(hass)
+    old_id = str(call.data["old_entity_id"])
+    new_id = str(call.data["new_entity_id"])
+    overwrite = bool(call.data.get("overwrite_destination", False))
+
+    if old_id == new_id:
+        return {"repaired": False, "reason": "same_entity_id",
+                "old_entity_id": old_id, "new_entity_id": new_id}
+
+    sections = [
+        key for key, value in manager.data.items()
+        if isinstance(value, dict) and old_id in value
+    ]
+    if not sections:
+        # Nothing under the old id. Either the name is wrong or it was already
+        # repaired — say which is impossible to know, so say neither.
+        return {"repaired": False, "reason": "nothing_stored_under_old_id",
+                "old_entity_id": old_id, "new_entity_id": new_id}
+
+    record = {
+        "old_entity_id": old_id,
+        "new_entity_id": new_id,
+        "detected_at": _iso_now(),
+        "applied": False,
+        "manual": True,
+        "overwrite_destination": overwrite,
+    }
+    pending = manager.data.setdefault("pending_entity_renames", [])
+    if not isinstance(pending, list):
+        pending = []
+        manager.data["pending_entity_renames"] = pending
+    pending.append(record)
+
+    applied = await manager._apply_pending_entity_renames()
+    if not record.get("applied"):
+        return {
+            "repaired": False,
+            "reason": "destination_not_empty" if record.get("blocked_on") else "migration_failed",
+            "blocked_on": record.get("blocked_on", []),
+            "old_entity_id": old_id,
+            "new_entity_id": new_id,
+            "message": (
+                f"{new_id} already holds data in: "
+                f"{', '.join(record.get('blocked_on') or [])}. That is usually the empty "
+                f"record created on the first start after the rename. Re-run with "
+                f"overwrite_destination: true to discard it and move the real data over."
+            ) if record.get("blocked_on") else
+            "The learning tree could not be moved; nothing was changed. See the log.",
+        }
+
+    return {
+        "repaired": True,
+        "old_entity_id": old_id,
+        "new_entity_id": new_id,
+        "sections_moved": record.get("sections_moved", []),
+        "tree_moved": record.get("tree_moved", False),
+        "overwrote": record.get("overwrote", []),
+        "applied_count": applied,
+    }
 
 
 def register(hass: HomeAssistant) -> None:
@@ -367,9 +461,22 @@ def register(hass: HomeAssistant) -> None:
                 "reason": result.get("reason"),
                 "message": f"Save refused: {result.get('reason')}",
             }
-        # is_configured stamping is handled by build_managed_rooms —
-        # every room returned by save_managed_rooms now carries True
-        # plus a configured_at timestamp. Mark the step complete here.
+        # is_configured stamping is handled by build_managed_rooms, but NOT every
+        # room comes back True — this comment claimed it did until 2026-08-24
+        # (RM19). CRUD-3: on the explicit-approval path, which is exactly the path
+        # this service takes whenever the user selects rooms
+        # (``enabled_room_ids`` supplied), build_managed_rooms computes
+        # ``is_configured = bool(existing.get("is_configured", False)) or
+        # floor_type_entry is not None``. A room that is approved but has NO entry
+        # in ``floor_types`` and NO prior confirmation therefore comes back
+        # ``is_configured=False``. ``configured_at`` IS always stamped
+        # (``existing_configured_at or _iso_now()``), so the timestamp half of the
+        # old sentence held while the flag half did not.
+        #
+        # We mark the ``save_rooms`` step complete regardless — that records that
+        # the user submitted the form, not that every room ended up configured.
+        # Anyone reasoning from "step complete" to "all rooms configured" is
+        # making the inference this comment used to license.
         _record_setup_step(
             manager, data["vacuum_entity_id"], "save_rooms"
         )
@@ -584,4 +691,12 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SETUP_SET_MAP_CAMERA, setup_set_map_camera,
         schema=_SETUP_SET_MAP_CAMERA_SCHEMA, supports_response=True,
+    )
+
+    async def setup_repair_renamed_vacuum(call: ServiceCall) -> dict:
+        return await _handle_repair_renamed_vacuum(hass, call)
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_SETUP_REPAIR_RENAME, setup_repair_renamed_vacuum,
+        schema=_SETUP_REPAIR_RENAME_SCHEMA, supports_response=True,
     )

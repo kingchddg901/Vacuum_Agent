@@ -6,6 +6,11 @@ internal family names used by detect_capabilities() to set capability
 flags.
 
 MODEL_CODE_FAMILIES — exact product code → family name.
+
+⚠ This is the WIDEST of the three Eufy model catalogs (22 codes). A code being here
+does NOT mean it has an upkeep name, a guide family, or water rates — see the note
+above ``UPKEEP_MODEL_NAMES`` in ``adapters/eufy/upkeep_catalog.py`` for the measured
+gaps. Capability detection is all this catalog governs.
     Keyed by the raw string from the vacuum's device registry
     model attribute (e.g. "T2351"). Unrecognised codes fall back
     to MODEL_FAMILY_HINTS, then to "generic".

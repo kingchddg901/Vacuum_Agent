@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} is not a vacuum this integration manages."
+    },
+    "room_update_refused": {
+      "message": "Could not update {room}: {reason}"
     }
   },
   "entity": {

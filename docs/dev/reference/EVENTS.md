@@ -7,7 +7,7 @@
 
 # Event Reference
 
-> Generated reference — the facts. The *reasons* live in the prose docs: [Events](../../advanced/02-events.md) for automation authors, [HA Integration](../02-ha-integration.md) §7 and [Job Lifecycle](../06-job-lifecycle.md) §10 for why each one exists. Regenerate with `python scripts/gen_event_docs.py`; CI fails if this file is not what the generator emits.
+> Generated reference — the facts. The *reasons* live in the prose docs: [Events](../../advanced/02-events.md) for automation authors, and [How a Run Ends](../06-run-end.md) for why the end-of-run events exist and which paths fire them. Regenerate with `python scripts/gen_event_docs.py`; CI fails if this file is not what the generator emits.
 
 The integration fires **11 events** on `hass.bus` from **26 call sites**, carrying **92 payload key slots** (54 distinct key names). Every event name below was resolved from the constant that names it, not read as a literal.
 
@@ -33,7 +33,7 @@ An `EVENT_*` constant that nothing fires is listed here rather than above — th
 
 | Constant | Defined | Value |
 |---|---|---|
-| `EVENT_BOUNDARY_SAVED` | `custom_components/eufy_vacuum/mapping/tracker.py::EVENT_BOUNDARY_SAVED` | `eufy_vacuum_boundary_saved` |
+| `EVENT_BOUNDARY_SAVED` | `custom_components/eufy_vacuum/const.py::EVENT_BOUNDARY_SAVED` | `eufy_vacuum_boundary_saved` |
 
 ---
 
@@ -153,7 +153,7 @@ Where a key lists more than one expression, the fire sites build it differently.
 
 ## eufy_vacuum_room_completed
 
-Constant: `EVENT_ROOM_COMPLETED` — `custom_components/eufy_vacuum/mapping/tracker.py::EVENT_ROOM_COMPLETED`, string literal `'eufy_vacuum_room_completed'`
+Constant: `EVENT_ROOM_COMPLETED` — `custom_components/eufy_vacuum/const.py::EVENT_ROOM_COMPLETED`, f-string `f'{DOMAIN}_room_completed'`
 
 Fired from 1 call site(s) in 1 module(s): `custom_components/eufy_vacuum/mapping/tracker.py`
 

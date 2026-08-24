@@ -64,14 +64,23 @@ reader could act on it.
 | `design/planning/` | Decided, not built. A reader could pick it up and implement it. |
 | `design/shipped/` | Built. Kept because it still answers *"why is it like this?"* — a question that stays live long after the work lands. |
 
-A shipped design does **not** go to `history/`. History is unmaintained and left alone,
-whereas NOW docs actively cite these as rationale — `31-map-source-coordinator.md` calls
-`map-state-source` "the design rationale", and `11-mapping-system.md` §11 defers to it as
-the authoritative reference. Burying that on an unmaintained shelf would strand the live
-docs' own explanation.
+**A shipped design is NOT maintained against the code**, and that is load-bearing rather
+than lax. It is a touchstone: what was decided, as it was decided. §3 asks a reader to
+adjudicate when a design and the code disagree — and that question only exists while the
+design still says what it originally said. Edit it to track the implementation and it agrees
+with the code forever, which deletes the evidence of exactly the drift it was meant to catch.
 
-The distinction is: **history is what we stopped doing; shipped design is why we do what we
-do.** A design that was abandoned rather than built belongs in `history/`.
+It can still evolve, but only in one direction: when the DESIGN is revisited, not when the
+code moves. That is the difference from `history/`, which never changes at all.
+
+So a shipped design does not go to `history/`, and the reason is the question each shelf
+answers rather than how either is maintained — neither is. **History is what we stopped
+doing; shipped design is why we do what we do.** A design abandoned rather than built belongs
+in `history/`.
+
+NOW docs cite these as rationale — one calls `map-state-source` "the design rationale",
+another defers to it as the authoritative reference — which is why a live doc may point at a
+shelf nobody updates. It is being pointed at a decision, not at a description.
 
 ### 1.4 HISTORY — what we tried, and what failed
 
@@ -88,7 +97,7 @@ step with the corpus being repaired, which is the right rate — an empty histor
 means nothing has been excavated yet, not that nothing was ever tried.
 
 It was already happening before the shelf existed. `room-bounds-from-traces.md` was cut
-out of [11 — Mapping system](11-mapping-system.md) on 2026-08-14 because it was four
+out of `11 — Mapping system` on 2026-08-14 because it was four
 pages of present-tense algorithm describing deleted code; with no history shelf to put it
 on it went to `design/`, where it sat declaring "This is HISTORY" in its own first line
 until 2026-08-16. The excavation was right; only the destination was missing.
@@ -124,6 +133,37 @@ that quietly does something else, is a *code* defect wearing a doc's clothes.
 > This generalises a rule earned the hard way: a reconstruction that disagrees with the
 > code is a **bug signal**, not a documentation error. The `clean_times` Eufy-ism surfaced
 > exactly that way — the "wrong" guess was closer to correct than the buggy clamp.
+
+### 3a. Drift is not the problem. SEMANTIC drift is.
+
+The two sides own different things, and they are allowed to move independently:
+
+| | owns | says |
+|---|---|---|
+| **design** | intent and shape | we are doing this thing · these responsibilities are separated this way · this behaviour must exist · these tradeoffs were chosen |
+| **code** | mechanism | here is the class · the call path · the guard · the exact structure that implements it |
+
+A refactor can change *how* something is implemented beyond recognition while the design
+stays perfectly true. A design can evolve at its own level without prescribing every
+detail beneath it. Neither is drift.
+
+**The warning sign is when the code stops being a plausible implementation of the design.**
+If the design says *there is one authority for X* and the implementation moves that
+authority between modules, nothing is wrong. If the code now has **three** independent
+authorities, the two are no longer describing the same system.
+
+That is what makes a shipped design a useful comparator: it does not chase every code
+change. It answers *what are we doing*, while the code answers *how are we doing it right
+now*.
+
+> **The test, before adjudicating anything:**
+>
+> **Could I change this implementation detail completely and still truthfully say we are
+> implementing the same design?**
+>
+> **Yes** — the design needs no update, however far the code has moved.
+> **No** — either the code has drifted from the design, or the design itself changed and
+> that change was never recorded. Establish which before touching either.
 
 ---
 
@@ -173,7 +213,25 @@ for.
    "as discussed", and discovery stories are metadata about the author, not information
    about the system. The filter: *would this still serve a competent reader who has never
    seen the project's conversations?* If not, it belongs in HISTORY or the commit message.
-5. **A doc no index reaches is a doc the corpus does not have.** Omission is invisible in
+5. **Explain the code, never the document.** "This document exists because…", "what is worth
+   understanding here is…", "called out so it is not mistaken for…" — all of it is the author
+   present in the text, and it reads as padding because it is. A section that has to announce
+   its own significance has not demonstrated it. State the case; the reader can see where it
+   sits.
+
+   The calibration passage is `docs/retired/dev/06-job-lifecycle.md` §6f, on the errored-robot
+   clause in the stranded reaper. It is one of only two passages in that document that answered
+   a counterfactual correctly under measurement, and it never once says what it is doing. It
+   also shows the right way to carry a rejected alternative — inside the sentence ("reverses the
+   predicate's original *an error may recover, leave it alone* stance"), not announced from a
+   labelled slot.
+
+6. **If a sentence is there because the paragraph looked short, cut it.** Padding is not
+   neutral: every filler sentence is another claim that can rot, and a reader who finds one
+   stops trusting the density of the rest. This is the sibling of §5.2 — restatement pads with
+   the code's own content, this pads with nothing at all.
+
+7. **A doc no index reaches is a doc the corpus does not have.** Omission is invisible in
    prose — a missing table row leaves a visible hole, a missing clause reads as a complete
    sentence. Run `python scripts/check_docs_index.py`; naming a file in backticks does
    **not** count as reaching it.

@@ -1,11 +1,27 @@
 # Notation Anchors
 
-> **Status: SPECIFICATION — partially built.** `CN` in use (9 anchors), `IN` in use
-> (1, indexed by [00b](../../00b-invariants.md)), `RN` in use (2, indexed by
-> [00c](../../00c-replicas.md)). `BN` added 2026-08-21, no anchors minted yet.
-> `SN`, `HN` and `PN` remain reserved and unused. Tooling: `scripts/doc_anchor.py`
+> **Status: SPECIFICATION — built and in use.** Live classes and the register each
+> one is indexed from: `CN` (code), `BN` (break/region), `IN` (invariant — register
+> is [00b](../../00b-invariants.md)), `RN` (replica — register is
+> [00c](../../00c-replicas.md)), `EN` (enforcement — declared in prose, in
+> [00b](../../00b-invariants.md)), `HN` (historical). `SN` and `PN` are specified
+> below and currently carry no declarations. Tooling: `scripts/doc_anchor.py`
 > (`--mint` / `--check` / `--show` / `--orphans`), enforced by `ANC-1..3` in
 > `tests/unit/test_generated_doc_gate.py`.
+>
+> ⚠ **This block used to carry per-class counts and every one of them was false.**
+> It read *"`CN` in use (9 anchors), `IN` in use (1 …), `RN` in use (2 …). `BN`
+> added 2026-08-21, no anchors minted yet. `SN`, `HN` and `PN` remain reserved and
+> unused."* Measured 2026-08-24 via `doc_anchor.scan()`: `CN` 100, `IN` 34, `RN`
+> 30, `BN` 177, `EN` 3, `HN` 1 (`HNWG96F5`, declared in the module-level comment
+> block of `custom_components/eufy_vacuum/mapping/stall_capture_render.py` — grep
+> the key, not a line); only `SN` and `PN` are genuinely 0. The figures were not
+> wrong when written — nothing recounts them, so the block reported clean forever
+> while the tree moved underneath it, and it is the block a reader consults first.
+> **Counts are therefore deliberately not stated here.** `python
+> scripts/doc_anchor.py --check` prints the live declared/cited totals and the
+> problem count; it has no per-prefix breakdown, so treat any per-class number you
+> meet in prose as stale until you have re-measured it.
 
 Vacuum Agent needs references that survive refactors.
 

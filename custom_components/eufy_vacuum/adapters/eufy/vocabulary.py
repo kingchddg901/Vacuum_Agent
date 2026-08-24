@@ -44,9 +44,12 @@ DRYING_STATES: frozenset[str] = frozenset({
 # across every HA vacuum integration, so core owns it — ONE definition, in
 # `const.py::HA_ACTIVE_VACUUM_STATES`, imported by core/manager.py and
 # jobs/job_monitor.py (whose `active_vacuum_states` parameter defaults to it). It is
-# also NOT an adapter-declarable key: ADAPTER_CONFIG_SCHEMA has no slot for it, so a
-# brand attempting to declare it is rejected at validation. This file declares only
-# what is
+# also NOT an adapter-declarable key: ADAPTER_CONFIG_SCHEMA has no slot for it. A brand
+# attempting to declare it is rejected at validation ONLY on the config-save path — the
+# schema walk has one caller, and a code-declared adapter like this one never reaches it,
+# so the key would be silently accepted and ignored here. The contract test is what holds
+# this brand to it. See const.py::HA_ACTIVE_VACUUM_STATES and
+# docs/dev/22-adapter-contract.md §1. This file declares only what is
 # BRAND-SPECIFIC — hard_service_states, drying_states, active_run_task_states — which
 # is exactly what adapter.py's vocabulary block passes to core.
 ACTIVE_RUN_TASK_STATES: frozenset[str] = frozenset({
@@ -187,6 +190,22 @@ CLEAN_INTENSITY_ALIASES: dict[str, str] = {
     "normal": "narrow",
 }
 
+# ⚠ THIS ALIAS TARGET IS NOT A DECLARED OPTION, and core is documented to refuse it.
+# Both entries point at "boost", which was removed from `fan_speed_options` once it was
+# established that BoostIQ is not a suction level at all — it is the auto carpet-boost
+# switch, and the payload resolves fan speed by INDEX, so the chip silently applied no
+# suction. The option list was swept; this map was not.
+#
+# The live effect splits by consumer, which is why it survives:
+#   * `rooms/vocabulary_migration.py::_alias_target` IGNORES an alias pointing outside
+#     the declared options — and its docstring calls exactly this shape "an adapter
+#     defect", so core already refuses it by name;
+#   * the learning and card path still emits the code.
+#
+# So the brand declares an alias core is documented to reject. Left in place rather than
+# swept in a prose pass because removing an alias changes what a stored "BoostIQ" value
+# migrates to, which is a data decision with its own review — but nobody should read
+# this table as a working mapping. Ledger: D27.
 FAN_SPEED_ALIASES: dict[str, str] = {
     "boost iq": "boost",
     "boostiq": "boost",
@@ -244,12 +263,24 @@ NOT_ERROR_SENTINELS: frozenset[str] = frozenset({
 # anchor: BNZZZXW7
 # Fault policy (RF-DOCK) -- SOURCE, and whether the fault invalidates cleaning evidence
 # ---------------------------------------------------------------------------
-# WHY THIS EXISTS. total_error_seconds is subtracted from cleaning_time_seconds, so a
-# fault that never stopped the robot cleaning silently zeroes a productive run. Observed
-# live: alfred job_2026-08-01T23-23-35 cleaned 4 m2 for 360 s and recorded
-# cleaning_time_seconds 0, because five STATION CLEAN WATER PUMP SHORT (6013) faults --
-# the dock complaining while the robot was out on the floor -- were charged against it.
-# used_for_learning was true, so the model learned that 4 m2 takes no time.
+# WHY THIS EXISTS. A fault that never stopped the robot cleaning was silently zeroing a
+# productive run. Observed live: alfred job_2026-08-01T23-23-35 cleaned 4 m2 for 360 s and
+# recorded cleaning_time_seconds 0, because five STATION CLEAN WATER PUMP SHORT (6013)
+# faults -- the dock complaining while the robot was out on the floor -- were charged
+# against it. used_for_learning was true, so the model learned that 4 m2 takes no time.
+#
+# ⚠ was: "total_error_seconds is subtracted from cleaning_time_seconds". That described
+# the arithmetic at the moment this table was written (a38cac4a, RP-046 groundwork) and
+# stopped being true the SAME DAY, when 5b21a1a3 ("RP-046 clause 2: only
+# evidence-invalidating faults reduce cleaning time") landed the fix these tables exist to
+# make possible. Corrected 2026-08-24 (ledger D10). WHAT ACTUALLY HAPPENS NOW, in
+# learning/job_finalizer.py: the error window is split three ways by
+# core.error_tracker.classify_error_code into "invalidating" / "safe" / "unclassified",
+# and only `deductible_error_seconds = _split["invalidating"]` is subtracted from
+# cleaning_time_seconds. total_error_seconds is still COMPUTED and still stored on the job
+# record -- it reports the FULL window so nothing that used to be visible stops being
+# visible -- but it is not what gets deducted. Believing the old sentence makes this table
+# look like a list of codes to subtract, when it is the list that decides what may NOT be.
 #
 # TWO DIMENSIONS, BOTH STATIC. Source alone does not answer the question the defect
 # poses. The failure was not a mislabel; it was a DOCK FAULT INVALIDATING A RUN'S
@@ -603,7 +634,10 @@ def eufy_error_invalidates_cleaning(code: object) -> bool:
 def _exact_error_code(code: object) -> int | None:
     """Coerce to an error code, or None. NEVER int(): int(3.7) is 3, a real code (SIDE
     BRUSH STUCK), so a malformed value would silently classify as a genuine robot fault
-    and be subtracted. Same lying-coercion class as get_battery_level's ``-> int``.
+    and be subtracted. Same lying-coercion class as ``core/charging.py::get_battery_level``,
+    whose signature is ``-> int | None`` — this line cited it as ``-> int`` until
+    2026-08-24, which is the pre-`| None` signature and the opposite of the point: the
+    parallel is that BOTH must be able to say "no value" rather than coerce one. (D16)
     bool is an int subclass, so True would otherwise resolve to code 1."""
     if isinstance(code, bool):
         return None

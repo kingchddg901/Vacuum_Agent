@@ -79,11 +79,24 @@ def register(hass: HomeAssistant) -> None:
         vacuum_entity_id = call.data["vacuum_entity_id"]
         enabled = bool(call.data["enabled"])
 
+        # ⚠ THIS IS A HAND-ROLLED COPY OF THE AUTHORIZATION CHECK, AND IT IS THE ONLY
+        # SERVICE MODULE IN THE PACKAGE THAT HAS ONE (C12, still OPEN — replacing it
+        # with `require_managed_vacuum` is a CODE change and is not made here). Two
+        # ways it diverges from the canonical `services/_common.py` pair:
+        #   * `setdefault` MUTATES `manager.data` BEFORE the authorization decision,
+        #     so a refused call still leaves `data["vacuums"] = {}` behind.
+        #     `is_managed_vacuum` is non-mutating on purpose — its own docstring
+        #     records that this authority only became usable once a read service
+        #     stopped setdefault-ing into the same dict, because "a gate cannot be
+        #     built on a dict its own read path writes to".
+        #   * the raise below carries no `translation_domain`/`translation_key`, so
+        #     the refusal reaches the user in English in all 18 locales, unlike
+        #     `require_managed_vacuum`'s `translation_key="unmanaged_vacuum"`.
+        # No per-vacuum RECORD is minted for an unmanaged id, which is the
+        # phantom-bucket defect proper — a status query that CREATES what it asks
+        # about has reached this store before — but the container is.
         vacuums = manager.data.setdefault("vacuums", {})
         if vacuum_entity_id not in vacuums:
-            # Never mint a record for a vacuum this install does not manage — that is the
-            # phantom-bucket defect, and a status query that CREATES what it asks about
-            # has reached this store before.
             raise ServiceValidationError(
                 f"{vacuum_entity_id} is not a managed vacuum"
             )

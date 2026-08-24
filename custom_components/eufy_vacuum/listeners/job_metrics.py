@@ -1,11 +1,22 @@
-"""Job metrics listeners — push cleaning_time / cleaning_area / station water
-sensor values into active_job_state as they update.
+"""Job metrics listeners — push cleaning_time / cleaning_area / battery / station
+water sensor values into active_job_state as they update.
 
 These sensors update during the run via DPS packets, but finalization fires on
 a separate DPS packet (task_status → Completed) that may arrive before the
 sensor values have landed in HA's state machine. By pushing the last-seen
 value into active_job_state as each update arrives, finalization reads from
 there instead of issuing a live HA state read at job-end.
+
+⚠ This line and ``register``'s summary BOTH listed only three — cleaning_time,
+cleaning_area, station water — until 2026-08-24 (L5/L23), and both read as closed
+enumerations of what this listener owns. ``register`` builds FOUR kinds of ``watch_map``
+entry. The omitted one is ``battery`` → ``last_battery_percent``, which is the input to
+per-room ``battery_delta`` in the learning pipeline (``jobs/active_job.py`` reads
+``job.get("last_battery_percent")`` when it appends a counter sample). Tracing "who sets
+``last_battery_percent``?", the answer is HERE — the old enumerations sent that reader
+elsewhere, and made the battery watcher look vestigial and prunable. It is also the only
+one of the four with no unit/normalization handling, so it is the one most likely to need
+attention.
 
 Public surface:
     register(hass: HomeAssistant) -> None
@@ -74,7 +85,9 @@ def remove(hass: HomeAssistant) -> None:
 def register(hass: HomeAssistant) -> None:
     """Register listeners that push job-metric sensor values into active_job_state.
 
-    Tracks cleaning_time, cleaning_area, and station water level. These
+    Tracks FOUR: cleaning_time, cleaning_area, battery (→ ``last_battery_percent``)
+    and station water level. ``battery`` was absent from this list until 2026-08-24
+    (L5/L23) — see the module docstring for what that omission costs a reader. These
     sensors update during the run via DPS packets, but finalization fires on
     a separate DPS packet (task_status → Completed) that may arrive before
     the sensor values have landed in HA's state machine. By pushing the
@@ -125,11 +138,23 @@ def register(hass: HomeAssistant) -> None:
             # Eufy's cleaning_area in ft²; Roborock's stays m²) — see cleaning_area_to_m2.
             watch_map[ca_entity] = (vacuum_entity_id, "last_cleaning_area_m2", "area_m2", None)
 
-        # RP-013e/METRICS-2/REC-5: battery has NO writer today even though both
-        # shipped adapters declare entities.battery — every counter sample reads
-        # last_battery_percent, and with nothing ever setting it, every sample
-        # carries battery=None, which is OBS-B-3's null per-room battery_delta
-        # at source. Same declared-entity pattern as cleaning_time/cleaning_area.
+        # RP-013e/METRICS-2/REC-5: battery HAD no writer — both shipped adapters
+        # declared entities.battery, nothing ever set last_battery_percent, so every
+        # counter sample carried battery=None, which was OBS-B-3's null per-room
+        # battery_delta at source. The three lines below ARE that missing writer: this
+        # watch_map entry drives _handle_metrics_change →
+        # record_active_job_sensor_value(key="last_battery_percent") on every battery
+        # state change, and record_counter_sample reads the stored value back out
+        # (jobs/active_job.py, `"battery": job.get("last_battery_percent")`).
+        #
+        # ⚠ This note stayed in the PRESENT tense ("battery has NO writer today")
+        # until 2026-08-24 (L4), against the file's own convention of marking history
+        # in the past (METRICS-5 "the annotation WAS a stale 3-tuple"; METRICS-4
+        # "PREVIOUSLY wired on an entity KEY GUESS alone"). It accused working code
+        # three lines beneath it. If per-room battery_delta reads null NOW, the cause
+        # is NOT a missing writer: look at the adapter not declaring entities.battery,
+        # the entity being unavailable, or the downstream consumer.
+        # Same declared-entity pattern as cleaning_time/cleaning_area.
         battery_entity = entities.get("battery")
         if battery_entity:
             watch_map[battery_entity] = (vacuum_entity_id, "last_battery_percent", "int", None)

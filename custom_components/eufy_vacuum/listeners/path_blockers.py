@@ -1,8 +1,16 @@
 """Path-blocker listeners — react to blocker entity state changes during
 active jobs.
 
-Watches every blocker rule's trigger entity across all managed rooms.
-When one fires during an active job, builds a runtime path-block report
+Watches the trigger entity of each ENABLED ``kind: "blocker"`` rule that
+carries a non-empty ``entity_id``, on every managed room of every map whose
+id does not normalize to ``"unknown"``. ``register()`` applies all four
+skips explicitly.
+⚠ was: "every blocker rule's trigger entity across all managed rooms" — the
+"every … across all" invited a reader to treat a missing path-block event
+as a delivery or timing problem when it is a REGISTRATION exclusion. The
+``"unknown"`` map skip is the silent one: a configured blocker on a room
+not yet bound to a real map id never gets a watcher, and nothing logs that.
+When a watched entity fires during an active job, builds a runtime path-block report
 and applies the job's configured `path_block_action` (event_only,
 pause_and_event, cancel_and_event). Re-registers itself whenever room
 configuration changes via a manager callback.
@@ -76,6 +84,14 @@ def remove(hass: HomeAssistant) -> None:
             unsub()
         except Exception:  # pragma: no cover - best-effort teardown
             _LOGGER.exception("Failed to remove path blocker listener")
+
+    # L15: the single-flight state is now a PER-ENTITY map, so it has to be dropped
+    # with the listeners that populate it. Left behind it would grow one entry per
+    # watched entity per register/remove cycle, and — the part that bites — a stale
+    # `running: True` from a task killed mid-flight would wedge that entity's
+    # evaluations off permanently after a reload. The old single-dict form was
+    # self-limiting by accident: one key, rewritten each register.
+    domain_data.pop(_PATH_BLOCKER_INFLIGHT, None)
 
 
 def register(hass: HomeAssistant) -> None:
@@ -259,9 +275,30 @@ def register(hass: HomeAssistant) -> None:
             if any_changes:
                 await manager_local.async_save()
 
-        # RP-008 (GUARD-2): single concurrent evaluation with a queued re-check.
-        inflight = hass.data.setdefault(DOMAIN, {}).setdefault(
-            _PATH_BLOCKER_INFLIGHT, {"running": False, "rerun": False}
+        # RP-008 (GUARD-2): single concurrent evaluation with a queued re-check,
+        # PER TRIGGER ENTITY.
+        #
+        # ⚠ THIS WAS ONE FLAG FOR THE WHOLE INTEGRATION until 2026-08-24 — a bare
+        # `{"running": False, "rerun": False}` under a single hass.data key, with no
+        # vacuum, map or entity in it. `_process` is a FRESH CLOSURE per event, bound to
+        # that event's `entity_id` and `new_state`, and the rerun loop below re-runs
+        # THIS closure. So an edge on entity B arriving while entity A was mid-evaluation
+        # set `rerun` and returned; A's loop then re-evaluated A a second time, and B's
+        # targets in `watch_map` were never visited at all.
+        #
+        # Dropped, not coalesced — and silently: no report, no event, no log. Two door
+        # sensors on different maps, or two vacuums, are enough. The comment said
+        # "further arrivals coalesce into that re-check", which is true only for arrivals
+        # on the SAME entity.
+        #
+        # Keying per entity keeps the property GUARD-2 was written for (a burst on one
+        # sensor cannot spawn unbounded tasks: at most one running plus one queued per
+        # entity) without making unrelated entities share a lock.
+        _inflight_by_entity = hass.data.setdefault(DOMAIN, {}).setdefault(
+            _PATH_BLOCKER_INFLIGHT, {}
+        )
+        inflight = _inflight_by_entity.setdefault(
+            entity_id, {"running": False, "rerun": False}
         )
 
         async def _process_single_flight() -> None:

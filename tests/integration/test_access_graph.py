@@ -690,6 +690,39 @@ def test_access_graph_block_rooms_dedups_set_valued_issues(ag):
     )
 
 
+def test_ag16e_multiple_inbound_names_the_source_rooms(ag):
+    """[AG-16e] R6: multiple_inbound refusals must name the two rooms the user
+    must edit — which are the SOURCES of the extra inbound edges, in
+    `source_room_ids`. Naming only the target (the room these edges converge
+    on) tells the user which room is IN trouble but not which grants to remove.
+
+    Before R6 (2026-08-24) the loop consumed `room_id` and `rooms` from every
+    issue and stopped there. The docstring's comment even enumerated the two
+    set-valued types as complete, so nobody added source_room_ids when
+    multiple_inbound arrived. The refusal read as if handled while quietly
+    hiding two of the three rooms it was about.
+    """
+    g, data = ag
+    # Both 2 and 3 grant into 4, so 4 has multiple inbound edges. 2 and 3 are
+    # the rooms the user must go edit; 4 is where the problem shows up.
+    rooms = _rooms(
+        _room(1, dock=True, grants=[2, 3], name="Hallway"),
+        _room(2, grants=[4], name="Kitchen"),
+        _room(3, grants=[4], name="Study"),
+        _room(4, name="Office"),
+    )
+    _seed_map(data, rooms)
+
+    validation = g._validate_room_access_graph(managed_rooms=rooms)
+    assert {issue["type"] for issue in validation["issues"]} >= {"multiple_inbound"}
+
+    named = g.access_graph_block_rooms(rooms, validation)
+    ids = {entry["room_id"] for entry in named}
+    assert {"2", "3"} <= ids, (
+        f"multiple_inbound refusal named the target only, not the sources: {sorted(ids)}"
+    )
+
+
 def test_access_graph_block_rooms_tolerates_a_missing_validation(ag):
     """[AG-16d] A5-AG-2: no validation -> no rooms, never a crash on the start path."""
     g, data = ag

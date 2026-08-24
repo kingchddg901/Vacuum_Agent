@@ -555,13 +555,17 @@ _LC_ADAPTER = {
     # Eufy's real adapter.py) so [LC-8] keeps validating real routing
     # behavior via declaration instead of an implicit brand fallback.
     "dock_events": {
+        # D14: declared explicitly. `enabled` defaults to False in the schema, and BOTH
+        # dock detectors now gate on it -- so a fixture that omits it is describing a
+        # brand with dock events OFF, which is not what the wash tests below mean.
+        "enabled": True,
         "triggers": {"last_mop_wash": ["washing", "washing mop"]},
     },
 }
 
 
-def _wire_lifecycle(hass):
-    register_adapter_config(_VAC, _LC_ADAPTER)
+def _wire_lifecycle(hass, adapter=None):
+    register_adapter_config(_VAC, adapter if adapter is not None else _LC_ADAPTER)
     m = _mgr(hass)
     m.get_active_job.return_value = {
         "status": "started", "has_observed_active_lifecycle": True,
@@ -908,6 +912,46 @@ async def test_lifecycle_records_mop_wash_on_dock_wash_state(hass):
         await hass.async_block_till_done()
         m.update_active_job_mop_wash_observation.assert_called_once_with(
             vacuum_entity_id=_VAC, map_id=_MAP)
+    finally:
+        lifecycle.remove(hass)
+
+
+@pytest.mark.parametrize("opt_out", ["explicit_false", "absent"])
+async def test_lc8b_wash_observation_respects_dock_events_enabled(hass, opt_out):
+    """[LC-8b] D14: `dock_events.enabled` gates the INLINE detector too.
+
+    RED BEFORE THE FIX. `listeners/dock_events.py` refuses to even subscribe unless the
+    adapter declares `enabled` (REG-4, fallback False), but this inline path read the
+    same trigger vocabulary with no `enabled` check at all -- so a brand that declares
+    triggers and opts out, or simply omits the flag whose schema default is False, still
+    had wash observations written through here.
+
+    Uses the SAME adapter as [LC-8] with only `enabled` flipped, so the difference under
+    test is exactly the one field and nothing else can explain a pass.
+    """
+    import copy
+
+    _disabled = copy.deepcopy(_LC_ADAPTER)
+    if opt_out == "explicit_false":
+        _disabled["dock_events"]["enabled"] = False
+    else:
+        # ABSENT, which is the case the finding actually names: a brand that declares
+        # triggers and never mentions `enabled`. The schema default is False, so the
+        # resolved answer must be False -- reading it with fallback=True would silently
+        # enable every such brand, which is the shape this whole guard exists to refuse.
+        _disabled["dock_events"].pop("enabled", None)
+
+    m = _wire_lifecycle(hass, adapter=_disabled)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "kitchen")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    lifecycle.register(hass)
+    try:
+        hass.states.async_set("sensor.alfred_dock", "washing")
+        await hass.async_block_till_done()
+        m.update_active_job_mop_wash_observation.assert_not_called()
     finally:
         lifecycle.remove(hass)
 

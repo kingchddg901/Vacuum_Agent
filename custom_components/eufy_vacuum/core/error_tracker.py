@@ -300,6 +300,40 @@ def _code_key(value: Any) -> Any | None:
 
 
 def _safe_int(value: Any) -> int | None:
+    """Coerce to int, or None.
+
+    ⚠ GUARD ASYMMETRY, deliberate to record rather than silently narrow. ``_code_key``
+    above documents two rules for coercing an error code and enforces both: never
+    ``int()`` on a float, because ``int(3.7)`` is 3 and 3 is a real Eufy code (SIDE
+    BRUSH); and reject ``bool``, because it is an ``int`` subclass so ``True`` would
+    resolve to code 1. This function has NEITHER, and it reads a robot-sourced code
+    attribute at the ``_first_error_code_attr`` call site — ahead of both places that
+    apply the rules.
+
+    That lands on codes whose seconds are deducted by the fault table, which is the
+    exact arithmetic the table exists to protect. No non-integer has been observed
+    arriving there, so this is a named input rather than an observed field failure —
+    which is why the remedy here is the statement and not a narrowing. Narrowing this
+    would also change its two OTHER call sites, which coerce ``error_count`` and want
+    ordinary int semantics.
+
+    If you are giving it the guards, give it a separate code-specific wrapper rather
+    than tightening this one.
+
+    ⚠ ACCEPTED (Chris, 2026-08-24), ledger C13. The paragraphs above were written by an
+    agent during a doc campaign and carried no maintainer attribution, so the ledger
+    could not tell an authored observation from a ruling. Chris has now read it and
+    agrees: no code change.
+
+    BUT NOTE WHAT WAS ACCEPTED, because the grounds are unusual for this project. The
+    justification above is REACHABILITY — "no non-integer has been observed arriving".
+    The standing rule for accepting a defect here is that the bad input is **then thrown
+    away**, and that rule says outright that "hard to reach" is never the reason. This
+    value is not thrown away; it is trusted into the fault table's arithmetic. So this
+    is accepted on the maintainer's judgement, not because it satisfies that test. Do
+    not cite it as precedent for accepting a reachability argument, and re-open it if a
+    float or bool is ever actually observed on this path.
+    """
     try:
         return int(value)
     except (TypeError, ValueError):

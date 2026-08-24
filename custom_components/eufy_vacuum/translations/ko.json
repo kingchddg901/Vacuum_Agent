@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id}은(는) 이 통합이 관리하는 청소기가 아닙니다."
+    },
+    "room_update_refused": {
+      "message": "{room}을(를) 업데이트할 수 없습니다: {reason}"
     }
   },
   "entity": {

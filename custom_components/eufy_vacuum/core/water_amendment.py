@@ -184,8 +184,22 @@ def register_post_job_water_amendment(
             # Atomic write via temp file + rename. POSIX rename is atomic, so
             # any concurrent reader sees either the pre-patch or post-patch
             # file — never a half-written interleaved state.
+            #
+            # C29. ATOMIC IS NOT DURABLE, and this is the third copy of that
+            # lesson. os.replace makes the swap atomic against a concurrent
+            # READER, but it does nothing about a power loss between the write
+            # and the OS flushing dirty pages — that leaves a zero-length job
+            # record after the rename, which reads back as "no data" rather
+            # than as an error. history_store's copy documents this as IO-7 and
+            # has carried flush + fsync for it; this one and debug_capture's
+            # were written from the same idea and stopped at the rename.
+            # The tmp unlink is the other half: without it every failed write
+            # leaves a .tmp beside the record for good.
             tmp = path.with_suffix(path.suffix + ".tmp")
-            tmp.write_text(json.dumps(job, indent=2), encoding="utf-8")
+            with open(tmp, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(job, indent=2))
+                handle.flush()
+                os.fsync(handle.fileno())
             os.replace(tmp, path)
             _LOGGER.debug(
                 "post_job_water_amendment: patched %s wash_count=%d end_pct=%s",

@@ -97,16 +97,29 @@ export function applyMapState(proto) {
     this.setMapViewActive(!this.isMapViewActive());
   };
 
-  // ---- Live-map rotation (display only, BACKEND-stored per map) ----
+  // ---- Live-map rotation (a VIEW control that IS a dispatch input, BACKEND-stored per map) ----
   // The live map image (Roborock) can be oriented differently from how the user
-  // pictures their home; let them rotate it in 90° steps to match. Display only —
-  // never touches dispatch (cleaning is by room id). Stored on the map bucket +
-  // surfaced in the dashboard snapshot (write via the set_live_map_rotation
-  // action/service) so the orientation FOLLOWS THE USER across browsers/devices,
-  // like the dot anchors. An optimistic overlay covers the click → service-ack →
-  // snapshot-refresh window so the turn is instant. Applied only to the live-image
-  // element (which fills a SQUARE container, so a 90° turn about its centre stays
-  // perfectly in frame) — NOT to CV/custom maps, whose polygons would drift.
+  // pictures their home; let them rotate it in 90° steps to match. Stored on the
+  // map bucket + surfaced in the dashboard snapshot (write via the
+  // set_live_map_rotation action/service) so the orientation FOLLOWS THE USER across
+  // browsers/devices, like the dot anchors. An optimistic overlay covers the click →
+  // service-ack → snapshot-refresh window so the turn is instant. Applied only to the
+  // live-image element (which fills a SQUARE container, so a 90° turn about its centre
+  // stays perfectly in frame) — NOT to CV/custom maps, whose polygons would drift.
+  //
+  // ⚠ was: "Display only — never touches dispatch (cleaning is by room id)". That is
+  // FALSE for anything dispatched by GEOMETRY, and the rationale is what rotted: room
+  // clean IS by room id and stays rotation-blind, but zone clean is by rectangle, and
+  // the rotation is an input to two paths in this file —
+  //   • zoneDraftsToNormalizedRects un-rotates every drawn rect by
+  //     effectiveMapRotation() (via _unrotateRectPct) before it becomes a
+  //     start_zone_clean rect, so the angle chosen here decides where the robot goes;
+  //   • canDrawHideArea refuses the hide-area draw unless effectiveMapRotation() is 0.
+  // The by-room-id sentence was written before the zone-draft un-rotation existed and
+  // was never revisited when it landed; C31 (see zoneDraftsToNormalizedRects below) is
+  // the mis-dispatch that coupling actually produced. The same stale sentence is
+  // replicated backend-side in const.py, services.yaml and mapping/mapping_services.py
+  // — tracked as D18; do not re-derive "display only" from those copies.
   // ---- Stall capture armed (BACKEND-stored per VACUUM) ----
   // Whether a detected stall renders the room and notifies. Absent means OFF: a feature
   // that writes an image of someone's home must be opted into, never inherited by an
@@ -155,9 +168,18 @@ export function applyMapState(proto) {
   // object-fit:contain backdrops that stay inside the SQUARE container at 90/270 — the VA
   // self-render canvas AND a live device image. It is NOT applied to an uploaded CV/custom
   // backdrop (which can be stretched `--fill` and would leave the square frame when turned).
-  // The renderer AND the drag handlers (mascot, area-label) all read this one source, so a drag
-  // converts pointer->content in the SAME frame the rotator is rendered in. (Rubber-band DRAWS
-  // — zone/hide-area — still require rotation 0; their letterbox math isn't rotation-aware.)
+  // The renderer, the drag handlers (mascot, area-label) AND the zone-draft un-rotation all read
+  // this one source, so a drag or a drawn rect converts pointer->content in the SAME frame the
+  // rotator is rendered in. Anything that turns a SCREEN position into a DEVICE position belongs
+  // on this list; reading raw mapRotation() instead is C31, where a zone dispatched a quarter-turn
+  // from where it was drawn.
+  //
+  // ⚠ This comment used to end "(Rubber-band DRAWS — zone/hide-area — still require rotation 0;
+  // their letterbox math isn't rotation-aware.)" That was true before _unrotateRectPct existed and
+  // is now false for ZONES: the rect is un-rotated in the square pct box FIRST, which returns it to
+  // the content frame _rectToNormalized's letterbox math already assumes, so the order makes the
+  // pair rotation-aware. It remains true for HIDE-AREA, which has no un-rotation step and is
+  // therefore still gated to a rotation-0 display (canDrawHideArea).
   proto.effectiveMapRotation = function () {
     if (this.isVaRenderActive?.()) return this.mapRotation?.() ?? 0;
     const hasLiveImage = Boolean(this.liveMapImageEntity?.());
@@ -731,7 +753,15 @@ export function applyMapState(proto) {
   // drawn rect is un-rotated to the content frame first, so a zone drawn on a rotated live
   // map maps to the correct device region (identity when rotation is 0).
   proto.zoneDraftsToNormalizedRects = function (backdropDims) {
-    const rot = this.mapRotation?.() ?? 0;
+    // C31. MUST be effectiveMapRotation, not mapRotation: the user drew on the
+    // DISPLAYED frame, so the un-rotation has to undo exactly the rotation that
+    // was rendered. The two diverge when a VA render is WANTED but its raster is
+    // absent — effectiveMapRotation returns 0 there while mapRotation still
+    // reports the user's 90/180/270. Reading the raw value un-rotated a rect that
+    // was never rotated on screen, and the zone dispatched a quarter-turn from
+    // where it was drawn: the robot cleaned the wrong part of the house. Nothing
+    // downstream could object, because the rect is well-formed either way.
+    const rot = this.effectiveMapRotation?.() ?? 0;
     return this.zoneDrafts()
       .map((d) => this._rectToNormalized(this._unrotateRectPct(d, rot), backdropDims))
       .filter(Boolean);
@@ -838,12 +868,19 @@ export function applyMapState(proto) {
   proto.clearHiddenRegionsOptimistic = function () { this._hiddenRegionsOverlay = null; };
 
   // Draw gate: a device-overlay-aligned backdrop is shown (live image OR VA render — the
-  // masks need map_state_source.image_size for the letterbox transform) and rotation is 0
-  // (a rotated map letterboxes on the swapped axis — not handled for drawing, same as zones).
+  // masks need map_state_source.image_size for the letterbox transform) and the DISPLAYED
+  // rotation is 0 (a rotated map letterboxes on the swapped axis, and unlike zones there is
+  // no un-rotation step here, so this genuinely cannot be drawn on turned).
+  //
+  // effectiveMapRotation, not mapRotation, for the same reason as C31 — what matters is the
+  // frame ON SCREEN. The two diverge when a VA render is wanted but absent; reading raw
+  // refused a draw on a display that was in fact unrotated and perfectly safe to draw on.
+  // That direction was harmless (a false refusal, never a mis-clean), which is why it went
+  // unnoticed while the zone sibling was silently mis-dispatching.
   proto.canDrawHideArea = function () {
     return (this.overlaysAligned?.() ?? false)
         && !!this.mapImageSize?.()
-        && (this.mapRotation?.() ?? 0) === 0;
+        && (this.effectiveMapRotation?.() ?? 0) === 0;
   };
 
   /* =========================================================

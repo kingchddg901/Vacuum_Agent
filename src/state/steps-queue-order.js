@@ -1,3 +1,5 @@
+import { translate, resolveLang } from "../i18n/index.js";
+
 // Steps-queue order adapter: presents the live ad-hoc queue (enabled rooms + charge/wait
 // breaks) as ONE reorderable list for the shared ordering engine, so the move-to-position
 // modal shows rooms AND breaks as chips and reordering either kind flows through one path.
@@ -47,9 +49,26 @@ export function applyStepsQueueOrderState(proto) {
         (Array.isArray(savedZones) ? savedZones : []).forEach((z) => {
           if (z && z.id != null) zoneNameById[String(z.id)] = z.name;
         });
+        // `this.i18nLanguage()` (VacuumCardState) is globe-aware — the card
+        // installs a resolver via setLangResolver. Going straight to
+        // `resolveLang(this.hass, this.config)` here resolves the HA/pin
+        // language instead, so a user who picks Arabic on the per-user globe
+        // gets an Arabic modal with English chips inside it.
+        //
+        // An earlier version tried `this.t?.(...)` — state has NO t() method,
+        // so the optional chain always yielded undefined and the ?? fallback
+        // silently kept the English literal; the "load-bearing translated
+        // unit" claim read as fixed while doing nothing.
+        const lang = this.i18nLanguage?.() ?? resolveLang(this.hass, this.config);
+        const pct = translate(lang, "metrics.unit_percent");
+        const min = translate(lang, "run_profiles.minutes_unit");
         const _breakLabel = (step) => {
-          if (step.type === "charge_wait") return `⚡ ${Number(step.target_battery_percent ?? 100)}%`;
-          if (step.type === "wait") return `⏱ ${Number(step.wait_minutes ?? 30)} min`;
+          // Route the unit through i18n so an RTL locale gets a script-strong
+          // suffix ("دقيقة" not "min"); the label is text-only (order-modal
+          // escapeHtmls it), so bdi tags cannot go here — the translated unit
+          // is the load-bearing fix.
+          if (step.type === "charge_wait") return `⚡ ${Number(step.target_battery_percent ?? 100)}${pct}`;
+          if (step.type === "wait") return `⏱ ${Number(step.wait_minutes ?? 30)} ${min}`;
           if (step.type === "zone") {
             const names = (Array.isArray(step.zone_ids) ? step.zone_ids : [])
               .map((id) => zoneNameById[String(id)] || "?")

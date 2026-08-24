@@ -19,8 +19,15 @@ Eufy-specific internals
   heuristics whose numeric thresholds were calibrated on Eufy map images.
 - ``_reclaim_localized_child_mask`` — downward reclaim for vertically truncated
   localized children; relies on Eufy-style saturation/value support masks.
-- Split-strategy cascade in ``_split_suspicious_component`` (erosion, opening,
-  wall cuts, local support, color distance, localized bins, assist hue) — all
+- Split-strategy cascade in ``_split_suspicious_component``, listed here IN THE
+  ORDER IT RUNS, which is ordered by evidence quality and returns the first
+  strategy that succeeds: wall cuts, localized bins, color distance, local
+  support, assist hue, erosion seeds, opening split. Strongest evidence first,
+  falling back toward pure morphology — a wall cut is a real observation about
+  the map, an erosion seed is a guess about shape. (This list read "erosion,
+  opening, wall cuts, ..." until 2026-08-23: source-DEFINITION order, close to
+  the reverse of the real cascade, in the one place a reader looks to find out
+  what is tried first.) All
   tuned to Eufy map characteristics.
 
 Porting a new brand
@@ -28,6 +35,25 @@ Porting a new brand
 Start from ``mapping/segment_primitives.py``, which documents the full primitive
 surface area.  Copy ``_build_room_mask_from_hsv`` and the scoring heuristics
 as a template and tune their thresholds for the new brand's map imagery.
+
+Why this is CV and not a vision model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+A vision-model approach was considered and rejected: the pipeline available to it
+delivered a DOWNGRADED image rather than the full-quality PNG, so the comparison was
+never against the real input. The blocker is what the model can be SHOWN, not what a
+model can do — if the full-quality PNG becomes deliverable, this is worth re-running.
+
+Recorded here 2026-08-24 because the tuning below reads as evidence to the contrary.
+A reader meeting a thousand-odd lines of hand-tuned HSV clustering reasonably infers
+that someone judged CV the better technique; that is a NOT-YET wearing the clothes of
+a NEVER. The thresholds are not proof the problem needs hand tuning — they are what
+you build when the alternative was evaluated on bad input. The note
+``project_eufy_origin_lineage`` already records the engine as deliberately no-LLM;
+what it does not record anywhere is WHY, which is the paragraph above.
+
+WHERE the degradation happened, WHEN this was decided, and whether the full-quality
+PNG is reachable today are all UNKNOWN. Do not guess them here — stating the reason
+and stopping is what keeps this a true fact.
 """
 
 from __future__ import annotations
@@ -104,7 +130,19 @@ def _segmentation_state(*, issues: list[str], fill_ratio: float, compactness: fl
 # -- Eufy HSV room / wall masks -----------------------------------------------
 
 def _build_room_mask_from_hsv(hsv: Any) -> Any:
-    """Return a binary room-pixel mask derived from HSV saturation and value thresholds."""
+    """Return a binary room-pixel mask derived from HSV saturation and value thresholds.
+
+    WHAT THE THRESHOLDS ARE REJECTING — the imagery observation that calibrated them,
+    which cannot be recovered from the numbers. A pixel must be BOTH bright enough
+    (``value >= 68`` of 255, ≈ 27% brightness) AND colourful enough
+    (``saturation >= 18`` of 255, ≈ 7%) to count as a room pixel. Together that excludes
+    near-black walls, near-white backgrounds, and the off-white dock area.
+
+    Salvaged 2026-08-24 from the retired ``11-mapping-system.md``. The threshold VALUES
+    were always in code; what was nowhere was the statement of what the mask is MEANT
+    to exclude — so a porting brand, or anyone re-tuning, had no way to tell a mis-tune
+    from a change in how the vendor renders its maps.
+    """
     saturation = hsv[:, :, 1]
     value = hsv[:, :, 2]
     room_mask = (value >= 68) & (saturation >= 18)
@@ -301,14 +339,44 @@ def _split_component_via_opening(component_mask: Any, min_area_pixels: int) -> l
     return []
 
 
-def _split_component_via_wall_cuts(component_mask: Any, wall_hint_mask: Any | None, min_area_pixels: int) -> list[Any]:
-    """Try to split a merged component by cutting along nearby wall-hint pixels."""
-    if wall_hint_mask is None or getattr(component_mask, "shape", None) != getattr(wall_hint_mask, "shape", None):
+def _split_component_via_wall_cuts(
+    component_mask: Any,
+    wall_hint_mask: Any | None,
+    min_area_pixels: int,
+    debug_out: list[dict[str, Any]] | None = None,
+) -> list[Any]:
+    """Try to split a merged component by cutting along nearby wall-hint pixels.
+
+    ``debug_out``, when supplied, receives ONE entry describing the outcome — including
+    the declines. This strategy is tried FIRST and used to append a debug row only on
+    success, so a failed wall cut left no row at all: the strategy with the strongest
+    evidence was invisible in diagnostics exactly when it did not fire, and a reader
+    inspecting the per-method list would reasonably conclude it was never attempted.
+
+    The reason is produced HERE rather than inferred by the caller, because the caller
+    would have to re-test this function's own preconditions to guess it — a second copy
+    of a predicate, which is how the copies drift apart. The parameter is optional so the
+    eight existing call sites that only want the masks are unaffected.
+
+    The three declines are genuinely different problems, so they stay three reasons:
+    ``no_wall_hint`` means the second image variant was never available (a user/upload
+    question), ``wall_hint_shape_mismatch`` means two images arrived at different sizes
+    (a pipeline bug), and ``no_split`` means walls were found and no clean cut separated
+    the component (a tuning question).
+    """
+    def _decline(reason: str) -> list[Any]:
+        if debug_out is not None:
+            debug_out.append({"method": "wall_cuts", "accepted": False, "reason": reason})
         return []
+
+    if wall_hint_mask is None:
+        return _decline("no_wall_hint")
+    if getattr(component_mask, "shape", None) != getattr(wall_hint_mask, "shape", None):
+        return _decline("wall_hint_shape_mismatch")
     structure = np.ones((3, 3), dtype=bool)
     local_wall = wall_hint_mask & _NDIMAGE.binary_dilation(component_mask, structure=structure, iterations=1)
     if not bool(np.any(local_wall)):
-        return []
+        return _decline("no_local_wall")
 
     for iterations in (1, 2, 3):
         cut_mask = component_mask & ~_NDIMAGE.binary_dilation(local_wall, structure=structure, iterations=iterations)
@@ -327,7 +395,7 @@ def _split_component_via_wall_cuts(component_mask: Any, wall_hint_mask: Any | No
             grown_masks.append(grown)
         if len(grown_masks) >= 2:
             return grown_masks
-    return []
+    return _decline("no_split")
 
 
 def _split_component_via_local_support(
@@ -770,7 +838,12 @@ def _split_suspicious_component(
     Returns (split_masks, method_name, debug_entries). method_name is None if no split was found.
     """
     debug_entries: list[dict[str, Any]] = []
-    split_masks = _split_component_via_wall_cuts(component_mask, wall_hint_mask, min_area_pixels)
+    # `debug_entries` is passed so a DECLINE is recorded too. Every other strategy below
+    # appends whether it succeeds or fails; this one appended only on success, which made
+    # the first-tried strategy the one whose failure could not be seen.
+    split_masks = _split_component_via_wall_cuts(
+        component_mask, wall_hint_mask, min_area_pixels, debug_entries
+    )
     if len(split_masks) >= 2:
         return split_masks, "wall_cuts", [{"method": "wall_cuts", "accepted": True, "reason": "accepted", "grown_mask_count": len(split_masks)}]
     if int(np.count_nonzero(component_mask)) >= max(int(min_area_pixels * 10), 120000):
@@ -1077,6 +1150,16 @@ def _detect_room_segments_pipeline(
             },
         }
 
+    # HUE CLUSTERING, and the world fact the whole pipeline rests on: THE EUFY RENDERER
+    # PAINTS EACH ROOM A DISTINCT HUE. Median-filter the hue plane, bin it into 16-wide
+    # buckets, then iterate the active bins below — a hue bin corresponds to a room
+    # because of that RENDERING property, not because of anything true about rooms.
+    #
+    # Salvaged 2026-08-24 from the retired `26-eufy-segmentor.md`. Nothing in source said
+    # why hue was the clustering space, which leaves the choice reading as a generic
+    # computer-vision decision. It is not: the algorithm is keyed to a property of the
+    # VENDOR'S map image, so a port to another brand, or a Eufy palette change,
+    # invalidates the premise directly rather than merely needing the constants re-tuned.
     hue_smooth = _NDIMAGE.median_filter(hue, size=5)
     hue_bin = ((hue_smooth.astype(np.int16) + 8) // 16).astype(np.int16)
     active_bins = sorted({int(value) for value in hue_bin[room_mask]})

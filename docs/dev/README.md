@@ -1,219 +1,157 @@
-# Developer Docs — Reading Order
+# Developer documentation
 
-This is the **NOW shelf** — it answers **"this is how it works."** The other questions
-live elsewhere: **why it is built this way** → [design/](design/shipped/map-state-source.md) ·
-**what must stay true** → [00b invariants](00b-invariants.md) · **what we tried and what
-it cost to learn** → [history/](history/disaster-recovery-standard.md) and the audit
-record. If a passage answers a different question than the document it lives in, it
-belongs somewhere else — that's the whole routing rule, and
-[00](00-documentation-standard.md) states it in full.
-
-**Every doc here is a claim about the present.** There is no baseline, and nothing is
-authoritative "pending a delta": a NOW doc that no longer matches the code is not out of
-date, it is *wrong*, and it is corrected in place. When a doc and the code disagree,
-read [00 §3](00-documentation-standard.md) before deciding which one is stale — more
-than once it has been the code.
-
-The reading order below is the COMPREHENSION order, not a dependency order: the
-subsystem graph is mutually recursive, so no topological order exists. Read top-down.
-
-The backend integration's architecture, subsystems, and porting contract, in reading order.
-The **frontend / Lovelace-card** docs are their own set — see **[frontend/](frontend/architecture-overview.md)**.
-Read them in this order if you are new to the codebase; jump in anywhere if you know what you're looking for.
-
----
-
-## Foundation
-
-Start here. The standard first — the bar every subsystem doc is held to — then the four
-files that give you the mental model you need before reading anything else.
-
-| # | File | What it covers |
-|---|---|---|
-| 00c | [replicas](00c-replicas.md) | **Replica sets** — every rule implemented in more than one place on purpose, so changing one copy sends you to the others. A green suite cannot see a missing copy |
-| 00d | [audit crosswalk](00d-audit-crosswalk.md) | **finding id → the rule it produced.** The 463-finding audit corpus is git-ignored working data; this is what survives it, so an id met in an old commit stays resolvable. Self-contained, not generated — its inputs are not in the repo |
-| 00b-h | [invariant harvest](00b-h-invariant-harvest.md) | The unclassified **pile** 00b is reduced from — rule-shaped comments carrying a named consequence, in files with no `IN` anchor (`scripts/invariant_census.py`). Every 00b entry so far came from the audit corpus; this is the other route, and it holds two populations: rules never registered, and places an EXISTING invariant binds and is not cited |
-| 00c-h | [replica harvest](00c-h-replica-harvest.md) | The unclassified **pile** 00c is reduced from — 71 candidates read back from replica notices already written in comments (`scripts/replica_census.py`). Hand-edited STATUS column; not a generated doc |
-| 00b | [invariants](00b-invariants.md) | **The invariant registry** — every system-wide rule that must remain true, one sentence each, with pointers to the explanation and the enforcement site. Read this before a change, not the whole subsystem doc |
-| 00 | [documentation-standard](00-documentation-standard.md) | **How these docs work.** The three shelves (NOW / DESIGN / HISTORY), what an invariant must state, adjudicating a design doc against the code, what a subsystem doc must specify, the meta-rules, citation form, and the release gate |
-| 01 | [architecture-overview](01-architecture-overview.md) | The big picture: adapter pattern, data flow, concurrency rules, subsystem map |
-| 02 | [ha-integration](02-ha-integration.md) | Config entry lifecycle, platform setup, entity registration, coordinator pattern |
-| 03 | [data-model](03-data-model.md) | The persistent store schema — every top-level key and what lives under it |
-| 04 | [listeners](04-listeners.md) | Event bus wiring — what the integration listens to and how state changes propagate |
+> **The rewrite is complete.** Every backend line has an owning document, and the three
+> cross-cutting documents that line coverage cannot see — [01](01-architecture-overview.md),
+> [02](02-ha-integration.md), [03](03-data-model.md) — are written. The previous set of subsystem
+> guides was retired wholesale to `docs/retired/dev/`, not because it was wrong but because it was
+> built to a standard that rewarded restating the code. What replaced it is written against the
+> anchor system, so a document addresses a *region* or a *rule* rather than a file and a line.
+>
+> **Retired docs are still on disk and still readable — in the repo, not on the site.**
+> `docs/retired/` is excluded from the published build (see `mkdocs.yml`): it is an archive, it was
+> never in the nav, and building it only surfaced relative links that broke when the files were
+> *moved* there. They are as-of-their-date records, and several are the only written account of a
+> subsystem's *history*. Read them for that; do not treat them as current, and **do not repair
+> them** — that instruction is why the fix was a build exclusion and not eighty-three edits.
+>
+> ⚠ **If you scope another campaign, read this before you start.** The instruction that stood here
+> was *"scope the remaining work from the tree, not from the retired file list."* It exists because
+> the retired list has holes — nine live modules, 2,780 lines, had no owning document in it, and
+> `clean_order/` was the trap: the string appears 23 times across seven retired docs, every one of
+> them the capability flag `honors_clean_order`, which is a different subject from the package that
+> reads the device's clean sequence.
+>
+> **That instruction is correct and it is not sufficient.** Scoping from the tree finds every
+> *package* — and a document about the *system* owns no lines, so it cannot be found that way. Three
+> were dropped exactly like that and were only noticed when someone asked. The tell was in the link
+> graph the whole time: the two most-cited missing targets were the two missing documents, because
+> orienting docs are cited most. **Scope from the tree AND from what the corpus is cited for.**
+>
+> ```bash
+> python scripts/docs_coverage.py            # line coverage, plus the declared cross-cutting list
+> python -m mkdocs build --strict            # what the corpus is cited for, and what no longer resolves
+> ```
 
 ---
 
-## Core Orchestration
+## Start here
 
-The manager and the job pipeline.
-
-| # | File | What it covers |
-|---|---|---|
-| 05 | [core-manager](05-core-manager.md) | The central manager class: runtime state, method surface, subsystem wiring |
-| 06 | [job-lifecycle](06-job-lifecycle.md) | Full job flow from queue to finalization, including pause/resume and cancellation |
-| 07 | [queue-engine](07-queue-engine.md) | The queue data structure, room ordering, dispatch payload construction |
-| 30 | [phase-runner](30-phase-runner.md) | Strict-order (sequenced) per-room phase execution: the settle/dispatch/verify/retry watchdog + per-phase timing capture, plus the `charge_wait`/`wait` stop phases (`_run_charge_wait_phase` / `_run_wait_phase`) that a stepped run docks on between room groups (`PhaseRunner`, `jobs/`) |
-
----
-
-## Subsystems
-
-Domain subsystems in dependency order (rooms first, everything else builds on them).
-
-| # | File | What it covers |
-|---|---|---|
-| 08 | [rooms-system](08-rooms-system.md) | Room data model, room fields, effective-settings resolution |
-| 09 | [room-rules-system](09-room-rules-system.md) | Per-room rules: blockers, modifiers, rule evaluation at job build time |
-| 10 | [learning-system](10-learning-system.md) | Timing learning: recording runs, ETA estimation, confidence model |
-| 11 | [mapping-system](11-mapping-system.md) | Image segment analysis, coordinate system, segment adjustments, custom layouts, the segmenter-engine seam, and the provider map source. §3 and §7 preserve the **retired** trace→bounds design verbatim as a DR reference — the code is gone |
-| 31 | [map-source-coordinator](31-map-source-coordinator.md) | Provider-authoritative map-source reader: storage/memory/introspect backends, the four async readers, live-pose overlay (`MapSourceCoordinator`, `mapping/`) |
-| 12 | [battery-system](12-battery-system.md) | Battery health: cycle counting, zone-aware charge rate tracking, job drain metrics |
-| 13 | [maintenance-manager](13-maintenance-manager.md) | Maintenance tracking: interval overrides, reset snapshots, upkeep snapshot |
-| 14 | [dock-manager](14-dock-manager.md) | Dock state, gated dock actions, dock event recording |
-| 15 | [setup-system](15-setup-system.md) | Setup wizard, room drift detection, phantom room suppression |
-
----
-
-## Domain Managers
-
-Higher-level managers that sit above the subsystems.
-
-| # | File | What it covers |
-|---|---|---|
-| 16 | [profile-manager](16-profile-manager.md) | Run profiles and room profiles: schema, apply, rename, overwrite, delete |
-| 17 | [map-manager](17-map-manager.md) | Map import, storage, deletion, protection levels |
-| 18 | [onboarding-manager](18-onboarding-manager.md) | First-run onboarding state and step tracking |
-
----
-
-## Adapters
-
-The adapter layer — how a vacuum brand plugs into the core.
-
-| # | File | What it covers |
-|---|---|---|
-| 21 | [adapter-system](21-adapter-system.md) | Adapter registration, registry, runtime lookup, adapter API contract |
-| 22 | [adapter-config-reference](22-adapter-config-reference.md) | Complete schema reference for per-vacuum adapter config dicts |
-| 25 | [eufy-adapter](25-eufy-adapter.md) | The Eufy adapter as a worked example + pattern guide for a full-feature adapter |
-| 26 | [eufy-segmentor](26-eufy-segmentor.md) | The Eufy CV room segmentor and the segmenter-engine pattern for a new brand |
-| 29 | [roborock-adapter](29-roborock-adapter.md) | The **second-brand** worked example — Roborock (native `get_maps`, path-optimized order, live map image, strict-order); the foil to the Eufy adapter |
-
----
-
-## Auxiliary
-
-| # | File | What it covers |
-|---|---|---|
-| 23 | [error-tracker](23-error-tracker.md) | Error classification, per-vacuum error state, repair-issue patterns |
-
----
-
-## Feature deep-dives
-
-Cross-cutting features that span several subsystems.
-
-| # | File | What it covers |
-|---|---|---|
-| 28 | [external-run-ingestion](28-external-run-ingestion.md) | App-started (external) runs: detection, capture, blind segmentation, the review card + confirm wizard, the tier-1 identity gate, and graduating into the learned baselines |
-
----
-
-## Design references
-
-Not in the numbered reading order — design rationale the subsystem docs point to.
-
-**`design/`** — one file per entry, each LINKED. A design doc named in prose but not
-linked is unreachable from here, which is how this whole set went missing until
-2026-08-15; `scripts/check_docs_index.py` now fails on it.
-
-**`design/shipped/` — built. Kept because they still answer *"why is it like this?"***,
-which the subsystem docs actively cite. Not history: history is what we stopped doing,
-shipped design is why we do what we do.
-
-- [map-state-source](design/shipped/map-state-source.md) — the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)
-- [eufy-native-transition](design/shipped/eufy-native-transition.md) — native current-room detection design + validation; its pose/attribution track shipped in 1.8.0
-- [notation-anchors](design/shipped/notation-anchors.md) — the `PP` + 6-Crockford-char anchor scheme. `CN` live (9 anchors), tooling in `scripts/doc_anchor.py`, gated by `ANC-1..3`; `SN`/`HN`/`PN`/`IN` reserved and unused
-
-**`design/planning/` — decided, not built.** A reader could pick these up and implement them.
-
-- [entity-resolution-reliability](design/planning/entity-resolution-reliability.md) — the contest ladder, its rungs, and the rulings behind them. ⚠ Approved 2026-08-14; its §4 user-override item has since SHIPPED (`entity_overrides`), the rest has not
-- [voice-assist-wizard](design/planning/voice-assist-wizard.md) — design-only, not yet implemented; back-burnered
-
-**Unplaced** — neither a plan nor built, pending a ruling on where measurements live:
-
-- [core-minimality](design/core-minimality.md) — the irreducible-core map. Says of itself *"a map, not a changelog… nothing here has been refactored"*, and the refactor it scopes may be *"deliberately declined"*. The atom + rings **model** is stated normatively in [01 §2](01-architecture-overview.md); this is the dated measurement behind it
-
-*(The battery-accounting and external-run-robustness follow-up trackers were folded into their subsystem docs — [12 §9](12-battery-system.md) and [28 §11](28-external-run-ingestion.md) — and removed 2026-07-29 once their items were closed.)*
-
----
-
-## Frontend
-
-The Lovelace panel card — the render cycle, event binding, styles, state, the frontend↔backend
-contract, theming, i18n, the standalone cards, and every card feature — is documented as its own
-set in **[frontend/](frontend/architecture-overview.md)**. Start with the **architecture overview**
-(the hub), which maps the whole set.
-
----
-
-## History — retired approaches
-
-Kept so a retired idea is not proposed again in six months, confidently. Nothing here is
-maintained against the code; each carries a banner saying what it was and why it went.
-
-| File | What it was, and why it was retired |
+| doc | what it is for |
 |---|---|
-| [disaster-recovery-standard](history/disaster-recovery-standard.md) | The doc standard from ~2026-06 to 2026-08: could a subsystem be rebuilt from its doc alone? Retired because the premise (total source loss) was not the risk this project runs, while the real failure — a doc confidently describing behaviour the code no longer has — is one it did not address. Its precision rules were carried into [00](00-documentation-standard.md) |
-| [documentation-epoch-lifecycle](history/documentation-epoch-lifecycle.md) | The DR-baseline / dev-delta / audit-record model. **Epochs are a good idea for audits and a dangerous one for documentation** — an epoch licenses a doc to be out of date between reconciliations while it still reads as current, so drift becomes compliance rather than a defect |
-| [room-bounds-from-traces](history/room-bounds-from-traces.md) | Deriving room boundaries from movement traces, plus the bounds-review flow. **The code is deleted** (`494c6f6`); room tracking reads the device's native current-room signal instead — see [11 §1](11-mapping-system.md). Moved here from `design/` on 2026-08-16: it declared itself history in its own first line while sitting on the design shelf |
-| [floor-type-cleaning-defaults](history/floor-type-cleaning-defaults.md) | Per-surface water and fan defaults chosen by a room's `floor_type`. **Landed 2026-08-17.** Retired because it hid a default from users who did not know it existed — `floor_type` is collected for the map render and the onboarding gate, and no user-facing string ever said it would also choose how wet to mop. A table of preferences has no failure mode, which is why it survived a 463-finding campaign: an audit measures code against its own intent and cannot ask whether the intent is worth having. **Carpet is KEPT, twice over** — water-off as a safety property, and the fan boost because most vacuums do it in firmware anyway, so it meets an expectation rather than imposing one. The two survive for different reasons, which is the note's whole point |
-| [deltas/](deltas/README.md) | The delta ledger that model ran on — each dev doc a baseline, each change a diff filed beside it. **Dead, kept as the record of what the epochs actually cost.** Its own coverage note is the argument against it: the ledger enumerated 19 of 92 commits and read as complete, because a doc that is silent about a subsystem looks exactly like a doc that has nothing to say about it |
+| [00 — How These Docs Work](00-documentation-standard.md) | The standard. Shelves, the acceptance test, citation rules, the release gate. Read before writing anything here. |
+
+## The registries — rules with a durable identity
+
+These are the addressing layer. Declarations live in **source**; these files index them.
+
+| doc | holds |
+|---|---|
+| [00b — Invariants](00b-invariants.md) | `IN` — a rule the program must preserve, each with the consequence of breaking it. Also `EN` — a rule that binds a person, where no test can ever go red. |
+| [00c — Replicas](00c-replicas.md) | `RN` — one rule deliberately implemented in more than one place. A green suite cannot see a missing copy. |
+| [00b-h — Invariant harvest](00b-h-invariant-harvest.md) | Working table for rules found but not yet ruled on. |
+| [00c-h — Replica harvest](00c-h-replica-harvest.md) | The same, for replica sets. |
+| [00d — Audit crosswalk](00d-audit-crosswalk.md) | Maps audit findings to where they landed. |
+
+The notation itself — every class, what each is for, and how to mint one — is specified in
+[design/shipped/notation-anchors.md](design/shipped/notation-anchors.md).
+
+## NOW — what the system does today
+
+Code is authoritative. A NOW doc that disagrees with the code is stale, and the fix is the doc.
+
+| doc | covers |
+|---|---|
+| [01 — Architecture Overview](01-architecture-overview.md) | The map: five layers and which way they point, where a run travels, and the four boundaries that carry the design. **Start here.** |
+| [02 — The Home Assistant Surface](02-ha-integration.md) | What the integration exposes to HA and takes from it — and the eleven outbound events, which have no other owning document. |
+| [03 — The Data Model](03-data-model.md) | Everything persisted, in one place: two stores with different write shapes, the schema that is mostly undeclared, and the two identifiers that are names. |
+| [05 — While a Run Is Live](05-run-live.md) | Queue derivation and the refusal ladder, dispatch, brand-conditional room advance, the two stuck detectors, and the mid-run observers. |
+| [06 — How a Run Ends](06-run-end.md) | Every path by which a run ends, the exactly-once claim, finalization and its commit point, error-second deduction, and which derived stores never self-heal. |
+| [11 — A Map's Stored State](11-map-stored-state.md) | The 29 services that write a map's stored representation — images and the segment cache, custom segmentation, layout lifecycle, display state, and saved zones. |
+| [12 — Where the Map Comes From](12-map-source.md) | The provider's own segmentation and pose, normalized into one brand-neutral shape. Backends are declared, never inferred. |
+| [13 — How Rooms Are Found](13-segmentation.md) | The segmenter contract, the shape every engine must return, the shared geometry toolkit, and what survives of boundary derivation. |
+| [14 — Live Room Tracking](14-live-tracking.md) | Room identity from the device's own signal; position survives only as a movement delta. Plus the dock-drift log. |
+| [15 — The Stall Capture Image](15-stall-capture-image.md) | The pure renderer behind a stall notification, and why every behaviour in it is an absence behaviour. |
+| [16 — The Battery Record](16-battery-record.md) | Two evidence streams meeting in one record: the sampling guards and their asymmetric reach, charge sessions, the two-regime health proxy, per-job drain, and the twelve sensors. |
+| [17 — A Room's Identity](17-room-identity.md) | What a room is, where identity is minted, how it survives the device renumbering its segments, and the guards on the write path. |
+| [18 — The Access Graph](18-access-graph.md) | Reachability and live-entity rules over the room store: the delta-scoped edit gate, tri-state rule evaluation, and what reaches a user. |
+| [19 — The Event Ingress Layer](19-event-ingress.md) | The ten listeners: three subscription models, why nothing is serialized at ingress, and where deduplication actually lives. |
+| [20 — Room Profiles](20-room-profiles.md) | The global profile library and the contract that keeps one brand's vocabulary out of another brand's rooms: core owns the keys, the adapter owns every value. |
+| [21 — Run Profiles](21-run-profiles.md) | The per-map saved-run library: what a save captures, the four-rung apply ladder, and why applying one writes the queue and not just the rooms. |
+| [22 — The Adapter Contract](22-adapter-contract.md) | What a brand must declare, what each omission falls back to, and which of those rules actually run for a code adapter. |
+| [23 — The Eufy Adapter](23-eufy-adapter.md) | How the reference brand answers the contract: the five things it computes, the declarations that look like mistakes and are not, and the surfaces that no longer do what they say. |
+| [24 — The Roborock Adapter](24-roborock-adapter.md) | What it cost to be the second brand: the live dock resolution and the three probes it rejects, where the reverse port forced a new name or a change to core, and the two model tables that disagree. |
+| [25 — The Eufy Segmentor](25-eufy-segmentor.md) | The HSV pipeline that infers rooms from map screenshots: why it exists after the vendor gave us rooms, the two-theme image trick at its centre, and how to find the mis-tuned stage without memorising a threshold. |
+| [26 — The Learning Record Store](26-learning-record-store.md) | Where learning keeps what it knows: six directories per vacuum, three record kinds, and the tri-state read that stops a torn file becoming a wrong statistic. |
+| [27 — What Counts As Learnable](27-learning-eligibility.md) | The two vocabularies that record the verdict, the three places that can veto a run, and why a cancelled run is not evidence about a room in either direction. |
+| [28 — From Records To Statistics](28-learning-statistics.md) | The key that decides what counts as the same clean, what a partial clean loses and keeps, and why a renamed room starts from zero. |
+| [29 — Prediction and Accuracy](29-learning-prediction.md) | The five-pass lookup and why it relaxes cheapest-first, what a relaxed match costs, and the loop that feeds a prediction error back into its next confidence. |
+| [30 — External Runs](30-external-runs.md) | Runs started from the vendor app: capture without identity, the dock grace window, and why one finishes into a pending review rather than a job. |
+| [31 — The Setup Layer](31-setup-layer.md) | The declared step machine, the asymmetric drift signal that reopens a finished step, and why a rejected phantom room belongs to one map. |
+| [32 — The Store](32-the-store.md) | The one persistent document everything writes to: two write paths, a schema that is mostly undeclared, and the guard that stops a failed setup writing an empty dict over everything. |
+| [33 — The Orchestrator](33-the-orchestrator.md) | Fifteen subsystems and the three that do not need the manager, what a restart loses, and the migration loop that must never write a brand word. |
+| [34 — Capability Detection](34-capability-detection.md) | The two kinds of adapter hint and why confusing them shipped a defect, and the vocabulary that records how a role was resolved rather than only what won. |
+| [35 — The Fault Tracker](35-the-fault-tracker.md) | Three latches with three lifetimes, the two-phase handoff that survives a failed save, and where Home Assistant stops speaking and the brand starts. |
+| [36 — The Service Layer](36-the-service-layer.md) | Eighty services across sixteen domains: why a write refuses where a read answers, and why service names are never translated but their failures are. |
+| [37 — The Entity Surface](37-the-entity-surface.md) | What works without the card: six platforms, a unique id that may never be parsed, and why cleanup is the complement of what was built. |
+| [38 — The Theme Library](38-the-theme-library.md) | One subtree owned outright, why deleting a built-in theme needs a tombstone, and which tags are stored versus derived from the palette. |
+| [39 — The Integration Entry Point](39-the-entry-point.md) | The four functions HA calls, the cold-start race that makes setup run twice, and the ruling that removing the integration keeps your learning tree. |
+| [40 — Diagnostics and Evidence](40-diagnostics-and-evidence.md) | Four layered ways to ask what actually happened: the read-only support dump, the silent log ring, the record that makes invisible branches visible, and the receipt protocol where both ends assert the edge. |
+| [41 — Maintenance and the Dock](41-maintenance-and-the-dock.md) | Why the framework keeps a bookmark rather than a counter, what each of the two clamps defends against, and the gate that asked the dispatched question about the floor. |
+| [42 — The Send Side](42-the-send-side.md) | The last mile: ids re-resolved at dispatch, why a mixed batch takes the safest water, and the safety abort that could never fire. |
+| [43 — Observing a Run Without Geometry](43-observing-a-run.md) | Counter plateaus instead of coordinates, the pose ring that outlives the job, and a module that deliberately decides nothing because a wrong rule is worse than the bug. |
+| [44 — Onboarding and First Run](44-onboarding-and-first-run.md) | Installed to usable, where nothing blocks: an optional vacuum picker, completeness computed rather than stepped, and a sidebar title the user owns. |
+| [45 — The Shared Layer](45-the-shared-layer.md) | The four modules everything imports: a constants file that re-exports a brand, ensure-versus-require arrived at four times, and how much of the first data model is still here. |
+
+> The rest of the NOW shelf is unwritten. Until a subsystem is rewritten here, its retired guide
+> in `docs/retired/dev/` is the only account there is.
+
+## DESIGN — how we want it to work
+
+Either side may be wrong; when a design doc and the code disagree, **adjudicate** rather than
+assuming the doc is stale.
+
+- [design/shipped/notation-anchors.md](design/shipped/notation-anchors.md) — the anchor classes
+- [design/shipped/map-state-source.md](design/shipped/map-state-source.md)
+- [design/shipped/eufy-native-transition.md](design/shipped/eufy-native-transition.md)
+- [design/planning/entity-resolution-reliability.md](design/planning/entity-resolution-reliability.md)
+- [design/planning/voice-assist-wizard.md](design/planning/voice-assist-wizard.md)
+- [design/core-minimality.md](design/core-minimality.md) — a dated *measurement*, not a plan and
+  not history; it sits at the `design/` root because neither sub-shelf fits it
+
+## HISTORY — what we stopped doing
+
+Never wrong: a record of what was true then.
+
+- [history/disaster-recovery-standard.md](history/disaster-recovery-standard.md)
+- [history/documentation-epoch-lifecycle.md](history/documentation-epoch-lifecycle.md)
+- [history/floor-type-cleaning-defaults.md](history/floor-type-cleaning-defaults.md)
+- [history/room-bounds-from-traces.md](history/room-bounds-from-traces.md)
+
+## Outside the shelves
+
+- **[frontend/](frontend/architecture-overview.md)** — the card. Its own hub, its own index.
+- **`reference/`** — generated. Never hand-edit; regenerate with
+  `python scripts/check_generated_docs.py --fix`.
+  [EVENTS](reference/EVENTS.md) ·
+  [THEME_TOKEN_MAP](reference/THEME_TOKEN_MAP.md) ·
+  [THEME_TOKEN_USAGE](reference/THEME_TOKEN_USAGE.md) ·
+  [ai-theme-authoring](reference/ai-theme-authoring.md)
+- **`deltas/`** — [open deltas](deltas/README.md), tracked against live behaviour.
+- **`maintenance/`** — dated audit records, excluded from the citation and index gates by rule.
 
 ---
 
-## Reference & maintenance
+## Gates
 
-Not in the numbered reading order.
+Documentation is a **release** gate, not a per-push one.
 
-- **[reference/](reference/ai-theme-authoring.md)** — the **generated** half of the docs: facts
-  derived from source, never hand-edited. CI fails if any of them is not what its generator emits
-  now — see [the staleness gate](../testing/04-patterns-and-conventions.md#generated-documentation--the-staleness-gate),
-  or run `python scripts/check_generated_docs.py --fix`.
-    - [EVENTS](reference/EVENTS.md) — every event on `hass.bus`, its payload keys and its fire
-      sites (`python scripts/gen_event_docs.py`). The *reasons* stay in
-      [02-ha-integration §7](02-ha-integration.md) and [06-job-lifecycle §10](06-job-lifecycle.md).
-    - [THEME_TOKEN_MAP](reference/THEME_TOKEN_MAP.md) + [THEME_TOKEN_USAGE](reference/THEME_TOKEN_USAGE.md)
-      — the token catalog and its CSS-usage trace (`node scripts/gen-theme-token-docs.mjs`).
-    - [ai-theme-authoring](reference/ai-theme-authoring.md) — hand-written: theming the card with
-      an AI assistant.
-- **[design/notation-anchors](design/shipped/notation-anchors.md)** — the stable-reference scheme:
-  an eight-character key (`CN` `SN` `HN` `PN` `IN` + six opaque Crockford characters) that
-  separates **identity from meaning**, so a reference survives a rename, a refactor or a
-  file move. Mint and check with `python scripts/doc_anchor.py`; `rg CN9BGGJ6` is the
-  fallback that works with no tooling at all.
-- **`dev/maintenance/`** — the hostile-audit working ledger
-  (`highly-aggressive-audit.md`): what each subsystem audit found, what is fixed, what is still open.
-  **Repo-only** — excluded from the published docs site (`exclude_docs` in `mkdocs.yml`), so it is
-  NAMED here in backticks rather than linked. A link would still render on the site, as an `<a href>`
-  pointing at a page that was never built — and `mkdocs build --strict` reports that at INFO, not as a
-  warning, so the build stays green while every reader of the public site gets a 404.
+| command | checks |
+|---|---|
+| `python scripts/check_doc_citations.py` | every `::symbol` resolves; flags surviving line citations |
+| `python scripts/check_generated_docs.py` | generated docs match their generator |
+| `python scripts/check_docs_index.py` | every doc is reachable from an index |
+| `python scripts/doc_anchor.py --check` | anchor identity: duplicate, broken, moved, malformed |
+| `mkdocs build --strict` | **links only** — it has passed clean through eleven false sentences and can never be the freshness gate |
 
----
-
-## Contributing docs
-
-Not numbered — separate audience.
-
-- [porting-guide](../contributing/porting-guide.md) — end-to-end workflow for adding a new vacuum brand
-- [animal-authoring](../contributing/animal-authoring.md) — public path: submit a declarative animal **descriptor** (sanitised + codegen'd) — the safe way to share a companion
-- [mascot-authoring](../contributing/mascot-authoring.md) — maintainer / runtime path: hand-written `animals/<id>.js` (`register()`, `type:'custom'`) plus the craft standards that apply to both paths
-- [theme-authoring](../contributing/theme-authoring.md) — making a card theme (editor / AI-assisted / hand-written JSON) and sharing it in the gallery
-- [translating](../contributing/translating.md) — contributing a card translation (a JSON locale file — data, not code)
-- [translation-review](../contributing/translation-review.md) — AI-drafted-translation review notes awaiting native-speaker confirmation
-
-## Testing docs
-
-How the test suite is structured, how to run it (Docker-based), the available
-fixtures and seeding helpers, and copy-paste templates for new tests.
-
-- [testing/README](../testing/README.md) — index and reading order
+Naming a file in backticks does **not** make it reachable. That is how the whole of `design/`
+once went missing from the corpus.

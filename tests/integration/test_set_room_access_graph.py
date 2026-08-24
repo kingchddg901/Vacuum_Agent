@@ -17,6 +17,12 @@ Coverage targets
 [SAG-8]  an INCOMPLETE graph is accepted (buildable in stages) but reported
 [SAG-9]  duplicate edges in the payload collapse rather than raising
 [SAG-10] idempotent: applying the same graph twice is a no-op with ok=True
+[SAG-11] D10: `issues` has ONE shape on both exits. The refusal path formatted them
+         and the success path handed back the raw internal validation, so a consumer
+         written against one broke on the other and the key name gave no warning.
+[SAG-12] D10: the shape matches the sibling readers — `get_access_graph_health` and
+         `get_room_access_editor` both emit formatted issues, so a caller can move
+         between them without re-learning the payload.
 """
 
 from __future__ import annotations
@@ -287,3 +293,51 @@ def test_applying_the_same_graph_twice_is_stable(mgr_rooms):
     assert _graph_of(rooms) == snapshot
     assert second["block_code_before"] is None
     assert second["block_code_after"] is None
+
+
+def test_sag11_issues_have_one_shape_on_both_exits(mgr_rooms):
+    """[SAG-11] RED BEFORE THE FIX.
+
+    An INCOMPLETE graph is accepted and reported, so the success path routinely carries
+    a non-empty `issues` list — this is not an edge case reachable only by contrivance.
+    The two exits are compared against each other rather than against a hardcoded shape,
+    so the test says what it means: one key, one payload.
+    """
+    manager, rooms = mgr_rooms
+
+    ok = manager.set_room_access_graph(
+        vacuum_entity_id=_VAC, map_id=_MAP, dock_room_id=1, edges=_edges((1, 2)),
+    )
+    assert ok["ok"] is True
+    assert ok["issues"], "precondition: an incomplete graph reports issues"
+
+    refused = manager.set_room_access_graph(
+        vacuum_entity_id=_VAC, map_id=_MAP, dock_room_id=1,
+        edges=_edges((1, 2), (1, 3), (3, 4), (2, 4)),      # multiple inbound
+    )
+    assert refused["ok"] is False and refused["issues"]
+
+    _KEYS = {"code", "message", "params", "room_ids"}
+    for issue in ok["issues"]:
+        assert set(issue) == _KEYS, issue
+        assert "type" not in issue, "the RAW internal validation shape leaked out"
+    for issue in refused["issues"]:
+        assert set(issue) == _KEYS, issue
+
+
+def test_sag12_the_shape_matches_the_sibling_readers(mgr_rooms):
+    """[SAG-12] RED IF THE WRITE PATH DIVERGES AGAIN.
+
+    Compared against `get_access_graph_health` rather than a literal, so the assertion
+    tracks the convention instead of a copy of it. Formatted is what every public reader
+    in the subsystem emits; raw belongs to `_validate_room_access_graph` and stops there.
+    """
+    manager, rooms = mgr_rooms
+    written = manager.set_room_access_graph(
+        vacuum_entity_id=_VAC, map_id=_MAP, dock_room_id=1, edges=_edges((1, 2)),
+    )
+    health = manager.get_access_graph_health(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert written["issues"] and health["issues"]
+    assert {frozenset(i) for i in written["issues"]} == {frozenset(i) for i in health["issues"]}
+    assert [i["code"] for i in written["issues"]] == [i["code"] for i in health["issues"]]

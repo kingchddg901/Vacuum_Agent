@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity import Entity
 
 from .adapters.registry import get_adapter_config
@@ -96,16 +97,55 @@ class EufyVacuumRoomEntity(Entity):
         rooms = map_bucket.get("rooms", {})
         return rooms.get(str(self._room_id), {})
 
+    def _refuse_room_write(self, reason: str) -> None:
+        """Surface a REFUSED room write on the control the user just pressed.
+
+        RP-002/RF-01 (IN5BRA39): a refusal is not a success. Both writers below
+        hand back a payload that used to be DISCARDED, after which async_save()
+        and async_write_ha_state() ran unconditionally — so a room deleted
+        between the state write and the button press gave the user a switch that
+        visibly moved and a store that never changed. An entity has no response
+        channel the way the services do (both `update_room_fields` and
+        `apply_room_profile` are registered supports_response=True), so an
+        exception is the only way the person who pressed it finds out.
+
+        ``reason`` is the callee's slug VERBATIM — that is the string that gets
+        pasted into an issue, so it is not prettified on the way out.
+        """
+        raise ServiceValidationError(
+            f"Could not update {self._room_name}: {reason}",
+            translation_domain=DOMAIN,
+            translation_key="room_update_refused",
+            translation_placeholders={"room": self._room_name, "reason": reason},
+        )
+
     async def _async_update_room(self, updates: dict[str, Any]) -> None:
         """Apply field updates to this room, persist storage, and write HA state."""
         profile_name = updates.get("profile_name")
         if isinstance(profile_name, str) and len(updates) == 1:
-            self.manager.apply_room_profile(
+            result = self.manager.apply_room_profile(
                 vacuum_entity_id=self._vacuum_entity_id,
                 map_id=self._map_id,
                 room_ids=[self._room_id],
                 profile_name=profile_name,
             )
+            # apply_room_profile carries NO `ok` key on ANY path, so there is
+            # nothing here that reads as a verdict. An unknown profile comes back
+            # with error="profile_not_found"; a room that vanished between the
+            # state write and this press is `continue`d over and comes back
+            # SUCCESS-SHAPED — updated_room_ids [], room_count 0, and no error key
+            # at all. The one claim both paths make honestly is whether THIS room
+            # id came back applied, so that is the verdict. Reading `ok` here
+            # would wave the vanished-room case straight through, which is the
+            # half of this defect that actually has a user pressing a button.
+            applied = result.get("updated_room_ids") if isinstance(result, dict) else None
+            if not isinstance(applied, list) or self._room_id not in applied:
+                # "not_applied" is OURS, used only when the payload named no
+                # error — never a slug invented on the callee's behalf.
+                self._refuse_room_write(
+                    (result.get("error") if isinstance(result, dict) else None)
+                    or "not_applied"
+                )
             await self.manager.async_save()
             self.async_write_ha_state()
             return
@@ -130,20 +170,42 @@ class EufyVacuumRoomEntity(Entity):
             if key not in managed_field_names
         }
         if managed_updates:
-            self.manager.update_room_fields(
+            result = self.manager.update_room_fields(
                 vacuum_entity_id=self._vacuum_entity_id,
                 map_id=self._map_id,
                 room_id=self._room_id,
                 **managed_updates,
             )
+            # This callee DOES answer `ok` on every path, and from this call site
+            # exactly ONE refusal is reachable: `room_not_found`. The kwargs above
+            # are the managed subset only, and the other two refusals both need an
+            # access-graph field (`no_dock_room` and `invalid_access_graph` are
+            # gated on grants_access_to) that can never arrive here. One refusal
+            # path, so one branch — three would read as covered and never fire.
+            if not (isinstance(result, dict) and result.get("ok") is True):
+                self._refuse_room_write(
+                    (result.get("error") if isinstance(result, dict) else None)
+                    or "not_applied"
+                )
             if not remaining_updates:
                 await self.manager.async_save()
                 self.async_write_ha_state()
                 return
             # EP-7: the call carried BOTH managed and unmanaged fields (e.g. an
-            # "enabled"+"color" batch) -- update_room_fields only understands the
-            # managed subset above, so anything else must still reach the generic
-            # merge below instead of being silently dropped by an early return.
+            # "enabled"+"color" batch), so anything outside `managed_field_names`
+            # must still reach the generic merge below instead of being silently
+            # dropped by an early return.
+            #
+            # ⚠ was: "update_room_fields only understands the managed subset above."
+            # FALSE (ledger D4). The callee's signature
+            # (`core/manager.py::EufyVacuumManager.update_room_fields`) also accepts
+            # `color`, `is_dock_room`, `is_transition`, `grants_access_to` and
+            # `rules` — `color` being this comment's own example of a field it
+            # supposedly could not take. The true statement is narrower and is about
+            # THIS CALL SITE, not the callee: `managed_field_names` above is a
+            # hand-maintained copy that has drifted from that signature, so this call
+            # site only PASSES the managed subset, and everything else must be routed
+            # to the merge. Splitting here is therefore a choice, not a constraint.
 
         map_bucket = (
             self.manager.data.setdefault("maps", {})
@@ -156,7 +218,19 @@ class EufyVacuumRoomEntity(Entity):
         current = dict(rooms.get(room_key, {}))
         current.update(remaining_updates if managed_updates else updates)
 
-        rooms[room_key] = current
+        # The other two writers this method can reach BOTH finalize before they
+        # store (apply_room_profile, update_room_fields); this merge did not, so
+        # which branch a field happened to fall into decided whether the carpet/mop
+        # invariants applied to it at all. `floor_type` is a protection INPUT
+        # (profiles/manager.py::_protected_room_config) and is deliberately not a
+        # managed field, so it lands in exactly this branch: a room switched to
+        # carpet here kept its mop mode, its water level and its edge mopping, and
+        # the store then read as a carpet room the planner was clear to send out
+        # wet. Finalizing also keeps profile_name honest, which the raw merge left
+        # stamped with whatever preset the room matched BEFORE the edit.
+        rooms[room_key] = self.manager._finalize_room_update(
+            current, vacuum_entity_id=self._vacuum_entity_id
+        )
 
         from .rooms.room_manager import build_room_selection_summary
 

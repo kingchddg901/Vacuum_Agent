@@ -136,7 +136,22 @@ def register_roborock_adapter_for_vacuum(
     # vacuum group (water off) then a mop group (water high) each apply their own level.
     # rank ascending -> max-wins across the group; canonical off/low/medium/high map 1:1
     # onto select.<obj>_mop_intensity's options (no value_map). UNVERIFIED on-device: a
-    # rejected select_option is caught + logged and never aborts the run
+    # rejected select_option is caught + logged and never aborts the run.
+    # ⚠ NOT TRUE FOR THE SAFEST-WATER ENTRY, which is the water pre-call this brand
+    # declares. When ``mixed_mode_water_policy: "safest"`` is active,
+    # ``dispatch/manager.py::_run_global_pre_calls`` RAISES and aborts the dispatch on
+    # both a missing target entity (issue #51) and any exception from the select —
+    # deliberately, because failing to push safe water before a batch containing dry
+    # rooms is what wet-mops them.
+    #
+    # And that path is not an edge case: it activates whenever the batch contains ANY
+    # non-mop room (``_any_dry_room = _mop_rooms < len(resolved_rooms)``), which
+    # includes the plainest case of all, an all-vacuum batch. Since an uncatalogued
+    # model defaults to mop-settable, this is reachable on any Roborock not in the
+    # catalog whose mop set is actually rejected.
+    #
+    # "Caught + logged, never aborts" remains true for the BEST-EFFORT entries (fan,
+    # single-mode water). Corrected 2026-08-23.
     # (_run_global_pre_calls), so this degrades safely on a model that turns out unsettable.
     # mop_mode (scrub depth) is a second GLOBAL select with no canonical per-group slot yet
     # -> left out until there's a card control to drive it per group.
@@ -225,6 +240,19 @@ def register_roborock_adapter_for_vacuum(
         # (manager.get_vacuum_capabilities -> data["capabilities"]), not the config block,
         # so a config-only declaration never reaches queue_engine.
         "supports_edge_mopping": False,
+        # D18: THE DECLARATION HAD NO WIRE. The config block below reads
+        # `caps.get("supports_zone_clean", True)` under a comment saying a model catalog
+        # entry can declare it False "and be believed" — but nothing passed it as a
+        # hint, and `capabilities._hint_wins` only honours a declared False when the key
+        # is PRESENT in the hints. So a catalog entry declaring False resolved to the
+        # derived default True and was silently ignored: open at the core end (dispatch
+        # DOES refuse on False, ZONE-2) and unconnected at this one.
+        #
+        # Defaults True, so no model in the catalog changes behaviour today. The point is
+        # that the declaration surface now reaches the gate, which is what makes the
+        # comment below true and what makes a future entry provable rather than hopeful.
+        # Same shape as `has_path_control` directly above.
+        "supports_zone_clean": profile.get("supports_zone_clean", True),
     }
     caps = detect_capabilities(
         hass,
@@ -590,9 +618,18 @@ def register_roborock_adapter_for_vacuum(
         # [27, 25, 23, 22], read back identical, ack ['ok'], and the vendor app rendered
         # it as badges 1-2-3-4 on its own Sequence screen. `[]` means no order saved.
         #
-        # READ ONLY for now. Writing is the override feature and is deliberately not
-        # declared yet — a declaration that promises a write nothing implements is worse
-        # than an absent one.
+        # READ + WRITE. The write landed 2026-08-24; until then this block was read-only
+        # under the note "a declaration that promises a write nothing implements is worse
+        # than an absent one", which is why the write half arrives WITH its implementation
+        # rather than ahead of it.
+        #
+        # ⚠ THE WRITE IS MODEL-GATED, NOT BRAND-GATED. `set_clean_sequence` is the V1
+        # device protocol. Newer Qrevo/B01 models answer `service.set_room_order` on a
+        # DIFFERENT transport, so declaring the write brand-wide would hand those owners a
+        # control that can never land. `supports_clean_sequence_write` comes from the model
+        # catalog and is False for an unknown model. Core needs no branch for this: an
+        # absent `write` key simply means `can_write` is False and the control never
+        # appears — the declaration IS the gate.
         #
         # via: v1_debug_log — `vacuum.send_command` is SupportsResponse.NONE, so the
         # reply is observable ONLY on python-roborock's decode DEBUG line, captured for
@@ -611,6 +648,44 @@ def register_roborock_adapter_for_vacuum(
                 "source_logger": "roborock.protocols.v1_protocol",
                 "decoded_prefix": "Decoded V1 message result: ",
             },
+            # The adapter declares the LITERAL payload with one named hole; core
+            # substitutes `$order` WHOLESALE and knows nothing about the shape. Core owns
+            # the key (`device_clean_order`); "sequence" is Roborock's word and stays HERE
+            # (RULING, Chris 2026-08-20: core may own a closed set of SHAPE names, never a
+            # BRAND name).
+            #
+            # `clear` is declared rather than derived from an empty `payload`, because
+            # "the empty case" is a brand fact -- an empty list clears Roborock, another
+            # brand might need an explicit null, a sentinel, or a different command.
+            # Deriving it would be core inventing a brand's word.
+            #
+            # The ack is free: every write acks ['ok'] on the SAME decode line the read
+            # already captures, so the write self-confirms through machinery that exists,
+            # and it works before any upstream service lands.
+            **(
+                {
+                    "write": {
+                        "via": "v1_send_command",
+                        "service": {"domain": "vacuum", "service": "send_command"},
+                        "payload": {
+                            "command": "set_clean_sequence",
+                            "params": "$order",
+                        },
+                        "clear": {
+                            "command": "set_clean_sequence",
+                            "params": [],
+                        },
+                        "ack": {
+                            "via": "v1_debug_log",
+                            "equals": ["ok"],
+                            "source_logger": "roborock.protocols.v1_protocol",
+                            "decoded_prefix": "Decoded V1 message result: ",
+                        },
+                    }
+                }
+                if profile.get("supports_clean_sequence_write")
+                else {}
+            ),
         },
 
         "setup": {
@@ -762,8 +837,24 @@ def register_roborock_adapter_for_vacuum(
             # live_pose) — Roborock PUBLISHES the live room directly as a NAME sensor
             # (sensor.<id>_current_room = entities.active_cleaning_target), so
             # `source: native_current_room` makes the pose sampler read that entity, slugify
-            # the name, and match it to a managed room id (listeners/pose_sampler.py). No
-            # decoded-map pose is decoded here (anchor/heading stay None).
+            # the name, and match it to a managed room id (listeners/pose_sampler.py).
+            #
+            # ⚠ was: "No decoded-map pose is decoded here (anchor/heading stay None)." False
+            # since the pose wiring landed; corrected 2026-08-24 (ledger L14). `source`
+            # selects how the ROOM is read, NOT whether a position is recorded — the two are
+            # separate facts with separate best sources.
+            # pose_sampler._read_native_current_room_sample banks BOTH `anchor` and `heading`
+            # from async_get_map_live_pose on every non-docked tick where the adapter declares
+            # `map_state_source.live_pose` — which THIS adapter does, in its own
+            # `map_state_source` block above:
+            # `"live_pose": {"backend": "parsed_mapdata", "pose_refresh_s": 30.0}`. Its
+            # own docstring records the change: the literal None "was the only thing keeping
+            # the pose ring anchor-less, which in turn is why a stall capture had no trail to
+            # draw". They stay None only when no pose is declared, when the robot is parked, or
+            # when the pose read misses — and the engine's swept-area path attributes pose-free
+            # in that case, as it always did. Read as authority the old sentence said Roborock
+            # captures carry no position, which is exactly the "a brand having no dot for
+            # months" state listeners/stall_capture.py now emits a receipt to detect.
             #
             # The engine is brand-AGNOSTIC despite the Eufy-flavoured name: eufy_anchor_winding_v1's
             # ROBUST clean-vs-transit decision keys on the cleaning_area (swept m²) delta over each
@@ -802,7 +893,26 @@ def register_roborock_adapter_for_vacuum(
             # baking the S6's answer into the brand.
             "supports_path_control": profile.get("has_path_control", False),
             "supports_edge_mopping": False,
-            # No dock.
+            # ⚠ "No dock" IS THE S6's ANSWER, DECLARED AT BRAND LEVEL, AND IT WINS.
+            #
+            # `dock.py::dock_profile` resolves the vendor's real answers and passes them
+            # to `detect_capabilities` as hints (`dock_washable` / `dock_dryable` /
+            # `dock_collectable`, ~600 lines above). These three literals then say False
+            # regardless. The two dictionaries agree only when no dock is found.
+            #
+            # Worse, the hints cannot survive a refresh: this brand persists neither its
+            # capability hints nor its model family, so a capability refresh re-derives
+            # from THIS block. Dock support is then a hint OR a wash-entity presence, and
+            # there is no wash entity among the declared candidates. The card hides the
+            # Base Station tab on these same literals, so no amount of correct dock
+            # detection can turn that tab on for a dock-having Roborock.
+            #
+            # Left as-is in a prose pass because the fix is a real change with a real
+            # blast radius — either these read from `dock_profile` like
+            # `supports_path_control` reads from the catalog directly above, or the
+            # brand persists its hints so a refresh stops overwriting them. Both are
+            # capability-surface decisions, not comment edits. Same family as D18:
+            # resolved at one end, hardcoded at the other, and it reads as deliberate.
             "supports_mop_wash": False,
             "supports_mop_dry": False,
             "supports_empty_dust": False,
@@ -871,8 +981,13 @@ def register_roborock_adapter_for_vacuum(
             # The guide half of maintenance: per-model how-to steps / notes /
             # frequencies, mirroring the Eufy adapter's upkeep_catalog. The manager
             # picks guide_library[model_guide_families[device.model]][component] and
-            # overlays a localized copy per field (guide_translations, Phase 2 —
-            # empty today, so guides render in English). See adapters/roborock/
+            # overlays a localized copy per field (guide_translations). Those are
+            # POPULATED: adapters/roborock/upkeep_guides_i18n/ holds 17 language
+            # modules (ar cs de es fr he id it ja ko nl pl pt ru tr zh_hans zh_hant),
+            # transcribed from the vendor's own manuals. This said "Phase 2 — empty
+            # today, so guides render in English" until 2026-08-23, at the exact site
+            # someone checks to decide whether localization work is outstanding.
+            # See adapters/roborock/
             # roborock_upkeep_guides.py + upkeep_catalog.py.
             "model_names": ROBOROCK_MODEL_NAMES,
             "model_guide_families": ROBOROCK_MODEL_GUIDE_FAMILIES,

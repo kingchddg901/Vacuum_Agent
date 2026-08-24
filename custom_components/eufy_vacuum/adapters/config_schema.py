@@ -46,8 +46,18 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "values": ["code", "config"],
         "description": (
             "How this adapter config was produced. 'code' = registered by "
-            "a code adapter at startup. 'config' = written by the UI config "
-            "flow. The framework treats both identically at runtime."
+            "a code adapter at startup. 'config' = written to storage by the "
+            "UI/service adapter-config path (save_adapter_config). "
+            "⚠ was: \"The framework treats both identically at runtime.\" — false "
+            "at the one boundary where `source` is the whole point. registry.py "
+            "branches on this exact value at registration (RP-033/RF-32, anchor "
+            "INYA5T84): when _validate_adapter returns any issue a 'config' config "
+            "HARD-RAISES ServiceValidationError, while a 'code' config carrying the "
+            "identical issues only logs warnings and registers. Everything "
+            "DOWNSTREAM does treat them identically — nothing else in the tree "
+            "branches on this key — so the asymmetry is registration severity and "
+            "nothing more. Do not expect a stored config to get away with an "
+            "omission the shipped code adapters do."
         ),
     },
 
@@ -175,8 +185,19 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "type": "str",
                 "required": False,
                 "description": (
-                    "Cleaning time sensor in seconds. Used by job finalizer "
-                    "for actual duration. "
+                    "Cleaning time sensor. Used by the job finalizer for actual "
+                    "duration. The framework reads the entity's own "
+                    "unit_of_measurement first; a BARE number with no unit falls back "
+                    "to this adapter's top-level `cleaning_time_unit` (\"min\" or "
+                    "\"s\", declared in this same schema), and only then is assumed to "
+                    "be seconds. "
+                    "⚠ was: \"Cleaning time sensor in seconds.\" — true of Eufy only. "
+                    "Roborock's counter is a bare number in MINUTES and declares "
+                    "cleaning_time_unit: \"min\". A porter who takes \"in seconds\" as "
+                    "the contract and ships a bare minutes sensor without declaring "
+                    "the unit stores every duration 60x low — listeners/job_metrics.py "
+                    "says exactly that at the ct_unit_hint read. The unit is a brand "
+                    "fact, not a framework requirement. "
                     "Degradation: duration derived from job timestamps only."
                 ),
             },
@@ -184,7 +205,20 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "type": "str",
                 "required": False,
                 "description": (
-                    "Cleaning area sensor in m². Used by job finalizer. "
+                    "Cleaning area sensor. Used by the job finalizer. The framework "
+                    "normalizes whatever the sensor reports to canonical m² from its "
+                    "unit_of_measurement (learning/utils.py::cleaning_area_to_m2, "
+                    "whose _AREA_TO_M2 covers m²/ft²/in²/yd²/cm²); an absent or "
+                    "unknown unit is assumed to be m² already, never guessed. "
+                    "⚠ was: \"Cleaning area sensor in m².\" — not a contract the "
+                    "adapter author can honour, because the unit follows the USER's HA "
+                    "unit system rather than the brand: an imperial HA exposes Eufy's "
+                    "cleaning_area in ft² while Roborock's stays m² (confirmed live on "
+                    "sensor.alfred_cleaning_area vs sensor.ivy_cleaning_area). A new "
+                    "consumer that reads `state` bare on the strength of that sentence "
+                    "reintroduces the ~10.76x inflation that breaks cross-brand "
+                    "comparison and mis-fires swept_area_min_m2. The real contract is: "
+                    "declare the entity, the framework reads its unit. "
                     "Degradation: area omitted from job record."
                 ),
             },
@@ -272,11 +306,32 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "type": "str",
                 "required": False,
                 "description": (
-                    "Work mode sensor. Used by the start-blocker check "
-                    "in core/manager.py to detect blocked work modes. "
-                    "Degradation: work mode block check skipped."
+                    "Work mode sensor. Read ONLY by core/capabilities.py, and only "
+                    "for PRESENCE — the entity (or its registry entry) existing sets "
+                    "supports_work_mode / work_mode_available for the card. The "
+                    "sensor's STATE is never consulted anywhere in the framework. "
+                    "⚠ was: \"Used by the start-blocker check in core/manager.py to "
+                    "detect blocked work modes. Degradation: work mode block check "
+                    "skipped.\" — false. No start-blocker reads work_mode: "
+                    "jobs/job_monitor.py::build_start_blocker_from_lifecycle has arms "
+                    "for vacuum_busy, mid_job_service, active_job_running, "
+                    "map_mismatch and friends, and no work-mode arm at all. The check "
+                    "was REAL once — see the vocabulary.blocked_work_mode_states note "
+                    "below and docs/dev/22-adapter-contract.md §5 for its four datable "
+                    "stages — but declaring this entity buys no start protection "
+                    "today, and someone debugging \"why did a job start during Smart "
+                    "Follow?\" will hunt a core/manager.py check that does not exist. "
+                    "Degradation: only the supports_work_mode capability flag is lost."
                 ),
             },
+            # ⚠ NEVER BOUND AS A SLOT. The Eufy assembler sources entity roles from the
+            # capability probe's `entities` dict, which has ten fixed keys and does not
+            # include this one — so the expression is unconditionally None and the key is
+            # stripped from the resolved config. The role IS probed, but from the candidate
+            # list as a BOOLEAN feeding path-control support, so the description below is
+            # true of the candidate and not of the slot it annotates. The value is
+            # discarded either way, so this note is the remedy rather than a code change —
+            # but read as written the sentence claims an authority the slot does not have.
             "cleaning_intensity": {
                 "type": "str",
                 "required": False,
@@ -345,22 +400,39 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Degradation: uses framework defaults."
                 ),
             },
+            # NOT CONSUMED — both keys below. Declaring them has no effect, and the
+            # schema is a porter-facing surface, so saying so here is the whole repair.
+            # They are fossils of a start-block ladder this product genuinely used to
+            # run (a Jinja ladder in the generator, ported verbatim to a
+            # `build_start_block_reason` in the first Python integration, orphaned inside
+            # the pre-git window, then correctly deleted as a dead orphan). See
+            # docs/dev/22-adapter-contract.md §5 for the four datable stages.
             "blocked_work_mode_states": {
                 "type": "list[str]",
                 "required": False,
                 "description": (
-                    "Work mode strings that block job start. These are "
-                    "raw (non-normalized) values from the work_mode sensor. "
-                    "Degradation: work mode block check skipped."
+                    "NOT CONSUMED. Nothing reads this key. Historically: work mode "
+                    "strings that blocked job start, raw (non-normalized) values from "
+                    "the work_mode sensor. No start-blocker consults work_mode today — "
+                    "entities.work_mode is read only by core/capabilities.py, for "
+                    "capability detection. Declaring this changes nothing."
                 ),
             },
             "blocked_task_status_states": {
                 "type": "list[str]",
                 "required": False,
                 "description": (
-                    "Task status strings that block job start. Raw "
-                    "(non-normalized) values. "
-                    "Degradation: task status block check skipped."
+                    "NOT CONSUMED, and SUPERSEDED rather than lost — which is the "
+                    "difference that matters. The gate it named still exists; it is "
+                    "spelled with different vocabulary. jobs/job_monitor.py::"
+                    "evaluate_job_lifecycle refuses a start on active_run_task_states "
+                    "and on hard_service_states, and those two cover every value the "
+                    "reference brand declares here (verified 2026-08-23: Cleaning and "
+                    "Returning via active_run_task_states, Washing Mop via "
+                    "hard_service_states). Restoring a reader for this key would add a "
+                    "SECOND, shorter copy of a live rule with its own message — which is "
+                    "how the shorter copy becomes the bug. Declare the two sets above "
+                    "instead."
                 ),
             },
             "blocked_dock_status_states": {
@@ -571,9 +643,28 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "type": "str",
                 "required": False,
                 "description": (
-                    "Entity key from entities dict whose cleared state "
-                    "is required alongside task_status_value for completion. "
-                    "Default: 'active_cleaning_target'."
+                    "⚠ UNWIRED SEAM — DECLARED, VALIDATED, AND READ BY NOTHING (A9). "
+                    "Setting this has NO EFFECT today. The completion gate hardcodes "
+                    "the role: listeners/_common.py builds "
+                    "`'active_target': _state(entities.get('active_cleaning_target'))` "
+                    "and compares THAT against secondary_clear_sentinels. Verified by "
+                    "an AST sweep of every module, not a grep — zero readers. It was "
+                    "born orphaned: `git log -S` puts the declaration and the hardcode "
+                    "that ignores it in the SAME commit (2bfda655), so this is an "
+                    "aspirational declaration, not a consumer that was lost. "
+                    "INTENDED, once wired: entity key from the entities dict whose "
+                    "cleared state is required alongside task_status_value. "
+                    "Default: 'active_cleaning_target'. "
+                    "⚠ THE DANGEROUS CASE IS NOT 'jobs never finalize'. A porter who "
+                    "sets this AND omits entities.active_cleaning_target gets "
+                    "`_state(None) == ''`, and '' IS in the default sentinel set — so "
+                    "the secondary is ALWAYS satisfied and the gate silently collapses "
+                    "to task_status alone. A premature finalize ends a running job and "
+                    "writes a wrong run record; a late one is recoverable. "
+                    "KEPT, NOT DELETED: a string naming ANY role is strictly more "
+                    "general than the shipped require_job_active_clear, which is a bool "
+                    "hardcoding ONE alternative role. Deleting it would also flip a "
+                    "stored config that sets it from silently-ignored to loudly-rejected."
                 ),
             },
             "secondary_clear_sentinels": {
@@ -1078,9 +1169,22 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Ordered list of setup step IDs. "
                     "'add_vacuum' is required for every adapter. "
                     "'save_rooms' is required for every adapter. "
-                    "'import_active_map' is needed by brands whose "
-                    "integration surfaces one map at a time and requires "
-                    "an explicit import operation (Eufy). "
+                    "'import_active_map' is in practice required too: it is the "
+                    "brand-agnostic \"discover + create the map bucket\" op (it "
+                    "refreshes the map source first), and without it Configure Rooms "
+                    "has no bucket to show rooms from. BOTH shipped adapters declare "
+                    "it, for opposite reasons — Eufy because its integration surfaces "
+                    "one cloud map at a time and needs an explicit import, Roborock "
+                    "because the bucket still has to be built from the get_maps rooms "
+                    "(its own setup block says so). "
+                    "⚠ was: \"needed by brands whose integration surfaces one map at a "
+                    "time and requires an explicit import operation (Eufy)\" — that "
+                    "reads as a test a porter applies to their own brand, so a brand "
+                    "exposing all maps at once correctly concludes it may drop the "
+                    "step, then ships a setup flow whose room step shows nothing. "
+                    "setup/drift.py's _DEFAULT_SETUP_STEPS ('add_vacuum', "
+                    "'save_rooms') omits it, so an adapter that declares no setup "
+                    "block at all inherits exactly that broken shape. "
                     "'calibrate_map' and 'set_dock_position' are reserved "
                     "for future brand-specific extensions."
                 ),
@@ -1095,6 +1199,25 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "required": True,
         "description": "Job dispatch configuration.",
         "fields": {
+            # A7: DECLARED because the runtime READS it — dispatch/manager.py consults
+            # `zone_passes_max` on BOTH zone branches, yet it was absent from this
+            # `fields` list. Since `dispatch` declares `fields`, the schema walker
+            # recurses and REJECTS undeclared keys, so a porter following the prose in
+            # `supports_zone_repeat` above (which names zone_passes_max) hit a
+            # ServiceValidationError from save_adapter_config, and an in-repo code
+            # adapter hit the same rejection in test_adapter_contract. Read-but-
+            # undeclared is the mirror of A9's declared-but-unread; this file already
+            # documents the identical shape for low_clean_water_margin_ml.
+            "zone_passes_max": {
+                "type": "int",
+                "required": False,
+                "description": (
+                    "Max repeat count the ZONE command accepts, per zone. Falls back to "
+                    "`passes_max`, then 3. Consulted on both coordinate branches — "
+                    "unlike capabilities.supports_zone_repeat, which is non-device_mm "
+                    "only (see its note)."
+                ),
+            },
             "passes_max": {
                 "type": "int",
                 "required": False,
@@ -1293,7 +1416,11 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "SEQUENCED job it re-runs PER PHASE from that phase's own rooms "
                     "(phase_runner._dispatch_active_phase), so a vacuum group then a mop "
                     "group each apply their own value; for an atomic job it fires once at "
-                    "start. Best-effort (a failed pre-call never aborts the run). Absent = "
+                    "start. Best-effort for ordinary entries: a failed pre-call logs and "
+                    "continues. NOT best-effort when mixed_mode_water_policy is 'safest' "
+                    "— that entry RAISES and aborts the dispatch on a missing target or a "
+                    "rejected select, because pushing safe water before a batch with dry "
+                    "rooms is what stops them being wet-mopped. Absent = "
                     "no pre-call. Use per_room_live_settings instead when the device honors "
                     "mid-run per-room changes."
                 ),
@@ -1429,7 +1556,24 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "description": (
                     "Whether the zone-clean command accepts a repeat count. False "
                     "(or omitted zone_passes_max/passes_max in dispatch) normalizes "
-                    "clean_times to 1 rather than shipping it verbatim."
+                    "clean_times to 1 rather than shipping it verbatim. "
+                    "⚠ BRANCH-SCOPED, AND DELIBERATELY SO (A6). This is read at exactly "
+                    "ONE site — dispatch/manager.py, inside the NON-device_mm branch. A "
+                    "`dispatch.zone_coords: device_mm` brand (Roborock app_zoned_clean) "
+                    "never consults it: that branch clamps with "
+                    "`min(clean_times, zone_passes_max or passes_max or 3)` regardless. "
+                    "THE SCOPING IS A STATED EDGE, NOT AN UNFINISHED WAVE: RP-022/RF-23 "
+                    "enumerated the hoist set as zone_max plus min/max area and side "
+                    "bounds, and closed with 'Roborock's device_mm clamp unchanged'; "
+                    "Q12 is likewise scoped to Eufy zones, verbatim, in the decision "
+                    "register and in the in-code comment. "
+                    "⚠ DO NOT 'FINISH' IT BY CLAMPING repeat TO 1 ON device_mm. The two "
+                    "branches carry repeat differently: the else branch puts it in a "
+                    "NAMED field (`clean_times`), where 1 is a harmless no-op, while "
+                    "device_mm puts it as the 5th POSITIONAL element of every rect. A "
+                    "brand that genuinely accepts no repeat count needs a FOUR-element "
+                    "rect, so repeat=1 would still ship the element the declaration says "
+                    "does not exist — the hoist would not deliver the contract."
                 ),
             },
             "zone_max": {
@@ -1733,8 +1877,19 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "type": "float",
                 "required": True,
                 "description": (
-                    "Capacity of the robot's onboard water reservoir in ml. "
-                    "Used to convert wash-frequency intervals into volume."
+                    "Capacity of the robot's onboard water reservoir in ml, measured "
+                    "on real hardware. REPORTED ONLY: "
+                    "planning/run_plan.py::estimate_job_water_usage reads it once and "
+                    "echoes it straight into the returned estimate dict — no "
+                    "calculation consults it. "
+                    "⚠ was: \"Used to convert wash-frequency intervals into volume.\" "
+                    "— false; that arithmetic uses dock_wash_overhead_ml_per_cycle and "
+                    "the wash-cycle count, never this field. Still `required: True` on "
+                    "purpose (EST-CLAMP-1, stated at the read): every port measures it "
+                    "because folding it into the estimate — per-refill capping? "
+                    "overhead timing? — is a design question for a dedicated "
+                    "follow-up, not a one-line fix. Do not size or debug the water "
+                    "estimate against this number; it cannot move it."
                 ),
             },
             "dock_clean_tank_capacity_ml": {
@@ -1766,12 +1921,19 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Omit to use the generic table. Read by planning/run_plan.py."
                 ),
             },
-            # Undeclared until 2026-08-15 while being READ by run_plan.py:539 and
-            # DOCUMENTED at doc 22 §... with a worked example. entry_fields IS
-            # enforced (validate_against_schema recurses into it, unknown-key
-            # rejection included), so a porter following the doc wrote this key,
-            # hit save_adapter_config, and got "key(s) not declared in the schema".
+            # Undeclared until 2026-08-15 while being READ by
+            # planning/run_plan.py::estimate_job_water_usage and DOCUMENTED at doc 22
+            # §... with a worked example. entry_fields IS enforced
+            # (validate_against_schema recurses into it, unknown-key rejection
+            # included), so a porter following the doc wrote this key, hit
+            # save_adapter_config, and got "key(s) not declared in the schema".
             # Our own code adapters never hit it -- they bypass the schema walk.
+            # ⚠ this note cited "run_plan.py:539" and the description below named
+            # `_build_effective_start_plan` until 2026-08-24. Both had rotted into dead
+            # ends: :539 is blank space inside the wash-cycle-count block, and
+            # _build_effective_start_plan never touches this key -- a reader chasing
+            # either one concludes the key is unused, or edits the wrong plan-assembly
+            # path. Cite the FUNCTION, not the line.
             "low_clean_water_margin_ml": {
                 "type": "float",
                 "required": False,
@@ -1779,8 +1941,8 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Dock clean-tank remaining, in ml, at or below which the run plan "
                     "raises the 'low clean water' margin warning. Default 300.0 (Eufy "
                     "dock tuning) -- the one water key that truly defaults rather than "
-                    "falling back to flow-rate-only. Read in planning/run_plan.py "
-                    "(_build_effective_start_plan, the water block)."
+                    "falling back to flow-rate-only. Read in "
+                    "planning/run_plan.py::estimate_job_water_usage (the water block)."
                 ),
             },
         },
@@ -1824,8 +1986,15 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "required": False,
         "description": (
             "VA-owned client-side map render declaration (doc 22 §13a.3). Presence is "
-            "the gate for supports_va_render (core/manager.py ~:4055) — presence only; "
-            "the interior is not validated."
+            "the gate for supports_va_render — presence only; the interior is not "
+            "validated. The gate is one line in core/manager.py::get_dashboard_snapshot "
+            "(`supports_va_render = isinstance(_adapter_cfg.get(\"map_render\"), dict)`), "
+            "exported in that same snapshot dict. "
+            "⚠ was: \"core/manager.py ~:4055\", a line pointer that no longer lands on "
+            "the gate. What :4055 held when that pointer was written is not recoverable "
+            "without the sha it was written against, so this note does NOT say — an "
+            "earlier draft of this correction guessed, and guessed wrong. Cite the "
+            "function, not the line."
         ),
     },
 
@@ -1942,8 +2111,24 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "(core/capabilities.detect_capabilities). Distinct from the `capabilities` "
             "block above, which is the adapter's own declared capability set — the two "
             "share key names but are different dictionaries with different consumers. "
-            "A hint here is authoritative: it overrides the derived default, and it is "
-            "what reaches the room payload gate."
+            "⚠ A HINT IS NOT UNIFORMLY AUTHORITATIVE, AND THIS SAID IT WAS UNTIL "
+            "2026-08-24 (A4). detect_capabilities applies TWO rules, and which one a "
+            "key gets is not visible from here. "
+            "AUTHORITATIVE (`_hint_wins` — a declared False is binding): "
+            "supports_water_control, supports_edge_mopping, supports_passes, "
+            "supports_custom_room_config, supports_room_clean, supports_zone_clean. "
+            "PERMISSIVE (hint OR live entity presence — a declared False is OVERRIDDEN "
+            "when the entity resolves): supports_mop_features, supports_mop_wash, "
+            "supports_mop_dry, supports_empty_dust, supports_path_control, "
+            "has_attribute_rooms. "
+            "So a porter declaring `supports_mop_wash: False` for a brand that "
+            "categorically cannot wash a mop is silently overridden the moment a "
+            "wash-mop button resolves by name-token match on any sibling entity. "
+            "THE SPLIT IS BY DESIGN, not a defect: the code's own comment reserves "
+            "`_hint_wins` for 'capabilities a brand can categorically NOT do'. What was "
+            "wrong is only this description claiming the strong rule for all twelve. If "
+            "a permissive key needs to become binding for your brand, move it into the "
+            "`_hint_wins` set rather than declaring False and expecting it to hold."
         ),
     },
 }
@@ -2045,9 +2230,18 @@ def validate_against_schema(config: Any, schema: dict[str, dict], path: str = ""
     # entity key. That is the whole reason the "contract, as data" artifact could sit ~10
     # blocks behind what shipped without a single test going red.
     #
-    # Only applied where the schema actually enumerates the shape. Nine blocks are declared
-    # as bare `dict` with no `fields` (settings_selects, mapping, map_render, room_profiles,
-    # …) and are legitimately open-ended; asserting there would be noise, not a contract.
+    # Only applied where the schema actually enumerates the shape. TEN top-level blocks are
+    # declared as bare `dict` with neither `fields` nor `entry_fields`, so the recursion
+    # below never reaches them; they are legitimately open-ended and asserting there would
+    # be noise, not a contract. Written out in full, because the count is the part that
+    # rots: settings_selects, mapping, map_state_source, map_render, device_clean_order,
+    # job_segmenter, room_attribution, room_profiles, anomaly, capability_hints.
+    # ⚠ this said "Nine blocks ... (settings_selects, mapping, map_render, room_profiles,
+    # …)" until 2026-08-24, and was one short -- most likely map_state_source or
+    # device_clean_order landed after the note and nobody reconciled it. A count is
+    # checkable and somebody will check it; finding ten under a claim of nine reads as rot
+    # and casts doubt on the surrounding (correct) reasoning. Recount by AST-walking
+    # ADAPTER_CONFIG_SCHEMA for `type: dict` entries carrying neither key.
     unknown = sorted(
         k for k in (set(config) - set(schema))
         if not (isinstance(k, str) and k.startswith("_"))
@@ -2112,11 +2306,31 @@ def validate_against_schema(config: Any, schema: dict[str, dict], path: str = ""
 def validate_adapter_config(config: Any) -> list[str]:
     """Validate ``config`` against ADAPTER_CONFIG_SCHEMA. Empty list = clean.
 
-    The production entry point: services/adapter_config.py calls this BEFORE
+    The SAVE-door entry point: services/adapter_config.py calls this BEFORE
     persisting/registering a stored (UI/service-authored) adapter config, so a
     config missing a required block (entities, dispatch, dispatch.template,
     dispatch.service_domain, dispatch.service_name, ...) is refused up front
     instead of silently shadowing the live adapter with every omitted block
     falling through to that block's own absent-default behaviour.
+
+    ⚠ IT IS NOT "THE PRODUCTION ENTRY POINT", which is what this docstring said
+    until 2026-08-24 (ledger C32). This function has exactly ONE caller in
+    ``custom_components/``: ``services/adapter_config.py::_handle_save_adapter_config``.
+    THE STARTUP LOAD DOOR DOES NOT PASS THROUGH HERE.
+    ``config_loader.load_stored_adapter_configs`` calls
+    ``registry.register_adapter_config`` directly, and that runs
+    ``registry._validate_adapter`` — a hand-written
+    block-by-block check with NO unknown-key rejection and no schema walk. So the
+    same stored config can be REFUSED at save time for a key the schema does not
+    declare and REGISTERED SILENTLY at the next restart from storage. Code adapters
+    never touch this function at all (both shipped brands register via
+    ``register_brand_adapter``), which is the same asymmetry ``const.py`` records
+    above ``HA_ACTIVE_VACUUM_STATES``.
+
+    A reader who takes an "unknown key is rejected" guarantee from this docstring
+    and applies it to what is on disk gets the wrong answer. The gate is real; it
+    covers one of the two doors. Closing the gap is a CODE change (route the load
+    path through the same walk, or state a deliberate reason not to) and is not
+    done here.
     """
     return validate_against_schema(config, ADAPTER_CONFIG_SCHEMA)

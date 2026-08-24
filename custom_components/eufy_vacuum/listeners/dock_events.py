@@ -1,9 +1,24 @@
 """Dock event listeners — record wash / empty / dry events.
 
-Subscribes to each managed vacuum's dock_status entity (per adapter
-config). When the state transitions into a configured trigger value,
-records the event into the manager's persistent dock-events store.
-Used by maintenance tracking and the Base Station tab UI.
+Subscribes to the ``dock_status`` entity of every managed vacuum whose
+adapter declares ``dock_events.enabled`` truthy -- not of every managed
+vacuum. ``register()`` reads that flag FIRST (``fallback=False``, matching
+config_schema.py's "Default: False") and skips the vacuum before it ever
+looks at ``entities.dock_status``; the REG-4 comment inside ``register()``
+states the same rule at the site. Of the two shipped adapters only Eufy
+declares ``"enabled": True`` (adapters/eufy/adapter.py, ``dock_events``
+block); the Roborock adapter lists ``dock_events`` among the blocks it
+omits entirely, so a managed Roborock gets no subscription at all.
+When a watched state transitions into a configured trigger value, records
+the event into the manager's persistent dock-events store. Used by
+maintenance tracking and the Base Station tab UI.
+
+⚠ was: "Subscribes to each managed vacuum's dock_status entity (per adapter
+config)" -- false in both directions, since the default is opt-OUT and one
+shipped brand never opts in. Believing it sends anyone asking "why are no
+dock events recorded for my Roborock / my new brand?" downstream into the
+trigger vocabulary, the edge test and ``record_dock_event``, instead of to
+the one-line ``enabled`` gate that returned before any of it ran.
 
 Public surface:
     register(hass: HomeAssistant) -> None

@@ -1122,3 +1122,52 @@ def test_captured_minutes_falls_back_to_wall_only_for_pre_field_records():
     assert _captured_minutes({"cleaning_wall_seconds": 90}) == 1.5
     assert _captured_minutes({"cleaning_seconds": 0, "cleaning_wall_seconds": 90}) == 1.5
     assert _captured_minutes({}) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# D5 — a renamed room keeps its history.
+# ---------------------------------------------------------------------------
+
+def test_rebuild_unifies_runs_across_a_room_rename(tmp_path):
+    """THE DEFECT, END TO END. Two runs of one physical room, recorded either side of
+    a rename. Without the alias they key under two different names and the room reads
+    as having half its history under a name nothing asks for again.
+
+    RED WITHOUT THE FIX: `office` and `study` produce two separate room_stats entries
+    with sample_count 1 each, instead of one with 2.
+    """
+    rebuilder = _make_rebuilder(tmp_path)
+    rebuilder.store.record_slug_alias(
+        vacuum_entity_id="vacuum.alfred", map_id="6",
+        old_slug="office", new_slug="study",
+    )
+
+    jobs = [
+        _job(job_id="j-old", room_slugs=["office"], duration_minutes=20.0),   # before
+        _job(job_id="j-new", room_slugs=["study"], duration_minutes=24.0),    # after
+    ]
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs)
+
+    slugs = {r["room_slug"] for r in payload["room_stats"]}
+    assert slugs == {"study"}, f"the rename split the history: {slugs}"
+
+    entry = payload["room_stats"][0]
+    assert entry["sample_count"] == 2
+    # and the average is of BOTH runs, not just the post-rename one
+    assert entry["avg_minutes"] == pytest.approx(22.0, abs=0.01)
+
+
+def test_rebuild_leaves_an_unrenamed_room_alone(tmp_path):
+    """The alias must not reach a room it does not name. Absent-alias is the normal
+    state and every resolve there is identity."""
+    rebuilder = _make_rebuilder(tmp_path)
+    rebuilder.store.record_slug_alias(
+        vacuum_entity_id="vacuum.alfred", map_id="6",
+        old_slug="office", new_slug="study",
+    )
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred",
+        jobs=[_job(job_id="j-k", room_slugs=["kitchen"])],
+    )
+    assert {r["room_slug"] for r in payload["room_stats"]} == {"kitchen"}

@@ -847,7 +847,9 @@ class RunPlanManager:
     ) -> list[dict[str, Any]]:
         """Resolve the brand's dispatch engine and return its phase list.
 
-        For atomic engines (every adapter today) this is a single phase whose
+        For atomic engines — Eufy's `room_clean` and Dreame's, NOT every adapter:
+        a brand on GenericRoomIdsEngine (Roborock) returns one phase per room when
+        `strict_order` is set — this is a single phase whose
         ``[0]`` element is byte-identical to ``build_room_clean_payload`` — so
         ``phases[0]`` is a drop-in for the old ``payload_state``.
 

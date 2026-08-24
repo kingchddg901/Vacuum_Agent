@@ -15,6 +15,19 @@ and reports what changed:
     re-segment case). Confirming migrates the durable data to the new id.
   - ``renamed``    — a known segment id now carries a different name/slug (the
     same physical room was renamed in the app).
+  - ``renamed_and_renumbered`` — neither the slug nor the id matched anything, and
+    exactly one stored room and one discovered room were left unclaimed, so the two
+    are PAIRED BY ELIMINATION (REC-3). It carries ``inferred: True`` and
+    ``match_basis: "sole_remaining_pair"`` precisely because nothing about the two
+    rooms was compared — read the C55 block in ``compute_reconciliation`` before
+    consuming it.
+
+⚠ This list named only the first two kinds until 2026-08-24 (R8): it still
+described the pre-REC-3 world, while ``compute_reconciliation``'s own docstring
+had documented all three since REC-3 landed. The omitted kind is the one with the
+weakest evidential basis and the largest data-migration consequence, so a consumer
+switching on ``review["kind"]`` from this header alone has no branch for exactly
+the case that most needs one.
 
 New rooms and removed rooms are intentionally NOT reported here — the existing
 drift system (setup/drift.py) owns those signals. This module only owns the
@@ -67,12 +80,61 @@ def _coerce_int(value: Any) -> int | None:
 
 
 def _room_slug(room: dict[str, Any]) -> str | None:
-    """Return a room's slug, deriving it from the name when absent."""
+    """Return a room's stored slug, or one DERIVED from its name when absent.
+
+    ⚠ The derived value is NOT interchangeable with a stored one when the room's
+    NAME collides with a sibling's, and this docstring implied it was until
+    2026-08-24 (RM12). Discovery disambiguates at its admission boundary (anchor
+    INCFMPP1, ``rooms/room_discovery.py``): within a map the LOWEST ``room_id``
+    keeps the bare slug and every colliding sibling becomes ``{slug}_r{room_id}``.
+    The fallback here calls bare ``slugify_room_name`` — no map, no siblings, no
+    suffix.
+
+    Failure input: stored ``{"7": {"room_id": 7, "name": "Kitchen"}}`` with no
+    ``slug`` field, and a discovery that now returns "Kitchen" (id 3) and "Kitchen"
+    (id 7) — i.e. slugs ``kitchen`` and ``kitchen_r7``. The stored room derives
+    ``kitchen`` and therefore slug-matches DISCOVERED ID 3: an ``id_changed`` review
+    claiming the room moved 7 -> 3, and confirming it stamps room 7's durable
+    settings onto a different physical room. That is A2-REC-2, the failure INCFMPP1
+    exists to prevent, re-entering through the fallback instead of the boundary.
+
+    Exposure is narrow: rooms written by ``build_managed_rooms`` always carry
+    ``slug``, so this needs a bucket that predates the field or was edited by hand.
+    """
     slug = str(room.get("slug") or "").strip().lower()
     if slug:
         return slug
     name = str(room.get("name") or "").strip()
     return slugify_room_name(name) if name else None
+
+
+def _existing_unique_by_slug(
+    existing_rooms: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Slug -> stored room, for slugs that are UNIQUE among ``existing_rooms``.
+
+    RP-018/D5, applied here as well. A store predating admission-time slug uniqueness
+    can still hold two rooms sharing a slug. ``setdefault`` — which both builders below
+    used — is first-wins, so slug-led matching would pick one of the two candidates on
+    iteration order and collapse two rooms' identities on a guess. An ambiguous slug is
+    excluded entirely instead, and that room falls back to id-led matching, which is a
+    known answer rather than an arbitrary one.
+
+    ``rooms/room_manager.py::_existing_by_slug`` is the same RULE over a different
+    vocabulary and stays separate on purpose: it reads the stored ``slug`` field
+    verbatim, while reconciliation compares against a FRESH discovery where a room may
+    carry no slug yet, so it lowercases and derives from the name (``_room_slug``).
+    Unifying the two would force one module's slug definition onto the other; the shared
+    thing is the uniqueness question, not how a slug is spelled.
+    """
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for room in existing_rooms.values():
+        if not isinstance(room, dict):
+            continue
+        slug = _room_slug(room)
+        if slug:
+            grouped.setdefault(slug, []).append(room)
+    return {slug: rooms[0] for slug, rooms in grouped.items() if len(rooms) == 1}
 
 
 def compute_reconciliation(
@@ -102,22 +164,24 @@ def compute_reconciliation(
           {"kind": "renamed", "room_id", "old_slug", "new_slug",
            "old_name", "new_name"}
           {"kind": "renamed_and_renumbered", "old_id", "new_id", "old_slug",
-           "new_slug", "old_name", "new_name"}
+           "new_slug", "old_name", "new_name", "inferred": True,
+           "match_basis": "sole_remaining_pair"}
+            — C55: this kind is reached by ELIMINATION and carries no similarity
+            evidence. The two extra keys say so, so a consumer can present it as a
+            question rather than as a determination.
         plus ``"dismissed": True`` when a dismissal suppressed an identical set.
     """
     existing_rooms = existing_rooms or {}
 
-    existing_by_slug: dict[str, dict[str, Any]] = {}
+    # Ambiguous slugs are EXCLUDED, not first-wins — see _existing_unique_by_slug.
+    existing_by_slug = _existing_unique_by_slug(existing_rooms)
     existing_by_id: dict[int, dict[str, Any]] = {}
     for room in existing_rooms.values():
         if not isinstance(room, dict):
             continue
         room_id = _coerce_int(room.get("room_id"))
-        slug = _room_slug(room)
         if room_id is not None:
             existing_by_id[room_id] = room
-        if slug:
-            existing_by_slug.setdefault(slug, room)
 
     # Slugs present in the fresh discovery. A 'renamed' review must NOT fire when the
     # old slug is still discovered (the room was renumbered, not renamed — already
@@ -184,11 +248,49 @@ def compute_reconciliation(
 
     # REC-3 (RP-019): a room renamed AND renumbered in the same re-map matches
     # NEITHER a slug nor an id, so it is invisible to both branches above. When
-    # exactly one existing room and exactly one discovered room are left
-    # unclaimed, they can only be each other — anything more than one on either
-    # side is genuinely ambiguous and is deliberately left unpaired (no auto
-    # changes without a confident match; drift/new-room handling takes it from
-    # there, same as any other unmatched room).
+    # exactly one existing room and exactly one discovered room are left unclaimed,
+    # this pairs them.
+    #
+    # C55 — WHAT THIS PAIRING RESTS ON, STATED HONESTLY. This comment used to say the
+    # two rooms "can only be each other". They can not: there is NO similarity test of
+    # any kind here — no name or slug comparison, no geometry, no area. A stored room
+    # DELETED plus an unrelated room ADDED in the same re-map leaves exactly one on each
+    # side and produces this review, having nothing to do with a rename.
+    #
+    # The pairing stays, because refusing it loses the genuine rename-and-renumber this
+    # branch exists to catch, and because the user confirms it before anything is
+    # applied. What changes is that the review no longer presents a guess as a finding:
+    # it carries `inferred` and `match_basis`, so a consumer can say "these are the only
+    # two left — are they the same room?" rather than "this room was renamed and
+    # renumbered". Anything more than one on either side is genuinely ambiguous and is
+    # still left unpaired.
+    # ⚠ ACCEPTED RISK (Chris, 2026-08-24), ledger C55. THIS IS A KNOWN DEFECT THAT
+    # SHIPS DELIBERATELY. A stored room DELETED plus an unrelated room ADDED in the
+    # same re-map lands in exactly this 1-and-1 shape, so the pairing can be wrong,
+    # and `plan_migration` then carries the old room's durable settings AND its
+    # access-graph position (`grants_access_to`, and `is_dock_room` via
+    # `carried = dict(source)`) onto a room that is not the same room.
+    #
+    # THE FIX WAS BUILT, MEASURED, AND REJECTED — do not rebuild it without reading
+    # this. Dropping the access-graph position turns a COMPLETE graph PARTIAL for the
+    # GENUINE rename-and-renumber this branch exists to serve, because the real case
+    # and the wrong guess arrive through the same elimination. `access_graph_block_code`
+    # maps partial -> `incomplete_access_graph`, and `planning/run_plan.py` refuses
+    # EVERY run on that map before the queue is built. Probed against real stored data:
+    # Dock(1)->Hall(2)->Study(4) with Study renamed+renumbered to Office(9) went from
+    # `valid: True, complete` to `missing_dependency, partial, blocked`. The user would
+    # confirm a review saying "Office — formerly Study" and then find nothing runs, with
+    # nothing connecting the two. Both of this house's boxes are fully wired graphs.
+    #
+    # So the accepted trade is: a RARE wrong pairing that the user confirms, against a
+    # COMMON hard stop with no explanation. The access-graph position is what makes the
+    # graph valid, so removing it necessarily invalidates the graph — that tension is
+    # the finding, and it is why no partial version of the fix helps either.
+    #
+    # WHAT WOULD CHANGE THE RULING: a review row that says outright the room will need
+    # re-linking before runs resume (card work, `src/renderers/setup.js` folds this kind
+    # into "Renamed" and reads neither `inferred` nor `match_basis`), or a similarity
+    # floor with a threshold somebody has actually measured. Neither existed at 2.1.0.
     unmatched_existing = [
         room for slug, room in existing_by_slug.items() if slug not in matched_existing_slugs
     ]
@@ -204,6 +306,13 @@ def compute_reconciliation(
                 "new_slug": _room_slug(new_room),
                 "old_name": str(old_room.get("name") or ""),
                 "new_name": str(new_room.get("name") or "").strip(),
+                # C55: this pair was reached by ELIMINATION, not by matching anything
+                # about the two rooms. A consumer that renders every review the same way
+                # would state it as a determination; these two fields are what let it
+                # not. Structured, not prose — the wording is the card's, so this adds
+                # no user-facing string and no key to the eighteen locale files.
+                "inferred": True,
+                "match_basis": "sole_remaining_pair",
             }
         )
 
@@ -234,23 +343,44 @@ def plan_migration(
     are dropped and reported under ``dropped`` — the user confirmed the re-map,
     and drift surfaces genuine removals separately.
 
+    ⚠ ``dropped`` IS NOT THE AUTHORITATIVE REMOVAL LIST, and this docstring read as
+    if it were until 2026-08-24 (R4 / RM10). It is derived from ``carried_slugs``,
+    and that set is stamped on a NARROWER condition than the carry itself — which
+    goes wrong in both directions:
+
+    * FALSE NEGATIVE. The REC-3 singleton pairing below is a THIRD carry path this
+      docstring never mentioned, and it carries a room whose slug DID vanish. Stored
+      ``{16: kitchen, 17: den}``, discovered ``[{16: kitchen}, {20: study}]``: 'den'
+      is absent from discovery, is carried onto id 20, and ``dropped`` comes back
+      EMPTY — so a reader concludes a rename+renumber loses the room's settings,
+      the precise loss REC-3 exists to prevent.
+    * FALSE POSITIVE. A saved room whose ``room_id`` is missing or non-coercible is
+      written into ``new_rooms`` BEFORE the ``if old_id is not None`` guard, so it is
+      carried and simultaneously reported under ``dropped``. It also stays in
+      ``leftover_existing_slugs``, which either blocks a genuine REC-3 pairing (two
+      leftovers where the branch needs one) or, when it IS the sole leftover, carries
+      that same stored room onto a SECOND new id — one room's durable settings and
+      access-graph position answering for two rooms.
+
+    ``room_crud.py``'s ``reconcile_room`` hands this list straight back as the
+    service response, so a caller treating it as "what the migration removed" is
+    wrong in both directions.
+
     Returns:
         {"rooms": {id_str: cfg}, "id_remap": {old_id: new_id},
-         "dropped": [slug, ...]}
+         "slug_remap": {old_slug: new_slug}, "dropped": [slug, ...]}
     """
     existing_rooms = existing_rooms or {}
 
-    existing_by_slug: dict[str, dict[str, Any]] = {}
+    # Ambiguous slugs are EXCLUDED, not first-wins — see _existing_unique_by_slug.
+    existing_by_slug = _existing_unique_by_slug(existing_rooms)
     existing_by_id: dict[int, dict[str, Any]] = {}
     for room in existing_rooms.values():
         if not isinstance(room, dict):
             continue
         room_id = _coerce_int(room.get("room_id"))
-        slug = _room_slug(room)
         if room_id is not None:
             existing_by_id[room_id] = room
-        if slug:
-            existing_by_slug.setdefault(slug, room)
 
     # Old ids whose slug still exists in the fresh discovery: they'll be carried by the
     # slug match below, so their freed numeric id must NOT be claimed by the id-fallback
@@ -271,6 +401,10 @@ def plan_migration(
 
     new_rooms: dict[str, dict[str, Any]] = {}
     id_remap: dict[int, int] = {}
+    # D5: old_slug -> new_slug for rooms carried under a CHANGED name. The learning
+    # key is map::slug, so without this the room's past runs stay under a name
+    # nothing asks for again. Reported, not applied, here — plan_migration is pure.
+    slug_remap: dict[str, str] = {}
     carried_slugs: set[str] = set()
     unmatched_discovered: list[tuple[int, str, dict[str, Any]]] = []
 
@@ -297,12 +431,18 @@ def plan_migration(
         carried["name"] = str(discovered.get("name") or source.get("name") or "")
         carried["slug"] = slug
         new_rooms[str(new_id)] = carried
+        # ⚠ The carry happened on the line ABOVE; ``carried_slugs`` — and therefore
+        # ``dropped`` and ``leftover_existing_slugs`` — is stamped only INSIDE this
+        # guard. A stored room with a missing or non-coercible ``room_id`` is carried
+        # and still reported dropped (R4 / RM10, see the docstring).
         if old_id is not None:
             if old_id != new_id:
                 id_remap[old_id] = new_id
             source_slug = _room_slug(source)
             if source_slug:
                 carried_slugs.add(source_slug)
+                if source_slug != slug:
+                    slug_remap[source_slug] = slug
 
     # REC-3 (RP-019): mirrors compute_reconciliation's singleton pairing — a room
     # renamed AND renumbered in the same re-map matches neither by slug nor by id,
@@ -311,6 +451,15 @@ def plan_migration(
     # discovered room are left unclaimed, carry the old room's durable settings
     # onto the new id rather than losing them; anything more than one on either
     # side is ambiguous and is left as a genuine drop/new-room pair.
+    #
+    # C55: this side is reached only AFTER the user confirms the review, and the review
+    # now declares that its pairing came from elimination rather than a similarity match
+    # (`inferred` / `match_basis` — see compute_reconciliation). That is deliberate: the
+    # decision to trust the pair belongs to the person who can see both rooms, and this
+    # function's job is to execute it faithfully once they have. It carries every durable
+    # setting and rewrites the access graph through `id_remap`, so a confirmation given
+    # on a mis-stated finding is expensive — which is exactly why the statement was
+    # fixed rather than this behaviour.
     leftover_existing_slugs = [s for s in existing_by_slug if s not in carried_slugs]
     if len(leftover_existing_slugs) == 1 and len(unmatched_discovered) == 1:
         source = existing_by_slug[leftover_existing_slugs[0]]
@@ -348,7 +497,12 @@ def plan_migration(
         if slug not in carried_slugs
     )
 
-    return {"rooms": new_rooms, "id_remap": id_remap, "dropped": dropped}
+    return {
+        "rooms": new_rooms,
+        "id_remap": id_remap,
+        "slug_remap": slug_remap,
+        "dropped": dropped,
+    }
 
 
 def compute_plan_token(

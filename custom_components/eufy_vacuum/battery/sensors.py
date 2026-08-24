@@ -5,15 +5,29 @@ Sensors per vacuum:
 - {object_id}_charge_rate        — instantaneous %/min (overall, while charging)
 - {object_id}_charge_rate_low_zone   — %/min while battery ≤ 29%
 - {object_id}_charge_rate_high_zone  — %/min while battery ≥ 80%
-- {object_id}_last_charge_duration   — minutes for the last completed session
+- {object_id}_last_charge_duration   — minutes for the last completed session THAT
+  GAINED BATTERY (a zero/negative-delta close never updates it — see
+  ``LastChargeDurationSensor``)
 - {object_id}_battery_health     — % vs install baseline (CV regime — resistance proxy), capped ≤100%
 - {object_id}_cc_charge_speed    — % vs install baseline, CC regime (capacity proxy)
 - {object_id}_cv_charge_speed    — % vs install baseline, CV regime (resistance proxy)
 - {object_id}_last_job_drain_per_min / per_hour / per_m2 — last-job drain rates
 - {object_id}_mid_job_recharge_rate  — rolling mean of mid-job recharge rates
 
-All sensors pull from the same in-memory record; a single update listener
-fans out state writes whenever the manager processes a new sample.
+All sensors pull from the same in-memory record.
+
+⚠ THERE IS NO SINGLE UPDATE LISTENER, and a new sample is not the only trigger. This
+paragraph said "a single update listener fans out state writes whenever the manager
+processes a new sample" until 2026-08-24 and it is wrong in both halves. EVERY entity
+built by ``build_battery_sensors`` registers its own callback via
+``BatteryHealthManager.add_update_listener`` in its own ``async_added_to_hass`` — so
+``_update_listeners`` holds ONE ENTRY PER ENTITY per vacuum (twelve, as
+``build_battery_sensors`` stands) — and ``_notify`` iterates the whole list while each
+entity filters on ``vacuum_entity_id`` itself. ``_notify`` is called from
+``_process_sample``, ``rebaseline``, ``rebuild_job_aggregates``, ``record_job_metrics``
+and ``_attach_post_job_charge_if_pending``, which is why the job-metric sensors update
+outside charging. Anyone optimising the fan-out, or chasing a leaked listener after
+entity removal, is looking for a registration per entity, not one for the set.
 
 The CC/CV regimes age in opposite directions — capacity loss raises %/min
 in the 50→80 CC region, resistance rise lowers %/min in the 80→90 CV taper —
@@ -104,8 +118,10 @@ def build_battery_sensors(
             unique_suffix="last_job_drain_per_m2",
             unit="%/m²",
         ),
-        # Mid-job recharge rate — high-quality health signal (consistent
-        # 15→75 zone, no top taper variance).
+        # Mid-job recharge rate. USUALLY high-quality — a firmware auto-recharge is
+        # roughly a 15→75 window with no top-taper variance — but that window is a
+        # property of the DEVICE, not a gate: any positive-delta charge taken while a
+        # job was in flight moves the mean. See MidJobRechargeRateSensor.
         MidJobRechargeRateSensor(manager=manager, vacuum_entity_id=vacuum_entity_id),
     ]
 
@@ -246,7 +262,21 @@ class ChargeRateSensor(_BatteryBase):
 
 
 class LastChargeDurationSensor(_BatteryBase):
-    """Minutes the most recent completed charge session took."""
+    """Minutes the most recent completed charge session THAT GAINED BATTERY took.
+
+    Reads ``stats["last_charge_duration_min"]``, which ``_close_session`` writes only
+    under ``if delta_pct > 0 and duration_min > 0``.
+
+    ⚠ This said "the most recent completed charge session" until 2026-08-24. A session
+    with zero or negative net delta — the ordinary case of a vacuum already at 100%
+    sitting on the dock and cycling charging on and off — closes normally, gets its
+    ``sessions.csv`` row and its ``session_history_recent`` entry, and never touches
+    these stats. This sensor then keeps showing an OLDER session's duration while newer
+    sessions have completed since, so it will disagree with the newest CSV row; that is
+    not a persistence or ordering bug. The paired ``last_charge_delta_pct`` attribute
+    goes stale in lockstep, so the two agreeing with each other is not evidence that
+    either is current.
+    """
 
     _attr_state_class = "measurement"
     _attr_native_unit_of_measurement = "min"
@@ -278,15 +308,37 @@ class LastChargeDurationSensor(_BatteryBase):
 class BatteryHealthSensor(_BatteryBase):
     """Battery health % relative to the install baseline.
 
-    Headline alias of cv_charge_speed_pct (the resistance-proxy regime).
-    Kept under the _battery_health entity_id for continuity with installs
-    that pre-date the regime split. None until the baseline is anchored.
+    Headline alias of ``cv_charge_speed_pct`` (the resistance-proxy regime).
+    Kept under the ``_battery_health`` entity_id for continuity with installs
+    that pre-date the regime split.
+
+    ⚠ NONE HAS THREE CAUSES, NOT ONE. This said "None until the baseline is anchored"
+    until 2026-08-24, which tells a reader that anchored-baseline-plus-unknown-state is
+    impossible and sends them hunting a persistence or anchoring bug.
+    ``BatteryHealthManager._compute_regime_pct`` returns None when the baseline is
+    un-anchored (the documented case); when no retained qualifying session carries
+    ``cv_min_per_pct`` DESPITE an anchored baseline; and when the computed ratio falls
+    outside ``REGIME_PCT_MIN``..``REGIME_PCT_MAX`` (25.0–150.0). That last one can only
+    happen WITH an anchored baseline — it logs a warning and sets
+    ``health_unavailable_reason = "implausible_regime_ratio"``, the live:BATT-CV-1 /
+    RP-045(iii) path. The ``health_unavailable_reason`` and
+    ``health_unavailable_reason_text`` attributes below exist to tell those states
+    apart; read them before concluding anything from the None.
 
     Capped at 100% — a battery is never "healthier than new". A raw reading
     above 100 (the cell charging faster than its install baseline, common
     while the baseline is young) is clamped for this headline; the uncapped
-    value stays on the _cv_charge_speed diagnostic sensor and in the
-    ``uncapped_pct`` attribute here.
+    value stays in the ``uncapped_pct`` attribute here and on the separate
+    ``_cv_charge_speed`` entity.
+
+    ⚠ ``_cv_charge_speed`` IS NOT A DIAGNOSTIC ENTITY. This docstring called it "the
+    _cv_charge_speed diagnostic sensor" until 2026-08-24; nothing in this package sets
+    ``_attr_entity_category``, so it registers as an ordinary sensor beside this one and
+    NOT under the device page's Diagnostic section — a user sent looking there finds
+    nothing and concludes the entity was never created. Do NOT "fix" the mismatch by
+    adding ``EntityCategory.DIAGNOSTIC``: that would silently move a live entity off
+    existing installs' default dashboards and out of recorder defaults. The wording was
+    the bug.
     """
 
     _attr_state_class = "measurement"
@@ -341,9 +393,23 @@ class RegimeChargeSpeedSensor(_BatteryBase):
     """Per-regime charge-speed % vs install baseline (CC or CV).
 
     Reads ``stats.<stat_key>`` and surfaces the matching baseline anchor
-    in attributes. Returns None until the baseline is anchored. Two
-    instances live side-by-side (CC and CV) so users can read the
-    capacity and resistance signals independently.
+    in attributes. Two instances live side-by-side (CC and CV) so users can
+    read the capacity and resistance signals independently.
+
+    ⚠ "Returns None until the baseline is anchored" — this docstring until 2026-08-24 —
+    made the None self-explanatory, so nobody looked further.
+    ``BatteryHealthManager._compute_regime_pct`` also returns None with the baseline
+    ANCHORED: when no retained session carries the regime field, and when the ratio
+    lands outside ``REGIME_PCT_MIN``..``REGIME_PCT_MAX`` (25–150). In that second case
+    the raw figure is deliberately preserved as
+    ``stats["cc_charge_speed_rejected_pct"]`` / ``stats["cv_charge_speed_rejected_pct"]``
+    ("kept so the failure is diagnosable") and surfaced here as the ``rejected_pct``
+    attribute — see ``extra_state_attributes`` below. It is the only way to tell "no
+    baseline yet" from "a number was computed and rejected".
+
+    The CC and CV indices run in OPPOSITE directions;
+    ``BatteryHealthManager._update_health`` carries the physics. Higher is WORSE on the
+    CC instance.
     """
 
     _attr_state_class = "measurement"
@@ -377,21 +443,47 @@ class RegimeChargeSpeedSensor(_BatteryBase):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        # B17: expose the `_rejected_pct` sibling that BatteryHealthManager
+        # already preserves ("kept so the failure is diagnosable"). Without
+        # this, a native_value of None had two indistinguishable causes — no
+        # baseline yet, OR every recent read was rejected as an outlier — and
+        # the docstring's "still waiting for the baseline" was the only account
+        # the user got. A user seeing a rejected number knows a baseline exists
+        # but recent charging is unusual; that is the diagnostic value the
+        # rejection was preserved for.
+        stats = self._record().get("stats", {})
+        rejected_key = self._stat_key.replace("_pct", "_rejected_pct")
         baseline = self._record().get("baseline", {})
         return {
             "baseline_min_per_pct": baseline.get(self._baseline_key),
             "baseline_session_count": baseline.get("session_count"),
             "baseline_anchored_at": baseline.get("anchored_at"),
+            "rejected_pct": stats.get(rejected_key),
         }
 
 
 class LastJobMetricSensor(_BatteryBase):
     """Generic sensor exposing one of the last-job battery_metrics fields.
 
-    State is the most recent completed job's metric (None if no job yet).
+    State is the most recent completed job's value for ``stat_key``.
     Attributes also surface the running per-clean-mode / per-fan-speed /
     per-water-level aggregates so a card can chart trends without separate
     queries.
+
+    ⚠ NONE DOES NOT MEAN "no job yet" — this said "(None if no job yet)" until
+    2026-08-24, and the routine cause is the other one: a job WAS recorded and the
+    metric itself is None.
+    - ``drain_per_m2``: ``job_metrics.compute_job_battery_metrics`` computes
+      ``drain / area`` only ``if drain is not None and area``, so the metric is None on
+      every recorded job whose ``cleaning_area_m2`` was missing. Area is the read that
+      goes missing in practice — it loses the same finalize-time race
+      ``job_finalizer.py`` documents for ``cleaning_time``, and no learning-blocker
+      stops such a job being recorded (``_update_aggregate_bucket`` says so too).
+    - ``drain_per_min`` / ``drain_per_hour``: ``_safe_drain`` returns None whenever the
+      job ended with MORE battery than it started, i.e. any mid-job-recharge run, and
+      ``_positive_float`` returns None for a zero or absent duration.
+    So a card, user or automation reading ``unavailable`` on ``last_job_drain_per_m2``
+    as "no job has run since restart" will be wrong more often than right.
     """
 
     _attr_state_class = "measurement"
@@ -447,6 +539,18 @@ class LastJobMetricSensor(_BatteryBase):
             "post_job_charge": last.get("post_job_charge"),
             "all_jobs_mean": all_jobs.get(mean_field) if mean_field else None,
             "all_jobs_count": all_jobs.get("count"),
+            # B4: this is the C17 repair applied to `all_jobs` — was missing when the
+            # `by_*` buckets got it, so a reader auditing the fix by looking at the card
+            # saw the original symptom ("mean over 6, Jobs: 10") on the very row the
+            # comment on `_MEAN_SAMPLE_FIELD` cites. `all_jobs` is a `_new_aggregate_bucket`
+            # and carries the same `samples_duration` / `samples_area` fields the
+            # `by_*` buckets read from — this line just puts the honest denominator next
+            # to the mean, using the same lookup.
+            "all_jobs_samples": (
+                all_jobs.get(_MEAN_SAMPLE_FIELD[mean_field])
+                if mean_field and _MEAN_SAMPLE_FIELD.get(mean_field)
+                else None
+            ),
             # Per-bucket means — only populated from single-bucket jobs.
             "by_clean_mode_mean": _bucket_means(agg.get("by_clean_mode", {}), mean_field),
             "by_fan_speed_mean": _bucket_means(agg.get("by_fan_speed", {}), mean_field),
@@ -455,11 +559,22 @@ class LastJobMetricSensor(_BatteryBase):
 
 
 class MidJobRechargeRateSensor(_BatteryBase):
-    """Mean charge rate observed during mid-job recharges (the 15→75 window).
+    """Mean charge rate observed during mid-job recharges.
 
-    The cleanest health signal available: tight start/end zone, pure CC
-    charging region, consistent thermal load. A drop here is an early-warning
-    indicator before either the 0→100 baseline or the high-zone metric move.
+    A firmware auto-recharge mid-clean is TYPICALLY a roughly 15→75 window in the CC
+    region with the pack hot from cleaning, and over charges like that a drop here would
+    be an early-warning indicator before either the 0→100 baseline or the high-zone
+    metric moves. That is the motive for the sensor and it still stands.
+
+    ⚠ 15→75 IS AN OBSERVATION OF THE DEVICE, NOT A GATE. This read "(the 15→75 window)
+    ... tight start/end zone, pure CC charging region, consistent thermal load" until
+    2026-08-24, and those three guarantees are what justified calling it "the cleanest
+    health signal available". Nothing enforces them:
+    ``BatteryHealthManager._classify_session_kind`` tags a session ``"mid_job"`` purely
+    because ``_has_active_job`` was true, and ``_update_mid_job_rate_stat`` is then
+    called for any positive-delta charge at any start and end percentage. A user who
+    docks a job-paused vacuum at 60% and undocks at 64% moves this mean exactly as a
+    full 15→75 auto-resume cycle does.
     """
 
     _attr_state_class = "measurement"

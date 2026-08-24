@@ -11,7 +11,7 @@ is exercised by **631 tests across 18 files** (612 test functions, expanded by
 parametrization).
 
 Source: `custom_components/eufy_vacuum/learning/`
-Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-system.md)
+Architecture reference: [26 — The Learning Record Store](../../dev/26-learning-record-store.md) through [30 — External Runs](../../dev/30-external-runs.md)
 
 
 ### Captured settings the mode cannot apply (`CAP`, added 2026-08-08)

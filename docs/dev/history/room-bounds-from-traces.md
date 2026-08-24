@@ -1,7 +1,7 @@
 # RETIRED — Room bounds from traces (and bounds review)
 
 > **This is HISTORY. The code is deleted. Nothing here describes current behaviour.**
-> Moved out of [11 — Mapping system](../11-mapping-system.md) on 2026-08-14, verbatim,
+> Moved out of `11 — Mapping system` on 2026-08-14, verbatim,
 > because it was the only retired design left sitting inside a live subsystem doc — a
 > reader had to reach a banner to learn that four pages of present-tense algorithm
 > described nothing that runs. Room tracking now reads the device's native

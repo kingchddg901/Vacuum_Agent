@@ -18,6 +18,13 @@ Coverage targets
        (grants are map-scoped room IDs; nothing to strip cross-map).
 [RC-9] remove_map clears run_profiles/queue/onboarding (RP-016/RF-20 --
        PER_MAP_STORES coverage), leaving sibling maps' buckets untouched.
+[RC-16] R16: adding a new PER_MAP_STORES entry cannot crash remove_map. The
+        flag name is on the tuple row itself; nothing has to be hand-maintained
+        in a sibling dict, and an ablation that puts back the sibling-dict
+        subscript is what red-tags the regression. Also pins the PUBLIC RESPONSE
+        SHAPE (the exact `_removed` keys), because tests/service callers key
+        off them and drift there would be a silent break, not a crash. --
+       PER_MAP_STORES coverage), leaving sibling maps' buckets untouched.
 """
 
 from __future__ import annotations
@@ -370,3 +377,70 @@ def test_discover_rooms_caches_payload(manager, hass):
     assert payload["room_count"] == 2
     assert "6" in manager.data["discovery"][_VAC]
     assert manager.ensure_runtime(_VAC).active_map_id == payload.get("active_map_id")
+
+
+# ---------------------------------------------------------------------------
+# [RC-16] R16 — PER_MAP_STORES is the single source of truth for (key, mode, flag)
+# ---------------------------------------------------------------------------
+
+def test_rc16_adding_a_new_per_map_store_does_not_crash_remove_map(rmm, monkeypatch):
+    """[RC-16] RED BEFORE THE FIX (against the 2-tuple + sibling-dict shape).
+
+    The pre-fix code held two hand-maintained lists: PER_MAP_STORES (2-tuple) plus a
+    FLAG_NAMES dict inside remove_map, indexed with a BARE subscript. Adding a 9th
+    entry to PER_MAP_STORES without also editing FLAG_NAMES raised KeyError inside the
+    delete loop and took remove_map down entirely, deleting NOTHING for the map the
+    user was trying to remove. The comment right next to the loop told the maintainer
+    the addition was safe.
+
+    Reproduces the shape here: monkeypatch PER_MAP_STORES to include one new store
+    (with no data behind it), and assert remove_map completes cleanly and returns a
+    response that neither carries a phantom flag nor omits a known one.
+    """
+    import custom_components.eufy_vacuum.maps.map_manager as mm
+    import custom_components.eufy_vacuum.rooms.room_crud as rc
+
+    rm, mgr = rmm
+    _seed_discovery(mgr, _DISCOVERED)
+    rm.save_managed_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    # A newly added per-map store, no data, no historical flag. Under the old shape
+    # this alone would raise KeyError on the flag lookup.
+    extended = mm.PER_MAP_STORES + (("some_new_store", "delete", "some_new_removed"),)
+    monkeypatch.setattr(mm, "PER_MAP_STORES", extended)
+    monkeypatch.setattr(rc, "PER_MAP_STORES", extended)
+
+    removed = rm.remove_map(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    # The bucket did not exist, so the flag stays False rather than True -- but the
+    # key is PRESENT, because the response shape derives from the registry.
+    assert removed["some_new_removed"] is False, removed
+    # And the map really was removed; the loop completed instead of crashing.
+    assert _MAP not in mgr.data["maps"][_VAC]
+
+
+def test_rc16_the_response_shape_is_the_declared_flag_set(rmm):
+    """[RC-16] The response carries EVERY declared flag as False by default, plus
+    rooms_removed. Callers key off exact names, so this is a public contract test.
+
+    Ablation: change a flag name in PER_MAP_STORES -- this goes red for the OLD name
+    (missing) AND the NEW name (unexpected), so a rename cannot ship silently.
+    """
+    import custom_components.eufy_vacuum.maps.map_manager as mm
+
+    rm, mgr = rmm
+
+    removed = rm.remove_map(vacuum_entity_id=_VAC, map_id="nope")
+
+    declared_flags = {flag for (_k, _m, flag) in mm.PER_MAP_STORES if flag}
+    expected = {"vacuum_entity_id", "map_id", "rooms_removed"} | declared_flags
+    assert set(removed) == expected, (
+        f"response shape drifted from PER_MAP_STORES: only in response "
+        f"{set(removed) - expected}; only in registry {expected - set(removed)}"
+    )
+    # And the flag names themselves are the ones callers rely on.
+    assert declared_flags == {
+        "discovery_removed", "history_removed", "rule_status_removed",
+        "run_profiles_removed", "queue_removed", "onboarding_removed",
+        "active_job_cleared",
+    }, sorted(declared_flags)

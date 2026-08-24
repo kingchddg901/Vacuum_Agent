@@ -32,15 +32,21 @@ test("[HR-2] hide-draw mode toggles", () => {
   assert.equal(s.hideDrawMode(), false);
 });
 
-test("[HR-3] canDrawHideArea: overlay-aligned backdrop + image size + rotation 0", () => {
+test("[HR-3] canDrawHideArea: overlay-aligned backdrop + image size + DISPLAYED rotation 0", () => {
+  // C31: the gate reads effectiveMapRotation — the rotation actually rendered —
+  // not raw mapRotation. This fixture used to stub mapRotation, which is the
+  // accessor the old implementation happened to call; it therefore could not
+  // distinguish the two and stayed green while the zone sibling mis-dispatched.
+  // What matters to this gate is the frame ON SCREEN, because the reason it
+  // refuses is the letterbox axis swap, and that is a property of the render.
   const s = makeState();
   s.overlaysAligned = () => true;
   s.mapImageSize = () => [360, 300];
-  s.mapRotation = () => 0;
+  s.effectiveMapRotation = () => 0;
   assert.equal(s.canDrawHideArea(), true);
-  s.mapRotation = () => 90;
+  s.effectiveMapRotation = () => 90;
   assert.equal(s.canDrawHideArea(), false);                      // rotated -> letterbox swap
-  s.mapRotation = () => 0;
+  s.effectiveMapRotation = () => 0;
   s.mapImageSize = () => null;
   assert.equal(s.canDrawHideArea(), false);                      // no dims for the transform
   s.mapImageSize = () => [360, 300];

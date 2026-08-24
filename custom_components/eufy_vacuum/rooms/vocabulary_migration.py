@@ -114,13 +114,67 @@ def _unadjudicated_targets(*, data: dict[str, Any], get_config) -> list[str]:
     distinct from targets it evaluated and found nothing to do for. The planner skips
     both (neither licenses an edit), but only the second means the work is finished.
 
-    An absent block reliably means "not registered YET", never "this brand declares
-    nothing": ``registry._validate_room_profiles`` rejects an adapter whose
-    ``room_profiles`` is missing or empty, so a registered adapter always presents one.
-    That is what makes the two states safely distinguishable here.
+    ⚠ AN ABSENT BLOCK DOES NOT RELIABLY MEAN "not registered YET", AND THIS DOCSTRING
+    CLAIMED IT DID UNTIL 2026-08-24 (R10/C61). It credited
+    ``registry._validate_room_profiles`` with REJECTING an adapter whose
+    ``room_profiles`` is missing or empty. That function only RETURNS issue strings;
+    ``register_adapter_config`` logs them at WARNING and **hard-raises only when
+    ``config.get("source") == "config"``**. A CODE-sourced adapter is warn-only and
+    registers anyway, so ``get_config`` can return a live config with no
+    ``room_profiles`` — exactly the state the old text called impossible. The
+    correctly-scoped wording already existed 460 lines away, at
+    ``registry._warn_completion_gate_orphan``: "hard-raised for a stored config by the
+    caller".
+
+    THE ROUTE THAT ACTUALLY REACHES THIS IS A DIFFERENT ONE, and it is worth stating
+    because the obvious reading sends a reader to audit the adapters, where they will
+    find nothing. Both shipped adapters declare ``room_profiles`` as unconditional dict
+    literals, nothing mutates it afterwards, the config path forces
+    ``source="config"``, and there is no third code adapter — so the ADAPTER-DEFECT
+    route is not live today. The live one is ``brands.resolve_brand`` returning
+    UNSUPPORTED: it registers NOTHING while the vacuum stays managed, so
+    ``get_config`` returns ``None`` forever and the vacuum is permanently pending, with
+    the WARNING re-emitted on every start. No adapter defect required.
+
+    ⚠ THE DEFERRED-LATCH DESIGN BELOW WAS WRITTEN AGAINST A COLD-BOOT RACE, WHERE
+    WAITING WORKS. It has never been reconciled with the unsupported-brand arm, which
+    shipped later and makes "not registered yet" permanently false rather than
+    temporarily so. THIS TEXT CALLED THAT AN OPEN DESIGN QUESTION UNTIL 2026-08-24; IT
+    IS RULED (C61). A target that can never be adjudicated does NOT get a terminal
+    disposition — the option that gave it one wrote a persisted key under
+    ``migrations``, and a stored "gave up on this vacuum" verdict outlives the reason
+    for it: the brand it gave up on becomes supported in a later release and the repair
+    never runs. Only the VOLUME changed. ``migrate_room_vocabulary``'s deferral line
+    moved from WARNING to DEBUG, so an unadjudicatable target no longer shouts once per
+    Home Assistant start for the life of the install.
+
+    NOTHING ELSE MOVED, deliberately: this function still returns every unadjudicated
+    target, the latch still refuses to record the migration as done while one exists,
+    and stored rooms are judged exactly as before. The deferral is still retried on the
+    next start — which is what makes the quieter level safe, and what a terminal
+    disposition would have thrown away.
+
+    On this house's boxes the site is currently inert: ``vacuum.robin`` (an unsupported
+    Dreame) is in ``vacuums`` with a ``maps`` bucket holding zero rooms, so only the
+    no-stored-rooms guard below keeps it out — one saved room away — and that box has
+    already latched.
 
     Vacuums with no stored rooms are not targets — there is nothing to judge and nothing
     to come back for, and rooms created later are born under current rules.
+
+    ⚠ "PRESENTED NO DECLARATION" IS NARROWER HERE THAN IN THE PLANNER — C5, STILL OPEN,
+    and closing it is a CODE change (aligning the two predicates), so it is not made
+    here. This function asks only "is ``room_profiles`` a NON-EMPTY DICT?"
+    (``isinstance(block, dict) and block``). ``plan_room_vocabulary_migration`` applies
+    that same test and then a SECOND one: ``declared_profile_fields`` over the block's
+    ``builtins``/``custom_template``, with ``if not declared: continue`` — and that
+    ``continue`` does not even log. So a vacuum whose adapter declares a non-empty
+    ``room_profiles`` block that yields no profile FIELDS is skipped unjudged by the
+    planner while this function reports it adjudicated, and the latch burns the one
+    shot having judged nothing for it — the exact failure the deferred-latch design
+    below was written to prevent, entering through a predicate it does not cover. It is
+    the same species as the safety rule stated in the module docstring: a "cannot judge"
+    result must be treated as cannot-judge by EVERY caller.
     """
     pending: list[str] = []
     for vacuum_entity_id, maps in (data.get("maps") or {}).items():
@@ -235,10 +289,31 @@ def migrate_room_vocabulary(
     get_config,
     force: bool = False,
 ) -> dict[str, Any]:
-    """Apply the migration once, recording that it ran. Idempotent.
+    """Apply the migration once, recording that it ran ONLY IF IT COULD JUDGE
+    EVERY TARGET. Idempotent.
 
-    Returns ``{"ran": bool, "changes": [...], "rooms_touched": int}``. The caller is
-    responsible for persisting ``data``; nothing here writes to disk.
+    Recording is conditional, not automatic: the deferred-latch block below sets
+    ``migrations[MIGRATION_KEY]`` only when ``_unadjudicated_targets`` comes back
+    empty. Otherwise it deliberately DECLINES to record, logs at DEBUG, and leaves
+    the run to be retried on the next start — "missing runtime information is
+    DEFERRED, never SUCCESS", the file's most carefully argued behaviour.
+    ⚠ was: "Apply the migration once, recording that it ran" — the opposite of that
+    rule, and it is the line a caller reads.
+
+    RETURN SHAPE, and it is NOT uniform across the two exits:
+
+      * the run path returns FOUR keys —
+        ``{"ran": True, "changes": [...], "rooms_touched": int, "latched": bool}``;
+      * the already-migrated early return (``migrations[MIGRATION_KEY]`` set and
+        ``force`` false) returns ``{"ran": False, "changes": [], "rooms_touched": 0}``
+        with NO ``latched`` key, so ``result["latched"]`` raises KeyError there.
+        Read it with ``.get("latched")``.
+
+    ⚠ was: a three-key enumeration that omitted ``latched`` entirely. That
+    enumeration is the contract a caller codes against, and ``latched`` is the ONLY
+    signal that a run deferred.
+
+    The caller is responsible for persisting ``data``; nothing here writes to disk.
     """
     migrations = data.setdefault("migrations", {})
     if migrations.get(MIGRATION_KEY) and not force:
@@ -286,7 +361,24 @@ def migrate_room_vocabulary(
     if _latched:
         migrations[MIGRATION_KEY] = True
     else:
-        _LOGGER.warning(
+        # DEBUG, NOT WARNING — downgraded 2026-08-24 by the C61 ruling.
+        #
+        # The failure mode this line had: a vacuum on an UNSUPPORTED brand can never be
+        # adjudicated. ``brands.resolve_brand`` registers no adapter for it while the
+        # vacuum stays managed, so ``get_config`` returns None forever, ``_pending``
+        # never empties, and this message was re-emitted at WARNING on EVERY Home
+        # Assistant start, permanently, with nothing the user could do about it.
+        # (``vacuum.robin``, the unsupported Dreame on this house's boxes, is one saved
+        # room away from being exactly that.) A warning that can never be acted on and
+        # never stops trains people to mute the integration's log, which costs them the
+        # warnings that DO mean something.
+        #
+        # The information is not gone, it is just not shouted: the full count and the
+        # entity ids stay here for anyone debugging a repair that has not happened, and
+        # every caller still gets ``latched: False`` in the return value. The latch
+        # condition itself is untouched — this run still did not record itself as done
+        # and still retries on the next start.
+        _LOGGER.debug(
             "vocabulary_migration: %d vacuum(s) with stored rooms had no adapter "
             "declaration to judge against (%s), so their rooms could not be evaluated; "
             "NOT recording the migration as done — it will retry on the next start",

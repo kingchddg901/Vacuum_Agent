@@ -442,6 +442,14 @@ def register_eufy_adapter_for_vacuum(
             "not_error_sentinels": sorted(NOT_ERROR_SENTINELS),
             # Raw (non-normalized) block states — sourced from queue_engine.py
             # audit. These are title-cased firmware strings, not normalized.
+            # Both NOT CONSUMED — kept as the historical record of a start-block
+            # ladder this product used to run, not as live vocabulary. The task-status
+            # values are all already refused by evaluate_job_lifecycle through
+            # active_run_task_states / hard_service_states, so a reader for this key
+            # would duplicate a live rule; work_mode has no start-blocker at all, and
+            # on the reference hardware the sensor reads `unknown`, which _norm maps to
+            # empty and which could therefore never match one of these anyway.
+            # See adapters/config_schema.py and docs/dev/22-adapter-contract.md §5.
             "blocked_work_mode_states": ["Smart Follow", "Auto", "Room"],
             "blocked_task_status_states": ["Cleaning", "Returning", "Washing Mop"],
             "blocked_dock_status_states": ["Washing", "Recycling waste water"],
@@ -965,6 +973,16 @@ def register_eufy_adapter_for_vacuum(
             # exposing camera.<device>_map, so older installs (no live map) never see it.
             # Read from caps rather than hardcoded, so a model catalog entry can declare
             # supports_zone_clean False and be believed (see capabilities._hint_wins).
+            #
+            # D18: TRUE FOR THIS BRAND ONLY VIA A HINT, WHICH THIS ADAPTER DOES NOT SEND.
+            # `_hint_wins` honours a declared False only when the key is present in
+            # `capability_hints`, and Eufy passes no zone hint — so this resolves to the
+            # derived default and there is currently no Eufy declaration that could set
+            # it False. That is not a defect here: Eufy has no per-model zone data to
+            # declare FROM (unlike Roborock's model catalog, which now wires it). If a
+            # family is ever found that cannot zone-clean, add it to `capability_hints`
+            # above rather than hardcoding it here — the config block is not the surface
+            # the runtime gate reads.
             "supports_zone_clean": caps.get("supports_zone_clean", True),
             # Eufy zone-clean device limits (mirror the app): up to 10 zones per clean, and
             # each zone SIDE 0.5-10 m. This is a per-SIDE bound (checked against the live map

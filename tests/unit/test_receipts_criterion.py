@@ -57,8 +57,17 @@ async def test_rcc_the_dump_alone_says_not_armed(dump, monkeypatch):
     manager = SimpleNamespace(data={"vacuums": {"vacuum.ivy": {}}})  # absent arming = OFF
     hass = SimpleNamespace(data={sc.DOMAIN: {sc.DATA_RUNTIME: manager}})
 
-    # The synthetic call marks its context; everything it causes inherits the marker without
-    # any consumer knowing `synth` exists — and NOTHING branches on it.
+    # `dev_inject_stall` puts `"injected": True` in the event payload; nothing here reads it,
+    # and no consumer branches on provenance either way (`receipts.PROVENANCE`: "Record it;
+    # do not read it" — gating on the caller would build an injector that exercises a path
+    # the real event never takes). Provenance marks the INJECTION POINT only and is never
+    # inherited forward: every `receipts.emit` in this consumer omits `prov=`, so the receipt
+    # carries `receipts.DEFAULT_PROVENANCE` ("live") — pinned by `d["prov"] == ["live"]` below.
+    # ⚠ was: "everything it causes inherits the marker without any consumer knowing `synth`
+    # exists" — false since the ContextVar build was dropped (receipts/__init__.py,
+    # "PROVENANCE IS A PROPERTY OF THE RECEIPT, NOT OF A CONTEXT"). It contradicted the
+    # assertion further down this same test, and was copied verbatim from item 8 of
+    # PROTOCOL-semantic-flight-recorder.md, which still states the reversed rule.
     await sc._capture(hass, {
             "vacuum_entity_id": "vacuum.ivy",
             "map_id": "Main floor",

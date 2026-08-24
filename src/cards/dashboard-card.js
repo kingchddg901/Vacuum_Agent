@@ -21,6 +21,8 @@ import { emptyArmed, nextArmed, planStart, armedIsValid } from "./dashboard-disp
 import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone-geometry.js";
 import { dashboardSuggestion } from "./card-suggestions.js";
 import { canZoneRepeat } from "./zone-repeat.js";
+import { deriveSequenceRowState } from "../state/sequence-override.js";
+import { ENTITY } from "../constants.js";
 
 const CARD_NAME   = "vacuum-agent-dashboard";
 const CARD_EDITOR = "vacuum-agent-dashboard-editor";
@@ -409,7 +411,7 @@ class EufyDashboardCard extends HTMLElement {
                  ${onCount ? `<span class="count">${this.t("vacuum_card.rooms_selected", { count: onCount })}</span>` : ""}
                  <span class="group-chevron">▾</span>
                </div>
-               ${this._roomsCollapsed ? "" : rooms.map((r) => this._renderRoomRow(r)).join("") + this._renderStrictOrder(onCount)}
+               ${this._roomsCollapsed ? "" : rooms.map((r) => this._renderRoomRow(r)).join("") + this._renderStrictOrder(onCount) + this._renderSequenceOverrideRow(rooms)}
              </div>`
           : `<div class="empty">${this.t("vacuum_card.no_rooms")}</div>`}
         ${this._renderLauncher()}
@@ -444,7 +446,7 @@ class EufyDashboardCard extends HTMLElement {
         <span class="title">${esc(title)}</span>
         <span class="meta">
           ${status}
-          ${Number.isFinite(battery) ? `<span class="batt">🔋 ${esc(Math.round(battery))}%</span>` : ""}
+          ${Number.isFinite(battery) ? `<span class="batt">🔋 ${esc(Math.round(battery))}${esc(this.t("metrics.unit_percent"))}</span>` : ""}
         </span>
         ${renderLangControl({
           t: (k, v) => this.t(k, v),
@@ -489,6 +491,111 @@ class EufyDashboardCard extends HTMLElement {
         <button class="chip ${on ? "active" : ""}" id="strict-order-toggle" aria-pressed="${on}">
           ${on ? this.t("rooms.strict_order_on_label") : this.t("rooms.force_exact_order")}
         </button>
+      </div>`;
+  }
+
+  // Sequence-override row — the PERSISTENT companion to the per-run strict-order
+  // chip above. Where strict_order builds one phase per room for a single run,
+  // this writes a saved sequence to the vendor app that orders EVERY start,
+  // including ones the user begins from the Roborock app. Only appears when the
+  // vacuum's adapter+model declares the write (Roborock V1 today); on other
+  // models the switch entity does not exist and this row renders nothing.
+  //
+  // Five states — see src/state/sequence-override.js.
+  _renderSequenceOverrideRow(rooms) {
+    const vid = this._vacuumId();
+    if (!vid) return "";
+    const overrideEntityId = ENTITY.overrideOrderSwitch(vid);
+    const sensorEntityId = ENTITY.cleanOrderSensor(vid);
+    const switchState = this._hass?.states?.[overrideEntityId] ?? null;
+    if (!switchState) return "";  // adapter/model does not declare the write
+    const sensorState = this._hass?.states?.[sensorEntityId] ?? null;
+
+    // Queue rooms: enabled ones in the order the queue would dispatch (the same
+    // list `_renderRoomRow` renders down the page, filtered to on).
+    const queueRooms = (rooms || []).map((r) => ({
+      room_id: Number(r?.attrs?.room_id),
+      name: r?.attrs?.name ?? "",
+      on: r?.state === "on",
+    }));
+
+    const state = deriveSequenceRowState({ switchState, sensorState, queueRooms });
+    if (state.kind === "absent") return "";
+
+    // Consent text is always visible when the switch is ON — this edits the
+    // user's Roborock app, so the surface says so. When off, we keep it
+    // available as a title on the toggle rather than shouting it.
+    const consentBadge = state.overrideOn
+      ? `<span class="soro-consent">${this.escapeHtml(this.t("rooms.override_order.consent"))}</span>`
+      : "";
+
+    const toggle = `
+      <button class="chip ${state.overrideOn ? "active" : ""}"
+              id="sequence-override-toggle"
+              aria-pressed="${state.overrideOn}"
+              title="${this.escapeHtml(this.t("rooms.override_order.consent"))}">
+        ${this.escapeHtml(this.t("rooms.override_order.toggle_label"))}
+      </button>`;
+
+    const body = (() => {
+      switch (state.kind) {
+        case "path_optimizing":
+          return `<div class="soro-body">${this.escapeHtml(this.t("rooms.override_order.path_optimizing"))}</div>`;
+        case "saved": {
+          const names = state.deviceNames?.length
+            ? state.deviceNames.map((n) => this.escapeHtml(n)).join(" · ")
+            : "";
+          return `
+            <div class="soro-body">
+              <div class="soro-names">${names}</div>
+              <button class="chip" id="sequence-override-clear">${this.escapeHtml(this.t("rooms.override_order.clear"))}</button>
+            </div>`;
+        }
+        case "matching": {
+          const names = state.queueNames?.length
+            ? state.queueNames.map((n) => this.escapeHtml(n)).join(" · ")
+            : "";
+          return `
+            <div class="soro-body soro-green">
+              <div class="soro-status">${this.escapeHtml(this.t("rooms.override_order.matching"))}</div>
+              <div class="soro-names">${names}</div>
+              <button class="chip" id="sequence-override-clear">${this.escapeHtml(this.t("rooms.override_order.clear"))}</button>
+            </div>`;
+        }
+        case "mismatch": {
+          const deviceNames = state.deviceNames?.length
+            ? state.deviceNames.map((n) => this.escapeHtml(n)).join(" · ")
+            : this.escapeHtml(this.t("rooms.override_order.empty_placeholder"));
+          const queueNames = state.queueNames?.length
+            ? state.queueNames.map((n) => this.escapeHtml(n)).join(" · ")
+            : this.escapeHtml(this.t("rooms.override_order.empty_placeholder"));
+          return `
+            <div class="soro-body soro-amber">
+              <div class="soro-status">${this.escapeHtml(this.t("rooms.override_order.mismatch"))}</div>
+              <div class="soro-diff">
+                <div><small>${this.escapeHtml(this.t("rooms.override_order.device_label"))}</small> ${deviceNames}</div>
+                <div><small>${this.escapeHtml(this.t("rooms.override_order.queue_label"))}</small> ${queueNames}</div>
+              </div>
+              <div class="soro-actions">
+                <button class="chip active" id="sequence-override-apply">${this.escapeHtml(this.t("rooms.override_order.apply"))}</button>
+                <button class="chip" id="sequence-override-clear">${this.escapeHtml(this.t("rooms.override_order.clear"))}</button>
+              </div>
+            </div>`;
+        }
+        case "unverifiable":
+          return `
+            <div class="soro-body soro-grey">
+              <div class="soro-status">${this.escapeHtml(this.t("rooms.override_order.unverifiable"))}</div>
+            </div>`;
+        default:
+          return "";
+      }
+    })();
+
+    return `
+      <div class="sequence-override">
+        <div class="soro-header">${toggle}${consentBadge}</div>
+        ${body}
       </div>`;
   }
 
@@ -661,6 +768,36 @@ class EufyDashboardCard extends HTMLElement {
     this.shadowRoot.getElementById("strict-order-toggle")?.addEventListener("click", () => {
       this._strictOrder = !this._strictOrder;
       this._render();
+    });
+    // Sequence-override toggle — flips the persistent switch entity. Toggling
+    // off DOES NOT clear the device; Clear is a separate button (per the
+    // FINDINGS-roborock-clean-sequence design, and pinned by [CO-OV-4]).
+    this.shadowRoot.getElementById("sequence-override-toggle")?.addEventListener("click", async () => {
+      const vid = this._vacuumId();
+      const switchId = ENTITY.overrideOrderSwitch(vid);
+      const cur = this._hass?.states?.[switchId]?.state;
+      const next = cur === "on" ? "turn_off" : "turn_on";
+      await this._hass.callService("switch", next, { entity_id: switchId });
+      // Do NOT force a re-render here — the state change flows back via
+      // hass.states, and the card re-renders on the next update tick. Forcing
+      // it would show the wrong state briefly if the call fails.
+    });
+    // Apply — writes the current queue to the device via the eufy_vacuum service.
+    this.shadowRoot.getElementById("sequence-override-apply")?.addEventListener("click", async () => {
+      const vid = this._vacuumId();
+      // The consent text is already visible on this row when the switch is ON,
+      // so an extra confirm dialog would be ceremony. The device write ITSELF
+      // is idempotent (a full REPLACE) so a mispress is recoverable via Clear.
+      await this._hass.callService("eufy_vacuum", "apply_clean_sequence", { vacuum_entity_id: vid });
+    });
+    // Clear — wipes the device's saved sequence. Confirms because this may
+    // destroy a sequence the user set in their own Roborock app (the reason
+    // toggle-off deliberately does not do this).
+    this.shadowRoot.getElementById("sequence-override-clear")?.addEventListener("click", async () => {
+      const vid = this._vacuumId();
+      if (!window.confirm(this.t("rooms.override_order.consent") + "\n\n"
+                        + this.t("rooms.override_order.clear") + "?")) return;
+      await this._hass.callService("eufy_vacuum", "clear_clean_sequence", { vacuum_entity_id: vid });
     });
     // Expand / collapse a room's settings body
     this.shadowRoot.querySelectorAll("[data-expand]").forEach((el) => {

@@ -20,6 +20,10 @@ import { renderStepsManifest } from "./steps-manifest.js";
 // Recognizable stubs: t() echoes the key's leaf (and appends an interpolated id),
 // escapeHtml is identity so assertions read the raw values.
 const t = (key, vars) => {
+  // Units come from the real catalogue's values, not the key leaf — the "%"
+  // suffix routes through metrics.unit_percent, so a leaf-echo stub would make
+  // the percent assertions below match a key name instead of a rendered unit.
+  if (key === "metrics.unit_percent") return "%";
   const leaf = String(key).replace("run_profiles.", "");
   if (vars && vars.id != null) return `${leaf}:${vars.id}`;
   return leaf;

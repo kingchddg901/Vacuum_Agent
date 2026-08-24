@@ -23,10 +23,31 @@ keyed by the map NAME (which is what ``entities.active_map`` — Roborock's
 id lines up with a cache key).
 
 Public surface:
-    async_refresh_room_source(hass, vacuum_entity_id) -> None   (async)
+    async_refresh_room_source(hass, vacuum_entity_id) -> dict[str, Any]   (async)
     get_cached_room_source(hass, vacuum_entity_id) -> dict[str, list[dict]]
+    get_cached_room_source_with_age(...)
     set_cached_room_source(hass, vacuum_entity_id, per_map) -> None
-    flatten_maps_response(response, *, discovery) -> dict[str, list[dict]]  (pure)
+    invalidate_room_source_cache(...)
+    select_segments_for_map(...)
+    flatten_maps_response(response, *, discovery, vacuum_entity_id=..., active_map_id=...)
+        -> dict[str, list[dict]]  (pure)
+
+⚠ CORRECTED 2026-08-24 (R5), in two ways, and this is the FIRST thing a caller reads.
+
+RETURN TYPE. `async_refresh_room_source` was listed `-> None`. It returns a dict with
+seven distinct {ok, reason, refreshed_at} exits, documented on the function itself —
+that WAS the RP-007/SRC-1 fix, whose whole point was that it stopped returning None, and
+the stale claim sat at the top of the very file that fixed it. `dispatch/manager.py`
+depends on the dict (`refresh_result.get("ok")`), so a caller who believed this header
+and discarded the result would silently drop the outcome, or read a returned value as a
+bug.
+
+MEMBERSHIP. Three public functions were missing entirely —
+`get_cached_room_source_with_age`, `invalidate_room_source_cache` and
+`select_segments_for_map` — all defined here and all imported by other modules. A
+"public surface" list that omits a third of the surface sends a reader looking for a
+seam that is already there. `flatten_maps_response`'s listed signature also dropped its
+two keyword params.
 """
 
 # System invariants that bind in this file. Declared and explained elsewhere
@@ -42,6 +63,14 @@ Public surface:
 # copies). These blocks were written 2026-08-17 by transcribing the ledger, so they
 # inherited its mis-attributions into source -- where prose at the site reads as
 # authority. Verify before citing one as closed.
+#
+# THE REVERSE TRAP IS REAL TOO, and it cost R18. This block marks a closed
+# finding by appending "(closed <packet>)"; so with some entries marked and
+# others not, the UNMARKED ones read as still live -- in a file that visibly
+# fixed them. Absence of a marker is not evidence of an open finding. A4-SRC-1,
+# A4-SRC-3 and A4-SRC-4 sat unmarked here until 2026-08-24 and were stamped only
+# after reading the code in THIS file, not after re-reading the ledger.
+#
 #   IN2QDNB3  `learning/history_store.py#IN2QDNB3`
 #       A4-SRC-2 (closed RP-006): set_cached_room_source is called unconditionally on every successful service call,
 #              so a response the flatten shim does not recognise (or an empty maps list) silently
@@ -49,16 +78,26 @@ Public surface:
 #       A4-SRC-5 (closed RP-007): The room-source cache is never invalidated — not on config-entry unload/reload, not
 #              on map switch, not when a vacuum is unmanaged — and it keeps hass.data[DOMAIN] alive
 #   INJBNQ2Q  `dispatch/manager.py#INJBNQ2Q`
-#       A4-SRC-1: async_refresh_room_source returns None on success AND on every failure/skip path,
-#              and the cache carries no freshness stamp — dispatch cannot tell a fresh live
-#              snapshot from an arbitrarily old one, and rewrites the wire payload with stale
-#              segment ids while believing it re-resolved live
-#       A4-SRC-3: flatten_maps_response keys the cache by map NAME with last-writer-wins and no
-#              collision detection; a collapsed cache chains into room_discovery's single-map
-#              fallback and serves one map's segment ids for a different map_id
-#       A4-SRC-4: No in-flight coalescing or lock on the refresh: triggers spawn unbounded concurrent
-#              get_maps cloud calls, and an older response landing last becomes the resident cached
-#              snapshot — including one that started before a map switch and lands after it
+#       A4-SRC-1 (closed RP-007; stamped 2026-08-24, R18): async_refresh_room_source RETURNED None on
+#              success AND on every failure/skip path, and the cache carried no freshness stamp — dispatch
+#              could not tell a fresh live snapshot from an arbitrarily old one, and rewrote the wire
+#              payload with stale segment ids while believing it re-resolved live.
+#              NOW, in this file: `async_refresh_room_source` returns the seven-exit
+#              {ok, reason, refreshed_at} dict documented on the function, and
+#              `set_cached_room_source` stamps every entry with `refreshed_at` + `refreshed_mono`.
+#       A4-SRC-3 (closed RP-007; stamped 2026-08-24, R18): flatten_maps_response KEYED the cache by map
+#              NAME with last-writer-wins and no collision detection; a collapsed cache chained into
+#              room_discovery's single-map fallback and served one map's segment ids for a different
+#              map_id.
+#              NOW, in this file: `flatten_maps_response` detects a duplicate map name, suffixes the
+#              second key with `#flag<n>`/`#idx<n>`, and logs a WARNING naming both.
+#       A4-SRC-4 (closed RP-007; stamped 2026-08-24, R18): there WAS no in-flight coalescing or lock on the
+#              refresh: triggers spawned unbounded concurrent get_maps cloud calls, and an older response
+#              landing last became the resident cached snapshot — including one that started before a map
+#              switch and landed after it.
+#              NOW, in this file: `_INFLIGHT` coalesces concurrent callers onto one task, and the
+#              `_GENERATION` commit guard discards a response whose generation was superseded while it
+#              awaited (that is the `superseded_by_newer_refresh` exit).
 
 
 from __future__ import annotations
@@ -78,7 +117,13 @@ _LOGGER = logging.getLogger(__name__)
 
 #: hass.data[DOMAIN] slot holding the flattened per-vacuum room source cache.
 #: Entry shape (RP-007): {"per_map": {map_name: [rooms]}, "refreshed_at": iso,
-#: "refreshed_mono": float}. Legacy raw per_map dicts are still readable.
+#: "refreshed_mono": float} — the ONLY shape any live entry can have.
+#: ⚠ was: "Legacy raw per_map dicts are still readable" (corrected 2026-08-24,
+#: RM8). True of the reader, but it reads as "such entries exist", and none can:
+#: this cache lives only in hass.data, which dies with the process, and its sole
+#: writer `set_cached_room_source` always stamps. There is no upgrade path an
+#: unstamped entry could survive, so the legacy branch in
+#: `get_cached_room_source_with_age` is unreachable in production.
 DATA_ROOM_SOURCE_CACHE = "room_source_cache"
 
 #: RP-007 step 7 (GATE4 Q16 variant a): how old a cached room source may be for
@@ -155,9 +200,22 @@ def get_cached_room_source_with_age(
 ) -> tuple[dict[str, list[dict[str, Any]]], float | None]:
     """Return (per_map, age_seconds) for one vacuum's cached room source.
 
-    age is None when nothing has been cached, or when the entry predates the
-    RP-007 freshness stamping (a legacy raw dict) — callers must treat None as
-    "age unknown", i.e. NOT fresh.
+    age is None when nothing has been cached — callers must treat None as "age
+    unknown", i.e. NOT fresh.
+
+    ⚠ was: "or when the entry predates the RP-007 freshness stamping (a legacy
+    raw dict)" (corrected 2026-08-24, RM8). That case cannot arise in
+    production, and stating it sent readers looking for a migration that does
+    not exist: the cache is hass.data-only so it does not survive a restart, and
+    `set_cached_room_source` — its only writer — always stamps. The unstamped
+    branch below is defence against a hand-poked hass.data, nothing more.
+
+    ⚠ And its discriminator is `"per_map" in value`: a KEY test, not a shape
+    test. A raw per_map dict carrying a map literally named `per_map` would take
+    the STAMPED branch, and because that map's value is a list of rooms rather
+    than a dict the function would return an EMPTY per_map — every map's rooms
+    dropped, not just the colliding one. Unreachable for the reason above, but
+    do not reuse this discriminator anywhere a raw mapping can arrive.
     """
     cache = hass.data.get(DOMAIN, {}).get(DATA_ROOM_SOURCE_CACHE, {})
     value = cache.get(vacuum_entity_id)
@@ -275,8 +333,17 @@ def flatten_maps_response(
     Each map's ``rooms`` value is a ``{segment_id_str: name}`` mapping; this
     rewrites it into a list of ``{<room_id_key>: id, <room_name_key>: name}``
     dicts — exactly the list-of-dicts shape the attribute-source discovery path
-    already iterates. Map keys are the map NAME when present, or the active-map
-    select value / map flag fallback when HA's Roborock response omits the name.
+    already iterates. Map keys are the map NAME when present; when HA's Roborock
+    response omits the name there are THREE fallbacks, tried in order — the
+    active-map select value (single-map responses ONLY), then ``f"Map {flag}"``,
+    then ``f"Map {index}"``.
+
+    The third was documented nowhere at all until 2026-08-24 (R20/RM13) and is
+    the one to know about: it is POSITIONAL, so it moves if the response
+    reorders and it matches no active-map select value — a map keyed that way is
+    effectively undiscoverable rather than merely unnamed. The comment at the
+    fallback itself says why the single-map restriction on the first one is
+    deliberate.
 
     Defensive against an already-list ``rooms`` value (returned as-is) and skips
     malformed entries. ``room_id_key``/``room_name_key`` default to the Roborock
@@ -300,8 +367,31 @@ def flatten_maps_response(
             # HA's Roborock integration can return an unnamed map while the
             # active-map select reports a synthetic name such as "Map 0".
             # Keep the cache key aligned with the select so discovery can find
-            # the rooms it just refreshed. If there is no active-map value, use
-            # Roborock's numeric flag as the same "Map <flag>" fallback HA shows.
+            # the rooms it just refreshed.
+            #
+            # Three fallbacks, in order — and the CONDITIONS matter more than the
+            # values (corrected 2026-08-24, R20/RM13):
+            #
+            #   1. the active-map value, but ONLY when this response carries
+            #      exactly ONE map. That restriction is the deliberate part and
+            #      was the part stated nowhere: with N maps there is no way to
+            #      tell WHICH one the select's name belongs to, and guessing
+            #      would file another map's segment ids under the active map's
+            #      name.
+            #   2. Roborock's numeric `flag`, as the same "Map <flag>" string HA
+            #      shows. ⚠ was: "If there is no active-map value, use Roborock's
+            #      numeric flag" — narrower than the code. This is an `elif` on
+            #      the branch above, so it ALSO fires when there IS an active-map
+            #      value and `len(maps) != 1`, which is the ordinary multi-map
+            #      case.
+            #   3. "Map <index>" — positional, and undocumented anywhere until
+            #      now. It matches no active-map select value and it moves if the
+            #      response reorders, so a map keyed this way is undiscoverable
+            #      rather than merely unnamed.
+            #
+            # Someone reconciling a multi-map cache key that came back "Map 3"
+            # where they expected the select value is looking at 2 or 3 — not at
+            # a bug.
             if active_map_id and len(maps) == 1:
                 map_name = active_map_id
             elif map_entry.get("flag") is not None:
@@ -349,6 +439,33 @@ def flatten_maps_response(
 # ---------------------------------------------------------------------------
 
 def _refresh_result(ok: bool, reason: str | None) -> dict[str, Any]:
+    """Build one refresh outcome.
+
+    ⚠ `refreshed_at` means "this CALL ended ok", NOT "the cache was rewritten",
+    and the two are not the same on two of the three ok=True exits. Stated here
+    2026-08-24 (RM9) because nothing said it anywhere and the field name asserts
+    the opposite.
+
+    Every ok=True exit is stamped with `utc_now_iso()`. Only `reason is None`
+    reached `set_cached_room_source`. The other two refreshed nothing:
+
+      - `not_service_source` — an attribute-source brand (Eufy); there is no
+        cache entry to write and never was.
+      - `superseded_by_newer_refresh` — SRC-4: a newer task won the commit race
+        and THIS response was discarded.
+
+    It matters because the whole dict is surfaced verbatim: `setup/workflow.py`
+    puts it into the support capture as `room_source_refresh` on the "no map
+    detected" path. So a reader diagnosing staleness sees a fresh timestamp that
+    does not correspond to the cache's own `refreshed_at` and reasonably
+    concludes the source was just re-read.
+
+    Documented rather than repaired on purpose: narrowing the stamp to the
+    committing exit changes a published response shape, which is a behaviour
+    change and needs its own review. Compare against the cache's
+    `get_cached_room_source_with_age` age if you need "when was the cache last
+    written".
+    """
     return {"ok": ok, "reason": reason, "refreshed_at": utc_now_iso() if ok else None}
 
 

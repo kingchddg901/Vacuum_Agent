@@ -2,6 +2,19 @@
 
 The card can show your floor plan as an interactive map: each room is a coloured shape you can tap to add to a clean — tap again to remove it, and the rooms you haven't picked dim so you can see exactly what's queued — and your vacuum's mascot wanders across it. This guide walks you through getting that map set up — from a first screenshot to hand-drawn themed layouts.
 
+> ### ⚠️ Roborock owners: don't rename your maps
+>
+> On Roborock, **the map's name is how everything about it is filed** — every room's learned timing,
+> its battery and area statistics, the lot. Rename the map in the Roborock app and it looks like a
+> map you have never seen before: every room on it starts learning again from zero.
+>
+> The integration **cannot detect this or undo it**. A rename and a genuinely new map look
+> identical from the outside, and guessing would risk merging two real maps together. So: name your
+> maps how you want them *before* you build rooms on them, and leave the names alone afterwards.
+>
+> Eufy maps are keyed by a number instead, so renaming a Eufy map is safe.
+> Full explanation: [Map Configuration](../advanced/08-map-configuration.md).
+
 You have a few ways to put rooms on the map, and you can use more than one on the same vacuum:
 
 - **Auto (CV)** — upload a screenshot of your Eufy app's map and let the integration **detect the rooms for you**. Best when your app map has clean, solid room colours.

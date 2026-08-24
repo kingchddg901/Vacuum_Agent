@@ -10,6 +10,33 @@
  */
 
 /**
+ * Format a value + unit into `<bdi>{value}</bdi>&nbsp;{unit}`.
+ *
+ * The bdi isolate is LOAD-BEARING in RTL. Chris's screenshots on 2026-08-24 showed
+ * an Arabic-locale card rendering "min 46" instead of "46 min" — bidi is right to
+ * flip LTR digits and EN letters separated by a neutral space, so the fix is to
+ * remove the ambiguity by isolating the number. A locale whose unit is script-strong
+ * (Arabic "دقيقة", Han "分") does not itself flip, so only the number needs isolation.
+ *
+ * NBSP (not a plain space) between value and unit, so line-wrap between them is
+ * impossible (matches typographic convention in every locale).
+ *
+ * Exported so tests can drive it directly. Closures in renderMetricsView bind
+ * `this.escapeHtml` and `this.t` and delegate to this pure function.
+ *
+ * @param {string|number} value - The already-formatted value (e.g. "46", "0.42").
+ * @param {string} unit - The ALREADY-TRANSLATED unit (e.g. "min", "دقيقة", "%/h").
+ * @param {(s: string) => string} escapeHtml - HTML-escape function (from the caller).
+ * @returns {string} HTML: `<bdi>value</bdi>&nbsp;unit`, or `<bdi>value</bdi>` if unit is empty.
+ */
+export function formatUnitValue(value, unit, escapeHtml) {
+  const v = `<bdi>${escapeHtml(String(value))}</bdi>`;
+  const u = unit ? "&nbsp;" + escapeHtml(unit) : "";
+  return v + u;
+}
+
+
+/**
  * Mix metrics renderer methods onto the given prototype.
  *
  * @param {object} proto - VacuumCardRenderers prototype to extend.
@@ -462,10 +489,17 @@ export function applyMetricsRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderMetricsMiniCard = function (title, value, detail = "") {
+    // Escape then bdi-wrap the whole value string. Bdi isolates the composite
+    // (e.g. "42 %/min") from paragraph bidi so an RTL locale renders LTR
+    // digits + unit together as one unit instead of separating them across
+    // neutrals — 1f153481 named this exact defect for six other sites and
+    // shipped a partial-guard fix that left every mini-card callsite untouched.
+    // All 26 callers pass TEXT (never pre-formatted HTML), so wrapping the
+    // escaped result is safe for every current call.
     return `
       <div class="evcc-metrics-card">
         <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
-        <div class="evcc-metrics-card-value">${this.escapeHtml(value)}</div>
+        <div class="evcc-metrics-card-value"><bdi>${this.escapeHtml(value)}</bdi></div>
         ${detail ? `<div class="evcc-metrics-card-detail">${detail}</div>` : ""}
       </div>
     `;
@@ -738,7 +772,7 @@ export function applyMetricsRenderers(proto) {
    */
   proto._formatMetricsDuration = function (value) {
     const minutes = Number(value);
-    if (!Number.isFinite(minutes)) return "0 min";
+    if (!Number.isFinite(minutes)) return `0 ${this.t("run_profiles.minutes_unit")}`;
     return this._formatLearningDuration(minutes);
   };
 
@@ -750,8 +784,8 @@ export function applyMetricsRenderers(proto) {
    */
   proto._formatMetricsMilliliters = function (value) {
     const amount = Number(value);
-    if (!Number.isFinite(amount)) return "0 ml";
-    return `${Math.round(amount)} ml`;
+    const rounded = Number.isFinite(amount) ? Math.round(amount) : 0;
+    return `${rounded} ${this.t("metrics.unit_ml")}`;
   };
 
   /**
@@ -795,7 +829,7 @@ export function applyMetricsRenderers(proto) {
   proto._formatMetricsDurationValue = function (value) {
     const numeric = Number(value);
     if (Number.isFinite(numeric)) {
-      return `${numeric.toFixed(1).replace(/\.0$/, "")} min`;
+      return `${numeric.toFixed(1).replace(/\.0$/, "")} ${this.t("run_profiles.minutes_unit")}`;
     }
     return String(value ?? this.t("metrics.unknown"));
   };
@@ -849,6 +883,30 @@ export function applyMetricsRenderers(proto) {
       return `${numFmt(n, digits)}${suffix}`;
     };
 
+    // See exported formatUnitValue at the bottom of this file for the mechanism.
+    // These closures bind `this` and the local numFmt/isMissing/escapeHtml so
+    // callsites stay short. `this.t` accepts a translation KEY (starts with
+    // `metrics.` or `run_profiles.`); anything else is treated as a literal.
+    const unitValue = (value, unitKeyOrLiteral) => {
+      const unit = unitKeyOrLiteral && (
+        unitKeyOrLiteral.startsWith("metrics.")
+        || unitKeyOrLiteral.startsWith("run_profiles.")
+      )
+        ? this.t(unitKeyOrLiteral)
+        : (unitKeyOrLiteral ?? "");
+      return formatUnitValue(value, unit, this.escapeHtml);
+    };
+
+    // Convenience for the sensorVal + unit case. Kept SEPARATE from sensorVal
+    // because sensorVal returns a bare "—" for missing, and that "—" must not
+    // itself get bdi-wrapped (an em-dash + trailing unit would be misleading).
+    const sensorUnitValue = (entry, digits, unitKey) => {
+      if (!entry || isMissing(entry.state)) return "—";
+      const n = Number(entry.state);
+      if (!Number.isFinite(n)) return this.escapeHtml(String(entry.state));
+      return unitValue(numFmt(n, digits), unitKey);
+    };
+
     // Top chips — pull the four most-glanceable values.
     const chips = `
       <div class="evcc-metrics-card-grid">
@@ -859,7 +917,10 @@ export function applyMetricsRenderers(proto) {
         )}
         ${this._renderMetricsMiniCard(
           this.t("metrics.battery_health"),
-          sensorVal(m.health, 0, "%"),
+          // Text output — mini-card escapes and bdi-wraps its value slot, so
+          // sensorUnitValue's HTML would be double-escaped here (see the mini-
+          // card definition). The translated unit still enters i18n via t().
+          sensorVal(m.health, 0, ` ${this.t("metrics.unit_percent")}`),
           m.health?.attrs?.baseline_session_count
             ? this.t("metrics.battery_health_vs_first", { count: m.health.attrs.baseline_session_count })
             // RP-045: health_unavailable_reason means this device has genuinely
@@ -905,27 +966,27 @@ export function applyMetricsRenderers(proto) {
         <tbody>
           <tr>
             <td>${this.t("metrics.battery_zone_overall")}</td>
-            <td>${this.escapeHtml(sensorVal(m.rate_overall, 2, ` ${this.t("metrics.unit_per_min")}`))}</td>
+            <td>${sensorUnitValue(m.rate_overall, 2, "metrics.unit_per_min")}</td>
             <td>${this.t("metrics.battery_zone_overall_note")}</td>
           </tr>
           <tr>
             <td>${this.t("metrics.battery_zone_low")}</td>
-            <td>${this.escapeHtml(sensorVal(m.rate_low, 2, ` ${this.t("metrics.unit_per_min")}`))}</td>
+            <td>${sensorUnitValue(m.rate_low, 2, "metrics.unit_per_min")}</td>
             <td>${this.t("metrics.battery_zone_low_note")}</td>
           </tr>
           <tr>
             <td>${this.t("metrics.battery_zone_high")}</td>
-            <td>${this.escapeHtml(sensorVal(m.rate_high, 2, ` ${this.t("metrics.unit_per_min")}`))}</td>
+            <td>${sensorUnitValue(m.rate_high, 2, "metrics.unit_per_min")}</td>
             <td>${this.t("metrics.battery_zone_high_note")}</td>
           </tr>
           <tr>
             <td>${this.t("metrics.battery_zone_mid_job")}</td>
-            <td>${this.escapeHtml(sensorVal(m.rate_mid_job, 2, ` ${this.t("metrics.unit_per_min")}`))}</td>
+            <td>${sensorUnitValue(m.rate_mid_job, 2, "metrics.unit_per_min")}</td>
             <td>${this.t("metrics.battery_zone_mid_job_note", { count: m.rate_mid_job?.attrs?.sample_count ?? 0 })}</td>
           </tr>
           <tr>
             <td>${this.t("metrics.battery_zone_last_session")}</td>
-            <td>${this.escapeHtml(sensorVal(m.last_charge_duration, 0, " min"))}</td>
+            <td>${sensorUnitValue(m.last_charge_duration, 0, "run_profiles.minutes_unit")}</td>
             <td>${
               m.last_charge_duration?.attrs?.last_charge_delta_pct != null
                 ? this.t("metrics.battery_zone_last_session_note", { pct: m.last_charge_duration.attrs.last_charge_delta_pct })
@@ -942,6 +1003,24 @@ export function applyMetricsRenderers(proto) {
     const fanBuckets = m.last_job_per_m2?.attrs?.by_fan_speed_mean ?? {};
     const waterBuckets = m.last_job_per_m2?.attrs?.by_water_level_mean ?? {};
 
+    // B21: render Jobs as "samples / count" when they differ. The old display was
+    // just `count`, which the on-file comment named as misleading — "3.333 %/m2 —
+    // Jobs: 10" where the mean was over 6. Making `samples` visible closes the
+    // C17 story on the card (backend fix B4 exposed all_jobs_samples). Compact
+    // form so it fits the existing column; a fraction reads unambiguously as
+    // "denominator of the mean over total in the bucket".
+    const jobsCell = (b) => {
+      const count = Number(b?.count ?? 0);
+      const samples = b?.samples;
+      const s = Number(samples);
+      if (samples == null || !Number.isFinite(s) || s === count) {
+        return this.escapeHtml(String(count));
+      }
+      // title stays English-in-DOM (screen-reader tooltip); the row label already
+      // came from tVocab, so the visual is untouched.
+      return `<span title="${this.escapeHtml(this.t("metrics.battery_samples_tooltip"))}">${this.escapeHtml(`${s} / ${count}`)}</span>`;
+    };
+
     const renderBucketRows = (obj, label) => {
       const keys = Object.keys(obj || {});
       if (!keys.length) {
@@ -952,14 +1031,19 @@ export function applyMetricsRenderers(proto) {
           <!-- battery buckets carry clean_mode as a DISPLAY label ("vacuum and
                mop"); collapse " and " so tVocab's slug matches the vocab code key. -->
           <td>${this.tVocab("battery_bucket_key", String(k).replace(/\s+and\s+/gi, " "), k)}</td>
-          <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${this.escapeHtml(numFmt(obj[k]?.mean, 3) + " " + this.t("metrics.unit_per_m2"))}</td>
-          <td data-label="${this.escapeHtml(this.t("metrics.battery_col_jobs"))}">${this.escapeHtml(String(obj[k]?.count ?? 0))}</td>
+          <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${unitValue(numFmt(obj[k]?.mean, 3), "metrics.unit_per_m2")}</td>
+          <td data-label="${this.escapeHtml(this.t("metrics.battery_col_jobs"))}">${jobsCell(obj[k])}</td>
         </tr>
       `).join("");
     };
 
-    const allCount = m.last_job_per_m2?.attrs?.all_jobs_count ?? 0;
-    const allMean = m.last_job_per_m2?.attrs?.all_jobs_mean;
+    const _allAttrs = m.last_job_per_m2?.attrs ?? {};
+    const allCount = _allAttrs.all_jobs_count ?? 0;
+    const allMean = _allAttrs.all_jobs_mean;
+    // B21 for the all_jobs row itself. Uses the same jobsCell as the buckets, so
+    // the mean-over-a-subset case shows the same "6 / 10" form on the very row
+    // the _MEAN_SAMPLE_FIELD comment cites as the symptom.
+    const allJobsB = { count: allCount, samples: _allAttrs.all_jobs_samples };
 
     const aggregateTable = `
       <div class="evcc-metrics-section-title">${this.t("metrics.battery_drain_title")}</div>
@@ -977,8 +1061,8 @@ export function applyMetricsRenderers(proto) {
         <tbody>
           <tr>
             <td><strong>${this.t("metrics.battery_all_jobs")}</strong></td>
-            <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${this.escapeHtml(numFmt(allMean, 3) + " " + this.t("metrics.unit_per_m2"))}</td>
-            <td data-label="${this.escapeHtml(this.t("metrics.battery_col_jobs"))}">${this.escapeHtml(String(allCount))}</td>
+            <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${unitValue(numFmt(allMean, 3), "metrics.unit_per_m2")}</td>
+            <td data-label="${this.escapeHtml(this.t("metrics.battery_col_jobs"))}">${jobsCell(allJobsB)}</td>
           </tr>
           <tr><td colspan="3"><em>${this.t("metrics.battery_by_clean_mode")}</em></td></tr>
           ${renderBucketRows(buckets, this.t("metrics.battery_bucket_clean_mode"))}
@@ -999,21 +1083,21 @@ export function applyMetricsRenderers(proto) {
         <tbody>
           <tr><td>${this.t("metrics.battery_row_job_id")}</td><td>${this.escapeHtml(String(lastJob.job_id ?? "—"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_recorded")}</td><td>${this.escapeHtml(this._formatMetricsTimestamp(lastJob.recorded_at) || "—")}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_duration")}</td><td>${this.escapeHtml(numFmt(lastJob.duration_min, 1) + " min")}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_area")}</td><td>${this.escapeHtml(numFmt(lastJob.area_m2, 1) + " m²")}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_battery_used")}</td><td>${this.escapeHtml(numFmt(lastJob.battery_used_pct, 0) + " %")}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_drain_rate")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_min, 2, ` ${this.t("metrics.unit_per_min")}`))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_drain_per_hour")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_hour, 1, " %/h"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_drain_per_m2")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_m2, 3, " %/m²"))}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_duration")}</td><td>${unitValue(numFmt(lastJob.duration_min, 1), "run_profiles.minutes_unit")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_area")}</td><td>${unitValue(numFmt(lastJob.area_m2, 1), "metrics.unit_square_meters")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_battery_used")}</td><td>${unitValue(numFmt(lastJob.battery_used_pct, 0), "metrics.unit_percent")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_drain_rate")}</td><td>${sensorUnitValue(m.last_job_per_min, 2, "metrics.unit_per_min")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_drain_per_hour")}</td><td>${sensorUnitValue(m.last_job_per_hour, 1, "metrics.unit_per_hour")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_drain_per_m2")}</td><td>${sensorUnitValue(m.last_job_per_m2, 3, "metrics.unit_per_m2")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${lastJob.single_clean_mode ? this.tVocab("clean_mode", String(lastJob.single_clean_mode).replace(/\s+and\s+/gi, " "), lastJob.single_clean_mode) : this.t("metrics.battery_mixed")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_single_fan_speed")}</td><td>${lastJob.single_fan_speed ? this.tVocab("fan_speed", lastJob.single_fan_speed, lastJob.single_fan_speed) : this.t("metrics.battery_mixed")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_single_water_level")}</td><td>${lastJob.single_water_level ? this.tVocab("water_level", lastJob.single_water_level, lastJob.single_water_level) : this.t("metrics.battery_mixed")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_weighted_by")}</td><td>${lastJob.weighted_by ? this.tVocab("battery_weighted_by", lastJob.weighted_by, lastJob.weighted_by) : "—"}</td></tr>
           ${postJob ? `
             <tr><td colspan="2"><em>${this.t("metrics.battery_post_job_recharge")}</em></td></tr>
-            <tr><td>${this.t("metrics.battery_row_recharge_duration")}</td><td>${this.escapeHtml(numFmt(postJob.duration_min, 1) + " min")}</td></tr>
-            <tr><td>${this.t("metrics.battery_row_recharge_delta")}</td><td>${this.escapeHtml(`${postJob.start_battery ?? "?"} → ${postJob.end_battery ?? "?"} %`)}</td></tr>
-            <tr><td>${this.t("metrics.battery_row_avg_rate")}</td><td>${this.escapeHtml(numFmt(postJob.avg_rate_per_min, 2) + ` ${this.t("metrics.unit_per_min")}`)}</td></tr>
+            <tr><td>${this.t("metrics.battery_row_recharge_duration")}</td><td>${unitValue(numFmt(postJob.duration_min, 1), "run_profiles.minutes_unit")}</td></tr>
+            <tr><td>${this.t("metrics.battery_row_recharge_delta")}</td><td><bdi>${this.escapeHtml(String(postJob.start_battery ?? "?"))} → ${this.escapeHtml(String(postJob.end_battery ?? "?"))}</bdi>&nbsp;${this.escapeHtml(this.t("metrics.unit_percent"))}</td></tr>
+            <tr><td>${this.t("metrics.battery_row_avg_rate")}</td><td>${unitValue(numFmt(postJob.avg_rate_per_min, 2), "metrics.unit_per_min")}</td></tr>
             <tr><td>${this.t("metrics.battery_row_ended")}</td><td>${this.escapeHtml(postJob.ended_reason ?? "—")}</td></tr>
           ` : `
             <tr><td>${this.t("metrics.battery_post_job_recharge")}</td><td><em>${this.t("metrics.battery_awaiting_charge_session")}</em></td></tr>

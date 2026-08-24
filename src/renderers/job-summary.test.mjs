@@ -250,5 +250,34 @@ test("[JS-10] an unlabelled fault falls back to the raw code", async () => {
   const src = fs.readFileSync(new URL("./job-summary.js", import.meta.url), "utf-8");
   // faultLabel(key, code) already implements the fallback; the modal must pass the
   // CODE through rather than resolving the key alone and rendering a blank.
-  assert.match(src, /this\.faultLabel\(f\.label_key, f\.code\)/);
+  // Note: called on the STATE parameter, not `this` on the renderer — faultLabel
+  // is applied to VacuumCardState.prototype (applyFaultState) and the renderer
+  // proto never gets it. A prior `this.faultLabel(...)` shipped a runtime crash.
+  assert.match(src, /state\.faultLabel\(f\.label_key, f\.code\)/);
+  // No non-comment `this.faultLabel(...)` call — faultLabel is on state proto,
+  // not the renderer, so calling via `this` on the renderer throws.
+  const nonComment = src.split("\n").filter(l => !/^\s*(\/\/|\*)/.test(l)).join("\n");
+  assert.doesNotMatch(nonComment, /this\.faultLabel\(/,
+    "faultLabel must never be called on the renderer — it lives on state, not on the renderer proto");
+});
+
+test("[JS-11] _renderJobSummaryFaults does not throw when the renderer has no faultLabel", async () => {
+  // The bite: prior to the fix, `this.faultLabel` was undefined at runtime and
+  // any job with run_errors crashed the whole modal. Assemble a renderer host
+  // that intentionally lacks faultLabel, hand the state a faultLabel that only
+  // exists on state, and prove the render succeeds.
+  const { applyJobSummaryRenderers } = await import("./job-summary.js");
+  const proto = {};
+  proto.escapeHtml = (s) => String(s ?? "");
+  proto.t = (k) => k;
+  proto._renderJobSummaryFaultTimestamp = () => "12:00";
+  applyJobSummaryRenderers(proto);
+  const renderer = Object.create(proto);
+  const state = {
+    jobSummaryFaults: () => [{ label_key: "fault.eufy.rb_stuck", code: 4, source: "robot", recovered: false }],
+    faultLabel: (key, code) => key === "fault.eufy.rb_stuck" ? "Roller brush stuck" : `Error ${code}`,
+  };
+  assert.doesNotThrow(() => renderer._renderJobSummaryFaults(state));
+  const html = renderer._renderJobSummaryFaults(state);
+  assert.match(html, /Roller brush stuck/, "the resolved label must appear in the output");
 });

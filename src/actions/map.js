@@ -334,9 +334,14 @@ export function applyMapActions(proto) {
   };
 
   /**
-   * Rotate the live map 90° CW (display only; backend-stored per map). Sets an
-   * optimistic overlay synchronously so the turn is instant, then persists via the
-   * service; the dashboard snapshot reconciles the overlay on its next push.
+   * Rotate the live map 90° CW (backend-stored per map). Sets an optimistic overlay
+   * synchronously so the turn is instant, then persists via the service; the dashboard
+   * snapshot reconciles the overlay on its next push.
+   *
+   * ⚠ was: "display only". It is not — state/map.js's zoneDraftsToNormalizedRects
+   * un-rotates each drawn zone by this angle before dispatching start_zone_clean, so
+   * the value written here reaches the robot's geometry. See the rotation block in
+   * state/map.js for the full account.
    */
   /**
    * Arm or disarm stall capture for this vacuum (backend-stored per vacuum).

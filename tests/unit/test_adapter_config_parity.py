@@ -47,7 +47,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPONENT = REPO_ROOT / "custom_components" / "eufy_vacuum"
 SCHEMA_PY = COMPONENT / "adapters" / "config_schema.py"
 REGISTRY_PY = COMPONENT / "adapters" / "registry.py"
-DOC_22 = REPO_ROOT / "docs" / "dev" / "22-adapter-config-reference.md"
+# The hand-written config reference was retired 2026-08-23; its successor is
+# GENERATED from ADAPTER_CONFIG_SCHEMA itself. Same row shape, so this check keeps
+# running — and what it now catches is a GENERATOR bug: a field emitted into the
+# porter-facing table that the schema does not actually declare.
+DOC_22 = (
+    REPO_ROOT / ".claude" / "generated-docs" / "adapter-config"
+    / "ADAPTER-CONFIG.generated.md"
+)
 
 # Schema metadata keys — the vocabulary OF the schema, never config keys.
 _META = {
@@ -61,14 +68,21 @@ _META = {
 # entries say only "known" cannot be re-reviewed by the next reader.
 # ---------------------------------------------------------------------------
 SCHEMA_ABSENT_BY_DESIGN: dict[str, str] = {
-    "remaining_is_state": (
-        "doc 22 annotates the row itself as '(schema-absent; Roborock)' and "
-        "'Declared-but-unconsumed today (no core reader — code-flag)'. "
-        "adapters/roborock/maintenance_components.py records it as REMOVED — every "
-        "component carried it and nothing read it. Documented as a code-flag for "
-        "porters, deliberately not part of the validated config surface."
+    "default": (
+        "NOT a top-level config field. It is a nested entry-field key inside a parent "
+        "block's own '**Fields**' sub-table in the generated reference "
+        "(e.g. wash_frequency_bounds' default/min/max). The row regex matches any "
+        "`key` | `type` | yes/no row and cannot see nesting, so a nested key reads as "
+        "a top-level one. Widening the regex to understand nesting would couple this "
+        "test to the generator's heading layout; exempting the name is the cheaper "
+        "and more stable answer."
     ),
 }
+
+# REMOVED 2026-08-23: "remaining_is_state". The allowlist rotted and the rot test
+# caught it. The key was PRUNED from adapters/roborock/maintenance_components.py --
+# four components declared it and nothing read it -- so the generated reference no
+# longer documents it and the exemption had nothing left to exempt.
 
 
 def _load_schema_dict() -> ast.Dict:

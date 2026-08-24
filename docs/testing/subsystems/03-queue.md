@@ -6,7 +6,7 @@ resolves room order, applies per-room overrides, and produces the
 **75 tests across 3 files**.
 
 Source: `custom_components/eufy_vacuum/queue/`
-Architecture reference: [docs/dev/07-queue-engine.md](../../dev/07-queue-engine.md)
+Architecture reference: [05 — While a Run Is Live](../../dev/05-run-live.md)
 
 ---
 

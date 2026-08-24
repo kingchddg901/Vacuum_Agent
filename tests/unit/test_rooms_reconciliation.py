@@ -24,6 +24,14 @@ Coverage targets
 [NL-2]   migration carries every Cyrillic room; none dropped or merged.
 [NL-3]   two near non-Latin names are not merged into one identity.
 [NL-4]   NFC/NFD forms of one name reconcile as the SAME room (no orphan).
+[REC-15a] D15: a DUPLICATE slug among the stored rooms is excluded from slug-led
+          matching entirely, in compute_reconciliation. `setdefault` was first-wins, so
+          which of the two candidates won came down to dict iteration order.
+[REC-15b] D15: the same exclusion in plan_migration. It was the third and fourth copies
+          of one rule that two other functions already implemented.
+[REC-16]  D16/C55: the 1-and-1 leftover pairing declares that it came from ELIMINATION,
+          not from matching anything about the two rooms. A deleted room plus an
+          unrelated added room produces this review having nothing to do with a rename.
 """
 
 from __future__ import annotations
@@ -335,3 +343,104 @@ def test_migrate_reconciles_nfc_nfd_same_room():
     assert set(plan["rooms"]) == {"20"}
     assert plan["dropped"] == []
     assert plan["id_remap"] == {16: 20}
+
+
+# ---------------------------------------------------------------------------
+# D15 - a duplicate stored slug must not be matched on a guess
+# ---------------------------------------------------------------------------
+
+
+def test_rec15a_a_duplicate_stored_slug_is_excluded_from_slug_matching():
+    """[REC-15a] RED BEFORE THE FIX.
+
+    A store predating admission-time slug uniqueness can hold two rooms sharing a slug.
+    `setdefault` kept whichever came first in iteration order and matched the discovery
+    against it, collapsing two rooms' identities on nothing. Excluding the ambiguous slug
+    sends that room to id-led matching instead, which is a known answer rather than an
+    arbitrary one.
+
+    Both stored rooms keep their ids here, so with the ambiguity excluded there is
+    nothing to report at all.
+    """
+    existing = _existing((16, "Kitchen", "kitchen"), (17, "Kitchen", "kitchen"))
+    result = compute_reconciliation(
+        discovered_rooms=_discovered((16, "Kitchen", "kitchen"), (17, "Kitchen", "kitchen")),
+        existing_rooms=existing,
+    )
+    kinds = [r["kind"] for r in result["reviews"]]
+    assert "id_changed" not in kinds, (
+        "an ambiguous slug was matched against one of two candidates: " + repr(result["reviews"])
+    )
+
+
+def test_rec15b_plan_migration_excludes_a_duplicate_slug_too():
+    """[REC-15b] The sibling copy. A rule fixed in one builder and not the other leaves
+    detection and migration disagreeing about which room is which — which is worse than
+    both being wrong, because the review the user confirms is not the plan that applies.
+
+    Asserted through a property the guess cannot satisfy: whichever room the first-wins
+    map picked, the OTHER one lost its settings. With the ambiguity excluded, id-led
+    carry keeps both.
+    """
+    existing = _existing(
+        (16, "Kitchen", "kitchen", [], {"fan_speed": "max"}),
+        (17, "Kitchen", "kitchen", [], {"fan_speed": "quiet"}),
+    )
+    plan = plan_migration(
+        discovered_rooms=_discovered((16, "Kitchen", "kitchen"), (17, "Kitchen", "kitchen")),
+        existing_rooms=existing,
+    )
+    rooms = plan["rooms"]
+    assert set(rooms) == {"16", "17"}
+    assert rooms["16"]["fan_speed"] == "max"
+    assert rooms["17"]["fan_speed"] == "quiet", (
+        "the duplicate slug collapsed two rooms onto one stored config"
+    )
+
+
+# ---------------------------------------------------------------------------
+# D16 / C55 - the 1-and-1 pairing is an inference, and now says so
+# ---------------------------------------------------------------------------
+
+
+def test_rec16_the_leftover_pairing_declares_it_is_inferred():
+    """[REC-16] RED BEFORE THE FIX — the review carried no marker at all.
+
+    The inputs here are deliberately the FALSE case, not the true one: Study is deleted
+    and an unrelated Porch is added in the same re-map. Nothing about these two rooms
+    matches — not name, not slug, not id — and the branch pairs them anyway, because
+    there is no similarity test of any kind.
+
+    The pairing is kept on purpose: refusing it would lose the genuine
+    rename-and-renumber this branch exists to catch, and the user confirms before
+    anything applies. What must not happen is presenting the guess as a determination,
+    so the review states the basis it actually rests on.
+    """
+    result = compute_reconciliation(
+        discovered_rooms=_discovered((1, "Kitchen", "kitchen"), (9, "Porch", "porch")),
+        existing_rooms=_existing((1, "Kitchen", "kitchen"), (4, "Study", "study")),
+    )
+    pairing = [r for r in result["reviews"] if r["kind"] == "renamed_and_renumbered"]
+    assert len(pairing) == 1
+    review = pairing[0]
+
+    # it still pairs -- the genuine case depends on it
+    assert review["old_slug"] == "study" and review["new_slug"] == "porch"
+    # ...and it no longer claims to have matched anything
+    assert review["inferred"] is True
+    assert review["match_basis"] == "sole_remaining_pair"
+
+
+def test_rec16_a_confident_review_is_not_marked_inferred():
+    """[REC-16] RED IF THE MARKER IS SET UNCONDITIONALLY.
+
+    An id_changed review IS an identity match — the slug is the same room by definition.
+    Marking every review inferred would make the flag meaningless, which is the same
+    failure as not having it.
+    """
+    result = compute_reconciliation(
+        discovered_rooms=_discovered((21, "Kitchen", "kitchen")),
+        existing_rooms=_existing((16, "Kitchen", "kitchen")),
+    )
+    assert [r["kind"] for r in result["reviews"]] == ["id_changed"]
+    assert "inferred" not in result["reviews"][0]

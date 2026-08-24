@@ -25,7 +25,7 @@ export function renderStepsManifest({ steps, nameById = {}, zoneNameById = {}, t
         const target = Number(step.target_battery_percent ?? 95);
         return `
           <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--charge">
-            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">⚡</span>${t("run_profiles.step_charge_to")} ${escapeHtml(String(target))}%
+            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">⚡</span>${t("run_profiles.step_charge_to")} ${escapeHtml(String(target))}${t("metrics.unit_percent")}
           </li>`;
       }
       if (step.type === "wait") {

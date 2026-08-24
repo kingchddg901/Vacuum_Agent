@@ -704,6 +704,15 @@ class ActiveJobTracker:
         actual wash cycle. The cooldown (adapter ``dock_events.debounce_seconds``
         keyed by ``last_mop_wash``; 0 = none) collapses those flips into one
         counted event.
+
+        THE SECOND CLOCK IS NOT A DUPLICATE OF THIS ONE. ``dock/manager.py`` debounces
+        the same physical ``dock_status`` edge against its own persisted
+        ``dock_events[…].last_mop_wash_last_counted_at``, and the two deliberately do
+        not consult each other: that counter is LIFETIME and ungated, this one is
+        per-job and only runs while a job is ``started``/``paused``. Pointing this at
+        the persisted marker would let the PREVIOUS job's wash suppress the first wash
+        of the next one, which is an undercount in the number that feeds water
+        consumption. Different populations, so different reference points.
         """
         active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if active_job.get("status") not in {"started", "paused"}:
@@ -1050,6 +1059,67 @@ class ActiveJobTracker:
                 return True
         return False
 
+    def _wash_plateau_is_a_room_boundary(self, vacuum_entity_id: str) -> bool:
+        """Whether a mop-wash gap means "room finished" for THIS vacuum right now.
+
+        ISSUE #54. ``wash_plateau`` fires on a gap longer than ``gap_plateau_s`` during
+        which the vacuum reported leaving ``cleaning`` — a dock trip. Whether that is a
+        room BOUNDARY depends entirely on the dock cadence the user configured:
+
+          * ``by_room``  — the robot washes BETWEEN rooms, so the gap really does sit on
+                            a boundary. This is the case the kind was written for; its
+                            own docstring says so ("a minutes-long mop wash (ByRoom)").
+          * ``by_time``  — the robot washes every N minutes, mid-room, and resumes THE
+                            SAME ROOM. The gap sits INSIDE a room's work.
+          * ``off``      — no scheduled wash at all.
+
+        On ``by_time`` the boundary is FALSE, and because ``wash_plateau`` carries the
+        highest weight in the classifier it does not merely add a boundary — it wins a
+        slot under the ``expected_rooms - 1`` cap and displaces a real one. Reported on
+        an X10 Pro Omni (#54): 3 rooms, one wash, `completed_room_ids` [3, 5] while the
+        map showed the robot still in 5. Every label after the false boundary shifts to
+        the next queue entry, which is the "+1" the reporter saw.
+
+        THIS IS live:RECHARGE-ATTR-1 AGAIN, with a different trigger. That note carved
+        ``recharge_dock`` out of ``wash_plateau`` for exactly this shape — "the robot
+        runs flat, docks, charges, and resumes THE SAME ROOM it left — so the gap sits
+        INSIDE a room's work, not between two rooms" — and its own account of the damage
+        ("every label after it shifted to the next queue entry … while the segment count
+        still equalled the room count, so positional_valid stayed True and nothing
+        downstream could object") describes #54 verbatim. Battery was the discriminator
+        there; the wash MODE is the discriminator here, and it was already declared.
+
+        WHICH WAY THIS FAILS, deliberately. Unreadable / unknown / unavailable resolves
+        to "not a boundary". A missed boundary degrades to the timing rollover, which
+        still advances the room (a little later, and with the pose abstention guarding
+        it); a FALSE boundary corrupts the room labels AND the learned per-room times and
+        areas, silently. The costs are not symmetric.
+
+        A brand that declares no ``wash_frequency_mode`` entity gets NO OPINION — True,
+        i.e. unchanged behaviour. This must not quietly re-tune a brand nobody has
+        measured; it is a fix for a signal we can actually read.
+        """
+        from ..learning.brand_facts import brand_facts_for
+        from ..learning.estimator import _normalize_wash_frequency_mode
+
+        try:
+            facts = brand_facts_for(vacuum_entity_id)
+            mode_entity_id = facts.entity_id("wash_frequency_mode")
+            if not mode_entity_id:
+                return True          # brand declares no wash mode -> no opinion
+            state = self._manager.hass.states.get(mode_entity_id)
+            mode = _normalize_wash_frequency_mode(
+                state.state if state else None,
+                aliases=facts.alias_map("wash_frequency_mode"),
+            )
+            return mode == "by_room"
+        except Exception:  # pragma: no cover - a read failure must not break rollover
+            _LOGGER.debug(
+                "wash-mode rollover check failed for %s; treating a wash as a boundary",
+                vacuum_entity_id, exc_info=True,
+            )
+            return True
+
     def _live_transition_config(self, vacuum_entity_id: str) -> dict[str, Any]:
         """Live rollover ORCHESTRATION, adapter-overridable. Merges the adapter's
         ``live_transition`` block over ``_LIVE_TRANSITION_DEFAULTS`` — enabled /
@@ -1068,6 +1138,18 @@ class ActiveJobTracker:
                 cleaned = tuple(str(k).strip() for k in kinds if str(k).strip())
                 if cleaned:
                     cfg["rollover_kinds"] = cleaned
+
+        # ISSUE #54: a mop wash is only a room boundary when the dock cadence is
+        # per-room. Applied HERE rather than inside the classifier so
+        # `counter_segmentation` stays pure — it takes samples and tuning, never a live
+        # entity read — and so the decision sits beside the other per-vacuum rollover
+        # orchestration it belongs with.
+        if "wash_plateau" in cfg["rollover_kinds"] and not self._wash_plateau_is_a_room_boundary(
+            vacuum_entity_id
+        ):
+            cfg["rollover_kinds"] = tuple(
+                k for k in cfg["rollover_kinds"] if k != "wash_plateau"
+            )
         return cfg
 
     def detect_run_anomalies(
@@ -1633,6 +1715,22 @@ class ActiveJobTracker:
         (queue_room_ids) by slug. Returns the matched target's room_id, or None for
         a transit room / the dock / a sentinel / any name not among the job
         targets — the transit filter that keeps a cross-room hop from advancing.
+
+        ⚠ THIS INVERTS ``INCFMPP1`` AND THE INVERSION IS NOT SOUND FOR SAME-NAMED ROOMS.
+        The anchor (``rooms/room_discovery.py``) guarantees slugs are unique within a map
+        by giving the lowest-id sibling the bare slug and every colliding sibling
+        ``{slug}_r{room_id}``. That makes name -> slug NON-INVERTIBLE: the device publishes
+        a room NAME, so two "Kitchen" rooms both slugify to ``kitchen`` here, while their
+        STORED slugs are ``kitchen`` and ``kitchen_r7``. Consequences, both silent:
+        the suffixed sibling can never match (its stored slug carries a suffix the signal
+        cannot reproduce), so native rollover simply never fires for it; and while the
+        robot is in THAT room the signal still matches the bare-slug sibling, so rollover
+        can complete the WRONG room. Do not read the collision suffix as making same-named
+        rooms safe everywhere — it makes the identity KEY unique, which is a different
+        claim from making the name resolvable back to it. ``listeners/pose_sampler.py``
+        does the same inversion against ``get_managed_rooms``. A real fix needs a
+        name+id-aware resolution, i.e. a CODE change; this note only stops a reader
+        assuming the match is exact.
         """
         cfg = _get_adapter_config(vacuum_entity_id) or {}
         entity_id = cfg.get("entities", {}).get("active_cleaning_target")

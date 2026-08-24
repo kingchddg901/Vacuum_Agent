@@ -254,7 +254,7 @@ export function applyRunProfilesRenderers(proto) {
                 value="${this.escapeHtml(String(target))}"
                 class="evcc-run-profiles-charge-input"
                 data-run-profile-charge-index="${i}" />
-              <span class="evcc-run-profiles-step-pct">%</span>
+              <span class="evcc-run-profiles-step-pct">${this.t("metrics.unit_percent")}</span>
               ${unsupportedNote(i)}
             </span>
             ${controls(i)}

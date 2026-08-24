@@ -1,12 +1,35 @@
 """
 Stored adapter config loader for the ha_vacuum_manager framework.
 
-Reads adapter configs written by the UI wizard from integration storage
-and registers them with the adapter registry at startup.
+Reads stored adapter configs from integration storage and registers them with the
+adapter registry at startup.
 
-Called from async_setup_entry before code adapter registration so that
-code adapters always take precedence over stored configs for the same
-vacuum.
+⚠ was: "written by the UI wizard" — there is no UI wizard (ledger A27, corrected
+2026-08-24). ``config_flow.py`` contains no reference to adapters at all, and
+``save_adapter_config`` appears nowhere in the card's JS/TS sources. The only writers of
+``data["adapters"]`` are this module's own ``save_adapter_config()`` and the
+``eufy_vacuum.save_adapter_config`` SERVICE that calls it — and
+``services/adapter_config.py`` describes its own six services as driving the flow "for
+future multi-brand setups", while ``config_schema.py``'s module docstring marks the UI
+config flow as the thing that "will generate it in a future pass". Someone tracing "who
+writes data['adapters']" went hunting for a config-flow step that does not exist.
+``registry.py::register_adapter_config`` gets the wording right: UI/SERVICE-authored.
+
+ORDERING — what it buys, and the invariant it does NOT establish. ``async_setup_entry``
+calls ``load_stored_adapter_configs`` BEFORE ``register_brand_adapter``, so AT STARTUP a
+code adapter registered afterwards overwrites a stored config for the same vacuum.
+
+⚠ was: "so that code adapters always take precedence over stored configs for the same
+vacuum" — "always" states an invariant the system does not hold (ledger A8, corrected
+2026-08-24). ``services/adapter_config.py::_handle_save_adapter_config`` calls
+``save_adapter_config()`` and then ``registry.register_adapter_config()`` DIRECTLY, so a
+saved config registers over whatever code adapter is live and stays in force for the rest
+of the session. Both ``registry.register_adapter_config`` and
+``config_schema.validate_adapter_config`` describe that direction in their own docstrings,
+as a stored config "shadowing the live adapter". The real behaviour is a flip-flop: the
+save wins now, and the startup ordering hands the vacuum back to the code adapter at the
+next restart. That is the shape of "my saved adapter config works until I reboot Home
+Assistant" — worth knowing before touching either registration path.
 
 Storage path: data["adapters"][vacuum_entity_id] -> adapter config dict
 """
@@ -30,9 +53,11 @@ def load_stored_adapter_configs(
     """Load and register all stored adapter configs from integration storage.
 
     Returns the number of configs successfully registered.
-    Called from async_setup_entry before code adapter registration.
-    Code adapters registered afterward will overwrite these for the
-    same vacuum entity ID.
+    Called from async_setup_entry before code adapter registration, so a code
+    adapter registered afterward overwrites these for the same vacuum entity ID
+    ON THIS STARTUP PASS. That is an ordering fact about setup, not a standing
+    precedence rule — see the module docstring's ORDERING note for the
+    save-service path that reverses it mid-session.
     """
     stored_adapters = data.get("adapters", {})
     if not isinstance(stored_adapters, dict):

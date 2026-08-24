@@ -17,7 +17,7 @@ Links between frontend docs are bare sibling filenames; links out to backend sub
 
 ### Contract
 
-- **[backend-contract-and-data-shapes.md](backend-contract-and-data-shapes.md)** — the backend as a **contract**: every `eufy_vacuum` service (request + response shape), event payload, entity/attribute used as transport, the snapshot + `get_map_segments` read models, the capability flags and what they gate, the canonical-vs-localized boundary, polling/refresh/cache behavior, mutation/blocked/degraded responses, plus the minimum a non-card client needs. It **aggregates** the client-facing surface and **links** to the DR-grade backend docs ([05](../05-core-manager.md) / [06](../06-job-lifecycle.md) / [03](../03-data-model.md) / [02](../02-ha-integration.md)) for the deep shapes rather than re-owning them.
+- **[backend-contract-and-data-shapes.md](backend-contract-and-data-shapes.md)** — the backend as a **contract**: every `eufy_vacuum` service (request + response shape), event payload, entity/attribute used as transport, the snapshot + `get_map_segments` read models, the capability flags and what they gate, the canonical-vs-localized boundary, polling/refresh/cache behavior, mutation/blocked/degraded responses, plus the minimum a non-card client needs. It **aggregates** the client-facing surface and **links** to the DR-grade backend docs ([33 — The Orchestrator](../33-the-orchestrator.md) / [06](../06-run-end.md) / [03](../03-data-model.md) / [02](../02-ha-integration.md)) for the deep shapes rather than re-owning them.
 
 ### Implementation
 
@@ -280,7 +280,7 @@ import { applyMyPanelActions } from "./my-panel.js";
 applyMyPanelActions(VacuumCardActions.prototype);
 ```
 
-The service you call must exist in the backend contract — see [backend-contract-and-data-shapes.md](backend-contract-and-data-shapes.md) and the backend [core manager](../05-core-manager.md).
+The service you call must exist in the backend contract — see [backend-contract-and-data-shapes.md](backend-contract-and-data-shapes.md) and the backend [33 — The Orchestrator](../33-the-orchestrator.md).
 
 ### Step 8: Wire the data refresh in `main.js` (if the panel needs server data)
 

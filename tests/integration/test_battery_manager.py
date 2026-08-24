@@ -38,6 +38,22 @@ Coverage targets
         case proving the two spans resolve independently.
 [BM-28] RP-042: an unreadable (None) battery is a GAP — no anchor advance, no drain,
         and nothing reaches the session ring that feeds health_pct.
+[BM-29] C54: avg_rate_per_min is the mean of the rates actually OBSERVED, so it can
+        never sit below min_rate_per_min. Every session opens with samples=1 and
+        rate_sum=0.0, so this was wrong on every charge, not just ragged ones.
+[BM-30] C54: a sample where the integer percentage did not tick counts as a charging
+        sample but produced no rate, and must not dilute the mean. This is the doc's
+        own reproduction: 60→70%% over 21 minutes.
+[BM-31] C54: a session already in flight when this shipped has no rate_samples and
+        closes with avg None — "not measured", rather than the old wrong number
+        wearing the look of a measurement.
+[BM-32] B2: an ordinary battery sample takes the COALESCED save, not a full
+        integration-data disk write. `_schedule_save` writes immediately — the
+        storage layer does not coalesce, despite the docstring that said it did —
+        and `_process_sample` runs on every accepted sample.
+[BM-33] B2: a sample that CLOSES a session still writes immediately. A closed
+        session is a durable record, not a re-derivable reading, so it does not get
+        the crash-window trade the samples get.
 """
 
 from __future__ import annotations
@@ -257,6 +273,35 @@ def test_rebaseline(bm):
     assert bm.rebaseline(_VAC) is True
     assert rec["baseline"]["cc_min_per_pct"] is None
     assert bm.rebaseline("vacuum.unknown") is False
+
+
+def test_bm3b_rebaseline_clears_every_health_stat(bm):
+    """[BM-3] C21: RED BEFORE THE FIX on two of seven fields.
+
+    `rebaseline` means "this is a different battery now". It cleared five health stats
+    and left `cc_/cv_charge_speed_rejected_pct` behind, so a swapped pack inherited the
+    old pack's rejected readings and the diagnostics explained the new battery with the
+    old one's numbers.
+
+    Asserted over the WHOLE health-stat set rather than the two that were missed: a list
+    of two would go stale the moment an eighth field is added, which is the shape that
+    produced this defect. Nothing gates on these values today, which is precisely why
+    nothing complained.
+    """
+    rec = bm.ensure_record(_VAC)
+    health_stats = [
+        "cc_charge_speed_pct", "cv_charge_speed_pct", "health_pct",
+        "health_unavailable_reason", "health_unavailable_reason_text",
+        "cc_charge_speed_rejected_pct", "cv_charge_speed_rejected_pct",
+    ]
+    for key in health_stats:
+        rec["stats"][key] = 99.0
+    rec["baseline"]["cc_min_per_pct"] = 1.0
+
+    assert bm.rebaseline(_VAC) is True
+
+    left = {k: rec["stats"][k] for k in health_stats if rec["stats"][k] is not None}
+    assert not left, f"rebaseline left stale health stats behind: {left}"
 
 
 def test_record_job_metrics(bm):
@@ -785,3 +830,158 @@ def test_regime_pct_no_data_is_not_a_rejection(bm):
     assert bm._compute_regime_pct(
         [{"cv_min_per_pct": 0.0, "end_ts": _iso_now()}], 1.0, "cv_min_per_pct"
     ) == (None, None)
+
+
+# ---------------------------------------------------------------------------
+# C54 — the denominator of avg_rate_per_min
+# ---------------------------------------------------------------------------
+
+
+async def test_avg_rate_cannot_sit_below_the_observed_minimum(bm):
+    """[BM-29] RED BEFORE THE FIX on the simplest charge there is.
+
+    min and max are taken over observed rates; the mean was taken over every
+    charging sample. Opening a session sets samples=1 and returns before any rate
+    exists, so even a charge where every single interval measured the same rate
+    reported a mean below it. `avg < min` is arithmetically impossible for a real
+    mean, which is what makes it a sound assertion rather than a restatement of
+    the arithmetic.
+    """
+    samples = [(50, False, 0)] + [(lvl, True, 60) for lvl in range(50, 61)]
+    samples.append((60, False, 60))
+    _feed(bm, samples)
+
+    s = bm.get_record(_VAC)["session_history_recent"][-1]
+    assert s["min_rate_per_min"] == pytest.approx(1.0)
+    assert s["max_rate_per_min"] == pytest.approx(1.0)
+    assert s["avg_rate_per_min"] == pytest.approx(1.0)
+    assert s["avg_rate_per_min"] >= s["min_rate_per_min"]
+
+
+async def test_a_sample_that_did_not_tick_does_not_dilute_the_mean(bm):
+    """[BM-30] The reproduction from doc 16 §5, at the reporting cadence a real
+    vacuum charges at: 60→70%% over 21 samples, ten of which moved the integer
+    percentage and ten of which did not.
+
+    Before the fix this closed at 10.0/21 = 0.4762 %%/min against a stated minimum
+    of 1.0 — a headline number 52%% below the slowest interval it was built from.
+    """
+    samples = [(60, False, 0), (60, True, 60)]
+    lvl = 60
+    while lvl < 70:
+        samples.append((lvl, True, 60))       # reported again, unchanged: rate 0
+        lvl += 1
+        samples.append((lvl, True, 60))       # ticked: rate 1.0/min
+    samples.append((70, False, 60))
+    _feed(bm, samples)
+
+    s = bm.get_record(_VAC)["session_history_recent"][-1]
+    assert s["samples"] == 21                 # every charging sample
+    assert s["rate_samples"] == 10            # the ones that measured a rate
+    assert s["avg_rate_per_min"] == pytest.approx(1.0)
+    assert s["avg_rate_per_min"] != pytest.approx(10.0 / 21, abs=1e-4)
+    # the mean is published with the population it was taken over, so a reader can
+    # tell a ten-interval mean from a one-interval one.
+    assert s["rate_samples"] < s["samples"]
+
+
+async def test_a_session_open_across_the_upgrade_closes_unmeasured(bm):
+    """[BM-31] The store is on disk and this field is new. A session mid-charge when
+    the integration restarts has rate_sum but no rate_samples, and there is no way to
+    recover the population it should have been divided by.
+
+    Falling back to `samples` would reinstate exactly the value C54 removed, so it
+    closes as None. At most one session per vacuum is ever in this state.
+    """
+    t = _T0
+    for level, charging in [(50, False), (50, True), (51, True), (52, True)]:
+        t = t + timedelta(seconds=60)
+        bm._process_sample(vacuum_entity_id=_VAC, battery_level=level, charging=charging, ts=t)
+
+    session = bm.get_record(_VAC)["current_session"]
+    assert session["rate_samples"] == 2
+    del session["rate_samples"]               # the shape an older store holds
+    # a mid_job recharge, so closing actually reaches the health-stat gate below
+    session["kind"] = "mid_job"
+
+    # the SAME clock -- _feed() rewinds to _T0, and since DR-BAT-2 an out-of-order
+    # sample is dropped, so a second _feed() would never reach _close_session.
+    t = t + timedelta(seconds=60)
+    bm._process_sample(vacuum_entity_id=_VAC, battery_level=52, charging=False, ts=t)
+
+    s = bm.get_record(_VAC)["session_history_recent"][-1]
+    assert s["avg_rate_per_min"] is None
+    assert s["rate_samples"] == 0
+    # RED IF THE `avg is not None` GATE IS DROPPED: this is a mid_job session, so
+    # closing it reaches _update_mid_job_rate_stat, which does float(avg_rate_per_min)
+    # and would raise TypeError. An unmeasured session contributes nothing to the
+    # health signal instead — the stat block is seeded by ensure_record, so the
+    # evidence is that its count never moved.
+    stats = bm.get_record(_VAC)["mid_job_recharge_stats"]
+    assert stats["count"] == 0
+    assert stats["rate_mean_per_min"] is None
+
+
+# ---------------------------------------------------------------------------
+# B2 - write amplification on the per-sample path
+# ---------------------------------------------------------------------------
+
+
+def _save_spy(bm):
+    """Record which save path each sample takes, without touching behaviour."""
+    calls = {"immediate": 0, "delayed": 0}
+    bm._schedule_save = lambda: calls.__setitem__("immediate", calls["immediate"] + 1)
+    bm._schedule_save_delayed = lambda: calls.__setitem__("delayed", calls["delayed"] + 1)
+    return calls
+
+
+async def test_bm32_an_ordinary_sample_does_not_force_a_disk_write(bm):
+    """[BM-32] RED BEFORE THE FIX: every one of these took an immediate write.
+
+    Six charging samples that open and continue a session — no close. On a real
+    charging vacuum reporting every couple of seconds this is the dominant path, so it
+    is the one that decides whether the integration writes its whole store per sample.
+    """
+    calls = _save_spy(bm)
+    _feed(bm, [(50, False, 0), (52, True, 60), (54, True, 60),
+               (56, True, 60), (58, True, 60), (60, True, 60)])
+
+    assert calls["delayed"] >= 5, calls
+    assert calls["immediate"] == 0, (
+        f"an ordinary sample still forced a full-store write: {calls}"
+    )
+
+
+async def test_bm33_a_session_close_still_writes_immediately(bm):
+    """[BM-33] RED IF THE WHOLE PATH IS SWITCHED TO DELAYED.
+
+    The closing sample carries the session summary, the history-ring entry and the
+    health inputs. Those are not re-derivable from the next sample, so they do not get
+    the ~2s crash window the samples get. This is the assertion that stops "fix the
+    write amplification" from becoming "lose a session to a crash".
+    """
+    calls = _save_spy(bm)
+    _feed(bm, [(50, False, 0), (52, True, 60), (54, True, 60), (54, False, 60)])
+
+    rec = bm.get_record(_VAC)
+    assert rec["current_session"] is None, "precondition: the session closed"
+    assert len(rec["session_history_recent"]) == 1
+    assert calls["immediate"] == 1, (
+        f"the closing sample did not force a write: {calls}"
+    )
+
+
+def test_bm32_the_delayed_path_is_the_coalescing_one(bm, manager):
+    """[BM-32] RED IF `_schedule_save_delayed` IS WIRED TO THE IMMEDIATE API.
+
+    The whole finding was that two similarly-named methods do opposite things and the
+    docstring claimed the wrong one. Asserting the method exists proves nothing; this
+    asserts which manager call it reaches.
+    """
+    reached = []
+    manager.async_save_delayed = lambda: reached.append("delayed")
+    manager.async_save = lambda: reached.append("immediate")
+
+    bm._schedule_save_delayed()
+
+    assert reached == ["delayed"], reached

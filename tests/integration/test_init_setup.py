@@ -34,6 +34,12 @@ Coverage targets
           one vacuum's auto-discovery triggers leaves another vacuum's untouched.
 [INIT-10] remove_config_entry_device on a stale/unrelated device is a safe no-op
           (no teardown, no entry clear) but still returns True so HA can drop the orphan.
+[INIT-14] D2/C54: the battery-aggregates migration is actually DISPATCHED by setup,
+          and its ordering holds. This harness boots with hass ALREADY RUNNING, so
+          `async_at_started` fires immediately — the case where a hook registered
+          before DATA_BATTERY exists would find it missing and defer forever. A
+          migration that only its own unit tests ever call is dead code that passes
+          every test it has.
 [INIT-2b] INF-1: the fallback panel (no vacuum configured yet) registers using
           panels.py's DEFAULT_PANEL_TITLE / PANEL_ICON / WEBCOMPONENT_NAME
           constants, not hand-retyped literals.
@@ -822,3 +828,54 @@ async def test_remove_config_entry_device_unknown_is_safe(hass, mock_config_entr
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
+
+
+async def test_init14_battery_aggregates_migration_is_dispatched(hass, mock_config_entry, hass_storage):
+    """[INIT-14] Reachability, not behaviour — the behaviour is covered by BAM-1..12.
+
+    Two things are asserted together because either alone is misleading: the migration
+    LATCHED (so it ran to completion rather than deferring), and the stale bucket was
+    actually replaced (so it ran over the seeded data rather than latching vacuously).
+
+    RED IF THE HOOK MOVES ABOVE `hass.data[DOMAIN][DATA_BATTERY] = battery_manager`.
+    `async_at_started` fires immediately against a running hass, which is what a
+    config-entry reload does, so a hook registered earlier is dispatched while the
+    battery manager is still unset — it would defer, not latch, and the collapse would
+    stay armed on exactly the installs that upgrade.
+    """
+    from custom_components.eufy_vacuum.core.battery_aggregates_migration import (
+        BACKUP_FIELD, MIGRATION_KEY,
+    )
+
+    # A bucket in the shape an upgraded install actually holds: a populated denominator
+    # and NO partnered numerator. Taken from the live store 2026-08-23.
+    hass_storage[_STORAGE_KEY] = {"version": 1, "data": {
+        "vacuums": {_VAC: {"name": "Alfred"}},
+        "battery": {"vacuums": {_VAC: {"job_aggregates": {
+            "all_jobs": {
+                "count": 47,
+                "drain_pct_sum": 159.0,
+                "duration_min_sum": 544.45,
+                "area_m2_sum": 191.0,
+                "drain_per_min_mean": 0.292,
+                "drain_per_hour_mean": 17.5223,
+                "drain_per_m2_mean": 0.8325,
+            },
+            "by_clean_mode": {}, "by_fan_speed": {}, "by_water_level": {},
+        }}}},
+    }}
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    assert await _setup(hass, mock_config_entry) is True
+    await hass.async_block_till_done()
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    assert manager.data["migrations"].get(MIGRATION_KEY) is True, (
+        "the migration was never dispatched, or it deferred -- check that its "
+        "async_at_started hook is registered AFTER DATA_BATTERY is set"
+    )
+    record = manager.data["battery"]["vacuums"][_VAC]
+    bucket = record["job_aggregates"]["all_jobs"]
+    # replayed from an empty archive: partnered keys present, stale sums gone
+    assert "drain_pct_sum_for_duration" in bucket
+    assert bucket["duration_min_sum"] == 0.0
+    assert record[BACKUP_FIELD]["all_jobs"]["duration_min_sum"] == pytest.approx(544.45)

@@ -69,6 +69,39 @@ export function maintenanceDueInBucket(item, now, t) {
 export function applyMaintenanceRenderers(proto) {
 
   /**
+   * Localized name for a maintenance item.
+   *
+   * Prefers the i18n key `maintenance.component_label.<item.component>` (added
+   * 2026-08-24 for task 16 — the component labels used to come only from the
+   * backend adapter as English literals, and check:i18n could not see them
+   * because they were never in the i18n system at all). Falls back through the
+   * legacy chain the backend supplies, and finally the unnamed-item string —
+   * so a NEW component the adapter emits without a matching i18n key still
+   * renders SOMETHING readable, never a bare key.
+   *
+   * The i18n lookup is by COMPONENT KEY, not by the English label. That is what
+   * makes translations survive a backend rename of the display label, and what
+   * makes `check:i18n` see every locale gap the next time this list grows.
+   *
+   * @param {object} item - Maintenance/replacement item (has `component`, `label`, etc.).
+   * @param {string} [fallbackKey] - i18n key for the last-resort unnamed row.
+   * @returns {string} A translated display name.
+   */
+  proto._maintenanceItemName = function (item, fallbackKey = "maintenance.unnamed_item") {
+    const componentKey = item?.component;
+    if (componentKey) {
+      const key = `maintenance.component_label.${componentKey}`;
+      const translated = this.t(key);
+      // A missing key round-trips as the key itself under the translate contract,
+      // so treat that as "no translation" and fall through. The chain still
+      // reaches the backend label, so the user never sees the bare key.
+      if (translated && translated !== key) return translated;
+    }
+    return item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t(fallbackKey);
+  };
+
+
+  /**
    * Localize the upkeep guide for the CARD's per-user language (the globe),
    * not the HA instance language. The backend ships guide.display in the
    * instance language; we overlay steps/notes/frequency from the bundled
@@ -82,11 +115,20 @@ export function applyMaintenanceRenderers(proto) {
   proto._localizedGuide = function (item) {
     const display = item?.guide?.display ?? null;
     if (!display) return display;
-    const lang = String(this._i18nLanguage() || "en").split("-")[0];
+    // ⚠ TRY FULL LANG FIRST, THEN BASE. `split("-")[0]` alone silently misses every
+    // locale whose GUIDE_TRANSLATIONS key is a script/region variant — `zh-Hans` and
+    // `zh-Hant` both keyed as such, so the pre-2026-08-24 code was `lang = "zh"` and
+    // the map lookup missed on every render for both Chinese variants. The steps,
+    // notes and frequency all fell back to English silently, even though the
+    // roborock/eufy `upkeep_guides_i18n/zh_hans.py` translations existed and shipped.
+    // Same pattern `src/i18n/index.js:277` already uses for CATALOGS lookup.
+    const fullLang = String(this._i18nLanguage() || "en");
+    const baseLang = fullLang.split("-")[0];
     const family = item?.guide?.source_guide_family ?? item?.guide?.guide_family ?? item?.guide_family;
     const component = item?.component;
     const kind = String(item?.kind ?? "maintenance");
-    const byLang = GUIDE_TRANSLATIONS[lang]?.[family]?.[component];
+    const byLang = GUIDE_TRANSLATIONS[fullLang]?.[family]?.[component]
+                ?? GUIDE_TRANSLATIONS[baseLang]?.[family]?.[component];
     const byEn = GUIDE_TRANSLATIONS.en?.[family]?.[component];
     if (!byLang && !byEn) return display; // unknown family/component → backend value
     const pick = (field) => byLang?.[field] ?? byEn?.[field];
@@ -186,9 +228,9 @@ export function applyMaintenanceRenderers(proto) {
     const totalTiles = [];
     if (deviceTotals) {
       if (deviceTotals.area_m2 != null)
-        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_total_cleaned"), `${Math.round(deviceTotals.area_m2)} m²`));
+        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_total_cleaned"), this.t("saved_zones.area_m2", { area: Math.round(deviceTotals.area_m2) })));
       if (deviceTotals.time_s != null)
-        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_total_time"), `${(deviceTotals.time_s / 3600).toFixed(1)} h`));
+        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_total_time"), `${(deviceTotals.time_s / 3600).toFixed(1)} ${this.t("metrics.unit_hours")}`));
       if (deviceTotals.count != null)
         totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_cleans"), String(deviceTotals.count)));
     }
@@ -359,7 +401,7 @@ export function applyMaintenanceRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderMaintenanceAttentionItem = function (item) {
-    const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t("maintenance.unnamed_item");
+    const name = this._maintenanceItemName(item);
     const status = this._maintenanceStatusText(item?.status ?? "warning", item?.status_label);
     const detail =
       item?.remaining_summary ??
@@ -399,7 +441,7 @@ export function applyMaintenanceRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderMaintenanceCard = function (item) {
-    const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t("maintenance.unnamed_item");
+    const name = this._maintenanceItemName(item);
     const kind = String(item?.kind ?? "maintenance");
     const statusKey = String(item?.status ?? "unknown");
     const status = this._formatMaintenanceStatus(statusKey);
@@ -469,7 +511,7 @@ export function applyMaintenanceRenderers(proto) {
     const numericValue = Number(stationWater);
     const isNumeric = Number.isFinite(numericValue);
     const rawValue = String(stationWaterLabel ?? "").trim() || (hasValue
-      ? (isNumeric ? `${Math.round(numericValue)}%` : String(stationWater))
+      ? (isNumeric ? `${Math.round(numericValue)}${this.t("metrics.unit_percent")}` : String(stationWater))
       : this.t("maintenance.value_unknown"));
 
     const normalized = String(rawValue).trim().toLowerCase();
@@ -559,7 +601,7 @@ export function applyMaintenanceRenderers(proto) {
     const item = state?.activeMaintenanceModalItem?.();
     if (!item) return "";
 
-    const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t("maintenance.modal_fallback_name");
+    const name = this._maintenanceItemName(item, "maintenance.modal_fallback_name");
     const kind = String(item?.kind ?? "maintenance");
     const statusKey = String(item?.status ?? "unknown");
     const status = this._formatMaintenanceStatus(statusKey);

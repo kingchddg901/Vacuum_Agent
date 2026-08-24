@@ -225,7 +225,7 @@ Fires when an **app-started (external) clean** finishes and is captured as a
 pending review record under `learning/<slug>/external_jobs/`. Subscribe to surface
 a notification prompting the user to confirm which rooms it cleaned (the card's
 "External Jobs" subtab). See the
-[external-run ingestion dev doc](../dev/28-external-run-ingestion.md).
+[30 — External Runs](../dev/30-external-runs.md).
 
 ### Payload fields
 

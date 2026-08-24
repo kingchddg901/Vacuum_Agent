@@ -524,6 +524,22 @@ export const en = {
   "maintenance.due_in_months": { other: "Due in ~{count} months" },  // plural
   "maintenance.due_in_weeks": { other: "Due in ~{count} weeks" },  // plural
   "maintenance.due_overdue": "Overdue",
+  "maintenance.component_label.main_brush": "Main Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.side_brush": "Side Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.filter": "Filter",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.sensor": "Sensor",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.dustbin": "Dustbin",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.mop_cloth": "Mop Cloth",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.water_filter": "Water Filter",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.caster_wheel": "Caster Wheel",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.main_wheel": "Main Wheel",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.dock_cleaning_brush": "Dock Cleaning Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.dock_strainer": "Dock Strainer",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.dock_dust_bag": "Dock Dust Bag",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.clean_water_tank": "Clean Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.dirty_water_tank": "Dirty Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.rolling_brush": "Rolling Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.mopping_cloth": "Mopping Cloth",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.due_today": "Due today",
   "maintenance.due_tomorrow": "Due tomorrow",
   "maintenance.hours": { one: "{value} hour", other: "{value} hours" },  // plural; run-hours label; {value} is preformatted, count drives one/other
@@ -831,6 +847,23 @@ export const en = {
   "metrics.battery_col_mean_per_m2": "Mean",  // Drain-table column header; the unit lives on the VALUE via metrics.unit_per_m2
   "metrics.unit_per_m2": "%/m²",  // battery drain unit, appended to a value. LOCALIZED — ar/he/ru do not use a Latin m
   "metrics.unit_per_min": "%/min",  // charge-rate unit, appended to a value. Composed from run_profiles.minutes_unit
+  "rooms.override_order.toggle_label": "Override device order",  // Sequence-toggle switch label — the persistent companion to the strict-order chip
+  "rooms.override_order.consent": "Changes the saved sequence in your Roborock app",  // ⚠ Consent text — this UI edits a persistent, map-level user setting in the vendor app
+  "rooms.override_order.path_optimizing": "Vacuum optimises the path itself",  // Row body when the switch is off and no device order is saved
+  "rooms.override_order.matching": "Sequence matches your queue",  // Green state: switch on, device order equals queue
+  "rooms.override_order.mismatch": "Sequence differs from your queue — Apply to update",  // Amber state: switch on, device order != queue
+  "rooms.override_order.unverifiable": "Could not read the device's saved sequence",  // Grey state: sensor unavailable/unknown
+  "rooms.override_order.apply": "Apply queue to device",  // Button: writes the queue order to the device
+  "rooms.override_order.clear": "Clear device sequence",  // Button: wipes the device's saved sequence
+  "rooms.override_order.device_label": "Device:",  // Prefix on the device-order line in the mismatch diff
+  "rooms.override_order.queue_label": "Queue:",  // Prefix on the queue-order line in the mismatch diff
+  "rooms.override_order.empty_placeholder": "(empty)",  // Shown in the mismatch diff when one side has no order
+  "metrics.battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",  // Tooltip on the 'samples / count' Jobs cell in the drain table when samples < count. LOCALIZE.
+  "metrics.unit_per_hour": "%/h",  // battery drain-per-hour unit, appended to a value; LOCALIZE the 'h' (ar/he use non-Latin scripts)
+  "metrics.unit_percent": "%",  // bare percent unit, appended to a value. Most languages keep '%' but some scripts prefer their own numeral marker
+  "metrics.unit_square_meters": "m²",  // area unit, appended to a value; LOCALIZE 'm' (ar/he/ru do not use a Latin m — mirror metrics.unit_per_m2's approach)
+  "metrics.unit_hours": "h",  // hours unit, appended to a value; LOCALIZE 'h' (ar/he/ru non-Latin scripts). Used by maintenance device-total tiles.
+  "metrics.unit_ml": "ml",  // millilitres unit, appended to a rounded integer. LOCALIZE for scripts that write volume differently. Used by water/dock format helpers.
   "metrics.battery_col_notes": "Notes",  // Charge-rates table column: explanatory note text per row, not user-entered notes
   "metrics.battery_col_zone": "Zone",  // Charge-rates table column: a battery charge-rate %-band zone (low/high/mid), not a clean zone/room
   "metrics.battery_drain_subtitle": "Only jobs where every room used the same setting feed these means. Mixed-mode runs still update the all-jobs row but skip per-bucket buckets.",  // 'single-bucket job' = a run where every room used the same setting
@@ -2642,7 +2675,17 @@ export const en = {
   "fault.eufy.base_station_no_dust_bag_installed": "Base station no dust bag installed",  // Eufy code 6113
   "fault.eufy.base_station_not_found": "Base station not found",  // Eufy code 7055
   "fault.eufy.base_station_power_fault": "Base station power fault",  // Eufy code 6110
-  "fault.eufy.base_station_power_off": "Base station power off",  // Eufy code 5014
+  // ⚠ ORPHANED KEY. This entry was annotated "// Eufy code 5014" — false since 5014 was
+  // re-mapped. Eufy's own error protos declare E5014_LOW_BATTERY_SHUTDOWN, i.e. the ROBOT's
+  // pack dying, not the station losing power (upstream robovac_mqtt mislabels it "DOCKING
+  // STATION POWER OFF" and we mirrored that). adapters/eufy/vocabulary.py now lists 5014 in
+  // EUFY_ROBOT_SOURCED_ERROR_CODES and EUFY_ERROR_LABEL_KEYS points it at
+  // `fault.eufy.power_low_shutdown`, so NOTHING maps to the key below any more. Do not
+  // re-point 5014 at it: a dock-sourced fault is evidence-safe ("the robot can be cleaning
+  // normally throughout"), and a run that ended because the battery died is truncated by
+  // definition — learning would accept it as complete. The string is left defined (already
+  // translated in all 18 locales) rather than deleted.
+  "fault.eufy.base_station_power_off": "Base station power off",  // no Eufy code maps here; 5014 now uses fault.eufy.power_low_shutdown
   "fault.eufy.base_station_pressure_sensor_fault": "Base station pressure sensor fault",  // Eufy code 6115
   "fault.eufy.base_station_temperature_sensor_not_responding": "Base station temperature sensor not responding",  // Eufy code 6043
   "fault.eufy.base_station_tray_full": "Base station tray full",  // Eufy code 6031

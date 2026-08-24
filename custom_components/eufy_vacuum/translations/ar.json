@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} ليست مكنسة تديرها هذه التكاملية."
+    },
+    "room_update_refused": {
+      "message": "تعذّر تحديث {room}: {reason}"
     }
   },
   "entity": {

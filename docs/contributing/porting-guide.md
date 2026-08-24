@@ -4,10 +4,11 @@ This guide is for developers adapting eufy_vacuum to a different vacuum brand
 that has a Home Assistant integration exposing named-room cleaning (Roborock,
 Ecovacs, Dreame, etc.).
 
-Read [01-architecture-overview.md](../dev/01-architecture-overview.md),
-[21-adapter-system.md](../dev/21-adapter-system.md), and
-[22-adapter-config-reference.md](../dev/22-adapter-config-reference.md) first —
-this guide is the workflow; those are the reference.
+Read [01 — Architecture Overview](../dev/01-architecture-overview.md) and
+[22 — The Adapter Contract](../dev/22-adapter-contract.md) first — this guide is the workflow,
+those are the reference, and the per-field schema is generated from the code itself (doc 22 says
+where). The two shipped brands are worked examples: [23 — The Eufy
+Adapter](../dev/23-eufy-adapter.md) and [24 — The Roborock Adapter](../dev/24-roborock-adapter.md).
 
 ---
 
@@ -43,7 +44,7 @@ learns your brand's name, vocabulary, or limits.
 
 If you find yourself editing anything else outside `adapters/<brand>/`, stop —
 that is the signal you are reaching for something that should be yours or should
-be passed to you (see [21-adapter-system §7](../dev/21-adapter-system.md), which
+be passed to you (see [22 — The Adapter Contract](../dev/22-adapter-contract.md), which
 carries the same rule and the one known historical exception).
 
 The reference adapter lives at `custom_components/eufy_vacuum/adapters/eufy/`.
@@ -52,7 +53,7 @@ config shape.
 
 For a **second** worked example — a brand whose discovery, dispatch, and
 clean-order behave nothing like Eufy's — see
-[dev/29-roborock-adapter](../dev/29-roborock-adapter.md). Reading the two side by
+[24 — The Roborock Adapter](../dev/24-roborock-adapter.md). Reading the two side by
 side is the fastest way to see which config values are brand facts versus
 framework contract.
 
@@ -67,7 +68,7 @@ is `adapter.py` / `const.py` / `entities.py` / `vocabulary.py` /
 `model_catalog.py` / `maintenance_components.py` plus its upkeep guide library
 (`upkeep_catalog.py`, `roborock_upkeep_guides.py`, `upkeep_guides_i18n/`) — no
 `buttons` / `lifecycle` / `water_config` / `segmentor`. See the
-[Roborock adapter](../dev/29-roborock-adapter.md) §2 for that minimal-surface
+[24 — The Roborock Adapter](../dev/24-roborock-adapter.md) §2 for that minimal-surface
 example.
 
 | File (eufy) | Purpose |
@@ -99,13 +100,13 @@ flagged here.
 ## 3. The config blocks you fill in
 
 These are the real "coupling points" — all data, no code in core. Every field
-is documented in [22-adapter-config-reference.md](../dev/22-adapter-config-reference.md);
+is documented in [22 — The Adapter Contract](../dev/22-adapter-contract.md);
 this is the orientation.
 
 | Block | Required | What it carries |
 |---|---|---|
 | `adapter_id`, `source` | yes | identity (`source: "code"` for a shipped adapter) |
-| `entities` | yes | role → HA entity-ID map (`task_status`, `dock_status`, `active_map`, `battery`, `charging`, `cleaning_area`, …). Absent entities degrade the dependent feature; they never raise. Do NOT supply `robot_position_x/y` — it is an Eufy-only raw field, not a pose source; see [Eufy adapter → robot_position_x/y](../dev/25-eufy-adapter.md#4b-raw-robot-position-is-not-a-pose-source). Live pose comes from `map_state_source.live_pose` and arrives as `robot_anchor`. |
+| `entities` | yes | role → HA entity-ID map (`task_status`, `dock_status`, `active_map`, `battery`, `charging`, `cleaning_area`, …). Absent entities degrade the dependent feature; they never raise. Do NOT supply `robot_position_x/y` — it is an Eufy-only raw field, not a pose source; see [23 — The Eufy Adapter](../dev/23-eufy-adapter.md). Live pose comes from `map_state_source.live_pose` and arrives as `robot_anchor`. |
 | `dispatch` | yes | how to send a clean job (§4) |
 | `vocabulary` + `completion` | no (recommended) | the raw state strings your vacuum reports (§5) |
 | `capabilities` | no | feature flags (§6) |
@@ -179,8 +180,8 @@ replace it.
 
 **Job model.** Engines declare `job_model` (`atomic_batch` default, or
 `sequenced` for sweep-all-then-mop-all style multi-dispatch jobs via
-`build_phases`). See [07-queue-engine.md](../dev/07-queue-engine.md) and
-[22 §13](../dev/22-adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job).
+`build_phases`). See [05 — While a Run Is Live](../dev/05-run-live.md) and
+[22 — The Adapter Contract](../dev/22-adapter-contract.md).
 
 ---
 
@@ -223,7 +224,7 @@ All default to True / unchanged, so Eufy omits them. A path-optimizing brand (th
 Roborock S6) sets `honors_clean_order=False` (which gates the strict-order opt-in
 and the run-start "order is advisory" note) and `supports_room_profiles=False`.
 The full 15-flag table is in
-[Adapter config reference](../dev/22-adapter-config-reference.md) §14.
+[22 — The Adapter Contract](../dev/22-adapter-contract.md) §14.
 
 The Eufy adapter auto-populates these by calling
 `core/capabilities.py::detect_capabilities()` (Eufy-specific: entity-presence
@@ -239,8 +240,8 @@ way the flags' *meaning* is brand-agnostic — only detection is brand-specific.
 The Roborock adapter exercised several config seams Eufy never touches. A
 divergent brand can opt into the same behavior by declaring these — each is a
 config knob, not core code. One line each here; the field schemas live in
-[Adapter config reference](../dev/22-adapter-config-reference.md) and the worked
-context in [Roborock adapter](../dev/29-roborock-adapter.md).
+[22 — The Adapter Contract](../dev/22-adapter-contract.md) and the worked
+context in [24 — The Roborock Adapter](../dev/24-roborock-adapter.md).
 
 - `dispatch.phase_timing` — settle/verify/retry timing for the **strict-order**
   per-room watchdog (a path-optimizing device may ignore a clean dispatched the
@@ -321,7 +322,7 @@ refresher calls the service at the async discovery boundaries, flattens the
 },
 ```
 
-See the [Roborock adapter](../dev/29-roborock-adapter.md) §4 for the worked
+See the [24 — The Roborock Adapter](../dev/24-roborock-adapter.md) §4 for the worked
 example. Brands that expose rooms via HA Areas (the 2026.3 `vacuum.clean_area`
 integrations) read those instead. None of these need CV segmentation — the Eufy
 CV segmentor exists only because Eufy exposes no structured room geometry.
@@ -440,8 +441,8 @@ A brand whose device reports its live room directly (e.g. Roborock's
 `_current_room` sensor) sets `native_transition_source: True`; the framework then
 follows that signal — name-slug matched, order-agnostic, transit rooms ignored —
 instead of the counter/timing heuristic. See the
-[Roborock adapter](../dev/29-roborock-adapter.md) and
-[Adapter config reference](../dev/22-adapter-config-reference.md) §13b.
+[24 — The Roborock Adapter](../dev/24-roborock-adapter.md) and
+[22 — The Adapter Contract](../dev/22-adapter-contract.md) §13b.
 
 > **Threshold home moved.** The six gap/area/cadence/stall thresholds
 > (`gap_delayed_s`, `gap_transit_s`, `gap_plateau_s`, `area_jump_m2`,

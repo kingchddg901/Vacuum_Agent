@@ -28,6 +28,20 @@ Coverage targets
 [PM-17] _protected_room_config downgrades a carpet mop room to vacuum, water + edge off.
 [PM-18] run_profile_steps: a legacy rooms-only profile back-fills to one room_group step.
 [PM-19] run_profile_steps: an explicit steps list is normalized + returned.
+[PM-30] D7: two saves inside ONE SECOND both survive. The id was the local clock to
+        the second with no uniqueness check, so the second save silently REPLACED the
+        first — the user sees one profile where they saved two.
+[PM-31] D7: the id is drawn from UTC, which is what removes the DST-fold collision. A
+        local clock repeats an entire hour once a year, so two profiles saved sixty
+        minutes apart could collide exactly as if they were simultaneous.
+[PM-32] D7: the ROOM-profile id generator had the same defect and the same fix. It is
+        a sibling copy, and a fix applied to one copy of a rule is how the other
+        becomes the bug.
+[PM-33] D8: a room's `path_type` is captured in the run-profile snapshot.
+[PM-34] D8: a room WITHOUT a path_type does not gain the key. Empty must stay
+        indistinguishable from absent on this axis.
+[PM-35] D8: applying restores the SAVED path_type over a diverged live value — the
+        whole point of the ladder, for the one axis Roborock declares.
 [PM-20] normalize_run_profile_steps: drops junk/empty/bad-target; clamps target 1..100.
 [PM-21] set_run_profile_steps: a room→charge→room sequence stores + flags has_charge_steps.
 [PM-22] set_run_profile_steps: steps with no room_group are rejected.
@@ -1185,3 +1199,134 @@ def test_brand_vocabulary_legs_are_NOT_canonicalized(pm):
         "floor_type": "hardwood",
     }
     assert pm._match_profile_from_fields(room, vacuum_entity_id=_VAC) is None
+
+
+# ---------------------------------------------------------------------------
+# D7 - run/room profile id collisions
+# ---------------------------------------------------------------------------
+
+
+class _FrozenDatetime:
+    """A datetime whose .now() never advances, and which records the tz it was asked for."""
+
+    calls: list = []
+
+    @classmethod
+    def now(cls, tz=None):
+        cls.calls.append(tz)
+        return _REAL_DATETIME(2026, 8, 23, 14, 30, 22, tzinfo=tz)
+
+
+from datetime import datetime as _REAL_DATETIME, timezone as _REAL_TZ  # noqa: E402
+
+
+def test_pm30_two_saves_in_the_same_second_both_survive(pm, monkeypatch):
+    """[PM-30] RED BEFORE THE FIX: the second save overwrote the first in place.
+
+    The clock is frozen so both saves land on the same base id — which is exactly the
+    real-world case, since the card can submit a save without a name in one click.
+    """
+    _seed_enabled_rooms(pm)
+    _FrozenDatetime.calls = []
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.profiles.manager.datetime", _FrozenDatetime)
+
+    first = pm.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Evening")
+    second = pm.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Night")
+
+    assert first["saved"] is True and second["saved"] is True
+    assert first["profile_id"] != second["profile_id"]
+    listing = pm.get_saved_run_profiles(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert listing["profile_count"] == 2
+    assert {p["name"] for p in listing["profiles"]} == {"Evening", "Night"}
+
+
+def test_pm31_the_id_is_drawn_from_utc(pm, monkeypatch):
+    """[PM-31] Asserts the TZ the clock was ASKED for, not the string it produced.
+
+    RED IF IT REVERTS TO `datetime.now()`. Checking the formatted value instead would
+    pass silently on any runner whose local zone happens to be UTC — which is most CI,
+    and none of the installs this actually bites.
+    """
+    _seed_enabled_rooms(pm)
+    _FrozenDatetime.calls = []
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.profiles.manager.datetime", _FrozenDatetime)
+
+    out = pm.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Evening")
+    assert _FrozenDatetime.calls == [_REAL_TZ.utc]
+    assert out["profile_id"].endswith("Z")
+
+
+def test_pm32_the_room_profile_id_generator_has_the_same_fix(pm, monkeypatch):
+    """[PM-32] The sibling copy. Both id spaces were `<prefix>_<local time>` with no
+    uniqueness check; fixing only the one that was reported leaves the other."""
+    _FrozenDatetime.calls = []
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.profiles.manager.datetime", _FrozenDatetime)
+
+    store = pm._get_custom_room_profile_store()
+    first = pm._generate_room_profile_id()
+    store[first] = {"label": "one"}
+    second = pm._generate_room_profile_id()
+
+    assert first != second
+    assert first.startswith("user_") and second.startswith("user_")
+    assert _FrozenDatetime.calls == [_REAL_TZ.utc, _REAL_TZ.utc]
+
+
+# ---------------------------------------------------------------------------
+# D8 - path_type in run profiles
+# ---------------------------------------------------------------------------
+
+
+def _seed_room_with_path(pm, path_type="narrow"):
+    pm._data["maps"] = {_VAC: {_MAP: {"rooms": {
+        "1": {"room_id": 1, "name": "Kitchen", "enabled": True, "order": 1,
+              "path_type": path_type, "clean_mode": "vacuum"},
+    }}}}
+
+
+def test_pm33_path_type_is_captured_in_the_snapshot(pm):
+    """[PM-33] RED BEFORE THE FIX. The snapshot captured ten keys and this was not one
+    of them, so the axis never entered the apply ladder at all."""
+    _seed_room_with_path(pm, "narrow")
+    pm.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Evening")
+
+    library = pm._get_saved_run_profile_store(vacuum_entity_id=_VAC, map_id=_MAP)
+    rooms = next(iter(library.values()))["rooms"]
+    assert rooms[0]["path_type"] == "narrow"
+
+
+def test_pm34_a_room_without_a_path_type_does_not_gain_the_key(pm):
+    """[PM-34] RED IF THE SNAPSHOT WRITES THE KEY UNCONDITIONALLY.
+
+    This dict is persisted verbatim and never passes through `_finalize_room_update`,
+    so an unconditional `path_type: ""` would land in every saved profile on every
+    brand — re-creating the fossil the one-shot store repair cleared, where "" and None
+    stringify to the literal "None" on units whose adapter has no path axis at all.
+    """
+    _seed_enabled_rooms(pm)          # rooms carry no path_type
+    pm.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Evening")
+
+    library = pm._get_saved_run_profile_store(vacuum_entity_id=_VAC, map_id=_MAP)
+    for room in next(iter(library.values()))["rooms"]:
+        assert "path_type" not in room, room
+
+
+def test_pm35_applying_restores_the_saved_path_type(pm):
+    """[PM-35] The end-to-end point of D8, and the failure the ladder exists to prevent:
+    the right rooms in the right order with today's setting on all of them.
+
+    The live room is moved AWAY from the saved value before applying, so a pass here
+    cannot come from the live room happening to agree.
+    """
+    _seed_room_with_path(pm, "narrow")
+    pid = pm.save_run_profile(
+        vacuum_entity_id=_VAC, map_id=_MAP, name="Evening")["profile_id"]
+
+    pm._data["maps"][_VAC][_MAP]["rooms"]["1"]["path_type"] = "wide"   # user changed it
+    out = pm.apply_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid)
+
+    assert out["applied"] is True
+    assert pm._data["maps"][_VAC][_MAP]["rooms"]["1"]["path_type"] == "narrow"

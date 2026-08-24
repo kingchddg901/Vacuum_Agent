@@ -108,6 +108,17 @@ async def async_setup_entry(
                     # name override survive; deliberately NOT calling
                     # registry.async_update_entity(name=...), which would stomp
                     # a user override and freeze future translation updates.
+                    #
+                    # ⚠ NO TEST REACHES THIS BRANCH (ledger T4, open). The sibling
+                    # it names IS covered — `[INIT-13]`
+                    # `test_room_rename_swaps_entity_keeping_unique_id` in
+                    # tests/integration/test_init_setup.py pins the swap for the
+                    # SENSOR platform — while tests/integration/test_button_entity.py
+                    # ([BE-1]..[BE-7]) covers unique_id, icon, press, name resolution
+                    # and availability, and never renames a profile. So the fix for
+                    # the forgotten sibling is itself unguarded: delete this branch
+                    # and the suite stays green. Closing that is a test, not a
+                    # comment.
                     entity_map[unique_id] = entity
 
                     async def _swap_renamed(_old=existing, _new=entity) -> None:

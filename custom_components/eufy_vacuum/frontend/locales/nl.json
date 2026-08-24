@@ -511,7 +511,25 @@
       "one": "1 onderhoudspunt vraagt aandacht.",
       "other": "{count} onderhoudspunten vragen aandacht."
     },
-    "attention_summary_none": "Geen onderhoudspunten vragen aandacht."
+    "attention_summary_none": "Geen onderhoudspunten vragen aandacht.",
+    "component_label": {
+      "main_brush": "Main Brush",
+      "side_brush": "Side Brush",
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "dustbin": "Dustbin",
+      "mop_cloth": "Mop Cloth",
+      "water_filter": "Water Filter",
+      "caster_wheel": "Caster Wheel",
+      "main_wheel": "Main Wheel",
+      "dock_cleaning_brush": "Dock Cleaning Brush",
+      "dock_strainer": "Dock Strainer",
+      "dock_dust_bag": "Dock Dust Bag",
+      "clean_water_tank": "Clean Water Tank",
+      "dirty_water_tank": "Dirty Water Tank",
+      "rolling_brush": "Rolling Brush",
+      "mopping_cloth": "Mopping Cloth"
+    }
   },
   "map": {
     "adjusting": "Aanpassen:",
@@ -751,6 +769,10 @@
     "battery_col_mean_per_m2": "Gem.",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/min",
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",
+    "unit_per_hour": "%/h",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "Opmerkingen",
     "battery_col_zone": "Zone",
     "battery_drain_subtitle": "Alleen taken waarbij elke kamer dezelfde instelling gebruikte voeden deze gemiddelden. Gemengde runs werken nog steeds de alle-taken-rij bij, maar slaan de per-categorie-categorieën over.",
@@ -881,7 +903,9 @@
     "water_total_detail": "Totaal waterverbruik over overeenkomende taken",
     "window_last_30_days": "Laatste 30 dagen",
     "window_last_7_days": "Laatste 7 dagen",
-    "window_today": "Vandaag"
+    "window_today": "Vandaag",
+    "unit_ml": "ml",
+    "unit_hours": "u"
   },
   "mobile": {
     "dock_status_label": "Dockstatus:",
@@ -1384,7 +1408,20 @@
     },
     "live_queue_label": "Live wachtrij",
     "stall_capture_enable": "Opname bij vastlopen inschakelen",
-    "stall_capture_disable": "Opname bij vastlopen uitschakelen"
+    "stall_capture_disable": "Opname bij vastlopen uitschakelen",
+    "override_order": {
+      "toggle_label": "Override device order",
+      "consent": "Changes the saved sequence in your Roborock app",
+      "path_optimizing": "Vacuum optimises the path itself",
+      "matching": "Sequence matches your queue",
+      "mismatch": "Sequence differs from your queue — Apply to update",
+      "unverifiable": "Could not read the device's saved sequence",
+      "apply": "Apply queue to device",
+      "clear": "Clear device sequence",
+      "device_label": "Device:",
+      "queue_label": "Queue:",
+      "empty_placeholder": "(empty)"
+    }
   },
   "profile_card": {
     "configure": "Selecteer een stofzuiger, kaart en profiel in de editor.",

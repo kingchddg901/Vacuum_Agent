@@ -2,7 +2,7 @@
 
 This is the **seam doc**: what a UI **reads** from the backend (services, events, entities) and what it **writes** back (service calls). Everything in the Backend Contract below is what *any* UI — the shipped card, a React app, a native client, a CLI — must consume to drive a eufy_vacuum installation; "Building a different UI" then distills the minimum a non-card client needs. For the overall frontend map and how the layers fit together, start at the hub, [architecture-overview.md](architecture-overview.md).
 
-The **map render-DATA shapes** — the map segment geometry, `room_names`, and the live pose the card draws its backdrop and overlays from — are **not owned here**. They are sourced and normalised by the [map source coordinator](../31-map-source-coordinator.md) and defined in [map-state-source](../design/shipped/map-state-source.md); this doc only records how a UI *fetches* them (`get_map_segments` / `get_map_render_data` / `get_map_live_pose`). The **dashboard / job-progress snapshots** the card renders from, by contrast, ARE aggregated here — with the field-by-field shape linked to the DR-grade backend docs ([05 §6](../05-core-manager.md#6-direct-responsibilities) / [03](../03-data-model.md) / [06](../06-job-lifecycle.md)).
+The **map render-DATA shapes** — the map segment geometry, `room_names`, and the live pose the card draws its backdrop and overlays from — are **not owned here**. They are sourced and normalised by the [12 — Where the Map Comes From](../12-map-source.md) and defined in [map-state-source](../design/shipped/map-state-source.md); this doc only records how a UI *fetches* them (`get_map_segments` / `get_map_render_data` / `get_map_live_pose`). The **dashboard / job-progress snapshots** the card renders from, by contrast, ARE aggregated here — with the field-by-field shape linked to the DR-grade backend docs ([33 — The Orchestrator](../33-the-orchestrator.md) / [03](../03-data-model.md) / [06](../06-run-end.md)).
 
 ---
 
@@ -18,17 +18,17 @@ All services live in the `eufy_vacuum` domain. Call them via `hass.callService(d
 
 | Service | Required fields | What it returns |
 |---|---|---|
-| `get_start_status` | `vacuum_entity_id`, `map_id` | Pre-flight eligibility: fixed field set + a priority-ordered `reason` enum + `requires_confirmation`/`confirm_token` (the reduced-run handshake source). Full shape: [06 §1](../06-job-lifecycle.md) |
-| `get_dashboard_snapshot` | `vacuum_entity_id`, `map_id` | The per-vacuum **42-key card read model** (39 before 2.1.0 added `resolved_entities`, `entity_bindings` and `stall_capture_enabled`) — sub-snapshots (`job_progress`, `job_control`, `start_status`, `lifecycle`, `upkeep`, `planned_job_estimate`, `queue_steps`) + a **capability-hint block** (now incl. `zone_bounds` / `supports_water_control` / `supports_edge_mopping`) + a **live-map block** + `status_summary`/`attention_summary`/`learning_processing`/`updated_at`. There is **no** "room list" key (rooms come from switch entities). Full field-by-field shape: [05 §6 `get_dashboard_snapshot`](../05-core-manager.md#6-direct-responsibilities); see [Capability flags → behavior](#capability-flags--behavior) for the hint block |
+| `get_start_status` | `vacuum_entity_id`, `map_id` | Pre-flight eligibility: fixed field set + a priority-ordered `reason` enum + `requires_confirmation`/`confirm_token` (the reduced-run handshake source). Full shape: [06 §1](../06-run-end.md) |
+| `get_dashboard_snapshot` | `vacuum_entity_id`, `map_id` | The per-vacuum **42-key card read model** (39 before 2.1.0 added `resolved_entities`, `entity_bindings` and `stall_capture_enabled`) — sub-snapshots (`job_progress`, `job_control`, `start_status`, `lifecycle`, `upkeep`, `planned_job_estimate`, `queue_steps`) + a **capability-hint block** (now incl. `zone_bounds` / `supports_water_control` / `supports_edge_mopping`) + a **live-map block** + `status_summary`/`attention_summary`/`learning_processing`/`updated_at`. There is **no** "room list" key (rooms come from switch entities). Full field-by-field shape: [33 — The Orchestrator](../33-the-orchestrator.md); see [Capability flags → behavior](#capability-flags--behavior) for the hint block |
 | `get_dock_action_status` | `vacuum_entity_id`, `map_id` | Dock action availability (wash/dry/empty), active action flags |
 | `get_pause_timeout_settings` | `vacuum_entity_id` | `{vacuum_entity_id, pause_timeout_minutes_default}`. **Computes, never writes** — an unconfigured vacuum stores nothing and this returns the default **15**, so the store keeps "never configured" distinguishable from "deliberately set". An explicit `0` is returned unchanged and means the timeout is off. A UI offering this control must offer `0` as a visible option: the service accepts it, so a UI that cannot display it can leave a vacuum disabled with nothing to reveal it |
 | `get_lifecycle_state` | `vacuum_entity_id` | Raw lifecycle state dict |
-| `get_job_progress_snapshot` | `vacuum_entity_id` | Live in-progress job snapshot: `current_room_id`, **`current_room_ids`** (list of int — everything the CURRENT phase covers: a single-room phase yields one id identical to `current_room_id`; a `room_group` phase yields every room of the dispatch from the phase's own `resolved_rooms`, falling back to `[current_room_id]` for atomic runs/breaks — RP-047: a group is ONE dispatch, so `current_room_id` pins to the group's first room and must not be read as the whole answer), **`current_phase`** (`{index, phase_type, room_ids, is_group}`, or `null` when no phase is resolvable), `completed_room_ids`, `remaining_room_ids`, `skipped_room_ids`, `progress_percent`, the per-room `timeline`, `awaiting_bounds_exit` (group-phase-aware: the threshold sums the whole dispatch), the `charge_*`/`wait_*`/`zone_*` phase surfacing, and the `live_queue` monitor twin. Full shape: [03 §5b](../03-data-model.md) + [05 §6](../05-core-manager.md#6-direct-responsibilities). The intended refresh trigger is the `eufy_vacuum_job_progress_tick` event (see [Events](#ha-events)) |
+| `get_job_progress_snapshot` | `vacuum_entity_id` | Live in-progress job snapshot: `current_room_id`, **`current_room_ids`** (list of int — everything the CURRENT phase covers: a single-room phase yields one id identical to `current_room_id`; a `room_group` phase yields every room of the dispatch from the phase's own `resolved_rooms`, falling back to `[current_room_id]` for atomic runs/breaks — RP-047: a group is ONE dispatch, so `current_room_id` pins to the group's first room and must not be read as the whole answer), **`current_phase`** (`{index, phase_type, room_ids, is_group}`, or `null` when no phase is resolvable), `completed_room_ids`, `remaining_room_ids`, `skipped_room_ids`, `progress_percent`, the per-room `timeline`, `awaiting_bounds_exit` (group-phase-aware: the threshold sums the whole dispatch), the `charge_*`/`wait_*`/`zone_*` phase surfacing, and the `live_queue` monitor twin. Full shape: [03 §5b](../03-data-model.md) + [33 — The Orchestrator](../33-the-orchestrator.md). The intended refresh trigger is the `eufy_vacuum_job_progress_tick` event (see [Events](#ha-events)) |
 | `get_job_control_state` | `vacuum_entity_id` | Card **action-affordance** state (NOT queue content — that's `get_queue_state`): `status`, `status_label`, `terminal`, `can_start`/`can_pause`/`can_resume`/`can_cancel`/`can_clear`, `reason`/`reason_label`/`reason_detail`, `message`, `pause_timeout_minutes_default`/`_effective`, `warning`, `status_summary`, `job_id`, `current_room_id` |
-| `get_upkeep_snapshot` | `vacuum_entity_id` | Maintenance: `replacement_items`, `maintenance_items`, `attention_count`, `attention_summary`, priority rollup. See [13-maintenance-manager](../13-maintenance-manager.md) |
+| `get_upkeep_snapshot` | `vacuum_entity_id` | Maintenance: `replacement_items`, `maintenance_items`, `attention_count`, `attention_summary`, priority rollup. See [41 — Maintenance and the Dock](../41-maintenance-and-the-dock.md) |
 | `get_queue_state` | `vacuum_entity_id`, `map_id` | Raw queue content; shape [03 §4](../03-data-model.md) |
 | `get_payload_state` | `vacuum_entity_id`, `map_id` | Raw room-clean payload; shape [03 §4](../03-data-model.md) |
-| `get_active_job` | `vacuum_entity_id` | Active job dict; shape [03 §5](../03-data-model.md) / [06 §2c](../06-job-lifecycle.md) |
+| `get_active_job` | `vacuum_entity_id` | Active job dict; shape [03 §5](../03-data-model.md) / [06 §2c](../06-run-end.md) |
 | `get_vacuum_capabilities` | `vacuum_entity_id` | Optional: `detected_model`, `refresh` (default true). The **5 payload-gating hardware flags** (`supports_mop_features`, `supports_water_control`, `supports_path_control`, `supports_edge_mopping`, `supports_passes`) — see [03 §1 CapabilityBucket](../03-data-model.md) and [Capability flags → behavior](#capability-flags--behavior) |
 | `get_vacuum_maps` | `vacuum_entity_id` | Registered maps for the vacuum |
 
@@ -100,7 +100,7 @@ services in the `eufy_vacuum` domain; JS wrappers in `src/actions/rooms.js`.
 
 A queue with breaks/zones dispatches as a stepped run on the normal Start; saving the
 setup snapshots `get_queue_steps().steps` into a run profile. The **running** job's
-monitor twin is `live_queue` (see [`get_job_progress_snapshot`](#state-queries-read-only-response) and [05-core-manager](../05-core-manager.md)). Backend contract: [07-queue-engine §9](../07-queue-engine.md#the-ad-hoc-live-queue-queue_breaks).
+monitor twin is `live_queue` (see [`get_job_progress_snapshot`](#state-queries-read-only-response) and [33 — The Orchestrator](../33-the-orchestrator.md)). Backend contract: [05 — While a Run Is Live](../05-run-live.md).
 
 #### Learning system
 
@@ -127,7 +127,7 @@ monitor twin is `live_queue` (see [`get_job_progress_snapshot`](#state-queries-r
 | `confirm_external_run` | `vacuum_entity_id`, `pending_job_id` | **response.** Confirms an external run's room attribution → graduates it into the learned baselines |
 | `discard_external_run` | `vacuum_entity_id`, `pending_job_id` | **response.** Discards a pending external run |
 
-The external-run review flow (`get_external_pending_runs` / `confirm_external_run` / `discard_external_run` / `resegment_external_run`) is documented end-to-end in [28-external-run-ingestion](../28-external-run-ingestion.md).
+The external-run review flow (`get_external_pending_runs` / `confirm_external_run` / `discard_external_run` / `resegment_external_run`) is documented end-to-end in [30 — External Runs](../30-external-runs.md).
 
 ##### Run-record attribution fields
 
@@ -151,7 +151,7 @@ Each recent-jobs entry also carries the error evidence and per-room detail the j
 
 #### Errors
 
-Both **response** services in the `eufy_vacuum` domain. Full error model: [23-error-tracker](../23-error-tracker.md); prefer the `binary_sensor.{object_id}_active_run_has_error` signal over parsing state strings.
+Both **response** services in the `eufy_vacuum` domain. Full error model: [35 — The Fault Tracker](../35-the-fault-tracker.md); prefer the `binary_sensor.{object_id}_active_run_has_error` signal over parsing state strings.
 
 | Service | Required fields | Notes |
 |---|---|---|
@@ -170,8 +170,8 @@ Both **response** services in the `eufy_vacuum` domain. Full error model: [23-er
 | `set_maintenance_interval` | `vacuum_entity_id`, `component` (an adapter-declared maintenance-component id — Eufy: `filter` \| `side_brush` \| `rolling_brush` \| `mopping_cloth` \| `cleaning_tray` \| `swivel_wheel` \| `sensor`), `interval_hours` (> 0) |
 | `set_dock_event_count` | `vacuum_entity_id`, `event_type` (`last_mop_wash` \| `last_dust_empty` \| `last_dry_start`), `count` (int ≥ 0) |
 | `set_pause_timeout_settings` | `vacuum_entity_id`, `pause_timeout_minutes_default` (int ≥ 0; **`0` disables the timeout** — the only writer of this key) |
-| `set_stall_capture` | `vacuum_entity_id`, `enabled` (bool) — **response**. Arms/disarms the stall-capture consumer for one vacuum ([04 §6a](../04-listeners.md)). Refuses (`ServiceValidationError`) for a vacuum this install does not manage rather than minting a record for it. Absent = off; the detector and its anomaly fields are unaffected either way |
-| `battery_rebaseline` | `vacuum_entity_id` — rebaselines the battery-health proxy (see [12-battery-system](../12-battery-system.md)) |
+| `set_stall_capture` | `vacuum_entity_id`, `enabled` (bool) — **response**. Arms/disarms the stall-capture consumer for one vacuum ([19 — The Event Ingress Layer](../19-event-ingress.md)). Refuses (`ServiceValidationError`) for a vacuum this install does not manage rather than minting a record for it. Absent = off; the detector and its anomaly fields are unaffected either way |
+| `battery_rebaseline` | `vacuum_entity_id` — rebaselines the battery-health proxy (see [16 — The Battery Record](../16-battery-record.md)) |
 
 #### Profiles (room and run)
 
@@ -212,7 +212,7 @@ Both **response** services in the `eufy_vacuum` domain. Full error model: [23-er
 
 #### Setup
 
-All `setup_*` services are **response** services (returning an `ActionResult` `{status, code, message, warnings, data, next_actions}` where relevant). See [15-setup-system](../15-setup-system.md).
+All `setup_*` services are **response** services (returning an `ActionResult` `{status, code, message, warnings, data, next_actions}` where relevant). See [31 — The Setup Layer](../31-setup-layer.md).
 
 | Service | Notes |
 |---|---|
@@ -279,7 +279,7 @@ The resolution is brand-owned at the seam: the adapter declares `mapping.live_ma
 
 ### HA Events
 
-Subscribe via `hass.connection.subscribeEvents(callback, eventType)`. All eleven `eufy_vacuum_*` events fire on the HA event bus. The exact payloads + fire conditions are owned by [02-ha-integration §7](../02-ha-integration.md) and [06-job-lifecycle §10](../06-job-lifecycle.md) — the field lists below are the client-facing summary.
+Subscribe via `hass.connection.subscribeEvents(callback, eventType)`. All eleven `eufy_vacuum_*` events fire on the HA event bus. The exact payloads + fire conditions are owned by [02-ha-integration §7](../02-ha-integration.md) and [06-job-lifecycle §10](../06-run-end.md) — the field lists below are the client-facing summary.
 
 | Event type | Payload fields | When it fires |
 |---|---|---|
@@ -293,7 +293,7 @@ Subscribe via `hass.connection.subscribeEvents(callback, eventType)`. All eleven
 | `eufy_vacuum_stall_captured` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `image_path`, `message` | A stall capture landed on disk. Only when capture is **armed** for that vacuum (`set_stall_capture`); absent = off. `image_path` is a `<config>`-relative filesystem path, **not** a URL — the image is deliberately not under `www/`, which is served at `/local/` without authentication. A client that cannot read the filesystem should surface `message` |
 | `eufy_vacuum_room_skipped` | `vacuum_entity_id`, `map_id`, `job_id`, `room_id` (**int**), `room_name`, `completed_room_ids` (list of int) | Live tracking advanced past a queued room that was never completed. Deduped once per room per job. Largely inert for Eufy's sequential counter; meaningful on brands whose live position can leapfrog the queue order |
 | `eufy_vacuum_run_incomplete` | `vacuum_entity_id`, `job_id`, `outcome_status` (`completed`\|`cancelled`\|`failed`\|`interrupted`), `missed_room_ids` (list of int), `missed_rooms` (list of `{room_id, name}`) | Fired by `finalize_learning_job` when a cancelled/failed/interrupted job left uncleaned rooms |
-| `eufy_vacuum_external_run_pending` | `vacuum_entity_id`, `map_id`, `record_path`, `segment_count`, `detection_ts` | An app-started (external) run was detected + captured — the Learning Review / external-run-confirm UI keys off this to prompt attribution ([28](../28-external-run-ingestion.md)) |
+| `eufy_vacuum_external_run_pending` | `vacuum_entity_id`, `map_id`, `record_path`, `segment_count`, `detection_ts` | An app-started (external) run was detected + captured — the Learning Review / external-run-confirm UI keys off this to prompt attribution ([30 — External Runs](../30-external-runs.md)) |
 
 > **`room_id` type is inconsistent across events**: a **string** in `room_started`/`room_finished`, an **int** in `stall_detected`/`room_skipped` (per 06 §10). A client matching rooms by strict equality across events must coerce.
 
@@ -342,7 +342,7 @@ The integration creates one number entity per room per map: `number.{object_id}_
 | `sensor.{object_id}_{component}_remaining` | Hours remaining | Per-component maintenance sensor (one per maintenance component) |
 | `binary_sensor.{object_id}_active_run_has_error` | `on`/`off` | The dedicated error signal — prefer over parsing vacuum state strings |
 
-There is **no first-party `active_map` sensor and no `robot_position_*_raw` sensor** (contrary to older guidance). The active-map id is resolved server-side from the adapter's brand entity (role `active_map`) — read it via `get_dashboard_snapshot` / `get_vacuum_maps`, not a fixed `sensor.{object_id}_active_map`. Robot position is the `map_overlays` sensor's `robot_anchor`/`robot_heading` above. The integration also registers onboarding, active-job (lifecycle), error, and six battery-health sensors — see [12-battery-system](../12-battery-system.md) / [23-error-tracker](../23-error-tracker.md).
+There is **no first-party `active_map` sensor and no `robot_position_*_raw` sensor** (contrary to older guidance). The active-map id is resolved server-side from the adapter's brand entity (role `active_map`) — read it via `get_dashboard_snapshot` / `get_vacuum_maps`, not a fixed `sensor.{object_id}_active_map`. Robot position is the `map_overlays` sensor's `robot_anchor`/`robot_heading` above. The integration also registers onboarding, active-job (lifecycle), error, and six battery-health sensors — see [16 — The Battery Record](../16-battery-record.md) / [35 — The Fault Tracker](../35-the-fault-tracker.md).
 
 Per-room sensors are also registered at setup:
 - `sensor.{object_id}_{map_slug}_{room_slug}_cleaning_history` — room-level cleaning history
@@ -385,7 +385,7 @@ The response is derived from these at read time: `polygon_pct`, the per-segment 
 
 The backend is the source of **canonical values**; the frontend owns **display text**. A replacement client must round-trip the canonical tokens unchanged and localize them itself.
 
-- **Canonical wire enums** (send back verbatim; localize on the client): `clean_mode` ∈ `vacuum` / `mop` / `vacuum_mop`; `clean_intensity` ∈ `Quick` / `Narrow` / `Deep` (retired `Standard` / `Normal` are repaired ONCE in the store, not folded on read — and they mean the MIDDLE density, so they resolve to `Narrow` via the brand's declared aliases, not to `Quick`); `fan_speed` ∈ `Max` / `Turbo` / `Standard` / `Quiet` (`Boost` was never a valid wire value); `water_level` ∈ `Off` / `Low` / `Medium` / `High`; `floor_type` ∈ `hardwood` / `laminate` / `tile` / `marble` / `granite` / `concrete` / `carpet_low_pile` / `carpet_high_pile`; `room_id` (int); active-job `status` ∈ `idle` / `started` / `paused` / `completed`; the `get_start_status` `reason` enum ([06 §1](../06-job-lifecycle.md)); `outcome_status` ∈ `completed` / `cancelled` / `failed` / `interrupted`. The exact per-brand option lists ride the **switch entity** as `clean_mode_options` / `fan_speed_options` / `water_level_options` / `clean_intensity_options`, each `[{value, label}]` (canonical `value` + English `label`).
+- **Canonical wire enums** (send back verbatim; localize on the client): `clean_mode` ∈ `vacuum` / `mop` / `vacuum_mop`; `clean_intensity` ∈ `Quick` / `Narrow` / `Deep` (retired `Standard` / `Normal` are repaired ONCE in the store, not folded on read — and they mean the MIDDLE density, so they resolve to `Narrow` via the brand's declared aliases, not to `Quick`); `fan_speed` ∈ `Max` / `Turbo` / `Standard` / `Quiet` (`Boost` was never a valid wire value); `water_level` ∈ `Off` / `Low` / `Medium` / `High`; `floor_type` ∈ `hardwood` / `laminate` / `tile` / `marble` / `granite` / `concrete` / `carpet_low_pile` / `carpet_high_pile`; `room_id` (int); active-job `status` ∈ `idle` / `started` / `paused` / `completed`; the `get_start_status` `reason` enum ([06 §1](../06-run-end.md)); `outcome_status` ∈ `completed` / `cancelled` / `failed` / `interrupted`. The exact per-brand option lists ride the **switch entity** as `clean_mode_options` / `fan_speed_options` / `water_level_options` / `clean_intensity_options`, each `[{value, label}]` (canonical `value` + English `label`).
 - **Server-baked ENGLISH convenience strings** (NOT localized — do not render as-is in a non-English UI): every `*_label` (`status_label`, `reason_label`) and `*_summary` (`status_summary`, `attention_summary`) — the backend title-cases English via `_display_label`. Localize from the canonical token, not from these.
 - **User free-text** (pass through as-is): `room_name`, theme `name`, saved-zone `name`.
 
@@ -537,9 +537,9 @@ The active map ID comes from `get_dashboard_snapshot` / `get_vacuum_maps` — th
 
 ## Render-data shapes
 
-The **map render-DATA** a UI draws the map from — the segment geometry (`polygon_pct` per segment), the per-segment `room_id` links, `room_names`, and the live robot/dock **pose** — is **not defined in this doc**; it is normalised by the backend map source. (The **dashboard snapshot** read model, by contrast, IS a frontend read model — its shape is the `get_dashboard_snapshot` row above plus [05 §6](../05-core-manager.md#6-direct-responsibilities), not deferred to the map docs.) This doc records the *services* that fetch the map data (`get_map_segments`, `get_map_render_data`, `get_map_live_pose`); the authoritative map-shape definitions live in:
+The **map render-DATA** a UI draws the map from — the segment geometry (`polygon_pct` per segment), the per-segment `room_id` links, `room_names`, and the live robot/dock **pose** — is **not defined in this doc**; it is normalised by the backend map source. (The **dashboard snapshot** read model, by contrast, IS a frontend read model — its shape is the `get_dashboard_snapshot` row above plus [33 — The Orchestrator](../33-the-orchestrator.md), not deferred to the map docs.) This doc records the *services* that fetch the map data (`get_map_segments`, `get_map_render_data`, `get_map_live_pose`); the authoritative map-shape definitions live in:
 
-- [map source coordinator](../31-map-source-coordinator.md) — how the map data sources are selected, coordinated, and cached per brand.
+- [12 — Where the Map Comes From](../12-map-source.md) — how the map data sources are selected, coordinated, and cached per brand.
 - [map-state-source](../design/shipped/map-state-source.md) — the canonical map-state shape (raster + geometry + `room_names` + pose) the coordinator produces.
 
 This stub is the anchor for that topic from the frontend side; expand it here only if a frontend-specific view of the render-data shapes is later needed. For the card-side render path that *consumes* these, see [map-render-layers.md](map-render-layers.md).

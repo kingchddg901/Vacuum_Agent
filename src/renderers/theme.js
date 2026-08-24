@@ -26,7 +26,8 @@ const THEME_GALLERY_URL = "https://kingchddg901.github.io/Vacuum_Agent/";
    draft footer. An earlier revision made it PICKING-ONLY there, reasoning that the
    editors "need too many panels for a phone"; on-device testing said otherwise. The
    token list already scrolls in its own container (.evcc-theme-editor-scrollbox,
-   styles/theme.js:537) with the contextual preview and footer OUTSIDE it, the
+   defined in styles/theme.js — the ":537" pinned here had rotted, so this cites
+   the selector) with the contextual preview and footer OUTSIDE it, the
    <=1100px query hoists the preview full-width above the editor, and the group chips
    are tappable by hand. The real constraint is vertical BUDGET, not layout — which is
    what the paired compact chrome in styles/mobile.js addresses. */
@@ -1045,7 +1046,7 @@ export function applyThemeRenderers(proto) {
                 data-theme-alpha-bubble="${this.escapeHtml(token.key)}"
                 style="left: ${alphaPercent}%"
               >
-                ${alphaPercent}%
+                ${alphaPercent}${this.t("metrics.unit_percent")}
               </div>
             </div>
           </div>
@@ -1105,7 +1106,7 @@ export function applyThemeRenderers(proto) {
           </div>
 
           <div class="token-colormix-ratio-label" data-colormix-ratio-label="${this.escapeHtml(token.key)}">
-            ${ratio}%
+            ${ratio}${this.t("metrics.unit_percent")}
           </div>
 
           <div class="token-colormix-slot">

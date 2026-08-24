@@ -280,7 +280,36 @@ export function applySharedRenderers(proto) {
   };
 
   /**
-   * Parse a backend UTC ISO timestamp and format it in the user's local timezone.
+   * Parse a backend UTC ISO timestamp and format it for DISPLAY, in the user's
+   * local timezone and in the CARD'S language.
+   *
+   * The locale argument used to be `[]`, which means the BROWSER/OS locale — not
+   * Home Assistant's language and not the card's. Every other string on a card
+   * pinned to Arabic (globe override, or `config.i18n.locale`) came out Arabic
+   * while the dates stayed in whatever the browser happened to be set to. The
+   * language now comes from `_i18nLanguage()`, the same resolver behind `t()`, so
+   * timestamps move with the rest of the card. The old first line of this
+   * docstring said only "in the user's local timezone" — the timezone was never
+   * the question, and naming only it is why `[]` read as intentional.
+   *
+   * DISPLAY ONLY — never route an IDENTIFIER through here. A job record is stored
+   * as `<job_id>.json` where the id is built from local wall-clock time
+   * (`jobs/active_job.py::_generate_job_id` -> `job_2026-08-05T02-52-05`), and
+   * the user pastes that string straight back into `exclude_learning_job` /
+   * `restore_learning_job` (docs/advanced/03-services.md). Localizing it reorders
+   * the fields, translates the month, and under a locale with a non-Latin
+   * numbering system (`ar-EG`: "٤ أغسطس، ٧:٥٢ م") renumbers the digits — the
+   * displayed id stops matching the filename and the job cannot be found. The two
+   * surfaces that show an id (renderers/review.js `evcc-review-job-title`,
+   * renderers/job-summary.js `evcc-job-summary-subtitle`) print `job.job_id`
+   * VERBATIM and deliberately do not call this function; keep it that way.
+   *
+   * The tag is USER-SUPPLIED — `config.i18n.locale` is hand-written YAML — and
+   * `toLocaleString` throws RangeError on a structurally invalid one (`pt_BR`
+   * with an underscore is enough; an unknown-but-well-formed tag just falls back
+   * inside ICU). Renderers assemble one HTML string, so that throw would escape
+   * and blank the whole card over a typo. Only RangeError is absorbed: anything
+   * else is our bug, not their config, and must not be swallowed here.
    *
    * @param {string|null|undefined} value - ISO 8601 timestamp string.
    * @param {Intl.DateTimeFormatOptions} [options={}] - Locale format options.
@@ -293,6 +322,13 @@ export function applySharedRenderers(proto) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return invalidFallback;
 
-    return date.toLocaleString([], options);
+    // Stringify FIRST, default after — same trap as maintenance.js:1048.
+    const lang = String(this._i18nLanguage?.() ?? "");
+    try {
+      return date.toLocaleString(lang || [], options);
+    } catch (err) {
+      if (!(err instanceof RangeError)) throw err;
+      return date.toLocaleString([], options);
+    }
   };
 }

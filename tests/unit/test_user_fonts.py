@@ -4,13 +4,21 @@ The backend owns the whole trust chain: descriptor validation, cmap-derived
 locale verification (the font FILE is the evidence — never the descriptor's
 claims, never a browser render check), and the canonical catalog.json.
 Verification here injects codepoints instead of parsing real woff2 files, so
-these run without fontTools; the no-fontTools degradation path is tested
-explicitly.
+most of these run without fontTools; the no-fontTools degradation path is
+tested explicitly. The two classes at the bottom are the exception: the C3/C4
+defects lived INSIDE ``_face_codepoints``, which a patched stand-in cannot
+see, so they put real bytes on disk and need the real parser (fontTools and
+brotli are both hard entries in requirements_test.txt).
 """
 
 import json
+import logging
 import os
+import shutil
+from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from custom_components.eufy_vacuum.user_fonts import (
     build_catalog,
@@ -18,6 +26,8 @@ from custom_components.eufy_vacuum.user_fonts import (
     strip_jsonc,
     validate_descriptor,
 )
+
+REPO = Path(__file__).resolve().parents[2]
 
 
 def _good_desc():
@@ -218,3 +228,161 @@ class TestBuildCatalog:
         fonts.mkdir()
         assert build_catalog(str(fonts), _locales_dir(tmp_path)) == 0
         assert json.loads((fonts / "catalog.json").read_text(encoding="utf-8")) == []
+
+
+class TestUnreadableFaceIsNotCoverage:
+    """C3/D7 — "cannot verify" and "covers nothing" are different answers.
+
+    Unlike the class above, these do NOT patch ``_face_codepoints``: the whole
+    defect lived inside it, so a patched stand-in cannot see it. They drop real
+    bytes on disk and read the catalog the card actually consumes.
+    """
+
+    def test_corrupt_single_face_is_unverified_not_verified_with_no_locales(
+        self, tmp_path
+    ):
+        """[UF-C3-1] A drop-in whose only face is unparseable must not be
+        stamped as a completed verification.
+
+        `_write_font_dir` writes `b"\x00fake"` — not a woff2. Before the fix
+        the parse failure answered "covers nothing", so the font was catalogued
+        `verified` with `locales: []`: indistinguishable, to the card and to
+        diagnostics, from a font that genuinely covers no locale.
+        """
+        pytest.importorskip("fontTools")
+        fonts = tmp_path / "fonts"
+        fonts.mkdir()
+        _write_font_dir(str(fonts))
+        count = build_catalog(str(fonts), _locales_dir(tmp_path))
+        assert count == 1
+        entry = json.loads((fonts / "catalog.json").read_text(encoding="utf-8"))[0]
+        assert entry["status"] == "unverified", (
+            "an unparseable face was catalogued as a completed verification"
+        )
+        assert entry["locales"] == []
+
+    def test_one_corrupt_face_does_not_zero_a_good_one(self, tmp_path):
+        """[UF-C3-2] The ledger's sharpest case, end to end: face A parses,
+        face B is corrupt.
+
+        The caller INTERSECTS faces, so answering "covers nothing" for B
+        silently zeroed A's real coverage and still reported success. Uses a
+        genuinely parseable shipped woff2 for A so the intersection has
+        something real to lose — with two corrupt faces the test would pass
+        for the wrong reason.
+        """
+        pytest.importorskip("fontTools")
+        pytest.importorskip("brotli")
+        real = (
+            REPO
+            / "custom_components"
+            / "eufy_vacuum"
+            / "frontend"
+            / "fonts"
+            / "OpenDyslexic-Regular.woff2"
+        )
+        assert real.is_file(), "shipped woff2 missing — this test needs a real face"
+
+        fonts = tmp_path / "fonts"
+        fonts.mkdir()
+        desc = {
+            **_good_desc(),
+            "faces": [
+                {"file": "OpenDyslexic-Regular.woff2", "weight": 400},
+                {"file": "Corrupt-Bold.woff2", "weight": 700},
+            ],
+        }
+        d = _write_font_dir(
+            str(fonts), desc=desc, faces=("Corrupt-Bold.woff2",)
+        )
+        shutil.copyfile(real, os.path.join(d, "OpenDyslexic-Regular.woff2"))
+
+        # Face A alone verifies at least English — establishes that the
+        # intersection below actually had coverage to lose.
+        solo = tmp_path / "solo"
+        solo.mkdir()
+        d2 = _write_font_dir(
+            str(solo),
+            desc={
+                **_good_desc(),
+                "faces": [{"file": "OpenDyslexic-Regular.woff2", "weight": 400}],
+            },
+            faces=(),
+        )
+        shutil.copyfile(real, os.path.join(d2, "OpenDyslexic-Regular.woff2"))
+        build_catalog(str(solo), _locales_dir(tmp_path))
+        solo_entry = json.loads((solo / "catalog.json").read_text(encoding="utf-8"))[0]
+        assert solo_entry["status"] == "verified"
+        assert solo_entry["locales"], "control: the real face must verify something"
+
+        build_catalog(str(fonts), _locales_dir(tmp_path))
+        entry = json.loads((fonts / "catalog.json").read_text(encoding="utf-8"))[0]
+        assert entry["status"] == "unverified", (
+            "a corrupt second face zeroed the intersection and the font was "
+            "still catalogued as verified"
+        )
+        assert entry["locales"] == []
+
+
+class TestImportErrorInsideTheParse:
+    """C4 — only a real dependency gap may claim fontTools is not installed."""
+
+    def test_table_module_import_error_is_not_reported_as_missing_fonttools(
+        self, tmp_path, caplog
+    ):
+        """[UF-C4-1] `getBestCmap()` pulls in fontTools table modules lazily.
+        An ImportError from one of those is not a statement about fontTools
+        being absent — fontTools imported fine three lines earlier.
+
+        Before the fix that error was swallowed unlogged and the user was told
+        to install a package they demonstrably have, which is the one piece of
+        text they would act on.
+        """
+        pytest.importorskip("fontTools")
+        pytest.importorskip("brotli")  # so the woff2-decoder probe says "present"
+        fonts = tmp_path / "fonts"
+        fonts.mkdir()
+        _write_font_dir(str(fonts))
+        boom = ImportError(
+            "cannot import name 'otBase' from 'fontTools.ttLib.tables'"
+        )
+        with caplog.at_level(
+            logging.INFO, logger="custom_components.eufy_vacuum.user_fonts"
+        ):
+            with patch("fontTools.ttLib.TTFont", side_effect=boom):
+                build_catalog(str(fonts), _locales_dir(tmp_path))
+        text = caplog.text
+        assert "otBase" in text, "the real ImportError was discarded unlogged"
+        assert "is not installed" not in text, (
+            "a table-module ImportError was reported to the user as fontTools "
+            "not being installed"
+        )
+        entry = json.loads((fonts / "catalog.json").read_text(encoding="utf-8"))[0]
+        assert entry["status"] == "unverified"
+
+    def test_missing_woff2_decoder_still_reports_the_dependency(
+        self, tmp_path, caplog
+    ):
+        """[UF-C4-2] The other half, so the fix cannot be a blanket mute: when
+        brotli really is absent, fontTools raises ImportError from the same
+        place and the user MUST still be told the dependency is the problem.
+
+        Patches fontTools' own `haveBrotli` — the flag that produces the raise
+        — rather than the message text.
+        """
+        pytest.importorskip("fontTools")
+        fonts = tmp_path / "fonts"
+        fonts.mkdir()
+        _write_font_dir(str(fonts))
+        with caplog.at_level(
+            logging.INFO, logger="custom_components.eufy_vacuum.user_fonts"
+        ):
+            with patch("fontTools.ttLib.woff2.haveBrotli", False), patch(
+                "fontTools.ttLib.TTFont",
+                side_effect=ImportError("No module named brotli"),
+            ):
+                build_catalog(str(fonts), _locales_dir(tmp_path))
+        assert "is not installed" in caplog.text
+        entry = json.loads((fonts / "catalog.json").read_text(encoding="utf-8"))[0]
+        assert entry["status"] == "unverified"
+        assert entry["locales"] == []

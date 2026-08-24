@@ -67,7 +67,14 @@ def test_shipped_support_matches_the_font_files():
     has_gsub = True
     for face in faces:
         parsed = _face_codepoints(str(face))
-        assert parsed is not None, "fontTools present but face parse unavailable"
+        # A non-tuple verdict is "cannot verify" (fontTools/woff2 unavailable,
+        # or UNREADABLE_FACE) — never a coverage answer. Assert the shape, not
+        # `is not None`, or an unreadable shipped face would slip past into an
+        # unpack error instead of naming itself.
+        assert isinstance(parsed, tuple), (
+            f"{face.name}: face did not parse — fontTools unavailable or the "
+            f"face is unreadable ({parsed!r})"
+        )
         cps, gsub = parsed
         assert cps, f"{face.name}: empty cmap — unreadable face"
         codepoints = cps if codepoints is None else codepoints & cps

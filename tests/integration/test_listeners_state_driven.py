@@ -24,6 +24,17 @@ Coverage targets
         remove(hass), not just the state-change-event unsub.
 [LS-16] the issue #46 job-active observation trace is reached from the live
         lifecycle path, including for a job that never arms.
+[LS-17] L11: the vacuum_docked trigger fires only on an edge from a KNOWN prior
+        state. unknown/unavailable/no-prior -> docked is an ARRIVAL, not a
+        transition, and firing a discovery pass there runs it at raw startup --
+        the exact timing config_entry_reload is deferred through
+        async_at_started to avoid.
+[LS-18] L11-SIBLING: active_map_changed needs the same guard on the OLD value.
+        [LS-11] already pins the NEW value against the sentinels; a restart
+        supplies the sentinel on the OTHER end.
+[LS-19] L11: both triggers must still fire on the genuine edges they exist for.
+        A guard that fixes the startup case by never firing is the same bug
+        wearing the opposite sign.
 """
 
 from __future__ import annotations
@@ -775,3 +786,147 @@ async def test_lifecycle_emits_job_active_observation(hass, manager, monkeypatch
         "the trace would be empty on real hardware"
     )
     assert '"native"' in records[0].getMessage()
+
+
+# ---------------------------------------------------------------------------
+# [LS-17] - [LS-19] L11: an ARRIVAL is not a transition
+# ---------------------------------------------------------------------------
+
+
+def _docked_trigger_adapter():
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "discovery": {"auto_refresh_on": ["vacuum_docked"],
+                      "auto_refresh_interval_seconds": 0},
+    })
+
+
+def _active_map_trigger_adapter():
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"active_map": _ACTIVE_MAP_ENTITY},
+        "discovery": {"auto_refresh_on": ["active_map_changed"],
+                      "auto_refresh_interval_seconds": 0},
+    })
+
+
+@pytest.mark.parametrize("prior", ["unknown", "unavailable"])
+async def test_ls17_a_docked_arrival_after_restart_is_not_an_edge(
+    hass, manager, monkeypatch, prior
+):
+    """[LS-17] RED BEFORE THE FIX.
+
+    The predicate was `new_state == "docked" and old_state != "docked"`, under a
+    comment claiming it filtered "unknown -> docked startup noise". It did not:
+    "unknown" != "docked", so every one of these passed.
+
+    This is what an HA restart looks like for a vacuum that is sitting on its dock,
+    which is where most vacuums are most of the time. The pass it fired ran at RAW
+    startup - before `async_at_started` - so for a service_response brand the room
+    cache (hass.data, empty on restart) yielded NO rooms, and `update_drift_history`
+    credited every configured room with a missing pass.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _docked_trigger_adapter()
+    calls = _discovery_spy(monkeypatch)
+    hass.states.async_set(_VAC, prior)
+    await hass.async_block_till_done()
+
+    discovery.register(hass)
+
+    hass.states.async_set(_VAC, "docked")
+    await hass.async_block_till_done()
+
+    assert calls == [], (
+        f"{prior!r} -> 'docked' is an arrival, not an edge, but it fired: {calls}"
+    )
+    discovery.remove(hass)
+
+
+async def test_ls17_a_first_sighting_with_no_prior_state_is_not_an_edge(
+    hass, manager, monkeypatch
+):
+    """[LS-17] RED BEFORE THE FIX, and this is the case with NO state at all.
+
+    Distinct from the parametrised rows above: there the entity existed and read a
+    sentinel; here `old_state` is None because the entity is being created for the
+    first time. `None != "docked"` was equally true, so this fired too.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _docked_trigger_adapter()
+    calls = _discovery_spy(monkeypatch)
+
+    discovery.register(hass)
+
+    # no prior async_set for _VAC at all -> old_state is None
+    hass.states.async_set(_VAC, "docked")
+    await hass.async_block_till_done()
+
+    assert calls == [], f"a first sighting fired a discovery pass: {calls}"
+    discovery.remove(hass)
+
+
+@pytest.mark.parametrize("prior", [None, "unknown", "unavailable"])
+async def test_ls18_an_active_map_arrival_is_not_a_change(
+    hass, manager, monkeypatch, prior
+):
+    """[LS-18] RED BEFORE THE FIX - the SAME defect one trigger over.
+
+    `[LS-11]` pins the new value against the sentinels and reads as covering this.
+    It never supplied a sentinel OLD value, which is the end a restart supplies:
+    the entity is created fresh, so its first real reading is an edge from nothing.
+
+    Found only by checking the sibling after L11 - the shape this project keeps
+    hitting, where a guard that EXISTS reads as complete.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _active_map_trigger_adapter()
+    calls = _discovery_spy(monkeypatch)
+    if prior is not None:
+        hass.states.async_set(_ACTIVE_MAP_ENTITY, prior)
+        await hass.async_block_till_done()
+
+    discovery.register(hass)
+
+    hass.states.async_set(_ACTIVE_MAP_ENTITY, "6")
+    await hass.async_block_till_done()
+
+    assert calls == [], (
+        f"{prior!r} -> '6' is an arrival, not a map change, but it fired: {calls}"
+    )
+    discovery.remove(hass)
+
+
+async def test_ls19_the_genuine_edges_both_still_fire(hass, manager, monkeypatch):
+    """[LS-19] RED IF EITHER GUARD IS WIDENED INTO A MUTE.
+
+    The whole point of both triggers is to run a discovery pass when something real
+    happens. Fixing the startup case by refusing everything would pass every test
+    above and silently disable auto-discovery, which is a worse defect than the one
+    being fixed and would look identical from the outside.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _docked_trigger_adapter()
+    calls = _discovery_spy(monkeypatch)
+    hass.states.async_set(_VAC, "cleaning")
+    await hass.async_block_till_done()
+
+    discovery.register(hass)
+    hass.states.async_set(_VAC, "docked")
+    await hass.async_block_till_done()
+
+    assert calls == [_VAC], f"a real cleaning -> docked edge did not fire: {calls}"
+    discovery.remove(hass)
+
+    # ... and the same for the map trigger, from one real value to another
+    _active_map_trigger_adapter()
+    map_calls = _discovery_spy(monkeypatch)
+    hass.states.async_set(_ACTIVE_MAP_ENTITY, "6")
+    await hass.async_block_till_done()
+
+    discovery.register(hass)
+    hass.states.async_set(_ACTIVE_MAP_ENTITY, "7")
+    await hass.async_block_till_done()
+
+    assert map_calls == [_VAC], f"a real 6 -> 7 map change did not fire: {map_calls}"
+    discovery.remove(hass)

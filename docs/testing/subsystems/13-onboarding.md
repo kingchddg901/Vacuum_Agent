@@ -7,7 +7,7 @@ Covered by **11 tests in 1 file** (plus the onboarding sensor in
 [18 — platforms](18-platforms.md)).
 
 Source: `custom_components/eufy_vacuum/onboarding/`
-Architecture reference: [docs/dev/18-onboarding-manager.md](../../dev/18-onboarding-manager.md)
+Architecture reference: [44 — Onboarding and First Run](../../dev/44-onboarding-and-first-run.md)
 
 ---
 

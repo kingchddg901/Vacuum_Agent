@@ -152,7 +152,7 @@ export function renderHeader(ctx) {
           dockStatus, dockStatusLabel, battery, view,
           langOverride, currentLang, languageMenuOpen, autoInfo, uiFont } = ctx;
 
-  const batteryText = battery != null ? `${battery}%` : "";
+  const batteryText = battery != null ? `${battery}${renderers.t("metrics.unit_percent")}` : "";
   // Low/critical thresholds for the header tint (.evcc-battery.low/.critical
   // shipped in v0.9.0 and were never applied by any renderer until now).
   // 20/10 match the usual HA warning bands; the status word (Charging/Docked)

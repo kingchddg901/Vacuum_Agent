@@ -1,6 +1,7 @@
 """AccessGraphManager — room access graph and automation rule evaluation.
 
 Owns:
+- structural_issue_key (module-level, not a method)
 - _normalize_grants_access_to / _normalize_room_rule / _normalize_room_rules
 - _normalized_managed_rooms_with_automation
 - _build_room_access_views
@@ -10,8 +11,29 @@ Owns:
 - _validate_room_access_graph
 - _structural_access_graph_issues (staticmethod)
 - _access_graph_state (staticmethod)
+- access_graph_block_code / access_graph_block_rooms (staticmethods)
 - _any_rooms_have_rules (staticmethod)
-- _normalize_rule_operand / _room_rule_matches
+- _normalize_rule_operand / _room_rule_matches / _room_rule_matches_known
+- _room_rule_value_matches
+
+⚠ COMPLETED 2026-08-24 (R21). Every name this list already carried does still
+exist — it was INCOMPLETE, not wrong, and it had gone stale in the one direction
+that hurts: the five names added above are the module's most-consumed surface.
+
+- ``access_graph_block_code`` / ``access_graph_block_rooms`` (A6-AGX-1) are the
+  "do runs block on the access graph?" answer, read by
+  ``core/manager.py::set_room_access_graph`` and by ``planning/run_plan.py``.
+  A reader looking for where that question is answered found nothing named here
+  — the exact discoverability gap A6-AGX-1 was opened to close.
+- ``structural_issue_key`` (A6-AGX-2) is imported by ``core/manager.py`` and is
+  what makes ``update_room_fields``'s refusal delta-scoped.
+- ``_room_rule_matches_known`` (RP-008) is called from
+  ``listeners/path_blockers.py`` and ``planning/run_plan.py``; it is the
+  matched/known PAIR, where ``_room_rule_matches`` collapses to one bool.
+- ``_room_rule_value_matches`` is the operand comparison both of those sit on.
+
+Named, not line-numbered, on purpose: a citation by coordinate rots on the next
+edit, and this header has already proved it rots silently.
 
 Receives data (the integration root data dict) and hass (HomeAssistant instance).
 Does not need a reference to the parent EufyVacuumManager.
@@ -43,14 +65,27 @@ def _safe_int(value: Any, default: int = 0) -> int:
 def structural_issue_key(issue: dict[str, Any]) -> tuple:
     """A stable identity for one structural access-graph violation.
 
-    A6-AGX-2. ``update_room_fields`` validates the WHOLE graph after an edit and
-    rejects the edit if any structural issue exists — absolute, not a delta. So a
+    A6-AGX-2 — and the repair this key exists for has LANDED. ⚠ Until 2026-08-24
+    (R17) the paragraph below was written in the PRESENT tense, so it read as the
+    live behaviour of a named function and made this key look aspirational.
+
+    WHAT IT WAS. ``update_room_fields`` validated the whole graph after an edit
+    and refused on any structural issue at all — absolute, not a delta. A
     violation already stored (reconciliation rewrites grants through an id remap
     and only de-dupes WITHIN one room's list, never re-checking the cross-room
-    single-inbound constraint) rejects edits that have nothing to do with it: a
-    fan-speed change, an enable toggle, a colour. Comparing post-edit issues
-    against a pre-edit baseline needs an identity for "the same violation", which
-    is this.
+    single-inbound constraint) therefore rejected edits with nothing to do with
+    it: a fan-speed change, an enable toggle, a colour. Comparing post-edit
+    issues against a pre-edit baseline needs an identity for "the same
+    violation", which is this.
+
+    WHAT IT IS. ``core/manager.py::update_room_fields`` is delta-scoped and calls
+    this: it captures ``baseline_keys`` from a pre-mutation validation and refuses
+    only issues whose key is absent from that baseline. A pre-existing violation
+    no longer blocks an unrelated edit. The one remaining ABSOLUTE gate there is
+    A5-DOCK-1 (no dock room), and it fires only when ``grants_access_to`` is the
+    field being edited — deliberately, because "no dock yet" is a baseline
+    condition by definition and delta-scoping it would let every edit through on
+    exactly the maps that need it. Do not "apply" the delta fix a second time.
 
     The payload fields are load-bearing, not decoration:
 
@@ -415,8 +450,12 @@ class AccessGraphManager:
                 #   [str(room_id) if room_id > 0 else None] + [...]
                 # which put a literal None into the contract whenever room_id was
                 # unresolvable. Every sibling branch already filters; this one did
-                # not. A6-AGX-5's per-room filter has to defend against that None
-                # precisely because it could appear here.
+                # not. A6-AGX-5's per-room filter (`_issue_applies`) WAS WRITTEN to
+                # defend against that None because it could appear here; since this
+                # rewrite it cannot, so that filter is now defence in depth rather
+                # than a live requirement. Corrected from the present tense
+                # 2026-08-24 (R9) — it disagreed with the note at `_issue_applies`
+                # itself. Keep the filter anyway; the reason is stated there.
                 "room_ids": (
                     ([str(room_id)] if room_id > 0 else [])
                     + [str(s) for s in source_ids]
@@ -684,14 +723,31 @@ class AccessGraphManager:
                         None,
                     )
                     issue_type = str(candidate_issue.get("type", "")).strip().lower() if isinstance(candidate_issue, dict) else ""
-                    # reason_code is the localizable half — A6-AGX-4's card
-                    # resolver keys on it. `reason` stays English prose for now and
-                    # crosses the same untranslated seam as the rest of that
-                    # finding; do NOT localize it here, or it gets done twice.
+                    # `reason_code` is the localizable half of the refusal: a
+                    # code a card CAN resolve, beside `reason`'s English prose.
+                    # ⚠ was: "A6-AGX-4's card resolver keys on it" — aspiration
+                    # written as fact (corrected 2026-08-24, RM5). NO consumer
+                    # exists. `get_room_access_editor` has no caller in `src/` at
+                    # all; the room-access modal builds its own chips client-side
+                    # through `src/state/access-graph-model.js::offerableTargets`
+                    # and labels graph issues through
+                    # `src/state/access-issue-label.js`. This service is a
+                    # response-service surface for automations and for whoever
+                    # eventually wires the card — not the card's live path.
+                    #
+                    # Still do NOT localize `reason` here: it stays English prose
+                    # crossing the same untranslated seam as the rest of A6-AGX-4,
+                    # and localizing at this site would get it done twice.
                     if issue_type == "cycle_detected":
                         reason, reason_code = "Would create a loop.", "would_cycle"
                     elif issue_type == "duplicate_edge":
                         reason, reason_code = "Already linked.", "already_linked"
+                    # ⚠ DEAD ARM (R19, 2026-08-24). `missing_room` is NOT in
+                    # `_structural_access_graph_issues`'s frozenset, so it never
+                    # survives into `new_issues` and `issue_type` can never be it
+                    # here. Kept, not deleted: the type is real and this is the
+                    # copy that would be needed the day it joins the structural
+                    # set. It is not evidence that the ladder below is complete.
                     elif issue_type == "missing_room":
                         reason, reason_code = "Target is not available.", "target_unavailable"
                     elif issue_type == "self_reference":
@@ -702,8 +758,30 @@ class AccessGraphManager:
                             "target_has_inbound",
                         )
                     else:
-                        # Now genuinely a last resort: every known structural type
-                        # is handled above and _names_edge reaches all of them.
+                        # A last resort — but NOT because the ladder above is
+                        # exhaustive. ⚠ was: "every known structural type is
+                        # handled above and _names_edge reaches all of them",
+                        # which is wrong in BOTH directions and checkable in
+                        # twenty seconds against the frozenset in this file
+                        # (corrected 2026-08-24, R19):
+                        #
+                        #   - `_structural_access_graph_issues` screens on
+                        #     {`self_reference`, `duplicate_edge`,
+                        #     `cycle_detected`, `multiple_inbound`,
+                        #     `multiple_dock_rooms`}. The ladder has no
+                        #     `multiple_dock_rooms` arm, so that type lands HERE.
+                        #   - The ladder's `missing_room` arm is DEAD: that type
+                        #     is not in the structural set, so it can never reach
+                        #     `candidate_issue`.
+                        #
+                        # What actually keeps `multiple_dock_rooms` out of this
+                        # branch is `baseline_keys`, not the ladder: adding one
+                        # edge does not change which rooms are docks, so the
+                        # candidate graph reproduces the stored issue with an
+                        # identical `structural_issue_key` and it is filtered as
+                        # not-introduced-by-this-edit. That is the real reason,
+                        # and it was not the reason given — so do not delete this
+                        # branch on the strength of the ladder looking complete.
                         reason, reason_code = (
                             "Not selectable due to graph legality.",
                             "graph_illegal",
@@ -718,8 +796,10 @@ class AccessGraphManager:
                     "missing": False,
                     "reason": reason,
                     # A6-AGX-3: the localizable half. `reason` is English prose
-                    # crossing the untranslated seam A6-AGX-4 owns; the card
-                    # resolver keys on this instead.
+                    # crossing the untranslated seam A6-AGX-4 owns. ⚠ was: "the
+                    # card resolver keys on this instead" — there is no such
+                    # resolver (2026-08-24, RM5); see the note at the reason
+                    # ladder above for who actually reads this payload.
                     "reason_code": reason_code,
                 }
             )
@@ -744,11 +824,25 @@ class AccessGraphManager:
             test dropped it from every room, so a user opening a room editor while
             the map was unusable saw a clean panel.
 
-            The ``is not None`` filter is load-bearing rather than tidiness:
-            _format_access_graph_issue's multiple_inbound branch can emit a literal
-            None inside room_ids, and a ``[None]`` list is truthy — without the
-            filter it would read as "scoped to some room" and wrongly suppress the
-            widening.
+            The ``is not None`` filter is DEFENCE IN DEPTH, not load-bearing.
+            ⚠ was: "load-bearing rather than tidiness: _format_access_graph_issue's
+            multiple_inbound branch can emit a literal None inside room_ids" —
+            false since A6-AGX-4 rewrote that branch to
+            ``([str(room_id)] if room_id > 0 else []) + [str(s) for s in source_ids]``.
+            No branch of ``_format_access_graph_issue`` can put a ``None`` into
+            ``room_ids`` today: every one either filters ``is not None`` or builds
+            from ids already screened ``> 0``. Corrected 2026-08-24 (R9) because
+            two comments in this one file asserted opposite things about the same
+            branch — and this one named the other as its evidence, so a maintainer
+            chasing a ``None`` in the issue contract was sent to a branch that
+            cannot produce one.
+
+            KEEP THE FILTER. The failure it was written against is still the
+            failure a future unfiltered branch would cause: ``[None]`` is TRUTHY,
+            so an issue scoped to no room at all would read as "scoped to some
+            room" and silently suppress the graph-wide widening above — a clean
+            panel on an unusable map, which is precisely the A6-AGX-5 bug. One
+            comparison per issue against an invisible regression.
             """
             room_ids = [
                 str(value) for value in list(issue.get("room_ids", []) or [])
@@ -817,11 +911,25 @@ class AccessGraphManager:
             "state": self._access_graph_state(managed_rooms, validation),
             "runs_blocked": block_code is not None,
             "block_code": block_code,
-            # The rooms that will become missing_dependency the MOMENT a dock room
-            # is set — i.e. the cost of following this report's own advice. A blank
-            # graph's only issue is "no dock room", so acting on it flips the state
-            # to partial and blocks everything; naming the rooms up front is what
-            # stops that being a trap.
+            # The rooms that will become `missing_dependency` once a dock room
+            # is set, MINUS whichever one the user promotes — i.e. all but one of
+            # them. Read it as "all but the one you promote".
+            #
+            # ⚠ was: "the rooms that will become missing_dependency the MOMENT a
+            # dock room is set — i.e. the cost of following this report's own
+            # advice", asserted flat (corrected 2026-08-24, R22). On a blank graph
+            # `dock_room_ids` is empty, so this list is EVERY room; but
+            # `_validate_room_access_graph`'s missing_dependency pass skips the
+            # dock itself (`if room_id == dock_room_id: continue`), so only N-1 of
+            # them ever fire. The list therefore over-states its own cost by
+            # exactly one, always.
+            #
+            # That is a WORDING problem, not a computable one: this code cannot
+            # know which room the user will promote, so do not "fix" it by trying
+            # to subtract a future dock. The motive is unchanged and still the
+            # point — a blank graph's only issue is "no dock room", so acting on
+            # it flips the state to partial and blocks every run; naming the rooms
+            # up front is what stops that being a trap.
             "unlinked_room_ids": sorted(
                 (
                     str(room_id)
@@ -902,8 +1010,24 @@ class AccessGraphManager:
                 seen.add(target_room_id)
                 grants_map[room_id].append(target_room_id)
 
-        # Single-inbound constraint: each non-dock room may only be
-        # granted access by exactly one other room.
+        # At-most-one-inbound constraint: NO room — the dock included — may be
+        # granted access by more than one other room.
+        #
+        # ⚠ was: "each NON-DOCK room may only be granted access by EXACTLY one
+        # other room". Both halves were wrong, and both made the check read
+        # NARROWER than it is (corrected 2026-08-24, R7):
+        #
+        #   - There is NO dock exemption. `_normalize_grants_access_to` rejects
+        #     only self-reference and non-positive ids, so a grant can target the
+        #     dock room, and two rooms granting into the dock DO raise
+        #     `multiple_inbound` on it. Someone debugging an unexpected
+        #     `multiple_inbound` on the dock read "non-dock", concluded the dock
+        #     was exempt, and went looking for the bug elsewhere.
+        #   - "Exactly one" is not the question this loop asks. `len(sources) > 1`
+        #     cannot see a room with ZERO inbound sources — that is the separate
+        #     `missing_dependency` pass below, which runs only when
+        #     `len(dock_room_ids) == 1`. With zero or with multiple dock rooms a
+        #     zero-inbound room is flagged by NEITHER pass.
         inbound_count: dict[int, list[int]] = {}
         for source_id, targets in grants_map.items():
             for target_id in targets:
@@ -1030,7 +1154,19 @@ class AccessGraphManager:
     ) -> str:
         """Return 'blank', 'partial', or 'complete' for the access graph.
 
-        blank    — no dock room and no grants anywhere; basic runs are allowed.
+        blank    — no dock room and no grants anywhere.
+
+                   ⚠ NOT unconditionally permissive, and this line said "basic runs
+                   are allowed" until 2026-08-24. `access_graph_block_code` in this
+                   same file returns `access_graph_required_for_rules` for the blank
+                   state whenever ANY room carries rules, and `_any_rooms_have_rules`
+                   tests `bool(room.get("rules"))` only — so a DISABLED rule counts.
+                   `run_plan` turns any non-None block code into blocked/unavailable
+                   and returns before the queue is built, so on a blank graph with a
+                   single rule anywhere every run is refused. This docstring is the
+                   definition sheet for the three states and is what a maintainer
+                   reasons from when deciding whether blank needs a block path — it
+                   already has one. (R3)
         partial  — some configuration exists but the graph is not valid; worse
                    than blank, always blocked.
         complete — graph is fully valid; all runs and rules are allowed.
@@ -1114,9 +1250,17 @@ class AccessGraphManager:
             single = issue.get("room_id")
             if single is not None:
                 room_ids.append(_safe_int(single, -1))
-            # cycle_detected / multiple_dock_rooms name a SET of rooms; a cycle
-            # chain repeats its entry room, so dedup below is load-bearing.
+            # cycle_detected / multiple_dock_rooms name a SET of rooms in `rooms`;
+            # multiple_inbound names its SOURCE ROOMS in `source_room_ids` — the
+            # payload field structural_issue_key treats as load-bearing, and the
+            # two rooms the user must edit to fix the invalid graph. A comment on
+            # this file before R6 (2026-08-24) enumerated only the first two
+            # set-valued types and read as complete, so the third was silently
+            # missing from the "which rooms?" answer for multiple_inbound refusals.
+            # A cycle chain repeats its entry room, so dedup below is load-bearing.
             for value in issue.get("rooms", []) or []:
+                room_ids.append(_safe_int(value, -1))
+            for value in issue.get("source_room_ids", []) or []:
                 room_ids.append(_safe_int(value, -1))
 
         names: dict[int, str] = {}
@@ -1170,11 +1314,26 @@ class AccessGraphManager:
 
     # RP-008 (GUARD-1): states that mean "the sensor is not answering", not a
     # value of the world. A rule is a statement about the world; it cannot bind
-    # to ignorance — so NO operator (including the negating ones and `missing`)
-    # may match while the rule entity reads one of these. GATE4 Q18: nothing in
-    # any install depends on matching these; if fail-closed-on-dropout is ever
-    # wanted it arrives as an explicit per-rule `when_unavailable` field, never
-    # by string-matching sentinels.
+    # to ignorance — so no VALUE-COMPARING operator (including the negating ones
+    # and `missing`) may match while the rule entity reads one of these. GATE4
+    # Q18: nothing in any install depends on matching these; if
+    # fail-closed-on-dropout is ever wanted it arrives as an explicit per-rule
+    # `when_unavailable` field, never by string-matching sentinels.
+    #
+    # ⚠ `exists` IS THE EXCEPTION, and this comment said "NO operator" until
+    # 2026-08-24. `_room_rule_matches_known` returns for `exists` BEFORE reaching
+    # the sentinel check — "presence of the entity is an observable fact either
+    # way" — and an entity reading `unavailable` still yields a state object, so
+    # `exists` matches while the sensor is dark. The carve-out is deliberate and
+    # is NOT being changed here; what was wrong is this comment claiming a
+    # universal that the code one screen down contradicts.
+    #
+    # It matters because of who reads this: an auditor checking dropout safety, or
+    # whoever implements the promised `when_unavailable`, reads "NO operator ...
+    # may match" and skips `exists` as already covered. A blocker rule using
+    # `exists` on a door sensor keeps blocking, and a modifier keeps mutating fan
+    # speed and water level, while that sensor is reading `unavailable` — the
+    # exact dropout GUARD-1 was written to stop. (R2)
     INDETERMINATE_STATE_VALUES = frozenset({"unavailable", "unknown"})
 
     def _room_rule_matches_known(self, rule: dict[str, Any]) -> tuple[bool, bool]:

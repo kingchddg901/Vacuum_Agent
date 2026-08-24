@@ -27,7 +27,9 @@ Public entry points:
 
     update_drift_history(manager, vacuum_entity_id, discovered_ids)
         Called by every discovery pass. Increments missing-pass
-        counters and resets last_seen timestamps.
+        counters and resets last_seen timestamps. An EMPTY discovered
+        set is an unreadable pass, not an empty map: it is logged and
+        changes nothing (C58).
 
     reject_rooms(manager, vacuum_entity_id, room_ids, map_id) -> dict
     unreject_rooms(manager, vacuum_entity_id, room_ids, map_id) -> dict
@@ -510,6 +512,10 @@ def update_drift_history(
     Increments `missing_passes` for configured rooms not in the
     discovered set; resets counters for rooms that reappear.
 
+    An EMPTY ``discovered_room_ids`` is not one of those two cases: it is
+    classified as an unreadable pass, logged, and returns without touching
+    stored history at all (C58 — see the guard below).
+
     ``map_id`` is the map ``discovered_room_ids`` was read from — the live room
     list describes whichever map is LOADED, so a pass always has one. It selects
     which rejections apply (A4-SETUP-6); omitting it falls back to the union over
@@ -518,6 +524,56 @@ def update_drift_history(
     The history dict lives on the manager's setup_progress storage and
     is persisted on the next manager.async_save().
     """
+    # C58 -- AN EMPTY PASS IS A READ FAILURE, NOT AN EMPTY MAP.
+    # There used to be no guard here: a pass that discovered nothing fell
+    # straight into the loop below, which strikes every configured room absent
+    # from the set. So "the cloud was unreachable / the service-response cache
+    # was cold after a restart / the vacuum was offline" arrived as positive
+    # evidence that EVERY configured room is gone, and at
+    # `removal_confirmation_passes` (3) an offline day flagged the user's whole
+    # room list removed on the strength of reads that never happened.
+    #
+    # The producer cannot separate the two: `run_discovery_pass` flattens
+    # `discover_rooms_for_vacuum` into a plain set, so "read the map, it lists
+    # no rooms" and "could not read the map at all" arrive here identically.
+    # Chris deferred that two-module contract change (2026-08-24), so the
+    # ambiguous case is classified HERE — as a read failure, because that is the
+    # direction that does not delete rooms a user still has.
+    #
+    # NEITHER A STRIKE NOR A RESET. `missing_passes` counts CONSECUTIVE misses;
+    # a pass carrying no evidence in either direction must not add to that run
+    # and must not clear it. Returning before `_get_progress_record` leaves every
+    # stored counter exactly as the last READABLE pass left it -- and avoids
+    # materialising a setup-progress record as a side effect of a pass that
+    # learned nothing. The stale-entry sweep at the end of this function is
+    # skipped with it; that is bookkeeping the next readable pass redoes.
+    #
+    # NOT SILENT. The ledger's complaint was that four empty passes left nothing
+    # suspicious in the log. The message names the classification but NOT a
+    # cause: a genuinely-cleared map and an unreachable cloud produce the same
+    # signature here, and asserting either would be a claim this function cannot
+    # support.
+    if not discovered_room_ids:
+        # Only worth telling anyone about when there is something the guard is
+        # PROTECTING. A vacuum with no configured rooms has no drift counter to
+        # strike, so an empty read costs it nothing — warning anyway would fire on
+        # every periodic pass, forever, for a install that is simply not set up
+        # yet. That is the shape C61 was ruled on one file over: a permanent
+        # recurring WARNING with nothing at stake trains people to ignore the log,
+        # which is expensive precisely when a real one arrives.
+        configured = _list_configured_room_ids(manager, vacuum_entity_id)
+        log = _LOGGER.warning if configured else _LOGGER.debug
+        log(
+            "discovery: pass for %s (map %s) discovered NO rooms — classifying it "
+            "as an UNREADABLE pass, not as an empty map. %d configured room(s) keep "
+            "their existing drift counters: an empty read is evidence in neither "
+            "direction, so it neither strikes a room nor resets a run of strikes.",
+            vacuum_entity_id,
+            map_id if map_id is not None else "unscoped",
+            len(configured),
+        )
+        return
+
     record = _get_progress_record(manager, vacuum_entity_id)
     history: dict[str, dict[str, Any]] = record["room_drift_history"]
     now = _iso_now()

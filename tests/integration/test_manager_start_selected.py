@@ -54,6 +54,16 @@ Coverage targets
 [SS-30] pause releases the strict-order dispatch guard (and the watchdog bails on
         status!=started) so a pause/resume can't leave it stuck and stall the run.
 [SS-31] the watchdog bails (no re-dispatch) when _cancel_in_flight is set — a cancel
+[SS-32] D12: a dispatched start inside the external-capture GRACE WINDOW finalizes the
+        capture instead of overwriting its slot. The window is real rather than
+        theoretical: once the robot docks, the slot still holds status="external" with
+        a pending timer while the vacuum reports docked/idle — precisely the state the
+        start gate admits.
+[SS-33] D12: a BLOCKED start does not flush. The capture is only given up when the
+        slot is actually being taken.
+[SS-34] D12: only a status="external" slot is flushed. A leftover dispatched slot must
+        not be finalized as an app-started run — that would file the user's own run
+        into the external review queue.
         can't be undone by a re-dispatch during the return-to-base window.
 [CSS-1] _clear_room_selections_after_start: enabled room flips off, summary rebuilt.
 [CSS-2] _clear_room_selections_after_start: skip non-dict/off rooms, early-return, empty map.
@@ -1152,3 +1162,112 @@ async def test_clear_room_selections_after_start_noop_skips_and_returns(
     manager._clear_room_selections_after_start(
         vacuum_entity_id=_VAC, map_id="no_such_map")
     assert manager.data["maps"][_VAC]["no_such_map"]["rooms"] == {}
+
+
+async def test_ss32_a_start_in_the_grace_window_flushes_the_capture(manager, hass):
+    """[SS-32] RED BEFORE THE FIX — the slot was overwritten and the capture vanished
+    with no error and nothing left to review.
+
+    Reachability, not just behaviour: this drives the real `start_selected_rooms`, so
+    removing the call site turns it red. A flush that works but is never called is the
+    same defect wearing a passing test.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _seed_enabled(manager)
+    hass.states.async_set(_VAC, "docked", {"battery_level": 90})
+    _register_dispatch(hass)
+
+    # The grace-window state: a capture open on the slot, robot home.
+    manager.start_external_capture(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert manager.data["active_jobs"][_VAC][_MAP]["status"] == "external"
+
+    flushed: list = []
+
+    async def _spy(*, vacuum_entity_id, map_id, slot):
+        flushed.append((vacuum_entity_id, map_id, dict(slot)))
+
+    manager.external_run._finalize_external_run = _spy
+
+    # ARM A REAL GRACE TIMER. Without this the timer assertion below passes against an
+    # empty dict and proves nothing -- an ablation that left the timer armed went green
+    # on the first draft of this test.
+    cancelled: list = []
+    manager._external_grace_timers()[(_VAC, _MAP)] = lambda: cancelled.append(True)
+    manager._external_grace_checks()[(_VAC, _MAP)] = 1
+
+    result = await manager.start_selected_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    await hass.async_block_till_done()
+
+    assert result["started"] is True, "the user's start must still go ahead"
+    assert flushed, "the open capture was overwritten instead of finalized"
+    assert flushed[0][0] == _VAC and flushed[0][1] == _MAP
+    # the slot now belongs to the dispatched run, not the capture
+    assert manager.data["active_jobs"][_VAC][_MAP]["status"] != "external"
+    # The pending timer was CANCELLED and dropped. Left armed it would later fire
+    # against a slot that now belongs to the dispatched run, where the finalizer's own
+    # status check turns it into a silent no-op rather than an error.
+    assert cancelled == [True], "the grace timer was never cancelled"
+    assert (_VAC, _MAP) not in manager._external_grace_timers()
+    assert (_VAC, _MAP) not in manager._external_grace_checks()
+
+
+async def test_ss33_a_blocked_start_does_not_flush(manager, hass):
+    """[SS-33] RED IF THE FLUSH MOVES ABOVE THE REFUSALS.
+
+    A start that is refused takes nothing, so it must give up nothing. Finalizing there
+    would close a run the user never interrupted — and they would find it sitting in
+    review having done nothing to cause it.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _seed_enabled(manager)
+    hass.states.async_set(_VAC, "docked", {"battery_level": 90})
+    _register_dispatch(hass)
+    manager.start_external_capture(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    flushed: list = []
+
+    async def _spy(*, vacuum_entity_id, map_id, slot):
+        flushed.append(map_id)
+
+    manager.external_run._finalize_external_run = _spy
+
+    # A partial access graph blocks the start (the [SS-2] mechanism).
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    for _rid, _room in rooms.items():
+        _room["grants_access_to"] = ["999"]
+
+    result = await manager.start_selected_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert result["started"] is False
+    assert not flushed, "a refused start finalized a capture it never took"
+    assert manager.data["active_jobs"][_VAC][_MAP]["status"] == "external"
+
+
+async def test_ss34_only_an_external_slot_is_flushed(manager, hass):
+    """[SS-34] RED IF THE STATUS CHECK IS DROPPED.
+
+    A previous dispatched run can still be sitting in the slot — a stranded `started`
+    job is the ordinary case. Finalizing that through the external path would write the
+    user's OWN run into `external_jobs/` for them to "review", which is both wrong and
+    confusing, and it would do so on every start.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _seed_enabled(manager)
+    hass.states.async_set(_VAC, "docked", {"battery_level": 90})
+    _register_dispatch(hass)
+
+    # a leftover DISPATCHED slot, not a capture
+    manager.start_external_capture(vacuum_entity_id=_VAC, map_id=_MAP)
+    manager.data["active_jobs"][_VAC][_MAP]["status"] = "started"
+
+    flushed: list = []
+
+    async def _spy(*, vacuum_entity_id, map_id, slot):
+        flushed.append(map_id)
+
+    manager.external_run._finalize_external_run = _spy
+
+    result = await manager.start_selected_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    await hass.async_block_till_done()
+
+    assert result["started"] is True
+    assert not flushed, "a dispatched slot was finalized as an external capture"

@@ -48,6 +48,7 @@ from homeassistant.core import HomeAssistant
 from ..timestamp_utils import parse_timestamp
 from .history_store import LearningHistoryStore
 from .utils import (
+    resolve_room_slug,
     _canonical_clean_intensity,
     _canonical_clean_mode,
     _iso_now,
@@ -445,6 +446,12 @@ class LearningStatsRebuilder:
         jobs: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Build learned room stats and room baselines from a list of learning jobs."""
+        # D5: a job record carries the slug the room had AT RUN TIME. Resolve every
+        # historical identity forward before it is keyed, or a renamed room's past runs
+        # stay under a name nothing asks for again and it reads as never cleaned.
+        # Absent file = no rename has happened = every resolve is identity.
+        _aliases = self.store.load_key_aliases(vacuum_entity_id=vacuum_entity_id)
+
         # exact_key → per-room minutes samples + the area paired with each (for the
         # area-quality gate). The paired area is None when the job had no per-room
         # area capture (so that sample is never gated out).
@@ -478,6 +485,21 @@ class LearningStatsRebuilder:
             profile = job.get("job_profile", {}) if isinstance(job.get("job_profile"), dict) else {}
             rooms = profile.get("rooms", []) if isinstance(profile.get("rooms"), list) else []
 
+            # ⚠ THIS IS THE COARSE JOB DURATION, AND UNLIKE ITS TWO SIBLINGS IN THIS FILE IT
+            # IS NOT REFINED FOR A SINGLE-ROOM JOB. build_job_stats_payload and
+            # build_jobs_index_payload both prefer `room_cleaning_minutes` (then
+            # `actual_cleaning_minutes`) when `room_count == 1`; the learning path here does
+            # not, so `per_room_duration` below divides a number that still contains the
+            # approach and drive-home the room did not spend. The refined alternative is
+            # right there in the same record: `history_store` writes `room_cleaning_minutes`
+            # as `actual_cleaning_minutes` minus the wall-vs-actual overhead — i.e. it has
+            # already removed exactly the transit that this file's own `_captured_minutes`
+            # says is "already modelled separately (overhead_observed, transit_seconds)".
+            # Dividing the COARSE value instead therefore counts that transit a second time,
+            # inside the room's own learned minutes. Only rooms that get a `captured`
+            # per-room timing below escape it; every room that falls back to
+            # `per_room_duration` is taught the inflated number. Reading the refined value
+            # here would be a CODE change, not a comment change.
             total_duration = _safe_float(job_info.get("duration_minutes"), 0.0)
             total_battery_used = _safe_float(job.get("battery", {}).get("used"), 0.0)
             total_job_drift = self._job_drift_minutes(job)
@@ -505,7 +527,15 @@ class LearningStatsRebuilder:
             # single AND multi-room jobs; room_minutes/room_area fall back to the
             # job level when a room has no captured segment.
             captured: dict[int, tuple[float, float]] = {}
-            # Invariant 4: an ALLOCATED timing is arithmetic, never an observation.
+            # RULE: an ALLOCATED timing is arithmetic, never an observation.
+            # ⚠ This line read "Invariant 4:" until 2026-08-24. That number belonged to the
+            # 1..8 phased-jobs numbering, whose only register is the git-ignored planning
+            # note `.claude/notes/synthesis/PLAN-phased-jobs-option-b.md` — nothing under
+            # `docs/` has ever carried it, so a reader of the shipped tree could not resolve
+            # it and there is no `IN` anchor in `docs/dev/00b-invariants.md` covering this
+            # rule either. The sentence above IS the whole claim; do not go looking for a
+            # numbered list. (Same retired numbering: `jobs/phase_runner.py` "invariant 3"
+            # and this file's "Invariant 8" — both likewise restated in place.)
             # `cleaning_wall_seconds` on an allocated row is not even the room's share —
             # it is the WHOLE group phase's wall time, repeated identically for every
             # member (jobs/phase_runner.py builds it that way). So a 390 s two-room phase
@@ -529,7 +559,9 @@ class LearningStatsRebuilder:
                 if not isinstance(room, dict):
                     continue
 
-                slug = str(room.get("slug", "")).strip().lower()
+                slug = resolve_room_slug(
+                    _aliases, map_id, room.get("slug", "")
+                )
                 if not slug:
                     continue
 
@@ -695,8 +727,8 @@ class LearningStatsRebuilder:
                     to_id = _safe_int(tr.get("to_room_id"), -1)
                     if from_id <= 0 or to_id <= 0:
                         continue
-                    from_slug = str(tr.get("from_slug") or "").strip().lower()
-                    to_slug = str(tr.get("to_slug") or "").strip().lower()
+                    from_slug = resolve_room_slug(_aliases, map_id, tr.get("from_slug"))
+                    to_slug = resolve_room_slug(_aliases, map_id, tr.get("to_slug"))
                     pairkey = f"{map_id}::{from_id}->{to_id}"
                     transit_samples.setdefault(pairkey, []).append(secs)
                     transit_meta.setdefault(
@@ -1424,12 +1456,15 @@ class LearningStatsRebuilder:
         # those two rooms costs, which is exactly the data an ad-hoc run wants to learn
         # from. Excluding them threw away the best source of it.
         #
-        # Invariant 8 (a flat 3-room run must not pool with
-        # [kitchen] -> wait -> [entryway+office]) is satisfied STRUCTURALLY by the split,
+        # The shape rule — a flat 3-room run must not pool with
+        # [kitchen] -> wait -> [entryway+office] — is satisfied STRUCTURALLY by the split,
         # with no shape-key change at all: the phased run no longer produces a 3-room
         # record to collide with. It produces a 1-room record and a 2-room record, each
         # pooling with its own true shape. The collision was an artifact of the merged
         # record, and the merged record is gone.
+        # (⚠ This said "Invariant 8" until 2026-08-24 — the retired 1..8 phased-jobs
+        # numbering, registered only in a git-ignored planning note and in nothing under
+        # `docs/`. The clause above is the rule; there is no numbered list to look it up in.)
         #
         # The PARENT is what stays out of this pool — it belongs to the separate phased-job
         # pool, and it is not in `all_jobs` at all (different directory, different

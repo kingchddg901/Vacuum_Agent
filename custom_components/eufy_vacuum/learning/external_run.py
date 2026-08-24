@@ -229,6 +229,56 @@ class ExternalRunManager:
         )
         await self._manager.async_save()
 
+    async def flush_pending_capture(self, *, vacuum_entity_id: str) -> str | None:
+        """Close any open external capture before something else claims its slot.
+
+        THE WINDOW THIS EXISTS FOR. There is one active-job slot per vacuum and map, and
+        both paths write it. A capture cannot clobber a dispatched run — detection is
+        defined as "cleaning with no dispatched job" — and a dispatched start cannot
+        happen mid-clean, because the start gate refuses on an active vacuum state.
+        Between those two facts sits the grace window: the robot has docked, the slot
+        still holds ``status="external"`` with a pending finalize timer, and the vacuum
+        reports ``docked`` or ``idle`` — precisely the state the start gate ADMITS.
+
+        A dispatched start in that window used to overwrite the slot, and the buffered
+        counter and settings samples the pending review record is built from went with
+        it. Nothing on the start path tested for ``status == "external"``, so the
+        capture disappeared with no error and nothing to review.
+
+        FINALIZE RATHER THAN REFUSE. The slot is being taken either way, and refusing a
+        start the user just asked for — to preserve a record they have not seen yet and
+        did not ask for — is the worse trade. Finalizing keeps the run: it lands in
+        ``external_jobs/`` for review exactly as the grace timer would have left it.
+
+        Returns the map id that was flushed, or None if no capture was open.
+        """
+        per_map = (self._manager.data.get("active_jobs", {}) or {}).get(vacuum_entity_id, {}) or {}
+        for map_id, slot in list(per_map.items()):
+            if not isinstance(slot, dict) or slot.get("status") != "external":
+                continue
+            key = (vacuum_entity_id, str(map_id))
+            # Cancel the pending timer FIRST. Left armed it would fire against a slot
+            # that now belongs to the dispatched run, and _external_grace_finalize's own
+            # status check would make that a silent no-op rather than an error.
+            cancel = self._external_grace_timers().pop(key, None)
+            if cancel:
+                try:
+                    cancel()
+                except Exception:  # pragma: no cover - defensive
+                    _LOGGER.debug("flush_pending_capture: grace-timer cancel raised", exc_info=True)
+            self._external_grace_checks().pop(key, None)
+            _LOGGER.info(
+                "external run: a dispatched start is claiming %s's active-job slot on map "
+                "%s while an app-started capture was still open. Finalizing that capture "
+                "now so it stays reviewable instead of being overwritten.",
+                vacuum_entity_id, map_id,
+            )
+            await self._finalize_external_run(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id), slot=slot
+            )
+            return str(map_id)
+        return None
+
     def _error_tracker(self) -> Any | None:
         """The live ErrorTracker, or None when it isn't loaded.
 

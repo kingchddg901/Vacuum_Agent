@@ -31,6 +31,6 @@ To review what a run cleaned, see the run review panels in
 [User Guide — Review Panels](../user-guide/06-review-panels.md).
 
 For the retired design itself — the trace→bounds algorithm, preserved verbatim so the
-approach is not proposed again — see [Dev 11 — Mapping System §3](../dev/11-mapping-system.md),
+approach is not proposed again — see [Room bounds from traces](../dev/history/room-bounds-from-traces.md),
 and for the current attribution path see
 [Eufy Native Current-Room Transition](../dev/design/shipped/eufy-native-transition.md).

@@ -1292,6 +1292,24 @@
     "due_in_months": {"other":"Due in ~{count} months"},  // plural
     "due_in_weeks": {"other":"Due in ~{count} weeks"},  // plural
     "due_overdue": "Overdue",
+    "component_label": {
+      "main_brush": "Main Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "side_brush": "Side Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "filter": "Filter",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "sensor": "Sensor",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "dustbin": "Dustbin",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "mop_cloth": "Mop Cloth",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "water_filter": "Water Filter",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "caster_wheel": "Caster Wheel",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "main_wheel": "Main Wheel",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "dock_cleaning_brush": "Dock Cleaning Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "dock_strainer": "Dock Strainer",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "dock_dust_bag": "Dock Dust Bag",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "clean_water_tank": "Clean Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "dirty_water_tank": "Dirty Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "rolling_brush": "Rolling Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "mopping_cloth": "Mopping Cloth"  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+    },
     "due_today": "Due today",
     "due_tomorrow": "Due tomorrow",
     "hours": {"one":"{value} hour","other":"{value} hours"},  // plural; run-hours label; {value} is preformatted, count drives one/other
@@ -1594,6 +1612,12 @@
     "battery_col_mean_per_m2": "Mean",  // Drain-table column header; the unit lives on the VALUE via metrics.unit_per_m2
     "unit_per_m2": "%/m²",  // battery drain unit, appended to a value. LOCALIZED — ar/he/ru do not use a Latin m
     "unit_per_min": "%/min",  // charge-rate unit, appended to a value. Composed from run_profiles.minutes_unit
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",  // Tooltip on the 'samples / count' Jobs cell in the drain table when samples < count. LOCALIZE.
+    "unit_per_hour": "%/h",  // battery drain-per-hour unit, appended to a value; LOCALIZE the 'h' (ar/he use non-Latin scripts)
+    "unit_percent": "%",  // bare percent unit, appended to a value. Most languages keep '%' but some scripts prefer their own numeral marker
+    "unit_square_meters": "m²",  // area unit, appended to a value; LOCALIZE 'm' (ar/he/ru do not use a Latin m — mirror metrics.unit_per_m2's approach)
+    "unit_hours": "h",  // hours unit, appended to a value; LOCALIZE 'h' (ar/he/ru non-Latin scripts). Used by maintenance device-total tiles.
+    "unit_ml": "ml",  // millilitres unit, appended to a rounded integer. LOCALIZE for scripts that write volume differently. Used by water/dock format helpers.
     "battery_col_notes": "Notes",  // Charge-rates table column: explanatory note text per row, not user-entered notes
     "battery_col_zone": "Zone",  // Charge-rates table column: a battery charge-rate %-band zone (low/high/mid), not a clean zone/room
     "battery_drain_subtitle": "Only jobs where every room used the same setting feed these means. Mixed-mode runs still update the all-jobs row but skip per-bucket buckets.",  // 'single-bucket job' = a run where every room used the same setting
@@ -1725,6 +1749,157 @@
     "window_last_30_days": "Last 30 Days",
     "window_last_7_days": "Last 7 Days",
     "window_today": "Today"
+  },
+  "rooms": {
+    "override_order": {
+      "toggle_label": "Override device order",  // Sequence-toggle switch label — the persistent companion to the strict-order chip
+      "consent": "Changes the saved sequence in your Roborock app",  // ⚠ Consent text — this UI edits a persistent, map-level user setting in the vendor app
+      "path_optimizing": "Vacuum optimises the path itself",  // Row body when the switch is off and no device order is saved
+      "matching": "Sequence matches your queue",  // Green state: switch on, device order equals queue
+      "mismatch": "Sequence differs from your queue — Apply to update",  // Amber state: switch on, device order != queue
+      "unverifiable": "Could not read the device's saved sequence",  // Grey state: sensor unavailable/unknown
+      "apply": "Apply queue to device",  // Button: writes the queue order to the device
+      "clear": "Clear device sequence",  // Button: wipes the device's saved sequence
+      "device_label": "Device:",  // Prefix on the device-order line in the mismatch diff
+      "queue_label": "Queue:",  // Prefix on the queue-order line in the mismatch diff
+      "empty_placeholder": "(empty)"  // Shown in the mismatch diff when one side has no order
+    },
+    "access_not_set": "Access not set",
+    "add_charge_break": "+ Charge break",  // chip: insert a charge-to-% break into the queue (makes the run stepped)
+    "add_wait_break": "+ Wait break",  // chip: insert a timed wait break into the queue
+    "another_room": "another room",
+    "battery_label": "Battery: {value}",  // Estimate tooltip 'Battery: {value}'; {value} is the battery % the estimate assumed (a number)
+    "block_reason": {
+      "no_rooms_included": "No rooms included.",  // start blocked: no rooms enabled for this map. Reason CODE from state/rooms.js, localized in the renderer
+      "already_cleaning": "Already cleaning.",  // start blocked: a clean is already running
+      "returning_to_dock": "Returning to dock.",  // start blocked: vacuum is returning to its dock
+      "vacuum_error": "Vacuum has an error.",  // start blocked: vacuum is in an error state
+      "start_blocked": "Start is blocked.",  // start blocked: generic fallback when no more specific reason is available
+      "incomplete_access_graph": "Room access is incomplete for {rooms}. Complete their access links, or open the dock room's Access panel and release it — that clears the graph and lets basic runs work again.",  // start blocked: the room-access graph is half-configured. {rooms} = the rooms whose access links are missing or broken.
+      "access_graph_required_for_rules": "Room rules require a complete access graph. Configure the dock room and room connections before using rules.",  // start blocked: rules are set but no access graph exists to evaluate them against.
+      "access_graph_required": "Room blockers require a manual room access graph before they can be used.",  // start blocked: blocker rules exist with no access graph at all.
+      "rooms_blocked": "Some rooms are blocked by their rules and will be skipped.",  // preflight WARNING (not a block): a reduced run is offered for confirmation.
+      "confirmation_required": "Confirmation is required before starting this reduced run.",  // start warning: the reduced-run confirm flow.
+      "job_paused": "A tracked job is paused. Resume or cancel it before starting a new one.",  // start blocked: a paused job owns the vacuum.
+      "onboarding_required": "Finish setting up this map before starting a clean.",  // start blocked: onboarding (e.g. floor types) is incomplete.
+      "rule_blocked": "Blocked by a room rule.",  // per-room preflight reason CODE: a blocker rule matched but carries no user reason text
+      "access_blocked": "Blocked - the route to this room passes through a blocked room."  // per-room preflight reason CODE: the room is unreachable because a room on its access path is blocked
+    },
+    "blocked_fallback": "Blocked",
+    "blocked_rooms": "Blocked Rooms",
+    "cancel_run": "Cancel Run",
+    "cancel_warning": "Tap \"Confirm Cancel\" again to send the vacuum back to the dock, or press <strong>Cancel</strong> to keep the job running.",
+    "charge_time_varies": "Charge time varies with the battery level when it docks.",  // note under the stepped-run preview
+    "chip_charge_label": "Charge to",  // prefix label on an editable charge chip (precedes a % input)
+    "chip_charge_to": "Charge to {target}%",  // aria label for the editable charge chip
+    "chip_wait": "Wait {minutes} min",  // aria label for the editable wait chip
+    "chip_wait_label": "Wait",  // prefix label on an editable wait chip (precedes a minutes input)
+    "clear_breaks": "Clear breaks",  // chip: remove all charge/wait breaks, back to a flat clean
+    "clear_queue": "Clear Queue",
+    "move_step": "Move step",  // aria/title on the queue-chip reorder grip (opens the move-to-position modal)
+    "remove_break": "Remove break",  // aria/title on the queue-chip remove (X) control
+    "add_zone": "+ Zone",  // chip: open the saved-zone picker to add a zone step to the queue
+    "zone_fallback": "Zone",  // fallback name for a saved zone with no name / unresolved id
+    "zone_time_learned": "Learned from {count} run(s)",  // title on a zone chip's time when it's a learned average
+    "zone_time_estimated": "Estimated from zone size (no runs yet)",  // title on a zone chip's time when it's the area fallback (~)
+    "zone_picker_title": "Add a zone step",  // header of the multi-select saved-zone picker
+    "zone_picker_empty": "No saved zones on this map yet.",  // picker body when there are no saved zones
+    "zone_picker_add": "Add to queue",  // picker confirm: inserts the selected zones as one step
+    "companion_animal": "Companion animal",
+    "configure": "Configure",
+    "configure_map": "Configure map",
+    "confirm_cancel": "Confirm Cancel",
+    "confirm_clear": "Confirm Clear",
+    "confirm_start": "Confirm Start",
+    "count_rooms": {"one":"1 room","other":"{count} rooms"},  // plural; room count label
+    "count_zones": {"one":"1 zone","other":"{count} zones"},  // plural; queued-zone count, appended to the room count
+    "live_queue_label": "Live queue",  // header of the running-job chip sequence (rooms + breaks + zone, live)
+    "derived_via": "(via {room}'s {rule})",  // Why a room was modified: '(via {room}'s {rule})'; {room}=other room name, {rule}=rule name
+    "drag_to_reorder": "Drag to reorder",
+    "duration_skipped": "~{duration} skipped",
+    "edge_mop_on": "Edge Mop On",  // room chip: edge-mopping is enabled for this room (on/off state)
+    "elapsed_label": "Elapsed: {value}",
+    "empty": "No rooms yet — open the Setup tab and run Import Active Map (the highlighted button), then Configure Rooms to get started.",
+    "estimate_label": "Estimate: {value}",
+    "exclude_room_aria": "Exclude room {name}",
+    "force_exact_order": "Force this exact order",  // Button enabling strict order: clean queued rooms one-by-one in the shown order (slower)
+    "hide_companion": "Hide companion",
+    "hide_map_textures": "Hide map textures",
+    "hide_room_card_textures": "Hide room-card textures",
+    "hide_room_labels": "Hide room labels",
+    "icon_size": "Icon size",
+    "include_room_aria": "Include room {name}",
+    "included": "included",  // lowercase suffix after the queue count, e.g. '3 rooms included'
+    "intensity_mismatch": "intensity mismatch",  // Warning chip: estimate was learned at a different clean intensity/profile than now set
+    "last_cleaned_label": "Last cleaned: {value}",
+    "list_view": "List view",  // view-toggle: show rooms as a list (vs map view)
+    "locate": "Locate",  // button: make the vacuum chirp to find it (Locate command)
+    "map_view": "Map view",  // view-toggle: show rooms on the map (vs list view)
+    "mascot_follow_off": "Make the mascot ride the live robot position (replaces the dot)",
+    "mascot_follow_on": "Mascot follows the live robot position — tap for room/dock mode",
+    "mascot_follows_robot": "Mascot follows robot",
+    "mascot_physics": "Mascot physics",  // aria-label for the Normal-universe / Moonwalk-mode toggle button
+    "moonwalk_off": "Normal universe — the mascot faces the way it's heading. Tap for Moonwalk mode.",  // toggle title, direction-aware facing ON (default). "Moonwalk": a playful reference to Michael Jackson's moonwalk dance, not walking on the Moon. The mascot intentionally appears to move backward.
+    "moonwalk_on": "🕺 Moonwalk mode — the mascot glides backward. Tap for Normal universe.",  // toggle title, Moonwalk mode ON. "Moonwalk": a playful reference to Michael Jackson's moonwalk dance, not walking on the Moon. The mascot intentionally appears to move backward.
+    "mode_label": "Mode: {value}",
+    "mode_mop": "Mop",  // per-room clean-MODE chip value (mop action), not the dock mop-wash
+    "mode_vacuum": "Vacuum",  // per-room clean-MODE chip value (vacuum action), not the device/vacuum noun
+    "mode_vacuum_mop": "Vacuum + Mop",  // per-room clean mode: vacuum and mop in one pass
+    "modified_rooms": "Modified Rooms",
+    "move": "Move",  // button to change a room's position in the clean order/queue
+    "move_room": "Move room",
+    "n_blocked": {"other":"{count} blocked"},  // plural
+    "n_included": {"other":"{count} included"},  // plural
+    "n_passes": "{count}× passes",  // Room chip: cleaning-pass count, e.g. '2× passes' = robot covers the room twice
+    "no_rooms_queued": "No rooms queued — toggle rooms to include them",
+    "note_intensity_mismatch_title": "Estimate was learned from a different cleaning intensity or profile.",
+    "note_no_learned_data_title": "This room is using a fallback estimate until enough learned samples are collected.",
+    "note_runs_to_reliable_title": "Estimated {count} more runs to reach high confidence.",
+    "open_room_settings_aria": "Open room settings for {name}",
+    "pause": "Pause",
+    "percent_complete": "{pct}% complete",
+    "profile_custom": "Custom",  // cleaning-profile name: user's own settings (not a saved preset)
+    "profile_deep": "Deep",  // cleaning-profile name: thorough/deep clean preset
+    "profile_quick": "Quick",  // cleaning-profile name: fast/light clean preset
+    "profile_standard": "Standard",  // cleaning-PROFILE name (fallback), not a quality/size rating
+    "profile_user_1": "User Profile 1",
+    "profile_vacuum_only_deep": "Vacuum Only Deep",
+    "profile_vacuum_only_quick": "Vacuum Only Quick",
+    "progress_label": "Progress: {pct}%",
+    "projected_water_use": "Projected water use: ~{ml} ml",
+    "queue_chip_title": "Click for settings · Double-click for estimate · Hold to remove from queue",
+    "queue_room_aria": "Queue room {name}",
+    "rainbow_bridge": "Rainbow Bridge",  // Optgroup label for memorial (deceased-pet) companion animals; keep the 'rainbow bridge' idiom
+    "reduced_run_detected": "Reduced Run Detected",  // Preflight header: some rooms are blocked so this run will clean fewer rooms than queued
+    "remaining_label": "Remaining: {value}",
+    "remaining_left": "~{value} left",
+    "resume": "Resume",
+    "room_fallback": "Room",
+    "room_settings": "Room settings",
+    "run_plan_title": "This Job",  // header of the pre-run stepped (room -> charge -> room) preview
+    "running": "Running",  // active-job header label: a clean is in progress
+    "select_all": "Select All",
+    "settings_adjusted": "Settings adjusted",
+    "show_companion": "Show companion",
+    "show_map_textures": "Show map textures",
+    "show_room_card_textures": "Show room-card textures",
+    "stall_capture_enable": "Turn on stall capture",
+    "stall_capture_disable": "Turn off stall capture",
+    "show_room_labels": "Show room labels",
+    "source_label": "Source: {value}",  // Estimate tooltip: data origin of the time estimate; {value} is 'learned' or 'default', not a URL
+    "start_cleaning": "Start Cleaning",
+    "strict_order_on_label": "Strict order: ON",
+    "strict_order_on_text": "Strict order ON — rooms will clean one at a time in the order shown (slower: a dock trip between rooms).",
+    "trouble_note_title": "This room was missed in {pct}% of recent runs. Consider checking for obstacles or map accuracy.",
+    "trust_learning": "Learning",  // estimate-confidence badge: still learning, not the Learning feature/tab
+    "trust_reliable": "Reliable",  // estimate-confidence badge: time estimate is trustworthy
+    "trust_tooltip_with_samples": "{label} · {count} samples",  // confidence-chip tooltip: trust label plus how many learned runs it's based on
+    "trust_uncertain": "Uncertain",  // estimate-confidence badge: estimate not yet trustworthy
+    "trust_unlearned": "Unlearned",  // estimate-confidence badge: no learned data, using default estimate
+    "warnings": "Warnings",
+    "water_label": "Water: {value}",
+    "water_ml": "~{ml} ml water",  // Room chip: projected clean-water this room will use, '~{ml} ml water'
+    "trouble_missed": {"one":"Missed {miss}× of {count} run","other":"Missed {miss}× of {count} runs"}
   },
   "mobile": {
     "dock_status_label": "Dock Status:",  // Status-line prefix before the dock's state value, e.g. 'Dock Status: Charging'; keep colon
@@ -2084,144 +2259,6 @@
     "value_multi_help": "Choose one or more allowed values from the entity itself.",
     "value_placeholder_list": "value1, value2, ...",
     "value_placeholder_text": "e.g. home, 25, true"
-  },
-  "rooms": {
-    "access_not_set": "Access not set",
-    "add_charge_break": "+ Charge break",  // chip: insert a charge-to-% break into the queue (makes the run stepped)
-    "add_wait_break": "+ Wait break",  // chip: insert a timed wait break into the queue
-    "another_room": "another room",
-    "battery_label": "Battery: {value}",  // Estimate tooltip 'Battery: {value}'; {value} is the battery % the estimate assumed (a number)
-    "block_reason": {
-      "no_rooms_included": "No rooms included.",  // start blocked: no rooms enabled for this map. Reason CODE from state/rooms.js, localized in the renderer
-      "already_cleaning": "Already cleaning.",  // start blocked: a clean is already running
-      "returning_to_dock": "Returning to dock.",  // start blocked: vacuum is returning to its dock
-      "vacuum_error": "Vacuum has an error.",  // start blocked: vacuum is in an error state
-      "start_blocked": "Start is blocked.",  // start blocked: generic fallback when no more specific reason is available
-      "incomplete_access_graph": "Room access is incomplete for {rooms}. Complete their access links, or open the dock room's Access panel and release it — that clears the graph and lets basic runs work again.",  // start blocked: the room-access graph is half-configured. {rooms} = the rooms whose access links are missing or broken.
-      "access_graph_required_for_rules": "Room rules require a complete access graph. Configure the dock room and room connections before using rules.",  // start blocked: rules are set but no access graph exists to evaluate them against.
-      "access_graph_required": "Room blockers require a manual room access graph before they can be used.",  // start blocked: blocker rules exist with no access graph at all.
-      "rooms_blocked": "Some rooms are blocked by their rules and will be skipped.",  // preflight WARNING (not a block): a reduced run is offered for confirmation.
-      "confirmation_required": "Confirmation is required before starting this reduced run.",  // start warning: the reduced-run confirm flow.
-      "job_paused": "A tracked job is paused. Resume or cancel it before starting a new one.",  // start blocked: a paused job owns the vacuum.
-      "onboarding_required": "Finish setting up this map before starting a clean.",  // start blocked: onboarding (e.g. floor types) is incomplete.
-      "rule_blocked": "Blocked by a room rule.",  // per-room preflight reason CODE: a blocker rule matched but carries no user reason text
-      "access_blocked": "Blocked - the route to this room passes through a blocked room."  // per-room preflight reason CODE: the room is unreachable because a room on its access path is blocked
-    },
-    "blocked_fallback": "Blocked",
-    "blocked_rooms": "Blocked Rooms",
-    "cancel_run": "Cancel Run",
-    "cancel_warning": "Tap \"Confirm Cancel\" again to send the vacuum back to the dock, or press <strong>Cancel</strong> to keep the job running.",
-    "charge_time_varies": "Charge time varies with the battery level when it docks.",  // note under the stepped-run preview
-    "chip_charge_label": "Charge to",  // prefix label on an editable charge chip (precedes a % input)
-    "chip_charge_to": "Charge to {target}%",  // aria label for the editable charge chip
-    "chip_wait": "Wait {minutes} min",  // aria label for the editable wait chip
-    "chip_wait_label": "Wait",  // prefix label on an editable wait chip (precedes a minutes input)
-    "clear_breaks": "Clear breaks",  // chip: remove all charge/wait breaks, back to a flat clean
-    "clear_queue": "Clear Queue",
-    "move_step": "Move step",  // aria/title on the queue-chip reorder grip (opens the move-to-position modal)
-    "remove_break": "Remove break",  // aria/title on the queue-chip remove (X) control
-    "add_zone": "+ Zone",  // chip: open the saved-zone picker to add a zone step to the queue
-    "zone_fallback": "Zone",  // fallback name for a saved zone with no name / unresolved id
-    "zone_time_learned": "Learned from {count} run(s)",  // title on a zone chip's time when it's a learned average
-    "zone_time_estimated": "Estimated from zone size (no runs yet)",  // title on a zone chip's time when it's the area fallback (~)
-    "zone_picker_title": "Add a zone step",  // header of the multi-select saved-zone picker
-    "zone_picker_empty": "No saved zones on this map yet.",  // picker body when there are no saved zones
-    "zone_picker_add": "Add to queue",  // picker confirm: inserts the selected zones as one step
-    "companion_animal": "Companion animal",
-    "configure": "Configure",
-    "configure_map": "Configure map",
-    "confirm_cancel": "Confirm Cancel",
-    "confirm_clear": "Confirm Clear",
-    "confirm_start": "Confirm Start",
-    "count_rooms": {"one":"1 room","other":"{count} rooms"},  // plural; room count label
-    "count_zones": {"one":"1 zone","other":"{count} zones"},  // plural; queued-zone count, appended to the room count
-    "live_queue_label": "Live queue",  // header of the running-job chip sequence (rooms + breaks + zone, live)
-    "derived_via": "(via {room}'s {rule})",  // Why a room was modified: '(via {room}'s {rule})'; {room}=other room name, {rule}=rule name
-    "drag_to_reorder": "Drag to reorder",
-    "duration_skipped": "~{duration} skipped",
-    "edge_mop_on": "Edge Mop On",  // room chip: edge-mopping is enabled for this room (on/off state)
-    "elapsed_label": "Elapsed: {value}",
-    "empty": "No rooms yet — open the Setup tab and run Import Active Map (the highlighted button), then Configure Rooms to get started.",
-    "estimate_label": "Estimate: {value}",
-    "exclude_room_aria": "Exclude room {name}",
-    "force_exact_order": "Force this exact order",  // Button enabling strict order: clean queued rooms one-by-one in the shown order (slower)
-    "hide_companion": "Hide companion",
-    "hide_map_textures": "Hide map textures",
-    "hide_room_card_textures": "Hide room-card textures",
-    "hide_room_labels": "Hide room labels",
-    "icon_size": "Icon size",
-    "include_room_aria": "Include room {name}",
-    "included": "included",  // lowercase suffix after the queue count, e.g. '3 rooms included'
-    "intensity_mismatch": "intensity mismatch",  // Warning chip: estimate was learned at a different clean intensity/profile than now set
-    "last_cleaned_label": "Last cleaned: {value}",
-    "list_view": "List view",  // view-toggle: show rooms as a list (vs map view)
-    "locate": "Locate",  // button: make the vacuum chirp to find it (Locate command)
-    "map_view": "Map view",  // view-toggle: show rooms on the map (vs list view)
-    "mascot_follow_off": "Make the mascot ride the live robot position (replaces the dot)",
-    "mascot_follow_on": "Mascot follows the live robot position — tap for room/dock mode",
-    "mascot_follows_robot": "Mascot follows robot",
-    "mascot_physics": "Mascot physics",  // aria-label for the Normal-universe / Moonwalk-mode toggle button
-    "moonwalk_off": "Normal universe — the mascot faces the way it's heading. Tap for Moonwalk mode.",  // toggle title, direction-aware facing ON (default). "Moonwalk": a playful reference to Michael Jackson's moonwalk dance, not walking on the Moon. The mascot intentionally appears to move backward.
-    "moonwalk_on": "🕺 Moonwalk mode — the mascot glides backward. Tap for Normal universe.",  // toggle title, Moonwalk mode ON. "Moonwalk": a playful reference to Michael Jackson's moonwalk dance, not walking on the Moon. The mascot intentionally appears to move backward.
-    "mode_label": "Mode: {value}",
-    "mode_mop": "Mop",  // per-room clean-MODE chip value (mop action), not the dock mop-wash
-    "mode_vacuum": "Vacuum",  // per-room clean-MODE chip value (vacuum action), not the device/vacuum noun
-    "mode_vacuum_mop": "Vacuum + Mop",  // per-room clean mode: vacuum and mop in one pass
-    "modified_rooms": "Modified Rooms",
-    "move": "Move",  // button to change a room's position in the clean order/queue
-    "move_room": "Move room",
-    "n_blocked": {"other":"{count} blocked"},  // plural
-    "n_included": {"other":"{count} included"},  // plural
-    "n_passes": "{count}× passes",  // Room chip: cleaning-pass count, e.g. '2× passes' = robot covers the room twice
-    "no_rooms_queued": "No rooms queued — toggle rooms to include them",
-    "note_intensity_mismatch_title": "Estimate was learned from a different cleaning intensity or profile.",
-    "note_no_learned_data_title": "This room is using a fallback estimate until enough learned samples are collected.",
-    "note_runs_to_reliable_title": "Estimated {count} more runs to reach high confidence.",
-    "open_room_settings_aria": "Open room settings for {name}",
-    "pause": "Pause",
-    "percent_complete": "{pct}% complete",
-    "profile_custom": "Custom",  // cleaning-profile name: user's own settings (not a saved preset)
-    "profile_deep": "Deep",  // cleaning-profile name: thorough/deep clean preset
-    "profile_quick": "Quick",  // cleaning-profile name: fast/light clean preset
-    "profile_standard": "Standard",  // cleaning-PROFILE name (fallback), not a quality/size rating
-    "profile_user_1": "User Profile 1",
-    "profile_vacuum_only_deep": "Vacuum Only Deep",
-    "profile_vacuum_only_quick": "Vacuum Only Quick",
-    "progress_label": "Progress: {pct}%",
-    "projected_water_use": "Projected water use: ~{ml} ml",
-    "queue_chip_title": "Click for settings · Double-click for estimate · Hold to remove from queue",
-    "queue_room_aria": "Queue room {name}",
-    "rainbow_bridge": "Rainbow Bridge",  // Optgroup label for memorial (deceased-pet) companion animals; keep the 'rainbow bridge' idiom
-    "reduced_run_detected": "Reduced Run Detected",  // Preflight header: some rooms are blocked so this run will clean fewer rooms than queued
-    "remaining_label": "Remaining: {value}",
-    "remaining_left": "~{value} left",
-    "resume": "Resume",
-    "room_fallback": "Room",
-    "room_settings": "Room settings",
-    "run_plan_title": "This Job",  // header of the pre-run stepped (room -> charge -> room) preview
-    "running": "Running",  // active-job header label: a clean is in progress
-    "select_all": "Select All",
-    "settings_adjusted": "Settings adjusted",
-    "show_companion": "Show companion",
-    "show_map_textures": "Show map textures",
-    "show_room_card_textures": "Show room-card textures",
-    "stall_capture_enable": "Turn on stall capture",
-    "stall_capture_disable": "Turn off stall capture",
-    "show_room_labels": "Show room labels",
-    "source_label": "Source: {value}",  // Estimate tooltip: data origin of the time estimate; {value} is 'learned' or 'default', not a URL
-    "start_cleaning": "Start Cleaning",
-    "strict_order_on_label": "Strict order: ON",
-    "strict_order_on_text": "Strict order ON — rooms will clean one at a time in the order shown (slower: a dock trip between rooms).",
-    "trouble_note_title": "This room was missed in {pct}% of recent runs. Consider checking for obstacles or map accuracy.",
-    "trust_learning": "Learning",  // estimate-confidence badge: still learning, not the Learning feature/tab
-    "trust_reliable": "Reliable",  // estimate-confidence badge: time estimate is trustworthy
-    "trust_tooltip_with_samples": "{label} · {count} samples",  // confidence-chip tooltip: trust label plus how many learned runs it's based on
-    "trust_uncertain": "Uncertain",  // estimate-confidence badge: estimate not yet trustworthy
-    "trust_unlearned": "Unlearned",  // estimate-confidence badge: no learned data, using default estimate
-    "warnings": "Warnings",
-    "water_label": "Water: {value}",
-    "water_ml": "~{ml} ml water",  // Room chip: projected clean-water this room will use, '~{ml} ml water'
-    "trouble_missed": {"one":"Missed {miss}× of {count} run","other":"Missed {miss}× of {count} runs"}
   },
   "room_profile": {
     "passes": {"one":"{count} Pass","other":"{count} Passes"}
@@ -2632,7 +2669,7 @@
       "base_station_no_dust_bag_installed": "Base station no dust bag installed",  // Eufy code 6113
       "base_station_not_found": "Base station not found",  // Eufy code 7055
       "base_station_power_fault": "Base station power fault",  // Eufy code 6110
-      "base_station_power_off": "Base station power off",  // Eufy code 5014
+      "base_station_power_off": "Base station power off",  // no Eufy code maps here; 5014 now uses fault.eufy.power_low_shutdown
       "base_station_pressure_sensor_fault": "Base station pressure sensor fault",  // Eufy code 6115
       "base_station_temperature_sensor_not_responding": "Base station temperature sensor not responding",  // Eufy code 6043
       "base_station_tray_full": "Base station tray full",  // Eufy code 6031

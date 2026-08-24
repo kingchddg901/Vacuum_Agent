@@ -18,6 +18,30 @@ wherever build_entity_id is currently called.
 The mapping subsystem's position entities (robot_position_x_raw,
 robot_position_y_raw) are not included here — they are managed by the
 mapping subsystem directly.
+
+⚠ "MANAGED BY THE MAPPING SUBSYSTEM" IS NOT THE WHOLE STORY, and the part it
+omits is the part that bites. Those two entity ids are named in THREE places:
+
+  1. here, as an exclusion (this paragraph);
+  2. ``adapters/eufy/adapter.py``, which DOES declare them as the
+     ``robot_position_x`` / ``robot_position_y`` roles — hardcoded f-strings,
+     not built from a suffix constant;
+  3. ``core/manager.py::_raw_robot_position``, a third hardcoded copy that
+     rebuilds the same ids from the object id and reads them directly.
+
+Copy 3 bypasses the declared role, the entity rescue, and any user override. On an
+install where the rescue was what made the entity resolve, the declared role would
+resolve and the core copy would still return nothing — the shorter copy is the bug,
+and it is the one core reads.
+
+Because those suffixes are not constants in this module, they are also outside
+``ALL_SUFFIXES``, and therefore outside the sibling-matching guard that stops one
+role's entity being handed to another.
+
+Fixing copy 3 properly means resolving through the declared role, which needs a
+vacuum entity id rather than the bare object id it takes today — a signature change,
+not a comment. Recorded here so the exclusion above cannot be read as "core does not
+touch these".
 """
 
 # === LIFECYCLE / JOB =====================================================

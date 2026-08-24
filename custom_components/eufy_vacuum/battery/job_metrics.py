@@ -30,9 +30,24 @@ Outputs a ``battery_metrics`` block ready to be written back onto the job:
 WEIGHTING
 ---------
 Per-room m² is not reported by the device. We prorate the total m² across
-rooms by ``estimated_minutes`` (from the learning enrichment). When estimates
-aren't available we fall back to equal-weight per room. Either way the
-per-bucket area shares sum to the job total.
+rooms by ``estimated_minutes`` (from the learning enrichment). The equal-weight
+fallback (``weighted_by == "room_count"``) fires only when the total across ALL rooms
+is zero — ``_prorate_weights`` tests ``if total_est > 0``, not per-room availability.
+Either way the weights sum to 1.0, so the per-bucket area shares sum to the job total.
+
+⚠ PARTIAL ENRICHMENT IS NOT THE FALLBACK CASE. This paragraph read "When estimates
+aren't available we fall back to equal-weight per room" until 2026-08-24, as if
+estimates were either there for the job or not. A SINGLE room with a usable
+``estimated_minutes`` takes the estimates branch for the WHOLE job: every other room —
+missing, zero or unparseable estimate — gets ``est = 0.0`` and therefore weight 0.0, is
+credited a ``share`` of 0.0 and (when the job reported an area at all) an ``area_m2`` of
+0.0, while ``weighted_by`` still reports ``"estimated_minutes"``. A ten-room job with
+one enriched room puts 100% of the area on that room and none on the other nine.
+
+The weights still summing to 1.0 is what made the paragraph read as complete. Nothing
+in ``weighted_by`` distinguishes a fully-estimated job from a one-room-estimated one, so
+do NOT read that label as "every room was weighted by its own estimate" before trusting
+the resulting per-bucket area shares.
 
 PER-BUCKET DRAIN — NOT ATTRIBUTED HERE
 --------------------------------------
@@ -42,9 +57,22 @@ the per-bucket dicts contain only AREA + share, never drain.
 
 The cross-job aggregator (BatteryHealthManager) feeds per-bucket drain stats
 only from jobs that were **single-bucket** for that key — i.e. every room used
-the same clean_mode (resp. fan_speed, water_level). The ``is_single_*`` flags
-flip those gates. Over many runs the per-bucket means are unbiased; mixed
-runs still get full job-level stats.
+the same clean_mode (resp. fan_speed, water_level). Over many runs the per-bucket
+means are unbiased; mixed runs still get full job-level stats.
+
+⚠ THERE ARE TWO GATES, AND THE SECOND IS NOT OURS. This said "The ``is_single_*`` flags
+flip those gates" until 2026-08-24, presenting the flags as the switch.
+``BatteryHealthManager._apply_metrics_to_aggregates`` also computes
+``single_ok = not bool(metrics.get("mid_job_recharge"))`` and requires
+``single_ok AND is_single_<key> AND single_<key>`` before folding a job into ANY
+per-bucket aggregate — a mid-job recharge nets out of the raw start−end drain and would
+understate that bucket's mean. ``mid_job_recharge`` is not produced by this module at
+all: ``learning/job_finalizer.py`` attaches it after ``compute_job_battery_metrics``
+returns. So a
+genuinely single-mode job with ``is_single_clean_mode`` True is silently excluded from
+``by_clean_mode`` whenever the vacuum recharged mid-run. Someone tracing that missing
+fold checks the flag, finds it True, and goes looking for an aggregator bug — the
+exclusion is deliberate, and this docstring owns the explanation of the gating.
 """
 
 from __future__ import annotations
@@ -186,13 +214,24 @@ def _bucketed_share(
     for room, weight in zip(rooms, weights):
         raw_value = room.get(key)
         if key == "clean_mode":
-            # ISSUE #48, and this one is already on disk. _bucket_key folds case and
-            # nothing else, so "Vacuum and mop" and "vacuum_mop" bucket separately —
+            # ISSUE #48, and this one is already on disk. _bucket_key does NOT
+            # canonicalise spellings, so "Vacuum and mop" and "vacuum_mop" bucket
+            # separately —
             # a survey of the live learning store found by_clean_mode keys
             # {'vacuum': 97, 'vacuum and mop': 5} across 103 job records. Two
             # spellings of ONE mode make len(buckets) == 2, which flips
             # is_single_clean_mode False and drops a genuinely single-mode run out of
             # per-mode battery-drain learning entirely.
+            #
+            # ⚠ Said "_bucket_key folds case and nothing else" until 2026-08-24. It
+            # also `.strip()`s, and — the part that matters — it folds BOTH None and
+            # the empty string to the literal `"unknown"`. A job in which no room
+            # reported a clean_mode therefore produces by_clean_mode == {"unknown": …},
+            # len 1, so is_single_clean_mode is True, single_clean_mode is the truthy
+            # string `"unknown"`, and BatteryHealthManager folds the job into a real
+            # by_clean_mode bucket NAMED "unknown". "Nothing else" gives no hint of
+            # that, and an absolute is exactly what a reader trusts when deciding what
+            # is safe to feed this helper.
             #
             # Canonicalized at the CALL SITE, not inside _bucket_key: that helper also
             # buckets fan_speed and water_level, which are brand vocabulary with no

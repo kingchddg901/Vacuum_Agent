@@ -10,6 +10,131 @@ only.
 
 ## [Unreleased]
 
+### Added
+- **Override Order — write a saved cleaning sequence to your Roborock.** A new row under
+  Rooms, and it does something the app couldn't before: it edits the *saved sequence* in
+  your Roborock app, so every start after that — including one you begin from the Roborock
+  app — cleans rooms in that order. Five states, three signals: no row on a vacuum that
+  can't do this, "vacuum optimises the path itself" when nothing is saved, the saved order
+  when there is one, a green tick when your queue matches the device, an amber "device
+  vs queue" chip with an Apply button when they differ, and a grey "could not check" when
+  the sensor isn't reporting. Amber never blocks Start. Two new services back the row —
+  `eufy_vacuum.apply_clean_sequence` and `eufy_vacuum.clear_clean_sequence` — both said
+  outright that they change a persistent setting in the vendor app, so nothing surprises.
+  Roborock **V1 models only** this release (S6, Q5 Pro / a72, S7 / a15, S8 / a70); newer
+  Qrevo / B01 units use a different transport and get no row rather than one that turns on
+  and does nothing.
+- **Q5 Pro (a72) catalogued.** The mop control and the water-box sensor read `unknown` /
+  `unavailable` on this unit, and the mop pre-call is rejected on device on every phase
+  dispatch — so the integration now knows the mop isn't settable and doesn't try. `has_dock`
+  is False too, so no auto-empty / wash / dry entities are invented for a Q5 Pro. Verified
+  on hardware. Thanks @loryanstrant (#53).
+- **Rename your vacuum entity in Home Assistant and your history follows it.** A rename used
+  to strand seventeen store sections and the entire learning tree behind the old id;
+  battery history, run learning, per-room stats and access-graph position all appeared to
+  reset. Detection and migration are automatic now, and if you had already renamed before
+  this shipped, a `setup_repair_renamed_vacuum` service moves the data across from either
+  the panel or Settings → Devices & Services → Configure.
+- **Rename a room and its learning follows too.** Room statistics used to be orphaned by a
+  rename; the accuracy store is now rekeyed in the same pass, with the old id kept as a
+  forward alias so nothing older breaks.
+- **Cc/cv charge-speed sensors expose why they're `None`.** A charge-speed sensor reading
+  `None` used to have two indistinguishable causes: no baseline yet, or every recent read
+  was rejected as an outlier. A `rejected_pct` attribute now separates them.
+- **Run profiles remember the surface the robot cleans them on.** `path_type` is captured
+  when a profile is saved — the pass-density axis Roborock reads — so a replay reproduces
+  more of what made the original run behave the way it did.
+
+### Fixed
+- **Chinese (zh-Hans and zh-Hant) maintenance guide now translates.** In beta.5 the
+  step-by-step instructions inside the guide silently fell back to English for both
+  Chinese variants — an otherwise-Chinese UI with English procedures. The translations
+  existed and shipped; the code that looked them up chopped `zh-Hans` down to `zh` and
+  missed. Both variants now find the right pack. If you're a Chinese user on beta.5,
+  re-open the guide after updating.
+- **Arabic, Hebrew and Farsi maintenance labels no longer show as English.** The sixteen
+  component labels ("Main Brush", "Dustbin", "Mop Cloth" and thirteen more) used to be
+  English literals no matter which language you chose. Sixteen labels across Roborock and
+  Eufy adapters are now translated for ar / he / ru / zh-Hans / zh-Hant / ja / ko.
+- **Arabic, Hebrew and Farsi metrics values no longer render as "min 46".** Battery,
+  drain-rate, water, dock and maintenance readouts composed a number and a Latin unit-word
+  in a container the RTL locale asked to flip — bidirectional text is well within its
+  rights to flip an ASCII digit + a Latin word, and it did. Values are now isolated inside
+  a `<bdi>` at every user-facing site, and the units for `min`, `ml`, `h`, `%`, `m²`,
+  `%/min`, `%/h` and `%/m²` are translated. Covers metrics, base station, maintenance,
+  external-jobs, the map's per-room area chip, and the wait-step chip in the order modal.
+- **Auto-language picker no longer misreports its own state on regional locales.** A user
+  on `zh-Hans` or `es-MX` was told the picker was NOT gating them to English while the
+  actual resolver had done so — a picker that lies about its own decision looks broken.
+- **Issue #54 — mop washes no longer read as room boundaries on a by-time wash cadence.**
+  A wash-plateau is a >90s gap during which the vacuum leaves cleaning; on a `by_time`
+  cadence the robot washes mid-room and returns to the same room, but the code always
+  counted it as a room change. Because it carried the highest weight it displaced a real
+  boundary and shifted every later room label to the next queue entry — reporter's
+  `completed_room_ids` said [3, 5] while the robot was still in 5. The check now consults
+  the wash-mode entity and stays out of the way on by-time. Falls open toward no-boundary
+  on any brand that doesn't declare a wash mode.
+- **Issue #51 — the stall watch stops raising NameError on every 5-second poll.** The
+  tick called a name it never imported, so any vacuum with an active job was raising
+  every five seconds. Shipped 2026-08-09; caught by a user, took ten days to reach us.
+- **A profile matcher that was silently dead for 17 days.** The Review tab's suggestion
+  surface — "runs you do often but are not default" — was assembling matches, then
+  throwing them away on the last line before display. Fixed in both the backend and the
+  card. Nothing was lost; the suggestions were never rendered.
+- **A hang, not a crash, on an infinite point in the pose ring.** `+/-inf` slipped through
+  a NaN filter and the chevron loop went round forever on an executor thread on the
+  job-lifecycle path. Reproduced before fixing.
+- **Restart with the vacuum docked no longer fires a discovery pass at startup.** A guard
+  meant to filter startup noise stopped one case short of what its own comment claimed,
+  so every restart with the vacuum docked ran discovery too early and could accrue
+  `missing_passes` strikes if the vacuum was offline or the cloud unreachable.
+- **The dispatched-start / external-capture race no longer overwrites the slot.** A start
+  the user began within the capture grace window used to refuse; it now finalises the
+  capture instead, so both are recorded.
+- **`set_room_access_graph` returns one shape, not two.** It used to return two different
+  shapes under the same key depending on which validation path fired; consumers now get a
+  single stable shape.
+- **A run profile can no longer start with a zone.** Zones must sit inside a room-anchored
+  sequence — a profile beginning with a zone would run without a room to attribute the
+  work to. Now refused at save time.
+- **Slug uniqueness stops manufacturing the collision it exists to prevent.** The
+  uniqueness pass rewrote colliding rooms to `{slug}_r{room_id}` and never checked whether
+  that value was already taken; three rooms named `Kitchen`, `Kitchen` and `Kitchen R7`
+  yielded two rooms slugged `kitchen_r7`. Now a bounded fixpoint that leaves the lowest
+  `room_id` holding the contested slug.
+- **A rebaseline no longer inherits the old pack's rejected readings.** Two of seven
+  battery-health stats were left behind on a rebaseline, so a swapped battery started
+  with the previous pack's outlier history.
+- **A theme tag save that failed now says so.** The call used to swallow dropped tags and
+  report success. Now the caller finds out.
+- **`supports_zone_clean=False` in a model catalog is honoured.** The catalog entry used
+  to be silently ignored — the core end was wired, the brand end wasn't.
+- **A batch of subtler battery-metric fixes.** A drain-mean's numerator and denominator
+  now count the same jobs (C17), an all-time denominator no longer stays behind after an
+  upgrade (D2 — measured armed on the reference install: the next run would have
+  published 0.0 and 0.0066 %/min against honest 0.292 and 0.4613), and a guarded sum is
+  no longer divided by an unguarded count (D1).
+- **Onboarding no longer marks rooms nobody has seen as configured.** A re-sync using the
+  documented "omit the key to keep the current selection unchanged" pattern used to stamp
+  `is_configured=true` on every never-seen room, creating switches/numbers/sensors for
+  rooms that never appeared to the user. Re-syncs now approve nothing new.
+- **Access-graph refusals name the rooms you have to edit.** A `multiple_inbound` refusal
+  used to name only the target; it now also names the source rooms — the ones you need
+  to open to fix the graph.
+- **Path-blocker single-flight is per entity, not per integration.** Two door sensors on
+  different maps used to coalesce into one flag, so an edge on the second was dropped
+  while the first was being evaluated.
+- **A run profile could collide with another on the same second.** Ids were derived from
+  local clock at second resolution with no uniqueness check; the room-profile generator
+  had the identical defect. Both fixed.
+- **`dock_events.enabled=false` now disables both detectors, not just one.**
+- **A job-active gate that misread `unavailable` as "no signal".** The gate could report a
+  completion secondary satisfied on a signal it couldn't actually read.
+
+### Notes
+- Home Assistant `2026.8` or newer is the tested floor for this release. Older cores may
+  work but have not been exercised against the beta cycle.
+
 ## [2.1.0] - 2026-08-14
 
 ### Added

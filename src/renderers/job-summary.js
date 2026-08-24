@@ -243,10 +243,12 @@ export function applyJobSummaryRenderers(proto) {
     if (!faults.length) return "";
 
     const body = faults.map((f) => {
-      // faultLabel resolves our key through the card's OWN translator, so it
-      // follows the per-user globe language. No label -> the RAW vendor code,
-      // which is honest and searchable; a humanised guess would be neither.
-      const label = this.faultLabel(f.label_key, f.code);
+      // faultLabel lives on VacuumCardState (applyFaultState on state proto),
+      // NOT on the renderer proto — so it MUST be called via the `state`
+      // parameter, never via `this` on the renderer. A prior call to
+      // this.faultLabel(...) shipped a runtime crash on every job that carried
+      // a run_error (the exact scenario the fault section exists for).
+      const label = state.faultLabel(f.label_key, f.code);
 
       const meta = [];
       const src = String(f.source ?? "").trim().toLowerCase();

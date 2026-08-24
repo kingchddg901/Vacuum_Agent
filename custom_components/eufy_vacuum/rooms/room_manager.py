@@ -72,6 +72,18 @@ def build_managed_rooms(
     ``rebuild_map``) are responsible for guarding an empty result against a non-empty
     stored map via ``room_crud._refuse_destructive_replace`` before assigning it.
 
+    ⚠ THOSE TWO ARE NOT PEERS TODAY. ``save_managed_rooms`` is live (the
+    ``save_managed_rooms`` service, the setup wizard, ``import_active_map``);
+    ``RoomMapManager.rebuild_map`` has ZERO production callers — its only references
+    anywhere are the ``core.manager.rebuild_map`` pass-through delegate, two tests
+    (tests/integration/test_manager_delegation.py, tests/integration/test_room_crud.py)
+    and comments like this one. It is not registered in services.yaml, is not in
+    services/rooms.py's service tuple, and appears in no frontend bundle. Naming it here
+    as a live CRUD operation on a par with ``save_managed_rooms`` is what the reader gets
+    wrong; the RP-005/RF-02 rule itself is unchanged and still binds any caller that does
+    persist the result. (Not to be confused with ``maps/map_manager.rebuild_map_bucket``,
+    which IS reached — ``rebuild_map`` calls it.)
+
     anchor: INMKEHPQ  room identity is the SLUG, scoped to its map; the id renumbers
 
     RP-018/RF-25b: carry-over is SLUG-LED with id fallback (REC-8/CRUD-2) — a
@@ -81,6 +93,11 @@ def build_managed_rooms(
     seen before — is enabled on a FIRST import (``existing_rooms`` was empty
     before this call) and DISABLED+unconfirmed on incremental discovery
     (DQ-Q-5/CRUD-6); it never silently joins an already-active queue.
+
+    ⚠ THE "unconfirmed" HALF WAS FALSE FOR CALLS WITH NO ``enabled_room_ids``
+    UNTIL 2026-08-24 (R14/C60), and this docstring conceded it further down
+    while stating the opposite here — a contradiction inside one docstring, which
+    is why neither half was trusted enough to check. Both halves now hold.
     ``floor_types`` gates ``is_configured`` (CRUD-3): a room reaching this
     function via ``enabled_room_ids`` without a supplied floor_type entry is
     NOT auto-confirmed — a previously-confirmed room stays confirmed across a
@@ -169,16 +186,59 @@ def build_managed_rooms(
         # confirmed on a prior save. Scoped to explicit-approval calls only
         # (enabled_room_ids given): the wizard supplies both together from one
         # form submission, so "approved but no floor type" is a real,
-        # meaningful gap there. A call with no enabled_room_ids at all is not
-        # asking an approval question in the first place (e.g. re-syncing an
-        # already-set-up map) — is_configured keeps its unconditional True,
-        # as before.
+        # meaningful gap there.
+        #
+        # RULING (Chris, 2026-08-24) — R14/C60. A RE-SYNC approves NOTHING NEW.
+        # This branch read `is_configured = True` unconditionally, so a room the user
+        # had never seen came out `enabled=False, is_configured=True`.
+        #
+        # ⚠ "NO enabled_room_ids" IS NOT SYNONYMOUS WITH "a re-sync", and this comment
+        # said it was (RM20). There are TWO production shapes of a None call and the
+        # branch below tells them apart by `is_first_import`, deliberately:
+        #   * FIRST IMPORT — `setup/workflow.py::import_active_map` calls
+        #     `save_managed_rooms(enabled_room_ids=None, floor_types={})` before any
+        #     user has ever seen the room list. `is_first_import` is True (the map
+        #     bucket held no rooms — that is the gate import_active_map returns
+        #     "already_done" on), so every discovered room is stamped
+        #     `is_configured=True` and `enabled=True`. That is onboarding, and it is
+        #     the OPPOSITE of "approves nothing new" — it approves everything, once.
+        #   * RE-SYNC of an already-populated map — `is_first_import` is False, so a
+        #     brand-new room comes out `is_configured=False` and gets its review.
+        # `is_configured = is_first_import or not is_new_room` IS that distinction.
+        #
+        # That is not cosmetic. `is_configured` is the ENTITY-CREATION GATE:
+        # `entity_helpers.sort_room_items` filters on it ALONE and never consults
+        # `enabled`, so switches, numbers and sensors materialised for an unapproved
+        # room. And `compute_room_drift` computes
+        # `new_candidate_ids = discovered - configured - rejected`, so the room was
+        # already inside `configured_ids` and could never surface in the setup tab's
+        # "new room found, review it" prompt — the defect suppressed the very review
+        # that would have caught it.
+        #
+        # Reachable by the DOCUMENTED use of a shipped service: `services.yaml` and
+        # `docs/advanced/03-services.md` both say "Omit the key to keep the current
+        # selection unchanged", and omitting it is what produces the None. Onboarding
+        # (`setup/workflow.py`) and the card panel were both checked and cannot reach
+        # it — one is gated on an empty map bucket, the other always sends a non-empty
+        # list.
+        #
+        # ⚠ DO NOT "SIMPLIFY" THIS TO map_manager.py's EXPRESSION. The already-fixed
+        # sibling reads `bool(previous.get("is_configured", False if is_new_room else
+        # True))`, which keys on `is_new_room` — and on a FIRST import every room is
+        # new, so adopting it here would write False for every room of a brand-new map
+        # and onboarding would finish with ZERO room entities. Worse than the bug. The
+        # gate has to be `is_first_import`, which is why this is not a copy.
+        #
+        # NARROW BY RULING: a CARRIED room keeps its unconditional True, exactly as
+        # before. Whether a stored `is_configured: false` should also stop being
+        # flipped to true is a separate question about existing user data and was NOT
+        # decided here.
         from ..learning.utils import _iso_now
         existing_configured_at = existing.get("configured_at")
         if has_explicit_enabled_ids:
             is_configured = bool(existing.get("is_configured", False)) or floor_type_entry is not None
         else:
-            is_configured = True
+            is_configured = is_first_import or not is_new_room
 
         # A field a room already carries wins; otherwise the BRAND's default profile
         # answers, via new_room_defaults. _default() keeps that precedence in one place so

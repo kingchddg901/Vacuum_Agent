@@ -26,8 +26,17 @@ ACTIVE_RUN_TASK_STATES: set[str] = {
 }
 
 # ``sensor.ivy_vacuum_error`` sentinel values meaning "no error". The idle value
-# is ``none``; ``normal`` is an Eufy-only sentinel and is intentionally excluded
-# (a Roborock error code could legitimately contain it).
+# is ``none``; ``normal`` is an Eufy-only sentinel and is intentionally excluded.
+#
+# ⚠ THE REASON MATTERS MORE THAN THE EXCLUSION, and the reason used to be wrong. It
+# said "a Roborock error code could legitimately CONTAIN it". The test is exact set
+# membership after strip and lowercase — not containment — so only a state exactly
+# equal to "normal" was ever at risk, and none of the upstream enum states is.
+#
+# The exclusion is still right, as hygiene: "normal" is another brand's word and does
+# not belong in this brand's sentinel set whether or not it could collide. But a porter
+# copying the CONTAINMENT reasoning to a third brand would over-narrow their sentinel
+# set on a premise the matching rule does not support.
 NOT_ERROR_SENTINELS: set[str] = {"", "unknown", "unavailable", "none"}
 
 # Cancel-detection transition strings consumed by learning/job_finalizer.py
@@ -44,11 +53,40 @@ CANCEL_DETECTION_STATES: dict = {
     "paused": "paused",
 }
 
-# Card-facing dropdown option lists (the framework never reads these).
+# Card-facing dropdown option lists — AND THE FRAMEWORK READS THEM.
+#
+# ⚠ was: "(the framework never reads these)". Three live consumers refute it:
+#   * `jobs/active_job.py` filters every `per_room_live_settings` value against
+#     `vocabulary.get(options_key)` AT DISPATCH — a value not in the list is dropped
+#     from the call, not passed through.
+#   * `rooms/vocabulary_migration.py` judges a stored room value against
+#     `vocabulary.get(f"{field}_options")`.
+#   * `adapters/config_schema.py` declares the five `*_options` keys and REJECTS
+#     undeclared ones, so these are schema surface, not decoration.
+# And this very file contradicted itself twice below it: PATH_TYPE_OPTIONS says "this
+# list is what a stored value is judged against", and the ROOM_PROFILES note explains
+# the fan_speed `options_key` filter dropping a value at dispatch.
+#
+# CONSEQUENCE OF BELIEVING IT: dropping an entry looks card-only and safe, and instead
+# silently stops that setting reaching the robot. That is the bug narrated verbatim in
+# `roborock/adapter.py` above the `room_profiles` block — a new room's "Max" was not in
+# FAN_SPEED_OPTIONS, the filter dropped it, and NO suction was applied at all.
+# Corrected 2026-08-24 (D2).
+#
 # fan_speed from ``vacuum.ivy`` ``fan_speed_list``, ordered ASCENDING SUCTION
 # (Gentle weakest -> Max strongest) for the editor chip row — the device lists
 # them in a different order (gentle last), but the user reads them low->high.
-# This order also matches the dispatch global-pre-call rank.
+# ⚠ A FOSSIL LIVED ON THIS LINE: "This order also matches the dispatch global-pre-call
+# rank." There is no fan-speed pre-call. This brand's `global_pre_calls` carries the
+# WATER entry only (`mop_pre_calls`); fan speed rides `per_room_live_settings`. There
+# WAS a fan pre-call once, and it was replaced by per-room live settings.
+#
+# The ascending order still has a real reason — the user reads the chip row low->high,
+# and the device lists them in a different order (gentle last). The fossil added a
+# false SECOND reason, which is the corrosive kind: a reader who checks the first
+# justification and finds it sound has no cause to check the second, and a reader who
+# tries to preserve "the pre-call rank" is preserving a constraint that does not exist.
+# Corrected 2026-08-23.
 FAN_SPEED_OPTIONS: list[dict] = [
     {"value": "gentle", "label": "Gentle"},
     {"value": "quiet", "label": "Quiet"},
@@ -133,10 +171,21 @@ MOP_MODE_OPTIONS: list[dict] = [
 # framework catalog so stored rooms and the card's profile picker keep working across a
 # brand switch; only the VALUES are Roborock's.
 #
-# clean_intensity is OMITTED from every profile on purpose — Roborock spells this axis
-# `path_type` (below), so declaring both would be one property under two names, which is
-# what the Eufy adapter had to be corrected for. An omitted key means the room stores
-# nothing for it, rather than an inert "Quick" nobody can act on.
+# clean_intensity is OMITTED from every profile on purpose — this brand carries the
+# axis as `path_type` (below), so declaring both would be one property under two names,
+# which is what the Eufy adapter had to be corrected for. An omitted key means the room
+# stores nothing for it, rather than an inert "Quick" nobody can act on.
+#
+# ⚠ `path_type` IS NOT ROBOROCK'S WORD, and this comment used to say it was ("Roborock
+# spells this axis path_type"). It is not either brand's: it was invented in this
+# project's own initial release (eae291f), three weeks before adapters or a second brand
+# existed, as a duplicate name for an axis already carried. Roborock later adopted the
+# field that was by then canonical, which is exactly why it reads as Roborock's today.
+#
+# The giveaway is visible in the option lists: one value appears in BOTH brands' options
+# for this axis, which no genuinely brand-native vocabulary would do. Attributing a
+# framework-invented name to a brand matters for a porter — it invites them to look for
+# `path_type` in their vendor's protocol, where it will not be.
 ROOM_PROFILES: dict[str, dict] = {
     "vacuum_quick": {
         "label": "Vacuum Only Quick",
@@ -207,7 +256,12 @@ CUSTOM_ROOM_PROFILE: dict = {
     "mop_required": False,
 }
 
-# Carpet suppresses water and raises suction; hard floors get a per-surface water default.
+# Carpet suppresses water and raises suction.
+# ⚠ was: "; hard floors get a per-surface water default" — false since 2026-08-17, and
+# contradicted by the retirement note three lines below IN THIS SAME BLOCK. There are no
+# hard-floor rows left: the dict below is carpet-only. (The Eufy copy of this block never
+# carried the sentence, so the longer copy was the stale one here — a counterexample to
+# "the shorter copy is the bug". Corrected 2026-08-24, D29.)
 # The resolver reads the carpet entry of FLOOR_TYPE_WATER_DEFAULTS as this brand's
 # no-water value, so "off" here is load-bearing, not decorative.
 # RETIRED IN PRINCIPLE 2026-08-17 — see docs/dev/history/floor-type-cleaning-defaults.md
@@ -249,10 +303,27 @@ FLOOR_TYPE_FAN_DEFAULTS: dict[str, str] = {
 # keys, so every string below must be lowercase to match.
 #
 # VERIFIED 2026-08-05 against the live instance (frontend/get_translations, category
-# "entity", integration ["roborock"]): HA serves 53 vacuum_error enum states and all
-# 60 strings declared below are real ones -- no typos, and a typo here would silently
-# match nothing rather than fail. 44 of the 53 are classified; the 9 left out are
-# listed at the bottom of this block.
+# "entity", integration ["roborock"]): HA serves 53 vacuum_error enum states, and the
+# strings declared below were checked against them -- no typos, and a typo here would
+# silently match nothing rather than fail.
+#
+# ⚠ THE TWO COUNTS THAT USED TO BE IN THIS SENTENCE WERE UNBACKED. It claimed "all 60
+# strings declared below" and "44 of the 53 are classified". Re-measured by AST
+# 2026-08-23, over the sets declared below this comment:
+#
+#     ROBOROCK_DOCK_SOURCED_ERROR_CODES            11
+#     ROBOROCK_ROBOT_SOURCED_ERROR_CODES           20
+#     ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES    6
+#     ROBOROCK_ERROR_LABEL_KEYS                    49
+#     ---------------------------------------------------
+#     entries 86 | distinct 49 | classified (the 3 source sets, distinct) 31
+#
+# No counting rule produces 60, and none produces 44. The "53 enum states" figure is a
+# live-instance reading and is not re-checkable from source, so it is left as recorded.
+#
+# The counts are removed rather than replaced: they licensed trusting the whole table
+# ("all N are real"), and a number nobody can reproduce is worse there than no number.
+# What actually holds the table is the taxonomy argument immediately below.
 #
 # THE SOURCE SETS ARE READ, NOT MEASURED, AND THAT IS THE RIGHT BAR (Chris,
 # 2026-08-05): "These are error states. I don't need to see them to know that certain

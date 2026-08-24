@@ -8,12 +8,39 @@ MIRRORS `check:i18n` PART B, which fails FATALLY when a key is used in `src/` bu
 from `en.js` — an orphan there renders the raw key in the UI. Item 3(a) already decided the
 same rule for receipts: any emission without a catalog key fails locally.
 
-AND ADDS THE DIRECTION `check:i18n` DOES NOT HAVE. Key-used -> key-exists catches the loud
-failure. Entry-exists -> entry-still-emitted catches the SILENT one: a catalog entry whose
-emitter moved or vanished keeps asserting a cause that no longer happens, and nobody notices
-until someone reads it and believes it describes live code. Same one-way rot as an index
-written at APPROVED and never rewritten at LANDED. The system's value rests on the catalog
-being trustworthy, so it is checked from both ends.
+AND MAKES THE OTHER DIRECTION FATAL. Key-used -> key-exists catches the loud failure.
+Entry-exists -> entry-still-emitted catches the SILENT one: a catalog entry whose emitter
+moved or vanished keeps asserting a cause that no longer happens, and nobody notices until
+someone reads it and believes it describes live code. Same one-way rot as an index written
+at APPROVED and never rewritten at LANDED. The system's value rests on the catalog being
+trustworthy, so it is checked from both ends.
+
+⚠ was: "AND ADDS THE DIRECTION `check:i18n` DOES NOT HAVE." Refuted, and INHERITED rather
+than invented — the same overstatement sits in the source doc this docstring was written
+from, `.claude/notes/synthesis/PROTOCOL-semantic-flight-recorder.md`, so correcting it here
+does not correct it there. `check-i18n.mjs` HAS the declared-to-used direction: it builds a
+`dead` list of `en.js` keys that no literal, data value or template can reach, and prints
+every one. It prints them under a `⚠` and never calls `fail()`, so a dead key cannot turn
+that gate red. The novelty here is FATALITY, not direction.
+
+⚠ AND "BOTH DIRECTIONS" IS NARROWER THAN THE FIRST LINE READS. It holds for CATALOG keys
+(the `for key in CATALOG` loop) and for a key's declared OUTCOMES (direction 2b). It holds
+for NO vocabulary. `STATIONS` and `PROVENANCE` are policed emitted-to-declared only, and
+`PROVENANCE` only when `prov=` is a literal keyword argument. `DECLINE_REASONS` and
+`READABILITY` are policed in neither direction: their values ride in `*facts`, and this
+gate keeps only the fact COUNT. What the vocabularies do have is tidiness — a
+duplicate-members check covering `OUTCOMES`, `DECLINE_REASONS`, `PROVENANCE` and
+`READABILITY` (not `STATIONS`), plus the transmit-as-yourself check for `STATIONS` alone.
+Real checks, which is why the block reads as covered. None runs declared-to-emitted, so a
+declared member that nothing emits can never fail this gate.
+
+MEASURED ON THIS TREE, while the gate prints "OK — catalog and call sites agree in both
+directions": of the seven declared `STATIONS` only `listeners.stall_capture` and
+`services.stall_capture` ever transmit; `ANY` and `mapping.map_source` appear only as
+addressees; `core`, `pose_store` and `mapping.stall_capture_render` appear in neither
+position. `replay` occurs nowhere in the package outside its own declaration, and `no_map`
+occurs nowhere as a receipt fact. Closing that direction is a code change, not a wording
+one — see the vocabulary section at the end of `main()`.
 
 AST, NOT REGEX. A grep for `receipts.emit("` matches a docstring, a comment or a fixture,
 and would then pass because the key it found happens to exist. The gate has to be about what
@@ -41,11 +68,25 @@ VOCABS = {
 
 
 class _Emits(ast.NodeVisitor):
-    """Collect every real `receipts.emit(...)` call: (key, outcome, n_facts, line)."""
+    """Collect every real `receipts.emit(...)` call as a SEVEN-tuple:
+
+        (key, to, frm, outcome, n_facts, line, prov)
+
+    which is the exact order `main()` unpacks in `for key, to, frm, outcome, n_facts,
+    line, prov in v.found`. `n_facts` is a COUNT, not the values — see the vocabulary
+    section at the end of `main()` for what that costs.
+
+    ⚠ was: two stale descriptions of one structure, in one file — this docstring said
+    `(key, outcome, n_facts, line)` (4 fields) and the `self.found` comment below said
+    `(key, to, frm, outcome, n_facts, line)` (6). The first predates the `to`/`frm`
+    station pair, the second predates the `prov` keyword; both were left behind when the
+    tuple grew, and either would send a reader unpacking the wrong arity.
+    """
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        self.found: list[tuple] = []  # (key, to, frm, outcome, n_facts, line)
+        # (key, to, frm, outcome, n_facts, line, prov) — see the class docstring.
+        self.found: list[tuple] = []
 
     def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
         f = node.func
@@ -110,6 +151,19 @@ def main() -> int:
         # AGREE. With arbitrary station names all you can verify is membership in a list,
         # which catches typos and nothing else; alignment catches the copy-pasted receipt
         # that kept the wrong callsign, which is the failure that actually happens.
+        #
+        # ⚠ THE COROLLARY THIS NEVER STATED: deriving the callsign from the path makes a
+        # declared station whose name NO file's module path can produce unsatisfiable by
+        # construction — and this gate structurally cannot report it, because it only ever
+        # inspects stations that were actually emitted. `"core"` is the live case: the hub
+        # is `core/manager.py`, so `own_station` is `core.manager`. Emitting `frm="core"`
+        # fails the alignment check below ("may only transmit as itself"); emitting
+        # `frm="core.manager"` fails the membership check above ("not declared in
+        # STATIONS"). It is impossible on the TRANSMIT side only — the alignment check is
+        # applied to `frm` alone, so `to="core"` would pass. Nothing addresses it either
+        # (the only non-broadcast `to=` in the tree is `mapping.map_source`), so the
+        # declaration is inert rather than wrong. Adding a station that no module path can
+        # spell is the mistake this note exists to warn about.
         rel = path.relative_to(PKG).with_suffix("")
         own_station = ".".join(rel.parts)
 
@@ -182,7 +236,27 @@ def main() -> int:
                 "a cause that no longer happens"
             )
 
-    # --- vocabularies are closed --------------------------------------------------------
+    # --- vocabulary hygiene: no duplicate members, no empty enum ------------------------
+    #
+    # ⚠ was headed "vocabularies are closed". They are not closed BY THIS GATE, and the
+    # heading promised an enforcement these two loops do not perform. Nothing below
+    # compares an EMITTED value against its vocabulary, and nothing asks whether a
+    # declared member is emitted at all.
+    #
+    # WHY IT CANNOT: `DECLINE_REASONS` and `READABILITY` values ride in `emit()`'s
+    # positional `*facts`, and `_Emits` records those only as a COUNT
+    # (`max(0, len(args) - 4)`) — the values never reach this file, so no comparison is
+    # possible. Structural consequence: removing a member that a live site still emits
+    # cannot turn this gate red, because no check anywhere reads emitted fact values.
+    #
+    # The empty-enum check goes red only when a vocabulary is declared with NO members —
+    # a preference about how the file is written, not a claim about the tree. Real closure
+    # is a CODE change: capture the fact VALUES in `_Emits`, then check them against
+    # `VOCABS` in both directions. `VOCABS` exists already but is used only for the catalog
+    # FIELD TYPE lookup below, never against an emitted value. Until that lands, this
+    # section is hygiene. The "Closed vocabularies" block in `receipts/__init__.py` carries
+    # the matching per-vocabulary breakdown of what this gate does and does not police —
+    # keep the two in step.
     for name, vocab in (("OUTCOMES", OUTCOMES), ("DECLINE_REASONS", DECLINE_REASONS),
                         ("PROVENANCE", PROVENANCE), ("READABILITY", READABILITY)):
         if len(set(vocab)) != len(vocab):

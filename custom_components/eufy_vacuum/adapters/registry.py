@@ -353,13 +353,37 @@ def _validate_room_profiles(config: dict[str, Any]) -> list[str]:
 def _validate_adapter(config: dict[str, Any]) -> list[str]:
     """Return a list of validation issue strings; empty = config is valid.
 
-    Currently checks:
-      - mapping.segmenter_engine resolves to a known engine
-      - mapping.segmenter_tuning passes the engine's own tuning validator
+    Checks, in body order:
+      - ``room_profiles`` is DECLARED and non-empty (``_validate_room_profiles``)
+      - ``mapping.segmenter_engine`` resolves to a known engine, and
+        ``mapping.segmenter_tuning`` passes that engine's own tuning validator
+      - ``job_segmenter.engine`` + tuning, same shape (replica ``RNTKY81M``)
+      - ``room_attribution.engine`` + tuning, same shape (replica ``RNTKY81M``)
+      - ``room_profiles`` field types — ``default_profile`` a str, the six
+        vocabulary keys dicts
+      - ``capability_hints`` keys are all in ``KNOWN_CAPABILITY_HINTS``
+      - ``dispatch.template`` resolves to a registered dispatch engine
+      - ``dispatch.phase_timing`` values are positive
+      - ``setup.steps`` ids are all in the schema's declared step enum
 
-    More rules (required entities, completion block presence, dispatch
-    template recognition) land here as the framework's expectations
-    harden.
+    ``_validate_room_profiles`` is the only one of those that fires on an ABSENT
+    block rather than a malformed one, which makes it the realistic way a stored
+    config gets refused: ``register_adapter_config`` hard-raises on any issue when
+    ``source == "config"`` (INYA5T84), and a config that omits everything trips
+    that check and nothing else.
+
+    Still genuinely undone: required-entity checks, and completion-block presence.
+
+    ⚠ until 2026-08-24 this listed only the two ``mapping`` checks and named
+    "dispatch template recognition" as future work. It was wrong in both
+    directions at once: the template check has SHIPPED (it is the
+    ``known_dispatch_templates()`` block below), so a maintainer asked to add it
+    writes a second duplicate check; and reading the two-item list as exhaustive
+    hides that ``room_profiles`` absence is the check that can reject a save.
+    ``config_schema.py`` already cites this function as validating room_profiles,
+    job_segmenter and room_attribution, so the undersell also put the two files in
+    contradiction. This list is what a reader trusts INSTEAD of reading 200 lines
+    of body — keep it in step with the body, or delete it rather than let it lie.
     """
     issues: list[str] = []
 
@@ -460,8 +484,25 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
                 issues.extend(engine.validate_tuning(tuning))
 
     # Room-profile catalog check — a declared block must be a dict with sane field
-    # types. The framework merges it over the in-code defaults (resolve_profile_catalog),
-    # so a partial block is fine; this only catches a malformed declaration.
+    # types. This only catches a malformed declaration; whether the block is PRESENT
+    # at all is _validate_room_profiles' job, above.
+    # A partial block IS fine — but not for the reason this comment gave until
+    # 2026-08-24, which was "the framework merges it over the in-code defaults
+    # (resolve_profile_catalog)". There is nothing to merge over. That function's own
+    # docstring opens "There is NO framework default", and its body returns
+    # _catalog_key(block, <key>, {}) for all six vocabulary keys, so an UNDECLARED KEY
+    # RESOLVES EMPTY. (default_profile is the single exception and is explicitly not
+    # vocabulary: it names which profile a new room starts on, never what is inside
+    # one.) The inheritance the old text described was REMOVED on 2026-08-07 because it
+    # silently handed Roborock rooms Eufy's words — a room stored fan_speed: "Max", the
+    # card's chips matched nothing, per_room_live_settings filtered the value out, and
+    # an unedited room applied NO SUCTION AT ALL. rooms/vocabulary_migration.py exists
+    # solely to heal those rooms, and _validate_room_profiles' docstring above narrates
+    # the removal.
+    # So: a partial block is fine because an undeclared key resolving to {} is a DEFINED
+    # answer, not an inherited one. Told the old way, a reviewer weighing an adapter
+    # that omits `builtins` or `normalize_defaults` approves it believing defaults fill
+    # in — and ships IN40W49E's exact failure.
     room_profiles_block = config.get("room_profiles")
     if room_profiles_block is not None:
         if not isinstance(room_profiles_block, dict):
@@ -502,9 +543,17 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
                 )
 
     # Dispatch template check — a declared template must resolve to a registered
-    # dispatch engine. A schema-valid template with no engine yet (e.g.
-    # dreame_room_clean before its engine ships) is rejected at registration
-    # rather than silently falling back to the Eufy shape and cleaning wrong.
+    # dispatch engine. Without this, get_dispatch_engine() answers an unrecognised
+    # name with _FALLBACK_TEMPLATE ("eufy_room_clean") and a log warning, so the robot
+    # cleans with the wrong payload shape instead of the config being refused.
+    # ⚠ the example here was "dreame_room_clean before its engine ships" — that engine
+    # SHIPPED (DreameSegmentEngine, registered in _DISPATCH_ENGINES), so as of
+    # 2026-08-24 every name in the schema's dispatch.template `values` list resolves
+    # and the guard cannot be reproduced by declaring it. The guard is live and
+    # correct; what it catches today is a stored or hand-written config naming a
+    # template that is in NEITHER the schema enum nor the engine registry, and it will
+    # catch the next brand whose template name lands in the schema before its engine
+    # does. It needs an example that is still unregistered, not a rewrite.
     dispatch_block = config.get("dispatch")
     if isinstance(dispatch_block, dict):
         from ..queue.dispatch_engines import known_dispatch_templates
@@ -538,12 +587,20 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
                             f"positive number"
                         )
 
-    # Setup-steps check — RP-033/SETUP-9. Three places in this codebase already
-    # claim an unknown step id is "rejected at registration"
-    # (config_schema.py's own setup.steps description, setup/drift.py:52-53 and
-    # :102-104's docstring) while nothing here actually did that. The allowed set
-    # is read from ADAPTER_CONFIG_SCHEMA itself (not re-declared here) so the two
-    # never drift apart.
+    # Setup-steps check — RP-033/SETUP-9. Three places in this codebase already claim
+    # an unknown step id is "rejected at registration" while nothing here actually did
+    # that: config_schema.py's own setup.steps description; the header comment over
+    # setup/drift.py::SETUP_STEP_IDS ("the registry rejects unknown IDs at adapter
+    # registration time"); and setup/drift.py::get_adapter_setup_steps' docstring
+    # ("defence in depth — registration should have rejected them").
+    # ⚠ those three were cited as "setup/drift.py:52-53 and :102-104's docstring" until
+    # 2026-08-24, and both coordinates had rotted: :52-53 is now the shared
+    # "System invariants that bind in this file" preamble, and :102-104 are three
+    # literal SETUP_STEP_LABELS entries with no docstring at all. The citations ARE the
+    # evidence for keeping this check, so a reader who spot-checks them and finds
+    # boilerplate concludes the justification was overstated. Cite by symbol.
+    # The allowed set is read from ADAPTER_CONFIG_SCHEMA itself (not re-declared here)
+    # so the two never drift apart.
     setup_block = config.get("setup")
     if setup_block is not None:
         if not isinstance(setup_block, dict):
@@ -723,9 +780,28 @@ def adapter_honors_clean_order(vacuum_entity_id: str) -> bool:
     ``get_adapter_value``, because five unrelated subsystems ask the question and
     one of them used to answer it differently:
 
-      - ``core/manager.py`` — clears the bounds-exit gate, and exports the flag
-        into the dashboard snapshot the card reads.
-      - ``jobs/active_job.py`` — gates RUNNING-LONG (:1185) and SKIPPED (:1223).
+      - ``core/manager.py`` — ONE read, in ``get_dashboard_snapshot``, which
+        exports the flag into the snapshot the card reads. That is all it does
+        there.
+        ⚠ this bullet also claimed it "clears the bounds-exit gate" until
+        2026-08-24. There is no such gate left to clear: ``awaiting_bounds_exit``
+        was renamed ``current_room_overdue`` (the bounds subsystem it was named for
+        is gone and no geometry is read in its derivation), and the
+        ``honors_clean_order`` hard-zero that used to sit in that block was
+        REMOVED — the note under the ``current_room_overdue`` derivation says so.
+        The very next bullet already recorded that removal, so the two bullets
+        taught opposite mechanisms, and the wording revived the retired name the
+        code was renamed to stop propagating. Someone changing this predicate's
+        semantics would go looking in core/manager.py for a gate to update, find
+        only the snapshot export, and either re-add the hard-zero that was
+        deliberately removed or mis-scope the blast radius.
+      - ``jobs/active_job.py`` — gates the ``running_long`` band and the
+        ``skipped_room_ids`` computation. (⚠ those two were cited as ``:1185`` and
+        ``:1223`` until 2026-08-24; both had drifted, and ``:1185`` had landed on
+        the ``EVENT_STALL_DETECTED`` machinery — a citation pointing at stall code
+        underneath a sentence whose whole point is that stall is NOT gated. A
+        spot-checker either "corrects" this docstring or goes hunting to remove a
+        gate that 26c4b2d7 already removed. Constructs, not line numbers.)
         NOT stall: the hard-zero that used to gate it was removed in ``26c4b2d7``
         (see the note at ``core/manager.py``'s current_room_overdue block). Whether a
         robot honours dispatched ROOM ORDER has nothing to do with whether it is

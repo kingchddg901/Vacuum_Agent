@@ -6,12 +6,20 @@ persistent notification, and fire a hook event carrying the path so an automatio
 it wherever the user wants. From issue #47.
 
 WHY IT IS A CONSUMER AND NOT PART OF THE DETECTOR. ``EVENT_STALL_DETECTED`` is NOT this
-feature's event. It already feeds ``detect_run_anomalies``, which sets the ``stall`` /
-``running_long`` / ``skipped`` fields the card's snapshot reads. Gating the detector on
-this feature's switch would silently disable anomaly reporting for anyone who turned off
-stall photos — a regression in a subsystem they never touched. So the detector fires
-unconditionally and this subscribes like any other listener; the switch arms THIS and
-nothing else.
+feature's event. ``detect_run_anomalies`` (jobs/active_job.py) is its PRODUCER, not a
+consumer: it computes the ``stall`` / ``running_long`` / ``skipped`` fields the card's
+snapshot reads and, when ``emit=True``, fires ``EVENT_STALL_DETECTED`` itself. Gating the
+detector on this feature's switch would silently disable anomaly reporting for anyone who
+turned off stall photos — a regression in a subsystem they never touched. So the detector
+fires unconditionally and this subscribes like any other listener; the switch arms THIS
+and nothing else.
+⚠ was: "It already feeds ``detect_run_anomalies``, which sets the … fields" — the
+direction of flow was inverted (L20). The ARGUMENT is unchanged and still sound; only the
+mechanism was wrong. Nothing subscribes to the event to DERIVE those fields — the sole
+subscriber in the package is this module's ``register()``. A reader hunting for the second
+consumer the old paragraph rested on would not find one and might discard the whole
+rationale. Other producers of the same event: ``core/manager.py``'s trigger-carrying fire
+and the ``dev_inject_stall`` service (services/stall_capture.py).
 
 That also makes the two failure modes distinguishable, which matters for the maintainer
 dev card: with the switch off, an injected stall still fires the event and still reports
@@ -28,7 +36,8 @@ Home Assistant.
 
 One file per (vacuum, map), overwritten each time: no accumulation, no pruning, and a
 STABLE path an automation can hardcode. The write is atomic (tmp + ``os.replace``) so an
-automation reading while we render never sees half a PNG.
+automation reading while we render never sees half a PNG, and the tmp is FSYNCED before
+the rename so a power loss cannot leave a zero-length file at that hardcoded path.
 
 Public surface:
     register(hass: HomeAssistant) -> None
@@ -38,6 +47,7 @@ Public surface:
 from __future__ import annotations
 
 import base64
+import contextlib
 import logging
 import os
 from collections.abc import Callable
@@ -57,8 +67,18 @@ _LOGGER = logging.getLogger(__name__)
 
 _STALL_CAPTURE_UNSUBS = "_stall_capture_unsubs"
 
-#: Fired after a capture lands. Carries the path so an automation never has to
-#: reconstruct <config>/eufy_vacuum/learning/... by hand and break when the layout moves.
+#: Fired after a capture lands. Carries the finished path in ``image_path`` so an
+#: automation never has to reconstruct <config>/eufy_vacuum/learning/... by hand and break
+#: when the layout moves.
+#:
+#: ⚠ USE ``image_path``, NOT ``map_id``, TO REACH THE FILE — the payload's ``map_id`` is
+#: the RAW id while ``capture_path`` SANITISES it (every character outside [A-Za-z0-9-_]
+#: becomes "_", then strip("_"), then "map" if nothing survives). On Roborock the map id
+#: is a name, so the event says "Main floor" and the file on disk is "Main_floor.png".
+#: This is live today, not a hypothetical future layout move — which is the only break the
+#: old comment warned about (D19). It is NOT a broken contract, because ``image_path``
+#: carries the correct absolute path in the same payload; it bites only an automation that
+#: ignores that field and rebuilds the path from ``map_id`` itself.
 EVENT_STALL_CAPTURED = f"{DOMAIN}_stall_captured"
 
 #: Per-vacuum arming, stored on the vacuum record. Absent means OFF: a feature that writes
@@ -216,12 +236,36 @@ def map_label(hass: HomeAssistant, vacuum_entity_id: str, map_id: Any) -> str:
 
 
 def _write_atomic(path: str, data: bytes) -> None:
-    """Write via tmp + replace so a reader never sees a half-written PNG."""
+    """Write via tmp + replace so a reader never sees a half-written PNG.
+
+    THE RENAME IS ATOMIC BUT NOT DURABLE, and this was the shortest of the package's
+    four atomic writes — the only one with neither half, while
+    ``history_store.write_json`` four files away documents both as IO-7. Without the
+    fsync, a power loss between the write and the OS lazily flushing dirty pages
+    leaves a ZERO-LENGTH PNG at the stable path the docs tell an automation to
+    hardcode, AFTER ``stall.capture.written`` has already reported P and the
+    notification has already fired: the picture is announced and the file is empty.
+
+    The unlink is the other half. The tmp sits at a FIXED ``<path>.tmp``, so an
+    ``os.replace`` that raises (a vanished directory, a full disk, permissions)
+    stranded a full rendered floor-plan of the user's home beside the capture —
+    outside the one-file-per-(vacuum, map) contract this module's docstring promises,
+    where nothing ever reclaims it, and re-readable at ``/local`` if the user ever
+    relocates their learning directory. ``BaseException`` because a cancelled
+    executor job leaks the same file a failed one does.
+    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = f"{path}.tmp"
-    with open(tmp, "wb") as fh:
-        fh.write(data)
-    os.replace(tmp, path)
+    try:
+        with open(tmp, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
@@ -321,6 +365,15 @@ async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
         # comment called them "both ABSENCE" — but they are DIFFERENT absences with
         # different fixes, and collapsing them is why "no image" was a four-way guess.
         # The import is on the failure path only, so its cost never touches a good run.
+        #
+        # ⚠ THE COLLAPSE IS ONLY HALF SPLIT — C33, STILL OPEN, and it is a CODE change
+        # (new decline reasons + the receipts DECLINE_REASONS vocabulary), so it is not
+        # made here. `no_pillow` came out; `"unusable"` still stands for FOUR distinct
+        # causes across TWO emit sites: at the `_render_payload` decline above it means
+        # (1) no `room_pixels` in the render data, (2) `room_pixels` that base64 will not
+        # decode, or (3) ro_width/ro_height resolving to <= 0; here it means (4) Pillow
+        # IS importable but the room has no cells to draw. Do not read the past tense
+        # above as "the guess is gone" — it moved one layer down.
         from ..mapping import stall_capture_render as _scr
         receipts.emit("stall.capture.declined", "ANY", "listeners.stall_capture", "D",
                       vacuum_entity_id, "no_pillow" if _scr.Image is None else "unusable")

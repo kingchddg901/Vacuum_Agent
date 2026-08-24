@@ -1043,6 +1043,25 @@ class LearningManager:
         had_errors=False, destroying the run's error history unrepairably (rebuild_all
         reads FROM these files). Guarding the chokepoint makes any future entry point
         safe by construction.
+
+        ⚠ SCOPE OF THAT CLAIM — read before adding a guard here and assuming it is
+        total. It covers every path that finalizes a DISPATCHED run, because
+        ``active_job["status"] = "completed"`` is written in exactly one place tree-wide
+        (``jobs/active_job.py::ActiveJobTracker.mark_active_job_finalized``) and every
+        such path converges here first. It does NOT cover every way a run can end:
+
+        - ``learning/external_run.py::ExternalRunManager._finalize_external_run`` writes
+          a pending review record and clears the slot to ``idle`` in its ``finally``. Its
+          graduation path calls ``save_completed_job`` directly. It reaches neither
+          chokepoint, yet it writes a durable record and releases the error latch. It is
+          safe TODAY by a different mechanism — the pending file's existence is its
+          exactly-once claim, and ``confirm_external_run`` unlinks it — not by this one.
+        - ``core/manager.py::EufyVacuumManager._reap_stranded_phased_jobs`` closes the
+          on-disk parent only and skips any parent whose run is still live, so it cannot
+          drive the status machine at all.
+
+        So: a guard placed here protects the status machine. A guard that needs to see
+        EVERY run-end has two more sites to cover, and neither will announce itself.
         """
         # --- EXACTLY-ONCE CLAIM ---------------------------------------------------
         # HA is a single event loop, so a claim written synchronously before the first
@@ -2117,10 +2136,23 @@ class LearningManager:
             )
 
             outlier_score = 0.0
-            # Only an EXPLICIT False is a sanity failure. A missing/None value (e.g.
-            # graduated external runs that don't carry the key) must NOT count as
-            # failed — the index stores the key as None, so a `.get(key, True)` default
-            # never fired and flagged every such run.
+            # Only an EXPLICIT False is a sanity failure.
+            #
+            # ⚠ THE PREMISE UNDER THIS USED TO READ: "the index stores the key as None, so
+            # a `.get(key, True)` default never fired and flagged every such run." Measured
+            # false against the tree on 2026-08-24. `stats_rebuilder.build_jobs_index_payload`
+            # — the sole writer of the rows iterated here (`load_jobs_index()["jobs"]`) —
+            # emits `"sanity_passed": True if is_external else bool(outcome.get(
+            # "sanity_passed", False))`. Both arms are a real bool, so a `None` cannot
+            # reach this dict from the index at all, and the old-external-run rescue the
+            # sentence described happens UPSTREAM in that `is_external` force, not here.
+            #
+            # The GUARD IS STILL CORRECT — keep it. `is False` fires on a genuine False,
+            # which is what a sanity failure is. What is dead is only the None-vs-False
+            # DISTINCTION the comment claimed to be preserving; `.get(key, True)` and
+            # `is False` would behave identically on index data today. Treat the
+            # identity check as cheap insurance against a hand-edited or
+            # future-schema row, not as a live rescue of missing keys.
             if item.get("sanity_passed") is False:
                 outlier_score += 3.0
             if str(item.get("status", "")).strip().lower() != "completed":

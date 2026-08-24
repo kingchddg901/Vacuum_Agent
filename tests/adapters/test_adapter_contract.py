@@ -91,6 +91,47 @@ class TestValidatorItself:
         nested = _validate({"block": {"inner": "x", "inr": "y"}}, schema)
         assert len(nested) == 1 and "inr" in nested[0] and "block" in nested[0]
 
+    def test_rc1_a_key_the_RUNTIME_READS_is_declared(self):
+        """[RC-1/A7] READ-BUT-UNDECLARED is the mirror of declared-but-unread, and the
+        walker cannot see it: it iterates the SCHEMA, so a key the schema omits is
+        invisible no matter how much code reads it.
+
+        `dispatch.zone_passes_max` was that shape. `dispatch/manager.py` consults it on
+        BOTH zone branches, `capabilities.supports_zone_repeat`'s own description names
+        it as the thing to omit -- and it was absent from `dispatch.fields`. Because
+        `dispatch` declares `fields`, the walker recurses and REJECTS undeclared keys,
+        so a porter following that prose got a ServiceValidationError out of
+        save_adapter_config, and an in-repo code adapter got the same rejection out of
+        test_schema_conformance below.
+
+        Asserted as "a config declaring it VALIDATES", not as "the key is in the dict":
+        the latter passes on a key added to the schema and read by nobody, which is the
+        opposite defect (A9) and not what this guards.
+
+        This file already documents the identical shape for `low_clean_water_margin_ml`.
+        """
+        from custom_components.eufy_vacuum.adapters.config_schema import (
+            ADAPTER_CONFIG_SCHEMA,
+        )
+
+        # Two configs, both minimal-legal for the OTHER dispatch requireds. The
+        # ONE difference is the presence of `zone_passes_max`, so any issues that
+        # appear only in the second are its fault. Comparing sets rather than
+        # equality guards against ordering churn in _validate's output.
+        base = {"template": "eufy_room_clean", "service_domain": "vacuum",
+                "service_name": "send_command"}
+        fields = ADAPTER_CONFIG_SCHEMA["dispatch"]["fields"]
+
+        control  = set(_validate(base, fields))
+        with_key = set(_validate({**base, "zone_passes_max": 5}, fields))
+
+        introduced = with_key - control
+        assert not introduced, (
+            "declaring dispatch.zone_passes_max introduced a schema issue -- the "
+            "runtime reads it on both zone branches, so this is A7's read-but-"
+            f"undeclared shape returning: {sorted(introduced)}"
+        )
+
     def test_open_ended_blocks_are_not_flagged(self):
         """[RC-1] Nine schema blocks are declared as bare `dict` with no `fields`
         (settings_selects, mapping, map_render, room_profiles, …) and are legitimately
@@ -659,4 +700,60 @@ def test_every_brand_vocabulary_declares_both_halves_of_the_known_collision():
     assert not missing, (
         "brand vocabulary is missing the lifetime half of a known collision, so "
         "the exclusivity guard cannot exclude it: " + ", ".join(missing)
+    )
+
+
+# ---------------------------------------------------------------------------
+# D17 - `blocked_task_status_states` is SUPERSEDED, and that claim needs a bite
+# ---------------------------------------------------------------------------
+
+
+def test_d17_the_dead_block_key_is_fully_covered_by_the_live_gate():
+    """The schema and doc 22 §5 now tell a porter that `blocked_task_status_states` is
+    dead because the gate it named is spelled with different vocabulary, and point them
+    at `active_run_task_states` / `hard_service_states` instead.
+
+    That is a CLAIM about the live code, and without this it rots silently: drop
+    "washing mop" from HARD_SERVICE_STATES and the documentation becomes false while
+    every test stays green — a start during a mop wash would no longer be refused, and
+    the surface a porter reads would still say it is.
+
+    RED IF ANY DECLARED VALUE STOPS BEING COVERED. The point is the equivalence, not the
+    contents of either set, so both sides are read from the real vocabulary rather than
+    retyped.
+    """
+    from custom_components.eufy_vacuum.adapters.eufy.vocabulary import (
+        ACTIVE_RUN_TASK_STATES,
+        HARD_SERVICE_STATES,
+    )
+    from custom_components.eufy_vacuum.jobs.job_monitor import _norm
+
+    declared = ["Cleaning", "Returning", "Washing Mop"]
+    live_gate = set(ACTIVE_RUN_TASK_STATES) | set(HARD_SERVICE_STATES)
+
+    uncovered = [value for value in declared if _norm(value) not in live_gate]
+    assert not uncovered, (
+        "blocked_task_status_states is documented as superseded by the live start gate, "
+        "but these declared values are no longer refused by it: "
+        + ", ".join(repr(v) for v in uncovered)
+        + " — either restore the coverage, or correct adapters/config_schema.py and "
+        "docs/dev/22-adapter-contract.md §5, which currently tell a porter it is safe "
+        "to ignore this key."
+    )
+
+
+def test_d17_the_declared_values_still_match_what_was_verified():
+    """The subsumption above was verified against a specific declared set. If the brand
+    adds a fourth blocked task status, the equivalence has to be re-checked rather than
+    assumed — so this pins the input the claim was measured on.
+    """
+    import inspect
+
+    from custom_components.eufy_vacuum.adapters.eufy import adapter as _eufy
+
+    src = inspect.getsource(_eufy)
+    assert '"blocked_task_status_states": ["Cleaning", "Returning", "Washing Mop"]' in src, (
+        "the declared blocked_task_status_states changed; re-verify the coverage claim "
+        "in adapters/config_schema.py and docs/dev/22-adapter-contract.md §5 against the "
+        "new set before updating this test"
     )

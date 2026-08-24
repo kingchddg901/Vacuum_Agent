@@ -70,6 +70,8 @@ REASON_ABSENT = "absent"
 #: pinning a dead id, but a user choice that has quietly stopped working must be
 #: VISIBLE; silently substituting our guess for their stated intent is the
 #: failure mode this whole effort exists to remove (live:ENT-7).
+#: Recorded for MAINTENANCE COMPONENTS too, not only roles — that half of ENT-7
+#: was missing there until 2026-08-24; see `_detect_maintenance_sources`.
 REASON_OVERRIDE_UNRESOLVED = "override_unresolved"
 
 #: WHICH rung of the live:ENT-9 ladder decided a contested role. First-class
@@ -259,12 +261,18 @@ def _rescue_maintenance_source(
     # failed, so an install that resolves today is untouched.
     # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree
     #
-    # REPLICA — the same rescue runs in THREE places, deliberately: this one, plus
+    # REPLICA — the same rescue runs in THREE places, deliberately: THIS ONE is
+    # `capabilities._rescue_maintenance_source` (maintenance sources); the other two are
     # `entity_resolve.resolve_declared_entities` (the declared `entities` map) and
     # `capabilities.augment_candidates_from_device` (the roles `detect_capabilities`
     # probes). They are not unified because each feeds a different consumer and takes
     # its wanted-key from a different place; ~half of such divergence in this repo is
     # deliberate, so a helper would force agreement that is not always wanted.
+    #
+    # (D12: this copy was always CORRECT, but only because "this one" happened to resolve
+    # to the member the sentence omitted. Made explicit 2026-08-24 so all three copies
+    # name all three members — a replica set whose correctness depends on the reader
+    # resolving a pronoun is what let the other two be pasted wrong.)
     #
     # ⚠ CHANGING ONE MEANS CHECKING THE OTHER TWO. The first fix (`ef810519`) landed in
     # two of the three and 4381 green tests said nothing — each copy had its own passing
@@ -287,8 +295,14 @@ def _detect_maintenance_sources(
     overrides: dict[str, str] | None = None,
     universe: Iterable[str] = (),
     translation_keys: dict[str, str] | None = None,
+    reasons: dict[str, str] | None = None,
 ) -> dict[str, str | None]:
     """Return a component → source entity_id map for maintenance tracking.
+
+    ``reasons``, when given, is written INTO — the same dict ``detect_capabilities``
+    fills for roles, because ``overrides`` is one flat namespace shared by roles and
+    components (``services/setup.py::set_entity_override`` takes ``role`` as free
+    text) and a component's stale choice has to reach the same readers as a role's.
 
     maintenance_components is the adapter's component catalog dict:
     {component_id: {sensor_suffix, proxy_for, label, icon, …}}.
@@ -311,13 +325,36 @@ def _detect_maintenance_sources(
         )
 
     user_choices = overrides if isinstance(overrides, dict) else {}
+    _reasons = reasons if isinstance(reasons, dict) else {}
     sources: dict[str, str | None] = {}
     for component, meta in maintenance_components.items():
         # live:ENT-7 — a user's explicit choice outranks derivation here too.
         chosen = user_choices.get(component)
         if isinstance(chosen, str) and "." in chosen:
-            sources[component] = chosen
-            continue
+            # ONLY THE PRECEDENCE HALF OF live:ENT-7 WAS CARRIED ACROSS (fixed
+            # 2026-08-24). This path took the user's id and `continue`d — no
+            # existence check, no reason — while `detect_capabilities._find` has
+            # always had the other half: an override that no longer resolves
+            # falls THROUGH to the derived candidates and reports
+            # `override_unresolved` rather than pinning a dead id.
+            #
+            # Pinning it costs more here than on a role, because nothing
+            # downstream complains. `get_maintenance_remaining` finds no state,
+            # leaves `source_available` False and reports 0 usage hours, so the
+            # component's Replacement row AND its integration-tracked
+            # Maintenance row both go quiet — the "one unresolved source kills
+            # both halves" cost named in `_rescue_maintenance_source` above. The
+            # user renames or deletes the sensor they pinned, their stated
+            # choice stops working, and the System screen that exists to explain
+            # bindings says nothing at all.
+            #
+            # Same existence bar as `_resolve` below and as the role path:
+            # REGISTERED counts. A disabled entity is a toggle in the user's own
+            # UI, not a dead id, and must not be second-guessed as one.
+            if _state_exists(hass, chosen) or _registry_entry_exists(hass, chosen):
+                sources[component] = chosen
+                continue
+            _reasons[component] = REASON_OVERRIDE_UNRESOLVED
         own = _resolve(meta.get("sensor_suffix"))
         proxy_id = meta.get("proxy_for")
         if proxy_id:
@@ -721,12 +758,21 @@ def augment_candidates_from_device(
                 # shape live:ENT-4 was, and it happened again here.
                 # REPLICA RNF2RCXP — translation_key rescue, 3 copies, must agree
                 #
-                # REPLICA — the same rescue runs in THREE places, deliberately: this one, plus
-                # `entity_resolve.resolve_declared_entities` (the declared `entities` map) and
+                # REPLICA — the same rescue runs in THREE places, deliberately: THIS ONE is
                 # `capabilities.augment_candidates_from_device` (the roles `detect_capabilities`
-                # probes). They are not unified because each feeds a different consumer and takes
-                # its wanted-key from a different place; ~half of such divergence in this repo is
-                # deliberate, so a helper would force agreement that is not always wanted.
+                # probes); the other two are `entity_resolve.resolve_declared_entities` (the
+                # declared `entities` map) and `capabilities._rescue_maintenance_source`
+                # (maintenance sources). They are not unified because each feeds a different
+                # consumer and takes its wanted-key from a different place; ~half of such
+                # divergence in this repo is deliberate, so a helper would force agreement that
+                # is not always wanted.
+                #
+                # (D12, corrected 2026-08-24. This block was pasted verbatim from the copy in
+                # `_rescue_maintenance_source` without re-pointing "this one", so it named
+                # ITSELF as one of the other two and dropped `_rescue_maintenance_source`
+                # entirely. A replica anchor listing the wrong replica set is worse than none:
+                # the whole point of the anchor is "changing one means checking the other two",
+                # and it named a set of two that includes the copy you are already reading.)
                 #
                 # ⚠ CHANGING ONE MEANS CHECKING THE OTHER TWO. The first fix (`ef810519`) landed in
                 # two of the three and 4381 green tests said nothing — each copy had its own passing
@@ -861,12 +907,8 @@ def detect_capabilities(
     # live:ENT-1: derived names first, device siblings appended behind them. An
     # install where derivation already works resolves byte-identically; only a
     # role that would have found NOTHING can now find something.
-    # live:ENT-1: derived names first, device siblings appended behind them. An
-    # install where derivation already works resolves byte-identically; only a
-    # role that would have found NOTHING can now find something.
-    # live:ENT-1: derived names first, device siblings appended behind them. An
-    # install where derivation already works resolves byte-identically; only a
-    # role that would have found NOTHING can now find something.
+    # (D13: this block stood here three times verbatim until 2026-08-24 — not three
+    # comments on three things, one comment pasted twice. Deduplicated.)
     _aug_report: dict[str, Any] = {}
     _cands = augment_candidates_from_device(
         hass,
@@ -1068,6 +1110,15 @@ def detect_capabilities(
             overrides=_overrides,
             universe=_maint_universe,
             translation_keys=_maint_tkeys,
+            # live:ENT-7 — the SAME reasons dict the roles write to. A stale
+            # maintenance override has to land somewhere a reader looks, and
+            # `entity_resolution_reasons` is that place: `config_flow.
+            # _resolution_gaps` renders a picker for every key in it that is not
+            # `resolved`, so the user gets the pre-filled field to correct their
+            # dead choice instead of a component that has quietly gone blank.
+            # Only an override that FAILED is recorded — a derivation miss is an
+            # ordinary absent source and must not conjure a picker.
+            reasons=_reasons,
         )
 
     # --- live state values --------------------------------------------------
@@ -1093,9 +1144,25 @@ def detect_capabilities(
     return {
         "vacuum_entity_id": vacuum_entity_id,
         # live:ENT-2/ENT-3 — WHY each role resolved as it did, and whether the
-        # device-sibling rescue ran at all. Both are diagnostics-facing only;
-        # nothing branches on them. They exist because issue #49 could not be
-        # answered from a dump that reported a bare `null` per role.
+        # device-sibling rescue ran at all. They exist because issue #49 could not
+        # be answered from a dump that reported a bare `null` per role.
+        #
+        # ⚠ was: "Both are diagnostics-facing only; nothing branches on them."
+        # FALSE (ledger D23). `config_flow.EufyVacuumOptionsFlow._resolution_gaps`
+        # — the site carrying anchor `CNAYBZY3` — branches on both of the keys that
+        # sentence covered: every role in `entity_resolution_reasons` whose reason is
+        # not `REASON_RESOLVED`, plus every role named in
+        # `entity_augmentation["ambiguous"]`, becomes an entity-override picker
+        # rendered on the options form. These keys therefore decide what the user is
+        # OFFERED, not merely what a dump says. The `reasons=_reasons` argument to
+        # the `_detect_maintenance_sources` call earlier in this function already
+        # states that correctly for the maintenance half; only this sentence was
+        # left behind.
+        #
+        # Why it rotted: the anchor was placed on the READER side only, so nothing
+        # led back here when the reader landed. A negative claim about consumers is
+        # the most rot-prone sentence class in this repo — it is true when written
+        # and the new consumer always arrives in a different file.
         "entity_resolution_reasons": dict(_reasons),
         "entity_sources": dict(_sources),
         "entity_augmentation": dict(_aug_report),

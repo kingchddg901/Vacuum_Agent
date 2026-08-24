@@ -334,9 +334,21 @@ The full `detect_capabilities()` return is **larger** than the nine flags the Eu
 > adapter-literal capability flags — no adapter config sets them. They are computed
 > at snapshot time in `core/manager.py::get_dashboard_snapshot`:
 > `supports_base_station` (`core/manager.py#CN585YGW`) from `dock_events.enabled` OR the mop-wash /
-> mop-dry / empty-dust / station-water caps, and `supports_map_bounds` (`:4993`)
-> from `mapping.segmenter_engine != "noop_fallback"`. The same snapshot also computes
-> `supports_va_render` (`:5113`) from the **presence** of a `map_render` block.
+> mop-dry / empty-dust / station-water caps, and `supports_map_bounds`
+> (`core/manager.py#CN5APNA9`) from `mapping.segmenter_engine` being **set at all**
+> AND not `"noop_fallback"` — an absent or empty `segmenter_engine` is False too,
+> not only the fallback one. The same snapshot also computes `supports_va_render`
+> (`core/manager.py::get_dashboard_snapshot`; no anchor is minted at that line) from
+> a `map_render` block that is a `dict` — `isinstance(..., dict)`, so a
+> present-but-non-dict `map_render` does not count.
+>
+> ⚠ **Those last two used to be cited as bare line numbers — `` (`:4993`) `` and
+> `` (`:5113`) `` against `core/manager.py` — and both were dead.** A bare line
+> citation records no sha, so there is no way to say what they once resolved to, and
+> `core/manager.py` has moved a long way since they were written; do not try to
+> reconstruct it. The anchor and the symbol above are the forms that survive the
+> file moving. Note the sentence's other citation, `#CN585YGW`, was already in
+> anchor form and stayed correct throughout — that contrast is the whole argument.
 
 > **See also:** [22-adapter-config-reference](22-adapter-config-reference.md) for the complete field-by-field documentation of every block (`entities`, `vocabulary`, `dispatch`, `maintenance_components`, `capabilities`, and all sub-schemas).
 

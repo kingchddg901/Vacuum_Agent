@@ -1192,6 +1192,10 @@
     "battery_col_mean_per_m2": "Średnie",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/min",
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",
+    "unit_per_hour": "%/h",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "Uwagi",
     "battery_col_zone": "Strefa",
     "battery_drain_subtitle": "Do tych średnich wliczają się tylko zadania, w których każdy pokój używał tego samego ustawienia. Uruchomienia w trybie mieszanym nadal aktualizują wiersz wszystkich zadań, ale pomijają podział na poszczególne kategorie.",
@@ -1322,7 +1326,9 @@
     "water_total_detail": "Łączne zużycie wody w pasujących zadaniach",
     "window_last_30_days": "Ostatnie 30 dni",
     "window_last_7_days": "Ostatnie 7 dni",
-    "window_today": "Dziś"
+    "window_today": "Dziś",
+    "unit_ml": "ml",
+    "unit_hours": "godz."
   },
   "review": {
     "badge_attribution_disagreement": "Niezgodność pokoju",
@@ -1562,7 +1568,20 @@
       "other": "Pominięto {miss}× z {count} przebiegów"
     },
     "stall_capture_enable": "Włącz zdjęcie przy zablokowaniu",
-    "stall_capture_disable": "Wyłącz zdjęcie przy zablokowaniu"
+    "stall_capture_disable": "Wyłącz zdjęcie przy zablokowaniu",
+    "override_order": {
+      "toggle_label": "Override device order",
+      "consent": "Changes the saved sequence in your Roborock app",
+      "path_optimizing": "Vacuum optimises the path itself",
+      "matching": "Sequence matches your queue",
+      "mismatch": "Sequence differs from your queue — Apply to update",
+      "unverifiable": "Could not read the device's saved sequence",
+      "apply": "Apply queue to device",
+      "clear": "Clear device sequence",
+      "device_label": "Device:",
+      "queue_label": "Queue:",
+      "empty_placeholder": "(empty)"
+    }
   },
   "learning": {
     "all_rooms_complete": "Wszystkie pokoje ukończone",
@@ -1774,7 +1793,25 @@
       "one": "1 element konserwacji wymaga uwagi.",
       "other": "Elementy konserwacji wymagające uwagi: {count}."
     },
-    "attention_summary_none": "Żaden element konserwacji nie wymaga uwagi."
+    "attention_summary_none": "Żaden element konserwacji nie wymaga uwagi.",
+    "component_label": {
+      "main_brush": "Main Brush",
+      "side_brush": "Side Brush",
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "dustbin": "Dustbin",
+      "mop_cloth": "Mop Cloth",
+      "water_filter": "Water Filter",
+      "caster_wheel": "Caster Wheel",
+      "main_wheel": "Main Wheel",
+      "dock_cleaning_brush": "Dock Cleaning Brush",
+      "dock_strainer": "Dock Strainer",
+      "dock_dust_bag": "Dock Dust Bag",
+      "clean_water_tank": "Clean Water Tank",
+      "dirty_water_tank": "Dirty Water Tank",
+      "rolling_brush": "Rolling Brush",
+      "mopping_cloth": "Mopping Cloth"
+    }
   },
   "setup": {
     "add": "Dodaj",

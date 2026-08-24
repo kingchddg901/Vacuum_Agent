@@ -16,15 +16,28 @@ import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl } from "../textures/floor-
 import { resolveFloorType, normalizeFloorRotationDeg } from "../textures/floor-texture-resolver.js";
 import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 
-// Apparent size of the floor material on the map: the 2048² masks are drawn to fill a
-// ROOM-sized card, so at 1:1 (native) their veins/planks look "zoomed in" over the whole map.
-// Scale the mask pattern DOWN so features are smaller + tile denser (more per room). 1.0 =
-// native (too big); lower = finer/denser.
+// Apparent size of the floor material on the map: the masks are drawn to fill a ROOM-sized
+// card, so at 1:1 (native) their veins/planks look "zoomed in" over the whole map. Scale the
+// mask pattern DOWN so features are smaller + tile denser (more per room). 1.0 = native (too
+// big); lower = finer/denser.
 //
-// PER-MATERIAL: materials read best at different feature sizes — marble's broad veins look
-// great tiny (0.11), but granite's fine speckle vanishes to a flat dark field when shrunk that
-// far. So each type gets its own default here; unlisted types fall back to the global. A theme
-// can override any with `--evcc-floor-<type>-map-scale` (the "slider"). Tune by eye.
+// ⚠ THESE NUMBERS ARE TUNED BY EYE AGAINST A 2048² MASK, AND NOTHING ENFORCES THAT CANVAS.
+// Every shipped mask is authored at 2048² (scripts/gen_floor_masks.py, `SIZE`), but that is an
+// authoring convention, not a checked invariant. This comment used to state "the 2048² masks"
+// as if the size were guaranteed; nothing on the mask path reads it. `_decodeMaskLum` below
+// fills at the bitmap's NATIVE resolution with a repeat pattern and applies `scale` through
+// `pat.setTransform` — the decoded mask's own width never enters the calculation — and no test,
+// CI step or build step asserts mask dimensions. So a mask authored at another canvas changes tile PERIOD and feature
+// SIZE together, and two same-material layers from different canvases desynchronize: silent
+// misalignment, no error, ships green. If a mask ever arrives at a different size, either
+// re-author it to 2048² or re-tune every constant below.
+//
+// PER-MATERIAL: materials read best at different feature sizes — granite's fine speckle
+// vanishes to a flat dark field when shrunk as far as a broad-veined material can take. So each
+// type gets its own default here; unlisted types fall back to the global. A theme can override
+// any with `--evcc-floor-<type>-map-scale` (the "slider"). Tune by eye. ⚠ this paragraph used to
+// cite marble at 0.11 as the example; marble's entry is 0.05 today — read the table, never the
+// prose, for the live numbers.
 const FLOOR_TEXTURE_MASK_SCALE = 0.05; // global fallback (all materials at 0.05 for now)
 const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   // Keys MUST match resolveFloorType()'s output — e.g. granite resolves to "granite_light",
@@ -2648,14 +2661,23 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender?.();
       });
     });
-    // Rotate the live map 90° CW (display only; backend-stored per map). The
-    // action sets an optimistic overlay synchronously, so re-rendering now shows
-    // the turn instantly while the service persists it.
+    // Rotate the live map 90° CW (backend-stored per map). The action sets an
+    // optimistic overlay synchronously, so re-rendering now shows the turn instantly
+    // while the service persists it. ⚠ was "display only" — it is not: the angle is
+    // an input to zoneDraftsToNormalizedRects, i.e. to the dispatched zone geometry
+    // (see the rotation block in state/map.js).
     root.querySelectorAll("[data-action='map-rotate']").forEach((btn) => {
       this.card._on(btn, "click", (e) => {
         e.stopPropagation();
-        // Rotation invalidates the draw gates (zone + hide-area are rot-0 only) — tear down any
-        // in-progress draw so a rotated box can never be confirmed.
+        // Turning invalidates any draft already on screen — tear both draw modes down
+        // (setZoneDrawMode(false) also drops _zoneDrafts) so a box drawn at the OLD angle
+        // can never be confirmed against the new one.
+        // ⚠ was: "the draw gates (zone + hide-area are rot-0 only)". Only HIDE-AREA is
+        // rot-0 only (canDrawHideArea tests effectiveMapRotation() === 0). canDrawZone
+        // does not test rotation at all — zone draw is allowed at any angle, and the draft
+        // is un-rotated at confirm time in zoneDraftsToNormalizedRects. The tear-down is
+        // still right: a draft's pct rect is in the DISPLAYED frame, so the same numbers
+        // mean a different device region once the angle changes.
         this.card._state.setZoneDrawMode?.(false);
         this.card._state.setHideDrawMode?.(false);
         const mapId = this.card._state.mapSegmentsData?.()?.map_id

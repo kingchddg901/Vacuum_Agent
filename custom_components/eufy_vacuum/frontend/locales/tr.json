@@ -1192,6 +1192,10 @@
     "battery_col_mean_per_m2": "Ortalama",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/dk",
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",
+    "unit_per_hour": "%/sa",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "Notlar",
     "battery_col_zone": "Bölge",
     "battery_drain_subtitle": "Bu ortalamalar yalnızca her odanın aynı ayarı kullandığı işlerle beslenir. Karışık modlu çalışmalar yine de tüm-işler satırını günceller ancak grup bazlı grupları atlar.",
@@ -1322,7 +1326,9 @@
     "water_total_detail": "Eşleşen işlerde kullanılan toplam su",
     "window_last_30_days": "Son 30 Gün",
     "window_last_7_days": "Son 7 Gün",
-    "window_today": "Bugün"
+    "window_today": "Bugün",
+    "unit_ml": "ml",
+    "unit_hours": "sa"
   },
   "review": {
     "badge_attribution_disagreement": "Oda Uyuşmazlığı",
@@ -1562,7 +1568,20 @@
       "other": "{count} çalışmanın {miss}×'inde atlandı"
     },
     "stall_capture_enable": "Sıkışma görüntüsünü aç",
-    "stall_capture_disable": "Sıkışma görüntüsünü kapat"
+    "stall_capture_disable": "Sıkışma görüntüsünü kapat",
+    "override_order": {
+      "toggle_label": "Override device order",
+      "consent": "Changes the saved sequence in your Roborock app",
+      "path_optimizing": "Vacuum optimises the path itself",
+      "matching": "Sequence matches your queue",
+      "mismatch": "Sequence differs from your queue — Apply to update",
+      "unverifiable": "Could not read the device's saved sequence",
+      "apply": "Apply queue to device",
+      "clear": "Clear device sequence",
+      "device_label": "Device:",
+      "queue_label": "Queue:",
+      "empty_placeholder": "(empty)"
+    }
   },
   "learning": {
     "all_rooms_complete": "Tüm odalar tamamlandı",
@@ -1774,7 +1793,25 @@
       "one": "1 bakım öğesi ilgi bekliyor.",
       "other": "{count} bakım öğesi ilgi bekliyor."
     },
-    "attention_summary_none": "İlgi bekleyen bakım öğesi yok."
+    "attention_summary_none": "İlgi bekleyen bakım öğesi yok.",
+    "component_label": {
+      "main_brush": "Main Brush",
+      "side_brush": "Side Brush",
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "dustbin": "Dustbin",
+      "mop_cloth": "Mop Cloth",
+      "water_filter": "Water Filter",
+      "caster_wheel": "Caster Wheel",
+      "main_wheel": "Main Wheel",
+      "dock_cleaning_brush": "Dock Cleaning Brush",
+      "dock_strainer": "Dock Strainer",
+      "dock_dust_bag": "Dock Dust Bag",
+      "clean_water_tank": "Clean Water Tank",
+      "dirty_water_tank": "Dirty Water Tank",
+      "rolling_brush": "Rolling Brush",
+      "mopping_cloth": "Mopping Cloth"
+    }
   },
   "setup": {
     "add": "Ekle",

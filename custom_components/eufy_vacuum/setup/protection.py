@@ -35,10 +35,25 @@ def evaluate_map_protection(
 
     vacuum_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {})
     bucket      = vacuum_maps.get(map_id_str, {})
-    # DR-SETUP-4: a malformed bucket/room record must degrade like drift.py's
-    # isinstance(bucket, dict) guards do, not raise AttributeError out of a
-    # function both the delete gate and get_setup_status's per-map summaries
+    # DR-SETUP-4: a malformed bucket/room record must not raise AttributeError out
+    # of a function both the delete gate and get_setup_status's per-map summaries
     # call -- one bad record would otherwise take out the whole Setup tab.
+    #
+    # ⚠ THE PARITY WITH drift.py IS PARTIAL, AND THIS COMMENT CLAIMED IT WAS WHOLE
+    # UNTIL 2026-08-24 (D20). It said the degradation matches "drift.py's
+    # isinstance(bucket, dict) guards", but drift.py's idiom has TWO parts and only
+    # the first was copied. drift.py writes
+    # `if not isinstance(bucket, dict): ...` AND THEN `(bucket.get("rooms") or {})`;
+    # the line below is `bucket.get("rooms", {})`, whose default only fires on an
+    # ABSENT key. A bucket carrying `"rooms": None` (or a list) therefore reaches
+    # `rooms.values()` further down and raises the exact AttributeError this guard
+    # was added to prevent. Closing that is a CODE change and is not made here.
+    #
+    # ⚠ SECOND HALF, ALSO STILL OPEN: the `imported_map_ids` comprehension below
+    # ("isinstance(b, dict) and b.get('rooms')") is a hand copy of the predicate
+    # that has since been centralised as `maps/map_manager.map_ids_with_rooms`
+    # (MAP-GHOST-1). drift.py migrated -- its `_known_map_ids` now delegates to that
+    # helper. This copy did not, so it is the one that will drift.
     #
     # ⚠ NO LIVE CALLER REACHES THIS TODAY, and it stays anyway (ledger C34, filed as
     # dead twice). Both callers pre-filter: status.py:127 rejects the non-dict bucket

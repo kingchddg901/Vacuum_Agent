@@ -1192,6 +1192,10 @@
     "battery_col_mean_per_m2": "Rata-rata",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/min",
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",
+    "unit_per_hour": "%/h",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "Catatan",
     "battery_col_zone": "Zona",
     "battery_drain_subtitle": "Hanya tugas yang setiap ruangannya memakai pengaturan yang sama yang menyumbang rata-rata ini. Proses mode campuran tetap memperbarui baris semua-tugas tetapi melewati bucket per-bucket.",
@@ -1322,7 +1326,9 @@
     "water_total_detail": "Total air yang digunakan di seluruh tugas yang cocok",
     "window_last_30_days": "30 Hari Terakhir",
     "window_last_7_days": "7 Hari Terakhir",
-    "window_today": "Hari Ini"
+    "window_today": "Hari Ini",
+    "unit_ml": "ml",
+    "unit_hours": "j"
   },
   "review": {
     "badge_attribution_disagreement": "Ketidakcocokan Ruangan",
@@ -1562,7 +1568,20 @@
       "other": "Terlewat {miss}× dari {count} proses"
     },
     "stall_capture_enable": "Aktifkan tangkapan saat macet",
-    "stall_capture_disable": "Nonaktifkan tangkapan saat macet"
+    "stall_capture_disable": "Nonaktifkan tangkapan saat macet",
+    "override_order": {
+      "toggle_label": "Override device order",
+      "consent": "Changes the saved sequence in your Roborock app",
+      "path_optimizing": "Vacuum optimises the path itself",
+      "matching": "Sequence matches your queue",
+      "mismatch": "Sequence differs from your queue — Apply to update",
+      "unverifiable": "Could not read the device's saved sequence",
+      "apply": "Apply queue to device",
+      "clear": "Clear device sequence",
+      "device_label": "Device:",
+      "queue_label": "Queue:",
+      "empty_placeholder": "(empty)"
+    }
   },
   "learning": {
     "all_rooms_complete": "Semua ruangan selesai",
@@ -1774,7 +1793,25 @@
       "one": "1 item perawatan perlu diperhatikan.",
       "other": "{count} item perawatan perlu diperhatikan."
     },
-    "attention_summary_none": "Tidak ada item perawatan yang perlu diperhatikan."
+    "attention_summary_none": "Tidak ada item perawatan yang perlu diperhatikan.",
+    "component_label": {
+      "main_brush": "Main Brush",
+      "side_brush": "Side Brush",
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "dustbin": "Dustbin",
+      "mop_cloth": "Mop Cloth",
+      "water_filter": "Water Filter",
+      "caster_wheel": "Caster Wheel",
+      "main_wheel": "Main Wheel",
+      "dock_cleaning_brush": "Dock Cleaning Brush",
+      "dock_strainer": "Dock Strainer",
+      "dock_dust_bag": "Dock Dust Bag",
+      "clean_water_tank": "Clean Water Tank",
+      "dirty_water_tank": "Dirty Water Tank",
+      "rolling_brush": "Rolling Brush",
+      "mopping_cloth": "Mopping Cloth"
+    }
   },
   "setup": {
     "add": "Tambah",

@@ -30,6 +30,14 @@ Coverage targets
 [TM-19] source provenance: saved=manual, export/summary carry source, imported keeps
         its provenance, `core` reserved for seeded themes (an imported copy → manual).
 [TM-20] vibe tags + author survive import/export/overwrite; set_theme_tags
+[TM-30] D9: a mutation that drops part of its input SAYS SO. Submitting twenty tags
+        and submitting sixteen used to produce byte-identical responses, so the card
+        could not tell the user their last four did not save and an automation could
+        not detect it at all.
+[TM-31] D9: each drop reason is distinguishable — over-limit, too long, duplicate and
+        empty are four different things to tell a user.
+[TM-32] D9: a clean submission carries no `dropped_tags` key, so its presence is a
+        reliable signal rather than a field that is always there and usually empty.
         trims/lowers/dedupes/stores (ok=False for an unknown theme).
 """
 
@@ -483,3 +491,51 @@ def test_export_theme_carries_tags_and_author(manager):
     exported = manager.export_theme(theme_id=theme_id)["theme"]
     assert exported["tags"] == ["retro"]
     assert exported["author"] == "K"
+
+
+def test_tm30_a_dropped_tag_is_reported(manager):
+    """[TM-30] RED BEFORE THE FIX: the response was identical either way.
+
+    Twenty submitted, sixteen is the cap. The response must carry what was APPLIED —
+    not merely that something was — so a caller can diff it against what it sent
+    without knowing the cleaning rules.
+    """
+    theme_id = _save_new_theme(manager, name="Overfull")
+    submitted = [f"tag{n}" for n in range(20)]
+    result = manager.set_theme_tags(theme_id=theme_id, tags=submitted)
+
+    assert result["ok"] is True
+    assert len(result["tags"]) == 16
+    assert result["tags"] == submitted[:16]
+    dropped = result["dropped_tags"]
+    assert [d["tag"] for d in dropped] == submitted[16:]
+    assert {d["reason"] for d in dropped} == {"limit_reached"}
+    # and the store agrees with what the response claims
+    assert manager.get_theme_library()["library"][theme_id]["tags"] == result["tags"]
+
+
+def test_tm31_each_drop_reason_is_distinguishable(manager):
+    """[TM-31] RED IF THE REASONS COLLAPSE TO ONE. "not saved" is not actionable;
+    "too long" and "already in the list" ask the user for different things."""
+    theme_id = _save_new_theme(manager, name="Messy")
+    long_tag = "x" * 33
+    result = manager.set_theme_tags(
+        theme_id=theme_id, tags=["Aurora", " aurora ", long_tag, "   ", "cosmic"])
+
+    assert result["tags"] == ["aurora", "cosmic"]
+    by_reason = {d["reason"] for d in result["dropped_tags"]}
+    assert by_reason == {"duplicate", "too_long", "empty"}
+    # the offending value comes back with it, so the card can name it
+    assert any(d["tag"] == long_tag for d in result["dropped_tags"])
+
+
+def test_tm32_a_clean_submission_reports_no_drops(manager):
+    """[TM-32] The key is ABSENT rather than an empty list, so `"dropped_tags" in
+    result` is a reliable test. A field that is always present and usually empty gets
+    read as noise and stops being checked."""
+    theme_id = _save_new_theme(manager, name="Tidy")
+    result = manager.set_theme_tags(theme_id=theme_id, tags=["aurora", "cosmic"])
+
+    assert result["ok"] is True
+    assert result["tags"] == ["aurora", "cosmic"]
+    assert "dropped_tags" not in result

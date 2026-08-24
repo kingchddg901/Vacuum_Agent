@@ -21,7 +21,7 @@ hand on adapter test changes — collect-only case counts:
   Roborock   = tests/adapters/roborock/ -->
 
 Source: `custom_components/eufy_vacuum/adapters/`
-Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-system.md), [docs/dev/22-adapter-config-reference.md](../../dev/22-adapter-config-reference.md)
+Architecture reference: [22 — The Adapter Contract](../../dev/22-adapter-contract.md), [22 — The Adapter Contract](../../dev/22-adapter-contract.md)
 
 ### `test_entity_resolve.py` — when a DERIVED entity id does not match the install
 

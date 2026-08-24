@@ -19,8 +19,22 @@ A card poll (get_dashboard_snapshot / get_job_control_state) only ever reads
 whatever this tick last persisted.
 
 After each tick we fire ``EVENT_JOB_PROGRESS_TICK`` so the dashboard
-can refresh its snapshot if it's open. Cost per tick: one method call
-and one event per active vacuum/map; negligible.
+can refresh its snapshot if it's open.
+
+COST PER TICK, per in-flight vacuum/map: UP TO THREE manager calls plus
+the one event — ``maybe_pulse_live_room_refresh`` (only on runs with no
+``phases``), ``apply_job_progress_tick``, and ``apply_stuck_watch_tick``.
+⚠ was: "one method call and one event per active vacuum/map; negligible".
+That sentence is the stated cost budget for the 5-second cadence and is
+what anyone weighing "can we hang one more thing on this ticker?" or "is
+5s too aggressive at N vacuums?" will quote, so it must not understate the
+work — it understated it by roughly 3x. ``apply_stuck_watch_tick`` in
+particular is documented as deliberately SYNCHRONOUS throughout (see its
+docstring on core.manager.EufyVacuumManager), i.e. it holds the event
+loop — exactly the property a "negligible" budget invites people to stop
+checking. The stuck-watch call was added after the old sentence was
+written and carries its own justification a few lines above the call site
+("Stuck detection rides THIS ticker rather than a fourth timer").
 
 Public surface:
     register(hass: HomeAssistant) -> None

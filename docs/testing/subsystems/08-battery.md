@@ -5,7 +5,7 @@ charge cycles, summarizes charge sessions, derives a CC/CV regime health proxy
 vs. an install baseline, and records per-job drain metrics. Covered by **117 tests across the 4 core files**, plus a service-level test for `battery_rebaseline`.
 
 Source: `custom_components/eufy_vacuum/battery/`
-Architecture reference: [docs/dev/12-battery-system.md](../../dev/12-battery-system.md)
+Architecture reference: [16 — The Battery Record](../../dev/16-battery-record.md)
 
 ---
 
@@ -50,6 +50,14 @@ Two layers, against the real `manager` fixture:
   overall/low-zone/high-zone charge rates, session open→accumulate→close
   (including the `"full"` close at 100%), the 50→90 health-proxy baseline anchor
   (CC + CV regimes), and out-of-range rejection.
+- **Ratio populations (`C54`)** — `avg_rate_per_min` is the mean of the rates
+  actually observed, so it can never sit below `min_rate_per_min`. The assertion
+  is worth naming because it is not a restatement of the arithmetic: a mean below
+  its own minimum is impossible, so the test cannot pass on a wrong denominator.
+  Covered on a clean constant-rate charge (every session opens with `samples` 1
+  and `rate_sum` 0.0, so the defect was universal), on the ragged 60→70% case,
+  and on a session in flight across the upgrade, which closes `None` rather than
+  falling back to `samples` and reinstating the value being removed.
 
 ### `__init__.py` — `battery_rebaseline` service (prefix `INIT-REBASE`, service)
 The `eufy_vacuum.battery_rebaseline` service handler registered during setup.
@@ -86,7 +94,7 @@ Five patterns:
 ## Known gaps
 
 `manager.py` (93%, grown from 455 to 532 statements this campaign — the
-recharge-derivation work noted in [12-battery-system](../../dev/12-battery-system.md))
+recharge-derivation work noted in [16 — The Battery Record](../../dev/16-battery-record.md))
 is mostly covered, including the HA wiring and the charging/session-classification
 paths that earlier revisions of this doc listed as gaps. The HA-wiring path
 (`start`/`stop`, `_wire_vacuum`, `_on_state_event`, `_sample_now`, and the

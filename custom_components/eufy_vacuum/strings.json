@@ -60,6 +60,12 @@
     },
     "finalize_learning_job_refused": {
       "message": "finalize_learning_job refused: {reason}"
+    },
+    "room_update_refused": {
+      "message": "Could not update {room}: {reason}"
+    },
+    "unmanaged_vacuum": {
+      "message": "{vacuum_entity_id} is not a vacuum this integration manages."
     }
   },
   "entity": {

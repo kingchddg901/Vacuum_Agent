@@ -77,6 +77,50 @@ set_entity_override:
       selector:
         text: {}
 
+setup_repair_renamed_vacuum:
+  name: Repair a renamed vacuum
+  description: >
+    Move a vacuum's stored data to its new entity ID after you renamed the vacuum
+    entity in Home Assistant. You only need this if the rename happened before this
+    integration could detect it — renames are handled automatically now.
+
+    A vacuum's entity ID is how everything about it is filed: its rooms and their
+    settings, saved run profiles, setup progress, maintenance baselines, and the whole
+    learning history. Renaming the entity leaves all of that under the old ID and the
+    vacuum comes back looking brand new. Home Assistant does not keep the old ID
+    anywhere, so only you can say what it used to be.
+
+    Run it once with just the two IDs. If the new ID already holds something — usually
+    the empty record created on the first restart after the rename — nothing is changed
+    and the response says what is in the way. Re-run with overwrite_destination to
+    discard that and move the real data across.
+  fields:
+    old_entity_id:
+      name: Old entity ID
+      description: What the vacuum used to be called, e.g. vacuum.alfred.
+      required: true
+      example: vacuum.alfred
+      selector:
+        text: {}
+    new_entity_id:
+      name: New entity ID
+      description: What it is called now.
+      required: true
+      example: vacuum.butler
+      selector:
+        entity:
+          domain: vacuum
+    overwrite_destination:
+      name: Overwrite the destination
+      description: >
+        Discard whatever is already stored under the new entity ID and replace it with
+        the data from the old one. Leave this off for the first run — the response will
+        tell you exactly what would be discarded.
+      required: false
+      default: false
+      selector:
+        boolean: {}
+
 setup_unreject_rooms:
   name: Un-reject rooms
   description: >
@@ -3076,12 +3120,22 @@ set_hidden_regions:
       selector:
         object: {}
 
+# ⚠ THIS IS NOT A DISPLAY-ONLY SETTING, and the description below said it was until
+# 2026-08-24 (ledger D18). Room clean is by room id and is genuinely rotation-blind;
+# ZONE clean is by rectangle, and the card un-rotates every drawn rect by the current
+# live_map_rotation before it becomes a start_zone_clean rect (zoneDraftsToNormalizedRects
+# in src/state/map.js, [ZG-9] in src/cards/zone-geometry.test.mjs). The "dispatch is by
+# room" rationale predates zone-draw-at-any-rotation and was never revisited when it
+# landed. Keep the user-facing wording honest about that.
 set_live_map_rotation:
   name: Set live map rotation
   description: >
     Set the display rotation (0/90/180/270°) of the live map image in the card's
-    Map view, so it matches how you picture your home. Display only — never affects
-    cleaning (dispatch is by room). Stored per map so it follows you across devices.
+    Map view, so it matches how you picture your home. Cleaning a ROOM is unaffected —
+    rooms are sent by id, not by position. Drawing a ZONE is affected: a zone you draw
+    on the rotated view is un-rotated back to the map's own frame before it is sent, so
+    the rotation you are viewing at is part of where that zone lands. Stored per map so
+    it follows you across devices.
   fields:
     vacuum_entity_id:
       name: Vacuum
@@ -3787,18 +3841,31 @@ set_stall_capture:
       selector:
         boolean:
 
+# ⚠ THE WARNING BELOW USED TO RUN THE DEPENDENCY BACKWARDS (corrected 2026-08-24,
+# ledger D1). It said the injected event "also reaches run-anomaly reporting, so the run
+# will be recorded as having stalled when it did not… Do not call this on a run whose
+# learning data you care about." The arrow points the other way: detect_run_anomalies
+# FIRES EVENT_STALL_DETECTED (jobs/active_job.py) and never subscribes to it. The only
+# hass.bus.async_listen for that event in the package is listeners/stall_capture.py, so
+# an injection reaches stall capture and nothing else — it cannot mark a run anomalous
+# and cannot alter learning data. The false warning scared maintainers off a maintainer
+# tool. NOTE the same claim is replicated outside this file (services/stall_capture.py's
+# module docstring, docs/dev/deltas/README.md); those copies are NOT corrected here.
 dev_inject_stall:
   name: "DEVELOPER — inject a synthetic stall"
   description: >-
     MAINTAINER TOOL. NOT FOR NORMAL USE. Fires a SYNTHETIC stall event for a vacuum that
     is currently cleaning a room, using its real map and room, so the stall-capture chain
     can be exercised without physically wedging a vacuum. It does NOT move the robot and
-    does NOT command any hardware — it only fires an event. BUT the event is not private
-    to stall capture: it also reaches run-anomaly reporting, so the run will be recorded
-    as having stalled when it did not, and the card's snapshot will say so. Do not call
-    this on a run whose learning data you care about. Refuses unless the vacuum is
-    actually cleaning a room, because a stall with no current room has no pose history
-    and renders nothing.
+    does NOT command any hardware — it only fires an event, and stall capture is the only
+    thing listening for it: run-anomaly reporting FIRES this event, it does not consume
+    one, so an injected stall does not mark the run as anomalous and does not change your
+    learning data. What it DOES do, if stall capture is armed for that vacuum, is produce
+    a real capture — a rendered image written under the learning folder, and the capture
+    event that follows it — exactly as a genuine stall would; if it is not armed, the
+    capture declines and nothing is written. Refuses unless the vacuum is actually
+    cleaning a room, because a stall with no current room has no pose history and
+    renders nothing.
   fields:
     vacuum_entity_id:
       name: Vacuum
@@ -3807,3 +3874,590 @@ dev_inject_stall:
       selector:
         entity:
           domain: vacuum
+
+# ============================================================
+# CLEAN ORDER (device-side saved sequence)
+# ============================================================
+# ⚠ Both services below edit a PERSISTENT, MAP-LEVEL setting in the vendor
+# app. A saved sequence orders every start, including ones the user begins
+# from the Roborock app, and renders on that app's own Sequence screen.
+# This is not a per-run concept. Gated on the Override Order switch.
+
+apply_clean_sequence:
+  name: Apply device clean order
+  description: >-
+    Write the CURRENT QUEUE ORDER to the device's saved sequence. Only fires
+    when the vacuum's Override Order switch is on and the adapter+model
+    declares the write half of device_clean_order (Roborock V1 today; a
+    control that would silently do nothing on other models is absent by
+    design). This edits a persistent setting in the Roborock app — not just
+    for this run.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+clear_clean_sequence:
+  name: Clear device clean order
+  description: >-
+    Wipe the device's saved sequence so it path-optimises again. Explicit —
+    turning the Override Order switch OFF does NOT do this (that would
+    destroy a sequence the user set in their own Roborock app). Reports
+    unsupported for a vacuum whose adapter does not declare the write.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+
+# ============================================================
+# SETUP-CENTRIC (setup_*)
+# ============================================================
+
+setup_force_remove_room:
+  name: Force-remove a room
+  description: >
+    Bypass the missing-pass counter and immediately flag one room as removed on
+    its map. A room is normally only marked removed after several discovery
+    passes fail to see it, so a truly gone room takes a while to disappear from
+    the panel. Use this to skip that wait for a room you already know is gone
+    (an area you have blocked off, a map that was resegmented, etc.).
+    The room stays in managed_rooms so its history is preserved; only its drift
+    signal flips to removed. Pair with a separate delete operation if you also
+    want the room's stored settings cleared.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    room_id:
+      name: Room ID
+      description: The numeric room ID to flag as removed.
+      required: true
+      example: 3
+      selector:
+        number:
+          mode: box
+          min: 0
+          step: 1
+
+setup_get_map_rooms:
+  name: Get map rooms
+  description: >
+    List the managed rooms for a map, sorted by room ID. Each entry carries the
+    room_id, its display name and its configured floor_type. This is the panel's
+    read-side helper for the room configuration step and is safe to call from
+    templates or scripts that need to enumerate rooms.
+    Requires supports_response so the caller receives the room list back.
+    Returns an empty rooms list when the integration manager is not loaded yet.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+
+setup_set_map_camera:
+  name: Set live-map camera
+  description: >
+    Override which image or camera entity the dashboard snapshot uses as the
+    live-map backdrop for this vacuum. The value is stored on the managed-vacuum
+    record as live_map_image_entity and is preferred over the adapter's default
+    live_map_image_entity_pattern the next time the snapshot is drawn — no
+    reload is needed.
+    Leave entity_id blank (or omit it) to CLEAR the override and fall back to
+    the adapter pattern. The stored value is not validated at write time; the
+    resolver existence-checks it when the snapshot is fetched.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    entity_id:
+      name: Camera or image entity
+      description: >
+        The camera.* or image.* entity_id to use as the live-map backdrop. Blank
+        clears the override. Defaults to blank (clear).
+      required: false
+      example: camera.alfred_live_map
+      selector:
+        text: {}
+
+setup_set_panel_title:
+  name: Set sidebar panel title
+  description: >
+    Rename (or reset) the Vacuum Agent sidebar entry for this vacuum. The title
+    is stored as panel_title on the managed-vacuum record and the vacuum's panel
+    is re-registered live, so the sidebar updates without restarting Home
+    Assistant. Users may need to refresh the browser tab for the sidebar to
+    repaint.
+    Leave title blank (or omit it) to REVERT to the default panel title derived
+    from the vacuum's name. Titles are trimmed and capped at 48 characters.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    title:
+      name: Panel title
+      description: >
+        The new sidebar title. Blank reverts to the default. Maximum 48
+        characters. Defaults to blank (revert).
+      required: false
+      example: Alfred
+      selector:
+        text: {}
+
+
+# ============================================================
+# ADAPTER CONFIG (adapter_config_*)
+# ============================================================
+
+delete_adapter_config:
+  name: Delete adapter config
+  description: >
+    Delete the stored UI-built adapter config for one vacuum and restore the
+    built-in code adapter that ships with the integration. Use this to revert
+    a vacuum after an experimental save_adapter_config, or to clear a stored
+    config that no longer applies. Deleting a config that was never stored is
+    a normal no-op — the response reports deleted: false with reason: not_found
+    rather than raising. On successful delete the built-in brand adapter is
+    re-registered immediately, so dispatch and capability reads keep working
+    without waiting for a restart. Returns a response.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+discover_adapter_entities:
+  name: Discover adapter entities
+  description: >
+    Scan the entity registry for companion entities whose entity ID contains
+    the vacuum's object ID, and return them grouped by domain. Intended for
+    the UI-based adapter-config flow to suggest role → entity mappings from
+    what is actually present on this install. Read-only: no config is
+    written. Returns a response with entity_count, a flat entities list
+    (each item carrying entity_id, domain, current_state, platform) and a
+    by_domain dict.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+get_adapter_config:
+  name: Get adapter config
+  description: >
+    Return the adapter config currently registered for one vacuum, along
+    with its source ("config" for a UI-saved config, otherwise the built-in
+    code adapter's own source) and its adapter_id. Read-only. Returns a
+    response; config is null when no adapter is registered for the entity.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+save_adapter_config:
+  name: Save adapter config
+  description: >
+    Persist a UI-built adapter config for one vacuum and register it live —
+    without restarting Home Assistant. The config is validated in full
+    against ADAPTER_CONFIG_SCHEMA (the same walk the shipped brand adapters
+    are tested against) BEFORE anything is written, so an invalid config is
+    rejected as a ServiceValidationError and never persisted. The source
+    field is always forced to "config" by the service and does not need to
+    be — nor should be — supplied by the caller. Intended for the future
+    multi-brand adapter-config flow; do not use it to edit a shipped brand
+    adapter by hand. Returns a response with saved, vacuum_entity_id and
+    adapter_id on success.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    config:
+      name: Adapter config
+      description: >
+        The full adapter config dict to persist. Must satisfy
+        ADAPTER_CONFIG_SCHEMA — at minimum adapter_id, entities and a
+        dispatch block (service_domain, service_name, template). Any
+        source field on the caller's input is overwritten with "config".
+      required: true
+      selector:
+        object: {}
+
+observe_entity_states:
+  name: Observe entity states
+  description: >
+    Return the current state and attributes for a list of entities. Intended
+    for the adapter-config flow's vocabulary-mapping step, where the UI
+    needs to see what raw values a candidate role-entity is emitting right
+    now so a mapping can be built. Read-only. Entities that do not exist
+    come back with state null and an empty attributes dict rather than
+    being dropped. Returns a response with observations and entity_count.
+  fields:
+    entity_ids:
+      name: Entity IDs
+      description: List of entity IDs whose current state and attributes to read.
+      required: true
+      example: "[sensor.alfred_battery, sensor.alfred_status]"
+      selector:
+        object: {}
+
+
+# ============================================================
+# MAP OPERATIONS (mapping_*, image + segment)
+# ============================================================
+
+adjust_map_segment:
+  name: Adjust map segment
+  description: >
+    Nudge one CV-detected map segment so its polygon better matches the actual
+    room, without re-running the segmenter. The adjustment is applied on read
+    (get_map_segments / analyze_map_image) and every delta accumulates on top of
+    what is already stored — calling the service repeatedly with small deltas
+    walks the segment across the map. Setting every delta back to zero clears
+    the stored adjustment for that segment_id.
+    Refuses with reason="segment_not_found" if the segment_id is not in the
+    current image_segments cache.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: The map bucket that owns the segment.
+      required: true
+      selector:
+        text: {}
+    segment_id:
+      name: Segment ID
+      description: >
+        Identifier of the segment to adjust, as returned by get_map_segments
+        (the segmenter's monotonic counter, e.g. "3").
+      required: true
+      selector:
+        text: {}
+    delta_x:
+      name: Delta X
+      description: >
+        Whole-polygon horizontal translation in image pixels. Positive shifts
+        right. Accumulates with previous adjustments. Default 0.
+      required: false
+      selector:
+        number:
+          mode: box
+          step: 1
+    delta_y:
+      name: Delta Y
+      description: >
+        Whole-polygon vertical translation in image pixels. Positive shifts
+        down. Accumulates with previous adjustments. Default 0.
+      required: false
+      selector:
+        number:
+          mode: box
+          step: 1
+    edge_left:
+      name: Edge left nudge
+      description: >
+        Extra horizontal offset applied only to vertices that fall within the
+        left 10% band of the polygon's bounding box. Pixels; accumulates.
+        Default 0.
+      required: false
+      selector:
+        number:
+          mode: box
+          step: 1
+    edge_right:
+      name: Edge right nudge
+      description: >
+        Extra horizontal offset applied only to vertices within the right 10%
+        band of the polygon's bounding box. Pixels; accumulates. Default 0.
+      required: false
+      selector:
+        number:
+          mode: box
+          step: 1
+    edge_top:
+      name: Edge top nudge
+      description: >
+        Extra vertical offset applied only to vertices within the top 10% band
+        of the polygon's bounding box. Pixels; accumulates. Default 0.
+      required: false
+      selector:
+        number:
+          mode: box
+          step: 1
+    edge_bottom:
+      name: Edge bottom nudge
+      description: >
+        Extra vertical offset applied only to vertices within the bottom 10%
+        band of the polygon's bounding box. Pixels; accumulates. Default 0.
+      required: false
+      selector:
+        number:
+          mode: box
+          step: 1
+    vertex_moves:
+      name: Vertex moves
+      description: >
+        Per-vertex nudges. List of {index, delta_x, delta_y} objects where
+        index is the polygon vertex index and the deltas are pixel offsets.
+        Deltas accumulate with any previously-stored move for that index; a
+        move that sums back to (0, 0) is dropped. Default [].
+      required: false
+      example: "[{index: 2, delta_x: 4, delta_y: -3}]"
+      selector:
+        object: {}
+
+analyze_map_image:
+  name: Analyze map image
+  description: >
+    Run the configured CV segmenter over the uploaded map image and cache the
+    resulting segment polygons on the map bucket. The segmenter reads the
+    "dark" variant when present (falling back to "default"), with "light" as
+    an assist for wall detection.
+    If a successful analysis is already cached and has not been marked stale
+    by a subsequent image upload/delete, the cached result is returned without
+    re-running the engine — pass force_reanalyze to bypass that gate. A failed
+    analysis is never persisted over previously-good segments (zones, layout
+    and art anchor to them); the failure envelope is still returned to the
+    caller. The response is enriched with the map's segment_room_links and
+    companion_anchors so the card does not need a follow-up round-trip.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: The map bucket whose image should be analyzed.
+      required: true
+      selector:
+        text: {}
+    expected_room_count:
+      name: Expected room count
+      description: >
+        Hint to the segmenter about how many rooms it should aim to produce.
+        Overrides the adapter's segmenter_tuning value when supplied; omit to
+        keep the adapter default.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    max_segments:
+      name: Max segments
+      description: >
+        Upper bound on the number of segments the engine may emit. Overrides
+        the adapter's segmenter_tuning value when supplied.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    min_area_pixels:
+      name: Minimum segment area (pixels)
+      description: >
+        Reject candidate segments smaller than this pixel area. Overrides the
+        adapter's segmenter_tuning value when supplied; omit to let the
+        adapter's tuning apply (the engine itself falls back to 1200 when
+        neither the caller nor the adapter specify a value).
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    simplify_epsilon:
+      name: Simplify epsilon
+      description: >
+        Douglas-Peucker polygon simplification tolerance passed to the
+        segmenter. Overrides the adapter's segmenter_tuning value when
+        supplied.
+      required: false
+      selector:
+        number:
+          mode: box
+          step: 0.1
+    force_reanalyze:
+      name: Force re-analysis
+      description: >
+        Ignore the cached image_segments result and re-run the segmenter.
+        Default false.
+      required: false
+      default: false
+      selector:
+        boolean: {}
+
+get_map_segments:
+  name: Get map segments
+  description: >
+    Return the current segment polygons for a map. This is a pure read — it
+    never invokes the segmenter. Serves either the CV cache or the custom
+    segment store depending on the map's segmentation_mode (see
+    set_segmentation_mode), with any stored adjust_map_segment nudges applied
+    and polygon_pct recomputed against the pixel space the polygons were
+    rasterised in. The response also merges segment_room_links and
+    companion_anchors so the card renders room bindings without a second
+    round-trip.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: The map bucket to read segments from.
+      required: true
+      selector:
+        text: {}
+
+upload_map_image:
+  name: Upload map image
+  description: >
+    Persist a base64-encoded PNG (or Pillow-convertible image) as one variant
+    of a map, and record its width/height on the map bucket's image_variants
+    entry. The file lands at
+    config/eufy_vacuum/maps/<object_id>/map_<map_id>[_<variant>].png and is
+    served under /eufy_vacuum/maps/<object_id>/map_<map_id>[_<variant>].png.
+    Variants "default", "dark" and "light" are the segmenter inputs — uploading
+    or replacing one of these marks any cached image_segments stale so the
+    next analyze_map_image runs afresh. "custom" is the manual-authoring
+    backdrop for the no-CV custom-segment path and is never fed to the
+    segmenter.
+    When layout_id is supplied without art_scope the upload becomes that
+    custom layout's backdrop and the variant key is forced to
+    custom_<layout_id>. When art_scope is supplied the upload is furnished
+    ART (not a backdrop): the variant key becomes
+    custom_<layout_id>_home_art or custom_<layout_id>_room_<room_id>, and it
+    is written onto the layout's home_art / rooms[*].art_variant fields
+    rather than backdrop_variant. Both layout paths require the layout to
+    already exist.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: The map bucket to write the image variant under.
+      required: true
+      selector:
+        text: {}
+    image_base64:
+      name: Image (base64)
+      description: >
+        The image bytes, base64-encoded. PNG is stored as-is; other formats
+        are converted to PNG via Pillow when it is installed, and rejected
+        otherwise (reason="unsupported_format").
+      required: true
+      selector:
+        text:
+          multiline: true
+    variant:
+      name: Variant
+      description: >
+        Which slot this image occupies. Accepted values: "default", "dark",
+        "light", "custom", or a per-layout "custom_<layout_id>" backdrop. If
+        layout_id or art_scope is supplied this field is overridden by the
+        derived variant key. Default "default".
+      required: false
+      default: default
+      selector:
+        text: {}
+    layout_id:
+      name: Layout ID
+      description: >
+        Custom layout that owns this image. Without art_scope, forces variant
+        to custom_<layout_id> and writes it as the layout's backdrop_variant.
+        With art_scope, is required and used to derive the furnished-art
+        variant key. Rejected with reason="layout_not_found" if the layout
+        does not exist on this map.
+      required: false
+      selector:
+        text: {}
+    image_width:
+      name: Image width
+      description: >
+        Caller-declared pixel width. Only used as a last-resort fallback when
+        the PNG IHDR header cannot be read and Pillow is unavailable; in
+        normal operation the on-disk dimensions win.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    image_height:
+      name: Image height
+      description: >
+        Caller-declared pixel height. Same fallback semantics as image_width.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    art_scope:
+      name: Art scope
+      description: >
+        Route this upload as furnished ART rather than a backdrop.
+        "home" writes the layout's whole-home art; "room" writes a per-room
+        art override (requires room_id). Requires layout_id.
+      required: false
+      selector:
+        select:
+          options:
+            - home
+            - room
+    room_id:
+      name: Room ID
+      description: >
+        Target room for a per-room furnished art upload. Required when
+        art_scope is "room"; ignored otherwise.
+      required: false
+      selector:
+        text: {}
+

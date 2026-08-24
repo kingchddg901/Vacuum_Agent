@@ -51,11 +51,14 @@ export const themeStyles = `
   /* A hairline of caret, a thumb's worth of target.
 
      The padding below sizes it to 36px, and on DESKTOP that is what it is. On
-     mobile it lands at 44px, and not from here: styles/mobile.js:831 puts a
-     44px floor under every button in the view stage, with an explicit exception
-     list this is deliberately not joining. A collapse control that saves
-     vertical space by being too small to hit has not saved anything, and the
-     floor is the codebase's existing answer to exactly that. */
+     mobile it lands at 44px, and not from here: styles/mobile.js's
+     .evcc-shell[data-viewport="mobile"] .evcc-view-stage button:not(...) rule
+     puts a 44px floor under every button in the view stage, with an explicit
+     exception list this is deliberately not joining. (The ":831" pinned here had
+     rotted — cite the selector; a line number in a source comment is checked by
+     nothing.) A collapse control that saves vertical space by being too small to
+     hit has not saved anything, and the floor is the codebase's existing answer
+     to exactly that. */
   .evcc-theme-search-toggle {
     display: flex;
     align-items: center;

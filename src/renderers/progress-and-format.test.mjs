@@ -19,9 +19,17 @@
 //   [PF-4] a genuinely current entry still renders as current
 //   [PF-5] numFmt preserves whole numbers (100/90/20) and zero
 //   [PF-6] numFmt still trims real fractional zeros
+//   [PF-7] the SHIPPED numFmt still requires a dot before trimming zeros
+//   [PF-8] the SHIPPED timeline dispatch still tests `skipped` before the catch-all
+//   [PF-9]  formatTimestamp follows the CARD's language, not the browser's
+//   [PF-10] a draft system language still gates to English, dates included
+//   [PF-11] a malformed user-supplied locale tag does not take the card down
+//   [PF-12] the identifier surfaces still print job_id verbatim
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+
+import { applySharedRenderers } from "./shared.js";
 
 // The formatter under test, mirrored exactly from src/renderers/metrics.js.
 const numFmt = (raw, digits = 2) => {
@@ -133,3 +141,112 @@ test("[PF-8] the SHIPPED timeline dispatch still tests `skipped` before the catc
   );
 });
 
+
+// [PF-9]..[PF-12] — the timestamp-locale split, added 2026-08-24.
+//
+// renderers/shared.js::formatTimestamp called `date.toLocaleString([], options)`.
+// `[]` is the BROWSER/OS locale: not HA's language, and not the card's own globe
+// override. So every string on a card pinned to Arabic came out Arabic except the
+// dates, which came out in whatever the browser was set to.
+//
+// These exercise the SHIPPED function (applySharedRenderers onto a bare object),
+// not a transcription of it — the failure [PF-7]/[PF-8] were added to close.
+//
+// The paired half of the ruling is that IDENTIFIER timestamps must NOT localize:
+// a job record is stored as `job_2026-08-05T02-52-05.json` and the user pastes
+// that string back into exclude_learning_job / restore_learning_job, so a
+// reordered or renumbered rendering of it is a job that can no longer be found.
+// [PF-12] pins that those surfaces still bypass the formatter entirely.
+
+/** A renderer instance with the shared mixin, bound to a fake card. */
+function makeRenderer({ systemLang = "en", pinned = null, override = null } = {}) {
+  const proto = {};
+  applySharedRenderers(proto);
+  const inst = Object.create(proto);
+  // _i18nLanguage reads `this.card` — renderers run on the INSTANCE, where only
+  // `card` is set (see the comment on _i18nLanguage in shared.js).
+  inst.card = {
+    _hass: { locale: { language: systemLang } },
+    _config: pinned ? { i18n: { locale: pinned } } : {},
+    _langOverride: override,
+  };
+  return inst;
+}
+
+const INSTANT = "2026-08-05T02:52:05Z";
+const OPTS = { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" };
+
+test("[PF-9] formatTimestamp follows the card's language, not the browser's", () => {
+  // Two DIFFERENT card languages, one instant, one machine. Asserting "ar looks
+  // Arabic" would pass pre-fix on a machine whose browser locale IS Arabic;
+  // asserting the two languages DISAGREE cannot, because pre-fix both ignore the
+  // argument and return the same browser-locale string whatever that string is.
+  const ar = makeRenderer({ override: "ar" }).formatTimestamp(INSTANT, OPTS);
+  const ja = makeRenderer({ override: "ja" }).formatTimestamp(INSTANT, OPTS);
+
+  assert.notEqual(
+    ar, ja,
+    "two cards pinned to different languages rendered the same timestamp text — "
+    + "the locale argument is being ignored (the `[]` browser-locale bug)",
+  );
+  // And the resolved language is the one the card asked for, not a near miss.
+  assert.match(ar, /أغسطس/, "a card pinned to Arabic did not render an Arabic month");
+  assert.match(ja, /月/, "a card pinned to Japanese did not render a Japanese month");
+});
+
+test("[PF-10] a draft system language still gates to English, dates included", () => {
+  // `ar` is a DRAFT locale: resolveLang refuses to auto-activate it from the HA
+  // system language, so the card's strings stay English. The dates must make the
+  // same call — reading hass.locale.language directly instead of going through
+  // _i18nLanguage would give an Arabic date on an otherwise English card.
+  const gated = makeRenderer({ systemLang: "ar" }).formatTimestamp(INSTANT, OPTS);
+  const english = makeRenderer({ override: "en" }).formatTimestamp(INSTANT, OPTS);
+
+  assert.equal(
+    gated, english,
+    "an unreviewed (draft) system language localized the dates while the rest of "
+    + "the card stayed English — the date path skipped the draft-gate",
+  );
+});
+
+test("[PF-11] a malformed user-supplied locale tag does not take the card down", () => {
+  // config.i18n.locale is hand-written YAML. `pt_BR` (underscore, not hyphen) is
+  // structurally invalid and toLocaleString throws RangeError on it. Renderers
+  // build one HTML string, so an escaping throw blanks the whole card over a typo.
+  const inst = makeRenderer({ pinned: "pt_BR" });
+  let out;
+  assert.doesNotThrow(() => { out = inst.formatTimestamp(INSTANT, OPTS); },
+    "a typo'd locale tag threw out of the formatter and into the render");
+  assert.ok(out && out.length > 0, "the fallback returned nothing renderable");
+
+  // The absent/invalid-VALUE contract is unchanged by the locale work.
+  assert.equal(inst.formatTimestamp(null, OPTS), "");
+  assert.equal(inst.formatTimestamp("not-a-date", OPTS, "—"), "—");
+});
+
+test("[PF-12] the identifier surfaces still print job_id verbatim", async () => {
+  const fs = await import("node:fs");
+  const review = fs.readFileSync(new URL("./review.js", import.meta.url), "utf-8");
+  const summary = fs.readFileSync(new URL("./job-summary.js", import.meta.url), "utf-8");
+
+  // job_id is a FILENAME the user retypes into a service call, not a date. Route
+  // it through formatTimestamp and `job_2026-08-05T02-52-05` becomes "٥ أغسطس"
+  // on an Arabic card — no longer matching anything on disk.
+  assert.match(
+    review,
+    /evcc-review-job-title">\$\{this\.escapeHtml\(jobId\)\}/,
+    "the review job-card title no longer prints job_id verbatim",
+  );
+  assert.match(
+    summary,
+    /evcc-job-summary-subtitle">\$\{this\.escapeHtml\(jobId\)\}/,
+    "the job-summary subtitle no longer prints job_id verbatim",
+  );
+  for (const [name, src] of [["review.js", review], ["job-summary.js", summary]]) {
+    assert.ok(
+      !/Timestamp\??\.?\(?\s*job\??\.\s*job_id/.test(src),
+      `${name} routes job_id through a timestamp formatter — a localized id cannot `
+      + "be matched back to the stored job file",
+    );
+  }
+});

@@ -8,7 +8,7 @@ observations, transition-room detection, live run-anomaly detection), and
 per-phase timing capture. Covered by **258 tests across 5 files**.
 
 Source: `custom_components/eufy_vacuum/jobs/`
-Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycle.md)
+Architecture reference: [05 — While a Run Is Live](../../dev/05-run-live.md) and [06 — How a Run Ends](../../dev/06-run-end.md)
 
 ---
 
@@ -143,7 +143,7 @@ carries its own unit cases: the **stall-coalescing** guard (`_pose_sample_is_sta
 + `_POSE_STALL_COALESCE_TICKS`) collapses a frozen tail so a multi-hour freeze can't
 flood the 3000-sample buffer and evict the run's real early cleaning data, while a
 slow-but-cleaning robot (rising `cleaning_area`) is never coalesced — external-run
-robustness Item 1 (see [28-external-run-ingestion](../../dev/28-external-run-ingestion.md)).
+robustness Item 1 (see [30 — External Runs](../../dev/30-external-runs.md)).
 
 > The recharge test surfaced a real bug: the method called
 > `hass.states.get(None)` when the adapter has no `task_status` entity. Fixed

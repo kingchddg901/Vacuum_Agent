@@ -1192,6 +1192,10 @@
     "battery_col_mean_per_m2": "Průměr",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/min",
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",
+    "unit_per_hour": "%/h",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "Poznámky",
     "battery_col_zone": "Pásmo",
     "battery_drain_subtitle": "Do těchto průměrů vstupují pouze úlohy, kde všechny místnosti použily stejné nastavení. Úlohy se smíšeným režimem stále aktualizují řádek všech úloh, ale přeskakují jednotlivé kategorie.",
@@ -1322,7 +1326,9 @@
     "water_total_detail": "Celková voda použitá napříč odpovídajícími úlohami",
     "window_last_30_days": "Posledních 30 dní",
     "window_last_7_days": "Posledních 7 dní",
-    "window_today": "Dnes"
+    "window_today": "Dnes",
+    "unit_ml": "ml",
+    "unit_hours": "h"
   },
   "review": {
     "badge_attribution_disagreement": "Neshoda místnosti",
@@ -1562,7 +1568,20 @@
       "other": "Vynecháno {miss}× z {count} běhů"
     },
     "stall_capture_enable": "Zapnout snímek při uvíznutí",
-    "stall_capture_disable": "Vypnout snímek při uvíznutí"
+    "stall_capture_disable": "Vypnout snímek při uvíznutí",
+    "override_order": {
+      "toggle_label": "Override device order",
+      "consent": "Changes the saved sequence in your Roborock app",
+      "path_optimizing": "Vacuum optimises the path itself",
+      "matching": "Sequence matches your queue",
+      "mismatch": "Sequence differs from your queue — Apply to update",
+      "unverifiable": "Could not read the device's saved sequence",
+      "apply": "Apply queue to device",
+      "clear": "Clear device sequence",
+      "device_label": "Device:",
+      "queue_label": "Queue:",
+      "empty_placeholder": "(empty)"
+    }
   },
   "learning": {
     "all_rooms_complete": "Všechny místnosti dokončeny",
@@ -1774,7 +1793,25 @@
       "one": "1 položka údržby vyžaduje pozornost.",
       "other": "Položky údržby vyžadující pozornost: {count}."
     },
-    "attention_summary_none": "Žádná položka údržby nevyžaduje pozornost."
+    "attention_summary_none": "Žádná položka údržby nevyžaduje pozornost.",
+    "component_label": {
+      "main_brush": "Main Brush",
+      "side_brush": "Side Brush",
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "dustbin": "Dustbin",
+      "mop_cloth": "Mop Cloth",
+      "water_filter": "Water Filter",
+      "caster_wheel": "Caster Wheel",
+      "main_wheel": "Main Wheel",
+      "dock_cleaning_brush": "Dock Cleaning Brush",
+      "dock_strainer": "Dock Strainer",
+      "dock_dust_bag": "Dock Dust Bag",
+      "clean_water_tank": "Clean Water Tank",
+      "dirty_water_tank": "Dirty Water Tank",
+      "rolling_brush": "Rolling Brush",
+      "mopping_cloth": "Mopping Cloth"
+    }
   },
   "setup": {
     "add": "Přidat",

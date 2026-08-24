@@ -11,6 +11,9 @@ Coverage targets
 [CAP-3]  detect_capabilities: hint OR entity presence for mop/dust/path flags.
 [CAP-4]  detect_capabilities: robot position needs both x and y.
 [CAP-5]  _detect_maintenance_sources: suffix entity, None suffix, swivel proxy.
+[CAP-5b] _detect_maintenance_sources: a user override wins while it resolves (state or
+         registry), and a STALE one falls through to derivation and reports
+         `override_unresolved` instead of pinning a dead id (C14).
 [CAP-6]  _find_registry_entity_by_tokens: prefix + token match.
 [CAP-7]  get_vacuum_capabilities: newly-known model refreshes cached caps even with refresh=False.
 [CAP-8]  detect_capabilities: an explicit supports_water_control hint wins over the
@@ -226,6 +229,115 @@ def test_detect_maintenance_swivel_own_fallback(hass):
         },
     )
     assert sources["swivel_wheel"] == "sensor.alfred_swivel_wheel_remaining"
+
+
+async def test_maintenance_override_wins_when_it_still_resolves(hass):
+    """[CAP-5b] The precedence half of live:ENT-7 must survive the fix.
+
+    Guard against over-correcting: a LIVE override still beats a derived sensor
+    that resolves perfectly well, and records no reason. Without this the
+    existence check could be tightened into "derivation always wins", which is
+    the opposite bug.
+    """
+    hass.states.async_set("sensor.alfred_filter_remaining", "75")
+    hass.states.async_set("sensor.the_filter_i_actually_want", "40")
+    reasons: dict[str, str] = {}
+
+    sources = _detect_maintenance_sources(
+        hass,
+        object_id="alfred",
+        maintenance_components={"filter": {"sensor_suffix": "filter_remaining"}},
+        overrides={"filter": "sensor.the_filter_i_actually_want"},
+        reasons=reasons,
+    )
+
+    assert sources["filter"] == "sensor.the_filter_i_actually_want"
+    assert reasons == {}, (
+        "a working override was reported as a problem; the picker would nag the "
+        "user about a choice that is doing exactly what they asked"
+    )
+
+
+async def test_a_stale_maintenance_override_falls_through_but_says_so(hass):
+    """[CAP-5b] C14 — the MAINTENANCE path had only the precedence half of ENT-7.
+
+    It pinned the user's id with no existence check and no reason, so a renamed
+    or deleted source left the component silently blank: no state to read, zero
+    usage hours, the Replacement row AND the Maintenance row both dead, and the
+    System screen explaining nothing. Mirror the role path — fall through to the
+    derived sensor and record `override_unresolved`.
+    """
+    hass.states.async_set("sensor.alfred_filter_remaining", "75")
+    reasons: dict[str, str] = {}
+
+    sources = _detect_maintenance_sources(
+        hass,
+        object_id="alfred",
+        maintenance_components={"filter": {"sensor_suffix": "filter_remaining"}},
+        overrides={"filter": "sensor.deleted_last_tuesday"},
+        reasons=reasons,
+    )
+
+    assert sources["filter"] == "sensor.alfred_filter_remaining", (
+        "a stale maintenance override pinned a dead id; the component reads no "
+        "state and both its upkeep rows go quiet"
+    )
+    assert reasons["filter"] == "override_unresolved", (
+        "the fall-through was silent, so the one screen built to explain "
+        "bindings had nothing to say about a user choice that stopped working"
+    )
+
+
+async def test_a_disabled_maintenance_override_is_still_honoured(hass):
+    """[CAP-5b] REGISTERED counts — same bar as the derived path and the roles.
+
+    A disabled entity is a toggle in the user's own UI, not a dead id. Treating
+    it as unresolved would re-point the component at our guess behind the user's
+    back the moment they switched their own sensor off.
+    """
+    registry = er.async_get(hass)
+    entry = registry.async_get_or_create(
+        "sensor", "eufy_vacuum", "alfred_filter_pinned_but_off",
+        suggested_object_id="alfred_filter_pinned_but_off",
+    )
+    hass.states.async_set("sensor.alfred_filter_remaining", "75")
+    reasons: dict[str, str] = {}
+
+    sources = _detect_maintenance_sources(
+        hass,
+        object_id="alfred",
+        maintenance_components={"filter": {"sensor_suffix": "filter_remaining"}},
+        overrides={"filter": entry.entity_id},
+        reasons=reasons,
+    )
+
+    assert sources["filter"] == entry.entity_id
+    assert reasons == {}
+
+
+async def test_stale_maintenance_override_reaches_the_resolution_reasons(hass):
+    """[CAP-5b] The reason has to arrive where a reader looks.
+
+    `config_flow._resolution_gaps` renders one picker per key in
+    `entity_resolution_reasons` that is not `resolved`. Recording the reason
+    into a dict `detect_capabilities` then drops on the floor would be the same
+    silence in a new place, so assert the wiring end to end.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass.states.async_set("sensor.alfred_filter_remaining", "75")
+
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        maintenance_components={"filter": {"sensor_suffix": "filter_remaining"}},
+        entity_overrides={"filter": "sensor.deleted_last_tuesday"},
+    )
+
+    assert caps["maintenance_sources"]["filter"] == "sensor.alfred_filter_remaining"
+    assert caps["entity_resolution_reasons"].get("filter") == "override_unresolved", (
+        "the stale maintenance override never reached entity_resolution_reasons, "
+        "so the options flow offers no picker to correct it"
+    )
 
 
 async def test_find_registry_entity_by_tokens(hass):

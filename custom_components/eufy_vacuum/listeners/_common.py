@@ -12,7 +12,14 @@ Public surface:
 - is_dock_trigger_edge(old_state_value, new_state_value, trigger_vocabulary) -> bool
 - get_lifecycle_watch_entities(vacuum_entity_id) -> list[str]
 - is_job_active(hass, vacuum_entity_id, *, unavailable_is_active=False) -> bool
-- completed_finalize_signals(hass, vacuum_entity_id) -> dict[str, str]
+- completed_finalize_signals(hass, vacuum_entity_id) -> dict[str, Any]
+    ⚠ NOT dict[str, str], which this list claimed until 2026-08-24 (L22).
+    The returned mapping is NOT homogeneous: four keys hold the lowercased
+    state string, but ``job_active_present`` holds a bool (a PRESENCE test,
+    added with the issue #51 fix). A caller trusting the old signature would
+    treat it as a string — and ``"False"`` is truthy, so a str()-shaped guard
+    written against it inverts the very presence check it guards. The other
+    eight entries in this list do match their functions.
 - completion_secondary_satisfied(vacuum_entity_id, completion_signals, clear_sentinels) -> bool
 - job_finished_event_data(*, vacuum_entity_id, map_id, finalize_result) -> dict
 - run_incomplete_event_data(*, vacuum_entity_id, finalize_result) -> dict | None
@@ -217,9 +224,31 @@ def completed_finalize_signals(
 ) -> dict[str, Any]:
     """Return current entity states used for completion detection.
 
-    Reads entity IDs from the adapter registry. Returns empty strings
-    for absent or unavailable entities — the caller compares values
-    against configured sentinels and task_status values.
+    Reads entity IDs from the adapter registry. Returns the lowercased, stripped
+    state of each entity, and ``""`` ONLY when there is no state object to read:
+    an undeclared entity key, an entity id that resolves to nothing, or a state
+    of ``None``.
+
+    ⚠ AN ENTITY THAT EXISTS AND READS ``unavailable`` RETURNS ``"unavailable"``,
+    NOT ``""`` — and this docstring claimed the opposite until 2026-08-24 (L10).
+    It said "returns empty strings for absent OR UNAVAILABLE entities", which is
+    true of the absent half only. The distinction matters because the sentence
+    right after it names the caller's contract: callers compare these values
+    against configured sentinels, and a caller that believed the collapse had
+    already happened would not think to put ``"unavailable"`` in its sentinel set.
+
+    Both shipped completion paths happen to be safe, and it is worth knowing WHY
+    rather than assuming the shape is fine:
+
+      * Eufy declares ``secondary_clear_sentinels`` as
+        ``["", "unknown", "unavailable", "none", "null"]`` — it lists the
+        indeterminate values explicitly, so ``active_target`` reading
+        ``unavailable`` is treated as cleared BY DECLARATION, not by this helper.
+      * ``job_active_present`` is the one place the collapse was actually being
+        relied on, and it was not happening. See its comment below.
+
+    A new caller does not inherit that luck. Compare against a sentinel set that
+    names the indeterminate values, or test them yourself.
 
     No brand-specific entity naming — all entity IDs come from the
     adapter's registered config.
@@ -243,10 +272,43 @@ def completed_finalize_signals(
         # PRESENCE, not value. `completion_secondary_satisfied` used to accept a
         # DECLARED job_active key as proof the signal existed; on a localized install
         # the declared id resolves to nothing and the gate reported "satisfied" about
-        # an entity that was not there (issue #51). An entity that is absent or
-        # unavailable reads "" above, so this is False exactly when there is no
-        # signal to trust.
-        "job_active_present": bool(_state(entities.get("job_active"))),
+        # an entity that was not there (issue #51).
+        #
+        # ⚠ THIRD TIME THIS GATE STOPPED ONE STEP SHORT (L9). RP-033/COMMON-2
+        # tightened "flag set" to "entity declared"; issue #51 tightened that to
+        # "entity resolves"; and this line then claimed "an entity that is absent or
+        # UNAVAILABLE reads '' above, so this is False exactly when there is no signal
+        # to trust". The unavailable half was never true — `_state` returns the
+        # literal string "unavailable" for an entity that exists and is unreachable,
+        # and `bool("unavailable")` is True. So a job-active binary that blipped
+        # unavailable mid-run reported the completion secondary SATISFIED on the
+        # strength of a signal that could not be read: confident and empty, the exact
+        # shape issue #51 was fixed to remove.
+        #
+        # Fixed HERE rather than in `_state`, deliberately. Collapsing indeterminates
+        # inside `_state` would change all five keys at once, and the other four feed
+        # sentinel comparisons whose adapters already name the indeterminate values
+        # themselves (Eufy lists "unavailable" among `secondary_clear_sentinels`).
+        # This key is the only one asking "is there a signal to TRUST", so this is the
+        # only one that needs the stronger test.
+        #
+        # WHICH WAY IT FAILS: an unreadable binary now falls through to the sentinel
+        # check instead of short-circuiting True. For Roborock that check does not
+        # pass (current_room reverts to the dock room's NAME, never a sentinel), so
+        # the job simply does not finalize on THAT evaluation and finalizes on a later
+        # one once the binary reads again. A late finalize is recoverable; a premature
+        # one ends a job that is still running and writes a wrong run record and wrong
+        # learned times. The costs are not symmetric.
+        #
+        # ⚠ NOT THE SAME QUESTION AS `diagnostics.py`'s KEY OF THE SAME NAME. That one
+        # is `SignalPresence.has_state`, a pure "does a state object exist" probe, and
+        # `job_active_signal.py` states outright that the callers of that distinction
+        # "use different predicates and must keep doing so" — it is deliberately
+        # non-lossy so a dump can tell never-created from momentarily-stateless. Do not
+        # unify them. They share a name and ask different things.
+        "job_active_present": _state(entities.get("job_active")) not in (
+            "", "unavailable", "unknown",
+        ),
     }
 
 
@@ -267,13 +329,23 @@ def completion_secondary_satisfied(
         because Roborock's active_cleaning_target (``current_room``) reverts to
         the DOCK room's name at the end of a run, never a sentinel, so the
         default check below would never pass and the job would never finalize.
-        RP-033/COMMON-2: only honored when ``entities.job_active`` is actually
-        declared — the flag names the entity that supplies the real signal, so a
-        config that sets it without declaring the entity used to short-circuit
-        to True unconditionally with nothing backing it. Registration now warns
-        on this combination (adapters/registry.py._warn_completion_gate_orphan);
-        at runtime it falls through to the default sentinel check below instead,
-        i.e. behaves as if the flag were never set.
+        Declaration is NECESSARY BUT NO LONGER SUFFICIENT. The body requires
+        BOTH ``entities.job_active`` declared AND
+        ``completion_signals["job_active_present"]`` — the entity must also
+        RESOLVE to a readable, determinate state — before returning True.
+        ⚠ was: "RP-033/COMMON-2: only honored when ``entities.job_active`` is
+        actually declared", which documents the tightening this has since been
+        superseded by (issue #51), and the correction lived only in the body
+        comment a reader of the contract never reaches. Someone asking why a
+        Roborock run failed to finalize would check that ``entities.job_active``
+        is declared, find that it is, and rule this branch out — when the actual
+        refusal came from the second condition. The motive is unchanged: the
+        flag names the entity that supplies the real signal, so a config that
+        sets the flag with nothing readable behind it must not short-circuit to
+        True. Registration warns on the un-declared combination
+        (adapters/registry.py._warn_completion_gate_orphan); at runtime EITHER
+        failure falls through to the default sentinel check below, i.e. behaves
+        as if the flag were never set.
 
       - default (Eufy): the active_cleaning_target must read a clear sentinel.
     """

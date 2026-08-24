@@ -1375,4 +1375,97 @@ export const roomStyles = `
     cursor: default;
     pointer-events: none;
   }
+
+  /* Sequence-override row (task 4, 2026-08-24). The persistent companion to
+     the strict-order chip: strict-order is per-run and builds phases; this
+     writes a saved sequence to the vendor app that orders every start,
+     including ones the user begins from the Roborock app. Three verification
+     states (amber / green / grey — never two), so an infra failure never
+     locks Start.
+     Class prefix "soro-" = Sequence-Override ROw. */
+  .sequence-override {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: var(--evcc-radius-inner, 8px);
+    border: 1px solid color-mix(in srgb, var(--evcc-text-muted) 20%, transparent);
+    background: color-mix(in srgb, var(--evcc-text-muted) 5%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 0.85rem;
+  }
+
+  .soro-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .soro-consent {
+    font-size: 0.72rem;
+    color: var(--evcc-text-muted);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .soro-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .soro-names {
+    color: inherit;
+    word-break: break-word;
+  }
+
+  .soro-status {
+    font-weight: 600;
+  }
+
+  .soro-diff {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.8rem;
+  }
+
+  .soro-diff small {
+    color: var(--evcc-text-muted);
+    margin-inline-end: 6px;
+    display: inline-block;
+  }
+
+  .soro-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  /* Three verification signals. The color tokens fall through to a warning /
+     success / muted default set so the row renders sensibly on themes that
+     do not define these — never invisible on any theme. */
+  .soro-amber {
+    background: color-mix(in srgb, var(--evcc-sem-warning) 12%, transparent);
+    border-inline-start: 3px solid var(--evcc-sem-warning);
+    padding: 6px 10px;
+    border-radius: var(--evcc-radius-inner, 6px);
+  }
+
+  .soro-green {
+    background: color-mix(in srgb, var(--evcc-sem-success) 12%, transparent);
+    border-inline-start: 3px solid var(--evcc-sem-success);
+    padding: 6px 10px;
+    border-radius: var(--evcc-radius-inner, 6px);
+  }
+
+  .soro-grey {
+    background: color-mix(in srgb, var(--evcc-text-muted) 12%, transparent);
+    border-inline-start: 3px solid var(--evcc-text-muted);
+    padding: 6px 10px;
+    border-radius: var(--evcc-radius-inner, 6px);
+    color: var(--evcc-text-muted);
+  }
 `;

@@ -387,6 +387,37 @@ def _room_surface_labels(
 
 
 
+def _move_learning_tree(config_dir: str, old_entity_id: str, new_entity_id: str) -> bool:
+    """Rename a vacuum's learning directory. Executor-only — this touches the disk.
+
+    Returns whether anything moved. Raises on a genuine collision so the caller can
+    abort the whole migration with nothing half-done.
+
+    The directory name is the entity's OBJECT ID, matching
+    ``learning/history_store.py::_vacuum_slug``. That derivation is duplicated here
+    rather than imported because importing the learning store into core's init path
+    to rename a directory is a heavier coupling than one lowercase split — but it IS
+    a duplicate, and the two must agree.
+    """
+    import os
+
+    def _slug(entity_id: str) -> str:
+        return (entity_id.split(".", 1)[1] if "." in entity_id else entity_id).strip().lower()
+
+    root = os.path.join(config_dir, "eufy_vacuum", "learning")
+    old_dir = os.path.join(root, _slug(old_entity_id))
+    new_dir = os.path.join(root, _slug(new_entity_id))
+
+    if not os.path.isdir(old_dir):
+        return False                      # nothing was ever learned under the old name
+    if os.path.exists(new_dir):
+        raise FileExistsError(
+            f"{new_dir} already exists — refusing to merge two vacuums' learning trees"
+        )
+    os.rename(old_dir, new_dir)
+    return True
+
+
 class EufyVacuumManager:
     """Singleton runtime manager that owns all persistent integration state and exposes the full service API."""
 
@@ -490,6 +521,100 @@ class EufyVacuumManager:
             "tasks_cancelled": len(cancelled_tasks),
         }
 
+    async def _apply_pending_entity_renames(self) -> int:
+        """Move a renamed vacuum's data from its old entity id to its new one (D4).
+
+        A vacuum's entity id is a STORAGE ADDRESS: seventeen store sections are keyed by
+        it, and the learning tree's directory is derived from its object id. Renaming the
+        entity strands all of it and ``ensure_vacuum_record`` then creates a fresh empty
+        record, so the vacuum returns looking brand new. ``listeners/entity_rename.py``
+        records the pair at the one moment it is observable; this applies it.
+
+        RUNS EARLY, BEFORE ANY RECORD IS CREATED. ``ensure_vacuum_record`` is called from
+        ``async_setup_entry``, after this. That ordering is what makes the collision test
+        below meaningful — at this point the destination key exists only if a DIFFERENT
+        vacuum genuinely owns it.
+
+        SECTIONS ARE DISCOVERED, NOT LISTED. Every top-level dict holding the old id as a
+        key is moved. A hardcoded list of seventeen would silently miss the eighteenth,
+        which is precisely how this class of bug spreads — a new subsystem adds a
+        per-vacuum section and nobody remembers this function exists.
+
+        TREE FIRST, THEN THE STORE. The filesystem move is the half that can fail; the
+        dict moves cannot. Doing the fallible half first means a failure leaves NOTHING
+        moved and the record unapplied, so the next start retries — rather than a store
+        pointing at a tree that is still under the old name.
+
+        REFUSES A COLLISION outright. Two vacuums are involved and merging their rooms,
+        profiles and history is a data decision this layer is not entitled to make.
+        """
+        pending = self.data.get("pending_entity_renames")
+        if not isinstance(pending, list) or not pending:
+            return 0
+
+        applied = 0
+        for record in pending:
+            if not isinstance(record, dict) or record.get("applied"):
+                continue
+            old_id = str(record.get("old_entity_id") or "")
+            new_id = str(record.get("new_entity_id") or "")
+            if not old_id or not new_id or old_id == new_id:
+                record["applied"] = True          # nothing this could ever mean
+                continue
+
+            sections = [
+                key for key, value in self.data.items()
+                if isinstance(value, dict) and old_id in value
+            ]
+            collisions = [k for k in sections if new_id in self.data[k]]
+            if collisions and not record.get("overwrite_destination"):
+                # The AUTOMATIC path should never see this: it runs before anything can
+                # create a record for the new id. The MANUAL repair does, because a
+                # rename that happened before detection existed left the new id holding
+                # an auto-created shell. That caller opts in explicitly and is told what
+                # it is discarding first — see services/setup.py.
+                record["blocked_on"] = sorted(collisions)
+                _LOGGER.error(
+                    "eufy_vacuum: refusing to migrate %s -> %s — %s already holds data "
+                    "under the new id (%s). Two vacuums are involved and merging them is "
+                    "not something this can decide. Left unapplied.",
+                    old_id, new_id, new_id, ", ".join(sorted(collisions)),
+                )
+                continue
+
+            # The fallible half first — see the docstring.
+            try:
+                moved_tree = await self.hass.async_add_executor_job(
+                    _move_learning_tree, self.hass.config.config_dir, old_id, new_id
+                )
+            except Exception:
+                _LOGGER.exception(
+                    "eufy_vacuum: could not move the learning tree for %s -> %s; "
+                    "nothing migrated, will retry on the next start.", old_id, new_id,
+                )
+                continue
+
+            for key in sections:
+                self.data[key][new_id] = self.data[key].pop(old_id)
+
+            record.pop("blocked_on", None)
+            if collisions:
+                record["overwrote"] = sorted(collisions)
+            record["applied"] = True
+            record["applied_at"] = _iso_now()
+            record["sections_moved"] = sorted(sections)
+            record["tree_moved"] = moved_tree
+            applied += 1
+            _LOGGER.warning(
+                "eufy_vacuum: migrated %s -> %s — %d store section(s) moved%s.",
+                old_id, new_id, len(sections),
+                " and the learning tree" if moved_tree else " (no learning tree to move)",
+            )
+
+        if applied:
+            await self._async_save_logged()
+        return applied
+
     async def async_initialize(self) -> None:
         """Load persistent storage and bring all data structures up to the current schema.
 
@@ -509,6 +634,10 @@ class EufyVacuumManager:
         # learning_processing_enabled). Default enabled = today's behavior.
         self.data.setdefault("learning_processing_enabled", True)
         self.data.setdefault("learning_pending_runs", {})
+
+        # D4: apply any recorded entity rename BEFORE a record can be created for the
+        # new id. ensure_vacuum_record runs from async_setup_entry, after this.
+        await self._apply_pending_entity_renames()
 
         # A reload/restart leaves no live strict-order watchdog, so any persisted
         # _phase_dispatch_pending guard on a loaded job would suppress the completion
@@ -2172,15 +2301,25 @@ class EufyVacuumManager:
         validation = self._validate_room_access_graph(managed_rooms=candidate)
         structural_issues = self._structural_access_graph_issues(validation)
 
+        # Hoisted out of the refusal branch so BOTH exits format their issues the same
+        # way. This used to return two different shapes under one key: the refusal path
+        # formatted (`{code, message, params, room_ids}`), the success path handing back
+        # `_validate_room_access_graph`'s RAW internal issues (`{type, room_id, …}`). A
+        # consumer written against one broke on the other and the field name gave no
+        # warning. Formatted is the convention every other public reader already
+        # follows — `_room_access_context`, `get_room_access_editor` and
+        # `get_access_graph_health` all emit it; the raw shape is internal to
+        # validation, and this was the one place it leaked out.
+        room_names = {
+            _safe_int(item.get("room_id", key), -1): str(
+                item.get("name", f"Room {_safe_int(item.get('room_id', key), -1)}")
+            ).strip()
+            or f"Room {_safe_int(item.get('room_id', key), -1)}"
+            for key, item in candidate.items()
+            if isinstance(item, dict) and _safe_int(item.get("room_id", key), -1) > 0
+        }
+
         if structural_issues:
-            room_names = {
-                _safe_int(item.get("room_id", key), -1): str(
-                    item.get("name", f"Room {_safe_int(item.get('room_id', key), -1)}")
-                ).strip()
-                or f"Room {_safe_int(item.get('room_id', key), -1)}"
-                for key, item in candidate.items()
-                if isinstance(item, dict) and _safe_int(item.get("room_id", key), -1) > 0
-            }
             return _refusal(
                 "invalid_access_graph",
                 "The requested access graph is structurally invalid and was not saved.",
@@ -2231,7 +2370,15 @@ class EufyVacuumManager:
             "blocked_before": block_code_before is not None,
             "blocked_after": block_code_after is not None,
             "blocking_rooms": self.access_graph_block_rooms(rooms, validation),
-            "issues": validation.get("issues", []),
+            # Formatted, like the refusal path above and every other public reader.
+            # These are the NON-structural leftovers — an incomplete graph is reported
+            # rather than refused — so the list is routinely non-empty on success, which
+            # is exactly why its shape has to be the one a consumer already handles.
+            "issues": [
+                self._format_access_graph_issue(issue=issue, room_names=room_names)
+                for issue in validation.get("issues", [])
+                if isinstance(issue, dict)
+            ],
         }
 
     # ------------------------------------------------------------------
@@ -4135,6 +4282,10 @@ class EufyVacuumManager:
         return await self.external_run.maybe_handle_external_run(
             vacuum_entity_id=vacuum_entity_id
         )
+
+    async def flush_pending_external_capture(self, *, vacuum_entity_id: str) -> str | None:
+        """Close an open external capture before a dispatch takes its slot — delegates."""
+        return await self.external_run.flush_pending_capture(vacuum_entity_id=vacuum_entity_id)
 
     def _external_grace_timers(self) -> dict[tuple[str, str], Any]:
         """Pending grace-window finalize cancels — delegates to ExternalRunManager."""
@@ -6058,7 +6209,19 @@ class EufyVacuumManager:
         """Live robot position from the fork's raw coordinate sensors, or None.
 
         Mirrors the card's ``rawRobotPosition`` (sensor.<obj>_robot_position_{x,y}_raw)
-        so backend + frontend agree on the pose signal."""
+        so backend + frontend agree on the pose signal.
+
+        ⚠ THIS IS THE THIRD HARDCODED COPY OF THESE IDS AND THE ONLY ONE CORE READS.
+        The Eufy adapter declares them as the ``robot_position_x`` /
+        ``robot_position_y`` roles; this rebuilds them from the object id instead, so
+        it bypasses the declared role, the entity rescue, and any user entity
+        override. On an install where the rescue is what made the entity resolve, the
+        declared role resolves and this returns None.
+
+        Resolving through the role needs a vacuum entity id, not the bare object id
+        this takes — so the fix is a signature change rather than a one-liner, and it
+        is deliberately not being made in a prose pass. See
+        ``adapters/eufy/entities.py`` for all three copies."""
         xs = self.hass.states.get(f"sensor.{obj}_robot_position_x_raw")
         ys = self.hass.states.get(f"sensor.{obj}_robot_position_y_raw")
         if xs is None or ys is None:
@@ -6814,6 +6977,15 @@ class EufyVacuumManager:
                 "confirm_token": start_status.get("confirm_token"),
             }
 
+        # The start is going ahead, so the active-job slot is about to be rewritten.
+        # If an app-started capture is sitting in it inside its grace window — docked,
+        # timer pending, which is exactly the state the gate above admits — finalize it
+        # first. Placed AFTER the refusals so a blocked start never destroys a capture,
+        # and BEFORE the slot is built so there is still something to finalize.
+        _flushed_external_map = await self.flush_pending_external_capture(
+            vacuum_entity_id=vacuum_entity_id
+        )
+
         start_plan = self._build_effective_start_plan(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
@@ -6890,8 +7062,16 @@ class EufyVacuumManager:
         )
 
         # Attach the phase sequence only for a genuine sequenced job (>1 phase).
-        # Atomic jobs (every adapter today) leave the phase keys absent, keeping
-        # the active-job snapshot byte-identical to pre-sequencing.
+        # An ATOMIC job leaves the phase keys absent, keeping the active-job snapshot
+        # byte-identical to pre-sequencing.
+        #
+        # "every adapter today" until 2026-08-23 — and that has not been true since
+        # strict order shipped. Roborock declares `roborock_segment_clean` ->
+        # GenericRoomIdsEngine, whose build_phases emits one phase PER ROOM under
+        # `strict_order`, a user-facing option present in all locale packs and worded
+        # "rooms will be cleaned one at a time". Atomic is the EUFY shape, not the
+        # universal one, and read as written this made phase_runner.py and the
+        # `_phase_dispatch_pending` guard look like unreachable scaffolding.
         _phases = start_plan.get("phases") or []
         active_job = build_active_job_state(
             vacuum_entity_id=vacuum_entity_id,
@@ -6970,7 +7150,8 @@ class EufyVacuumManager:
         # parked/charging state at start (it sits on the dock, whose room can itself
         # be a target). initial=True -> verify-only (phase 0 was just dispatched
         # above), no settle, re-dispatch only if the device ignored it. Atomic jobs
-        # have no phases -> no flag, no watchdog (Eufy unchanged).
+        # have no phases -> no flag, no watchdog (Eufy unchanged). This branch IS
+        # reached in shipped configurations — see the note at the phase-attach above.
         if active_job.get("phases"):
             active_job["_phase_dispatch_pending"] = True
             self.hass.async_create_task(

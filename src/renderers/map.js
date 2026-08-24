@@ -293,7 +293,7 @@ export function applyMapRenderers(proto) {
                     title="${this.t("map.draw_zone")}" aria-label="${this.t("map.draw_zone")}">▢</button>` : ""}
             ${(state.embeddedInCard?.() ?? false) ? this._renderMapSwitch(state) : ""}
             <span class="evcc-map-zoom-readout"
-                  aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}%</span>
+                  aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}${this.t("metrics.unit_percent")}</span>
           </div>
 
           ${this._renderMapFrameGateBanner(state)}
@@ -534,7 +534,7 @@ export function applyMapRenderers(proto) {
              + `data-room="${this.escapeHtml(String(r.number))}" `
              + `data-cx="${f(hx)}" data-cy="${f(hy)}" `
              + `style="left:${f(lx)}%;top:${f(ly)}%">`
-             + `${this.escapeHtml(String(r.area_m2))} m²</div>`;
+             + `${this.t("saved_zones.area_m2", { area: this.escapeHtml(String(r.area_m2)) })}</div>`;
       }
     }
     // Saved-zone name (+ m²) labels — only for the SELECTED set (mirrors the boxes above),
@@ -1247,7 +1247,7 @@ export function applyMapRenderers(proto) {
                    <button class="evcc-map-zoom-btn" data-action="map-zoom-in"
                            title="${this.t("map.zoom_in")}" aria-label="${this.t("map.zoom_in")}">+</button>
                    <span class="evcc-map-zoom-readout"
-                         aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}%</span>
+                         aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}${this.t("metrics.unit_percent")}</span>
                  </div>`
               : `<div class="evcc-map-unavailable">
                    <p>${this.t("map.config_no_image")}</p>
@@ -1336,7 +1336,23 @@ export function applyMapRenderers(proto) {
     if (diffH < 24)   return this.t("relative.hours_ago", { count: diffH });
     const diffD = Math.floor(diffH / 24);
     if (diffD < 14)   return this.t("relative.days_ago", { count: diffD });
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    // The >14d tail is the only branch that is not already a `t()` lookup, and it
+    // used `undefined` — the browser/OS locale — so a card pinned to Arabic showed
+    // Arabic relative strings above this line and an English date below it. Same
+    // defect formatTimestamp carried, one file over, and it was missed by that
+    // sweep because it calls toLocaleDateString rather than toLocaleString.
+    // RangeError is absorbed for the same reason as shared.js: the tag comes from
+    // hand-written YAML (`config.i18n.locale`), and `pt_BR` is enough to throw —
+    // which would escape into a renderer that assembles one HTML string and blank
+    // the whole card over a typo.
+    const lang = String(this._i18nLanguage?.() ?? "");
+    const opts = { month: "short", day: "numeric" };
+    try {
+      return d.toLocaleDateString(lang || undefined, opts);
+    } catch (err) {
+      if (!(err instanceof RangeError)) throw err;
+      return d.toLocaleDateString(undefined, opts);
+    }
   };
 
   /* =========================================================
@@ -1634,7 +1650,7 @@ export function applyMapRenderers(proto) {
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="0.9" title="${this.t("map.scale_shrink")}">${this.t("map.scale_minus")}</button>
           <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="1.111" title="${this.t("map.scale_grow")}">${this.t("map.scale_plus")}</button>
-          <span class="evcc-map-config-adj-meta">${Math.round((Number(t.scale) || 1) * 100)}%</span>
+          <span class="evcc-map-config-adj-meta">${Math.round((Number(t.scale) || 1) * 100)}${this.t("metrics.unit_percent")}</span>
         </div>
         <div class="evcc-map-furnished-rotate">
           <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-90" title="${this.t("map.rotate_left_90")}">↺ 90°</button>

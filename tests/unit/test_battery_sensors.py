@@ -167,6 +167,33 @@ def test_regime_charge_speed():
     assert cc.extra_state_attributes["baseline_min_per_pct"] == 0.9
 
 
+def test_bs_6b_rejected_pct_reaches_the_sensor(monkeypatch):
+    """[BS-6b] B17: a rejected regime reading is surfaced as an attribute.
+
+    BatteryHealthManager preserves cc_/cv_charge_speed_rejected_pct explicitly
+    ("kept so the failure is diagnosable"). Before B17 (2026-08-24) that value
+    was diagnosable only from `.storage` — the sensor exposed baseline_* and
+    nothing else, so a user seeing native_value=None had no way to tell "still
+    building the baseline" from "your last few reads landed outside the
+    25-150% window and were rejected". Same defect on cv.
+    """
+    record = dict(_RECORD)
+    record["stats"] = dict(record["stats"], cc_charge_speed_rejected_pct=180.0,
+                                            cv_charge_speed_rejected_pct=None)
+    mgr = _mgr(record)
+    cc = RegimeChargeSpeedSensor(manager=mgr, vacuum_entity_id=_VAC,
+                                 stat_key="cc_charge_speed_pct", baseline_key="cc_min_per_pct",
+                                 translation_key="t", unique_suffix="cc")
+    cv = RegimeChargeSpeedSensor(manager=mgr, vacuum_entity_id=_VAC,
+                                 stat_key="cv_charge_speed_pct", baseline_key="cv_min_per_pct",
+                                 translation_key="t", unique_suffix="cv")
+    assert cc.extra_state_attributes["rejected_pct"] == 180.0
+    assert cv.extra_state_attributes["rejected_pct"] is None, (
+        "cv sensor read cc's rejected_pct — the exact substitution the sibling "
+        "key naming was designed to prevent"
+    )
+
+
 def test_last_job_metric():
     """[BS-7]"""
     s = LastJobMetricSensor(manager=_mgr(), vacuum_entity_id=_VAC,
@@ -177,6 +204,13 @@ def test_last_job_metric():
     assert attrs["job_id"] == "j1"
     assert attrs["all_jobs_mean"] == 0.5
     assert attrs["all_jobs_count"] == 10
+    # B4: the C17 repair applied to `all_jobs` too. This bucket has no samples_*
+    # field, so the honest denominator is unknown. Stated as unknown, never
+    # borrowed from `count` (which would be the exact substitution C17 stops).
+    assert attrs["all_jobs_samples"] is None, (
+        "a pre-C17 all_jobs bucket must publish an UNKNOWN denominator, "
+        "never fall back to all_jobs_count"
+    )
     # C17: samples is None here because the fixture bucket predates the split and
     # carries no samples_duration. Unknown, stated as unknown.
     assert attrs["by_clean_mode_mean"]["vacuum"] == {
@@ -184,6 +218,41 @@ def test_last_job_metric():
         "mean": 0.5,
         "samples": None,
     }
+
+
+def test_bs_7b_all_jobs_samples_reads_its_own_denominator():
+    """[BS-7b] B4: `all_jobs_samples` reads the field that matches THIS mean.
+
+    The by_* buckets got this via `_MEAN_SAMPLE_FIELD` twenty lines away; the
+    all_jobs row was written without it and was still the row the on-file comment
+    named as the symptom ("Jobs: 10, mean over 6"). Assert on the specific
+    substitution that would slip through — a per-m2 mean must NOT read samples_duration.
+    """
+    record = dict(_RECORD)
+    # A bucket that has BOTH sample fields present, with different values, so
+    # the assertion is that the RIGHT one is read.
+    record["job_aggregates"] = {
+        "all_jobs": {
+            "drain_per_m2_mean": 3.333,
+            "count": 10,
+            "samples_area": 6,
+            "samples_duration": 9,
+        },
+        "by_clean_mode": {}, "by_fan_speed": {}, "by_water_level": {},
+    }
+    mgr = _mgr(record)
+    s = LastJobMetricSensor(manager=mgr, vacuum_entity_id=_VAC,
+                            stat_key="drain_per_m2", translation_key="t",
+                            unique_suffix="u", unit="%/m2")
+    attrs = s.extra_state_attributes
+    assert attrs["all_jobs_mean"] == 3.333
+    assert attrs["all_jobs_count"] == 10
+    # The per-m2 mean is denominated by samples_area (6), not samples_duration (9)
+    # or count (10). Getting either wrong reproduces the exact defect C17 exists
+    # to stop, one row further up than the by_* buckets it already fixed.
+    assert attrs["all_jobs_samples"] == 6, (
+        f"all_jobs_samples read the wrong field: got {attrs['all_jobs_samples']}"
+    )
 
 
 def test_mid_job_recharge():

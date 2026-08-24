@@ -430,6 +430,32 @@ export function applyReviewState(proto) {
       }
     }
 
+    // A DISCOVERED profile IS a definition. These entries carry the same six axes
+    // `_buildComparableProfileFields` reads -- clean_mode, fan_speed, water_level,
+    // clean_intensity, clean_passes, edge_mopping -- straight off the learning
+    // snapshot's filter_options, so the entry can serve as its own definition with no
+    // synthesis.
+    //
+    // ⚠ THIS WAS `definition: null`, AND THAT KILLED THE FEATURE THE MATCHER EXISTS
+    // FOR. `reviewProfileMatcherMatches` filters `if (!entry?.definition) return
+    // false`, so every learning-discovered combination was built into the catalog and
+    // then dropped before it could match. The matcher could only ever surface profiles
+    // that were ALREADY SAVED -- which is the half that needs no discovering.
+    //
+    // The point of this surface is the opposite one: settings you run often that are
+    // NOT a saved default, so they can be promoted into one over time. The reader at
+    // line ~165 already states the intent ("the signature list still drives the
+    // per-room profile TABLE and the profile matcher"); the catalog built it and the
+    // filter threw it away.
+    //
+    // Nulling was not checkable past the first commit -- both this line and the filter
+    // that drops it are present at `eae291fa` (2026-04-30), and the project has 57
+    // pre-git days, so the honest statement is "not present at eae291fa", not "never
+    // worked".
+    //
+    // Saved profiles still WIN: the `catalog.has(key)` guard above means a discovered
+    // entry never overwrites a saved one, so a real definition always beats an
+    // inferred one for the same key.
     for (const profile of foundProfiles) {
       const key = String(profile?.profile_key ?? "").trim();
       if (!key || catalog.has(key)) continue;
@@ -438,7 +464,15 @@ export function applyReviewState(proto) {
         ...profile,
         profile_key: key,
         label: String(profile?.label ?? key),
-        definition: null,
+        discovered: true,
+        definition: {
+          clean_mode: profile?.clean_mode ?? null,
+          fan_speed: profile?.fan_speed ?? null,
+          water_level: profile?.water_level ?? null,
+          clean_intensity: profile?.clean_intensity ?? null,
+          clean_passes: profile?.clean_passes ?? null,
+          edge_mopping: profile?.edge_mopping ?? null,
+        },
       });
     }
 

@@ -127,7 +127,7 @@ export function applyMobileShellRenderer(proto) {
     const { vacuumName, vacuumStatus, vacuumStatusLabel,
             dockStatus, dockStatusLabel, battery,
             langOverride, currentLang, languageMenuOpen, autoInfo, uiFont } = ctx;
-    const batteryText = battery != null ? `${battery}%` : "";
+    const batteryText = battery != null ? `${battery}${this.t("metrics.unit_percent")}` : "";
     // HDR-BATT-1 landed on the DESKTOP header only; this sibling was missed, so on
     // mobile the percent rendered bare ("100%" with nothing saying what of) and the
     // low/critical bands never applied. Same 20/10 thresholds and same derivation as

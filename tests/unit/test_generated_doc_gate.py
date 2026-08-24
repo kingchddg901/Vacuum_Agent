@@ -26,6 +26,7 @@ a typo breaks.
   GDG-14  STALE fires when a region generator's own check exits non-zero
   GDG-15  a region check that cannot run is BROKEN, not STALE
   GDG-16  a registry entry declaring neither shape, or both, is rejected
+  ANC-4   the generated card bundles are NOT declaration sites
 """
 
 from __future__ import annotations
@@ -533,3 +534,89 @@ def test_gdg16_entry_must_declare_exactly_one_shape():
         Generator(
             id="both", cmd=("x",), files=("a.md",), out_env="OUT", check_cmd=("x", "-c")
         )
+
+
+def test_anc4_generated_bundles_are_not_declaration_sites(tmp_path):
+    """[ANC-4] RED BEFORE THE FIX (2026-08-24), and red in a way that mattered.
+
+    esbuild inlines every `src/**` module into the shipped bundles, comments included,
+    so an anchor declared once in `src/styles/*.js` appears again in each of
+    `custom_components/eufy_vacuum/frontend/*.js`. The gate counted all three and
+    reported DUPLICATE.
+
+    THE FAILURE MODE IS WHAT MAKES THIS WORTH PINNING: the gate was GREEN only while
+    the shipped bundle was STALE. It passed on 2026-08-24 against a bundle last built
+    2026-08-16, and went red the moment that bundle was rebuilt to pick up anchors
+    added to `src/styles/` on 2026-08-21. So it reported failure for doing the right
+    thing and success for leaving the shipped artifact eight days behind source -- and
+    the stale bundle it was rewarding is a user-facing problem in its own right.
+
+    Built on a THROWAWAY root rather than asserting against the real tree, precisely
+    so this cannot go green again just because someone let the bundle drift. The real
+    tree's answer depends on bundle freshness; this one does not.
+    """
+    import subprocess
+
+    styles = tmp_path / "src" / "styles"
+    styles.mkdir(parents=True)
+    (styles / "foundation.js").write_text(
+        "// anchor: CNZZZZZZ  the one true declaration\nexport const X = 1;\n",
+        encoding="utf-8",
+    )
+
+    # The same comment, inlined by the bundler into BOTH shipped bundles.
+    bundle_dir = tmp_path / "custom_components" / "eufy_vacuum" / "frontend"
+    bundle_dir.mkdir(parents=True)
+    for name in ("eufy-vacuum-command-center.js", "eufy-vacuum-map.js"):
+        (bundle_dir / name).write_text(
+            "// anchor: CNZZZZZZ  the one true declaration\nvar X=1;\n",
+            encoding="utf-8",
+        )
+    (tmp_path / "docs").mkdir()
+
+    script = REPO / "scripts" / "doc_anchor.py"
+    src = script.read_text(encoding="utf-8").replace(
+        'ROOT = pathlib.Path(__file__).resolve().parent.parent',
+        f'ROOT = pathlib.Path(r"{tmp_path}")')
+    local = tmp_path / "doc_anchor_local.py"
+    local.write_text(src, encoding="utf-8")
+
+    proc = subprocess.run([sys.executable, str(local), "--check"],
+                          capture_output=True, text=True, timeout=120)
+
+    assert "DUPLICATE" not in proc.stdout, (
+        "a src/ anchor inlined into the shipped bundles was counted as three "
+        f"declarations:\n{proc.stdout}"
+    )
+    assert proc.returncode == 0, proc.stdout
+
+
+def test_anc4_a_real_duplicate_in_source_still_fires(tmp_path):
+    """[ANC-4] RED IF THE EXCLUSION IS WIDENED INTO A BLINDFOLD.
+
+    Skipping the bundle directory must not become skipping duplicate detection. Two
+    genuine declarations in two `src/` files is the case the gate exists for, and a
+    fix that silences the bundles by loosening the DUPLICATE check would pass the test
+    above and destroy the gate.
+    """
+    import subprocess
+
+    styles = tmp_path / "src" / "styles"
+    styles.mkdir(parents=True)
+    for name in ("foundation.js", "modal-host.js"):
+        (styles / name).write_text("// anchor: CNZZZZZZ\n", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+
+    script = REPO / "scripts" / "doc_anchor.py"
+    src = script.read_text(encoding="utf-8").replace(
+        'ROOT = pathlib.Path(__file__).resolve().parent.parent',
+        f'ROOT = pathlib.Path(r"{tmp_path}")')
+    local = tmp_path / "doc_anchor_local.py"
+    local.write_text(src, encoding="utf-8")
+
+    proc = subprocess.run([sys.executable, str(local), "--check"],
+                          capture_output=True, text=True, timeout=120)
+
+    assert proc.returncode != 0 and "DUPLICATE" in proc.stdout, (
+        f"two real source declarations must still be a DUPLICATE:\n{proc.stdout}"
+    )

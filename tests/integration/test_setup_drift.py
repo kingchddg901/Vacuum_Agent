@@ -17,9 +17,13 @@ Coverage targets
 [DR-13] compute_room_drift surfaces new_rooms immediately (n_new=1 default).
 [DR-14] _list_configured_room_ids excludes is_configured=False rooms from drift tracking.
 [DR-15] get_discovery_cadence honors an explicit low pass count + floors a literal 0 to 1 (CS-2).
+[DR-16] An EMPTY discovery pass leaves every stored drift counter untouched and warns (C58).
+[DR-17] An EMPTY discovery pass does not create a setup_progress record (C58).
 """
 
 from __future__ import annotations
+
+import copy
 
 import pytest
 
@@ -209,24 +213,29 @@ def test_update_drift_history_increments_missing_passes(manager):
     for room in manager.data["maps"][_VAC][_MAP]["rooms"].values():
         room["is_configured"] = True
 
-    update_drift_history(manager, _VAC, discovered_room_ids=set())
+    # C58: the miss is expressed as a READABLE pass that lists room 2 and not
+    # room 1. This used to pass `set()`, which since the C58 guard means
+    # "unreadable pass" and scores nothing — the assertion would then have been
+    # measuring the guard, not the increment it claims to cover.
+    update_drift_history(manager, _VAC, discovered_room_ids={2})
     history = manager.data["setup_progress"][_VAC]["room_drift_history"]
-    assert any(entry["missing_passes"] > 0 for entry in history.values())
+    assert history["1"]["missing_passes"] == 1
 
 
 def test_update_drift_history_resets_on_reappearance(manager):
     """[DR-11] missing_passes resets to 0 when a room reappears in discovery."""
-    setup_map(manager, _VAC, _MAP, count=1)
+    setup_map(manager, _VAC, _MAP, count=2)
     for room in manager.data["maps"][_VAC][_MAP]["rooms"].values():
         room["is_configured"] = True
 
-    # Miss once
-    update_drift_history(manager, _VAC, discovered_room_ids=set())
+    # Miss once — a readable pass that lists room 2 but not room 1 (C58: an
+    # empty set is a read failure, not a sighting of nothing).
+    update_drift_history(manager, _VAC, discovered_room_ids={2})
     history = manager.data["setup_progress"][_VAC]["room_drift_history"]
     assert history["1"]["missing_passes"] == 1
 
     # Reappear
-    update_drift_history(manager, _VAC, discovered_room_ids={1})
+    update_drift_history(manager, _VAC, discovered_room_ids={1, 2})
     assert history["1"]["missing_passes"] == 0
 
 
@@ -236,16 +245,19 @@ def test_update_drift_history_resets_on_reappearance(manager):
 
 def test_compute_room_drift_surfaces_removed_rooms_after_threshold(manager):
     """[DR-12] removed_rooms is non-empty after removal_confirmation_passes misses."""
-    setup_map(manager, _VAC, _MAP, count=1)
+    setup_map(manager, _VAC, _MAP, count=2)
     for room in manager.data["maps"][_VAC][_MAP]["rooms"].values():
         room["is_configured"] = True
 
-    # Default threshold is 3 consecutive misses.
+    # Default threshold is 3 consecutive misses. Each pass is READABLE and lists
+    # room 2 — C58: three empty sets would now be three unreadable passes and
+    # would confirm nothing, which is the whole point of the guard.
     for _ in range(3):
-        update_drift_history(manager, _VAC, discovered_room_ids=set())
+        update_drift_history(manager, _VAC, discovered_room_ids={2})
 
-    result = compute_room_drift(manager, _VAC, discovered_room_ids=set())
-    assert len(result["removed_rooms"]) > 0
+    result = compute_room_drift(manager, _VAC, discovered_room_ids={2})
+    removed_ids = {r["room_id"] for r in result["removed_rooms"]}
+    assert removed_ids == {1}
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +286,7 @@ def test_unconfigured_room_excluded_from_drift_tracking(manager):
     excluded from the configured set, so it is never drift-tracked.
 
     Guards the load-bearing configured-vs-discovered distinction in
-    _list_configured_room_ids: with both rooms absent from discovery, only the
+    _list_configured_room_ids: with neither room in the pass, only the
     configured room accrues a missing pass; the unconfigured one (a freshly
     discovered room not yet through the save_rooms step) is not tracked at all.
     Every other drift test marks all rooms configured, so the exclusion branch
@@ -285,9 +297,92 @@ def test_unconfigured_room_excluded_from_drift_tracking(manager):
     for room in manager.data["maps"][_VAC][_MAP]["rooms"].values():
         room["is_configured"] = room.get("room_id") == 1
 
-    # Neither room appears in this discovery pass.
-    update_drift_history(manager, _VAC, discovered_room_ids=set())
+    # A READABLE pass that lists neither room — id 99 is a room this map has
+    # never had. C58: `set()` would be an unreadable pass and would score
+    # nothing, so it can no longer express "both rooms missing".
+    update_drift_history(manager, _VAC, discovered_room_ids={99})
     history = manager.data["setup_progress"][_VAC]["room_drift_history"]
 
     assert history.get("1", {}).get("missing_passes") == 1
     assert "2" not in history
+
+
+# ---------------------------------------------------------------------------
+# [DR-16] — [DR-17] C58: an EMPTY discovery pass is a read failure
+# ---------------------------------------------------------------------------
+
+def test_empty_discovery_pass_leaves_drift_history_untouched(manager, caplog):
+    """[DR-16] An empty discovered set changes NO stored counter, in either
+    direction, and says so in the log (C58, ruling 2026-08-24).
+
+    The failure this bites: `update_drift_history` had no empty-read guard, so a
+    pass that read nothing — cold service-response cache after a restart, vacuum
+    offline, cloud unreachable — struck EVERY configured room. Three of those and
+    `compute_room_drift` reports the user's whole room list removed, from reads
+    that never happened.
+
+    The setup is the sequence that does the damage: two genuine misses on
+    readable passes (so the counter is NON-ZERO), then the source goes dark.
+    A non-zero starting counter is what makes this test bite in both directions —
+    incrementing (3 == threshold, room confirmed removed) and resetting (0,
+    discarding two real observations) are both wrong, and against a fresh
+    zeroed counter a reset would be indistinguishable from correct behaviour.
+    """
+    setup_map(manager, _VAC, _MAP, count=2)
+    for room in manager.data["maps"][_VAC][_MAP]["rooms"].values():
+        room["is_configured"] = True
+
+    # Two REAL misses: readable passes that list room 2 and not room 1.
+    update_drift_history(manager, _VAC, discovered_room_ids={2})
+    update_drift_history(manager, _VAC, discovered_room_ids={2})
+    history = manager.data["setup_progress"][_VAC]["room_drift_history"]
+    assert history["1"]["missing_passes"] == 2
+
+    before = copy.deepcopy(history)
+
+    # Now the source goes unreadable. Five passes' worth — well past the
+    # 3-pass removal threshold.
+    with caplog.at_level("WARNING"):
+        for _ in range(5):
+            update_drift_history(manager, _VAC, discovered_room_ids=set())
+
+    # Not just missing_passes: NOTHING in the stored history moved. last_seen_at
+    # and first_missed_at are timestamps a later diagnosis reads, and an
+    # unreadable pass is not an observation of any of them.
+    assert history == before
+    assert history["1"]["missing_passes"] == 2
+
+    # And the room is not confirmed removed on the strength of those passes.
+    result = compute_room_drift(manager, _VAC)
+    assert result["removed_rooms"] == []
+
+    # NOT A SILENT SKIP — the ruling's other half. The ledger's complaint was
+    # that a day of failed reads left nothing suspicious in the log.
+    warnings = [
+        r for r in caplog.records
+        if r.levelname == "WARNING" and "discovered NO rooms" in r.getMessage()
+    ]
+    assert len(warnings) == 5
+    assert "UNREADABLE" in warnings[0].getMessage()
+    # It names the vacuum and how many rooms were at stake, and does NOT assert
+    # a cause — a cleared map and an unreachable cloud look identical here.
+    assert _VAC in warnings[0].getMessage()
+    assert "2 configured room(s)" in warnings[0].getMessage()
+
+
+def test_empty_discovery_pass_does_not_create_a_setup_progress_record(manager):
+    """[DR-17] An unreadable pass does not materialise setup-progress state.
+
+    The guard returns before `_get_progress_record`, which `setdefault`s the
+    record into existence. A pass that learned nothing should not leave a
+    persisted record behind as its only trace — same principle as
+    `save_managed_rooms` (asked-a-question, not made-a-change).
+    """
+    setup_map(manager, _VAC, _MAP, count=2)
+    for room in manager.data["maps"][_VAC][_MAP]["rooms"].values():
+        room["is_configured"] = True
+    assert _VAC not in manager.data.get("setup_progress", {})
+
+    update_drift_history(manager, _VAC, discovered_room_ids=set())
+
+    assert _VAC not in manager.data.get("setup_progress", {})

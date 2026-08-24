@@ -2,7 +2,7 @@
 
 *What is the irreducible core, and how much can be removed while the system still cleans a room?*
 
-This is the measured answer to that question — the second axis of the doc-as-spec / deconstruction work (see [`10-learning-system.md` §9.3](../10-learning-system.md) for the same exercise scoped to one subsystem). It is a **map, not a changelog**: nothing here has been refactored. It records where the real waterline sits so that a "make the core stand alone" refactor (called **B** below) can be scoped honestly — or deliberately declined.
+This is the measured answer to that question — the second axis of the doc-as-spec / deconstruction work (see `10-learning-system.md` §9.3 for the same exercise scoped to one subsystem). It is a **map, not a changelog**: nothing here has been refactored. It records where the real waterline sits so that a "make the core stand alone" refactor (called **B** below) can be scoped honestly — or deliberately declined.
 
 Method: an AST subsystem-dependency map plus a runtime trace of a single `room_clean` from its service entry to the adapter wire call. Line anchors are as of this audit (2026-07-11) — cite the **method names**, which are stable; the line numbers drift.
 
@@ -11,7 +11,7 @@ Method: an AST subsystem-dependency map plus a runtime trace of a single `room_c
 > real subsystem references and asserting a peerage it does not have). It is a dated
 > audit plus a blueprint for work deliberately not done, which is what `design/`
 > holds. The **atom + rings model itself is architecture, not proposal** — it is
-> stated normatively in [`01-architecture-overview.md`](../01-architecture-overview.md)
+> stated normatively in `01-architecture-overview.md`
 > §4, which also carries its acceptance test; this document is the *measurement* behind
 > it and the refactor plan on top of it.
 > Re-measured 2026-08-15: 13 of the 14 §9 reach-in counts still exact five weeks on;
@@ -128,7 +128,7 @@ For each subsystem, ask in order — the first "yes" sets the verdict:
 1. **Dead coupling?** Vestigial import/alias core never uses → **CLIP** (see the maintenance clip, 3dc2a06).
 2. **Mis-homed atom-logic?** Does core reach in for a *primitive* it should own (a payload/identity builder, not a feature)? → **RELOCATE** the primitive to core; the ring *augments* when present.
 3. **Self-satisfiable gate?** Does it block on VA-owned state the adapter never provides? → **DEFAULT** it (see onboarding).
-4. **Portable engine?** Is it read-a-lot / write-a-little logic reused elsewhere (learning, battery, water)? → **EXTRACT** behind a host contract (see §9.3 of [`10-learning-system.md`](../10-learning-system.md)).
+4. **Portable engine?** Is it read-a-lot / write-a-little logic reused elsewhere (learning, battery, water)? → **EXTRACT** behind a host contract (see §9.3 of `10-learning-system.md`).
 5. **Already clean?** Lazy import, low reach-in count, no core-owned logic inside → **LEAVE** (it's a proper ring today).
 6. **Mechanism, not fit?** The core needs it to fire/track a clean → **KEEP** (atom member).
 
@@ -189,4 +189,4 @@ Onboarding began as data hygiene — it kept Eufy's phantom **0 m² "non-room"**
 
 ---
 
-**See also:** [`01-architecture-overview.md`](../01-architecture-overview.md) · [`05-core-manager.md`](../05-core-manager.md) · [`10-learning-system.md`](../10-learning-system.md) (§9.3, the same host-contract exercise scoped to learning) · [`21-adapter-system.md`](../21-adapter-system.md).
+**See also:** `01-architecture-overview.md` · 33 — The Orchestrator · `10-learning-system.md` (§9.3, the same host-contract exercise scoped to learning) · 22 — The Adapter Contract.

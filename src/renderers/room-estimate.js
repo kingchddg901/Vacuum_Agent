@@ -86,7 +86,7 @@ export function applyRoomEstimateRenderers(proto) {
 
     const liveRows = progressSnapshot
       ? [
-          { label: this.t("room_estimate.label_progress"), value: `${Math.max(0, Math.min(100, Number(progressSnapshot.percent ?? 0)))}%` },
+          { label: this.t("room_estimate.label_progress"), value: `${Math.max(0, Math.min(100, Number(progressSnapshot.percent ?? 0)))}${this.t("metrics.unit_percent")}` },
           Number.isFinite(progressSnapshot.elapsedMinutes)
             ? { label: this.t("room_estimate.label_elapsed"), value: this._formatLearningMinutes(progressSnapshot.elapsedMinutes) }
             : null,

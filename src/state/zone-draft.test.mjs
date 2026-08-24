@@ -149,7 +149,14 @@ test("[ZD-11] zoneDraftsToNormalizedRects un-rotates the drawn rect at 90°", ()
   const s = makeState();
   s.supportsZoneClean = () => true;
   s.isLiveBackdropActive = () => true;
-  s.mapRotation = () => 90;
+  // C31: the un-rotation reads effectiveMapRotation (the frame actually ON
+  // SCREEN), not raw mapRotation. This fixture used to stub mapRotation alone,
+  // which agreed with what the old implementation happened to call rather than
+  // modelling a real rotated display — so it kept passing while the shipped
+  // code read the wrong accessor. Drive the REAL inputs instead: an active VA
+  // raster is the case where the rotation genuinely is applied to the content.
+  s.dashboardSnapshot = () => ({ live_map_rotation: 90 });
+  s.isVaRenderActive = () => true;
   s.addZoneDraft({ x: 25, y: 40, w: 25, h: 20 });
   const [r] = s.zoneDraftsToNormalizedRects({ width: 500, height: 500 });
   assert.ok(approx(r[0], 0.4) && approx(r[1], 0.5));

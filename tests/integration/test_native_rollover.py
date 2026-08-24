@@ -23,6 +23,11 @@ Coverage targets
 [NR-11] regression: a grouped (no-phases) job STILL rolls through the caller — the
         sequenced guard didn't break the grouped path.
 [NR-12] non-unique native room signal -> pointer updates without auto-completing
+[NR-13] ISSUE #54: a mop wash only counts as a room boundary when the dock cadence
+        is per-room. On `by_time` the robot washes MID-room and resumes the same
+        room, so `wash_plateau` is a FALSE boundary — and because it carries the
+        highest weight it displaces a real one under the expected_rooms-1 cap,
+        shifting every label after it to the next queue entry (the reported "+1").
         the previous room.
 """
 
@@ -317,3 +322,83 @@ async def test_per_room_live_skips_out_of_vocab(hass, manager):
     tracker.apply_per_room_live_settings(_VAC, [{"room_id": 16, "fan_speed": "max"}], 16)
     await hass.async_block_till_done()
     assert calls == [{"entity_id": _VAC, "fan_speed": "max"}]
+
+
+# ---------------------------------------------------------------------------
+# ISSUE #54 - a wash is only a boundary when the dock cadence is per-room
+# ---------------------------------------------------------------------------
+
+_WASH_MODE_ENTITY = "select.alfred_wash_frequency_mode"
+
+
+def _register_with_wash_mode():
+    """The Eufy shape: counter rollover kinds plus a declared wash-mode entity."""
+    clear_registry()
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy",
+        "source": "code",
+        "entities": {"wash_frequency_mode": _WASH_MODE_ENTITY},
+        "vocabulary": {
+            "wash_frequency_mode_aliases": {
+                "by room": "by_room", "byroom": "by_room",
+                "by time": "by_time", "bytime": "by_time",
+                "off": "off",
+            },
+        },
+        "live_transition": {
+            "enabled": True,
+            "rollover_kinds": ["wash_plateau", "transit", "area_jump"],
+        },
+    })
+
+
+@pytest.mark.parametrize(
+    "mode_state, wash_counts",
+    [
+        ("ByRoom", True),      # washes BETWEEN rooms -> the gap IS a boundary
+        ("ByTime", False),     # washes MID-room, resumes the same room -> it is not
+        ("Off", False),        # no scheduled wash at all
+        ("unavailable", False),  # cannot read it -> fail toward "not a boundary"
+    ],
+)
+def test_nr13_a_wash_counts_only_when_the_cadence_is_per_room(manager, mode_state, wash_counts):
+    """[NR-13] RED BEFORE THE FIX for every row except ByRoom.
+
+    The display strings are the BRAND's ("ByRoom"/"ByTime"), resolved through the
+    adapter's own alias map rather than compared raw — the whole point of the alias
+    table is that core does not own these words.
+
+    `unavailable` is asserted deliberately: a missed boundary degrades to the timing
+    rollover, which still advances the room; a FALSE boundary corrupts the labels and
+    the learned per-room times. The costs are not symmetric, so an unreadable mode
+    fails toward not-a-boundary.
+    """
+    _register_with_wash_mode()
+    manager.hass.states.async_set(_WASH_MODE_ENTITY, mode_state)
+    tracker = ActiveJobTracker(manager)
+
+    kinds = tracker._live_transition_config(_VAC)["rollover_kinds"]
+
+    assert ("wash_plateau" in kinds) is wash_counts, (
+        f"wash mode {mode_state!r} -> rollover kinds {kinds}"
+    )
+    # the other two kinds are never touched by this gate
+    assert "transit" in kinds and "area_jump" in kinds
+
+
+def test_nr13_a_brand_with_no_wash_mode_entity_is_unchanged(manager):
+    """[NR-13] RED IF THE GATE APPLIES TO BRANDS IT CANNOT JUDGE.
+
+    A brand that declares no `wash_frequency_mode` gets no opinion — dropping
+    wash_plateau there would silently re-tune rollover for a brand nobody has measured,
+    which is a different defect from the one being fixed.
+    """
+    clear_registry()
+    register_adapter_config(_VAC, {
+        "adapter_id": "someone_else", "source": "code", "entities": {},
+        "live_transition": {"enabled": True,
+                            "rollover_kinds": ["wash_plateau", "transit", "area_jump"]},
+    })
+    tracker = ActiveJobTracker(manager)
+
+    assert "wash_plateau" in tracker._live_transition_config(_VAC)["rollover_kinds"]

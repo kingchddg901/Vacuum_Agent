@@ -36,7 +36,14 @@ Run:
   python scripts/check_doc_citations.py docs/dev/21-adapter-system.md
   python scripts/check_doc_citations.py --summary            # per-doc counts only
 
-Exit code: 0 = every citation resolves, 1 = at least one is wrong.
+Exit code: 0 = every citation that was CHECKED resolves, 1 = at least one is wrong.
+
+⚠ was: "0 = every citation resolves". The qualifier is load-bearing, because zero
+citations checked also exits 0 — with a fully-formed clean report. `DOC_ROOTS` gets no
+existence check, so a missing or misspelled docs directory yields an empty target list and
+prints "0 docs · 0 citations checked · 0 wrong", which reads exactly like a clean run over
+a real corpus. Read the DOCS count in the footer, not the exit code. See the note on
+`DOC_ROOTS` below for why the source side does not fail the same way.
 """
 from __future__ import annotations
 
@@ -53,6 +60,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+# Importable however this script is invoked: `python scripts/check_doc_citations.py`
+# already puts `scripts/` on the path, `python -m scripts.check_doc_citations` does not.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
 # Where a bare basename citation (`manager.py:12`) may be resolved from.
 #
 # `src` was absent until 2026-08-21, so the ENTIRE frontend tree was outside this
@@ -65,6 +76,21 @@ SOURCE_ROOTS = ("custom_components", "scripts", "tests", "harness", "src")
 # Extensions the resolver indexes. A citation into any of these is checkable.
 SOURCE_SUFFIXES = (".py", ".mjs", ".js")
 
+# Where the corpus is walked from, in `main()`: `(ROOT / root).rglob("*.md")`.
+#
+# ⚠ NO EXISTENCE CHECK, AND THE ASYMMETRY IS THE DEFECT. Rename or misspell this and the
+# glob simply yields nothing: `targets` is empty, no doc is opened, and the run prints
+# "0 docs · 0 citations checked · 0 wrong" and exits 0 — a fully-formed clean report for a
+# corpus that was never read. MEASURED by setting `DOC_ROOTS = ("doc",)` and calling
+# `main()`.
+#
+# `SOURCE_ROOTS` does not fail this way, but not because it is loud: `Index.__init__`
+# skips a missing root QUIETLY, with a bare `continue`. The loudness is downstream — an
+# empty index makes every citation UNRESOLVED, so the run turns red on the problems rather
+# than on the missing directory. The doc side has no equivalent downstream tripwire,
+# because "no docs" produces no problems at all. Fixing it is a code change (an `is_dir()`
+# check here that raises); until then, trust the DOCS COUNT in the footer, not the exit
+# code.
 DOC_ROOTS = ("docs",)
 
 # Generated/build output. Present only after a build, so a citation into it is not
@@ -85,7 +111,16 @@ PLACEHOLDERS = {
 
 # An ID-form anchor: two-character class prefix + six Crockford Base32 characters.
 # Owned by scripts/doc_anchor.py — see the note at its use below.
-ANCHOR_ID_RE = re.compile(r"^(?:CN|SN|HN|PN|IN)[0-9A-HJKMNP-TV-Z]{6}$")
+#
+# IMPORTED, NOT RESTATED. This was a second copy of doc_anchor's class list, and a copy
+# of a list that grows is a copy that goes stale: it still read `CN|SN|HN|PN|IN` after
+# `RN`, `BN` and `EN` were minted. A citation whose class is missing here does not fail
+# loudly — it falls PAST the skip below and gets substring-counted in the single file it
+# names, which succeeds by luck whenever the citation and the declaration share a file.
+# Cite one across files and this gate reports NO-ANCHOR while `doc_anchor --check`
+# correctly calls it MOVED: two gates, opposite verdicts, on the class the section pass
+# minted 177 of. Importing makes a newly registered class covered here by construction.
+from doc_anchor import TOKEN_RE as ANCHOR_ID_RE  # noqa: E402
 
 # Tallied by form, because the ban is on the FORM, not on being currently wrong.
 FORMS = {"line": 0, "symbol": 0, "anchor": 0, "strong": 0, "weak": 0}

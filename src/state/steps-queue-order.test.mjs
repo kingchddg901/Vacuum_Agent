@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyStepsQueueOrderState } from "./steps-queue-order.js";
+import { registerLocale } from "../i18n/index.js";
 
 function makeState({ rooms = [], breaks = [], prev, savedZones = [] } = {}) {
   const proto = {};
@@ -68,14 +69,41 @@ test("[SQO-filter] drops disabled rooms and sorts by order", () => {
   assert.deepEqual(items.map((i) => i._id), ["room:1", "room:3"]);
 });
 
-test("[SQO-label] break labels use the compact translator-free format", () => {
+test("[SQO-label] break labels compose the compact format with the resolved unit strings", () => {
   const state = makeState({
     rooms: [room("1", 1), room("2", 2)],
     breaks: [chargeBreak(1, 85), waitBreak(1, 15)],
   });
   const items = state.getOrderAdapter("steps").getItems.call(state);
   const labels = items.filter((i) => i.kind === "break").map((i) => i._label);
+  // Default hass = undefined → resolveLang → "en" → % and min.
   assert.deepEqual(labels, ["⚡ 85%", "⏱ 15 min"]);
+});
+
+test("[SQO-label-i18n] break labels use the ACTUAL translated unit — the bite prior fix missed", () => {
+  // Bite: the prior fix used `this.t?.(...) ?? "%"` — state has NO t() method,
+  // so the optional chain always yielded undefined and the ?? fallback silently
+  // kept the English literal. Set the state's hass to an ar locale and prove the
+  // Arabic unit is actually threaded through.
+  //
+  // Node test env has only en registered at import time (no loadLocale runs);
+  // register a minimal ar catalog inline so the assertion actually bites.
+  registerLocale("ar", { "run_profiles.minutes_unit": "دقيقة",
+                         "metrics.unit_percent": "%" });
+  const state = makeState({
+    rooms: [room("1", 1)],
+    breaks: [chargeBreak(1, 85), waitBreak(1, 15)],
+  });
+  // ar is draft in LOCALE_STATUS, so resolveLang would fall back to en on the
+  // system-language path. A per-dashboard PIN bypasses the draft-gate — use
+  // that so the test proves the ar path.
+  state.hass = { locale: { language: "en" } };
+  state.config = { i18n: { locale: "ar" } };
+  const items = state.getOrderAdapter("steps").getItems.call(state);
+  const labels = items.filter((i) => i.kind === "break").map((i) => i._label);
+  // If the fix regresses to `this.t?.(...)`, this ALWAYS reads "⏱ 15 min".
+  assert.equal(labels[0], "⚡ 85%", "% unit still % in ar (pack value)");
+  assert.equal(labels[1], "⏱ 15 دقيقة", "minutes_unit MUST be the ar 'دقيقة', not English 'min'");
 });
 
 test("[SQO-zone] a zone break resolves its ids to saved-zone names in the label", () => {
@@ -165,4 +193,55 @@ test("[SQO-after] after_index is derived from the NEW order (break dragged befor
   const { ctx, calls } = persistCtx();
   await adapter.persist.call(ctx, nextItems, { itemId: "break:0" });
   assert.deepEqual(calls.breaks, [{ after_index: 1, break_type: "wait", wait_minutes: 20 }]);
+});
+
+/* =========================================================
+   THE GLOBE CHANNEL — state has no _langOverride of its own
+   ========================================================= */
+
+test("[SQO-globe] the break label follows the CARD's globe language, not just HA/pin", () => {
+  // Round-2 adversary finding. resolveLang(hass, config) resolves the HA
+  // language or the dashboard pin — it cannot see the per-user globe, which
+  // lives on the card element. A user whose HA runs English but who picks
+  // Arabic on the globe got an Arabic modal with English chips inside it.
+  // VacuumCardState.i18nLanguage() is the channel; this proves the adapter
+  // reads it in preference to hass/config.
+  registerLocale("ar", { "run_profiles.minutes_unit": "دقيقة",
+                         "metrics.unit_percent": "%" });
+  const state = makeState({
+    rooms: [room("1", 1)],
+    breaks: [waitBreak(1, 15)],
+  });
+  state.hass = { locale: { language: "en" } };   // HA is English
+  state.config = {};                             // no dashboard pin
+  state.i18nLanguage = () => "ar";               // ...but the globe says Arabic
+  const items = state.getOrderAdapter("steps").getItems.call(state);
+  const label = items.find((i) => i.kind === "break")._label;
+  assert.equal(label, "⏱ 15 دقيقة",
+    "the chip must follow the globe; reading hass/config alone yields English 'min'");
+});
+
+test("[SQO-globe-wired] VacuumCardState exposes the channel AND main.js installs it", async () => {
+  // A seam nobody wires is decorative. The fallback inside i18nLanguage() is
+  // the OLD hass/config behaviour, so a missing installation degrades silently
+  // to exactly the defect this fixes — which is why the wiring itself is pinned
+  // here rather than left to inspection.
+  const { VacuumCardState } = await import("./index.js");
+  const s = new VacuumCardState({ locale: { language: "en" } }, {});
+  assert.equal(typeof s.setLangResolver, "function", "state must expose setLangResolver");
+  assert.equal(typeof s.i18nLanguage, "function", "state must expose i18nLanguage");
+
+  // Resolver wins when installed...
+  s.setLangResolver(() => "ar");
+  assert.equal(s.i18nLanguage(), "ar");
+  // ...and an empty/absent answer falls back to hass+config rather than throwing.
+  s.setLangResolver(() => "");
+  assert.equal(s.i18nLanguage(), "en");
+  s.setLangResolver(null);
+  assert.equal(s.i18nLanguage(), "en");
+
+  const fs = await import("node:fs");
+  const main = fs.readFileSync(new URL("../main.js", import.meta.url), "utf-8");
+  assert.match(main, /setLangResolver\?\.\(\s*\(\)\s*=>\s*this\._i18nLanguage\(\)\s*\)/,
+    "main.js must install the resolver — without it every state-level renderer silently ignores the globe");
 });

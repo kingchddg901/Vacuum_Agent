@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} nie jest odkurzaczem zarządzanym przez tę integrację."
+    },
+    "room_update_refused": {
+      "message": "Nie można zaktualizować {room}: {reason}"
     }
   },
   "entity": {

@@ -43,8 +43,26 @@ WIRE = "RCPT"
 
 # ---------------------------------------------------------------------------
 # Closed vocabularies. Free text here is prose returning by the back door, which is
-# the one thing the whole design exists to prevent — so these are tuples, and the
-# gate rejects anything outside them.
+# the one thing the whole design exists to prevent — so these are tuples.
+#
+# ⚠ WHAT THE GATE ENFORCES IS NARROWER THAN THIS HEADING SAID. This block ended
+# "and the gate rejects anything outside them" until 2026-08-24 (ledger D6). That
+# holds for three of the five vocabularies below and is FALSE for two of them.
+# `scripts/check_receipts.py` reads `emit()` call sites with AST, so it can only
+# police a value it can name at a fixed argument position:
+#   STATIONS        ENFORCED — both `to` and `frm` are checked for membership, and
+#                   `frm` must additionally equal the emitting file's own module path.
+#   OUTCOMES        ENFORCED via the catalog — each entry's declared `outcomes` are
+#                   checked against OUTCOMES, and each emitted outcome against the
+#                   entry. A dead declared outcome is reported too.
+#   PROVENANCE      ENFORCED only when `prov=` is a literal keyword argument; a
+#                   computed value is not seen at all.
+#   DECLINE_REASONS NOT ENFORCED. Both ride as positional *facts*, and the gate
+#   READABILITY     captures facts only as a COUNT (`max(0, len(args) - 4)`), so
+#                   their values never reach it. A misspelled decline reason passes,
+#                   and a declared-but-never-emitted member is invisible — `no_map`
+#                   below is exactly that today. Fixing it is a change to the GATE,
+#                   not to these tuples; tracked as ledger C6, still open.
 # ---------------------------------------------------------------------------
 
 #: What happened at this station.
@@ -104,9 +122,26 @@ READABILITY: tuple[str, ...] = (
 #: station identity, and §18 says a semantic id never silently changes meaning. Declared +
 #: aligned means a move FORCES the choice — keep the station and accept a flagged mismatch,
 #: or rename it and knowingly break historical decode. Either way it surfaces.
+#:
+#: ⚠ THREE OF THESE ARE DECLARED AND SILENT, AND ONE OF THEM CANNOT SPEAK AT ALL
+#: (ledger C8, verified 2026-08-24). Only `listeners.stall_capture` and
+#: `services.stall_capture` ever appear as `frm` in the package; `mapping.map_source`
+#: is only ever addressed. `core`, `pose_store` and `mapping.stall_capture_render`
+#: appear in no `emit()` call at all — and `scripts/check_receipts.py` has NO
+#: dead-station check. It reports a declared-but-unemitted CATALOG key and a
+#: declared-but-unemitted OUTCOME; a station nobody uses passes silently.
+#:
+#: `core` is worse than silent, it is UNSPEAKABLE. The alignment rule above is checked
+#: against the emitting FILE's path, and the hub is `core/manager.py`, which derives
+#: `core.manager` — so the first receipt the hub ever sends as `"core"` is REFUSED
+#: ("a station may only transmit as itself"). Nothing is broken today because nothing
+#: emits; the choice (rename the station to `core.manager`, or leave the hub
+#: uninstrumented) is forced the moment somebody adds a receipt there. The other two
+#: silent stations are aligned and merely uninstrumented: `pose_store.py` and
+#: `mapping/stall_capture_render.py` would each derive their declared name correctly.
 STATIONS: tuple[str, ...] = (
     "ANY",                      # all stations this net — a broadcast, obliging nobody
-    "core",                     # core/manager.py, the hub
+    "core",                     # core/manager.py, the hub — unspeakable, see the ⚠ above
     "listeners.stall_capture",  # the consumer
     "services.stall_capture",   # the maintainer injector
     "mapping.map_source",       # the pose/render provider

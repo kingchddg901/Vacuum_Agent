@@ -63,6 +63,9 @@
     },
     "unmanaged_vacuum": {
       "message": "{vacuum_entity_id} bukan penyedot debu yang dikelola integrasi ini."
+    },
+    "room_update_refused": {
+      "message": "Tidak dapat memperbarui {room}: {reason}"
     }
   },
   "entity": {

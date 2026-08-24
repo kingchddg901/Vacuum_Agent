@@ -109,8 +109,8 @@ the vacuum or controlling it?* The naive answer is "both, equally". The real ans
 dock **buttons** and all four consumable **reset buttons** were dead, and the mop-intensity
 push named an entity that had never existed — silently, for the whole life of the feature.
 
-- **Why:** [21 — adapter system](21-adapter-system.md);
-  [22 — adapter config reference](22-adapter-config-reference.md) for `service.target_role`.
+- **Why:** [22 — The Adapter Contract](22-adapter-contract.md);
+  [22 — The Adapter Contract](22-adapter-contract.md) for `service.target_role`.
 - **Enforced:** `dock/manager.py::_get_dock_action_entity`,
   `maintenance/manager.py::_get_replacement_reset_entity`,
   `dispatch/manager.py::_run_global_pre_calls` (which also refuses a missing target
@@ -362,7 +362,7 @@ diverged once and *"the repair undid itself — the migration dropped `clean_int
 ten Roborock rooms and the next save put it back as `""`, one room at a time"*).
 
 - **Why:** recorded at the anchor site, `profiles/room_profiles.py::resolve_profile_catalog`;
-  brand identity as data is [21 §6.1](21-adapter-system.md).
+  brand identity as data is [22 — The Adapter Contract](22-adapter-contract.md).
 - **Enforced:** `resolve_profile_catalog` (seven keys, no framework default);
   `_catalog_key` (presence test); `no_water_value` and `declared_profile_fields` (read the
   brand's own declaration); `registry._validate_adapter` (incomplete declaration is a
@@ -615,6 +615,17 @@ the wrong part of someone's home.
   `supports_zone_clean` was read by the card and never by dispatch, so a model declaring it
   `False` could still be sent a zone clean by an automation. A gate on the display surface is
   not a gate.
+- **And a gate with nothing wired to it is not a gate either (D18).** Closing the dispatch end
+  left the other end open for longer: the Roborock config block read
+  `caps.get("supports_zone_clean", True)` under a comment saying a model catalog entry could
+  declare it `False` "and be believed", but nothing passed it as a capability hint — and
+  `core/capabilities.py::_hint_wins` honours a declared `False` only when the key is PRESENT in
+  the hints. So a catalog entry declaring it resolved to the derived default `True` and was
+  silently ignored. The adapter now passes the hint from the model profile, the same shape
+  `has_path_control` already used. It defaults `True`, so no catalogued model changes behaviour;
+  what changed is that the declaration reaches the gate at all. **Open at one end and unconnected
+  at the other reads exactly like enforced** — check both ends of a capability, not the one the
+  finding named.
 - **Cite `IN76GE4W`** from any adapter-declared limit, and from any branch that enforces one.
 
 ### `IN2QDNB3` — a read has THREE outcomes, and a destructive writer must refuse on UNREADABLE

@@ -49,6 +49,17 @@ _DUID = "57R4LhSyBB7y24BiKWWGiI"
 
 # Roborock registers get_vacuum_current_position under the ROBOROCK domain (not vacuum),
 # SupportsResponse.ONLY -> the call must set return_response (returns_response).
+#
+# ⚠ C23 — THIS IS A HAND COPY, NOT THE SHIPPED BLOCK, AND IT PINS NOTHING.
+# Nothing joins `_LRR` to the real declaration in adapters/roborock/adapter.py
+# (`dispatch.live_room_refresh`), so the `returns_response` assertion in
+# test_getter_defaults_and_overrides reads this literal back at itself. And every
+# `hass.services.async_register` in this file registers SupportsResponse.OPTIONAL, not
+# ONLY — under OPTIONAL a call that omits return_response still succeeds. Consequence:
+# delete `"returns_response": True` from the SHIPPED adapter and this suite stays green,
+# while on a real install core raises ServiceValidationError before the handler and
+# sticky-disables Lever B for the session. Closing it needs a code change (register ONLY
+# here, and assert against the shipped block), so it is recorded, not claimed fixed.
 _LRR = {
     "enabled": True,
     "interval_s": 15,
@@ -97,6 +108,9 @@ def _capture(hass):
     async def _h(call):
         calls.append(dict(call.data))
         return {"x": 1, "y": 2}  # SupportsResponse service returns a value
+
+    # ⚠ C23: OPTIONAL, where the real roborock service is ONLY — see the note on `_LRR`.
+    # This registration cannot fail a caller that forgets return_response.
 
     hass.services.async_register(
         "roborock", "get_vacuum_current_position", _h,

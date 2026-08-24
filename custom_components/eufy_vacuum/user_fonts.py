@@ -38,7 +38,10 @@ accessibility promise.
 
 Verification is graceful about its own dependency: without fontTools (with
 its woff2/brotli support) a drop-in is catalogued as ``unverified`` with no
-locales — present but never offered — and the log says why.
+locales — present but never offered — and the log says why. A face that is
+present but UNREADABLE lands in the same ``unverified`` bucket for the same
+reason: not being able to answer the coverage question is never the same
+answer as "this font covers nothing".
 """
 
 from __future__ import annotations
@@ -64,6 +67,17 @@ SHAPING_LOCALES = {"ar"}
 
 #: Characters below/at SPACE never count against coverage.
 _MIN_CODEPOINT = 0x21
+
+#: ``_face_codepoints`` verdict for a face that is PRESENT but could not be
+#: parsed. It is a third value on purpose. It is not an empty set, because an
+#: empty set means "covers nothing" and gets INTERSECTED by the caller — one
+#: corrupt face in a two-face font zeroed the whole family's coverage and the
+#: font was still catalogued ``status: "verified"`` with ``locales: []`` (C3),
+#: which the user sees as the card silently rendering nothing in their font
+#: while diagnostics say it verified. And it is not ``None``, because None is
+#: reserved for "the verification DEPENDENCY is unavailable" — the only cause
+#: that may be reported as "fontTools is not installed" (C4).
+UNREADABLE_FACE = "unreadable"
 
 
 def _is_textual(ch: str) -> bool:
@@ -144,10 +158,25 @@ def validate_descriptor(raw: object) -> dict | None:
     }
 
 
-def _face_codepoints(path: str) -> tuple[set[int], bool] | None:
-    """(codepoints, has_gsub) for one face, or None when fontTools (with
-    woff2 support) is unavailable. A present-but-unreadable face returns an
-    empty set — which correctly verifies as covering nothing."""
+def _have_woff2_decoder() -> bool:
+    """fontTools' own answer to "can I decompress woff2?".
+
+    ``haveBrotli`` is the flag fontTools itself tests before raising
+    ``ImportError("No module named brotli")`` from inside the parse, so it is
+    the dedicated upstream signal. Asking it beats substring-matching that
+    message, which would go silently wrong the day upstream rewords it."""
+    try:
+        from fontTools.ttLib.woff2 import haveBrotli  # noqa: PLC0415 - optional dep
+    except ImportError:
+        return False
+    return bool(haveBrotli)
+
+
+def _face_codepoints(path: str) -> tuple[set[int], bool] | str | None:
+    """(codepoints, has_gsub) for one face; ``None`` when fontTools (with
+    woff2 support) is unavailable; ``UNREADABLE_FACE`` when the face is present
+    but cannot be parsed. Both non-tuple verdicts mean "cannot verify" — never
+    "covers nothing": the two verdicts must not be conflated."""
     try:
         from fontTools.ttLib import TTFont  # noqa: PLC0415 - optional dep
     except ImportError:
@@ -159,15 +188,36 @@ def _face_codepoints(path: str) -> tuple[set[int], bool] | None:
             return set(cmap.keys()), "GSUB" in font
         finally:
             font.close()
-    except ImportError:
-        # fontTools present but its woff2 DECODER dependency (brotli) is not —
-        # newer fonttools dropped the [woff2] extra, so declare brotli
-        # explicitly (manifest does). This is "cannot verify", never "covers
-        # nothing": the two verdicts must not be conflated.
-        return None
-    except Exception as err:  # noqa: BLE001 - a broken drop-in must not break setup
+    except ImportError as err:
+        # fontTools itself imported fine — its genuine absence is caught by the
+        # try above — so an ImportError HERE is one of two different things and
+        # only one of them is a statement about the dependency:
+        #   * the woff2 DECODER dependency (brotli) is missing. Newer fonttools
+        #     dropped the [woff2] extra, so declare brotli explicitly (manifest
+        #     does). That really is "cannot verify, dependency unavailable".
+        #   * a lazily-imported fontTools TABLE module blew up — getBestCmap()
+        #     is what pulls those in. Until 2026-08-24 that landed here too, so
+        #     the caller set fonttools_missing and told the user fontTools was
+        #     not installed while it demonstrably was (C4), sending them to
+        #     reinstall the wrong thing — and the branch logged nothing, so the
+        #     real error was discarded and only the false assertion survived.
+        if not _have_woff2_decoder():
+            _LOGGER.warning(
+                "user font face %s: fontTools cannot decode woff2 (%s)", path, err
+            )
+            return None
         _LOGGER.warning("user font face %s is unreadable: %s", path, err)
-        return set(), False
+        return UNREADABLE_FACE
+    except Exception as err:  # noqa: BLE001 - a broken drop-in must not break setup
+        # C3: this returned `set(), False` until 2026-08-24, i.e. a corrupt face
+        # answered the coverage question with "covers nothing" instead of
+        # declining to answer. The caller INTERSECTS faces, so one unreadable
+        # face in a multi-face family zeroed the intersection while still
+        # looking like a completed verification — catalogued `verified` with an
+        # empty locale list, and the card offering the font to nobody with no
+        # diagnostic saying why.
+        _LOGGER.warning("user font face %s is unreadable: %s", path, err)
+        return UNREADABLE_FACE
 
 
 def strip_jsonc(text: str) -> str:
@@ -292,6 +342,13 @@ def build_catalog(user_fonts_dir: str, shipped_locales_dir: str) -> int:
         has_gsub = True
         for p in face_paths:
             parsed = _face_codepoints(p)
+            if parsed is UNREADABLE_FACE:
+                # Cannot verify — the face already logged why. Deliberately NOT
+                # folded into fonttools_missing: the aggregate INFO line below
+                # asserts a missing dependency, and this drop-in is unverified
+                # for a reason the user can actually act on (replace the file).
+                codepoints = None
+                break
             if parsed is None:
                 fonttools_missing = True
                 codepoints = None

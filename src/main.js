@@ -163,8 +163,11 @@ class EufyVacuumCommandCenter extends HTMLElement {
 
        Scroll direction rather than a tap target on a hidden edge: reversing a
        scroll is reflex, finding an invisible strip is a discovery, and a strip
-       thin enough to be worth hiding is thinner than the 44px tap floor at
-       styles/mobile.js:831.
+       thin enough to be worth hiding is thinner than the 44px tap floor —
+       styles/mobile.js's `.evcc-shell[data-viewport="mobile"] .evcc-view-stage
+       button:not(...)` rule, under its "generic touch-target pass" heading. (The
+       ":831" pinned here had rotted; cite the selector, nothing checks a line
+       number in a source comment.)
 
        Everything here is chrome-only. It never changes what is on screen, only
        whether two panes are drawn, so the worst failure is cosmetic. */
@@ -565,10 +568,16 @@ class EufyVacuumCommandCenter extends HTMLElement {
    * broken. Returns { systemLang, gatedToEnglish }.
    */
   _autoLangInfo() {
+    // Full HA identifier ("zh-Hans", not "zh") — locales list is keyed by full
+    // id, and localeStatus() base-falls-back internally. Splitting first (as
+    // maintenance.js:85 did before 1f153481) makes localeStatus return
+    // "unknown" for every regioned code, so gatedToEnglish reads false while
+    // resolveLang did in fact gate; language-control.js then also fails to
+    // match against the locales list. Same defect class as task 15.
     const systemLang = String(
       (this._hass && this._hass.locale && this._hass.locale.language) ||
       (this._hass && this._hass.language) || "en",
-    ).split("-")[0];
+    );
     const pinned = this._config && this._config.i18n && this._config.i18n.locale;
     const hasPin = pinned && pinned !== "auto";
     const status = localeStatus(systemLang);
@@ -857,6 +866,12 @@ class EufyVacuumCommandCenter extends HTMLElement {
       this._confirmationsWired = true;
       // anchor: CNMY8CY9
       this._state.setConfirmationsRenderTrigger?.(() => this._scheduleRender());
+      // Same one-shot wiring for the language resolver: state-level renderers
+      // (the steps-queue break chips) need the per-user globe, which lives here
+      // on the element and never reaches state through hass/config. Read through
+      // a callback rather than copying the value, so a later globe change is
+      // picked up without another sync point to keep in step.
+      this._state.setLangResolver?.(() => this._i18nLanguage());
     }
 
     // Restore last-active view exactly once on first hass sync.
