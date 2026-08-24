@@ -1192,6 +1192,10 @@
     "battery_col_mean_per_m2": "Ortalama",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/dk",
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",
+    "unit_per_hour": "%/sa",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "Notlar",
     "battery_col_zone": "Bölge",
     "battery_drain_subtitle": "Bu ortalamalar yalnızca her odanın aynı ayarı kullandığı işlerle beslenir. Karışık modlu çalışmalar yine de tüm-işler satırını günceller ancak grup bazlı grupları atlar.",
@@ -1774,7 +1778,25 @@
       "one": "1 bakım öğesi ilgi bekliyor.",
       "other": "{count} bakım öğesi ilgi bekliyor."
     },
-    "attention_summary_none": "İlgi bekleyen bakım öğesi yok."
+    "attention_summary_none": "İlgi bekleyen bakım öğesi yok.",
+    "component_label": {
+      "main_brush": "Main Brush",
+      "side_brush": "Side Brush",
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "dustbin": "Dustbin",
+      "mop_cloth": "Mop Cloth",
+      "water_filter": "Water Filter",
+      "caster_wheel": "Caster Wheel",
+      "main_wheel": "Main Wheel",
+      "dock_cleaning_brush": "Dock Cleaning Brush",
+      "dock_strainer": "Dock Strainer",
+      "dock_dust_bag": "Dock Dust Bag",
+      "clean_water_tank": "Clean Water Tank",
+      "dirty_water_tank": "Dirty Water Tank",
+      "rolling_brush": "Rolling Brush",
+      "mopping_cloth": "Mopping Cloth"
+    }
   },
   "setup": {
     "add": "Ekle",

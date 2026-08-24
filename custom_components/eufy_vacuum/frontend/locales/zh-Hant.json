@@ -984,6 +984,10 @@
     "battery_col_mean_per_m2": "平均",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/分鐘",
+    "battery_samples_tooltip": "用於計算此平均值的任務數（缺少必要輸入的任務會計入總數但不作樣本）。",
+    "unit_per_hour": "%/小時",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "備註",
     "battery_col_zone": "區段",
     "battery_drain_subtitle": "只有每個房間都使用相同設定的作業才會納入這些平均值。混合模式的作業仍會更新所有作業列，但會略過各分類的統計。",
@@ -2013,7 +2017,25 @@
       "one": "有 1 項保養需要處理。",
       "other": "有 {count} 項保養需要處理。"
     },
-    "attention_summary_none": "沒有需要處理的保養項目。"
+    "attention_summary_none": "沒有需要處理的保養項目。",
+    "component_label": {
+      "main_brush": "主刷",
+      "side_brush": "邊刷",
+      "filter": "濾網",
+      "sensor": "感測器",
+      "dustbin": "塵盒",
+      "mop_cloth": "拖布",
+      "water_filter": "水箱濾網",
+      "caster_wheel": "萬向輪",
+      "main_wheel": "主驅動輪",
+      "dock_cleaning_brush": "基站清潔刷",
+      "dock_strainer": "基站濾網",
+      "dock_dust_bag": "基站塵袋",
+      "clean_water_tank": "清水箱",
+      "dirty_water_tank": "污水箱",
+      "rolling_brush": "滾刷",
+      "mopping_cloth": "拖布"
+    }
   },
   "review": {
     "badge_attribution_disagreement": "房間不符",

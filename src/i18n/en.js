@@ -524,6 +524,22 @@ export const en = {
   "maintenance.due_in_months": { other: "Due in ~{count} months" },  // plural
   "maintenance.due_in_weeks": { other: "Due in ~{count} weeks" },  // plural
   "maintenance.due_overdue": "Overdue",
+  "maintenance.component_label.main_brush": "Main Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.side_brush": "Side Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.filter": "Filter",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.sensor": "Sensor",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.dustbin": "Dustbin",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.mop_cloth": "Mop Cloth",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.water_filter": "Water Filter",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.caster_wheel": "Caster Wheel",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.main_wheel": "Main Wheel",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.dock_cleaning_brush": "Dock Cleaning Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.dock_strainer": "Dock Strainer",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.dock_dust_bag": "Dock Dust Bag",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.clean_water_tank": "Clean Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.dirty_water_tank": "Dirty Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.rolling_brush": "Rolling Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.mopping_cloth": "Mopping Cloth",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.due_today": "Due today",
   "maintenance.due_tomorrow": "Due tomorrow",
   "maintenance.hours": { one: "{value} hour", other: "{value} hours" },  // plural; run-hours label; {value} is preformatted, count drives one/other
@@ -831,6 +847,10 @@ export const en = {
   "metrics.battery_col_mean_per_m2": "Mean",  // Drain-table column header; the unit lives on the VALUE via metrics.unit_per_m2
   "metrics.unit_per_m2": "%/m²",  // battery drain unit, appended to a value. LOCALIZED — ar/he/ru do not use a Latin m
   "metrics.unit_per_min": "%/min",  // charge-rate unit, appended to a value. Composed from run_profiles.minutes_unit
+  "metrics.battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",  // Tooltip on the 'samples / count' Jobs cell in the drain table when samples < count. LOCALIZE.
+  "metrics.unit_per_hour": "%/h",  // battery drain-per-hour unit, appended to a value; LOCALIZE the 'h' (ar/he use non-Latin scripts)
+  "metrics.unit_percent": "%",  // bare percent unit, appended to a value. Most languages keep '%' but some scripts prefer their own numeral marker
+  "metrics.unit_square_meters": "m²",  // area unit, appended to a value; LOCALIZE 'm' (ar/he/ru do not use a Latin m — mirror metrics.unit_per_m2's approach)
   "metrics.battery_col_notes": "Notes",  // Charge-rates table column: explanatory note text per row, not user-entered notes
   "metrics.battery_col_zone": "Zone",  // Charge-rates table column: a battery charge-rate %-band zone (low/high/mid), not a clean zone/room
   "metrics.battery_drain_subtitle": "Only jobs where every room used the same setting feed these means. Mixed-mode runs still update the all-jobs row but skip per-bucket buckets.",  // 'single-bucket job' = a run where every room used the same setting

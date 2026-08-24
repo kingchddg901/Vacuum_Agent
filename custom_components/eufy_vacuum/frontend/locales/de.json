@@ -511,7 +511,25 @@
       "one": "1 Wartungspunkt benötigt Aufmerksamkeit.",
       "other": "{count} Wartungspunkte benötigen Aufmerksamkeit."
     },
-    "attention_summary_none": "Keine Wartungspunkte benötigen Aufmerksamkeit."
+    "attention_summary_none": "Keine Wartungspunkte benötigen Aufmerksamkeit.",
+    "component_label": {
+      "main_brush": "Main Brush",
+      "side_brush": "Side Brush",
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "dustbin": "Dustbin",
+      "mop_cloth": "Mop Cloth",
+      "water_filter": "Water Filter",
+      "caster_wheel": "Caster Wheel",
+      "main_wheel": "Main Wheel",
+      "dock_cleaning_brush": "Dock Cleaning Brush",
+      "dock_strainer": "Dock Strainer",
+      "dock_dust_bag": "Dock Dust Bag",
+      "clean_water_tank": "Clean Water Tank",
+      "dirty_water_tank": "Dirty Water Tank",
+      "rolling_brush": "Rolling Brush",
+      "mopping_cloth": "Mopping Cloth"
+    }
   },
   "map": {
     "adjusting": "Wird angepasst:",
@@ -751,6 +769,10 @@
     "battery_col_mean_per_m2": "Mittel",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/Min",
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",
+    "unit_per_hour": "%/Std",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "Hinweise",
     "battery_col_zone": "Zone",
     "battery_drain_subtitle": "Nur Aufträge, bei denen jeder Raum dieselbe Einstellung verwendet hat, fließen in diese Mittelwerte ein. Aufträge mit gemischten Modi aktualisieren weiterhin die Zeile für alle Aufträge, überspringen aber die Pro-Kategorie-Auswertung.",

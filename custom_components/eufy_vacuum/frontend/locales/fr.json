@@ -517,7 +517,25 @@
       "one": "1 élément d'entretien nécessite votre attention.",
       "other": "{count} éléments d'entretien nécessitent votre attention."
     },
-    "attention_summary_none": "Aucun élément d'entretien ne nécessite votre attention."
+    "attention_summary_none": "Aucun élément d'entretien ne nécessite votre attention.",
+    "component_label": {
+      "main_brush": "Main Brush",
+      "side_brush": "Side Brush",
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "dustbin": "Dustbin",
+      "mop_cloth": "Mop Cloth",
+      "water_filter": "Water Filter",
+      "caster_wheel": "Caster Wheel",
+      "main_wheel": "Main Wheel",
+      "dock_cleaning_brush": "Dock Cleaning Brush",
+      "dock_strainer": "Dock Strainer",
+      "dock_dust_bag": "Dock Dust Bag",
+      "clean_water_tank": "Clean Water Tank",
+      "dirty_water_tank": "Dirty Water Tank",
+      "rolling_brush": "Rolling Brush",
+      "mopping_cloth": "Mopping Cloth"
+    }
   },
   "map": {
     "adjusting": "Ajustement :",
@@ -757,6 +775,10 @@
     "battery_col_mean_per_m2": "Moy.",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/min",
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",
+    "unit_per_hour": "%/h",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "Remarques",
     "battery_col_zone": "Plage",
     "battery_drain_subtitle": "Seules les tâches où chaque pièce a utilisé le même réglage alimentent ces moyennes. Les exécutions en mode mixte mettent toujours à jour la ligne toutes-tâches mais ignorent les catégories par valeur.",

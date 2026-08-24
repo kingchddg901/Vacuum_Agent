@@ -517,7 +517,25 @@
       "one": "1 item de manutenção precisa de atenção.",
       "other": "{count} itens de manutenção precisam de atenção."
     },
-    "attention_summary_none": "Nenhum item de manutenção precisa de atenção."
+    "attention_summary_none": "Nenhum item de manutenção precisa de atenção.",
+    "component_label": {
+      "main_brush": "Main Brush",
+      "side_brush": "Side Brush",
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "dustbin": "Dustbin",
+      "mop_cloth": "Mop Cloth",
+      "water_filter": "Water Filter",
+      "caster_wheel": "Caster Wheel",
+      "main_wheel": "Main Wheel",
+      "dock_cleaning_brush": "Dock Cleaning Brush",
+      "dock_strainer": "Dock Strainer",
+      "dock_dust_bag": "Dock Dust Bag",
+      "clean_water_tank": "Clean Water Tank",
+      "dirty_water_tank": "Dirty Water Tank",
+      "rolling_brush": "Rolling Brush",
+      "mopping_cloth": "Mopping Cloth"
+    }
   },
   "map": {
     "adjusting": "A ajustar:",
@@ -757,6 +775,10 @@
     "battery_col_mean_per_m2": "Média",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/min",
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",
+    "unit_per_hour": "%/h",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "Notas",
     "battery_col_zone": "Zona",
     "battery_drain_subtitle": "Apenas trabalhos em que todas as divisões usaram a mesma definição alimentam estas médias. As execuções de modo misto ainda atualizam a linha de todos os trabalhos, mas ignoram os blocos individuais.",

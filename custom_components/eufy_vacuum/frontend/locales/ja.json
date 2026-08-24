@@ -984,6 +984,10 @@
     "battery_col_mean_per_m2": "平均",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/分",
+    "battery_samples_tooltip": "この平均の計算に使用されたジョブ数（必要なデータが不足しているジョブはカウントされますがサンプルされません）。",
+    "unit_per_hour": "%/時",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "備考",
     "battery_col_zone": "帯域",
     "battery_drain_subtitle": "すべての部屋が同じ設定を使用したジョブのみがこれらの平均に反映されます。混在モードの実行は全ジョブ行を更新しますが、バケット別の集計はスキップされます。",
@@ -2013,7 +2017,25 @@
       "one": "メンテナンス項目 1 件が対応を必要としています。",
       "other": "メンテナンス項目 {count} 件が対応を必要としています。"
     },
-    "attention_summary_none": "対応が必要なメンテナンス項目はありません。"
+    "attention_summary_none": "対応が必要なメンテナンス項目はありません。",
+    "component_label": {
+      "main_brush": "メインブラシ",
+      "side_brush": "サイドブラシ",
+      "filter": "フィルター",
+      "sensor": "センサー",
+      "dustbin": "ダストビン",
+      "mop_cloth": "モップ",
+      "water_filter": "水フィルター",
+      "caster_wheel": "キャスター",
+      "main_wheel": "メインホイール",
+      "dock_cleaning_brush": "ドック清掃ブラシ",
+      "dock_strainer": "ドックストレーナー",
+      "dock_dust_bag": "ドックダストバッグ",
+      "clean_water_tank": "清浄水タンク",
+      "dirty_water_tank": "汚水タンク",
+      "rolling_brush": "ロールブラシ",
+      "mopping_cloth": "モップ"
+    }
   },
   "review": {
     "badge_attribution_disagreement": "部屋の不一致",

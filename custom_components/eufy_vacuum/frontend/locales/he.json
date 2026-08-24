@@ -987,6 +987,10 @@
     "battery_col_mean_per_m2": "ממוצע",
     "unit_per_m2": "%/מ\"ר",
     "unit_per_min": "%/דק׳",
+    "battery_samples_tooltip": "משימות ששימשו לחישוב הממוצע הזה (משימה חסרת נתוני קלט נספרת אך לא נדגמת).",
+    "unit_per_hour": "%/שעה",
+    "unit_square_meters": "מ\"ר",
+    "unit_percent": "%",
     "battery_col_notes": "הערות",
     "battery_col_zone": "טווח",
     "battery_drain_subtitle": "רק משימות שבהן כל החדרים השתמשו באותה הגדרה מזינות ממוצעים אלה. ריצות במצב מעורב עדיין מעדכנות את שורת כל המשימות אך מדלגות על הקבוצות הפרטניות.",
@@ -2094,7 +2098,25 @@
       "one": "פריט תחזוקה אחד דורש טיפול.",
       "other": "{count} פריטי תחזוקה דורשים טיפול."
     },
-    "attention_summary_none": "אין פריטי תחזוקה הדורשים טיפול."
+    "attention_summary_none": "אין פריטי תחזוקה הדורשים טיפול.",
+    "component_label": {
+      "main_brush": "מברשת ראשית",
+      "side_brush": "מברשת צד",
+      "filter": "מסנן",
+      "sensor": "חיישן",
+      "dustbin": "מיכל אבק",
+      "mop_cloth": "מטלית",
+      "water_filter": "מסנן מים",
+      "caster_wheel": "גלגל סיבוב",
+      "main_wheel": "גלגל ראשי",
+      "dock_cleaning_brush": "מברשת ניקוי תחנה",
+      "dock_strainer": "מסנן תחנה",
+      "dock_dust_bag": "שקית אבק תחנה",
+      "clean_water_tank": "מיכל מים נקיים",
+      "dirty_water_tank": "מיכל מים מלוכלכים",
+      "rolling_brush": "מברשת מתגלגלת",
+      "mopping_cloth": "מטלית"
+    }
   },
   "review": {
     "badge_attribution_disagreement": "אי-התאמת חדר",

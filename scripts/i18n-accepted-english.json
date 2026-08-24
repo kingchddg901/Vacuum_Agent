@@ -200,6 +200,198 @@
     "maintenance.category_maintenance": [
       "fr"
     ],
+    "maintenance.component_label.caster_wheel": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.clean_water_tank": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.dirty_water_tank": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.dock_cleaning_brush": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.dock_dust_bag": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.dock_strainer": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.dustbin": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.filter": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.main_brush": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.main_wheel": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.mop_cloth": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.mopping_cloth": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.rolling_brush": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.sensor": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.side_brush": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "maintenance.component_label.water_filter": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
     "maintenance.interval_label": [
       "cs",
       "id",
@@ -314,6 +506,18 @@
       "id",
       "it"
     ],
+    "metrics.battery_samples_tooltip": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
     "metrics.detail_robot_overhead": [
       "id",
       "nl"
@@ -329,6 +533,16 @@
     ],
     "metrics.mini_baselines": [
       "nl"
+    ],
+    "metrics.unit_per_hour": [
+      "cs",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt"
     ],
     "metrics.unit_per_m2": [
       "cs",
@@ -355,6 +569,41 @@
       "nl",
       "pl",
       "pt"
+    ],
+    "metrics.unit_percent": [
+      "ar",
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "he",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "tr",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "metrics.unit_square_meters": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "tr",
+      "zh-Hans",
+      "zh-Hant"
     ],
     "mobile.tab_dock": [
       "nl"

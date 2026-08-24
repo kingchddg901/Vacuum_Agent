@@ -364,3 +364,123 @@ test("[FREQ-6] Turkish raises dotless i correctly", () => {
   // and a regional tag still resolves to the base language
   assert.equal(freqHost("tr-TR")._formatMaintenanceFrequency("iki haftada bir"), "İki haftada bir");
 });
+
+/* ============================================================
+   [LG-*] _localizedGuide — script/region locales (zh-Hans, zh-Hant)
+   ============================================================ */
+
+// Task 15: the pre-fix code did `String(this._i18nLanguage() || "en").split("-")[0]`,
+// so `zh-Hans` collapsed to `zh` and the GUIDE_TRANSLATIONS lookup missed for both
+// Chinese variants — a whole-locale regression silently falling back to English
+// steps/notes/frequency. These tests would have caught it.
+//
+// Uses the REAL GUIDE_TRANSLATIONS bundle rather than a stub, because that is where
+// the shape lives (roborock.upkeep_guides_i18n.zh_hans keys the map by "zh-Hans").
+// A stub might have hidden the collapse.
+
+function guideHost(lang) {
+  const proto = {};
+  applyMaintenanceRenderers(proto);
+  const inst = Object.create(proto);
+  inst._i18nLanguage = () => lang;
+  return inst;
+}
+
+const _ITEM = {
+  kind: "maintenance",
+  component: "main_brush",
+  guide: {
+    display: { steps: ["EN step 1"], notes: [], frequency: "weekly" },
+    source_guide_family: "standard",
+  },
+};
+
+// A cheap language-identity check that beats "not equal to my English fixture":
+// the previous version of this test only checked step0 !== "EN step 1", which is
+// satisfied by the English translation from the bundle when the split-bug is back
+// and the lookup falls all the way through to `byEn`. Han-script detection is
+// robust to future edits of the translation strings themselves.
+const HAN = /\p{Script=Han}/u;
+
+test("[LG-1] zh-Hans picks up the zh_hans upkeep guide (roborock 'standard' family)", () => {
+  const inst = guideHost("zh-Hans");
+  const g = inst._localizedGuide(_ITEM);
+  assert.ok(g, "guide should resolve");
+  const step0 = String(g.steps?.[0] ?? "");
+  assert.ok(HAN.test(step0),
+    `zh-Hans steps did not contain Han script -- the split("-")[0] bug is back: ${JSON.stringify(step0)}`);
+});
+
+test("[LG-2] zh-Hant picks up the zh_hant upkeep guide", () => {
+  const inst = guideHost("zh-Hant");
+  const g = inst._localizedGuide(_ITEM);
+  const step0 = String(g?.steps?.[0] ?? "");
+  assert.ok(HAN.test(step0),
+    `zh-Hant steps did not contain Han script: ${JSON.stringify(step0)}`);
+});
+
+test("[LG-3] a region-only variant still resolves via the base language", () => {
+  // pt-BR should still find pt-branch guide translations via the base fallback.
+  // (pt has translations shipped for the standard family.)
+  const inst = guideHost("pt-BR");
+  const g = inst._localizedGuide(_ITEM);
+  assert.ok(g, "guide should resolve via base fallback");
+  // We don't compare to English here — pt may or may not translate 'main_brush' —
+  // but the lookup MUST have run without raising or returning null.
+});
+
+test("[LG-4] an unknown language falls all the way to English (never null, never raise)", () => {
+  const inst = guideHost("xx-ZZ");
+  const g = inst._localizedGuide(_ITEM);
+  assert.ok(g, "unknown language should still get an English-fallback guide, not null");
+});
+
+/* ============================================================
+   [MIN-*] _maintenanceItemName — task 16: i18n'd component labels
+   ============================================================ */
+
+function nameHost(componentKey_translation_map) {
+  const proto = {};
+  applyMaintenanceRenderers(proto);
+  const inst = Object.create(proto);
+  // `t` echoes the key when no translation is provided — the real translate
+  // contract does this too (`key.for.missing` -> "key.for.missing"). The
+  // helper is expected to treat that round-trip as "no translation", NOT as
+  // a real label — otherwise a bare i18n key would leak into the modal title
+  // whenever a component grew without a matching pack entry.
+  inst.t = (key) => componentKey_translation_map[key] ?? key;
+  return inst;
+}
+
+test("[MIN-1] a translated component key wins over the backend label", () => {
+  const inst = nameHost({
+    "maintenance.component_label.main_brush": "主刷",
+  });
+  const item = { component: "main_brush", label: "Main Brush" };
+  assert.equal(inst._maintenanceItemName(item), "主刷");
+});
+
+test("[MIN-2] a MISSING translation falls through to the backend label — never a bare key", () => {
+  // The bug the helper prevents: `this.t("maintenance.component_label.xyz")` when
+  // xyz has no pack entry returns the bare KEY. Rendering that in the modal title
+  // would be worse than a plain English label, so the helper detects the key-echo
+  // and falls back.
+  const inst = nameHost({});  // no keys at all
+  const item = { component: "main_brush", label: "Main Brush" };
+  const name = inst._maintenanceItemName(item);
+  assert.equal(name, "Main Brush",
+    `expected the backend label; got bare key: ${JSON.stringify(name)}`);
+});
+
+test("[MIN-3] no component key at all -> backend label chain, no throw", () => {
+  const inst = nameHost({});
+  const item = { label: "Custom Thing" };
+  assert.equal(inst._maintenanceItemName(item), "Custom Thing");
+});
+
+test("[MIN-4] nothing to fall back on -> final i18n fallback (translated or the key)", () => {
+  const inst = nameHost({
+    "maintenance.unnamed_item": "Unnamed item",
+  });
+  assert.equal(inst._maintenanceItemName(null), "Unnamed item");
+});

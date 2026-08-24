@@ -1292,6 +1292,24 @@
     "due_in_months": {"other":"Due in ~{count} months"},  // plural
     "due_in_weeks": {"other":"Due in ~{count} weeks"},  // plural
     "due_overdue": "Overdue",
+    "component_label": {
+      "main_brush": "Main Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "side_brush": "Side Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "filter": "Filter",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "sensor": "Sensor",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "dustbin": "Dustbin",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "mop_cloth": "Mop Cloth",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "water_filter": "Water Filter",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "caster_wheel": "Caster Wheel",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "main_wheel": "Main Wheel",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "dock_cleaning_brush": "Dock Cleaning Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "dock_strainer": "Dock Strainer",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "dock_dust_bag": "Dock Dust Bag",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "clean_water_tank": "Clean Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "dirty_water_tank": "Dirty Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "rolling_brush": "Rolling Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "mopping_cloth": "Mopping Cloth"  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+    },
     "due_today": "Due today",
     "due_tomorrow": "Due tomorrow",
     "hours": {"one":"{value} hour","other":"{value} hours"},  // plural; run-hours label; {value} is preformatted, count drives one/other
@@ -1594,6 +1612,10 @@
     "battery_col_mean_per_m2": "Mean",  // Drain-table column header; the unit lives on the VALUE via metrics.unit_per_m2
     "unit_per_m2": "%/m²",  // battery drain unit, appended to a value. LOCALIZED — ar/he/ru do not use a Latin m
     "unit_per_min": "%/min",  // charge-rate unit, appended to a value. Composed from run_profiles.minutes_unit
+    "battery_samples_tooltip": "Jobs used to compute this mean (a job missing the required inputs is counted but not sampled).",  // Tooltip on the 'samples / count' Jobs cell in the drain table when samples < count. LOCALIZE.
+    "unit_per_hour": "%/h",  // battery drain-per-hour unit, appended to a value; LOCALIZE the 'h' (ar/he use non-Latin scripts)
+    "unit_percent": "%",  // bare percent unit, appended to a value. Most languages keep '%' but some scripts prefer their own numeral marker
+    "unit_square_meters": "m²",  // area unit, appended to a value; LOCALIZE 'm' (ar/he/ru do not use a Latin m — mirror metrics.unit_per_m2's approach)
     "battery_col_notes": "Notes",  // Charge-rates table column: explanatory note text per row, not user-entered notes
     "battery_col_zone": "Zone",  // Charge-rates table column: a battery charge-rate %-band zone (low/high/mid), not a clean zone/room
     "battery_drain_subtitle": "Only jobs where every room used the same setting feed these means. Mixed-mode runs still update the all-jobs row but skip per-bucket buckets.",  // 'single-bucket job' = a run where every room used the same setting

@@ -989,6 +989,10 @@
     "battery_col_mean_per_m2": "متوسط",
     "unit_per_m2": "%/م²",
     "unit_per_min": "%/دقيقة",
+    "battery_samples_tooltip": "المهام المستخدمة لحساب هذا المتوسط (تُحسب المهمة التي تفتقد إلى المدخلات المطلوبة لكنها لا تُأخذ كعينة).",
+    "unit_per_hour": "%/ساعة",
+    "unit_square_meters": "م²",
+    "unit_percent": "%",
     "battery_col_notes": "ملاحظات",
     "battery_col_zone": "النطاق",
     "battery_drain_subtitle": "تُغذّي هذه المتوسطاتِ فقط المهامُ التي استخدمت فيها كل غرفة الإعدادَ نفسه. أما جولات الوضع المختلط فتحدّث صف كل المهام لكنها تتخطى المجموعات الفرعية.",
@@ -2148,7 +2152,25 @@
       "one": "عنصر صيانة واحد يحتاج إلى انتباه.",
       "other": "{count} عناصر صيانة تحتاج إلى انتباه."
     },
-    "attention_summary_none": "لا توجد عناصر صيانة تحتاج إلى انتباه."
+    "attention_summary_none": "لا توجد عناصر صيانة تحتاج إلى انتباه.",
+    "component_label": {
+      "main_brush": "الفرشاة الرئيسية",
+      "side_brush": "الفرشاة الجانبية",
+      "filter": "الفلتر",
+      "sensor": "المستشعر",
+      "dustbin": "حاوية الغبار",
+      "mop_cloth": "قماشة المسح",
+      "water_filter": "فلتر الماء",
+      "caster_wheel": "العجلة الدائرية",
+      "main_wheel": "العجلة الرئيسية",
+      "dock_cleaning_brush": "فرشاة تنظيف المحطة",
+      "dock_strainer": "مصفاة المحطة",
+      "dock_dust_bag": "كيس غبار المحطة",
+      "clean_water_tank": "خزان المياه النظيفة",
+      "dirty_water_tank": "خزان المياه المتسخة",
+      "rolling_brush": "الفرشاة الدوارة",
+      "mopping_cloth": "قماشة المسح"
+    }
   },
   "review": {
     "badge_attribution_disagreement": "عدم تطابق الغرفة",

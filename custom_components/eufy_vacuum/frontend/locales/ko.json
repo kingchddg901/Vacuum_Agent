@@ -984,6 +984,10 @@
     "battery_col_mean_per_m2": "평균",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/분",
+    "battery_samples_tooltip": "이 평균을 계산하는 데 사용된 작업 수 (필수 입력이 누락된 작업은 카운트되지만 샘플링되지 않음).",
+    "unit_per_hour": "%/시",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "비고",
     "battery_col_zone": "구간",
     "battery_drain_subtitle": "모든 방이 동일한 설정을 사용한 작업만 이 평균에 반영됩니다. 혼합 모드 실행은 전체 작업 행은 갱신하지만 그룹별 집계에서는 제외됩니다.",
@@ -2013,7 +2017,25 @@
       "one": "관리 항목 1건에 조치가 필요합니다.",
       "other": "관리 항목 {count}건에 조치가 필요합니다."
     },
-    "attention_summary_none": "조치가 필요한 관리 항목이 없습니다."
+    "attention_summary_none": "조치가 필요한 관리 항목이 없습니다.",
+    "component_label": {
+      "main_brush": "메인 브러시",
+      "side_brush": "사이드 브러시",
+      "filter": "필터",
+      "sensor": "센서",
+      "dustbin": "먼지통",
+      "mop_cloth": "걸레",
+      "water_filter": "물톱 필터",
+      "caster_wheel": "캐스터 휠",
+      "main_wheel": "메인 휠",
+      "dock_cleaning_brush": "독서스테이션 청소 브러시",
+      "dock_strainer": "독서스테이션 필터",
+      "dock_dust_bag": "독서스테이션 먼지지",
+      "clean_water_tank": "깨끗한 물톱",
+      "dirty_water_tank": "오수톱",
+      "rolling_brush": "롤러 브러시",
+      "mopping_cloth": "걸레"
+    }
   },
   "review": {
     "badge_attribution_disagreement": "방 불일치",

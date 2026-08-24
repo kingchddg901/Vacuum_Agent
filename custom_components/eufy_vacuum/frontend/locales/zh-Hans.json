@@ -984,6 +984,10 @@
     "battery_col_mean_per_m2": "平均",
     "unit_per_m2": "%/m²",
     "unit_per_min": "%/分钟",
+    "battery_samples_tooltip": "用于计算此均值的任务数（缺少必要输入的任务会计入总数但不作样本）。",
+    "unit_per_hour": "%/小时",
+    "unit_square_meters": "m²",
+    "unit_percent": "%",
     "battery_col_notes": "备注",
     "battery_col_zone": "区段",
     "battery_drain_subtitle": "只有每个房间都使用相同设置的任务才会计入这些平均值。混合模式的运行仍会更新所有任务行，但不计入各分组。",
@@ -2013,7 +2017,25 @@
       "one": "有 1 项保养需要处理。",
       "other": "有 {count} 项保养需要处理。"
     },
-    "attention_summary_none": "没有需要处理的保养项目。"
+    "attention_summary_none": "没有需要处理的保养项目。",
+    "component_label": {
+      "main_brush": "主刷",
+      "side_brush": "边刷",
+      "filter": "滤网",
+      "sensor": "传感器",
+      "dustbin": "尘盒",
+      "mop_cloth": "拖布",
+      "water_filter": "水箱滤网",
+      "caster_wheel": "万向轮",
+      "main_wheel": "主驱动轮",
+      "dock_cleaning_brush": "基站清洁刷",
+      "dock_strainer": "基站滤网",
+      "dock_dust_bag": "基站尘袋",
+      "clean_water_tank": "清水箱",
+      "dirty_water_tank": "污水箱",
+      "rolling_brush": "滚刷",
+      "mopping_cloth": "拖布"
+    }
   },
   "review": {
     "badge_attribution_disagreement": "房间不匹配",
