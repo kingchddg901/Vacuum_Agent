@@ -83,22 +83,44 @@ satisfying one of its clauses.** An entry that files two claims needs both disch
 (P/B/A/R/L/FE) were where work landed without being recorded. Scope a future reconciliation
 there first.
 
-| token | n | means |
-|---|---:|---|
-| `[OPEN]` | 86 | still present in the tree exactly as described |
-| `[OPEN-DRIFTED]` | 23 | real, but **the text below it is WRONG** — a `⤷ DRIFT` line follows with the corrected mechanism |
-| `[NEEDS-RULING]` | 4 | blocked on a decision, not on work |
-| `[FIXED]` | 29 | gone, **and** a named test goes red if it returns |
-| `[FIXED-UNPROVEN]` | 42 | gone, but nothing would notice if it came back |
-| `[ACCEPTED]` | 8 | **a real defect, ruled not worth fixing, and stated AT THE SITE** — not a backlog item |
-| `[NOT-A-DEFECT]` | 3 | verified by-design or explicitly accepted |
-| `[SUPERSEDED]` | 5 | overtaken by another entry or a redesign |
-| `[UNVERIFIABLE]` | 3 | undecidable from the repo alone |
+### THIS TABLE DELIBERATELY CARRIES NO COUNTS. RUN THE CENSUS.
 
-**Canonical open count: 64** (the grep below, run 2026-08-24). The table's `[OPEN]` row counts
-every OPEN token anywhere in the file, including inside the audit sections the grep cannot see —
-the two numbers measure different sets and BOTH are correct. Quote the grep for "how much is
-left"; quote the table for "what state is everything in".
+```
+python .claude/notes/_ledger_census.py
+```
+
+| token | means |
+|---|---|
+| `[OPEN]` | still present in the tree exactly as described |
+| `[OPEN-DRIFTED]` | real, but **the text below it is WRONG** — a `⤷ DRIFT` line follows with the corrected mechanism |
+| `[NEEDS-RULING]` | blocked on a decision, not on work |
+| `[FIXED]` | gone, **and** a named test goes red if it returns |
+| `[FIXED-UNPROVEN]` | gone, but nothing would notice if it came back |
+| `[ACCEPTED]` | **a real defect, ruled not worth fixing, and stated AT THE SITE** — not a backlog item |
+| `[NOT-A-DEFECT]` | verified by-design or explicitly accepted |
+| `[SUPERSEDED]` | overtaken by another entry or a redesign |
+| `[UNVERIFIABLE]` | undecidable from the repo alone |
+
+⚠ **WHY THE NUMBERS ARE GONE, AND WHY THIS IS THE ONE PLACE THEY MUST NOT LIVE.** Hand-maintained
+counts in this header have been wrong every time anyone checked, always in the same direction, for
+months. The 2026-08-24 truth pass rewrote them from a measurement — and then made them stale inside
+the hour by ruling on a single entry. Worse, the numbers that pass wrote were themselves wrong:
+they came from `grep -c '\[OPEN\]'`, which also counts this legend, prose like "came back
+NEEDS-RULING", and the `⤷` evidence lines. It reported 86 where the true entry count was 64.
+
+A number a human has to remember to update is a number that lies. `_ledger_census.py` counts
+ENTRIES in the five shapes this file actually uses, ignores prose and legend, reports the tokenised
+set and the audit-section headings SEPARATELY (they measure different things — see below), lists
+what is blocked on a decision, and flags id collisions. **Quote its output with the date you ran
+it. Never transcribe a number into this header.**
+
+⚠ **TWO POPULATIONS, BOTH REAL.** The tokenised entries and the audit-section headings are
+different sets. The canonical `[OPEN]` grep sees only the first. "How much is left" is the census's
+`still live` line; "what state is everything in" is the full table. Neither is the whole file.
+
+⚠ **ID COLLISIONS EXIST.** `C13` names two unrelated entries — a saved-zone polygon row and the
+`_safe_int` bullet. Anything that locates rows by id can hit the wrong one; the census reports
+collisions so the next tool that walks this file is warned before it writes.
 
 ⚠ **TWO ROWS COULD NOT BE STAMPED AND ARE NOT REFLECTED ANYWHERE ABOVE.** The `## ROOMS MAP`
 section's 29 items are unnumbered bullets with no ids at all. The backlog walk referred to two
@@ -205,12 +227,26 @@ gate on doc work, the gate needs a sweep scoped by subsystem, not the residue of
 Four agents, no visibility of each other, same shape. `f/partial_guard_blind_spot` is the MODAL
 defect here, not an occasional one.
 
-- [NEEDS-RULING] **C13 `core/error_tracker.py:326` `_safe_int`** — the `int()` guard fires at COMPARISON
+- [ACCEPTED] **C13 `core/error_tracker.py:326` `_safe_int`** — the `int()` guard fires at COMPARISON
   (`_code_key`); `_safe_int` is `try: int(value)` with no bool/float check, at `:892` on the
   CAPTURE path. `int(3.7)` → `3` is minted when the code is read off the entity. Needs an
   upstream entity exposing `error_code` as float/bool: mechanism certain, occurrence unobserved.
   ⟵ **DISPOSITION 2026-08-21 — OPEN.** Error codes are captured through an unguarded int() while the bool/float guard lives only on the comparison path.
-  ⤷ RULING NEEDED 2026-08-24 ledger-truth pass · C13 is blocked on a decision, not on work. THE DEFECT IS STILL PHYSICALLY PRESENT — NOT FIXED. custom_components/eufy_vacuum/core/error_tracker.py:302-326: `_safe_int` body is `try: return int(value)` / `except (TypeError, ValueError): return None` (:324-326). No bool check, no float check. `_code_key` at :262-299 does carry both (`if isinstance(value, bool): return None` at :287-288, and the docstring rule at :276-280). The capture-path c
+  ⤷ **RULED 2026-08-24 (Chris): ACCEPTED.** The at-site "GUARD ASYMMETRY" statement in
+  `error_tracker.py:305-322` was written by an agent, not by Chris — but Chris read it and agrees
+  with it, so it now stands as his ruling. No code change. If anyone does give this the guards
+  later, the site's own instruction holds: add a **separate code-specific wrapper**, do NOT tighten
+  `_safe_int` itself, whose other two call sites (`:1090-1091`) coerce `error_count` and want
+  ordinary int semantics.
+  ⚠ **RECORDED HONESTLY BECAUSE THE GROUNDS DO NOT MATCH THE PROJECT'S USUAL ACCEPTANCE RULE.** The
+  site justifies acceptance by REACHABILITY ("no non-integer has been observed arriving there"), and
+  the same docstring says the value "lands on codes whose seconds are deducted by the fault table" —
+  i.e. it is TRUSTED AND USED IN ARITHMETIC, not discarded. This project's standing rule accepts a
+  defect when the bad input is **then thrown away**, and explicitly says "hard to reach" is never the
+  reason. So this is accepted on the maintainer's judgement, NOT on that rule. A future reader should
+  see what was actually accepted rather than a tidier version of it, and should re-open the question
+  rather than cite this row as precedent for accepting a reachability argument.
+  ⤷ was RULING NEEDED 2026-08-24 ledger-truth pass · THE DEFECT IS STILL PHYSICALLY PRESENT — NOT FIXED. custom_components/eufy_vacuum/core/error_tracker.py:302-326: `_safe_int` body is `try: return int(value)` / `except (TypeError, ValueError): return None` (:324-326). No bool check, no float check. `_code_key` at :262-299 does carry both (`if isinstance(value, bool): return None` at :287-288, and the docstring rule at :276-280). The capture-path c
 - [OPEN] **C14 `core/capabilities.py:314-318`** — the ROLE override path checks existence and records
   `REASON_OVERRIDE_UNRESOLVED` (`:900-902`). The MAINTENANCE path does `sources[component] =
   chosen; continue` — no check, no reason. A stale maintenance override PINS A DEAD ID, the exact

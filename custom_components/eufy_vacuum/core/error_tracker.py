@@ -319,6 +319,20 @@ def _safe_int(value: Any) -> int | None:
 
     If you are giving it the guards, give it a separate code-specific wrapper rather
     than tightening this one.
+
+    ⚠ ACCEPTED (Chris, 2026-08-24), ledger C13. The paragraphs above were written by an
+    agent during a doc campaign and carried no maintainer attribution, so the ledger
+    could not tell an authored observation from a ruling. Chris has now read it and
+    agrees: no code change.
+
+    BUT NOTE WHAT WAS ACCEPTED, because the grounds are unusual for this project. The
+    justification above is REACHABILITY — "no non-integer has been observed arriving".
+    The standing rule for accepting a defect here is that the bad input is **then thrown
+    away**, and that rule says outright that "hard to reach" is never the reason. This
+    value is not thrown away; it is trusted into the fault table's arithmetic. So this
+    is accepted on the maintainer's judgement, not because it satisfies that test. Do
+    not cite it as precedent for accepting a reachability argument, and re-open it if a
+    float or bool is ever actually observed on this path.
     """
     try:
         return int(value)
