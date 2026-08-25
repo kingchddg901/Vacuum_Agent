@@ -8,7 +8,7 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **408** · consumer `var()` uses **2328**
+- Catalog **408** · consumer `var()` uses **2324**
 - **274** with a STATIC consumer · **134** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
 - `var()` → non-catalog tokens **12** · dynamic `var(--evcc-…${…})` sites **3**
 
@@ -16,7 +16,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 > - **84** `animal` — `src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`
 > - **38** `floor-material` — `src/renderers/floor-texture-surface.js` and `src/bindings/map.js` build `--evcc-floor-${type}-…` from the material key
 > - **12** `room-fill` — `src/cards/map-room-color.js` — `roomFillTokenName(i)` builds `--evcc-room-fill-N`, 1-based and wrapping at 12 (contract pinned by MRC-1..MRC-7)
-- **Token CSS coverage 98.7%** — 1399/1417 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
+- **Token CSS coverage 98.7%** — 1402/1420 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
 
 ---
 
@@ -52,7 +52,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:200
 - custom_components/eufy_vacuum/themes/preloaded.py:509
 - src/cards/_shared.js:222 (color)
-- src/cards/dashboard-card.js:1138 (--accent)
+- src/cards/dashboard-card.js:1239 (--accent)
 - src/cards/profile-card.js:35 (--accent)
 - src/room-card.js:374 (--accent)
 - src/styles/external-jobs.js:32
@@ -276,7 +276,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:222
 - src/cards/_shared.js:215 (color)
 - src/cards/_shared.js:219 (color)
-- src/cards/dashboard-card.js:1142 (--text-muted)
+- src/cards/dashboard-card.js:1243 (--text-muted)
 - src/cards/profile-card.js:40 (--text-muted)
 - src/cards/vacuum-map-host.js:44 (color)
 - src/room-card.js:378 (--text-muted)
@@ -285,8 +285,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/learning.js:120
 - src/styles/learning.js:121
 - src/styles/learning.js:326 (color)
-- src/styles/learning.js:700 (color)
-- src/styles/learning.js:743 (color)
+- src/styles/learning.js:716 (color)
+- src/styles/learning.js:759 (color)
 - src/styles/maintenance.js:226 (color)
 - src/styles/maintenance.js:391 (color)
 - src/styles/maintenance.js:445 (color)
@@ -356,13 +356,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:1429 (color)
 - src/styles/rooms.js:1443 (color)
 - src/styles/rooms.js:1444
-- src/styles/rooms.js:1461
-- src/styles/rooms.js:1462
-- src/styles/rooms.js:1479 (color)
-- src/styles/rooms.js:1507 (color)
-- src/styles/rooms.js:1549
-- src/styles/rooms.js:1550
-- src/styles/rooms.js:1553 (color)
 - src/styles/run-profiles.js:82 (color)
 - src/styles/run-profiles.js:141 (color)
 - src/styles/run-profiles.js:235 (color)
@@ -419,8 +412,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/toast-host.js:90 (color)
 
 **`--evcc-text-on-accent`** — Text On Accent · default `#ffffff` src/styles/foundation.js:207
-- src/cards/dashboard-card.js:1196 (color)
-- src/cards/dashboard-card.js:1211 (color)
+- src/cards/dashboard-card.js:1305 (color)
+- src/cards/dashboard-card.js:1320 (color)
 - src/cards/profile-card.js:42 (--text-on-accent)
 - src/room-card.js:381 (--text-on-accent)
 - src/styles/map.js:365 (color)
@@ -445,7 +438,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:223
 - src/cards/_shared.js:216 (color)
 - src/cards/_shared.js:220 (color)
-- src/cards/dashboard-card.js:1141 (--text-primary)
+- src/cards/dashboard-card.js:1242 (--text-primary)
 - src/cards/profile-card.js:39 (--text-primary)
 - src/room-card.js:377 (--text-primary)
 - src/styles/base-station.js:40 (color)
@@ -461,11 +454,11 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/foundation.js:278 (--evcc-chip-hover-text)
 - src/styles/foundation.js:388 (color)
 - src/styles/learning.js:48 (--evcc-learning-text-primary)
-- src/styles/learning.js:642 (color)
-- src/styles/learning.js:678 (color)
-- src/styles/learning.js:713 (color)
-- src/styles/learning.js:792 (color)
-- src/styles/learning.js:806 (color)
+- src/styles/learning.js:658 (color)
+- src/styles/learning.js:694 (color)
+- src/styles/learning.js:729 (color)
+- src/styles/learning.js:808 (color)
+- src/styles/learning.js:822 (color)
 - src/styles/maintenance.js:58 (color)
 - src/styles/maintenance.js:113 (color)
 - src/styles/maintenance.js:119 (color)
@@ -633,8 +626,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/job-summary.js:101 (color)
 - src/styles/learning.js:51 (--evcc-learning-text-secondary)
 - src/styles/learning.js:115 (--evcc-learning-confidence-neutral-text)
-- src/styles/learning.js:662 (color)
-- src/styles/learning.js:797 (color)
+- src/styles/learning.js:678 (color)
+- src/styles/learning.js:813 (color)
 - src/styles/maintenance.js:52 (color)
 - src/styles/maintenance.js:63 (color)
 - src/styles/maintenance.js:90 (color)
@@ -742,7 +735,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:1261 (color)
 
 **`--evcc-text-strong`** — Text Strong · default `var(--primary-text-color, #f0f2f5)` src/styles/foundation.js:206
-- src/styles/learning.js:735 (color)
+- src/styles/learning.js:751 (color)
 - src/styles/metrics.js:234 (color)
 
 ## Cards & Surfaces  ·  19 static / 19
@@ -777,8 +770,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:668
 
 **`--evcc-surface-action`** — Surface Action · default `rgba(255,255,255,0.10)` src/styles/foundation.js:188
-- src/styles/learning.js:677 (background)
-- src/styles/learning.js:805 (background)
+- src/styles/learning.js:693 (background)
+- src/styles/learning.js:821 (background)
 - src/styles/map.js:246 (background)
 - src/styles/map.js:278 (background)
 - src/styles/map.js:321 (background)
@@ -787,10 +780,10 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-surface-action-hover`** — Surface Action Hover · default `rgba(255,255,255,0.18)` src/styles/foundation.js:189
 - src/cards/_shared.js:221 (background)
-- src/cards/dashboard-card.js:1181 (background)
+- src/cards/dashboard-card.js:1290 (background)
 - src/room-card.js:489 (background)
-- src/styles/learning.js:687 (background)
-- src/styles/learning.js:815 (background)
+- src/styles/learning.js:703 (background)
+- src/styles/learning.js:831 (background)
 - src/styles/map.js:256 (background)
 - src/styles/map.js:285 (background)
 - src/styles/map.js:326 (background)
@@ -819,7 +812,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-surface-card`** — Surface Card · default `var(--evcc-surface-base)` src/styles/foundation.js:180
 - custom_components/eufy_vacuum/themes/preloaded.py:71
 - src/cards/_shared.js:218 (background)
-- src/cards/dashboard-card.js:1139 (--surface)
+- src/cards/dashboard-card.js:1240 (--surface)
 - src/cards/profile-card.js:36 (--surface)
 - src/room-card.js:375 (--surface)
 - src/styles/foundation.js:255 (--evcc-card-bg)
@@ -843,9 +836,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:1186 (background)
 
 **`--evcc-surface-chip`** — Surface Chip · default `rgba(255,255,255,0.09)` src/styles/foundation.js:187
-- src/styles/learning.js:658 (background)
-- src/styles/learning.js:712 (background)
-- src/styles/learning.js:765 (background)
+- src/styles/learning.js:674 (background)
+- src/styles/learning.js:728 (background)
+- src/styles/learning.js:781 (background)
 
 **`--evcc-surface-input`** — Surface Input · default `rgba(255,255,255,0.06)` src/styles/foundation.js:183, src/styles/modal-host.js:205, src/styles/modal-host.js:655
 - custom_components/eufy_vacuum/themes/preloaded.py:70
@@ -1059,8 +1052,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/toast-host.js:71 (background)
 
 **`--evcc-surface-subtle`** — Surface Subtle · default `rgba(255,255,255,0.04)` src/styles/foundation.js:185
-- src/cards/dashboard-card.js:1176 (background)
-- src/cards/dashboard-card.js:1180 (background)
+- src/cards/dashboard-card.js:1285 (background)
+- src/cards/dashboard-card.js:1289 (background)
 - src/room-card.js:380 (--surface-subtle)
 - src/styles/maintenance.js:377 (background)
 - src/styles/modal-host.js:791 (background)
@@ -1075,18 +1068,18 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:753 (background)
 
 **`--evcc-surface-success`** — Surface Success · default `rgba(76,175,110,0.12)` src/styles/foundation.js:200
+- src/cards/dashboard-card.js:1251 (--status-success-bg)
 - src/styles/rooms.js:230 (background)
-- src/styles/rooms.js:1542 (background)
 
 **`--evcc-surface-sunken`** — Surface Sunken · default `rgba(0,0,0,0.18)` src/styles/foundation.js:190
-- src/cards/dashboard-card.js:1190 (background)
+- src/cards/dashboard-card.js:1299 (background)
 - src/styles/metrics.js:325 (background)
 - src/styles/setup.js:310 (background)
 
 **`--evcc-surface-warning`** — Surface Warning · default `rgba(255,180,0,0.12)` src/styles/foundation.js:191
+- src/cards/dashboard-card.js:1249 (--status-warning-bg)
 - src/styles/learning.js:630 (background)
 - src/styles/rooms.js:238 (background)
-- src/styles/rooms.js:1535 (background)
 
 ## Borders & Shadows  ·  7 static / 7
 
@@ -1104,7 +1097,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:211
 - src/cards/_shared.js:215
 - src/cards/_shared.js:218
-- src/cards/dashboard-card.js:1140 (--border)
+- src/cards/dashboard-card.js:1241 (--border)
 - src/cards/profile-card.js:38 (--border)
 - src/room-card.js:376 (--border)
 - src/styles/base-station.js:22
@@ -1123,12 +1116,12 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/job-summary.js:82
 - src/styles/learning.js:42 (--evcc-learning-panel-border)
 - src/styles/learning.js:112 (--evcc-learning-confidence-neutral-border)
-- src/styles/learning.js:659
-- src/styles/learning.js:676
-- src/styles/learning.js:698
-- src/styles/learning.js:764
-- src/styles/learning.js:769
-- src/styles/learning.js:804
+- src/styles/learning.js:675
+- src/styles/learning.js:692
+- src/styles/learning.js:714
+- src/styles/learning.js:780
+- src/styles/learning.js:785
+- src/styles/learning.js:820
 - src/styles/maintenance.js:24
 - src/styles/maintenance.js:149
 - src/styles/maintenance.js:176
@@ -2117,6 +2110,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:406
 - custom_components/eufy_vacuum/themes/preloaded.py:429
 - custom_components/eufy_vacuum/themes/preloaded.py:452
+- src/cards/dashboard-card.js:1381
+- src/cards/dashboard-card.js:1382
+- src/cards/dashboard-card.js:1383 (color)
 - src/styles/external-jobs.js:102
 - src/styles/external-jobs.js:103
 - src/styles/external-jobs.js:104 (color)
@@ -2234,6 +2230,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:406
 - custom_components/eufy_vacuum/themes/preloaded.py:429
 - custom_components/eufy_vacuum/themes/preloaded.py:452
+- src/cards/dashboard-card.js:1252 (--status-success-line)
 - src/styles/base-station.js:107
 - src/styles/foundation.js:260 (--evcc-color-cleaning)
 - src/styles/learning.js:64
@@ -2246,7 +2243,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/learning.js:130 (--evcc-confidence-high-text)
 - src/styles/learning.js:299
 - src/styles/learning.js:300
-- src/styles/learning.js:783 (accent-color)
+- src/styles/learning.js:799 (accent-color)
 - src/styles/maintenance.js:29
 - src/styles/maintenance.js:111
 - src/styles/maintenance.js:112
@@ -2287,7 +2284,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:1060
 - src/styles/rooms.js:1300
 - src/styles/rooms.js:1308
-- src/styles/rooms.js:1543
 - src/styles/run-profiles.js:174
 - src/styles/run-profiles.js:175
 - src/styles/setup.js:68 (background)
@@ -2330,6 +2326,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:406
 - custom_components/eufy_vacuum/themes/preloaded.py:429
 - custom_components/eufy_vacuum/themes/preloaded.py:452
+- src/cards/dashboard-card.js:1250 (--status-warning-line)
 - src/styles/external-jobs.js:38
 - src/styles/external-jobs.js:39
 - src/styles/external-jobs.js:40 (color)
@@ -2350,8 +2347,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/learning.js:365
 - src/styles/learning.js:366
 - src/styles/learning.js:367 (color)
-- src/styles/learning.js:769
-- src/styles/learning.js:770
+- src/styles/learning.js:785
+- src/styles/learning.js:786
 - src/styles/maintenance.js:34
 - src/styles/maintenance.js:303
 - src/styles/map.js:306
@@ -2406,7 +2403,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:1141
 - src/styles/rooms.js:1149
 - src/styles/rooms.js:1150
-- src/styles/rooms.js:1536
 - src/styles/run-profiles.js:169
 - src/styles/run-profiles.js:170
 - src/styles/run-profiles.js:191 (color)
@@ -3009,7 +3005,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:727
 
 **`--evcc-radius-card`** — Radius Card · default `var(--ha-card-border-radius, 12px)` src/styles/foundation.js:236
-- src/cards/dashboard-card.js:1143 (--radius)
+- src/cards/dashboard-card.js:1244 (--radius)
 - src/cards/profile-card.js:41 (--radius)
 - src/room-card.js:379 (--radius)
 - src/styles/external-jobs.js:69 (border-radius)
@@ -3044,6 +3040,10 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:450 (border-radius)
 
 **`--evcc-radius-inner`** — Radius Inner · default `8px` src/styles/foundation.js:237
+- src/cards/dashboard-card.js:1340 (border-radius)
+- src/cards/dashboard-card.js:1363 (border-radius)
+- src/cards/dashboard-card.js:1369 (border-radius)
+- src/cards/dashboard-card.js:1375 (border-radius)
 - src/styles/base-station.js:21 (border-radius)
 - src/styles/base-station.js:65 (border-radius)
 - src/styles/external-jobs.js:24 (border-radius)
@@ -3077,10 +3077,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:149 (border-radius)
 - src/styles/rooms.js:162 (border-radius)
 - src/styles/rooms.js:1420 (border-radius)
-- src/styles/rooms.js:1460 (border-radius)
-- src/styles/rooms.js:1538 (border-radius)
-- src/styles/rooms.js:1545 (border-radius)
-- src/styles/rooms.js:1552 (border-radius)
 - src/styles/run-profiles.js:59 (border-radius)
 - src/styles/run-profiles.js:89 (border-radius)
 - src/styles/run-profiles.js:158 (border-radius)
@@ -3103,7 +3099,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-radius-panel`** — Radius Panel · default —
 - src/styles/learning.js:231 (border-radius)
-- src/styles/learning.js:763 (border-radius)
+- src/styles/learning.js:779 (border-radius)
 - src/styles/room-access.js:14 (border-radius)
 - src/styles/rooms.js:261 (border-radius)
 - src/styles/rooms.js:333 (border-radius)
