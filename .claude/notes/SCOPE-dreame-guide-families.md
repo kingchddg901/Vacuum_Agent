@@ -228,6 +228,49 @@ The recount is cheap and worth repeating rather than remembering: parse
 `supported_devices.md` into `name -> [keys]`, sum the keys for the marketing names on
 each authored page, divide by the 587 total.
 
+## Language coverage — EVERYTHING AUTHORED IS ENGLISH ONLY
+
+All 264 authored strings come from EN sections, and there is **no
+`upkeep_guides_i18n/` for Dreame at all** while Eufy and Roborock each carry 17 packs
+plus the EN base. Chris was told (2026-08-25) and said **record, do not start** — the
+i18n rollout is LOCKED at 18 languages, so Dreame packs are a decision, not cleanup.
+
+The manufacturer text for most of those languages is ALREADY in the PDFs we hold, and
+it is unevenly spread. Per authored family, measured from page footers:
+
+| language | families with manual text | note |
+|---|---|---|
+| EN | 7/7 | |
+| DE, FR | 6/7 | |
+| IT | 5/7 | |
+| ES, NL, PL | 3/7 | |
+| HE, PT | 2/7 | |
+| AR, ID, JA, TR, ZH-Hant | 1/7 | `l10s_gen2` only |
+| KO | 2/7 | `x50`, `x60_ultra` — separate Korean-edition PDFs |
+| CS, ZH-Hans | 0/7 | |
+
+⚠ **THE PROBE THAT PRODUCED THIS WAS WRONG TWICE, AND BOTH FAILURES LOOKED LIKE DATA.**
+Recorded because the next person will reach for the same shortcut:
+
+1. First version returned **zero languages for every manual** — it read only the tail of
+   the extracted text, and footers are not last in content-stream order. A probe that
+   answers uniformly is broken, not informative.
+2. Fixed, it still under-reported: **single-language regional editions carry no ASCII
+   footer code at all.** RU, JA and ZH-Hant were nearly reported absent with the
+   Cyrillic, Kana and Han plainly in the file. Sniff the SCRIPT, not just the footer.
+
+It is trustworthy only because it was ablated against something independently known —
+it recovers exactly what each filename claims (`R2489A-X50_Series-EN_DE_FR` → EN/DE/FR).
+And per `MANUAL-INVENTORY.md`'s own standing warning, **the filename is not a manifest**:
+it is a floor to check the probe against, never the answer.
+
+⚠ **`ko` is the live correction.** `MANUAL-INVENTORY.md` records Korean as absent with
+good evidence — that finding is about the **L10s Gen 2** and stands. But
+`korean-vocabulary-source/` holds `R2489F` (X50 Ultra) and `R5089F` (X60 Ultra), so
+Korean is in hand for two authored families. That file has been annotated in place.
+
+---
+
 ## Status
 
 **Seven families, all authored from their own manual**, all in
