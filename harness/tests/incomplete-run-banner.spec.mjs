@@ -64,9 +64,15 @@ async function seedLocale(page, code) {
  * null-object, which is truthy — so the banner would render with an EMPTY title and
  * the line-count assertion would pass on nothing.
  */
-function renderBanner(page, { lang, font, width }) {
+function renderBanner(page, { lang, font, width, scale = 1 }) {
   return page.evaluate(
-    ([lg, ft, w]) => {
+    ([lg, ft, w, sc]) => {
+      // OS FONT SCALE. Android's slider runs to 1.3x on its "Largest" non-
+      // accessibility setting, and the card sizes in rem, so the whole layout grows.
+      // This is the variable that was missing: at 1.0x the reported English case
+      // does NOT reproduce at any width, and at 1.3x it lands on exactly the seven
+      // lines that were photographed.
+      document.documentElement.style.fontSize = `${16 * sc}px`;
       const res = window.__evcc.render("rooms", {
         width: w,
         freeze: true,
@@ -104,7 +110,7 @@ function renderBanner(page, { lang, font, width }) {
         },
       };
     },
-    [lang, font, width],
+    [lang, font, width, scale],
   );
 }
 
@@ -112,21 +118,32 @@ function renderBanner(page, { lang, font, width }) {
    the one that bites: it is ~1.66x Arial by rendered width, which is why the same
    markup survives in one font and fails in the other. */
 const CASES = [
-  { lang: null, font: null,           label: "en / default" },
-  { lang: null, font: "opendyslexic", label: "en / OpenDyslexic" },
-  { lang: "fr", font: "opendyslexic", label: "fr / OpenDyslexic" },
-  { lang: "de", font: "opendyslexic", label: "de / OpenDyslexic" },
+  { lang: null, font: null,           scale: 1,   label: "en / default" },
+  { lang: null, font: "opendyslexic", scale: 1,   label: "en / OpenDyslexic" },
+  // THE REPORTED FRAME. OpenDyslexic at Android's largest font scale — and the two
+  // settings correlate hard, because they are the same accessibility affordance.
+  // A user who picks the dyslexia-friendly face is exactly the user who has also
+  // turned text size up, so this pairing is that user's DEFAULT, not a corner.
+  { lang: null, font: "opendyslexic", scale: 1.3, label: "en / OpenDyslexic @1.3x" },
+  { lang: "fr", font: "opendyslexic", scale: 1,   label: "fr / OpenDyslexic" },
+  { lang: "fr", font: "opendyslexic", scale: 1.3, label: "fr / OpenDyslexic @1.3x" },
+  { lang: "de", font: "opendyslexic", scale: 1,   label: "de / OpenDyslexic" },
 ];
 
-for (const VW of [360, 390]) {
-test.describe(`incomplete-run banner @${VW}px`, () => {
-  test.use({ viewport: { width: VW, height: 844 } });
+/* REAL GEOMETRIES, not round numbers. 360x772 is the maintainer's own phone — his
+   screenshots are 720x1544 raw at DPR 2 — and it is where this was reported. 390x844
+   is what the rest of harness/tests already uses (22 of its 24 mobile viewports), an
+   iPhone width; it is kept so this spec stays comparable to its neighbours, not
+   because anything was observed there. */
+for (const [VW, VH] of [[360, 772], [390, 844]]) {
+test.describe(`incomplete-run banner @${VW}x${VH}`, () => {
+  test.use({ viewport: { width: VW, height: VH } });
 
   for (const c of CASES) {
     test(`${c.label}: neither starves nor overflows`, async ({ page }) => {
       await mountHarness(page);
       if (c.lang) await seedLocale(page, c.lang);
-      const res = await renderBanner(page, { lang: c.lang, font: c.font, width: VW });
+      const res = await renderBanner(page, { lang: c.lang, font: c.font, width: VW, scale: c.scale });
 
       expect(res.ok, res.error).toBe(true);
       expect(res.title, "the banner did not render — the accessor overrides stopped working").not.toBeNull();
