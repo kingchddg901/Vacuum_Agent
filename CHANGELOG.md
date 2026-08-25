@@ -11,6 +11,7 @@ only.
 ## [Unreleased]
 
 ### Added
+
 - **Override Order — write a saved cleaning sequence to your Roborock.** A new row under
   Rooms, and it does something the app couldn't before: it edits the *saved sequence* in
   your Roborock app, so every start after that — including one you begin from the Roborock
@@ -45,7 +46,54 @@ only.
   when a profile is saved — the pass-density axis Roborock reads — so a replay reproduces
   more of what made the original run behave the way it did.
 
+- **Roborock wash docks now surface their two dock consumables.** `Dock Cleaning Brush`
+  and `Dock Strainer` appear on any Roborock whose dock can wash — they live on the dock,
+  which Roborock exposes as a *second device*, so they were previously invisible to us.
+  They are self-gating: on a dockless unit they resolve to nothing and produce no row and
+  no button, so a bare charger is unchanged.
+- **Roborock dock capabilities are read from the dock itself.** Whether a dock can wash,
+  dry, or empty is now taken from its reported dock type and run through the vendor's own
+  capability table, instead of a hardcoded "no dock" for every model. Each of the three is
+  asked separately, because they genuinely differ: an auto-empty dock collects but cannot
+  wash, and some docks wash and empty but cannot dry. A dock we cannot identify stays
+  conservative rather than guessing.
+
+- **Setup → System: a screen showing every value Vacuum Agent reads from your vacuum.** Each
+  row names the role, the entity behind it, what that entity currently reads, and *how it was
+  chosen* — name match, found on the device, found in the integration, declared by the
+  integration, or your own override. It deliberately lists everything rather than only
+  problems, because the collision fixed below resolves *successfully* to a real entity and is
+  simply the wrong one: a screen that lists only failures cannot show a failure that does not
+  look like one. Every row has a picker, so a wrong binding can be corrected without waiting
+  for a release; "Automatic" hands the role back to auto-detection.
+- **`set_entity_override` service and an `entity_overrides` setting**, so a role can be pinned
+  to a chosen entity from either the panel or Settings → Devices & Services → Configure. The
+  options screen is the reachable one when the panel is not.
+- **Saved run profiles honour their room order.** `strict_order` — which makes a
+  path-optimising vacuum clean rooms in queue order — was reachable from
+  `start_selected_rooms` and nowhere else. `start_run_profile` had no such option and the
+  profile button carries no service data, so a saved profile had no way to ask for it. On
+  Roborock, which does not honour clean order natively, a profile's room order was silently
+  discarded every time. Profiles now store it, the three profile services accept it, and the
+  run-profile editor has a checkbox.
+- Diagnostics now records, per role, WHY it resolved as it did (resolved / disabled /
+  registered-but-stateless / absent / your override did not resolve), whether the companion
+  search ran at all and what it found, and the `translation_key` / `state_class` /
+  `device_class` / unit of every entity on the device — the metadata needed to diagnose a
+  naming problem without a round-trip.
+
+- **The shell chrome gets out of the way in landscape.** On a phone held sideways the status
+  pane and bottom navigation take 89px of a ~360px screen — a quarter of it — for information
+  that mostly isn't being read. Both now hide by default and return on a deliberate upward
+  flick, or whenever you scroll back to the top of a list. That gives the content area a third
+  more room (270px → 359px on the theme editor). Only landscape is affected; portrait has the
+  space already and is untouched. Two deliberate limits: the status pane **stays pinned while a
+  job is running or paused**, because that is exactly when its numbers are worth the space; and
+  the chrome only auto-hides where something can actually be scrolled, so a short view can never
+  lose its navigation with no gesture available to bring it back.
+
 ### Fixed
+
 - **A confirmed match no longer looks like a warning.** The Override Order row has three
   verification states — amber when the device disagrees with your queue, green when it
   agrees, grey when it could not be read — and none of them were actually coloured. The
@@ -98,10 +146,11 @@ only.
   boundary and shifted every later room label to the next queue entry — reporter's
   `completed_room_ids` said [3, 5] while the robot was still in 5. The check now consults
   the wash-mode entity and stays out of the way on by-time. Falls open toward no-boundary
-  on any brand that doesn't declare a wash mode.
+  on any brand that doesn't declare a wash mode. Thanks @ptruman (#54).
 - **Issue #51 — the stall watch stops raising NameError on every 5-second poll.** The
   tick called a name it never imported, so any vacuum with an active job was raising
   every five seconds. Shipped 2026-08-09; caught by a user, took ten days to reach us.
+  Thanks @Odatas (#51).
 - **A profile matcher that was silently dead for 17 days.** The Review tab's suggestion
   surface — "runs you do often but are not default" — was assembling matches, then
   throwing them away on the last line before display. Fixed in both the backend and the
@@ -156,60 +205,6 @@ only.
 - **A job-active gate that misread `unavailable` as "no signal".** The gate could report a
   completion secondary satisfied on a signal it couldn't actually read.
 
-### Notes
-- Home Assistant `2026.8` or newer is the tested floor for this release. Older cores may
-  work but have not been exercised against the beta cycle.
-
-## [2.1.0] - 2026-08-14
-
-### Added
-- **Roborock wash docks now surface their two dock consumables.** `Dock Cleaning Brush`
-  and `Dock Strainer` appear on any Roborock whose dock can wash — they live on the dock,
-  which Roborock exposes as a *second device*, so they were previously invisible to us.
-  They are self-gating: on a dockless unit they resolve to nothing and produce no row and
-  no button, so a bare charger is unchanged.
-- **Roborock dock capabilities are read from the dock itself.** Whether a dock can wash,
-  dry, or empty is now taken from its reported dock type and run through the vendor's own
-  capability table, instead of a hardcoded "no dock" for every model. Each of the three is
-  asked separately, because they genuinely differ: an auto-empty dock collects but cannot
-  wash, and some docks wash and empty but cannot dry. A dock we cannot identify stays
-  conservative rather than guessing.
-
-- **Setup → System: a screen showing every value Vacuum Agent reads from your vacuum.** Each
-  row names the role, the entity behind it, what that entity currently reads, and *how it was
-  chosen* — name match, found on the device, found in the integration, declared by the
-  integration, or your own override. It deliberately lists everything rather than only
-  problems, because the collision fixed below resolves *successfully* to a real entity and is
-  simply the wrong one: a screen that lists only failures cannot show a failure that does not
-  look like one. Every row has a picker, so a wrong binding can be corrected without waiting
-  for a release; "Automatic" hands the role back to auto-detection.
-- **`set_entity_override` service and an `entity_overrides` setting**, so a role can be pinned
-  to a chosen entity from either the panel or Settings → Devices & Services → Configure. The
-  options screen is the reachable one when the panel is not.
-- **Saved run profiles honour their room order.** `strict_order` — which makes a
-  path-optimising vacuum clean rooms in queue order — was reachable from
-  `start_selected_rooms` and nowhere else. `start_run_profile` had no such option and the
-  profile button carries no service data, so a saved profile had no way to ask for it. On
-  Roborock, which does not honour clean order natively, a profile's room order was silently
-  discarded every time. Profiles now store it, the three profile services accept it, and the
-  run-profile editor has a checkbox.
-- Diagnostics now records, per role, WHY it resolved as it did (resolved / disabled /
-  registered-but-stateless / absent / your override did not resolve), whether the companion
-  search ran at all and what it found, and the `translation_key` / `state_class` /
-  `device_class` / unit of every entity on the device — the metadata needed to diagnose a
-  naming problem without a round-trip.
-
-- **The shell chrome gets out of the way in landscape.** On a phone held sideways the status
-  pane and bottom navigation take 89px of a ~360px screen — a quarter of it — for information
-  that mostly isn't being read. Both now hide by default and return on a deliberate upward
-  flick, or whenever you scroll back to the top of a list. That gives the content area a third
-  more room (270px → 359px on the theme editor). Only landscape is affected; portrait has the
-  space already and is untouched. Two deliberate limits: the status pane **stays pinned while a
-  job is running or paused**, because that is exactly when its numbers are worth the space; and
-  the chrome only auto-hides where something can actually be scrolled, so a short view can never
-  lose its navigation with no gesture available to bring it back.
-
-### Fixed
 - **Vacuums on a non-English Home Assistant can be CONTROLLED, not just read.** The repair
   that made non-English installs readable in an earlier beta only ever reached the parts
   that *read* your vacuum. Everything that *presses* something was still looking for
@@ -341,6 +336,7 @@ only.
   and was simply unreachable.
 
 ### Changed
+
 - **Vacuum Agent now says plainly when it does not support a vacuum.** Previously anything
   it could not identify was quietly driven with Eufy's settings — which meant, for example,
   a Dreame appearing to be configured while almost nothing about it was actually read. A
@@ -372,6 +368,11 @@ only.
   scrolling on a 390px screen. It is now a single sticky line at the top of the token list,
   which also lets longer translations wrap and be read in full rather than being clipped to
   fit beside an input.
+
+### Notes
+
+- Home Assistant `2026.8` or newer is the tested floor for this release. Older cores may
+  work but have not been exercised against the beta cycle.
 
 ## [2.0.1] - 2026-08-10
 
