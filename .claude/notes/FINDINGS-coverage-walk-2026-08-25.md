@@ -165,3 +165,87 @@ points at real things.
 5. `_compact_dock_drift` (LOW) — near-free, pure function, would take minutes
 
 `button.py` T4 is already on the ledger and needs no re-triage.
+
+---
+
+# WAVE 2 — widened to runs of ≥3 statements
+
+Chris: *"walk all files with any lines of 3 or more contiguous skipped to check for logic —
+log only is not an issue."*
+
+**99 blocks across 41 modules.** Each uncovered statement mapped to its AST node type, then
+read.
+
+⚠ **ZERO blocks are log-only, so the dismissal removes nothing.** The highest log
+proportion in any block is 33%; logging appears mixed *into* blocks rather than as
+standalone runs. All 99 carry assignments, calls, branches or raises. That result was
+checked against the classifier — the ranked-by-log-proportion list is what proves it —
+rather than trusted because it was convenient.
+
+## CRITICAL — physical consequence
+
+### `dispatch/manager.py:626-638` — the safe-water abort
+
+Its own comment states the stakes: *"RP-007 step 8 (DQ-ACT-5): the mixed-batch SAFEST-water
+push is SAFETY-critical — if it fails, the device keeps its previous (possibly high) water
+and the dispatch would wet-mop the dry rooms it exists to protect. Abort the dispatch."*
+
+**The abort that prevents wet-mopping rooms marked dry has no test.** Every other finding
+here is data or UX. This one ends with water on a floor configured to stay dry.
+
+## HIGH — new in wave 2
+
+| block | what |
+|---|---|
+| `core/manager.py` ×4 — `4978-4980`, `5003-5006`, `5020-5032`, `5129-5142` | the **stall-detection FIRING paths**: `_stuck_err_open`, the elapsed-window calculation, the `area` trigger with its progress detail, and the event payload with room-name resolution |
+| `switch.py:155-160`, `202-205` | the **`clean_order_override` switch entity** — constructor and `is_on`. The switch the entire 2.1.0 Override Order feature hangs on |
+| `learning/history_store.py:2095-2098` | the **`attribution_shift` learning blocker** — the gate marking a run unusable for learning. The guard against the exact failure the audit calibration named worst blast radius: a wrong record poisoning learning permanently |
+| `core/capabilities.py:528-532`, `793-801` | entity-resolution heuristics — the BY_MAGNITUDE disambiguator with its *"0 vs 0 is not evidence"* guard, and the translation-key sibling merge with origin tracking. The issue #49 area, shipped in 2.1.0 |
+| `core/manager.py:2711-2728` | **stranded-break self-heal.** A room disabled AFTER a break was placed strands it at the queue edge; this drops it rather than letting `get_queue_steps` crash on read |
+| `learning/history_store.py:894-900` | phase-slot synthesis when a phase is missing from the planned structure — appends and re-sorts rather than losing the record |
+| `learning/manager.py:1004-1018` | `close_phased_job` sealing unrun phases as `cancelled_upstream` — implements **Chris's directive 1** |
+
+### The stall-capture feature is untested end to end
+
+Nine blocks across three modules: detection (`core/manager` ×4) → capture listener
+(`listeners/stall_capture` ×3) → arming service (`services/stall_capture` ×2). The README
+advertises it — *"fires a Home Assistant event when the vacuum has been in a room
+significantly longer than its learned average."*
+
+A larger uncovered feature surface than the entity-override cluster in wave 1.
+
+## Cross-cutting — not about coverage
+
+### The optional-Pillow reason is inconsistent, and one side proves the other is a bug
+
+`listeners/stall_capture.py:377-383` distinguishes the two causes:
+
+```python
+"no_pillow" if _scr.Image is None else "unusable"
+```
+
+`mapping/mapping_services.py` does not, in **two** places — `880-888` returns
+`unsupported_format` for both a corrupt image and a missing Pillow, and `915-921` silently
+falls back to the **declared** image dimensions when PIL is absent, so a map image's real
+size is never verified on a plain install.
+
+The codebase already knows the distinction matters. Conflating it is an inconsistency, not
+a choice.
+
+### `get_active_map_id` guard duplicated verbatim
+
+`mapping_services.py:627-631` and `2523-2527` are the same five statements — one question
+answered twice, both uncovered. Fix one and the other rots
+(`feedback_centralize_question_not_vocabulary`).
+
+## Dismissed on reading
+
+* `os.remove` / cleanup wrapped in `except OSError: pass` (`mapping_services` ×3).
+  **`history_store:506-509` is NOT one of these** — it unlinks a temp file and **re-raises**,
+  which is atomic-write correctness.
+* `except: log; return None` read-failure paths returning a sentinel no caller branches on.
+* Diagnostic dump-formatting branches (`map_source_runtime:377-379`).
+
+Everything else in the 99 was left classified rather than dismissed. The tables above are
+what is worth a test — not the whole list. Reproducible: `python scripts/coverage_triage.py`
+for ≥8, and the AST walk in this session's scratchpad for ≥3.
