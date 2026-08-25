@@ -71,7 +71,7 @@ The proof is the everyday surfaces themselves — a room's own controls and a sa
 *Six of the eighteen. The other twelve — including right-to-left Arabic and Hebrew — are below.*
 
 <details>
-<summary><b>All eighteen languages</b> — the same two cards, in every language that ships</summary>
+<summary><strong>All eighteen languages</strong> — the room card, a saved routine, and the whole dashboard card with its map</summary>
 
 <br>
 
@@ -86,6 +86,22 @@ The proof is the everyday surfaces themselves — a room's own controls and a sa
 ![A saved routine in Italian, Dutch, Polish, Portuguese, Turkish and Russian](docs/screenshots/profile_7-12.png)
 
 ![A saved routine in Hebrew, Arabic, Korean, Japanese, Simplified Chinese and Traditional Chinese — in Hebrew and Arabic the step numbers sit on the right and Run moves to the left](docs/screenshots/profile_13-18.png)
+
+**The dashboard card — map, layers and all**
+
+Room names stay as you named them; everything the integration supplies is translated.
+
+![The dashboard card with its rendered map and map-layer list, in English, Indonesian and Czech](docs/screenshots/DashBoardCard_1-3.png)
+
+![The same card in German, Spanish and French](docs/screenshots/DashBoardCard_4-6.png)
+
+![The same card in Italian, Dutch and Polish](docs/screenshots/DashBoardCard_7-9.png)
+
+![The same card in Portuguese, Turkish and Russian](docs/screenshots/DashBoardCard_10-12.png)
+
+![The same card in Hebrew, Arabic and Korean — in Hebrew and Arabic the whole card mirrors: layer checkboxes move to the right of their labels, the zoom controls reverse, and Dock and Start move to the left, while the floor plan itself keeps its orientation](docs/screenshots/DashBoardCard_13-15.png)
+
+![The same card in Japanese, Simplified Chinese and Traditional Chinese](docs/screenshots/DashBoardCard_16-18.png)
 
 </details>
 
