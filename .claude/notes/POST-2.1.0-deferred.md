@@ -94,6 +94,19 @@ left because the fix means un-stubbing an accessor the spec deliberately control
   (`src/state/learning.js:497`). **Ruling (Chris): leave it.** The backend deletes the log on any
   normal completion, so a vacuum in regular rotation clears it by itself; it lingers on Ivy
   because she is third in line behind two other machines. Working as intended for the common case.
+* The **typeface picker reaches the panel but not the standalone cards**
+  (`src/i18n/font-store.js` is imported only by `main.js`, `renderers/language-control.js`
+  and `styles/fonts.js`; nothing under `src/cards/` or `room-card.js` reads it).
+  **Ruling (Chris, 2026-08-25): correct as-is, do not "fix".** A card sits inside someone
+  else's dashboard, and one small section rendering in a different face from everything
+  around it looks broken rather than accessible.
+
+  It will keep looking like an oversight, because `ui_language` and `ui_font` are adjacent
+  fields in the same `eufy_vacuum_card` user-data blob and the **globe is card-native while
+  the font picker is not**. The asymmetry is principled: a card in a language you cannot
+  read is USELESS, so comprehension has to override local consistency; a card in the host
+  dashboard's font is merely not-your-preference. Comprehension wins, typography does not.
+
 * The **four hand-mixed success surfaces** (`learning.js:300`, `rooms.js:959`, `rooms.js:1060`,
   `theme.js:624`) — zone / selection / tag-family semantics, not status. Converting them would
   couple unrelated concepts to the Surface Success control. Already ruled; do not re-sweep.
