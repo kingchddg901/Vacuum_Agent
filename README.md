@@ -76,6 +76,31 @@ Fault names are translated too — 237 of them across both brands, so a base-sta
 
 The Roborock adapter (tested on the **S6**) brings the stock integration up to parity with Eufy: the same per-room **rendered map**, **floor textures**, tap-to-queue, **draggable room-name labels**, and **draw-a-zone** — plus native per-room live rollover and per-room fan speed. Where a brand doesn't expose a fan-speed select entity, suction is still settable right in the zone/clean panel.
 
+**Wash docks** surface their two consumables — `Dock Cleaning Brush` and `Dock Strainer`. They live on the dock, which Roborock exposes as a *second device*, so they were previously invisible. Whether a dock can wash, dry or empty is read from the dock itself rather than guessed, and a bare charger produces no rows and no buttons.
+
+## Two ways to override how a Roborock cleans
+
+Path-optimising vacuums re-route whatever you send them. You pick five rooms in a sensible order, the robot takes them as one batch, and it cleans them in whatever order its own planner prefers. There are two ways to override that, and they are different tools with different reach.
+
+**Strict order** is per-run. Turn it on and Vacuum Agent stops sending one batch — it dispatches one room per phase, so your queue order *is* the cleaning order. It costs a dock trip between rooms, which is why it is opt-in and says so. It governs the runs **you** start, and does nothing on brands that already honour order.
+
+**Override Order** is persistent, and it reaches past Home Assistant. It writes a saved cleaning sequence into your **Roborock app's own settings**, so every start afterwards follows it — including a run you begin from the Roborock app itself, days later, with Home Assistant asleep.
+
+Because it edits something that lives in your vendor app, the row is built to be blunt about it:
+
+- **The switch declares intent and writes nothing.** *Apply* and *Clear* are separate, explicit actions.
+- **Turning the switch off is not an undo.** The device keeps its saved order — switching off never wipes a sequence you may have set yourself in the Roborock app. **Clear** is the destructive one, and it asks first. There is a service too: `eufy_vacuum.clear_clean_sequence`.
+- **The row shows the device's real order whatever the switch says,** so "off" can never quietly hide a sequence that is still in force.
+- **Three states, never two.** Green — the device matches your queue. Amber — it differs; *Apply* writes yours. Grey — the order could not be **read**. Grey never blocks Start, and *Apply* is how you find out: you write, the device acknowledges, and now you know.
+
+**Where the row appears:** only on vacuums whose adapter declares a device-side clean order — today that means **Roborock V1** models (S6, Q5 Pro / a72, S7 / a15, S8 / a70). Newer Qrevo and B01 units use a different transport, and **Eufy has no equivalent concept at all**. On anything else the row simply does not render — so if you own a Eufy, this control is not hiding somewhere, it does not exist for your robot.
+
+## On a phone
+
+The panel is not a desktop layout that survives a small screen. Held upright it reflows to a bottom tab bar with an overflow sheet; turned sideways the status pane and bottom navigation get out of the way, because in landscape they were taking a quarter of the screen for information you were not looking at — and they only yield where something can actually be scrolled, so a short view can never lose its navigation with no gesture left to bring it back.
+
+The theme editor comes with it: the token and palette editors lay out on a phone, the search row collapses, and the colour hint is stated once at the top instead of on every row. Phone widths are part of the automated layout gate on every view, so a change that pushes something off a 390px screen fails the build rather than the user.
+
 ## Automation events
 
 Wire the vacuum into the rest of your home. Vacuum Agent fires `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_run_incomplete`, `eufy_vacuum_path_blocked` and `eufy_vacuum_stall_captured` for use in automations. Two more — `eufy_vacuum_room_skipped` and `eufy_vacuum_stall_detected` — depend on the robot reporting which room it is in mid-run, so they fire on brands that track position reliably and stay quiet on those that do not (Roborock's own path optimisation ignores the dispatched room order, so neither fires there). Run/room profiles and zone cleans are triggerable straight from automations and scripts too.
@@ -94,6 +119,7 @@ Wire the vacuum into the rest of your home. Vacuum Agent fires `eufy_vacuum_job_
 | Eufy | X10 Pro Omni | Tested — Eufy adapter reference |
 | Eufy | Other models | Untested — may work, not supported |
 | Roborock | S6 | Tested — Roborock adapter reference |
+| Roborock | Q5 Pro (a72) | Tested by a contributor — catalogued as mop-unsettable and dockless |
 | Roborock | Other models | Untested — may work, not supported |
 
 Each brand's adapter was built and validated against one **reference model** — the **Eufy X10 Pro Omni** and the **Roborock S6**. Those are the devices the adapter's behavior is tested against; other models of the same brand reuse that adapter and frequently work, but aren't individually verified.
@@ -268,7 +294,10 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **The
 - Accessible typefaces — drop your own `.woff2` fonts into `config/eufy_vacuum/fonts/` and they appear in the picker; coverage is verified against each language's actual characters
 - Stall capture — when a run stalls, save a rendered picture of the room it stopped in, raise a notification, and fire an event carrying the file path (opt-in, per vacuum)
 - Named faults — 237 fault names across both brands, translated in every shipped language, with hardware attribution (dock or robot) and whether the fault cleared
-- Mobile layout — the panel reflows to a bottom tab bar and an overflow sheet on phones (theme *picking* on mobile; the palette and token editors stay desktop)
+- **Override Order** — write a saved cleaning sequence into your Roborock app, so every start follows it (Roborock V1 only); **strict order** for a single run
+- **Setup → System** — every value Vacuum Agent reads from your vacuum, where it came from, and what happened when two candidates disagreed
+- **Entity overrides** — point Vacuum Agent at the right entity by hand when detection gets it wrong (`set_entity_override`)
+- Mobile layout — the panel reflows to a bottom tab bar and an overflow sheet on phones; the chrome yields in landscape, and the theme token and palette editors lay out on a phone too (verified at 390px and at 720×344 held sideways)
 
 ## Documentation
 
