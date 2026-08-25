@@ -92,6 +92,41 @@ def bare_mock_counts() -> dict[str, int]:
     return out
 
 
+def longest_missing_run(summary_file: dict) -> tuple[int, int]:
+    """(longest run, total lines in runs >= 8) of CONSECUTIVE MISSING STATEMENTS.
+
+    Chris's walking heuristic, made measurable: a scattered missing line is usually a
+    `continue`, a guard, a log — safe to skip. A long uncovered RUN is a whole path
+    nobody exercises, and that is worth reading whatever the percentage says.
+
+    ⚠ ADJACENCY IS IN STATEMENTS, NOT LINE NUMBERS, and the difference is not academic.
+    The first cut of this merged missing LINES within 3 of each other, so a 16-line
+    comment block sitting mid-function split one real block into fragments — and the
+    worst case in the repo, `services/stall_capture.py`, dropped off the list entirely
+    while a module I had read by eye and knew was one solid block scored as noise.
+    Non-statement lines are not uncovered code; they are not code. Walk the union of
+    executed+missing (every statement, in order) and count runs that are all missing.
+
+    Unlike the three-signal TIER, this number is a FACT about the tree rather than a
+    prediction about risk, so it needs no validation to be worth acting on.
+    """
+    miss = set(summary_file["missing_lines"])
+    if not miss:
+        return 0, 0
+    statements = sorted(miss | set(summary_file["executed_lines"]))
+    runs, cur = [], 0
+    for s in statements:
+        if s in miss:
+            cur += 1
+        else:
+            if cur:
+                runs.append(cur)
+            cur = 0
+    if cur:
+        runs.append(cur)
+    return (max(runs) if runs else 0), sum(r for r in runs if r >= 8)
+
+
 def load() -> list[dict]:
     if not COV_JSON.exists():
         sys.exit(
@@ -107,7 +142,9 @@ def load() -> list[dict]:
         if s["num_statements"] < MIN_STATEMENTS or not s["num_branches"]:
             continue
         short = path.replace("custom_components/eufy_vacuum/", "")
+        longest, blocked = longest_missing_run(f)
         rows.append({
+            "longest": longest, "blocked": blocked,
             "mod": short,
             "cov": s["percent_covered"],
             "stmts": s["num_statements"],
@@ -166,12 +203,24 @@ def main() -> int:
         if not band and not args.all:
             continue
         print(f"  === {label}  ({len(band)}) ===")
-        print("    cov    partial        bare  stmts  module")
+        print("    cov    partial        bare  block  stmts  module")
         for r in band if (args.all or n >= 2) else band[:12]:
+            blk = f"{r['longest']:>3}" if r['longest'] >= 8 else "  ·"
             print(f"    {r['cov']:5.1f}%  {r['partial']:>3} ({r['prate']:4.1f}%)  x{r['bare']:<4} "
-                  f"{r['stmts']:<5} {r['mod']}")
+                  f"{blk}    {r['stmts']:<5} {r['mod']}")
         if not args.all and n == 1 and len(band) > 12:
             print(f"    … {len(band) - 12} more (use --all)")
+        print()
+
+    blocks = sorted((r for r in rows if r["longest"] >= 8),
+                    key=lambda r: -r["longest"])
+    if blocks:
+        print(f"  === LARGE UNCOVERED BLOCKS  ({len(blocks)}) — a FACT, not a prediction ===")
+        print("    longest  in-blocks  cov     module")
+        for r in blocks:
+            print(f"      {r['longest']:>3}       {r['blocked']:>4}    {r['cov']:5.1f}%  {r['mod']}")
+        print("    A scattered missing line is usually a guard or a log. A long run is a")
+        print("    whole path nobody exercises — read these regardless of the percentage.")
         print()
 
     heavy = sum(1 for r in rows if r["n"] == 3)
