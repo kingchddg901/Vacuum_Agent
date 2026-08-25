@@ -32,8 +32,10 @@ from custom_components.eufy_vacuum.adapters.registry import register_adapter_con
 from custom_components.eufy_vacuum.const import (
     DATA_ERROR_TRACKER,
     DOMAIN,
+    ENTITY_OVERRIDES_KEY,
     SERVICE_ACKNOWLEDGE_ERROR,
     SERVICE_GET_RECENT_ERRORS,
+    SERVICE_SET_ENTITY_OVERRIDE,
     SERVICE_SETUP_ADD_VACUUM,
     SERVICE_SETUP_DELETE_MAP,
     SERVICE_SETUP_FORCE_REMOVE_ROOM,
@@ -382,3 +384,87 @@ async def test_setup_set_map_camera_not_managed(hass, manager_with_services, _no
                          {"vacuum_entity_id": "vacuum.ghost", "entity_id": "camera.x"})
     assert result["status"] == "error"
     assert "vacuum.ghost" not in manager_with_services.data.get("vacuums", {})
+
+
+# ---------------------------------------------------------------------------
+# set_entity_override — the manual entity-role override (shipped 2.1.0)
+#
+# The panel's write path for const.ENTITY_OVERRIDES_KEY: point a role at an entity
+# by hand when auto-resolution picks wrong. The whole handler was uncovered.
+#
+# It is not one of the `setup_*` onboarding services despite living here — the
+# module docstring lists twelve and does not mention it.
+# ---------------------------------------------------------------------------
+
+
+async def test_set_entity_override_stores_and_reloads(
+    hass, manager_with_services, _no_panel, monkeypatch
+):
+    """[SVS-EO-1] the override is persisted AND a config-entry reload is scheduled.
+
+    The reload is not incidental: the override is consumed at adapter-registration
+    time, so without it the user saves a choice and sees nothing change — the silent
+    failure this feature exists to remove.
+    """
+    reload_calls = _capture_reloads(hass, monkeypatch)
+
+    result = await _call(hass, SERVICE_SET_ENTITY_OVERRIDE, {
+        "vacuum_entity_id": _VAC, "role": "filter", "entity_id": "sensor.my_filter"})
+    await hass.async_block_till_done()
+
+    assert result["status"] == "success"
+    assert result["role"] == "filter"
+    store = manager_with_services.data[ENTITY_OVERRIDES_KEY]
+    assert store[_VAC]["filter"] == "sensor.my_filter"
+    assert reload_calls == ["entry1"]
+
+
+async def test_set_entity_override_blank_entity_clears_only_that_role(
+    hass, manager_with_services, _no_panel, monkeypatch
+):
+    """[SVS-EO-2] a blank entity_id CLEARS one role and leaves the others alone."""
+    _capture_reloads(hass, monkeypatch)
+    for role, ent in (("filter", "sensor.f"), ("brush", "sensor.b")):
+        await _call(hass, SERVICE_SET_ENTITY_OVERRIDE, {
+            "vacuum_entity_id": _VAC, "role": role, "entity_id": ent})
+
+    await _call(hass, SERVICE_SET_ENTITY_OVERRIDE, {
+        "vacuum_entity_id": _VAC, "role": "filter", "entity_id": "   "})
+    await hass.async_block_till_done()
+
+    per_vacuum = manager_with_services.data[ENTITY_OVERRIDES_KEY][_VAC]
+    assert "filter" not in per_vacuum, "clearing one role must not leave it behind"
+    assert per_vacuum["brush"] == "sensor.b", "clearing one role wiped an unrelated one"
+
+
+async def test_set_entity_override_clearing_the_last_role_prunes_the_vacuum(
+    hass, manager_with_services, _no_panel, monkeypatch
+):
+    """[SVS-EO-3] the per-vacuum dict is removed once its final role is cleared.
+
+    Without the prune the store keeps an empty `{vacuum: {}}` husk forever. Nothing
+    reads it, which is exactly why nothing would notice it accumulating.
+    """
+    _capture_reloads(hass, monkeypatch)
+    await _call(hass, SERVICE_SET_ENTITY_OVERRIDE, {
+        "vacuum_entity_id": _VAC, "role": "filter", "entity_id": "sensor.f"})
+
+    await _call(hass, SERVICE_SET_ENTITY_OVERRIDE, {
+        "vacuum_entity_id": _VAC, "role": "filter", "entity_id": ""})
+    await hass.async_block_till_done()
+
+    assert _VAC not in manager_with_services.data[ENTITY_OVERRIDES_KEY]
+
+
+async def test_set_entity_override_blank_role_errors_and_writes_nothing(
+    hass, manager_with_services, _no_panel, monkeypatch
+):
+    """[SVS-EO-4] a whitespace-only role is refused BEFORE anything is written."""
+    _capture_reloads(hass, monkeypatch)
+
+    result = await _call(hass, SERVICE_SET_ENTITY_OVERRIDE, {
+        "vacuum_entity_id": _VAC, "role": "   ", "entity_id": "sensor.x"})
+
+    assert result["status"] == "error"
+    assert result["reason"] == "missing_role"
+    assert _VAC not in manager_with_services.data.get(ENTITY_OVERRIDES_KEY, {})

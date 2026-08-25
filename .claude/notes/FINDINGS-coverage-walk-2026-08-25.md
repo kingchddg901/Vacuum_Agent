@@ -35,6 +35,29 @@ check.** That is the phantom-bucket shape `services/stall_capture.py`'s own comm
 as `C12` — a call for an unmanaged id leaves a container behind. Here there is no
 authorization check at all, so it is the C12 pattern without even the hand-rolled guard.
 
+**PROVEN, not inferred (2026-08-25).** Two services in this same module, the same ghost id:
+
+```
+setup_set_map_camera  -> error       (refuses; [SVS-10] already pins this)
+set_entity_override   -> success     and persists {'vacuum.ghost': {'filter': 'sensor.nope'}}
+```
+
+So it is an inconsistency, not a policy — a guard present in one sibling and absent in the
+other, with a test already pinning the strict side. `feedback_partial_guard_blind_spot`.
+
+**Chris, 2026-08-25 — deferred, leaning REFUSE:** *"an unmanaged vacuum has nothing to deal
+with… I don't know [why] I was even creating panels for unmanaged vacuums."* Not fixed here
+because it changes a service shipped in 2.1.0 and touches a persisted key. Before changing
+it, answer the one question that decides whether it is a fix or a regression: **can the
+panel reach this service before a vacuum is managed?** If not, matching
+`setup_set_map_camera` is a five-line change and its test is the template.
+
+⚠ The tests added in `9299c857`+ deliberately do NOT assert the ghost behaviour either way.
+Pinning it would freeze the bug; leaving it unpinned keeps all three options open.
+
+Also noticed: the module docstring lists twelve `setup_*` services and does not mention
+`set_entity_override` at all — stale since it shipped.
+
 ### 2. `jobs/phase_runner.py:1562-1587` — strict-order wedge prevention, 11 statements
 
 RP-007 step 6. When live resolution REFUSES a phase (room gone from the current map, or
