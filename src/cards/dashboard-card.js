@@ -142,8 +142,10 @@ class EufyDashboardCard extends HTMLElement {
     this._config = null;
     this._armed = emptyArmed();
     this._clearConfirm = false;  // Clear is armed-then-confirmed; never sticky
-    this._seqSwitchId = null;    // memo for _shouldRender; re-resolved on demand
-    this._seqSensorId = null;
+    // `undefined` = never resolved (see _shouldRender). NOT null, which means
+    // "resolved and absent" and would suppress the first lookup entirely.
+    this._seqSwitchId = undefined;
+    this._seqSensorId = undefined;
     this._rowFields = {};        // roomId -> draft field overrides (unsaved)
     this._expanded = new Set();  // roomIds whose settings body is open
     this._roomsCollapsed = false; // whether the whole Rooms group is collapsed
@@ -168,8 +170,8 @@ class EufyDashboardCard extends HTMLElement {
     this._config = config;
     this._armed = emptyArmed();
     this._clearConfirm = false;
-    this._seqSwitchId = null;
-    this._seqSensorId = null;
+    this._seqSwitchId = undefined;
+    this._seqSensorId = undefined;
     this._rowFields = {};
     this._expanded = new Set();
     this._roomsCollapsed = false;
@@ -236,25 +238,33 @@ class EufyDashboardCard extends HTMLElement {
     // back to an Object.values(states).find() scan whenever the conventional id
     // misses -- which is precisely the case the fallback exists for. An O(entities)
     // scan per tick inside _shouldRender defeats the one thing _shouldRender is for.
-    // The cached id is re-validated with an O(1) lookup and only re-resolved when it
-    // goes stale, so a switch that appears, disappears or is renamed is still picked
-    // up on the next tick.
-    let seqId = this._seqSwitchId;
-    if (!seqId || !hass.states?.[seqId]) {
-      seqId = (findOverrideSwitch(hass, vid) || findOverrideSwitch(prev, vid))?.entity_id ?? null;
-      this._seqSwitchId = seqId;
+    //
+    // ⚠ THE NEGATIVE RESULT IS CACHED TOO, and the first cut of this memo did not do
+    // that -- so it delivered nothing for the MAJORITY of installs. Where no override
+    // switch exists (every Eufy, every non-V1 Roborock) the resolve returned null,
+    // the `!seqId` guard stayed true, and the full scan ran on every single tick
+    // anyway. The commit that added the memo claimed the scan was fixed; for most
+    // users it had made it unconditional.
+    //
+    // `undefined` = never resolved. `null` = resolved and genuinely ABSENT, which is
+    // a real answer and is kept. So the scan runs at most once per card, and the
+    // RENDER path refreshes both memos for free (see _renderSequenceOverrideRow) --
+    // it already resolves these entities, and it only runs when something else
+    // changed. A switch that appears later is therefore picked up on the next
+    // repaint the card does for any other reason, without a scan per tick to watch
+    // for it.
+    if (this._seqSwitchId === undefined) {
+      this._seqSwitchId = findOverrideSwitch(hass, vid)?.entity_id ?? null;
     }
+    const seqId = this._seqSwitchId;
     if (seqId && prev.states?.[seqId] !== hass.states?.[seqId]) return true;
-    // Memoised for the same reason as the switch above, and resolved the same way:
-    // ENTITY.cleanOrderSensor() only guesses right where the locale pack does not
-    // translate the sensor's name. Leaving the built id here would have meant the
-    // row rendered correctly on a German install and then never repainted after
-    // Apply — a fix on the render path and not on the repaint path.
-    let orderId = this._seqSensorId;
-    if (!orderId || !hass.states?.[orderId]) {
-      orderId = (findCleanOrderSensor(hass, vid) || findCleanOrderSensor(prev, vid))?.entity_id ?? null;
-      this._seqSensorId = orderId;
+    // Same treatment for the sensor. Leaving the CONVENTIONAL id here would have
+    // meant a German install rendered the row correctly and then never repainted
+    // after Apply -- a fix on the render path and not on the repaint path.
+    if (this._seqSensorId === undefined) {
+      this._seqSensorId = findCleanOrderSensor(hass, vid)?.entity_id ?? null;
     }
+    const orderId = this._seqSensorId;
     if (orderId && prev.states?.[orderId] !== hass.states?.[orderId]) return true;
     const scene = this._snapshot?.scene_select;
     if (scene && prev.states?.[scene] !== hass.states?.[scene]) return true;
@@ -563,10 +573,17 @@ class EufyDashboardCard extends HTMLElement {
     const vid = this._vacuumId();
     if (!vid) return "";
     const switchState = findOverrideSwitch(this._hass, vid);
+    // Refresh _shouldRender's memos from the resolution we just did. This costs
+    // nothing -- the lookup happened anyway -- and it is what lets _shouldRender
+    // cache a NEGATIVE answer safely: a switch that appears later is picked up on
+    // the next repaint the card makes for any other reason, instead of being
+    // watched for by an O(entities) scan on every tick.
+    this._seqSwitchId = switchState?.entity_id ?? null;
     if (!switchState) return "";  // adapter/model does not declare the write
     // Two-tier, like the switch above it. The conventional id only resolves where
     // the locale pack does not translate the sensor's name; eight of eighteen do.
     const sensorState = findCleanOrderSensor(this._hass, vid);
+    this._seqSensorId = sensorState?.entity_id ?? null;
 
     // Queue rooms, IN DISPATCH ORDER. The sort is not optional, and the comment
     // that used to sit here ("in the order the queue would dispatch") was false:
