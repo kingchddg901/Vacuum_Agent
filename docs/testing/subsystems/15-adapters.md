@@ -12,16 +12,25 @@ test once per shipped brand. Covered by **166 framework tests across 10 files**
 brands — and `test_brand_selection.py`), plus **212 Eufy-adapter tests** and
 **37 Roborock-adapter tests**.
 
+A third adapter directory, `adapters/dreame/`, holds **data only and is deliberately
+not wired** — it has no `BRAND_REGISTRARS` row, so the conformance harness above does
+not reach it and none of those counts include it. Its 19 tests live in
+`tests/adapters/dreame/` and are documented below; they exist precisely because nothing
+else in the tree can fail on that directory.
+
 <!-- The three bold counts above are HAND-MAINTAINED. update_test_docs.py's
 single-header model can't compute the framework/Eufy/Roborock split, so it WARNs
 and skips this doc's headline (the WARN is expected, not a bug). Update them by
 hand on adapter test changes — collect-only case counts:
   framework  = tests/integration/test_adapters.py + tests/adapters/test_adapter_contract.py + tests/adapters/test_brand_selection.py
   Eufy       = tests/adapters/eufy/
-  Roborock   = tests/adapters/roborock/ -->
+  Roborock   = tests/adapters/roborock/
+tests/adapters/dreame/ is NOT part of this split and must not be added to it — Dreame
+is unwired data, and folding it into a "Roborock-adapter tests"-style count would read
+as a third shipped brand. -->
 
 Source: `custom_components/eufy_vacuum/adapters/`
-Architecture reference: [22 — The Adapter Contract](../../dev/22-adapter-contract.md), [22 — The Adapter Contract](../../dev/22-adapter-contract.md)
+Architecture reference: [22 — The Adapter Contract](../../dev/22-adapter-contract.md)
 
 ### `test_entity_resolve.py` — when a DERIVED entity id does not match the install
 
@@ -181,6 +190,37 @@ added 2026-08-07) pins what happens when a brand DECLARES — or fails to.
 | `DC-3c` | wholly empty block | rejected — a brand with no vocabulary can resolve nothing |
 | `DC-4` | — | the same validator that rejects the bad ACCEPTS every shipped brand |
 | `DC-5` | — | end to end: the REGISTERED config is what resolution actually reads |
+
+### `dreame/test_dreame_upkeep_guides.py` — the only gate on an UNWIRED adapter
+
+19 tests, added 2026-08-25. Every other suite on this page reaches an adapter through
+its `BRAND_REGISTRARS` row. The Dreame adapter has no such row — deliberately, since
+that row *is* the release — so none of them touch it, and until this file landed a
+Dreame family could be emptied, two families silently collapsed into one, or the
+release switch thrown, with the suite staying green throughout.
+
+| id | what it holds |
+|---|---|
+| `DUG-1` | there is NO `BRAND_REGISTRARS` row for Dreame — the release switch, still off |
+| `DUG-2` | the four families exist and every component in them has a non-empty step |
+| `DUG-3` | `x60_pro_ultra_complete` is `x60_ultra` **plus exactly** `baseboard_brush` |
+| `DUG-4` | the seven measured X50-vs-X60 divergences still diverge |
+| `DUG-5` | absent hardware gets no guide — no heating module or baseboard brush on the X50 |
+
+`DUG-4` is a regression guard for a defect this data already shipped once: a shared
+`_BASE` was factored out of several families because their component NAMES lined up,
+which put X60 prose on five other platforms. Presence of a part and sameness of its
+PROCEDURE are different claims, and only the second one was ever checked. `DUG-3`
+encodes the opposite case — two families that genuinely DO share a body, because their
+manuals were diffed first and came out 48 of 49 sentences identical.
+
+All 14 mutations were ablated and all 14 went red. `DUG-1` was ablated separately, both
+by adding a Dreame row and by emptying the registrar table entirely, so it cannot pass
+vacuously on a table that happens to be empty.
+
+Provenance is checked outside the suite by `scripts/verify_dreame_guide_provenance.py`,
+which cannot be a gate here because the manuals are vendor copyright and stay out of
+the repo.
 
 ### `../unit/test_adapter_config_parity.py` — the schema is a FLOOR, not the contract
 

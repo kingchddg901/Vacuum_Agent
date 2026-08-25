@@ -14,15 +14,46 @@ issue #1707. This file is inert data and safe to land ahead of it.
 PROVENANCE — every string is Dreame's own text, each family transcribed from ITS OWN
 manual, read page by page:
 
-  ``x60``        R6001-X60_Series, EN pp. 15-16
-  ``l10s_gen2``  R2469X-L10s_Ultra_Gen_2, EN pp. 19-25
+  ``x50``                     R2489A-X50_Series, EN pp. 22-30
+  ``x60_ultra``               R5089B-X60_Ultra, EN pp. 13-15
+  ``x60_pro_ultra_complete``  R6001-X60_Series, EN pp. 14-16
+  ``l10s_gen2``               R2469X-L10s_Ultra_Gen_2, EN pp. 19-25
 
 Manuals are mirrored in the git-ignored fixture set. Guide content is AI-authored by
-default and transferred only when a manual is genuinely in hand; for these two it is.
+default and transferred only when a manual is genuinely in hand; for all four it is.
 
-⚠ EACH FAMILY IS AUTHORED WHOLE. NOTHING IS SHARED, AND THE FIRST CUT OF THIS FILE WAS
-WRONG TO SHARE IT.
+THREE THINGS ARE RECAST RATHER THAN TRANSCRIBED, and the distinction is worth keeping
+straight — "manufacturer text" is a provenance claim, and it is not true of these:
+
+  * ``filter`` — no Dreame manual gives the filter a section of its own; it is folded
+    into "Dust Box and Filter". The entry is assembled from that section's filter
+    sentences, so every sentence is Dreame's but the entry as a unit has no page to
+    point at. It exists because a device reporting a filter consumable would otherwise
+    get ``{}``.
+  * ``sensor`` — the manuals print a NUMBERED LIST OF LABELS beside a figure ("1.
+    VersaLift Sensor, 2. Bumper Window, …"). With no figure to look at, that is
+    useless, so the labels are folded into one sentence. The sensor NAMES are verbatim;
+    the sentence around them is ours.
+  * ``caster_wheel`` notes — "Do not use excessive force" is the tail of a manual bullet
+    and is lifted out with its subject restored, so it reads on its own.
+
+Everything else is Dreame's own wording. ``scripts/verify_dreame_guide_provenance.py``
+re-checks that after any edit — but read what it can and cannot do: it scores bigram
+overlap against the source manual, which catches invented content flat (an invented
+step scores ~8%) and catches a wrong item in a list (~47%), yet a SINGLE swapped word
+in an otherwise-faithful sentence still scores ~93%. It is a net for wholesale drift,
+not a proofreader. The three recasts above are the only entries that legitimately score
+low; anything else under ~85% is a defect.
+
+⚠ EACH FAMILY IS AUTHORED WHOLE. SHARE ONLY WHAT YOU HAVE DIFFED, AND THE FIRST CUT OF
+THIS FILE SHARED WHAT IT HAD NOT.
 ------------------------------------------------------------------------------------
+The bar is a measurement, not a hunch. The two X60 families DO share a body, because
+their manuals were compared sentence by sentence first: 48 of 49 identical, the
+baseboard cleaning brush the entire delta. State the diff or duplicate the prose —
+what is banned is sharing on the strength of the component names lining up, which is
+what happened here once and is worth spelling out:
+
 A component matrix across six platforms showed the same PARTS on all of them, and that
 was read — by me — as evidence the STEPS were shared. They are different claims.
 Measured directly afterwards, of the **eleven component keys the X60 and the L10s Gen 2
@@ -47,11 +78,15 @@ and do not factor a shared base out of two families because their component NAME
 up. `feedback_partial_guard_blind_spot`, and the manual inventory's own rule — lift the
 vocabulary, never the prose.
 
-⚠ READ THE PAGES, DO NOT SCRIPT THEM. `Routine Maintenance` locates the care section
-reliably (l20 pp20-26, x40 19-26, l10s_gen2 18-25, x50 22-30, l50 23-30) — but PDF text
-extraction interleaves adjacent columns, so a collapsed extract of the Gen 2 "Main
-Brush" block arrives with used-water-tank sentences inside it. Automate the FINDING;
-read the pages.
+⚠ READ THE PAGES, DO NOT PARSE THEM. `Routine Maintenance` locates the care section
+reliably (l20 pp20-26, x40 19-26, l10s_gen2 18-25, x50 22-30, l50 23-30) — but plain
+text extraction emits content-stream order, which interleaves adjacent columns: a
+collapsed extract of the Gen 2 "Main Brush" block arrives with used-water-tank
+sentences inside it, and that produced a false "the dust bag differs" finding once.
+``scripts/pdf_layout_dump.py`` reconstructs visual reading order from the text matrices
+and makes even a three-column care page legible; there is no rasteriser in this
+environment, so that, not page images, is how these get read. Automate the FINDING and
+the LAYOUT; read the prose.
 
 An unauthored family yields ``{}`` from ``library[family][component]``, so a device
 with no family here gets NO guide. That is the correct failure: silence beats confident
@@ -68,9 +103,26 @@ marketing name appears on that page — which is the only boundary Dreame actual
 by printing one maintenance section for a set of models. Neither of the obvious keys
 works: the r-code is too NARROW (``X40 Ultra Complete`` is ``r2449``, not ``r2416``,
 yet shares the X40 Ultra manual) and the marketing name is too BROAD ("X50" is 23 names
-across ~20 codes). So ``x60`` here covers ``r5089``, ``r6001`` and ``r9515``;
-``l10s_gen2`` covers ``r2469`` and ``r5020``. See
-``.claude/notes/SCOPE-dreame-guide-families.md``.
+across ~20 codes). See ``.claude/notes/SCOPE-dreame-guide-families.md``.
+
+  ``x50``                     X50 Ultra + X50 Ultra Complete   41 keys
+  ``x60_ultra``               X60 Ultra                         4 keys  r5089, r9515
+  ``x60_pro_ultra_complete``  X60 Pro Ultra Complete            1 key   r6001
+  ``l10s_gen2``               L10s Ultra Gen 2                  3 keys  r2469, r5020
+
+⚠ **A MARKETING NAME CAN HAVE TWO MANUALS, AND "X60" HAD TWO.** An earlier cut of this
+file put ``r5089``, ``r6001`` and ``r9515`` in one ``x60`` family. Wrong, and backwards
+for two of the three: ``r6001a`` is the X60 Pro Ultra Complete while ``r5089*`` and
+``r9515*`` are the X60 Ultra, and each has its OWN manual — different regulatory robot
+models (RLX92DE vs RLX96DE/RLX98DE), different parts tables. The tell was there to be
+read: the filenames carry the r-codes.
+
+⚠ **THE APPLICABILITY STATEMENT IS ON THE SPECIFICATIONS PAGE, NOT THE COVER.** This
+file previously recorded that "the manuals do not resolve it either — no applicability
+statement, no model list, checked on pp. 1-6 of each". That conclusion came from
+checking the front matter and reading absence as proof. Every manual here in fact lists
+its regulatory models under Specifications (X50: six robots, ``RLX85CE`` and ``-1`` to
+``-6``), and the X50's what's-in-the-box pages name its two marketing variants outright.
 
 Whether a dock has a dust bag to service is a separate question, answered by live
 entity presence — never by counting words in "X60 Max Ultra Complete".
@@ -80,8 +132,10 @@ from __future__ import annotations
 
 
 # --------------------------------------------------------------------------
-# The X60 series' components. NOT a shared base — measured against the L10s Gen 2,
-# only ONE of eleven common component keys (caster_wheel) has identical steps.
+# The X60 body, transcribed from R6001 and re-verified against R5089B, which prints the
+# same care text word for word. NOT a base to hang other trims off: measured against the
+# L10s Gen 2, only ONE of eleven common component keys (caster_wheel) has identical
+# steps, and against the X50 only 29 of 46 sentences survive.
 # --------------------------------------------------------------------------
 _X60_BASE: dict[str, dict] = {
     "main_brush": {
@@ -224,7 +278,9 @@ _SENSORS_X60 = {
     },
 }
 
-_X60_ONLY = {
+#: Present in BOTH X60 manuals — R5089B lists it in its parts table and gives it the
+#: same care section as R6001. It is not a Pro-Ultra-Complete extra.
+_X60_HEATER = {
     "washboard_heating_module": {
         "steps": [
             "During use, the washboard heating module may develop scale. To remove it, "
@@ -242,6 +298,13 @@ _X60_ONLY = {
             "clean the heating module.",
         ],
     },
+}
+
+#: THE ONLY care-section difference between the two X60 manuals. Measured sentence by
+#: sentence: 48 of 49 shared, and this is the one that is not. R5089B (X60 Ultra) does
+#: not list a baseboard cleaning brush in its parts table and has no section for it, so
+#: serving this entry to an X60 Ultra describes a part that robot has not got.
+_BASEBOARD_BRUSH = {
     "baseboard_brush": {
         "steps": [
             "After the baseboard cleaning task is complete, pull the cleaning brush "
@@ -251,6 +314,9 @@ _X60_ONLY = {
         "notes": [],
     },
 }
+
+#: The X60 Ultra body — R5089B in full. The Pro Ultra Complete adds exactly one key.
+_X60_ULTRA: dict[str, dict] = {**_X60_BASE, **_SENSORS_X60, **_X60_HEATER}
 
 
 # --------------------------------------------------------------------------
@@ -385,9 +451,170 @@ _L10S_GEN2: dict[str, dict] = {
 }
 
 
+# --------------------------------------------------------------------------
+# X50 Ultra / X50 Ultra Complete. Transcribed from R2489A, EN section pp. 22-30 — its
+# OWN manual, read page by page. That manual names both variants itself, on the
+# what's-in-the-box pages: "(Dreame X50 Ultra)" p. 7 and "(Dreame X50 Ultra Complete)"
+# p. 8. So the two marketing names on one page are Dreame's assertion, not our
+# inference — 41 of the integration's model keys.
+#
+# It is a DIFFERENT document from the X60's, not a revision of it: 29 of 46 sentences
+# shared, and at component level 12 keys in common of which 5 are identical — the four
+# that really are word-for-word in both manuals (side brush, mop pads, mop pad holders,
+# omnidirectional wheel) plus the derived `filter`. The divergences are all hardware.
+# The X50 has no washboard heating
+# module and no baseboard brush at all; it carries a 3D dual-line laser the X60
+# dropped, where the X60 has a dust illumination light the X50 has not got; its dust
+# box sits under a ROBOT COVER; it ships a cleaning tool the X60 manual only calls
+# "a proper tool"; and it splits contacts from auto-empty vents where the X60 prints
+# all three in one section.
+# --------------------------------------------------------------------------
+_X50: dict[str, dict] = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard, and then "
+            "lift the brushes out of the robot.",
+            "Pull out the brushes. Use the provided cleaning tool to remove any hair "
+            "tangled in the brushes. After cleaning, push the brushes firmly into the "
+            "main brush holder until they click into place.",
+            "With the screen-printed arrows facing upwards, insert the main brush "
+            "holder into the slots downwards in an inclined way.",
+            "Align the front end of the brush guard with the slot, insert it downwards "
+            "in an inclined way, and then press it into place.",
+        ],
+        "notes": [
+            "Be careful while pulling out the main brushes to prevent injury.",
+        ],
+    },
+    "side_brush": {
+        "steps": [
+            "Unscrew the side brush with a screwdriver, clean the hair from the brush, "
+            "and then screw it back on.",
+        ],
+        "notes": [],
+    },
+    "dustbin": {
+        "steps": [
+            "Remove the robot cover and press the dust box clip to remove the dust box.",
+            "Remove the dust box filter, and then empty the dust box.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before "
+            "reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any "
+            "detergent.",
+            "Use the dust box and filter only when they are completely dry.",
+        ],
+    },
+    "filter": {
+        "steps": [
+            "Remove the dust box filter and gently tap the basket of the filter to "
+            "remove the dirt.",
+            "Rinse the filter with clean water and dry it completely before "
+            "reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse with clean water only. Do not use any detergent.",
+        ],
+    },
+    "mop_cloth": {
+        "steps": [
+            "Remove the mop pads from the mop pad holders to replace them.",
+        ],
+        "notes": [],
+    },
+    "mop_pad_holder": {
+        "steps": ["Remove and clean the mop pad holders."],
+        "notes": [],
+    },
+    # Verbatim the same source text as the X60's, and rendered the same way on purpose
+    # — this is the one component the two families genuinely share, and recasting it
+    # differently would make an identical part read as a different procedure.
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of "
+            "the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under running water and put it back after "
+            "drying it completely.",
+        ],
+        "notes": ["Do not use excessive force when separating the axle and tire."],
+    },
+    "used_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use the provided cleaning "
+            "tool to clean the inner wall of the used water tank.",
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too "
+            "much force when cleaning it to avoid damaging it.",
+        ],
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover.",
+        ],
+        "notes": [
+            "Pulling upwards on the handle will seal the bag to prevent the dust and "
+            "debris from accidentally falling out.",
+        ],
+    },
+    # No residual-heat note here, unlike the X60's: the X50 has no washboard heating
+    # module — neither its parts table nor its care section mentions one.
+    "washboard_filter": {
+        "steps": [
+            "Take out the robot and remove the washboard filter after the mop pad "
+            "cleaning is complete.",
+            "Rinse the washboard filter with clean water, wipe it clean, and then "
+            "reinstall it in the washboard.",
+            "Use the app or press the button to return the robot to the base station, "
+            "or manually put the robot back.",
+        ],
+        "notes": [],
+    },
+    # Two sections on the X50, where the X60 prints one combined block.
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area with a soft and dry "
+            "cloth.",
+        ],
+        "notes": [],
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft "
+            "and dry cloth.",
+        ],
+        "notes": [],
+    },
+    "sensor": {
+        "steps": [
+            "Wipe the robot sensors with a soft, dry cloth: the bumper window, 3D "
+            "dual-line laser sensors, VersaLift sensor, edge sensor, bumper, cliff "
+            "sensors and carpet sensor.",
+        ],
+        "notes": [_SENSOR_NOTE],
+    },
+}
+
+
 DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
-    # Each family is transcribed from ITS OWN manual. No prose crosses between them.
-    "x60": {**_X60_BASE, **_SENSORS_X60, **_X60_ONLY},
+    # Each family is transcribed from ITS OWN manual. Prose crosses between two
+    # families in exactly one place, and only because it was MEASURED to: the X60
+    # Ultra and X60 Pro Ultra Complete manuals share 48 of 49 care sentences, the
+    # baseboard brush being the whole of the difference. Everywhere else, families
+    # are authored whole and share nothing.
+    "x50": _X50,
+    "x60_ultra": _X60_ULTRA,
+    "x60_pro_ultra_complete": {**_X60_ULTRA, **_BASEBOARD_BRUSH},
     "l10s_gen2": _L10S_GEN2,
 }
 
@@ -419,4 +646,3 @@ DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
 # extraction interleaves adjacent columns — the "Main Brush" block in the Gen 2 manual
 # extracts with used-water-tank sentences inside it, so blocks need reading, not
 # scripting.
-
