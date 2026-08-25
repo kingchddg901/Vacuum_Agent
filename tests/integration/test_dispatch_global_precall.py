@@ -33,6 +33,13 @@ Mixed-batch safe water (mixed_mode_water_policy="safest"):
         presence of a dry room is the signal, not the min of DECLARED levels.
 [GPC-11] DQ-ACT-6: pre-calls run AFTER payload resolution, so a start that aborts
         there leaves the robot's global settings untouched.
+[GPC-12] the safest-water push RAISING aborts the dispatch -- [GPC-6d] covers the
+        target that does not EXIST, which HA answers with a warning; this covers the
+        service that exists and FAILS, which is the only way the `except` is reached.
+[GPC-13] a non-safest pre-call that raises degrades quietly and the loop continues,
+        so one brand's broken select cannot abort a run it was never protecting.
+[GPC-14] a missing target WITHOUT the safest marker warns and continues -- the
+        best-effort half of the [GPC-6d] refusal.
 """
 
 from __future__ import annotations
@@ -399,3 +406,100 @@ def test_pre_calls_run_after_payload_resolution():
         "pre-calls must still precede dispatch, or the settings they push do not "
         "apply to the job being dispatched"
     )
+
+
+# ---------------------------------------------------------------------------
+# The pre-call FAILURE handler.
+#
+# [GPC-6d] above pins the target that does not EXIST. That is a different path:
+# HA answers a missing target with a warning, never an exception, which is why the
+# existence check had to be added ahead of the `try` at all. The `except` block is
+# therefore reached only when the service EXISTS and FAILS -- an unregistered
+# domain, or a select that rejects the option -- and nothing exercised it.
+#
+# The split matters because the two halves disagree on purpose: with the safest
+# marker a failure ABORTS, without it the failure is swallowed so one brand's broken
+# entity cannot kill a run the guard was never protecting.
+# ---------------------------------------------------------------------------
+
+
+def _raise_on_select(hass, exc=RuntimeError("device rejected the option")):
+    """Replace the recording select handler with one that fails.
+
+    Registered AFTER `_capture` so the target entities it puts in the state machine
+    still exist -- otherwise the existence check refuses first and the `try` is never
+    entered, which would make these tests pass for the wrong reason.
+    """
+    async def _boom(call):
+        raise exc
+
+    hass.services.async_register("select", "select_option", _boom)
+
+
+async def test_safest_water_push_that_raises_aborts_the_dispatch(hass, manager):
+    """[GPC-12] the safest push FAILING must abort, not proceed.
+
+    Same consequence as [GPC-6d] and a different cause. If the select is present but
+    rejects the write, the device keeps whatever water the vendor app last set, and a
+    batch containing a dry room gets wet-mopped by the device-global value. The
+    abort is the only thing standing between a failed write and a wet floor.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)          # targets EXIST, so the existence check passes
+    _raise_on_select(hass)
+
+    with pytest.raises(HomeAssistantError, match="dispatch aborted"):
+        await manager._run_global_pre_calls(
+            vacuum_entity_id=_VAC,
+            # one vacuum-only room -> _any_dry_room, which is what arms _use_safest.
+            # Without a dry room the marker alone does nothing and this would pass
+            # while testing the best-effort path instead.
+            resolved_rooms=[{"clean_mode": "vacuum", "water_level": "off"}],
+        )
+    assert sel == []
+
+
+async def test_best_effort_pre_call_that_raises_does_not_abort(hass, manager):
+    """[GPC-13] without the safest marker, a failing pre-call is swallowed."""
+    _register(hass)                     # _PRE_CALLS: no mixed_mode_water_policy
+    fan, sel = _capture(hass)
+    _raise_on_select(hass)
+
+    # Must NOT raise.
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC,
+        # `fan_speed` is load-bearing: without it the fan entry is UNRANKABLE and
+        # skipped ([GPC-4]), so `fan` would be empty whether or not the loop survived
+        # the failure -- the assertion below would pass for the wrong reason.
+        resolved_rooms=[{"clean_mode": "vacuum_mop", "water_level": "high",
+                         "fan_speed": "max"}],
+    )
+
+    # The fan entry precedes the water entry, so a non-empty `fan` proves the loop
+    # reached the failing entry and carried on rather than unwinding.
+    assert fan == [{"entity_id": _VAC, "fan_speed": "max"}]
+    assert sel == []
+
+
+async def test_missing_target_without_safest_marker_degrades_quietly(hass, manager):
+    """[GPC-14] the best-effort half of [GPC-6d]: warn and continue, never refuse.
+
+    Both targets are absent here -- the water entry names the mop select, and the fan
+    entry names no target at all so it falls back to the vacuum entity, which
+    `targets_exist=False` also withholds. Neither may raise.
+    """
+    _register(hass)                     # no safest marker
+    fan, sel = _capture(hass, targets_exist=False)
+
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC,
+        # BOTH fields present on purpose. Omitting `fan_speed` leaves the fan entry
+        # unrankable and skipped ([GPC-4]), so `fan == []` would hold without the
+        # existence check ever refusing anything -- the assertion would be vacuous.
+        # With it, an empty `fan` means the entry was BUILT and then refused.
+        resolved_rooms=[{"clean_mode": "vacuum_mop", "water_level": "high",
+                         "fan_speed": "max"}],
+    )
+
+    assert fan == []
+    assert sel == []
