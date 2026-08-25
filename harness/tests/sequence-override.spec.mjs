@@ -113,7 +113,7 @@ const CASES = [
  * Only DATA crosses into the page; the accessor closure is built in-page,
  * because a function cannot survive page.evaluate's structured clone.
  */
-function renderRow(page, { seed, width, lang = null }) {
+function renderRow(page, { seed, width, lang = null, queue = QUEUE }) {
   return page.evaluate(
     ([vid, hassStates, queue, w, lg]) => {
       const res = window.__evcc.render("rooms", {
@@ -159,7 +159,7 @@ function renderRow(page, { seed, width, lang = null }) {
         palette,
       };
     },
-    [VAC, states(seed), QUEUE, width, lang],
+    [VAC, states(seed), queue, width, lang],
   );
 }
 
@@ -254,4 +254,44 @@ test.describe("sequence-override row: pseudo-long @390px", () => {
       expect(shellOverflow, `${c.kind}: card forces ${shellOverflow}px of horizontal scroll`).toBeLessThanOrEqual(2);
     });
   }
+});
+
+/**
+ * [SEQ-ORDER-0] A room whose order is ZERO must not be reshuffled to the end.
+ *
+ * ⚠ RED BEFORE THE FIX. The panel re-sorted an already-sorted list with
+ * `Number(a?.order) || 999999`, and `0 || 999999` is 999999 — so the FIRST room in
+ * the queue sorted LAST, and the row reported a permanent mismatch against a device
+ * order that was in fact correct. Apply could never clear it: Apply writes the
+ * BACKEND's order, the device echoes it back, and the comparison reshuffled it again
+ * on the next render.
+ *
+ * Order 0 is not exotic. `number.py` sets the room-order Number's minimum to 0 and
+ * its value defaults to 0 when the key is absent, so a fresh room can sit there.
+ * Every other case in this file seeds 1..3, which is exactly why none of them could
+ * see this.
+ */
+test.describe("sequence-override row: order 0 @390px", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  const ZERO_QUEUE = [
+    { room_id: 7, name: "KITCHEN", enabled: true, order: 0 },
+    { room_id: 8, name: "LIVINGROOM", enabled: true, order: 1 },
+    { room_id: 9, name: "Bathroom", enabled: true, order: 2 },
+  ];
+
+  test("a queue starting at order 0 still reads as matching", async ({ page }) => {
+    await mountHarness(page);
+    const res = await renderRow(page, {
+      // The device reports exactly the queue's order. Anything but `matching` means
+      // the card reordered the queue behind its own comparison.
+      seed: { on: true, sensorState: "3", status: "ok", order: [7, 8, 9] },
+      width: 390,
+      queue: ZERO_QUEUE,
+    });
+
+    expect(res.ok, res.error).toBe(true);
+    expect(res.classes, "the row did not render at all").not.toBeNull();
+    expect(res.classes, "order 0 was treated as 'no order' and sorted last").toContain("is-matching");
+  });
 });

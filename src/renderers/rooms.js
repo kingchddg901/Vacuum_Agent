@@ -1796,9 +1796,19 @@ proto.renderRoomCard = function (room, state) {
 
     const objectId = String(vid).split(".")[1];
     const sensor = cardState?.hass?.states?.[`sensor.${objectId}_clean_order`] ?? null;
+    // NO RE-SORT. getRoomsForActiveMap() has already sorted by (order ?? 999) then
+    // name (state/rooms.js), which is the same key the backend's queue engine uses.
+    // This line used to re-sort with `Number(a?.order) || 999999`, and `0 || 999999`
+    // is 999999 — so a room whose order is 0 sorted LAST. Order 0 is reachable
+    // through the UI: number.py sets the room-order Number's min to 0, and it
+    // defaults to 0 when the key is absent. The effect was not cosmetic: the row
+    // compared the device's real order against its own reshuffled list, reported a
+    // permanent mismatch, and Apply could never clear it — Apply writes the
+    // BACKEND's order, the device echoes it back, and this comparison rejected it
+    // again on every render. Two authorities already agree on the key; a third
+    // opinion here could only ever disagree with both.
     const queueRooms = (cardState.getRoomsForActiveMap?.() ?? [])
       .filter((r) => r && r.enabled)
-      .sort((a, b) => (Number(a?.order) || 999999) - (Number(b?.order) || 999999))
       .map((r) => ({ room_id: r.room_id ?? r.id, name: r.name, on: true }));
 
     const s = deriveSequenceRowState({ switchState: sw, sensorState: sensor, queueRooms });

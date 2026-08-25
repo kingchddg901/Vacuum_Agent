@@ -1447,109 +1447,11 @@ export const roomStyles = `
     pointer-events: none;
   }
 
-  /* Sequence-override row (task 4, 2026-08-24). The persistent companion to
-     the strict-order chip: strict-order is per-run and builds phases; this
-     writes a saved sequence to the vendor app that orders every start,
-     including ones the user begins from the Roborock app. Three verification
-     states (amber / green / grey — never two), so an infra failure never
-     locks Start.
-     Class prefix "soro-" = Sequence-Override ROw. */
-  .sequence-override {
-    margin-top: 8px;
-    padding: 8px 10px;
-    border-radius: var(--evcc-radius-inner, 8px);
-    border: 1px solid color-mix(in srgb, var(--evcc-text-muted) 20%, transparent);
-    background: color-mix(in srgb, var(--evcc-text-muted) 5%, transparent);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-size: 0.85rem;
-  }
-
-  .soro-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .soro-consent {
-    font-size: 0.72rem;
-    color: var(--evcc-text-muted);
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .soro-body {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .soro-names {
-    color: inherit;
-    word-break: break-word;
-  }
-
-  .soro-status {
-    font-weight: 600;
-  }
-
-  .soro-diff {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 0.8rem;
-  }
-
-  .soro-diff small {
-    color: var(--evcc-text-muted);
-    margin-inline-end: 6px;
-    display: inline-block;
-  }
-
-  .soro-actions {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  /* Three verification signals. The color tokens fall through to a warning /
-     success / muted default set so the row renders sensibly on themes that
-     do not define these — never invisible on any theme.
-
-     The BOX fill comes from the standard status set (--evcc-surface-warning /
-     --evcc-surface-success), the same pair .evcc-sequence-override above uses,
-     because this row and that one are THE SAME FEATURE rendered on two surfaces
-     — the dashboard card here, the panel there — and two renderings of one row
-     disagreeing on its colour is the defect, not a style preference. It also
-     drops a second amber: the fill was mixed from --evcc-sem-warning (245,166,35)
-     while the warning SURFACE is (255,180,0), so the card carried two ambers a
-     few hundred pixels apart.
-
-     The 3px accent bar stays on the SEMANTIC token, not the border one. A solid
-     bar wants the colour at full strength; --evcc-border-* is a 35%-alpha hairline
-     and would wash it out. Same hue, two weights, chosen per role. */
-  .soro-amber {
-    background: var(--evcc-surface-warning, rgba(255,180,0,0.12));
-    border-inline-start: 3px solid var(--evcc-sem-warning);
-    padding: 6px 10px;
-    border-radius: var(--evcc-radius-inner, 6px);
-  }
-
-  .soro-green {
-    background: var(--evcc-surface-success, rgba(76,175,110,0.12));
-    border-inline-start: 3px solid var(--evcc-sem-success);
-    padding: 6px 10px;
-    border-radius: var(--evcc-radius-inner, 6px);
-  }
-
-  .soro-grey {
-    background: color-mix(in srgb, var(--evcc-text-muted) 12%, transparent);
-    border-inline-start: 3px solid var(--evcc-text-muted);
-    padding: 6px 10px;
-    border-radius: var(--evcc-radius-inner, 6px);
-    color: var(--evcc-text-muted);
-  }
+  /* The sequence-override row that the STANDALONE dashboard card renders lives
+     in CARD_CSS in src/cards/dashboard-card.js, not here. Its .soro-* rules
+     used to sit in this file and could never apply: that card attaches its OWN
+     shadow root and injects only CARD_CSS, so nothing in this stylesheet reaches
+     it. The row rendered as bare divs on that surface for its whole life, and two
+     commits "fixed" its colours by editing this file. The PANEL's own row is
+     .evcc-sequence-override, above -- a separate implementation, deliberately. */
 `;

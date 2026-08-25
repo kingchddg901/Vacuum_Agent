@@ -1023,3 +1023,82 @@ async def test_init14_battery_aggregates_migration_is_dispatched(hass, mock_conf
     assert "drain_pct_sum_for_duration" in bucket
     assert bucket["duration_min_sum"] == 0.0
     assert record[BACKUP_FIELD]["all_jobs"]["duration_min_sum"] == pytest.approx(544.45)
+
+
+# ---------------------------------------------------------------------------
+# [INIT-15] every listener is torn down by the REAL unload path
+# ---------------------------------------------------------------------------
+
+def _listener_domain_keys() -> dict[str, str]:
+    """Every ``hass.data[DOMAIN]`` key the listener package parks state under.
+
+    DERIVED FROM THE MODULES, never hand-listed: a twelfth listener that forgets
+    teardown has to be caught on the day it lands, and a hand-kept list reports the
+    same clean result whether it is complete or one short.
+    """
+    import importlib
+    import pkgutil
+
+    from custom_components.eufy_vacuum import listeners as pkg
+
+    out: dict[str, str] = {}
+    for info in pkgutil.iter_modules(pkg.__path__):
+        if info.name.startswith("_"):
+            continue
+        mod = importlib.import_module(f"{pkg.__name__}.{info.name}")
+        for attr, val in vars(mod).items():
+            # The convention throughout the package: a module-private constant whose
+            # VALUE is also underscore-prefixed is a domain_data key.
+            if attr.startswith("_") and isinstance(val, str) and val.startswith("_"):
+                out.setdefault(val, info.name)
+    return out
+
+
+async def test_unload_tears_down_every_listener(hass, hass_storage, mock_config_entry):
+    """[INIT-15] After a NORMAL unload, no listener has left state behind.
+
+    ⚠ NOTHING IN tests/ DRIVES async_unload_entry, and that is how a leak shipped.
+    `clean_order_refresh` was registered with an entry on `_unwind_stack` and nothing
+    in the unload block — and `_unwind_stack` is walked ONLY from the `except` arm of
+    async_setup_entry, so an entry that sets up successfully and is later unloaded
+    never touches it. `register` then overwrote its unsub key without calling the old
+    unsubs, leaving the previous dock-arrival subscription live on the bus. Measured
+    on a real setup+reload: ONE dock arrival fired TWO reads, i.e. two real
+    send_commands at the robot, growing by one per reload.
+
+    [LR-6b] in test_listeners_registration.py did not catch it and could not: it calls
+    `clean_order_refresh.remove(hass)` DIRECTLY. The guard worked; nothing invoked it.
+    So this test asserts the PATH, not the function.
+
+    The positive control is load-bearing. A listener that never registered in this
+    harness parks no key, and "its key is absent after unload" would then be true for
+    a reason that has nothing to do with teardown — the empty-dict pass. So the keys
+    actually present after SETUP are captured first, and only those are asserted gone.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_one_room()
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+
+    known = _listener_domain_keys()
+    assert known, "derived no listener keys at all — the convention changed"
+
+    domain_data = hass.data.get(DOMAIN, {})
+    present = {k: mod for k, mod in known.items() if k in domain_data}
+    assert len(present) >= 5, (
+        "positive control: this harness only exercised "
+        f"{len(present)} listener key(s) {sorted(present)}, so asserting them absent "
+        "after unload would prove almost nothing"
+    )
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    after = hass.data.get(DOMAIN, {})
+    leaked = sorted(f"{k} ({mod})" for k, mod in present.items() if k in after)
+    assert not leaked, (
+        "these listeners registered during setup and were NOT torn down by "
+        f"async_unload_entry: {leaked}. Every listener setup registers must appear in "
+        "that function's teardown block — the unwind stack does not run on a normal "
+        "unload."
+    )

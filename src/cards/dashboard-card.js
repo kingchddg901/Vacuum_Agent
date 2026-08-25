@@ -142,6 +142,7 @@ class EufyDashboardCard extends HTMLElement {
     this._hass = null;
     this._config = null;
     this._armed = emptyArmed();
+    this._clearConfirm = false;  // Clear is armed-then-confirmed; never sticky
     this._rowFields = {};        // roomId -> draft field overrides (unsaved)
     this._expanded = new Set();  // roomIds whose settings body is open
     this._roomsCollapsed = false; // whether the whole Rooms group is collapsed
@@ -165,6 +166,7 @@ class EufyDashboardCard extends HTMLElement {
     if (!config?.vacuum_entity_id) throw new Error("vacuum-agent-dashboard: vacuum_entity_id is required");
     this._config = config;
     this._armed = emptyArmed();
+    this._clearConfirm = false;
     this._rowFields = {};
     this._expanded = new Set();
     this._roomsCollapsed = false;
@@ -219,6 +221,18 @@ class EufyDashboardCard extends HTMLElement {
     for (const r of roomSwitchesFor(hass, vid)) ids.add(r.entityId);
     for (const r of roomSwitchesFor(prev, vid)) ids.add(r.entityId);
     for (const id of ids) if (prev.states?.[id] !== hass.states?.[id]) return true;
+    // The sequence-override row's two entities. NEITHER is covered above: the
+    // override switch carries no room_id so roomSwitchesFor() excludes it by
+    // construction, and the clean-order sensor is not a room switch at all. Without
+    // this the card did not repaint when either changed — toggling the switch left
+    // the row stale, and pressing Apply left it stale until some UNRELATED entity
+    // happened to tick. That is the same "Apply looks inert" symptom the panel had,
+    // arriving by a different route. Found while writing the harness mount for this
+    // row: the row would not appear at all when the entities were added.
+    const seqSwitch = findOverrideSwitch(hass, vid) || findOverrideSwitch(prev, vid);
+    if (seqSwitch && prev.states?.[seqSwitch.entity_id] !== hass.states?.[seqSwitch.entity_id]) return true;
+    const orderSensor = ENTITY.cleanOrderSensor(vid);
+    if (prev.states?.[orderSensor] !== hass.states?.[orderSensor]) return true;
     const scene = this._snapshot?.scene_select;
     if (scene && prev.states?.[scene] !== hass.states?.[scene]) return true;
     const mapEnt = this._snapshot?.live_map_image_entity;
@@ -503,6 +517,18 @@ class EufyDashboardCard extends HTMLElement {
   //
   // Five states — see src/state/sequence-override.js.
   _renderSequenceOverrideRow(rooms) {
+    // ⚠ `esc`, the module-level helper — NOT `this.escapeHtml`, which does not
+    // exist on this class. This function shipped with 19 calls to it, and every one
+    // was a TypeError the instant the row rendered. _render() has no try/catch
+    // around it, so the throw took THE WHOLE CARD down, not just this row: a
+    // Roborock V1 owner who put the standalone dashboard card on a Lovelace view
+    // got a dead card the moment their override switch existed.
+    //
+    // It survived because nothing ever rendered the row. _shouldRender did not
+    // track either clean-order entity (see there), the render-harness fixture
+    // carries neither, and the panel — which does have escapeHtml — is a different
+    // class rendering different markup. Found by mounting this element for the
+    // first time, not by any review of the code.
     const vid = this._vacuumId();
     if (!vid) return "";
     const sensorEntityId = ENTITY.cleanOrderSensor(vid);
@@ -510,13 +536,27 @@ class EufyDashboardCard extends HTMLElement {
     if (!switchState) return "";  // adapter/model does not declare the write
     const sensorState = this._hass?.states?.[sensorEntityId] ?? null;
 
-    // Queue rooms: enabled ones in the order the queue would dispatch (the same
-    // list `_renderRoomRow` renders down the page, filtered to on).
-    const queueRooms = (rooms || []).map((r) => ({
-      room_id: Number(r?.attrs?.room_id),
-      name: r?.attrs?.name ?? "",
-      on: r?.state === "on",
-    }));
+    // Queue rooms, IN DISPATCH ORDER. The sort is not optional, and the comment
+    // that used to sit here ("in the order the queue would dispatch") was false:
+    // `rooms` comes from roomSwitchesFor(), which is
+    // Object.entries(hass.states).filter(...) with no sort anywhere in the chain --
+    // the order the room-switch entities happened to enter the state machine.
+    // deriveSequenceRowState does not sort either; it trusts caller order
+    // absolutely. So this surface compared the device's real sequence against an
+    // arbitrary permutation: green when the device did NOT match the queue, and
+    // still amber right after a successful Apply.
+    //
+    // (order ?? 999) then name -- the key queue_engine and state/rooms.js both use.
+    // Note `??`, never `||`: a room's order can be 0 (number.py sets the control's
+    // minimum to 0), and `0 || 999` sorts it last.
+    const queueRooms = (rooms || [])
+      .map((r) => ({
+        room_id: Number(r?.attrs?.room_id),
+        name: r?.attrs?.name ?? "",
+        on: r?.state === "on",
+        order: Number(r?.attrs?.order ?? 999),
+      }))
+      .sort((a, b) => (a.order - b.order) || String(a.name).localeCompare(String(b.name)));
 
     const state = deriveSequenceRowState({ switchState, sensorState, queueRooms });
     if (state.kind === "absent") return "";
@@ -525,59 +565,74 @@ class EufyDashboardCard extends HTMLElement {
     // user's Roborock app, so the surface says so. When off, we keep it
     // available as a title on the toggle rather than shouting it.
     const consentBadge = state.overrideOn
-      ? `<span class="soro-consent">${this.escapeHtml(this.t("rooms.override_order.consent"))}</span>`
+      ? `<span class="soro-consent">${esc(this.t("rooms.override_order.consent"))}</span>`
       : "";
+
+    // INLINE CONFIRM, not window.confirm. state/dialog.js records why: native
+    // dialogs are unreliable inside the Home Assistant app / webview, where
+    // window.confirm() is commonly SUPPRESSED and returns false -- it silently
+    // swallowed "delete profile" once already. This card has no dialog host (the
+    // panel's card._confirm does not exist here), so Clear ARMS into a confirm
+    // strip rendered by the card itself. Only strings already present in all 18
+    // packs are used, so this adds no untranslated surface.
+    const clearControl = this._clearConfirm
+      ? `<div class="soro-actions">
+           <span class="soro-consent">${esc(this.t("rooms.override_order.consent"))}</span>
+           <button class="chip" id="sequence-override-clear-cancel">${esc(this.t("common.cancel"))}</button>
+           <button class="chip soro-danger" id="sequence-override-clear-confirm">${esc(this.t("common.confirm"))}</button>
+         </div>`
+      : `<button class="chip" id="sequence-override-clear">${esc(this.t("rooms.override_order.clear"))}</button>`;
 
     const toggle = `
       <button class="chip ${state.overrideOn ? "active" : ""}"
               id="sequence-override-toggle"
               aria-pressed="${state.overrideOn}"
-              title="${this.escapeHtml(this.t("rooms.override_order.consent"))}">
-        ${this.escapeHtml(this.t("rooms.override_order.toggle_label"))}
+              title="${esc(this.t("rooms.override_order.consent"))}">
+        ${esc(this.t("rooms.override_order.toggle_label"))}
       </button>`;
 
     const body = (() => {
       switch (state.kind) {
         case "path_optimizing":
-          return `<div class="soro-body">${this.escapeHtml(this.t("rooms.override_order.path_optimizing"))}</div>`;
+          return `<div class="soro-body">${esc(this.t("rooms.override_order.path_optimizing"))}</div>`;
         case "saved": {
           const names = state.deviceNames?.length
-            ? state.deviceNames.map((n) => this.escapeHtml(n)).join(" · ")
+            ? state.deviceNames.map((n) => esc(n)).join(" · ")
             : "";
           return `
             <div class="soro-body">
               <div class="soro-names">${names}</div>
-              <button class="chip" id="sequence-override-clear">${this.escapeHtml(this.t("rooms.override_order.clear"))}</button>
+              ${clearControl}
             </div>`;
         }
         case "matching": {
           const names = state.queueNames?.length
-            ? state.queueNames.map((n) => this.escapeHtml(n)).join(" · ")
+            ? state.queueNames.map((n) => esc(n)).join(" · ")
             : "";
           return `
             <div class="soro-body soro-green">
-              <div class="soro-status">${this.escapeHtml(this.t("rooms.override_order.matching"))}</div>
+              <div class="soro-status">${esc(this.t("rooms.override_order.matching"))}</div>
               <div class="soro-names">${names}</div>
-              <button class="chip" id="sequence-override-clear">${this.escapeHtml(this.t("rooms.override_order.clear"))}</button>
+              ${clearControl}
             </div>`;
         }
         case "mismatch": {
           const deviceNames = state.deviceNames?.length
-            ? state.deviceNames.map((n) => this.escapeHtml(n)).join(" · ")
-            : this.escapeHtml(this.t("rooms.override_order.empty_placeholder"));
+            ? state.deviceNames.map((n) => esc(n)).join(" · ")
+            : esc(this.t("rooms.override_order.empty_placeholder"));
           const queueNames = state.queueNames?.length
-            ? state.queueNames.map((n) => this.escapeHtml(n)).join(" · ")
-            : this.escapeHtml(this.t("rooms.override_order.empty_placeholder"));
+            ? state.queueNames.map((n) => esc(n)).join(" · ")
+            : esc(this.t("rooms.override_order.empty_placeholder"));
           return `
             <div class="soro-body soro-amber">
-              <div class="soro-status">${this.escapeHtml(this.t("rooms.override_order.mismatch"))}</div>
+              <div class="soro-status">${esc(this.t("rooms.override_order.mismatch"))}</div>
               <div class="soro-diff">
-                <div><small>${this.escapeHtml(this.t("rooms.override_order.device_label"))}</small> ${deviceNames}</div>
-                <div><small>${this.escapeHtml(this.t("rooms.override_order.queue_label"))}</small> ${queueNames}</div>
+                <div><small>${esc(this.t("rooms.override_order.device_label"))}</small> ${deviceNames}</div>
+                <div><small>${esc(this.t("rooms.override_order.queue_label"))}</small> ${queueNames}</div>
               </div>
               <div class="soro-actions">
-                <button class="chip active" id="sequence-override-apply">${this.escapeHtml(this.t("rooms.override_order.apply"))}</button>
-                <button class="chip" id="sequence-override-clear">${this.escapeHtml(this.t("rooms.override_order.clear"))}</button>
+                <button class="chip active" id="sequence-override-apply">${esc(this.t("rooms.override_order.apply"))}</button>
+                ${clearControl}
               </div>
             </div>`;
         }
@@ -588,8 +643,8 @@ class EufyDashboardCard extends HTMLElement {
           // Rendering no action here deadlocked the feature on every install.
           return `
             <div class="soro-body soro-grey">
-              <div class="soro-status">${this.escapeHtml(this.t("rooms.override_order.unverifiable"))}</div>
-              ${state.canApply ? `<button class="chip active" id="sequence-override-apply">${this.escapeHtml(this.t("rooms.override_order.apply"))}</button>` : ""}
+              <div class="soro-status">${esc(this.t("rooms.override_order.unverifiable"))}</div>
+              ${state.canApply ? `<button class="chip active" id="sequence-override-apply">${esc(this.t("rooms.override_order.apply"))}</button>` : ""}
             </div>`;
         default:
           return "";
@@ -802,10 +857,17 @@ class EufyDashboardCard extends HTMLElement {
     // Clear — wipes the device's saved sequence. Confirms because this may
     // destroy a sequence the user set in their own Roborock app (the reason
     // toggle-off deliberately does not do this).
-    this.shadowRoot.getElementById("sequence-override-clear")?.addEventListener("click", async () => {
+    this.shadowRoot.getElementById("sequence-override-clear")?.addEventListener("click", () => {
+      this._clearConfirm = true;   // arm; the row re-renders as a confirm strip
+      this._render();
+    });
+    this.shadowRoot.getElementById("sequence-override-clear-cancel")?.addEventListener("click", () => {
+      this._clearConfirm = false;
+      this._render();
+    });
+    this.shadowRoot.getElementById("sequence-override-clear-confirm")?.addEventListener("click", async () => {
       const vid = this._vacuumId();
-      if (!window.confirm(this.t("rooms.override_order.consent") + "\n\n"
-                        + this.t("rooms.override_order.clear") + "?")) return;
+      this._clearConfirm = false;
       await this._hass.callService("eufy_vacuum", "clear_clean_sequence", { vacuum_entity_id: vid });
     });
     // Expand / collapse a room's settings body
@@ -1141,6 +1203,14 @@ const CARD_CSS = `
     --text-primary: var(--evcc-text-primary, #f0f2f5);
     --text-muted:   var(--evcc-text-muted, rgba(240,242,245,0.48));
     --radius:       var(--evcc-radius-card, 12px);
+    /* Status surfaces for the sequence-override row. Mapped here WITH fallbacks
+       like everything above, because this card is standalone: mounted on a plain
+       Lovelace dashboard there is no --evcc-* anywhere in its ancestry, and a
+       var() with no fallback would resolve to nothing. */
+    --status-warning-bg:   var(--evcc-surface-warning, rgba(255,180,0,0.12));
+    --status-warning-line: var(--evcc-sem-warning, #f5a623);
+    --status-success-bg:   var(--evcc-surface-success, rgba(76,175,110,0.12));
+    --status-success-line: var(--evcc-sem-success, #4caf6e);
   }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; max-width: 480px; }
 
@@ -1214,6 +1284,67 @@ const CARD_CSS = `
   .btn-start:active:not(:disabled) { transform: scale(0.96); }
   @keyframes spin { to { transform: rotate(360deg); } }
   .spin { animation: spin 0.9s linear infinite; display: inline-block; }
+  /* ---- Sequence-override row -------------------------------------------------
+     MOVED HERE 2026-08-24 from src/styles/rooms.js, where it had always lived and
+     could never apply. This element attaches its own shadow root and injects only
+     CARD_CSS + LANG_CSS, so the panel's stylesheet does not reach it -- shadow DOM
+     encapsulation, not an oversight in the bundler. The row therefore rendered as
+     unstyled divs on this surface for its entire life, and the only colour on it
+     came from the generic .chip.active, i.e. the theme accent: a CONFIRMED MATCH
+     painted amber on an amber-accented theme. Two commits believed they had fixed
+     that by editing rooms.js.
+     Three verification states, per the design: amber = checked and WRONG,
+     green = confirmed, grey = could not check. */
+  .sequence-override {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: var(--evcc-radius-inner, 8px);
+    border: 1px solid color-mix(in srgb, var(--text-muted) 20%, transparent);
+    background: color-mix(in srgb, var(--text-muted) 5%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 0.85rem;
+  }
+  .soro-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .soro-consent { font-size: 0.72rem; color: var(--text-muted); flex: 1 1 auto; min-width: 0; }
+  .soro-body { display: flex; flex-direction: column; gap: 6px; }
+  .soro-names { color: inherit; word-break: break-word; }
+  .soro-status { font-weight: 600; }
+  .soro-diff { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; }
+  .soro-diff small { color: var(--text-muted); margin-inline-end: 6px; display: inline-block; }
+  /* wrap: two full-width buttons on a phone ran off the edge of the panel's copy
+     of this row, and the same labels sit here. */
+  .soro-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+  .soro-amber {
+    background: var(--status-warning-bg);
+    border-inline-start: 3px solid var(--status-warning-line);
+    padding: 6px 10px;
+    border-radius: var(--evcc-radius-inner, 6px);
+  }
+  .soro-green {
+    background: var(--status-success-bg);
+    border-inline-start: 3px solid var(--status-success-line);
+    padding: 6px 10px;
+    border-radius: var(--evcc-radius-inner, 6px);
+  }
+  .soro-grey {
+    background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+    border-inline-start: 3px solid var(--text-muted);
+    padding: 6px 10px;
+    border-radius: var(--evcc-radius-inner, 6px);
+    color: var(--text-muted);
+  }
+  /* The armed Clear. Danger colouring so an irreversible write to the user's own
+     vendor-app sequence does not look like every other chip. */
+  .soro-danger {
+    background: color-mix(in srgb, var(--evcc-sem-error, #e05252) 18%, transparent);
+    border-color: color-mix(in srgb, var(--evcc-sem-error, #e05252) 45%, transparent);
+    color: var(--evcc-sem-error, #e05252);
+    font-weight: 600;
+  }
+
 `;
 
 defineCard(CARD_NAME, EufyDashboardCard);

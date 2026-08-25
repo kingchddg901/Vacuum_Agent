@@ -925,12 +925,22 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             except Exception:  # pragma: no cover - defensive
                 _LOGGER.debug("eufy_vacuum: failed to remove panel /%s", panel_url, exc_info=True)
 
+        # ⚠ THIS LIST IS THE REAL TEARDOWN. `_unwind_stack` is NOT: it is walked only
+        # from the `except` arm of async_setup_entry, so an entry that sets up
+        # SUCCESSFULLY and is later unloaded never touches it. clean_order_refresh
+        # was registered with an unwind entry and nothing here, which reads as wired
+        # and is not: `register` overwrites its unsub key without calling the old
+        # unsubs, so every reload left the previous dock-arrival subscription live on
+        # the bus. Measured: after ONE reload a single dock arrival fired TWO reads,
+        # i.e. two real send_commands at the robot. Every listener setup registers
+        # must appear HERE; test_listeners_registration [LR-7] fails if one does not.
         lifecycle.remove(hass)
         job_metrics.remove(hass)
         dock_events.remove(hass)
         path_blockers.remove(hass)
         pause_timeout.remove(hass)
         stall_capture.remove(hass)
+        clean_order_refresh.remove(hass)
         job_progress.remove(hass)
         pose_sampler.remove(hass)
         discovery.remove(hass)

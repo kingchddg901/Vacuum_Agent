@@ -229,7 +229,25 @@ export function applyRoomsBindings(proto) {
     async () => {
       const vid = this.card._state?.config?.vacuum_entity_id;
       if (!vid) return;
-      if (!window.confirm(this.card.t("rooms.override_order.consent"))) return;
+      // ⚠ card._confirm, NEVER window.confirm. state/dialog.js records why the
+      // card-native dialog exists: native dialogs are unreliable inside the Home
+      // Assistant app / webview, where window.confirm() is commonly SUPPRESSED and
+      // returns false — which silently swallowed "delete profile" (the user saw the
+      // prompt stick and the profile never deleted). This handler shipped with
+      // window.confirm and was the only one left in src/bindings/, so on a phone
+      // Clear did nothing at all: no dialog, confirm false, early return, service
+      // never called. On the same phone surface the rest of this row's defects were
+      // reported from.
+      // t(), not tRaw: renderers/dialog.js interpolates the message into a template
+      // literal (`${String(d.message)}`) — an innerHTML sink under its stated
+      // "trust model B", where escaping is the CALLER's job. Every sibling passes
+      // t(). A first cut of this line used tRaw on the reasoning that the dialog
+      // renders text; it does not.
+      const confirmed = await this.card._confirm(
+        this.card.t("rooms.override_order.consent"),
+        { danger: true },
+      );
+      if (!confirmed) return;
       await this.card._hass.callService(
         "eufy_vacuum", "clear_clean_sequence", { vacuum_entity_id: vid },
       );
