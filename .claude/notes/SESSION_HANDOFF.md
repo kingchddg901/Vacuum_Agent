@@ -123,42 +123,50 @@ CSS uses semantic tokens (`--evcc-sem-warning`, `--evcc-sem-success`,
 
 ---
 
-## RELEASE STATE — 2.1.0 IS CUT LOCALLY AND NOT PUSHED
+## RELEASE STATE — 2.1.0 IS SHIPPED (2026-08-25)
 
-Five 5-dimensional audits ran. All findings closed; the deliberate-and-not-a-bug
-list is `.claude/notes/POST-2.1.0-deferred.md` — feed it to any further audit or it
-re-derives settled questions.
+**Published:** https://github.com/kingchddg901/Vacuum_Agent/releases/tag/v2.1.0
+Tag `v2.1.0` -> `2b03c140`, marked latest, NOT a pre-release, so it reached every
+HACS default-store user. `eufy_vacuum.zip` (29,338,744 B) verified independently of
+the green job: 358 entries, contents at ROOT with no wrapping folder,
+`manifest.json` present reading `2.1.0`. `en.reference.jsonc` attached.
 
-**Local tree is release-ready and CLEAN:**
-- `manifest.json` = `2.1.0` (`c256bba8`). It is the ONE version file, and
-  `release.yml` refuses to build `eufy_vacuum.zip` on a tag/manifest mismatch —
-  which for a `zip_release` repo means the release cannot be INSTALLED, not that it
-  installs something wrong.
-- `CHANGELOG.md` heading is `## [2.1.0] - 2026-08-24`, one merged section.
-- Gates all green at `c256bba8`: 4676 python (+2 skipped), 1035 node, 317 harness
-  (+31 skipped), 31 visual re-run in the pinned Linux image with no baseline
-  movement, `check:styles`, `check:i18n`.
-- Deployed full-tree to `Z:\` and HA restarted 2026-08-24 20:44. Clean load, no
-  eufy/roborock errors. The only warnings are the loader's custom-integration
-  notice and the Dreame refusal for `vacuum.robin` — the latter is the shipped
-  behaviour, not a fault.
+Deployed full-tree to `Z:\` and HA restarted; clean load.
 
-**NOT DONE, and deliberately waiting on Chris:**
-1. `git push origin master` — **61 commits**, nothing on this release has ever been
-   pushed. Branch is `master` tracking `origin/master`, 0 behind.
-2. Tag `v2.1.0` and publish the GitHub release. The tag carries a leading `v`; the
-   manifest does not; `release.yml` strips it.
-3. Release body is written and final: `scratchpad/RELEASE-2.1.0.md` in this
-   session's scratchpad (suite count already updated to 4676).
+### THE TWO THINGS THAT ONLY THE FIRST PUSH COULD FIND
 
-⚠ The handoff previously said "push tag only, do not merge `do-not-push` → master".
-That predates the branch situation and does NOT describe the tree now: the work is
-ON master and the push is a normal master push.
+63 commits had accumulated with nothing ever pushed, so two gates went red on the
+release tip that five audits and every local run had passed:
 
-⚠ Publishing WITHOUT the pre-release flag is correct here and is checked: the
-second gate in `release.yml` only rejects a `-beta` version published as stable.
-`2.1.0` has no suffix, so it is meant to go out as latest to every HACS
-default-store user. That is the audience — see `p/hacs_plan`.
+1. `check_generated_docs.py` — `THEME_TOKEN_USAGE.md` stale from the banner fix's
+   line shifts (learning.js 700->716, 743->759) and the `.soro-*` move deleting the
+   cited rooms.js:1461-1549. Fixed `87942de6`.
+2. `test_adapter_config_parity.py` — FileNotFoundError on CI ONLY. It reads
+   `.claude/generated-docs/adapter-config/ADAPTER-CONFIG.generated.md`; `.gitignore`
+   carries `.claude/` and the file never got its `git add -f`. **All 54 files under
+   `.claude/generated-docs/` were untracked — that gate had never run in CI once.**
+   Fixed `b101030f`; the on-disk copy was 364 lines STALE, so it was regenerated
+   before committing rather than freezing a snapshot that no longer matched the
+   schema.
+
+⚠ THE STANDING LESSON, three times in one session: an exit code lied every time —
+`tail`'s status, a background wrapper's last command, a PowerShell `Select-Object`
+pipeline. The truth was always in the OUTPUT TEXT (`exit=1`, `failure`,
+`4676 passed`). Read the count line, never the exit code.
+
+⚠ Also: a local visual run without `VISUAL=1` reports `31 skipped, 1 passed` and
+reads exactly like a pass. And `card-visual.yml` runs `visual device-theme` — BOTH.
+
+### STILL OPEN
+
+`.claude/notes/POST-2.1.0-deferred.md` entry 5: the adapter-config artifact is
+committed but NOT freshness-gated (not in `GENERATORS`), and its generator is still
+untracked. Measured decay: 364 lines in ~2 days. Fix is one `Generator(...)` entry
+plus force-adding the generator. Held out of the release deliberately — a gate added
+at a release tip has the release as its first real run.
+
+Docs become a release gate AFTER 2.1 (Chris's ruling), so the doc backlog did not
+gate this one and will gate the next.
 
 ---
 
