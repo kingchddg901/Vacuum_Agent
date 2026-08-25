@@ -93,6 +93,18 @@ Because it edits something that lives in your vendor app, the row is built to be
 - **The row shows the device's real order whatever the switch says,** so "off" can never quietly hide a sequence that is still in force.
 - **Three states, never two.** Green — the device matches your queue. Amber — it differs; *Apply* writes yours. Grey — the order could not be **read**. Grey never blocks Start, and *Apply* is how you find out: you write, the device acknowledges, and now you know.
 
+![The Rooms view on a phone: the advisory with "Force this exact order" for a single run, and below it the Override Order row showing the device sequence differing from the queue](docs/screenshots/phone-override-both-portrait.png)
+
+*Both controls, one screen. "Force this exact order" is the per-run one; the amber row below it is the persistent sequence saved in the Roborock app.*
+
+The row tells you which of the three states you are in before you touch anything:
+
+![The row in green, reading "Sequence matches your queue"](docs/screenshots/phone-override-matching-landscape.png)
+
+![The row in amber, reading "Sequence differs from your queue", listing the device order and the queue order side by side](docs/screenshots/phone-override-mismatch-landscape.png)
+
+*Green: the robot already agrees with your queue. Amber: it does not, and the row names both orders so you can see exactly what Apply would change.*
+
 **Where the row appears:** only on vacuums whose adapter declares a device-side clean order — today that means **Roborock V1** models (S6, Q5 Pro / a72, S7 / a15, S8 / a70). Newer Qrevo and B01 units use a different transport, and **Eufy has no equivalent concept at all**. On anything else the row simply does not render — so if you own a Eufy, this control is not hiding somewhere, it does not exist for your robot.
 
 ## On a phone
@@ -100,6 +112,16 @@ Because it edits something that lives in your vendor app, the row is built to be
 The panel is not a desktop layout that survives a small screen. Held upright it reflows to a bottom tab bar with an overflow sheet; turned sideways the status pane and bottom navigation get out of the way, because in landscape they were taking a quarter of the screen for information you were not looking at — and they only yield where something can actually be scrolled, so a short view can never lose its navigation with no gesture left to bring it back.
 
 The theme editor comes with it: the token and palette editors lay out on a phone, the search row collapses, and the colour hint is stated once at the top instead of on every row. Phone widths are part of the automated layout gate on every view, so a change that pushes something off a 390px screen fails the build rather than the user.
+
+![Battery stats in portrait: charge rates as stacked label-and-value blocks](docs/screenshots/phone-stats-battery-portrait.png)
+
+![The same battery stats in landscape: the charge rates become a real table with zone, rate and notes columns](docs/screenshots/phone-stats-battery-landscape.png)
+
+*The same data, twice. Portrait stacks each rate into its own block; landscape has the width for a real table, so it uses one. Neither is the other one squeezed.*
+
+![The theme token editor on a phone in OpenDyslexic, editing the marble vein colour with a live textured room preview](docs/screenshots/phone-theme-opendyslexic-landscape.png)
+
+*The token editor on a phone — here in OpenDyslexic, with the floor-texture preview updating live as the vein colour changes.*
 
 ## Automation events
 
