@@ -260,3 +260,64 @@ def test_single_map_fallback_when_active_map_unknown(hass):
 
     rooms = discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC)
     assert {r["room_id"] for r in rooms} == {16, 17, 20}
+
+
+# --- ISSUE #55: "not supported" is not "failed" -----------------------------
+#
+# A Roborock Q7 M5 is a B01-protocol device. Home Assistant routes it to
+# `RoborockQ7Vacuum`, whose `get_maps()` is a stub raising ServiceNotSupported
+# unconditionally (components/roborock/vacuum.py, HA 2026.8); the Q10 class is the
+# same, and only the V1 class implements it. Folded into `service_call_failed`, that
+# reached the owner as "failed ... please report it with diagnostics", so he did.
+#
+# These two tests are a PAIR and only mean something together: SR-13 pins that a
+# permanent refusal is named as one, SR-14 pins that a genuine fault is still named a
+# fault. Either alone passes if both reasons collapse back into one string.
+
+
+async def test_service_not_supported_is_not_a_failure(hass):
+    """[SR-13] ServiceNotSupported -> its own reason, never `service_call_failed`."""
+    from homeassistant.exceptions import ServiceNotSupported
+
+    clear_registry()
+    _service_response_adapter()
+
+    async def _get_maps(call):
+        raise ServiceNotSupported("roborock", "get_maps", _VAC)
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY
+    )
+    hass.states.async_set(_VAC, "docked")
+
+    result = await async_refresh_room_source(hass, _VAC)
+
+    assert result["ok"] is False
+    assert result["reason"] == "service_not_supported", (
+        "a device Home Assistant refuses to answer for must not be reported as a "
+        "transient failure — that is what asked a user to file issue #55 about his "
+        "own hardware's documented limits."
+    )
+
+
+async def test_a_real_service_error_is_still_a_failure(hass):
+    """[SR-14] the negative control: SR-13 must not swallow genuine faults."""
+    clear_registry()
+    _service_response_adapter()
+
+    async def _get_maps(call):
+        raise RuntimeError("connection reset by peer")
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY
+    )
+    hass.states.async_set(_VAC, "docked")
+
+    result = await async_refresh_room_source(hass, _VAC)
+
+    assert result["ok"] is False
+    assert result["reason"] == "service_call_failed", (
+        "a transient upstream error must still ask for a report; if this returns "
+        "`service_not_supported` the two branches have collapsed and real bugs will "
+        "be told they are unsupported hardware."
+    )

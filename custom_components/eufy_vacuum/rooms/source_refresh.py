@@ -108,6 +108,7 @@ import time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceNotSupported
 
 from ..adapters.registry import get_adapter_config
 from ..const import DOMAIN
@@ -476,19 +477,28 @@ async def async_refresh_room_source(
     """Refresh the cached room source for one vacuum if it uses a service source.
 
     RP-007 (SRC-1): returns {"ok": bool, "reason": str|None, "refreshed_at": iso|None}
-    so callers can tell the SEVEN exits apart instead of every path returning None:
+    so callers can tell the EIGHT exits apart instead of every path returning None:
 
       ok=True,  reason "not_service_source"       - nothing to refresh (always-live)
       ok=False, reason "no_maps_service"          - misdeclared adapter
       ok=False, reason "entity_unavailable"       - device offline/asleep
-      ok=False, reason "service_call_failed"      - upstream call raised
+      ok=False, reason "service_not_supported"    - PERMANENT: the brand integration
+                                                    does not implement this call for
+                                                    this device; retrying cannot help
+      ok=False, reason "service_call_failed"      - upstream call raised (transient)
       ok=False, reason "empty_response_kept_cache"- flattened to nothing; cache kept
       ok=True,  reason "superseded_by_newer_refresh" - a newer commit won the race (SRC-4)
       ok=True,  reason None                       - refreshed and committed
 
-    (R2-STALE-6: this said "five", listed six, and implemented seven —
-    superseded_by_newer_refresh was undocumented. A caller enumerating reasons from
-    this list would have treated a legitimate ok=True as an unknown state.)
+    ⚠ KEEP THE COUNT AND THE LIST IN STEP. (R2-STALE-6: this said "five", listed six,
+    and implemented seven — superseded_by_newer_refresh was undocumented. A caller
+    enumerating reasons from this list would have treated a legitimate ok=True as an
+    unknown state.) `service_not_supported` was added for issue #55 and made it eight.
+
+    The last two ok=False reasons look alike and are opposites: `service_call_failed`
+    is "try again", `service_not_supported` is "this will never work on this device".
+    Collapsing them is what sent a user to file a bug report about his own hardware's
+    documented limits.
 
     (SRC-4) Concurrent callers coalesce onto one in-flight refresh, and a commit
     generation guarantees a slow stale response never replaces a newer commit.
@@ -551,6 +561,27 @@ async def _do_refresh_room_source(
             blocking=True,
             return_response=True,
         )
+    except ServiceNotSupported:
+        # ISSUE #55. NOT a failure — this is the brand integration stating that THIS
+        # DEVICE will never answer, and it will raise identically on every retry.
+        #
+        # The reporter's Roborock Q7 M5 is a B01-protocol device. Home Assistant routes
+        # it to `RoborockQ7Vacuum`, whose `get_maps()` is a stub that raises
+        # unconditionally (`components/roborock/vacuum.py`, HA 2026.8) — as does the Q10
+        # class. Only the V1 class implements it. B01 devices likewise get no
+        # `selected_map` select and no binary sensors at all, which is why that install
+        # showed eleven entities and no map anything.
+        #
+        # Folded into `service_call_failed` this reached the user as "failed … please
+        # report it with diagnostics", so he reported it, correctly, doing exactly what
+        # we asked. A permanent, correctly-reported "not supported" must never be
+        # dressed up as a transient fault with a bug report attached.
+        _LOGGER.debug(
+            "room_source: %s.%s is not supported for %s; this device cannot provide "
+            "a room source and retrying will not change that",
+            service_domain, service_name, vacuum_entity_id,
+        )
+        return _refresh_result(False, "service_not_supported")
     except Exception as err:  # pragma: no cover - upstream service errors are best-effort
         _LOGGER.warning(
             "room_source: %s.%s failed for %s (%s); using cached source",

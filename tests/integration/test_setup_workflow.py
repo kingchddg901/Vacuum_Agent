@@ -349,6 +349,72 @@ async def test_import_refuses_when_several_maps_and_no_selector(hass, manager, _
     assert "room_source_refresh" in result["data"]
 
 
+async def test_import_says_unsupported_without_asking_for_a_bug_report(
+    hass, manager, _no_panel
+):
+    """[SW-9d] ISSUE #55: a device HA refuses to answer for is not a fault.
+
+    The reporter's Roborock Q7 M5 is a B01-protocol device. Home Assistant routes it
+    to `RoborockQ7Vacuum`, whose `get_maps()` raises ServiceNotSupported
+    unconditionally. We folded that into `service_call_failed`, so he was told the
+    call "failed" and asked to "report it with diagnostics" — and he did, correctly.
+
+    The message must now say the truth and explicitly NOT ask for a report, because
+    there is nothing to receive and nothing he can fix.
+
+    `manager` is unused in the body and pylint says so; it is LOAD-BEARING anyway —
+    dropped, add_vacuum has no manager to register against and the result comes back
+    "error" instead of "blocked", so the assertions below never reach the message.
+    Checked by removing it, not assumed.
+    """
+    from homeassistant.core import SupportsResponse
+    from homeassistant.exceptions import ServiceNotSupported
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code", "brand": "Roborock",
+        "entities": {"active_map": "select.alfred_selected_map"},
+        "discovery": {
+            "source": "service_response",
+            "maps_service": {"domain": "roborock", "service": "get_maps"},
+            "maps_rooms_key": "rooms", "map_name_key": "name",
+            "room_id_key": "segment_id", "room_name_key": "name",
+        },
+    })
+
+    async def _get_maps(call):
+        raise ServiceNotSupported("roborock", "get_maps", _VAC)
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY,
+    )
+    hass.states.async_set(_VAC, "docked")
+    await add_vacuum(hass, _VAC)
+
+    result = await import_active_map(hass, _VAC)
+    message = result["message"]
+
+    assert result["status"] == "blocked"
+    low = message.lower()
+    # Not the WORD "report" — the message says "no need to report this" on purpose.
+    # What must be gone is the ASK, which is the sentence that produced issue #55.
+    assert "please report" not in low and "report it with diagnostics" not in low, (
+        "issue #55 IS this sentence: a permanent, correctly-reported 'not supported' "
+        f"must not ask the user for a bug report. Got: {message!r}"
+    )
+    assert "no need to report" in low, (
+        "saying nothing about reporting leaves the user to guess; the whole defect was "
+        f"an unclear next step. Got: {message!r}"
+    )
+    assert "failed" not in low, (
+        f"nothing failed — HA answered, and the answer was no. Got: {message!r}"
+    )
+    assert "Roborock" in message, (
+        "the cause is the BRAND integration's coverage, so name it — a user cannot "
+        "act on 'the integration' when they run several"
+    )
+    assert "Eufy" not in message, "issue #46: never a brand the owner does not own"
+
+
 # ---------------------------------------------------------------------------
 # [SW-10] — [SW-12] delete_map protection gating
 # ---------------------------------------------------------------------------

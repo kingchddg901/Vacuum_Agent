@@ -148,8 +148,18 @@ def _no_map_message(
     real reason — HA 2026.7 not creating his map-selector entity. Chris's
     verdict on it ("sit and cry") was fair.
 
-    The refresh result already distinguishes the causes (RP-007/SRC-1 gave it
-    five named exits); this just says which one happened, in the right vocabulary.
+    The refresh result already distinguishes the causes (RP-007/SRC-1 gave it named
+    exits — EIGHT as of issue #55); this just says which one happened, in the right
+    vocabulary.
+
+    ⚠ THE POINT OF THIS FUNCTION IS THAT ONE MESSAGE PER CAUSE IS NOT OPTIONAL.
+    Issue #55 proved it a second time: `service_not_supported` was folded into
+    `service_call_failed`, so a Roborock Q7 M5 owner — whose vacuum Home Assistant
+    deliberately does not implement `get_maps` for — was told his map fetch "failed"
+    and asked to "report it with diagnostics". He did. The bug was the message.
+
+    Before adding a branch here, check the reason actually exists in
+    `rooms/source_refresh.py`; an unreachable branch reads as coverage.
     """
     from ..adapters.registry import get_adapter_config
 
@@ -168,6 +178,23 @@ def _no_map_message(
             f"This vacuum's adapter does not declare how to fetch its map list, "
             f"so '{vacuum_entity_id}' cannot be imported. This is an integration "
             "bug rather than anything wrong with your setup — please report it."
+        )
+    if reason == "service_not_supported":
+        # ISSUE #55. Do NOT ask for a bug report here. Home Assistant has stated that
+        # this device does not support the call, and it will state the same thing on
+        # every retry — the vacuum is fine, the setup is fine, and there is nothing
+        # for the user to fix or for us to receive.
+        integration = f"Home Assistant's {brand} integration" if brand else (
+            "the Home Assistant integration for this vacuum"
+        )
+        return (
+            f"{integration} does not support reading maps from "
+            f"'{vacuum_entity_id}', so its rooms cannot be imported. Some models "
+            "speak a protocol whose map support has not been built upstream yet — "
+            "the vacuum still maps normally in its own app, Home Assistant just has "
+            "no way to ask it for that map. Nothing is wrong with your setup and "
+            "there is no need to report this; room features will start working if "
+            "and when Home Assistant adds map support for your model."
         )
     if reason == "service_call_failed":
         return (
