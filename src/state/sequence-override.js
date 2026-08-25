@@ -58,6 +58,12 @@ export function deriveSequenceRowState({ switchState, sensorState, queueRooms })
     rawState === "unknown" || rawState === "unavailable" || rawState === ""
     || sensorStatus === "unavailable" || sensorStatus === "never_read"
   );
+  // Counted before the unverifiable early-return, which happens above the pair-wise
+  // build below and would otherwise have no view of the queue at all.
+  const queueOrderCount = (queueRooms || [])
+    .filter((r) => r?.on !== false && Number.isFinite(Number(r?.room_id)))
+    .length;
+
   if (isUnverifiable) {
     // ⚠ APPLY IS OFFERED HERE, and that is the whole point of `canApply`.
     // Until 2026-08-24 this state rendered no action at all, which DEADLOCKED the
@@ -67,7 +73,15 @@ export function deriveSequenceRowState({ switchState, sensorState, queueRooms })
     // grey. Withholding Apply because we cannot verify is backwards: APPLY IS HOW
     // VERIFICATION IS OBTAINED. You write, the device acks, and now you know.
     // Grey means "we do not know the device's order", never "you may not act".
-    return { kind: "unverifiable", overrideOn, canApply: overrideOn };
+    // ⚠ AND NOT WITH AN EMPTY QUEUE. `apply_current_queue` REFUSES that outright —
+    // `{status: "refused", reason: "empty_queue"}` — because writing [] would wipe a
+    // sequence the user may have set in their own app. But the refusal is a RETURN
+    // value, not a raise, and both surfaces discard the service result, so offering
+    // Apply here produced a button that could be pressed forever with no write, no
+    // error and no feedback. The manager's own comment promised "a visible refusal";
+    // there was no surface to make it visible on. Cheaper and honester to not offer
+    // an action that is already known to be refused.
+    return { kind: "unverifiable", overrideOn, canApply: overrideOn && queueOrderCount > 0 };
   }
 
   // Ids and names are PARALLEL ARRAYS the card renders index-by-index, so the
@@ -121,7 +135,9 @@ export function deriveSequenceRowState({ switchState, sensorState, queueRooms })
   return {
     kind: "mismatch",
     overrideOn: true,
-    canApply: true,
+    // Same rule as the unverifiable branch: an empty queue is refused by the
+    // service, so do not offer the button that triggers the refusal.
+    canApply: queueOrder.length > 0,
     deviceOrder, deviceNames,
     queueOrder, queueNames,
   };

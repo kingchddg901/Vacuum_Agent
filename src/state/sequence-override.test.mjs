@@ -272,3 +272,61 @@ test("[SEQ-10d] a sensor without the role slug is not claimed", () => {
   };
   assert.equal(findCleanOrderSensor(hass, "vacuum.ivy"), null);
 });
+
+/* ---------------------------------------------------------------------------
+ * [SEQ-11] Apply is not offered when the service would REFUSE it
+ * ------------------------------------------------------------------------- */
+
+const _sw = (on) => ({ entity_id: "switch.x", state: on ? "on" : "off",
+  attributes: { vacuum_entity_id: "vacuum.ivy", role: "clean_order_override" } });
+
+test("[SEQ-11] RED IF APPLY IS OFFERED INTO AN EMPTY QUEUE (unverifiable)", () => {
+  // `apply_current_queue` returns {status:"refused", reason:"empty_queue"} rather
+  // than raising, and BOTH surfaces discard the service result — so this button was
+  // pressable forever with no write, no error and no feedback. The manager's own
+  // comment promised "a visible refusal"; nothing rendered one.
+  const s = deriveSequenceRowState({
+    switchState: _sw(true),
+    sensorState: { state: "unknown", attributes: { status: "never_read", order: [] } },
+    queueRooms: [],
+  });
+  assert.equal(s.kind, "unverifiable");
+  assert.equal(s.canApply, false);
+});
+
+test("[SEQ-11b] Apply IS still offered in unverifiable with a real queue", () => {
+  // The positive control. Withholding Apply in `unverifiable` is what DEADLOCKED
+  // the feature once already — Apply is how verification is obtained — so this
+  // fix must not quietly re-close that door.
+  const s = deriveSequenceRowState({
+    switchState: _sw(true),
+    sensorState: { state: "unknown", attributes: { status: "never_read", order: [] } },
+    queueRooms: [{ room_id: 1, name: "Kitchen", on: true }],
+  });
+  assert.equal(s.kind, "unverifiable");
+  assert.equal(s.canApply, true);
+});
+
+test("[SEQ-11c] RED IF APPLY IS OFFERED INTO AN EMPTY QUEUE (mismatch)", () => {
+  // Device has an order, queue has none: that IS a mismatch, and Apply would be
+  // refused rather than clearing the device. Clear is the control for that.
+  const s = deriveSequenceRowState({
+    switchState: _sw(true),
+    sensorState: { state: "2", attributes: { status: "ok", order: [1, 2], order_names: ["Kitchen", "Hall"] } },
+    queueRooms: [],
+  });
+  assert.equal(s.kind, "mismatch");
+  assert.equal(s.canApply, false);
+});
+
+test("[SEQ-11d] a queue of only DISABLED rooms counts as empty", () => {
+  // `_current_queue_order` walks ENABLED rooms, so a queue of switched-off rooms
+  // refuses exactly like an empty one. Counting rows rather than enabled rows would
+  // pass this test's sibling and still offer a button that cannot write.
+  const s = deriveSequenceRowState({
+    switchState: _sw(true),
+    sensorState: { state: "unknown", attributes: { status: "never_read", order: [] } },
+    queueRooms: [{ room_id: 1, name: "Kitchen", on: false }],
+  });
+  assert.equal(s.canApply, false);
+});

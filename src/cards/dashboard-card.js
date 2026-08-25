@@ -142,10 +142,6 @@ class EufyDashboardCard extends HTMLElement {
     this._config = null;
     this._armed = emptyArmed();
     this._clearConfirm = false;  // Clear is armed-then-confirmed; never sticky
-    // `undefined` = never resolved (see _shouldRender). NOT null, which means
-    // "resolved and absent" and would suppress the first lookup entirely.
-    this._seqSwitchId = undefined;
-    this._seqSensorId = undefined;
     this._rowFields = {};        // roomId -> draft field overrides (unsaved)
     this._expanded = new Set();  // roomIds whose settings body is open
     this._roomsCollapsed = false; // whether the whole Rooms group is collapsed
@@ -170,8 +166,6 @@ class EufyDashboardCard extends HTMLElement {
     this._config = config;
     this._armed = emptyArmed();
     this._clearConfirm = false;
-    this._seqSwitchId = undefined;
-    this._seqSensorId = undefined;
     this._rowFields = {};
     this._expanded = new Set();
     this._roomsCollapsed = false;
@@ -234,38 +228,34 @@ class EufyDashboardCard extends HTMLElement {
     // happened to tick. That is the same "Apply looks inert" symptom the panel had,
     // arriving by a different route. Found while writing the harness mount for this
     // row: the row would not appear at all when the entities were added.
-    // MEMOISED, because this runs on EVERY hass tick and findOverrideSwitch falls
-    // back to an Object.values(states).find() scan whenever the conventional id
-    // misses -- which is precisely the case the fallback exists for. An O(entities)
-    // scan per tick inside _shouldRender defeats the one thing _shouldRender is for.
+    // RESOLVED FRESH EVERY TICK, deliberately, after a memo here caused a worse
+    // bug than the one it was avoiding.
     //
-    // ⚠ THE NEGATIVE RESULT IS CACHED TOO, and the first cut of this memo did not do
-    // that -- so it delivered nothing for the MAJORITY of installs. Where no override
-    // switch exists (every Eufy, every non-V1 Roborock) the resolve returned null,
-    // the `!seqId` guard stayed true, and the full scan ran on every single tick
-    // anyway. The commit that added the memo claimed the scan was fixed; for most
-    // users it had made it unconditional.
+    // The memo cached a NEGATIVE (`null` = resolved and absent) and relied on the
+    // render path to refresh it. That self-heals for the SWITCH — it is added in the
+    // same `async_add_entities` batch as every room switch, so the batch carrying it
+    // also trips the room-switch diff above and forces the render that re-resolves.
+    // It does NOT self-heal for the SENSOR, which lives in a different platform that
+    // lands a beat later: the room-switch diff fires while the sensor is still
+    // absent, the memo records null, and nothing the card watches can ever force the
+    // render that would fix it. On a docked robot — no vacuum-state ticks — the row
+    // then reads "could not check" indefinitely while the sensor reads fine, and
+    // Apply looks inert. Which is precisely the symptom the sensor watch was added
+    // to prevent.
     //
-    // `undefined` = never resolved. `null` = resolved and genuinely ABSENT, which is
-    // a real answer and is kept. So the scan runs at most once per card, and the
-    // RENDER path refreshes both memos for free (see _renderSequenceOverrideRow) --
-    // it already resolves these entities, and it only runs when something else
-    // changed. A switch that appears later is therefore picked up on the next
-    // repaint the card does for any other reason, without a scan per tick to watch
-    // for it.
-    if (this._seqSwitchId === undefined) {
-      this._seqSwitchId = findOverrideSwitch(hass, vid)?.entity_id ?? null;
+    // The perf case for the memo does not survive its own context: `roomSwitchesFor`
+    // is called TWICE two lines above, each an Object.entries over every state. The
+    // memo saved at most one scan in three and bought a staleness class for it.
+    // Correctness wins; the extra pass is the same order as what already happens.
+    const seq = findOverrideSwitch(hass, vid) || findOverrideSwitch(prev, vid);
+    if (seq && prev.states?.[seq.entity_id] !== hass.states?.[seq.entity_id]) return true;
+    // Only worth looking for the sensor where the switch exists — no switch, no row,
+    // so nothing the sensor could change is on screen. That also keeps the majority
+    // of installs (every Eufy, every non-V1 Roborock) to a single extra lookup.
+    if (seq) {
+      const sensor = findCleanOrderSensor(hass, vid) || findCleanOrderSensor(prev, vid);
+      if (sensor && prev.states?.[sensor.entity_id] !== hass.states?.[sensor.entity_id]) return true;
     }
-    const seqId = this._seqSwitchId;
-    if (seqId && prev.states?.[seqId] !== hass.states?.[seqId]) return true;
-    // Same treatment for the sensor. Leaving the CONVENTIONAL id here would have
-    // meant a German install rendered the row correctly and then never repainted
-    // after Apply -- a fix on the render path and not on the repaint path.
-    if (this._seqSensorId === undefined) {
-      this._seqSensorId = findCleanOrderSensor(hass, vid)?.entity_id ?? null;
-    }
-    const orderId = this._seqSensorId;
-    if (orderId && prev.states?.[orderId] !== hass.states?.[orderId]) return true;
     const scene = this._snapshot?.scene_select;
     if (scene && prev.states?.[scene] !== hass.states?.[scene]) return true;
     const mapEnt = this._snapshot?.live_map_image_entity;
@@ -573,17 +563,10 @@ class EufyDashboardCard extends HTMLElement {
     const vid = this._vacuumId();
     if (!vid) return "";
     const switchState = findOverrideSwitch(this._hass, vid);
-    // Refresh _shouldRender's memos from the resolution we just did. This costs
-    // nothing -- the lookup happened anyway -- and it is what lets _shouldRender
-    // cache a NEGATIVE answer safely: a switch that appears later is picked up on
-    // the next repaint the card makes for any other reason, instead of being
-    // watched for by an O(entities) scan on every tick.
-    this._seqSwitchId = switchState?.entity_id ?? null;
     if (!switchState) return "";  // adapter/model does not declare the write
     // Two-tier, like the switch above it. The conventional id only resolves where
     // the locale pack does not translate the sensor's name; eight of eighteen do.
     const sensorState = findCleanOrderSensor(this._hass, vid);
-    this._seqSensorId = sensorState?.entity_id ?? null;
 
     // Queue rooms, IN DISPATCH ORDER. The sort is not optional, and the comment
     // that used to sit here ("in the order the queue would dispatch") was false:
