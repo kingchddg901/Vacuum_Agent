@@ -143,6 +143,7 @@ class EufyDashboardCard extends HTMLElement {
     this._config = null;
     this._armed = emptyArmed();
     this._clearConfirm = false;  // Clear is armed-then-confirmed; never sticky
+    this._seqSwitchId = null;    // memo for _shouldRender; re-resolved on demand
     this._rowFields = {};        // roomId -> draft field overrides (unsaved)
     this._expanded = new Set();  // roomIds whose settings body is open
     this._roomsCollapsed = false; // whether the whole Rooms group is collapsed
@@ -167,6 +168,7 @@ class EufyDashboardCard extends HTMLElement {
     this._config = config;
     this._armed = emptyArmed();
     this._clearConfirm = false;
+    this._seqSwitchId = null;
     this._rowFields = {};
     this._expanded = new Set();
     this._roomsCollapsed = false;
@@ -229,8 +231,19 @@ class EufyDashboardCard extends HTMLElement {
     // happened to tick. That is the same "Apply looks inert" symptom the panel had,
     // arriving by a different route. Found while writing the harness mount for this
     // row: the row would not appear at all when the entities were added.
-    const seqSwitch = findOverrideSwitch(hass, vid) || findOverrideSwitch(prev, vid);
-    if (seqSwitch && prev.states?.[seqSwitch.entity_id] !== hass.states?.[seqSwitch.entity_id]) return true;
+    // MEMOISED, because this runs on EVERY hass tick and findOverrideSwitch falls
+    // back to an Object.values(states).find() scan whenever the conventional id
+    // misses -- which is precisely the case the fallback exists for. An O(entities)
+    // scan per tick inside _shouldRender defeats the one thing _shouldRender is for.
+    // The cached id is re-validated with an O(1) lookup and only re-resolved when it
+    // goes stale, so a switch that appears, disappears or is renamed is still picked
+    // up on the next tick.
+    let seqId = this._seqSwitchId;
+    if (!seqId || !hass.states?.[seqId]) {
+      seqId = (findOverrideSwitch(hass, vid) || findOverrideSwitch(prev, vid))?.entity_id ?? null;
+      this._seqSwitchId = seqId;
+    }
+    if (seqId && prev.states?.[seqId] !== hass.states?.[seqId]) return true;
     const orderSensor = ENTITY.cleanOrderSensor(vid);
     if (prev.states?.[orderSensor] !== hass.states?.[orderSensor]) return true;
     const scene = this._snapshot?.scene_select;
@@ -517,6 +530,14 @@ class EufyDashboardCard extends HTMLElement {
   //
   // Five states — see src/state/sequence-override.js.
   _renderSequenceOverrideRow(rooms) {
+    // ⚠ NO esc() AROUND t(). translate() ALREADY escapes (i18n/index.js: `if
+    // (!(options && options.raw)) s = esc(s)`), so wrapping it double-escapes:
+    // "device's" leaves t() as "device&#39;s" and a second pass renders the literal
+    // text &#39; on screen. This row wrapped every one of them. It was invisible
+    // only because the row threw before anything could be seen — see below.
+    // esc() still guards RAW values (room names off entity attributes); those do
+    // not come through t() and are the actual XSS boundary.
+    //
     // ⚠ `esc`, the module-level helper — NOT `this.escapeHtml`, which does not
     // exist on this class. This function shipped with 19 calls to it, and every one
     // was a TypeError the instant the row rendered. _render() has no try/catch
@@ -565,7 +586,7 @@ class EufyDashboardCard extends HTMLElement {
     // user's Roborock app, so the surface says so. When off, we keep it
     // available as a title on the toggle rather than shouting it.
     const consentBadge = state.overrideOn
-      ? `<span class="soro-consent">${esc(this.t("rooms.override_order.consent"))}</span>`
+      ? `<span class="soro-consent">${this.t("rooms.override_order.consent")}</span>`
       : "";
 
     // INLINE CONFIRM, not window.confirm. state/dialog.js records why: native
@@ -577,24 +598,24 @@ class EufyDashboardCard extends HTMLElement {
     // packs are used, so this adds no untranslated surface.
     const clearControl = this._clearConfirm
       ? `<div class="soro-actions">
-           <span class="soro-consent">${esc(this.t("rooms.override_order.consent"))}</span>
-           <button class="chip" id="sequence-override-clear-cancel">${esc(this.t("common.cancel"))}</button>
-           <button class="chip soro-danger" id="sequence-override-clear-confirm">${esc(this.t("common.confirm"))}</button>
+           <span class="soro-consent">${this.t("rooms.override_order.consent")}</span>
+           <button class="chip" id="sequence-override-clear-cancel">${this.t("common.cancel")}</button>
+           <button class="chip soro-danger" id="sequence-override-clear-confirm">${this.t("common.confirm")}</button>
          </div>`
-      : `<button class="chip" id="sequence-override-clear">${esc(this.t("rooms.override_order.clear"))}</button>`;
+      : `<button class="chip" id="sequence-override-clear">${this.t("rooms.override_order.clear")}</button>`;
 
     const toggle = `
       <button class="chip ${state.overrideOn ? "active" : ""}"
               id="sequence-override-toggle"
               aria-pressed="${state.overrideOn}"
-              title="${esc(this.t("rooms.override_order.consent"))}">
-        ${esc(this.t("rooms.override_order.toggle_label"))}
+              title="${this.t("rooms.override_order.consent")}">
+        ${this.t("rooms.override_order.toggle_label")}
       </button>`;
 
     const body = (() => {
       switch (state.kind) {
         case "path_optimizing":
-          return `<div class="soro-body">${esc(this.t("rooms.override_order.path_optimizing"))}</div>`;
+          return `<div class="soro-body">${this.t("rooms.override_order.path_optimizing")}</div>`;
         case "saved": {
           const names = state.deviceNames?.length
             ? state.deviceNames.map((n) => esc(n)).join(" · ")
@@ -611,7 +632,7 @@ class EufyDashboardCard extends HTMLElement {
             : "";
           return `
             <div class="soro-body soro-green">
-              <div class="soro-status">${esc(this.t("rooms.override_order.matching"))}</div>
+              <div class="soro-status">${this.t("rooms.override_order.matching")}</div>
               <div class="soro-names">${names}</div>
               ${clearControl}
             </div>`;
@@ -619,19 +640,19 @@ class EufyDashboardCard extends HTMLElement {
         case "mismatch": {
           const deviceNames = state.deviceNames?.length
             ? state.deviceNames.map((n) => esc(n)).join(" · ")
-            : esc(this.t("rooms.override_order.empty_placeholder"));
+            : this.t("rooms.override_order.empty_placeholder");
           const queueNames = state.queueNames?.length
             ? state.queueNames.map((n) => esc(n)).join(" · ")
-            : esc(this.t("rooms.override_order.empty_placeholder"));
+            : this.t("rooms.override_order.empty_placeholder");
           return `
             <div class="soro-body soro-amber">
-              <div class="soro-status">${esc(this.t("rooms.override_order.mismatch"))}</div>
+              <div class="soro-status">${this.t("rooms.override_order.mismatch")}</div>
               <div class="soro-diff">
-                <div><small>${esc(this.t("rooms.override_order.device_label"))}</small> ${deviceNames}</div>
-                <div><small>${esc(this.t("rooms.override_order.queue_label"))}</small> ${queueNames}</div>
+                <div><small>${this.t("rooms.override_order.device_label")}</small> ${deviceNames}</div>
+                <div><small>${this.t("rooms.override_order.queue_label")}</small> ${queueNames}</div>
               </div>
               <div class="soro-actions">
-                <button class="chip active" id="sequence-override-apply">${esc(this.t("rooms.override_order.apply"))}</button>
+                <button class="chip active" id="sequence-override-apply">${this.t("rooms.override_order.apply")}</button>
                 ${clearControl}
               </div>
             </div>`;
@@ -643,8 +664,8 @@ class EufyDashboardCard extends HTMLElement {
           // Rendering no action here deadlocked the feature on every install.
           return `
             <div class="soro-body soro-grey">
-              <div class="soro-status">${esc(this.t("rooms.override_order.unverifiable"))}</div>
-              ${state.canApply ? `<button class="chip active" id="sequence-override-apply">${esc(this.t("rooms.override_order.apply"))}</button>` : ""}
+              <div class="soro-status">${this.t("rooms.override_order.unverifiable")}</div>
+              ${state.canApply ? `<button class="chip active" id="sequence-override-apply">${this.t("rooms.override_order.apply")}</button>` : ""}
             </div>`;
         default:
           return "";
