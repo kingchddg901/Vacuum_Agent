@@ -180,17 +180,6 @@ _SENSOR_NOTE = (
     "Please use a dry cloth for cleaning."
 )
 
-_SENSORS_PRE_X60 = {
-    "sensor": {
-        "steps": [
-            "Wipe the robot sensors with a soft, dry cloth: the laser distance sensor "
-            "(LDS), bumper window, edge sensor, bumper, cliff sensors and carpet "
-            "sensor.",
-        ],
-        "notes": [_SENSOR_NOTE],
-    },
-}
-
 _SENSORS_X60 = {
     "sensor": {
         "steps": [
@@ -232,9 +221,37 @@ _X60_ONLY = {
 
 
 DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
-    # Everything measured before the X60: L20, X40, L10s Gen 2, X50, L50.
-    "standard": {**_BASE, **_SENSORS_PRE_X60},
-    # X60 series. Adds the heated washboard and the baseboard brush; swaps the line
-    # laser for VersaLift in the sensor list.
+    # X60 series ONLY. Every string above was transcribed from the X60 manual, so this
+    # is the one family it may be claimed for.
     "x60": {**_BASE, **_SENSORS_X60, **_X60_ONLY},
 }
+
+# ⚠ THERE IS DELIBERATELY NO "standard" FAMILY, AND THE FIRST CUT OF THIS FILE WAS
+# WRONG TO HAVE ONE.
+#
+# It mapped L20 / X40 / L10s Gen 2 / X50 / L50 onto the text above. Spot-checked
+# against those manuals, SEVEN OF TEN `_BASE` entries do not appear in them at all:
+#
+#   shared by Gen2+L20+X50 : main-brush step 1, used water tank, omnidirectional wheel
+#   NOT shared             : main-brush step 2, side brush ("unscrew"), dust box,
+#                            dust bag, mop pads, washboard filter, and the combined
+#                            vents/contacts section — which is in none of them
+#
+# The differences are hardware, not wording. Gen 2's dust box needs the ROBOT COVER
+# opened first; its washboard has a filter cover cleaned with a provided tool, where
+# the X60 has a separate washboard filter and a heating module; its contacts and
+# auto-empty vents are two sections, not one; its main brush has end covers the X60's
+# anti-tangle brush does not have.
+#
+# The error was reading the component MATRIX — which measured whether a part is
+# PRESENT — as evidence the STEPS were shared. Those are different claims, and the
+# divergence had already been demonstrated earlier in the same session.
+#
+# An unauthored family yields {} from `library[family][component]`, so a device with
+# no family here gets NO guide. That is the correct outcome: telling someone to
+# unscrew a brush that clips, or to skip opening a cover that must be opened, is worse
+# than saying nothing. Add a family only from ITS OWN manual, and note that PDF text
+# extraction interleaves adjacent columns — the "Main Brush" block in the Gen 2 manual
+# extracts with used-water-tank sentences inside it, so blocks need reading, not
+# scripting.
+
