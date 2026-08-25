@@ -3,7 +3,7 @@
 The maintenance subsystem tracks consumable wear (main brush, side brush, filter,
 sensors, mop) against adapter-declared components: it reads remaining-life
 sources, computes status tiers, builds the upkeep snapshot, resolves the
-care-guide metadata per component, and resets counters. Covered by **47 tests in 1 file**.
+care-guide metadata per component, and resets counters. Covered by **52 tests in 1 file**.
 
 Source: `custom_components/eufy_vacuum/maintenance/`
 Architecture reference: [41 — Maintenance and the Dock](../../dev/41-maintenance-and-the-dock.md)
@@ -14,7 +14,7 @@ Architecture reference: [41 — Maintenance and the Dock](../../dev/41-maintenan
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `manager.py` | 287 | 91% | `test_maintenance_manager.py` | integration | clean |
+| `manager.py` | 294 | 91% | `test_maintenance_manager.py` | integration | clean |
 
 (The reset / set-interval *services* are in [17 — services](17-services.md) via
 `test_services_maintenance_reset.py`; the remaining-life *sensors* are in

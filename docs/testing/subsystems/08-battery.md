@@ -2,7 +2,7 @@
 
 The battery subsystem tracks cell wear: it accumulates battery samples into
 charge cycles, summarizes charge sessions, derives a CC/CV regime health proxy
-vs. an install baseline, and records per-job drain metrics. Covered by **117 tests across the 4 core files**, plus a service-level test for `battery_rebaseline`.
+vs. an install baseline, and records per-job drain metrics. Covered by **130 tests across the 4 core files**, plus a service-level test for `battery_rebaseline`.
 
 Source: `custom_components/eufy_vacuum/battery/`
 Architecture reference: [16 — The Battery Record](../../dev/16-battery-record.md)
@@ -15,8 +15,8 @@ Architecture reference: [16 — The Battery Record](../../dev/16-battery-record.
 |---------------|------:|----:|-----------|-------|-------|
 | `job_metrics.py` | 81 | 98% | `tests/unit/test_battery_metrics.py` | unit (pure) | clean |
 | `store.py` | 40 | 100% | `tests/unit/test_battery_store.py` | unit (`tmp_path`) | clean |
-| `sensors.py` | 166 | 97% | `tests/unit/test_battery_sensors.py` | unit (mock manager) | **bare x1** |
-| `manager.py` | 532 | 93% | `tests/integration/test_battery_manager.py` | integration | **bare x2** |
+| `sensors.py` | 170 | 97% | `tests/unit/test_battery_sensors.py` | unit (mock manager) | **bare x1** |
+| `manager.py` | 547 | 94% | `tests/integration/test_battery_manager.py` | integration | **bare x2** |
 | `__init__.py` (service) | — | 100% | `tests/integration/test_init_battery_rebaseline_service.py` | integration (service) |
 
 ---

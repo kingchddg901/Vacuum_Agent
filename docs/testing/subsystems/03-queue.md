@@ -3,7 +3,7 @@
 The queue subsystem turns the enabled-room set into an ordered clean queue: it
 resolves room order, applies per-room overrides, and produces the
 `queue_room_ids` / `queue_rooms` payload the job pipeline consumes. Covered by
-**75 tests across 3 files**.
+**78 tests across 3 files**.
 
 Source: `custom_components/eufy_vacuum/queue/`
 Architecture reference: [05 — While a Run Is Live](../../dev/05-run-live.md)

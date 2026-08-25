@@ -2,7 +2,7 @@
 
 The rooms subsystem owns room discovery, the managed-room CRUD lifecycle, and the
 **access graph** (which rooms grant cleaning access to which, plus the rule
-engine that gates/modifies rooms at start). Covered by **308 tests across 11 files**.
+engine that gates/modifies rooms at start). Covered by **346 tests across 11 files**.
 
 Source: `custom_components/eufy_vacuum/rooms/`
 Architecture reference: [17 — A Room's Identity](../../dev/17-room-identity.md), [18 — The Access Graph](../../dev/18-access-graph.md)
@@ -116,10 +116,10 @@ Eufy's own `default_profile` supplies `Quick`. Same answer, from a declaration.
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `access_graph.py` | 460 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration | clean |
-| `room_crud.py` | 153 | 97% | `test_room_crud.py`, `test_manager_rooms.py` | integration | **bare x1** |
-| `room_discovery.py` | 129 | 93% | `test_room_discovery.py` | integration | clean |
-| `reconciliation.py` | 148 | 78% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration | **bare x1** |
+| `access_graph.py` | 462 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration | clean |
+| `room_crud.py` | 159 | 93% | `test_room_crud.py`, `test_manager_rooms.py` | integration | **bare x1** |
+| `room_discovery.py` | 132 | 92% | `test_room_discovery.py` | integration | clean |
+| `reconciliation.py` | 154 | 80% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration | **bare x1** |
 | `source_refresh.py` | 148 | 88% | `test_rooms_source_refresh.py` (unit) | unit | clean |
 | `room_manager.py` | 82 | 96% | `test_room_manager.py` (unit) | unit | clean |
 | `room_defaults.py` | 21 | 100% | `test_room_manager.py` (unit) + `test_adapter_contract.py` | unit | clean |

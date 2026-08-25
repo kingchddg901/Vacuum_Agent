@@ -3,7 +3,7 @@
 The services subsystem is the HA service-call layer: thin async handlers that
 resolve call data, delegate to the manager, and wrap failures as
 `HomeAssistantError` / `ServiceValidationError` (the HA Silver action-exception
-contract). Covered by **229 tests across 14 files**.
+contract). Covered by **247 tests across 16 files**.
 
 Source: `custom_components/eufy_vacuum/services/`
 Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md)
@@ -44,20 +44,20 @@ Covered by `tests/unit/test_services_repair_renamed_vacuum.py`. Two targets carr
 
 | Source module | Stmts | Cov | Test file | Mocking |
 |---------------|------:|----:|-----------|-------|
-| `job_control.py` | 142 | 98% | `test_services_job_control_read.py`, `test_services_job_control_write.py` | **bare x10** |
-| `run_profiles.py` | 104 | 98% | `test_services_run_profiles.py` | **bare x1** |
-| `adapter_config.py` | 101 | 96% | `test_services_adapter_config.py` | clean |
-| `setup.py` | 183 | 75% | `test_services_errors_setup.py` | **bare x2** |
+| `job_control.py` | 141 | 98% | `test_services_job_control_read.py`, `test_services_job_control_write.py` | **bare x10** |
+| `run_profiles.py` | 104 | 100% | `test_services_run_profiles.py` | **bare x1** |
+| `adapter_config.py` | 106 | 96% | `test_services_adapter_config.py` | clean |
+| `setup.py` | 208 | 76% | `test_services_errors_setup.py` | **bare x2** |
 | `dock.py` | 80 | 100% | `test_services_dock.py` | **bare x5** |
 | `room_profiles.py` | 81 | 100% | `test_services_room_profiles.py` | clean |
 | `rooms.py` | 108 | 98% | `test_services_rooms.py` | **bare x1** |
 | `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` | clean |
-| `queue.py` | 121 | 100% | `test_services_queue.py`, `test_services_unmanaged_vacuum.py` | **bare x1** |
-| `snapshots.py` | 43 | 100% | `test_services_snapshots.py`, `test_services_unmanaged_vacuum.py` | clean |
-| `errors.py` | 37 | 95% | `test_services_errors_setup.py`, `test_services_unmanaged_vacuum.py` | **bare x2** |
+| `queue.py` | 135 | 96% | `test_services_queue.py`, `test_services_unmanaged_vacuum.py` | **bare x1** |
+| `snapshots.py` | 50 | 93% | `test_services_snapshots.py`, `test_services_unmanaged_vacuum.py` | clean |
+| `errors.py` | 40 | 96% | `test_services_errors_setup.py`, `test_services_unmanaged_vacuum.py` | **bare x2** |
 | `access_graph.py` | 34 | 88% | `test_services_access_graph.py` | clean |
-| `clean_order.py` | 32 | 100% | `test_services_clean_order.py` | spec'd |
-| `_common.py` | 43 | 96% | `test_services_common.py`, `test_services_misc.py`, `test_services_unmanaged_vacuum.py` | clean |
+| `clean_order.py` | 42 | 96% | `test_services_clean_order.py` | spec'd |
+| `_common.py` | 54 | 94% | `test_services_common.py`, `test_services_misc.py`, `test_services_unmanaged_vacuum.py` | clean |
 | `stall_capture.py` | 43 | 37% | — | - |
 | `debug.py` | 8 | 100% | `test_services_misc.py` | clean |
 

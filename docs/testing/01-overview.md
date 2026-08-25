@@ -157,7 +157,7 @@ and only print findings to stdout. Each module's docstring is its manual.
 
 ## Coverage status
 
-**Coverage: 93.9% statement** (92% combined with `--cov-branch`, which the
+**Coverage: 94.1% statement** (92% combined with `--cov-branch`, which the
 default `addopts` enables), across the brand-agnostic core **and** the shipped
 brand adapters (Eufy + Roborock) — the adapters are counted in the number (see
 [subsystems/15-adapters](subsystems/15-adapters.md)). Most subsystems sit in the

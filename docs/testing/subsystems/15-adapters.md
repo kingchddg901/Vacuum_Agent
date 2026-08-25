@@ -7,7 +7,7 @@ Two concrete adapters now live behind this boundary — **Eufy**
 (`adapters/eufy/`) and **Roborock** (`adapters/roborock/`) — each with its own
 focused suite, plus `adapters/brands.py` (which registrar runs for a given
 vacuum) and the brand-agnostic conformance harness that runs every contract
-test once per shipped brand. Covered by **146 framework tests across 8 files**
+test once per shipped brand. Covered by **166 framework tests across 10 files**
 (`test_adapters.py`, `test_adapter_contract.py` — parametrized over both
 brands — and `test_brand_selection.py`), plus **212 Eufy-adapter tests** and
 **37 Roborock-adapter tests**.
@@ -268,30 +268,30 @@ filter weakened to a type check would report it as a clean order continuously.
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `registry.py` | 226 | 91% | `test_adapters.py` | integration | clean |
+| `registry.py` | 226 | 92% | `test_adapters.py` | integration | clean |
 | `config_loader.py` | 33 | 100% | `test_adapters.py` | integration | clean |
 | `config_schema.py` | 64 | 94% | `test_adapters.py` | integration | clean |
-| `brands.py` | 60 | 100% | `test_brand_selection.py` | integration | clean |
-| `entity_resolve.py` | 72 | 85% | `tests/unit/test_entity_resolve.py` + `tests/adapters/test_entity_resolve.py` | unit + adapter | clean |
-| `eufy/segmentor.py` | 866 | 92% | `tests/adapters/eufy/` | adapter | - |
-| `eufy/adapter.py` | 55 | 86% | `tests/adapters/eufy/` | adapter | - |
+| `brands.py` | 45 | 100% | `test_brand_selection.py` | integration | clean |
+| `entity_resolve.py` | 193 | 92% | `tests/unit/test_entity_resolve.py` + `tests/adapters/test_entity_resolve.py` | unit + adapter | clean |
+| `eufy/segmentor.py` | 872 | 92% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/adapter.py` | 61 | 85% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/entities.py` | 29 | 100% | `test_buttons_entities.py` + `test_suffix_vocabulary.py` | adapter | clean |
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter | clean |
 | `eufy/constants.py` | 15 | 100% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/model_catalog.py` | 12 | 100% | `test_model_catalog.py` | adapter | clean |
-| `eufy/vocabulary.py` | 43 | 100% | `test_error_source.py` + `tests/adapters/eufy/` | adapter | clean |
-| `eufy/const.py` | 8 | 100% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/vocabulary.py` | 42 | 100% | `test_error_source.py` + `tests/adapters/eufy/` | adapter | clean |
+| `eufy/const.py` | 9 | 100% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/buttons.py` | 4 | 100% | `test_buttons_entities.py` | adapter | clean |
 | `eufy/upkeep_catalog.py` | 3 | 100% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/water_config.py` | 3 | 100% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/maintenance_components.py` | 1 | 100% | `test_maintenance_config.py` | adapter | clean |
 | `eufy/eufy_upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/upkeep_guides_i18n/*.py` (17 languages) | 19 | 100% | `test_upkeep_guides_i18n.py` | adapter |
-| `roborock/adapter.py` | 49 | 97% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/adapter.py` | 50 | 96% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/model_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/vocabulary.py` | 19 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/entities.py` | 25 | 100% | `roborock/test_adapter.py` | adapter | - |
-| `roborock/const.py` | 6 | 100% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/const.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/upkeep_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/roborock_upkeep_guides.py` | 8 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/maintenance_components.py` | 2 | 100% | `roborock/test_adapter.py` | adapter | - |

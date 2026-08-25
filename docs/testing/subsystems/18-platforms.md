@@ -3,7 +3,7 @@
 The platform layer is the HA-facing entity surface: the `sensor/` package, the
 `binary_sensor` / `button` / `number` / `switch` platforms, room entities, the
 config flow, and the small shared helpers (entity helpers, frontend URL,
-timestamp utils, models, map manager). Covered by **134 tests across 13 files**.
+timestamp utils, models, map manager). Covered by **142 tests across 13 files**.
 
 Source: `custom_components/eufy_vacuum/sensor/`, `binary_sensor.py`, `button.py`,
 `number.py`, `switch.py`, `room_entities.py`, `config_flow.py`,
@@ -20,7 +20,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `sensor/lifecycle.py` | 91 | 92% | `test_sensor_status.py` | **bare x11** |
 | `sensor/maintenance.py` | 55 | 95% | `test_sensor_status.py` | **bare x11** |
 | `sensor/onboarding.py` | 39 | 96% | `test_sensor_entities.py` | clean |
-| `sensor/profile.py` | 27 | 100% | `test_sensor_entities.py` | clean |
+| `sensor/profile.py` | 30 | 100% | `test_sensor_entities.py` | clean |
 | `sensor/theme.py` | 39 | 95% | `test_sensor_entities.py` | clean |
 | `sensor/dock_event.py` | 24 | 100% | `test_sensor_remaining.py` | clean |
 | `sensor/room_history.py` | 19 | 100% | `test_sensor_remaining.py` | clean |
@@ -28,14 +28,14 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `sensor/map_overlays.py` | 57 | 99% | `test_sensor_map_overlays.py`, `test_map_overlays_sensor.py` (unit) | clean |
 | `button.py` | 139 | 89% | `test_button_entity.py` | **bare x1** |
 | `number.py` | 129 | 98% | `test_number_entity.py` | clean |
-| `switch.py` | 64 | 98% | `test_switch_entity.py` | clean |
+| `switch.py` | 95 | 84% | `test_switch_entity.py` | clean |
 | `binary_sensor.py` | 65 | 91% | `test_platform_files.py` | **bare x8** |
-| `room_entities.py` | 85 | 98% | `test_platform_files.py` | **bare x8** |
+| `room_entities.py` | 93 | 98% | `test_platform_files.py` | **bare x8** |
 | `config_flow.py` | 90 | 71% | `test_config_flow.py` | clean |
 | `timestamp_utils.py` | 38 | 98% | `test_timestamp_utils.py` (unit) | clean |
 | `models/models.py` | 124 | 98% | `test_models.py` (unit) | clean |
 | `maps/map_manager.py` | 93 | 94% | `test_maps_map_manager.py` (unit) | clean |
-| `entity_helpers.py` | 43 | 98% | `test_platform_files.py` | **bare x8** |
+| `entity_helpers.py` | 61 | 99% | `test_platform_files.py` | **bare x8** |
 | `_frontend_url.py` | 18 | 89% | `test_platform_files.py` | **bare x8** |
 
 ---

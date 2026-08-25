@@ -279,11 +279,22 @@ regex, which would also silence the behavioral excepts above and leave
 half-excluded branches under `--cov-branch`. The full convention is in
 [subsystems/README](subsystems/README.md#coverage-conventions-apply-everywhere).
 
-## The two ratchets (mock debt, doc coverage)
+## Standing gates on things that are not code
 
-Two committed gates hold ground that the campaign is slowly reclaiming. Both are
-SHRINK-ONLY: the numbers may fall freely, and raising one is meant to be harder
-than fixing the thing it measures.
+Five committed gates, holding ground that no ordinary test can. They divide into two
+kinds, and the distinction matters when you touch one:
+
+**Ratchets** — *mock debt* and *documentation* — are SHRINK-ONLY: the number may fall
+freely, and raising it is meant to be harder than fixing the thing it measures.
+
+**Absolute gates** — *front-page links*, the *register*, and *screenshot freshness* —
+have no allowance. They pass or they do not.
+
+> This heading read **"The two ratchets (mock debt, doc coverage)"** and opened *"Two
+> committed gates"* while three were listed beneath it. Each new gate was appended
+> without touching the frame above, so the count was wrong for as long as the section
+> had been growing — the same accretion failure the register ratchet exists to catch,
+> in the prose describing it.
 
 ### Mock ratchet — `tests/test_mock_ratchet.py`
 
@@ -359,6 +370,48 @@ deleted, so the tool owns the question and the test owns only the comparison.
 `CN` is deliberately exempt — `00b` indexes IN and `00c` indexes RN; code notation has no
 registry by design.
 
+### Screenshot freshness — `scripts/check-screenshot-freshness.test.mjs`
+
+A committed screenshot is a claim about the product that **no test reads**.
+`docs/screenshots/translations-hero-profile-card.png` rendered "RUNS AS";
+`run_profiles.runs_as` became "Runs in this order" three days after that image was
+committed. The README carried the outdated wording for six weeks and shipped it in
+v2.1.0. Every gate here checks code, and a screenshot is not code.
+
+Note how it differs from the front-page link gate above, which is the closest thing:
+that one proves the image **path resolves**. This proves the **pixels still match the
+product**. A retired screenshot fails there; a stale one fails here.
+
+Not OCR. `scripts/screenshot-i18n-manifest.json` declares which i18n keys each family
+renders and fingerprints their **English values**; the check fails when one moves and
+names the key, the new value, and the files to re-shoot. It cannot say an image is
+wrong — only that the strings under it changed, which is the signal a human needs.
+
+Key sets are **derived, not hand-listed**: static `t("…")` literals are extracted from
+each card's own source, so a card that starts using a new string is covered without
+anyone remembering to edit the manifest — "remember to update the manifest" being the
+same failure mode as "remember to re-shoot". The one unextractable case is the dynamic
+`` t(`vocab.${field}.${slug}`) ``; those four fields are declared literally at the
+`chipRow()` call sites, so the manifest names them rather than sweeping all 682
+`vocab.*` keys and flagging every image on an unrelated fault-vocabulary edit.
+
+```bash
+node scripts/check-screenshot-freshness.mjs            # the gate
+node scripts/check-screenshot-freshness.mjs --update   # AFTER re-shooting, never before
+```
+
+⚠ **`--update` before re-shooting silently disarms it forever.** It re-records whatever
+is in `en.js` now, so it will happily bless images that are still stale, and read green
+from then on.
+
+**Declared blind spot:** the maintenance guide *prose* inside `Filter_*.png` is
+model-aware content that does not live in `en.js`, so only that card's chrome is
+fingerprinted. A guide rewrite will not flag those images. Layout, theme, font and
+non-English values are all out of scope too — this watches English string values only.
+
+Re-shooting is cheap by design: the shots come from a permanent dashboard with one
+card pinned per language. See `.claude/notes/WORKFLOW-screenshots-and-languages.md`.
+
 ### Documentation ratchet — `tests/test_docs_ratchet.py`
 
 A test file that appears nowhere in `docs/testing/` produces no findings and reads
@@ -369,6 +422,28 @@ be mentioned in its subsystem page in the same commit that creates it.**
 ```bash
 python scripts/mock_docs.py --undocumented   # what is still missing
 ```
+
+⚠ **It sees Python only.** `census()` walks `tests/`, so `harness/tests/*.spec.mjs`,
+`harness/lib/*.test.mjs` and `scripts/*.test.mjs` are outside the ratchet entirely — a
+node test file can be created undocumented and nothing says so. Measured 2026-08-25: of
+31 node-side test files, 22 are mentioned somewhere under `docs/`, **9 are mentioned
+nowhere**:
+
+`harness/lib/animal-gallery-html`, `harness/lib/landing-html`,
+`scripts/animal-js-to-descriptor`, `scripts/bundled-animals`,
+`scripts/check-animal-pr`, `scripts/gen-theme-token-docs`,
+`scripts/process-animal-submission`, `scripts/sanitize-animal-svg`,
+`scripts/svg-to-descriptor`.
+
+(It was 10 when first measured. Documenting the screenshot gate above moved it off the
+list — which is exactly how small this fix is per file, and why nine of them have sat
+there unnoticed.)
+
+That is the ratchet's own stated blind spot — *"an undocumented subsystem and a clean
+one read identically"* — reproduced one level up, in the scope of the gate rather than
+inside it. The bar also differs: Python is enforced against `docs/testing/`
+specifically, while the node figures above count a mention anywhere under `docs/`,
+which is the more generous test.
 
 ### The generated `Mocking` column
 
