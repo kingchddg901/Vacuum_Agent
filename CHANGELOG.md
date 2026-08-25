@@ -8,7 +8,7 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
-## [Unreleased]
+## [2.1.0] - 2026-08-24
 
 ### Added
 
