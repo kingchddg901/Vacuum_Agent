@@ -144,7 +144,7 @@ re-derives settled questions.
   behaviour, not a fault.
 
 **NOT DONE, and deliberately waiting on Chris:**
-1. `git push origin master` — **59 commits**, nothing on this release has ever been
+1. `git push origin master` — **61 commits**, nothing on this release has ever been
    pushed. Branch is `master` tracking `origin/master`, 0 behind.
 2. Tag `v2.1.0` and publish the GitHub release. The tag carries a leading `v`; the
    manifest does not; `release.yml` strips it.
