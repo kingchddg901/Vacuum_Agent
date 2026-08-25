@@ -97,3 +97,30 @@ left because the fix means un-stubbing an accessor the spec deliberately control
 * The **four hand-mixed success surfaces** (`learning.js:300`, `rooms.js:959`, `rooms.js:1060`,
   `theme.js:624`) — zone / selection / tag-family semantics, not status. Converting them would
   couple unrelated concepts to the Surface Success control. Already ruled; do not re-sweep.
+
+---
+
+## 5. The adapter-config parity gate reads an ungated, unreproducible artifact
+
+**Found by CI going red on the release tip, `b101030f`. The FileNotFoundError is fixed;
+these two are what the fix did not close.**
+
+`tests/unit/test_adapter_config_parity.py` reads
+`.claude/generated-docs/adapter-config/ADAPTER-CONFIG.generated.md`, now committed. Two
+things about it are still wrong:
+
+* **Nothing gates its freshness.** It is not in `GENERATORS` in
+  `scripts/check_generated_docs.py`, so it can rot and the parity test will keep passing
+  against the rot. It was **already 364 lines stale** when it was committed — that is not
+  a hypothetical decay rate, it is the measured one, accumulated in about two days.
+* **Its generator is untracked.** `gen_adapter_config_docs.py` lives under the ignored
+  `.claude/generated-docs/` tree, so nobody else can reproduce the artifact the gate
+  depends on.
+
+The fix is one `Generator(...)` entry plus force-adding the generator, and it was left
+out of the release deliberately: adding a CI gate at a release tip means adding a gate
+whose first real run is the release.
+
+**Wider than this one file:** 54 files live under `.claude/generated-docs/` and **zero**
+were tracked. Any other test that grows a dependency on that tree fails the same way, and
+fails only on the first push after it is written — never locally.
