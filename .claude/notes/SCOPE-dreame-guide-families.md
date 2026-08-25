@@ -8,9 +8,51 @@ Not the 587 models the integration declares, and not the 228 historical platform
 
 ---
 
-## The rule that took three attempts to find
+## The rule — corrected 2026-08-25, second version
 
-**A guide family is an r-code platform. It is not a marketing name.**
+> **A guide family is a MANUAL PAGE. Its scope is every `dreame.vacuum.*` key whose
+> marketing name appears on that page.**
+
+Not the r-code, and not the marketing name. Both were tried and both are wrong:
+
+* **r-code is too NARROW.** `X40 Ultra Complete` is `r2449`, not `r2416` — yet Dreame
+  ships **one manual for X40 Ultra and X40 Ultra Complete together**. Keying on the
+  manual's own r-code would leave `r2449` unguided while the manual plainly covers it.
+  Same shape on X50: one page for Ultra + Ultra Complete, six platforms between them.
+* **marketing name is too BROAD.** "X50" is 23 distinct names across ~20 codes.
+
+**The manual page is the only boundary Dreame actually draws**, and it draws it by
+printing one maintenance section for a set of models. That is vendor assertion, not our
+inference — the strongest evidence available short of hardware.
+
+⚠ **This supersedes the first version of this rule, which said "a family is an r-code
+platform".** That was measured but under-scoped: it produced 7% coverage and would have
+orphaned `r2449`, `r5020`, `r9515` and the four X50 Ultra Complete codes, all of which
+sit on manual pages we already hold.
+
+### Coverage under the corrected rule
+
+| family | page covers | keys | platforms |
+|---|---|---|---|
+| `x50` | X50 Ultra + X50 Ultra Complete | **41** | r2489, r2532, r2538, r5048, r9446, r9538 |
+| `l20` | L20 Ultra + L20 Ultra Complete | 15 | r2253, r2338, r2394 |
+| `x40` | X40 Ultra + X40 Ultra Complete | 9 | r2416, r2449 |
+| `x60` | X60 Ultra + X60 Pro Ultra Complete | 5 | r5089, r6001, r9515 |
+| `l10s_gen2` | L10s Ultra Gen 2 | 3 | r2469, r5020 |
+| `l50` | L50 Ultra | 2 | r9493 |
+
+**75 of 587 models — 13%** from six manual pages. Earlier readings were 7% (r-code
+only) and 26% (name only); both were artefacts of the wrong key.
+
+`x50` is over half of that reach and its manual carries 17 of the project's 18
+languages. If exactly one more family is authored, it is that one.
+
+Routing keys on the **full model string** via a generated name→family table, built from
+`supported_devices.md` so it tracks upstream rather than being hand-typed.
+
+---
+
+## Why names and codes cannot be the key (the underlying measurement)
 
 Marketing names and r-codes are many-to-many **in both directions**, measured against
 `Tasshack/dreame-vacuum` `docs/supported_devices.md`:
@@ -63,9 +105,14 @@ suffix; a `r\d{4}` regex silently drops ~9% of Dreame robots.
 | D20 Pro Plus | `r2566`, `r9537` | |
 | D20 Plus | `r2564`, `r5314` | |
 
-⚠ **Most current models are TWO platforms, so the four "covered" are half-covered.**
-Robin is `r2469` and fine; a different `L10s Ultra Gen 2` on `r5020` would inherit her
-guides with no evidence they apply. Same for X60 Ultra (`r9515`) and X50 Ultra (`r9538`).
+**Most current models are TWO platforms** — X60 Ultra is `r5089`+`r9515`, X50 Ultra is
+`r2489`+`r9538`, L10s Ultra Gen 2 is `r2469`+`r5020`.
+
+⚠ An earlier version of this note called those "half-covered". **That was wrong**, and
+it was the r-code rule causing it: both codes of each pair sit on the SAME manual page,
+so one family legitimately covers both. Robin's guides do apply to an `r5020` L10s
+Ultra Gen 2, because Dreame prints one maintenance section for the model name they
+share. Two platforms is not two hardware sets.
 
 ⚠ **`X60 Max Ultra Complete` — the current flagship — is not in the upstream device
 list.** It cannot be driven at all by the installed build, let alone guided.
@@ -97,9 +144,10 @@ Manual pages needed: ~13 for the 22 platforms, since siblings share a page
 ## Coverage is measured against the LINEUP, not against downloads
 
 The check that produced this file: after two families were written, coverage against
-the full model list was **26% by name and 7% by r-code** — and the gap *was* the
-finding, because it proved neither key resolved what a family covers. Against the
-current-ish lineup it is **4 of 26 platforms**, and half of those are partial.
+the full model list came out **26% by name and 7% by r-code**. The GAP was the finding
+— two keys disagreeing by a factor of four proved neither resolved what a family
+covers, which is what sent us to the manual page as the boundary. Under the corrected
+rule it is **13%, 75 of 587**.
 
 Re-run it whenever a family lands. "We wrote two families" is not a coverage statement.
 

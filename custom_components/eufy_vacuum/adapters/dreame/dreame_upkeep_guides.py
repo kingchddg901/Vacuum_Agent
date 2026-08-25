@@ -63,9 +63,17 @@ buy ROBOT hardware — X60 Ultra to X60 Max Ultra Complete adds a chassis lift, 
 pressure plate, an extending side brush and heated pads while the dock stays put — so
 its families are robot trims.
 
-**Do not infer the family from the model name.** The r-code maps a device to its
-family; whether a dock has a dust bag to service is answered by live entity presence,
-not by counting words in "X60 Max Ultra Complete".
+**A FAMILY IS A MANUAL PAGE.** Its scope is every ``dreame.vacuum.*`` key whose
+marketing name appears on that page — which is the only boundary Dreame actually draws,
+by printing one maintenance section for a set of models. Neither of the obvious keys
+works: the r-code is too NARROW (``X40 Ultra Complete`` is ``r2449``, not ``r2416``,
+yet shares the X40 Ultra manual) and the marketing name is too BROAD ("X50" is 23 names
+across ~20 codes). So ``x60`` here covers ``r5089``, ``r6001`` and ``r9515``;
+``l10s_gen2`` covers ``r2469`` and ``r5020``. See
+``.claude/notes/SCOPE-dreame-guide-families.md``.
+
+Whether a dock has a dust bag to service is a separate question, answered by live
+entity presence — never by counting words in "X60 Max Ultra Complete".
 """
 
 from __future__ import annotations
