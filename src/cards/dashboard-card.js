@@ -21,8 +21,7 @@ import { emptyArmed, nextArmed, planStart, armedIsValid } from "./dashboard-disp
 import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone-geometry.js";
 import { dashboardSuggestion } from "./card-suggestions.js";
 import { canZoneRepeat } from "./zone-repeat.js";
-import { deriveSequenceRowState, findOverrideSwitch } from "../state/sequence-override.js";
-import { ENTITY } from "../constants.js";
+import { deriveSequenceRowState, findCleanOrderSensor, findOverrideSwitch } from "../state/sequence-override.js";
 
 const CARD_NAME   = "vacuum-agent-dashboard";
 const CARD_EDITOR = "vacuum-agent-dashboard-editor";
@@ -144,6 +143,7 @@ class EufyDashboardCard extends HTMLElement {
     this._armed = emptyArmed();
     this._clearConfirm = false;  // Clear is armed-then-confirmed; never sticky
     this._seqSwitchId = null;    // memo for _shouldRender; re-resolved on demand
+    this._seqSensorId = null;
     this._rowFields = {};        // roomId -> draft field overrides (unsaved)
     this._expanded = new Set();  // roomIds whose settings body is open
     this._roomsCollapsed = false; // whether the whole Rooms group is collapsed
@@ -169,6 +169,7 @@ class EufyDashboardCard extends HTMLElement {
     this._armed = emptyArmed();
     this._clearConfirm = false;
     this._seqSwitchId = null;
+    this._seqSensorId = null;
     this._rowFields = {};
     this._expanded = new Set();
     this._roomsCollapsed = false;
@@ -244,8 +245,17 @@ class EufyDashboardCard extends HTMLElement {
       this._seqSwitchId = seqId;
     }
     if (seqId && prev.states?.[seqId] !== hass.states?.[seqId]) return true;
-    const orderSensor = ENTITY.cleanOrderSensor(vid);
-    if (prev.states?.[orderSensor] !== hass.states?.[orderSensor]) return true;
+    // Memoised for the same reason as the switch above, and resolved the same way:
+    // ENTITY.cleanOrderSensor() only guesses right where the locale pack does not
+    // translate the sensor's name. Leaving the built id here would have meant the
+    // row rendered correctly on a German install and then never repainted after
+    // Apply — a fix on the render path and not on the repaint path.
+    let orderId = this._seqSensorId;
+    if (!orderId || !hass.states?.[orderId]) {
+      orderId = (findCleanOrderSensor(hass, vid) || findCleanOrderSensor(prev, vid))?.entity_id ?? null;
+      this._seqSensorId = orderId;
+    }
+    if (orderId && prev.states?.[orderId] !== hass.states?.[orderId]) return true;
     const scene = this._snapshot?.scene_select;
     if (scene && prev.states?.[scene] !== hass.states?.[scene]) return true;
     const mapEnt = this._snapshot?.live_map_image_entity;
@@ -552,10 +562,11 @@ class EufyDashboardCard extends HTMLElement {
     // first time, not by any review of the code.
     const vid = this._vacuumId();
     if (!vid) return "";
-    const sensorEntityId = ENTITY.cleanOrderSensor(vid);
     const switchState = findOverrideSwitch(this._hass, vid);
     if (!switchState) return "";  // adapter/model does not declare the write
-    const sensorState = this._hass?.states?.[sensorEntityId] ?? null;
+    // Two-tier, like the switch above it. The conventional id only resolves where
+    // the locale pack does not translate the sensor's name; eight of eighteen do.
+    const sensorState = findCleanOrderSensor(this._hass, vid);
 
     // Queue rooms, IN DISPATCH ORDER. The sort is not optional, and the comment
     // that used to sit here ("in the order the queue would dispatch") was false:
@@ -573,7 +584,14 @@ class EufyDashboardCard extends HTMLElement {
     const queueRooms = (rooms || [])
       .map((r) => ({
         room_id: Number(r?.attrs?.room_id),
-        name: r?.attrs?.name ?? "",
+        // `room_name`, NOT `name` — a room switch has no `name` attribute at all
+        // (room_entities.py exposes room_name / profile_name / friendly_name), so
+        // this read was the empty string for every room. Two things broke quietly:
+        // the confirmed-match and mismatch rows rendered BLANK where room names
+        // belong, and the name tiebreak below was inert, leaving ties resolved by
+        // hass.states insertion order — the very thing the sort was added to stop.
+        // Same fallback chain this file already uses at line 491.
+        name: r?.attrs?.room_name ?? r?.attrs?.friendly_name ?? "",
         on: r?.state === "on",
         order: Number(r?.attrs?.order ?? 999),
       }))

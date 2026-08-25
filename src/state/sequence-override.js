@@ -153,6 +153,37 @@ export function deriveSequenceRowState({ switchState, sensorState, queueRooms })
  * @param {string} vacuumEntityId
  * @returns {object|null}
  */
+/**
+ * The clean-order SENSOR for a vacuum, by convention first and by attribute scan
+ * after — the same two tiers `findOverrideSwitch` uses, and for the same reason.
+ *
+ * ⚠ THE CONVENTIONAL ID IS NOT RELIABLE, and this was found in production. The
+ * sensor sets `_attr_has_entity_name` with a `translation_key`, so Home Assistant
+ * composes its entity_id from its NAME — and the name is TRANSLATED. Eight of the
+ * eighteen shipped packs give it one, so a German install registers
+ * `sensor.<device>_reinigungsreihenfolge`. Guessing `sensor.<object_id>_clean_order`
+ * misses there, the row never sees a sensor, and it sits permanently grey while
+ * everything underneath works perfectly.
+ *
+ * Both surfaces guessed with no fallback until 2026-08-24, even though the sibling
+ * switch beside them had carried this exact fallback since the same class of bug was
+ * fixed there. Fixing one entity and not the one next to it is the shape to watch.
+ */
+export function findCleanOrderSensor(hass, vacuumEntityId) {
+  if (!hass || !vacuumEntityId) return null;
+  const objectId = String(vacuumEntityId).split(".")[1];
+  const primary = hass.states?.[`sensor.${objectId}_clean_order`];
+  if (primary) return primary;
+  return (
+    Object.values(hass.states || {}).find(
+      (s) =>
+        s.entity_id.startsWith("sensor.") &&
+        s.attributes?.vacuum_entity_id === vacuumEntityId &&
+        s.attributes?.role === "clean_order",
+    ) ?? null
+  );
+}
+
 export function findOverrideSwitch(hass, vacuumEntityId) {
   if (!hass || !vacuumEntityId) return null;
   const objectId = String(vacuumEntityId).split(".")[1];

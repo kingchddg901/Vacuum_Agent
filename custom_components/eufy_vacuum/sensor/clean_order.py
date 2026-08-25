@@ -80,10 +80,31 @@ class EufyVacuumCleanOrderSensor(SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        """Cache contents, plus the two keys that let the CARD FIND THIS ENTITY.
+
+        ⚠ `vacuum_entity_id` + `role` exist for the same measured reason the Override
+        Order SWITCH carries them, and their absence here was the same bug one entity
+        along. With `_attr_has_entity_name` and a `translation_key`, Home Assistant
+        composes the entity_id from the entity's NAME — and this sensor's name IS
+        TRANSLATED. Eight of the eighteen shipped packs give it one, so a German
+        install registers `sensor.<device>_reinigungsreihenfolge` and a French one
+        `sensor.<device>_ordre_de_nettoyage`. Both cards were building
+        `sensor.<object_id>_clean_order` by convention with NO fallback, so on those
+        locales the sensor was simply never found: the row sat permanently grey,
+        never confirming, on an install where everything was working.
+
+        `theme_state` hit this first and answered it with a two-tier lookup; the
+        switch followed. This is the third entity in the same seam, so it uses the
+        same discriminator shape — a stable, language-independent `role` slug, because
+        matching on the friendly name fails in exactly the case the fallback exists
+        for.
+        """
         entry = self._entry()
         order = entry.get("order")
         order = order if isinstance(order, list) else []
         return {
+            "vacuum_entity_id": self._vacuum_entity_id,
+            "role": "clean_order",
             "order": order,
             "order_names": self._room_names(order),
             "status": entry.get("status"),

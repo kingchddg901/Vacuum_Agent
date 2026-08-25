@@ -4,7 +4,7 @@
 // Run: node --test src/state/sequence-override.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deriveSequenceRowState } from "./sequence-override.js";
+import { deriveSequenceRowState, findCleanOrderSensor } from "./sequence-override.js";
 
 const _sensor = (order, order_names, state = String(order.length), status = "ok") => ({
   state,
@@ -216,4 +216,59 @@ test("[SEQ-9c] canApply is explicit on every branch — never undefined", () => 
   // And only the two states that can actually write say true.
   assert.equal(deriveSequenceRowState(cases[4][1]).canApply, true, "mismatch can apply");
   assert.equal(deriveSequenceRowState(cases[3][1]).canApply, false, "matching needs no apply");
+});
+
+/* ---------------------------------------------------------------------------
+ * [SEQ-10] the SENSOR is found when its entity_id is not the conventional one
+ * ------------------------------------------------------------------------- */
+
+test("[SEQ-10] findCleanOrderSensor resolves the conventional id first", () => {
+  const hass = { states: { "sensor.ivy_clean_order": { entity_id: "sensor.ivy_clean_order", state: "3", attributes: {} } } };
+  assert.equal(findCleanOrderSensor(hass, "vacuum.ivy")?.entity_id, "sensor.ivy_clean_order");
+});
+
+test("[SEQ-10b] RED IF THE LOCALIZED SENSOR IS UNREACHABLE", () => {
+  // A German install: the sensor's name is translated, so HA composed the
+  // entity_id from "Reinigungsreihenfolge" and the conventional guess misses.
+  // Both surfaces built that id with NO fallback until 2026-08-24, so on the eight
+  // packs that localize this name the row sat permanently grey while everything
+  // underneath worked. The switch beside it had carried this fallback for days.
+  const hass = {
+    states: {
+      "sensor.ivy_reinigungsreihenfolge": {
+        entity_id: "sensor.ivy_reinigungsreihenfolge",
+        state: "3",
+        attributes: { vacuum_entity_id: "vacuum.ivy", role: "clean_order", status: "ok", order: [1, 2, 3] },
+      },
+    },
+  };
+  const found = findCleanOrderSensor(hass, "vacuum.ivy");
+  assert.equal(found?.entity_id, "sensor.ivy_reinigungsreihenfolge");
+});
+
+test("[SEQ-10c] the scan does not claim another vacuum's sensor", () => {
+  const hass = {
+    states: {
+      "sensor.alfred_reinigungsreihenfolge": {
+        entity_id: "sensor.alfred_reinigungsreihenfolge",
+        state: "2",
+        attributes: { vacuum_entity_id: "vacuum.alfred", role: "clean_order" },
+      },
+    },
+  };
+  assert.equal(findCleanOrderSensor(hass, "vacuum.ivy"), null);
+});
+
+test("[SEQ-10d] a sensor without the role slug is not claimed", () => {
+  // `vacuum_entity_id` alone cannot identify it — every per-room sensor carries one.
+  const hass = {
+    states: {
+      "sensor.ivy_kitchen_cleaning_history": {
+        entity_id: "sensor.ivy_kitchen_cleaning_history",
+        state: "x",
+        attributes: { vacuum_entity_id: "vacuum.ivy" },
+      },
+    },
+  };
+  assert.equal(findCleanOrderSensor(hass, "vacuum.ivy"), null);
 });

@@ -11,7 +11,7 @@
 
 import { renderStepsManifest } from "../state/steps-manifest.js";
 import { resolveCodedLabel } from "../state/coded-label.js";
-import { deriveSequenceRowState, findOverrideSwitch } from "../state/sequence-override.js";
+import { deriveSequenceRowState, findCleanOrderSensor, findOverrideSwitch } from "../state/sequence-override.js";
 
 /**
  * A5-AG-2. This was a hand-maintained Set of the five codes the card knew how to
@@ -1794,8 +1794,10 @@ proto.renderRoomCard = function (room, state) {
     const sw = findOverrideSwitch(cardState?.hass, vid);
     if (!sw) return "";        // adapter/model does not declare the write half
 
-    const objectId = String(vid).split(".")[1];
-    const sensor = cardState?.hass?.states?.[`sensor.${objectId}_clean_order`] ?? null;
+    // findCleanOrderSensor, not a built id: the sensor's name is TRANSLATED, so its
+    // entity_id is only `sensor.<obj>_clean_order` on an install whose pack does not
+    // localize it. See the helper.
+    const sensor = findCleanOrderSensor(cardState?.hass, vid);
     // NO RE-SORT. getRoomsForActiveMap() has already sorted by (order ?? 999) then
     // name (state/rooms.js), which is the same key the backend's queue engine uses.
     // This line used to re-sort with `Number(a?.order) || 999999`, and `0 || 999999`
@@ -1829,6 +1831,14 @@ proto.renderRoomCard = function (room, state) {
       body = names(s.deviceNames) || this.t("rooms.override_order.empty_placeholder");
     }
 
+    // CLEAR IS OFFERED WHEREVER A DEVICE ORDER EXISTS — saved, matching AND
+    // mismatch — not in `saved` alone. Gating it on `saved` meant the switch being
+    // ON removed the only way to clear: `saved` is by construction the switch-OFF
+    // branch, so a user who had turned the override on could not wipe the device's
+    // sequence without first turning it off, on a control the design calls the
+    // EXPLICIT escape hatch. The standalone card already offered it in all three,
+    // so the two surfaces disagreed about an irreversible action. `path_optimizing`
+    // and `unverifiable` still omit it: there is nothing known to clear.
     return `
       <div class="evcc-rooms-order-advisory evcc-sequence-override is-${s.kind}">
         <div class="evcc-rooms-order-advisory-text">${body}</div>
@@ -1840,7 +1850,7 @@ proto.renderRoomCard = function (room, state) {
           ${s.canApply ? `
             <button type="button" class="evcc-chip" data-action="apply-clean-sequence"
             >${this.t("rooms.override_order.apply")}</button>` : ""}
-          ${s.kind === "saved" ? `
+          ${["saved", "matching", "mismatch"].includes(s.kind) ? `
             <button type="button" class="evcc-chip" data-action="clear-clean-sequence"
             >${this.t("rooms.override_order.clear")}</button>` : ""}
         </div>
