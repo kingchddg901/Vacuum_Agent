@@ -554,3 +554,83 @@ def test_co_n3_a_raising_callback_cannot_break_the_read(monkeypatch):
 
     assert com.cached(_VAC)["status"] == "ok", "the cache write was lost"
     assert seen == [_VAC], "a raising subscriber starved the one after it"
+
+
+# ---------------------------------------------------------------------------
+# [CO-LOCK] the WRITE path must hold the same logger lock the READ path holds
+# ---------------------------------------------------------------------------
+
+def test_co_lock1_a_write_overlapping_a_read_restores_the_logger(monkeypatch):
+    """[CO-LOCK-1] RED IF `_write_payload` MUTATES THE LOGGER WITHOUT THE LOCK.
+
+    Both paths do the same capture-mutate-restore on a PROCESS-GLOBAL logger:
+    remember level + propagate, force DEBUG with propagate=False, attach a handler,
+    then restore. The read path has always held `_log_lock` around it. The write path
+    took no lock at all, so an overlap interleaves like this:
+
+        read   prior=WARNING          -> sets DEBUG, propagate=False
+        write  prior=DEBUG/False      <- captures the READ's temporary values
+        read   restores WARNING/True
+        write  restores DEBUG/False   <- permanently
+
+    `propagate=False` is the damaging half. The brand's protocol records stop reaching
+    Home Assistant's handlers entirely, so the user's log goes quiet for the life of
+    the process and nothing raises — the failure is silent by construction.
+
+    Write-vs-write was always reachable: two presses of Apply. Read-vs-write became
+    reachable in ba3b3d87, when `async_read` gained its first callers ever and a dock
+    arrival started firing reads that can land mid-Apply.
+
+    The assertion is the SYMPTOM — the logger's state afterwards — not "a lock was
+    taken". A test that asserted the lock would pass against a lock held over the
+    wrong window.
+    """
+    import asyncio
+    import logging
+
+    com, _ = _mgr_with_data(monkeypatch)
+    # BOTH halves, or there is no overlap to lose. `_WRITE_CFG` declares no `read`
+    # block, so async_read returns at its read_cfg guard without ever touching the
+    # logger — the first cut of this test raced a write against nothing and passed
+    # against the unlocked code it was written to catch.
+    _BOTH_CFG = {
+        **_WRITE_CFG,
+        "read": {
+            "via": "v1_debug_log",
+            "command": "get_clean_sequence",
+            "service": {"domain": "vacuum", "service": "send_command"},
+            "source_logger": "test.v1",
+            "decoded_prefix": PREFIX,
+        },
+    }
+    monkeypatch.setattr(com, "_config", lambda vacuum_entity_id: _BOTH_CFG)
+
+    logger = logging.getLogger("test.v1")
+    logger.setLevel(logging.WARNING)
+    logger.propagate = True
+    before = (logger.level, logger.propagate)
+
+    async def _slow_fire(domain, name, vacuum_entity_id, payload=None):
+        # Hold the window open long enough for the other coroutine to reach its own
+        # capture. Without the lock that is exactly when the values are stolen.
+        await asyncio.sleep(0.05)
+
+    monkeypatch.setattr(com, "_fire", _slow_fire)
+    monkeypatch.setattr(com, "known_room_ids", lambda vacuum_entity_id: set(KNOWN))
+
+    async def _drive():
+        await asyncio.gather(
+            com.async_read(_VAC),
+            com.async_write(_VAC, [27, 25]),
+            return_exceptions=True,
+        )
+
+    asyncio.run(asyncio.wait_for(_drive(), timeout=10))
+
+    after = (logger.level, logger.propagate)
+    assert after == before, (
+        f"the source logger was left at {after} instead of {before} — a write "
+        "captured the read's temporary values as its 'prior' and restored those. "
+        "propagate=False means the brand's log records never reach Home Assistant "
+        "again for the life of the process."
+    )

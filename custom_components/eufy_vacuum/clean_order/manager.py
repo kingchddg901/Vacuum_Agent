@@ -188,11 +188,20 @@ class CleanOrderManager:
         #: last_written. In-memory like the cache: after a restart we no longer claim
         #: authorship, which fails toward asking rather than toward wiping.
         self._written: dict[str, list[int]] = {}
-        #: Serialises reads. The logger's level is PROCESS-GLOBAL state, so two
-        #: concurrent reads would fight: the first to finish restores the level and
-        #: truncates the other's capture. Reads are rare; serialising is cheaper than
-        #: refcounting and cannot get the bookkeeping wrong.
-        self._read_lock = asyncio.Lock()
+        #: Serialises EVERY mutation of the source logger — reads AND writes.
+        #:
+        #: ⚠ IT GUARDED ONLY READS, and the docstring that did so named the exact
+        #: mechanism it was failing to cover: the level is PROCESS-GLOBAL, so two
+        #: concurrent operations fight and the first to finish restores. The WRITE
+        #: path does the identical capture-mutate-restore and took no lock.
+        #:
+        #: Write-vs-write was always reachable (a double-press of Apply). Read-vs-write
+        #: became reachable in ba3b3d87, when async_read gained its first callers ever
+        #: — a dock arrival now fires a read that can land mid-Apply.
+        #:
+        #: Named _log_lock, not _read_lock: the NAME is what let a second call site
+        #: conclude the lock was not about it.
+        self._log_lock = asyncio.Lock()
         #: Fired whenever the cache changes, so the sensor republishes IMMEDIATELY
         #: rather than on its next poll. Without this the entity lags every read by
         #: up to the platform scan interval — measured at 10s and 29s on real
@@ -318,7 +327,7 @@ class CleanOrderManager:
             self._store(vacuum_entity_id, None, STATUS_UNAVAILABLE)
             return self.cached(vacuum_entity_id)
 
-        async with self._read_lock:
+        async with self._log_lock:
             order = await self._read_via_v1_debug_log(vacuum_entity_id, read_cfg, known)
 
         if order is None:
@@ -594,30 +603,39 @@ class CleanOrderManager:
             decoded_prefix=decoded_prefix,
             predicate=lambda result: result == expected,
         )
-        prior_level = logger.level
-        prior_propagate = logger.propagate
-        confirmed = False
-        try:
-            logger.setLevel(logging.DEBUG)
-            logger.propagate = False
-            logger.addHandler(handler)
+        # ⚠ THE SAME LOCK THE READ PATH HOLDS, and this window went without one.
+        # Capture-through-restore has to be atomic: a write that reads its "prior"
+        # while a read is holding the logger at DEBUG will faithfully restore DEBUG
+        # and propagate=False — permanently, for the life of the process. The
+        # propagate half is the damaging one: the brand's protocol records stop
+        # reaching Home Assistant's handlers at all, so the log goes quiet and
+        # nothing raises. Held here, NOT inside the read helper below — that one is
+        # already covered by async_read, and asyncio.Lock is not reentrant.
+        async with self._log_lock:
+            prior_level = logger.level
+            prior_propagate = logger.propagate
+            confirmed = False
+            try:
+                logger.setLevel(logging.DEBUG)
+                logger.propagate = False
+                logger.addHandler(handler)
 
-            await self._fire(domain, name, vacuum_entity_id, payload=payload)
+                await self._fire(domain, name, vacuum_entity_id, payload=payload)
 
-            waited = 0.0
-            while waited < _READ_TIMEOUT_S and not handler.matches:
-                await asyncio.sleep(_POLL_S)
-                waited += _POLL_S
-            confirmed = bool(handler.matches)
-        except Exception:  # pragma: no cover - defensive
-            _LOGGER.debug(
-                "eufy_vacuum: clean-order write failed for %s", vacuum_entity_id,
-                exc_info=True,
-            )
-        finally:
-            logger.removeHandler(handler)
-            logger.setLevel(prior_level)
-            logger.propagate = prior_propagate
+                waited = 0.0
+                while waited < _READ_TIMEOUT_S and not handler.matches:
+                    await asyncio.sleep(_POLL_S)
+                    waited += _POLL_S
+                confirmed = bool(handler.matches)
+            except Exception:  # pragma: no cover - defensive
+                _LOGGER.debug(
+                    "eufy_vacuum: clean-order write failed for %s", vacuum_entity_id,
+                    exc_info=True,
+                )
+            finally:
+                logger.removeHandler(handler)
+                logger.setLevel(prior_level)
+                logger.propagate = prior_propagate
 
         # Record provenance on EITHER outcome. An unconfirmed write may well have
         # landed -- the ack is how we learn, not whether it happened -- so forgetting it
