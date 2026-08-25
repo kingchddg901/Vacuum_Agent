@@ -107,7 +107,7 @@ Room names stay as you named them; everything the integration supplies is transl
 
 Fault names are translated too — 237 of them across both brands, so a base-station error reads as "Base station dust duct blocked" in your language rather than as code 6112.
 
-So are the maintenance guides — the ordered care steps and warnings for each part, not just their labels. Turkish even gets its percent sign on the correct side of the number (`%100`, not `100%`), and the hour unit follows the language rather than the string around it. [The filter's guide in all eighteen languages →](docs/promo/guide-in-eighteen-languages.md)
+So are the maintenance guides — the ordered care steps and warnings for each part, not just their labels. Turkish even gets its percent sign on the correct side of the number (`%100`, not `100%`), and the hour unit follows the language rather than the string around it. [The filter's guide in all eighteen languages →](docs/guide-in-eighteen-languages.md)
 
 ## Also on Roborock
 
