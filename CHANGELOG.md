@@ -371,8 +371,14 @@ only.
 
 ### Notes
 
-- Home Assistant `2026.8` or newer is the tested floor for this release. Older cores may
-  work but have not been exercised against the beta cycle.
+- **Home Assistant versions — two different numbers, doing two different jobs.** HACS
+  installs this on `2025.6.0` or newer; that is what `hacs.json` declares and it is
+  comfortably above what the code actually needs (the oldest API it uses is
+  `StaticPathConfig`, which landed in `2024.7`). Development and testing happen on
+  `2026.8` and later. Cores between the two are permitted and are expected to work, but
+  **have not been exercised** — if you run one and something misbehaves, an issue that
+  names your core version is genuinely useful, because it is the range nobody here can
+  reproduce.
 
 ## [2.0.1] - 2026-08-10
 

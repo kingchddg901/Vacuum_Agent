@@ -165,7 +165,7 @@ Vacuum Agent is a supervisory control layer — it consumes whatever your provid
 
 **Required**
 
-- Home Assistant 2025.6.0 or later
+- Home Assistant **2025.6.0 or later** — that is the minimum HACS enforces. Development and testing happen on **2026.8+**; older cores are permitted and expected to work, but are not exercised, so reports from them are welcome.
 - A working `vacuum.*` entity for your robot, from your brand's upstream integration: [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) for Eufy, or Home Assistant's built-in **Roborock** integration for Roborock. Vacuum Agent builds on top of it — it doesn't replace it.
 
 **Optional** *(Vacuum Agent works without these — they unlock extra capabilities)*
