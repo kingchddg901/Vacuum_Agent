@@ -35,6 +35,7 @@ import argparse
 import importlib.util
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 DEFAULT_MANUALS = Path.home() / "Documents/durable/dreame-port-fixture/manuals"
@@ -44,6 +45,9 @@ SOURCES = {
     "x50": ("R2489A-X50_Series-EN_DE_FR.pdf", range(22, 31)),
     "x60_ultra": ("R5089B-X60_Ultra-EN_KM.pdf", range(13, 16)),
     "x60_pro_ultra_complete": ("R6001-X60_Series-28LANG.pdf", range(14, 17)),
+    "l20": ("R2394A-L20_Ultra-EN_DE_FR_IT.pdf", range(20, 27)),
+    "x40": ("R2416A-X40_Ultra-EN_DE_FR_IT.pdf", range(19, 27)),
+    "l50": ("R9493-L50_Ultra-EN_DE_FR_IT_ES_PL_NL_NO.pdf", range(23, 31)),
     "l10s_gen2": (
         "R2469X-Dreame_L10s_Ultra_Gen_2-_X-_ERP_EN_DE_FR_IT_ES.pdf",
         range(19, 26),
@@ -51,8 +55,15 @@ SOURCES = {
 }
 
 #: The recasts documented in the guide file's docstring. Expected to score low.
+#:
+#: ⚠ THIS IS AN EXEMPTION, SO IT NEEDS ITS OWN FLOOR. Waving a component/kind pair
+#: through unconditionally would hide a wholly invented sensor step behind the same
+#: label that excuses a legitimate rewrite — the exemption would be a bigger hole than
+#: the check is a net. Real recasts score 57-80%; invented text scores ~8%. The floor
+#: sits between them with room on both sides.
 KNOWN_RECASTS = {("sensor", "steps"), ("filter", "steps"), ("filter", "notes"),
                  ("caster_wheel", "notes")}
+RECAST_FLOOR = 0.40
 
 GUIDES = (
     Path(__file__).resolve().parent.parent
@@ -62,7 +73,10 @@ GUIDES = (
 
 def tokens(text: str) -> list[str]:
     """Lowercase word tokens, punctuation stripped."""
-    text = text.replace("’", "'").replace("—", " ")
+    # NFKC first: the L50 manual sets "filter" with an fi LIGATURE (U+FB01), which a
+    # naive [^a-z0-9] strip turns into "lter" — every filter sentence would then read
+    # as a defect. Normalising is the difference between a probe and a false alarm.
+    text = unicodedata.normalize("NFKC", text).replace("’", "'").replace("—", " ")
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).split()
 
 
@@ -120,7 +134,9 @@ def main() -> int:
                     score = len(needle & haystacks[family]) / max(len(needle), 1)
                     if score >= args.min:
                         continue
-                    known = (component, kind) in KNOWN_RECASTS
+                    known = (
+                        (component, kind) in KNOWN_RECASTS and score >= RECAST_FLOOR
+                    )
                     label = "recast " if known else "DEFECT "
                     if not known:
                         defects += 1

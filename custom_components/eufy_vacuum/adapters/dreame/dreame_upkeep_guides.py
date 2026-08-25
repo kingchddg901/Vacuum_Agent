@@ -17,6 +17,9 @@ manual, read page by page:
   ``x50``                     R2489A-X50_Series, EN pp. 22-30
   ``x60_ultra``               R5089B-X60_Ultra, EN pp. 13-15
   ``x60_pro_ultra_complete``  R6001-X60_Series, EN pp. 14-16
+  ``l20``                     R2394A-L20_Ultra, EN pp. 20-26
+  ``x40``                     R2416A-X40_Ultra, EN pp. 19-26
+  ``l50``                     R9493-L50_Ultra, EN pp. 23-30
   ``l10s_gen2``               R2469X-L10s_Ultra_Gen_2, EN pp. 19-25
 
 Manuals are mirrored in the git-ignored fixture set. Guide content is AI-authored by
@@ -106,9 +109,19 @@ yet shares the X40 Ultra manual) and the marketing name is too BROAD ("X50" is 2
 across ~20 codes). See ``.claude/notes/SCOPE-dreame-guide-families.md``.
 
   ``x50``                     X50 Ultra + X50 Ultra Complete   41 keys
+  ``l20``                     L20 Ultra + L20 Ultra Complete   15 keys
+  ``x40``                     X40 Ultra + X40 Ultra Complete    9 keys
   ``x60_ultra``               X60 Ultra                         4 keys  r5089, r9515
-  ``x60_pro_ultra_complete``  X60 Pro Ultra Complete            1 key   r6001
   ``l10s_gen2``               L10s Ultra Gen 2                  3 keys  r2469, r5020
+  ``l50``                     L50 Ultra                         2 keys  r9493
+  ``x60_pro_ultra_complete``  X60 Pro Ultra Complete            1 key   r6001
+
+**75 of the 587 model keys the integration declares — 12.8%.** Every manual currently
+in hand is authored; the next family costs a new manual, not a new read of an old one.
+Four of the seven pages name BOTH their variants outright (X50, L20, X40 on the
+package-contents pages), and in each case the "Complete" variant differs only by
+QUANTITIES of consumables — spares, not hardware. That is what lets one care section
+cover two marketing names.
 
 ⚠ **A MARKETING NAME CAN HAVE TWO MANUALS, AND "X60" HAD TWO.** An earlier cut of this
 file put ``r5089``, ``r6001`` and ``r9515`` in one ``x60`` family. Wrong, and backwards
@@ -606,6 +619,441 @@ _X50: dict[str, dict] = {
 }
 
 
+# --------------------------------------------------------------------------
+# L20 Ultra / L20 Ultra Complete. Transcribed from R2394A, EN pp. 21-26. The manual
+# names both variants on its package pages — "(DreameBot L20 Ultra)" p. 7 and
+# "(DreameBot L20 Ultra Complete)" p. 8 — and the Complete differs only by QUANTITIES
+# (side brush x3, dust bag x5, mop pad x14). Spares, not hardware.
+#
+# The MOST DISTINCT family in this file: at most 21 sentences shared with any other,
+# against 33 between the L50 and the X50. It is the only one with an AI visual sensor,
+# line laser sensors and LED fill lights; the only one with a cleaning-solution inlet
+# to wipe; and the only one whose manual treats the side brush and mop pad holder as a
+# single instruction.
+# --------------------------------------------------------------------------
+_L20: dict[str, dict] = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard and lift "
+            "the brush out of the robot.",
+            "Pull out the brush covers at both ends of the brush. Use the provided "
+            "cleaning tool to remove any hair tangled in the brush. Reinstall the "
+            "brush covers on both ends of the brush, and then reinstall the brush. "
+            "Press on the brush guard to lock it in place.",
+        ],
+        "notes": [],
+    },
+    # One instruction in the manual, carried verbatim under both keys — the L20's side
+    # brush and mop pad holder are serviced in the same motion.
+    "side_brush": {
+        "steps": ["Remove and clean the side brush and mop pad holder."],
+        "notes": [],
+    },
+    "mop_pad_holder": {
+        "steps": ["Remove and clean the side brush and mop pad holder."],
+        "notes": [],
+    },
+    "dustbin": {
+        "steps": [
+            "Open the robot's cover and press the clip to remove the dust box.",
+            "Open the dust box cover and empty the dust box.",
+        ],
+        "notes": [],
+    },
+    "filter": {
+        "steps": [
+            "Remove the filter and tap its basket gently.",
+            "Rinse the dust box and filter with water and dry them completely before "
+            "reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any "
+            "detergent.",
+            "Use the dust box and filter only when they are completely dry.",
+        ],
+    },
+    "mop_cloth": {
+        "steps": ["Remove the mop pad from the mop pad holder to replace it."],
+        "notes": [],
+    },
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of "
+            "the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under running water and put it back after "
+            "drying it completely.",
+        ],
+        "notes": ["Do not use excessive force when separating the axle and tire."],
+    },
+    "used_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use the provided cleaning "
+            "tool to clean the inner wall of the used water tank.",
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too "
+            "much force when cleaning it to avoid damaging it.",
+        ],
+    },
+    # The L20's dust tank cover LOCKS, and its handle is pulled OUTWARDS — both differ
+    # from every other family here, where the cover lifts off and the handle pulls up.
+    "dust_bag": {
+        "steps": [
+            "Unlock the dust tank cover and then remove it.",
+            "Discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag. Then install back the dust tank cover and lock it.",
+        ],
+        "notes": [
+            "Pulling outwards on the handle will seal the dust bag to prevent the dust "
+            "and debris from accidentally falling out.",
+        ],
+    },
+    # A removable washboard cleaned in place, with the base station pumping water in
+    # and back out — not the X50's removable filter, and not the X40's roller.
+    "washboard": {
+        "steps": [
+            "Press the button to make the robot exit the base station.",
+            "Remove the washboard and rinse it with clean water.",
+            "Press and hold the button for 3 seconds to add water to the bottom of the "
+            "base station. Then use the included cleaning tool to clean it.",
+            "Press and hold the button for 3 seconds to pump out the used water in the "
+            "bottom of the base station, dry it with a soft and dry cloth, and then "
+            "put the washboard back.",
+        ],
+        "notes": [],
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area of the base station "
+            "with a soft and dry cloth.",
+        ],
+        "notes": [],
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft "
+            "and dry cloth.",
+        ],
+        "notes": [],
+    },
+    # Unique to the L20 in this file. Its base station doses cleaning solution from a
+    # bottle, and the inlet is a part the manual asks you to keep clean.
+    "detergent_inlet": {
+        "steps": [
+            "If the cleaning solution adding inlet is dirty, wipe it with a soft and "
+            "dry cloth.",
+        ],
+        "notes": [],
+    },
+    "sensor": {
+        "steps": [
+            "Wipe the robot's sensors and charging contacts with a soft, dry cloth: "
+            "the AI visual sensor, line laser sensors, LED fill lights, laser distance "
+            "sensor (LDS), edge sensor, bumper, charging contacts, cliff sensors and "
+            "carpet sensor.",
+        ],
+        "notes": [_SENSOR_NOTE],
+    },
+}
+
+
+# --------------------------------------------------------------------------
+# X40 Ultra / X40 Ultra Complete. Transcribed from R2416A, EN pp. 20-26. Both variants
+# named on the package pages, p. 7 and p. 8.
+#
+# Its washboard is a ROLLER that comes apart — cover, roller, end caps, reassembled by
+# colour — and is the longest single procedure in this file at six steps. Nothing else
+# here has one, which is why `washboard` cannot be shared even with the L20, whose
+# washboard is a flat plate that lifts out.
+# --------------------------------------------------------------------------
+_X40: dict[str, dict] = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard and lift "
+            "the brush out of the robot.",
+            "Pull out the brush covers at both ends of the brush. Use the provided "
+            "cleaning tool to remove any hair tangled in the brush. Reinstall the "
+            "brush covers on both ends of the brush, and then reinstall the brush. "
+            "Press on the brush guard to lock it in place.",
+        ],
+        "notes": [],
+    },
+    "side_brush": {
+        "steps": [
+            "Unscrew the side brush with a screwdriver, clean the hair from the brush, "
+            "and then screw it back on.",
+        ],
+        "notes": [],
+    },
+    "dustbin": {
+        "steps": [
+            "Open the robot cover and press the dust box clip to remove the dust box.",
+            "Open the dust box cover, remove the filter, and then empty the dust box.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before "
+            "reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any "
+            "detergent.",
+            "Use the dust box and filter only when they are completely dry.",
+        ],
+    },
+    "filter": {
+        "steps": [
+            "Remove the dust box filter and gently tap the basket of the filter to "
+            "remove the dirt.",
+            "Rinse the filter with clean water and dry it completely before "
+            "reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse with clean water only. Do not use any detergent.",
+        ],
+    },
+    "mop_cloth": {
+        "steps": ["Remove the mop pad from the mop pad holder to replace it."],
+        "notes": [],
+    },
+    "mop_pad_holder": {
+        "steps": ["Remove and clean the mop pad holder."],
+        "notes": [],
+    },
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of "
+            "the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under running water and put it back after "
+            "drying it completely.",
+        ],
+        "notes": ["Do not use excessive force when separating the axle and tire."],
+    },
+    "used_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use the provided cleaning "
+            "tool to clean the inner wall of the used water tank.",
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too "
+            "much force when cleaning it to avoid damaging it.",
+        ],
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover.",
+        ],
+        "notes": [
+            "Pulling upwards on the handle will seal the bag to prevent the dust and "
+            "debris from accidentally falling out.",
+        ],
+    },
+    "washboard": {
+        "steps": [
+            "Enable the washboard base cleaning function in the app, and the robot "
+            "will exit the base station automatically. Take out the washboard and wait "
+            "for water to fill the washboard base.",
+            "Use the cleaning tool to clean the washboard base. After a moment, the "
+            "base station will automatically pump out the used water. Then wipe the "
+            "washboard base with a soft and dry cloth.",
+            "Flip the washboard over, remove the roller cover and the roller in turn, "
+            "and then pull off the end caps of the roller.",
+            "Remove the hair tangled in the roller, and then reassemble the parts "
+            "according to corresponding colors.",
+            "Rinse the washboard with clean water, wipe it clean and then put it back "
+            "into the base station downwards in an inclined way.",
+            "Use the app or briefly press the button on the robot to make it return to "
+            "the base station.",
+        ],
+        "notes": [
+            "If the roller cover is blocked by wipers on both sides of the washboard, "
+            "rotate the roller to move them aside.",
+            "During cleaning, do not make the robot return to the base station.",
+        ],
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area of the base station "
+            "with a soft and dry cloth.",
+        ],
+        "notes": [],
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft "
+            "and dry cloth.",
+        ],
+        "notes": [],
+    },
+    "sensor": {
+        "steps": [
+            "Wipe the robot's sensors and charging contacts with a soft, dry cloth: "
+            "the bumper window, laser distance sensor (LDS), 3D dual-line laser "
+            "sensors, edge sensor, bumper, charging contacts, cliff sensors and carpet "
+            "sensor.",
+        ],
+        "notes": [_SENSOR_NOTE],
+    },
+}
+
+
+# --------------------------------------------------------------------------
+# L50 Ultra. Transcribed from R9493, EN pp. 24-30. One marketing name, `r9493`, 2 keys.
+#
+# ⚠ THE CLOSEST PAIR IN THIS FILE — 33 sentences shared with the X50, and it is STILL
+# its own family. The two differences sit INSIDE shared components rather than in an
+# extra one, which is exactly the case the X60 pair is not:
+#
+#   dustbin  the L50 says OPEN the robot cover; the X50 says REMOVE it
+#   sensor   the L50 carries a laser distance sensor (LDS) and NO VersaLift;
+#            the X50 carries a VersaLift and NO LDS
+#
+# Sharing a body here would tell an L50 owner to wipe a VersaLift sensor their robot
+# does not have, and never mention the LDS it does. One word and one list — which is
+# why the diff has to be read, not skimmed for a headline number.
+# --------------------------------------------------------------------------
+_L50: dict[str, dict] = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard, and then "
+            "lift the brushes out of the robot.",
+            "Pull out the brushes. Use the provided cleaning tool to remove any hair "
+            "tangled in the brushes. After cleaning, push the brushes firmly into the "
+            "main brush holder until they click into place.",
+            "With the screen-printed arrows facing upwards, insert the main brush "
+            "holder into the slots downwards in an inclined way.",
+            "Align the front end of the brush guard with the slot, insert it downwards "
+            "in an inclined way, and then press it into place.",
+        ],
+        "notes": [
+            "Be careful while pulling out the main brushes to prevent injury.",
+        ],
+    },
+    "side_brush": {
+        "steps": [
+            "Unscrew the side brush with a screwdriver, clean the hair from the brush, "
+            "and then screw it back on.",
+        ],
+        "notes": [],
+    },
+    "dustbin": {
+        "steps": [
+            "Open the robot cover and press the dust box clip to remove the dust box.",
+            "Remove the dust box filter, and then empty the dust box.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before "
+            "reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any "
+            "detergent.",
+            "Use the dust box and filter only when they are completely dry.",
+        ],
+    },
+    "filter": {
+        "steps": [
+            "Remove the dust box filter and gently tap the basket of the filter to "
+            "remove the dirt.",
+            "Rinse the filter with clean water and dry it completely before "
+            "reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse with clean water only. Do not use any detergent.",
+        ],
+    },
+    "mop_cloth": {
+        "steps": [
+            "Remove the mop pads from the mop pad holders to replace them.",
+        ],
+        "notes": [],
+    },
+    "mop_pad_holder": {
+        "steps": ["Remove and clean the mop pad holders."],
+        "notes": [],
+    },
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of "
+            "the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under running water and put it back after "
+            "drying it completely.",
+        ],
+        "notes": ["Do not use excessive force when separating the axle and tire."],
+    },
+    "used_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use the provided cleaning "
+            "tool to clean the inner wall of the used water tank.",
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too "
+            "much force when cleaning it to avoid damaging it.",
+        ],
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover.",
+        ],
+        "notes": [
+            "Pulling upwards on the handle will seal the bag to prevent the dust and "
+            "debris from accidentally falling out.",
+        ],
+    },
+    # No residual-heat note: like the X50, the L50 has no washboard heating module.
+    "washboard_filter": {
+        "steps": [
+            "Take out the robot and remove the washboard filter after the mop pad "
+            "cleaning is complete.",
+            "Rinse the washboard filter with clean water, wipe it clean, and then "
+            "reinstall it in the washboard.",
+            "Use the app or press the button to return the robot to the base station, "
+            "or manually put the robot back.",
+        ],
+        "notes": [],
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area with a soft and dry "
+            "cloth.",
+        ],
+        "notes": [],
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft "
+            "and dry cloth.",
+        ],
+        "notes": [],
+    },
+    "sensor": {
+        "steps": [
+            "Wipe the robot sensors with a soft, dry cloth: the 3D dual-line laser "
+            "sensors, bumper window, edge sensor, laser distance sensor (LDS), cliff "
+            "sensors, carpet sensor and bumper.",
+        ],
+        "notes": [_SENSOR_NOTE],
+    },
+}
+
+
 DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
     # Each family is transcribed from ITS OWN manual. Prose crosses between two
     # families in exactly one place, and only because it was MEASURED to: the X60
@@ -615,6 +1063,9 @@ DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
     "x50": _X50,
     "x60_ultra": _X60_ULTRA,
     "x60_pro_ultra_complete": {**_X60_ULTRA, **_BASEBOARD_BRUSH},
+    "l20": _L20,
+    "x40": _X40,
+    "l50": _L50,
     "l10s_gen2": _L10S_GEN2,
 }
 

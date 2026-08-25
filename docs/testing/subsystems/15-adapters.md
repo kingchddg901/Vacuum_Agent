@@ -14,7 +14,7 @@ brands — and `test_brand_selection.py`), plus **212 Eufy-adapter tests** and
 
 A third adapter directory, `adapters/dreame/`, holds **data only and is deliberately
 not wired** — it has no `BRAND_REGISTRARS` row, so the conformance harness above does
-not reach it and none of those counts include it. Its 19 tests live in
+not reach it and none of those counts include it. Its 37 tests live in
 `tests/adapters/dreame/` and are documented below; they exist precisely because nothing
 else in the tree can fail on that directory.
 
@@ -193,7 +193,7 @@ added 2026-08-07) pins what happens when a brand DECLARES — or fails to.
 
 ### `dreame/test_dreame_upkeep_guides.py` — the only gate on an UNWIRED adapter
 
-19 tests, added 2026-08-25. Every other suite on this page reaches an adapter through
+37 tests, added 2026-08-25. Every other suite on this page reaches an adapter through
 its `BRAND_REGISTRARS` row. The Dreame adapter has no such row — deliberately, since
 that row *is* the release — so none of them touch it, and until this file landed a
 Dreame family could be emptied, two families silently collapsed into one, or the
@@ -205,7 +205,8 @@ release switch thrown, with the suite staying green throughout.
 | `DUG-2` | the four families exist and every component in them has a non-empty step |
 | `DUG-3` | `x60_pro_ultra_complete` is `x60_ultra` **plus exactly** `baseboard_brush` |
 | `DUG-4` | the seven measured X50-vs-X60 divergences still diverge |
-| `DUG-5` | absent hardware gets no guide — no heating module or baseboard brush on the X50 |
+| `DUG-5` | absent hardware gets no guide — no heating module on the X50, no detergent inlet outside the L20 |
+| `DUG-6` | the L50 and the X50 stay two families, and stay 11-of-13 identical |
 
 `DUG-4` is a regression guard for a defect this data already shipped once: a shared
 `_BASE` was factored out of several families because their component NAMES lined up,
@@ -214,8 +215,16 @@ PROCEDURE are different claims, and only the second one was ever checked. `DUG-3
 encodes the opposite case — two families that genuinely DO share a body, because their
 manuals were diffed first and came out 48 of 49 sentences identical.
 
-All 14 mutations were ablated and all 14 went red. `DUG-1` was ablated separately, both
-by adding a Dreame row and by emptying the registrar table entirely, so it cannot pass
+`DUG-6` is the harder case and pins BOTH halves. The L50 and X50 share 33 care
+sentences and 11 of 13 components outright — the closest pair in the library — yet the
+whole of their difference sits INSIDE two shared components rather than in an extra one:
+the L50 *opens* the robot cover where the X50 *removes* it, and the L50 carries a laser
+distance sensor with no VersaLift where the X50 carries a VersaLift with no LDS. So the
+guard asserts the 2 that must differ AND the 11 that must stay the same, because a
+difference-guard alone goes green on a library that has simply lost content.
+
+25 mutations were ablated and all 25 went red. `DUG-1` was ablated separately, both by
+adding a Dreame row and by emptying the registrar table entirely, so it cannot pass
 vacuously on a table that happens to be empty.
 
 Provenance is checked outside the suite by `scripts/verify_dreame_guide_provenance.py`,

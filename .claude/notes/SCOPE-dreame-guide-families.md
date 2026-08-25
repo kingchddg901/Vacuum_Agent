@@ -8,12 +8,15 @@ few hours — which is exactly how a dead premise keeps reading as authority.)*
 their own comparison page still lists — `dreametech.com/pages/robot-vacuum-and-mop-comparison`.
 Not the 587 models the integration declares, and not the 228 historical platforms.
 
-**26 platforms. 4 have manuals; 3 of those are authored (X50 Ultra, X60 Ultra, L10s
-Ultra Gen 2 — L50 Ultra is downloaded but not written). 22 platforms have neither.**
+**26 platforms. 4 are covered by an authored family (X50 Ultra, X60 Ultra, L50 Ultra,
+L10s Ultra Gen 2). 22 have no manual and no family.** The other three families —
+`l20`, `x40`, `x60_pro_ultra_complete` — cover models Dreame no longer lists as
+current, which is the point: older flagships become the common secondhand fleet.
 
 ⚠ Three counts live in this file and they are NOT interchangeable: *platforms in the
-current-ish lineup*, *model keys the integration declares* (587), and *keys an authored
-family actually reaches* (49). Say which one you mean.
+current-ish lineup* (26), *model keys the integration declares* (587), and *keys an
+authored family actually reaches* (75). Say which one you mean — they answer different
+questions and only the last one means "someone can read a guide".
 
 ---
 
@@ -82,25 +85,29 @@ manual says "a proper tool". That wording difference is real, not a transcriptio
 
 ### Coverage
 
-| family | page covers | keys | authored |
+| family | page covers | keys | components |
 |---|---|---|---|
-| `x50` | X50 Ultra + X50 Ultra Complete | **41** | ✓ |
-| `x60_ultra` | X60 Ultra | 4 | ✓ |
-| `x60_pro_ultra_complete` | X60 Pro Ultra Complete | 1 | ✓ |
-| `l10s_gen2` | L10s Ultra Gen 2 | 3 | ✓ |
-| `l20` | L20 Ultra + L20 Ultra Complete | 15 | manual in hand |
-| `x40` | X40 Ultra + X40 Ultra Complete | 9 | manual in hand |
-| `l50` | L50 Ultra | 2 | manual in hand |
+| `x50` | X50 Ultra + X50 Ultra Complete | **41** | 13 |
+| `l20` | L20 Ultra + L20 Ultra Complete | 15 | 14 |
+| `x40` | X40 Ultra + X40 Ultra Complete | 9 | 13 |
+| `x60_ultra` | X60 Ultra | 4 | 13 |
+| `l10s_gen2` | L10s Ultra Gen 2 | 3 | 13 |
+| `l50` | L50 Ultra | 2 | 13 |
+| `x60_pro_ultra_complete` | X60 Pro Ultra Complete | 1 | 14 |
 
-**Authored: 49 of 587 — 8.3%. Manuals in hand: 75 — 12.8%.**
+**Authored: 75 of 587 — 12.8%. Every manual in hand is now written**, so authored and
+downloaded have converged and the next family costs a new PDF, not a new read.
 
-⚠ **Those are two different numbers and this note previously ran them together.** It
-reported "75 of 587 — 13%" as coverage when only `x60` and `l10s_gen2` were written:
-8 keys, 1.4%. A downloaded PDF is not a guide. Quote the AUTHORED figure unless the
-sentence is explicitly about what is left to transcribe.
+⚠ **Those were two different numbers and this note once ran them together**, reporting
+"75 of 587 — 13%" as coverage when only 8 keys were written (1.4%). They agree today by
+work, not by definition — the moment a manual is downloaded they diverge again. A
+downloaded PDF is not a guide.
 
-The three remaining manuals are worth 26 keys and would take authored coverage to
-12.8%. `l20` is the largest single one left.
+**Four of the seven pages name both variants outright** — X50 pp. 7-8, L20 pp. 7-8, X40
+pp. 7-8 — and in every case the "Complete" differs only by QUANTITIES of consumables
+(L20 Complete: side brush ×3, dust bag ×5, mop pad ×14). Spares, not hardware. That is
+what lets one care section cover two marketing names — and note it does NOT generalise:
+"Complete" buys refills on an L20/X40/X50 and a different robot on an X60.
 
 Routing keys on the **full model string** via a generated name→family table, built from
 `supported_devices.md` so it tracks upstream rather than being hand-typed.
@@ -211,22 +218,60 @@ The check that produced this file: after two families were written, coverage aga
 the full model list came out **26% by name and 7% by r-code**. The GAP was the finding
 — two keys disagreeing by a factor of four proved neither resolved what a family
 covers, which is what sent us to the manual page as the boundary. Under the corrected
-rule it is **13%, 75 of 587**.
+rule, and with all seven families authored, it is **75 of 587 — 12.8%**.
 
-Re-run it whenever a family lands. "We wrote two families" is not a coverage statement.
+Re-run it whenever a family lands. "We wrote two families" is not a coverage statement,
+and neither is "we downloaded seven manuals" — this file has made BOTH of those mistakes
+and each time the number moved by more than the work did.
+
+The recount is cheap and worth repeating rather than remembering: parse
+`supported_devices.md` into `name -> [keys]`, sum the keys for the marketing names on
+each authored page, divide by the 587 total.
 
 ## Status
 
-Authored, all in `custom_components/eufy_vacuum/adapters/dreame/dreame_upkeep_guides.py`:
-`x50` (R2489A), `x60_ultra` (R5089B), `x60_pro_ultra_complete` (R6001), `l10s_gen2`
-(R2469X). 13 components each; the Pro Ultra Complete has 14.
+**Seven families, all authored from their own manual**, all in
+`custom_components/eufy_vacuum/adapters/dreame/dreame_upkeep_guides.py`: `x50` (R2489A),
+`l20` (R2394A), `x40` (R2416A), `x60_ultra` (R5089B), `x60_pro_ultra_complete` (R6001),
+`l50` (R9493), `l10s_gen2` (R2469X). 13 components each; the L20 and the Pro Ultra
+Complete have 14. **264 authored strings**, all scored against their source manual.
 
-**Guarded by `tests/adapters/dreame/test_dreame_upkeep_guides.py`** — before it, nothing
-in the tree could go red on any of this. DUG-1 fails if a `BRAND_REGISTRARS` row for
-Dreame ever appears (the release switch). DUG-4 fails if any of the seven measured X50
-vs X60 divergences collapses — the regression guard for the shared-`_BASE` defect. All
-14 mutations were ablated and all 14 went red; the switch guard was ablated separately,
-including against an empty registrar table so it cannot pass vacuously.
+Cross-family identical-component counts, measured (out of ~12-13 keys in common):
+
+```
+x60_ultra / x60_pro_ultra_complete  13/13   shared body BY CONSTRUCTION, diffed first
+l50       / x50                     11/13   two families -- see below
+x40       / l10s_gen2                8/13
+x50       / x40   6/12    l20 / x40   6/13    x40 / l50   6/12
+x50       / x60_ultra                5/12
+l20       / x60_ultra                1/11    the most distinct pair here
+```
+
+⚠ **`l50` and `x50` are 11 of 13 identical and are still two families.** The whole
+delta sits INSIDE two shared components, not in an extra one: the L50 says *open* the
+robot cover where the X50 says *remove* it, and the L50 carries a laser distance sensor
+with no VersaLift while the X50 carries a VersaLift with no LDS. Merging them would tell
+an L50 owner to wipe a sensor their robot has not got. This is the case the X60 pair is
+NOT, and the difference is where the delta lives — which only a read finds, never a
+headline overlap number.
+
+**Guarded by `tests/adapters/dreame/test_dreame_upkeep_guides.py`** (37 tests) — before
+it, nothing in the tree could go red on any of this. DUG-1 fails if a
+`BRAND_REGISTRARS` row for Dreame ever appears (the release switch). DUG-4 and DUG-6
+fail if a measured divergence collapses — the regression guards for the shared-`_BASE`
+defect. DUG-6 pins BOTH halves of the l50/x50 relationship, the 2 that must differ and
+the 11 that must stay the same, because a difference-guard alone goes green on a corpus
+that has simply rotted.
+
+25 mutations ablated, 25 went red. The switch guard was ablated separately, including
+against an EMPTY registrar table so it cannot pass vacuously.
+
+`scripts/verify_dreame_guide_provenance.py` scores all 264 strings against their source
+manual: 0 defects, 15 known recasts. Its exemption for recast entries carries its own
+FLOOR (40%) — waving a component/kind pair through unconditionally would have hidden an
+invented sensor step behind the same label that excuses a legitimate rewrite, and that
+hole was ablated shut. Note the L50 manual sets "filter" with an fi LIGATURE, which a
+naive tokenizer turns into "lter" and reports as a defect in every filter sentence.
 
 ⚠ There is still **no `BRAND_REGISTRARS` row**, and adding one is the release. The
 adapter is gated on a released upstream build carrying Tasshack #1707.

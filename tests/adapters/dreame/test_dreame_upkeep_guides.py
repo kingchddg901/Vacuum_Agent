@@ -17,7 +17,12 @@ collapsed into one, or the release switch could be thrown, and the suite stayed 
          NAMES lined up, which put X60 prose on five other platforms.
 [DUG-5]  Hardware a family does not have gets no guide: no heating module or baseboard
          brush on the X50, no separate auto-empty vents on the X60 (its manual prints
-         vents, contacts and signalling as one section).
+         vents, contacts and signalling as one section), no detergent inlet on any
+         family but the L20.
+[DUG-6]  The L50 and the X50 -- 33 shared care sentences, 11 of 13 components identical,
+         the closest pair here -- stay two families. Both halves are pinned: the two
+         components that MUST differ, and the eleven that must stay the same, because a
+         difference-guard alone goes green on a corpus that has simply rotted.
 """
 
 from __future__ import annotations
@@ -26,7 +31,15 @@ import pytest
 
 from custom_components.eufy_vacuum.adapters.dreame import DREAME_UPKEEP_GUIDE_LIBRARY
 
-FAMILIES = ("x50", "x60_ultra", "x60_pro_ultra_complete", "l10s_gen2")
+FAMILIES = (
+    "x50",
+    "x60_ultra",
+    "x60_pro_ultra_complete",
+    "l20",
+    "x40",
+    "l50",
+    "l10s_gen2",
+)
 
 
 def test_dreame_has_no_brand_registrar_row():
@@ -114,6 +127,55 @@ def test_x50_and_x60_do_not_share_prose(component):
     )
 
 
+#: The L50 and the X50 share 33 care sentences and 11 of 13 components outright — the
+#: closest pair in the file, and the one most likely to invite "these are the same
+#: family". They are not, and the whole of the difference is here.
+L50_X50_MUST_DIFFER = (
+    "dustbin",  # L50 OPENS the robot cover; the X50 REMOVES it
+    "sensor",  # L50 has an LDS and no VersaLift; the X50 has a VersaLift and no LDS
+)
+
+
+@pytest.mark.parametrize("component", L50_X50_MUST_DIFFER)
+def test_l50_and_x50_do_not_share_prose(component):
+    """[DUG-6] eleven of thirteen identical is not thirteen, and the two carry hardware.
+
+    This is the case DUG-3 is NOT. The X60 pair could share a body because their delta
+    was a whole extra component; here the delta lives INSIDE two shared components, so
+    merging them would quietly rewrite the two that matter — telling an L50 owner to
+    wipe a VersaLift sensor their robot has not got, and never mentioning its LDS.
+    """
+    l50 = DREAME_UPKEEP_GUIDE_LIBRARY["l50"][component]
+    x50 = DREAME_UPKEEP_GUIDE_LIBRARY["x50"][component]
+    assert l50 != x50, (
+        f"l50.{component} is now identical to x50.{component}. These two families are "
+        "close enough to look mergeable and are not: one word in `dustbin` and one "
+        "sensor in `sensor` are the entire difference, and both are hardware."
+    )
+
+
+def test_the_two_close_families_are_still_mostly_identical():
+    """[DUG-6] the other half — the 11/13 figure DUG-6 rests on, pinned.
+
+    Without this, deleting content from either family would make them 'differ' more and
+    DUG-6 would go green on a corpus that had rotted. A guard on a difference needs the
+    sameness pinned too, or it passes for the wrong reason.
+    """
+    l50 = DREAME_UPKEEP_GUIDE_LIBRARY["l50"]
+    x50 = DREAME_UPKEEP_GUIDE_LIBRARY["x50"]
+    common = set(l50) & set(x50)
+    identical = {c for c in common if l50[c] == x50[c]}
+    assert len(common) == 13 and len(identical) == 11, (
+        f"l50/x50 overlap is now {len(identical)} identical of {len(common)} common, "
+        "measured as 11 of 13. If the manuals were re-read and this genuinely changed, "
+        "update the number here AND the block comment above `_L50` together."
+    )
+    assert common - identical == set(L50_X50_MUST_DIFFER), (
+        f"the l50/x50 differences are now {sorted(common - identical)}, not "
+        f"{sorted(L50_X50_MUST_DIFFER)} — a component changed sides."
+    )
+
+
 @pytest.mark.parametrize(
     ("family", "component"),
     [
@@ -122,6 +184,21 @@ def test_x50_and_x60_do_not_share_prose(component):
         ("x60_ultra", "auto_empty_vents"),  # folded into dock_contacts on the X60
         ("x60_pro_ultra_complete", "auto_empty_vents"),
         ("x60_ultra", "baseboard_brush"),  # R5089B lists no baseboard brush
+        # The washboard is one part or the other, never both: the X50 and L50 service a
+        # removable FILTER, the L20 and X40 service the washboard ITSELF.
+        ("l50", "washboard"),
+        ("l20", "washboard_filter"),
+        ("x40", "washboard_filter"),
+        ("l50", "washboard_heating_module"),
+        ("l20", "baseboard_brush"),
+        ("x40", "baseboard_brush"),
+        ("l50", "baseboard_brush"),
+        # Auto-detergent dosing is the L20's alone among these seven.
+        ("x50", "detergent_inlet"),
+        ("x40", "detergent_inlet"),
+        ("l50", "detergent_inlet"),
+        ("x60_ultra", "detergent_inlet"),
+        ("l10s_gen2", "detergent_inlet"),
     ],
 )
 def test_absent_hardware_gets_no_guide(family, component):
