@@ -1,38 +1,44 @@
 # Per-language card captures
 
-Real HA captures, one **room card** and one **profile card** per shipped language,
-for the collapsed language wall in the top-level README.
+Real Home Assistant captures backing the language section of the top-level README:
+the **room card** and a **saved routine card**, across all eighteen shipped languages.
 
-Naming — exact, lowercase, the locale code as it appears in
-`custom_components/eufy_vacuum/frontend/locales/`:
+## What is here
 
-    room-<code>.png
-    profile-<code>.png
+Six files, in `docs/screenshots/`, each a six-language grid:
 
-e.g. `room-ar.png`, `profile-zh-Hant.png`. English is `en`.
+    rooms_1-6.png     profile_1-6.png     en · id · cs · de · es · fr
+    rooms_7-12.png    profile_7-12.png    it · nl · pl · pt · tr · ru
+    rooms_13-18.png   profile_13-18.png   he · ar · ko · ja · zh-Hans · zh-Hant
 
-## The eighteen
+`*_1-6` are the README's visible pair; the other four sit inside the `<details>`
+block so the page does not open as a wall of screenshots.
 
-en · ar · cs · de · es · fr · he · id · it · ja · ko · nl · pl · pt · ru · tr · zh-Hans · zh-Hant
+## Why the 13-18 pair is the important one
 
-## Shoot these FIRST if the batch gets interrupted
+It is the only evidence for the boldest claim in that section. The prose promises
+"including right-to-left Arabic & Hebrew" and lists Japanese, Korean and Chinese —
+and every shot that preceded these was Latin or Cyrillic, so a reader asking whether
+RTL actually mirrors got no answer from the images that existed to answer it. These
+show it: in Hebrew and Arabic the controls are right-aligned, the step numbers move
+to the right, and Start/Run moves to the left.
 
-    ar  he  ja  ko  zh-Hans  zh-Hant
+## Why these are shot by hand and not by the harness
 
-Not arbitrary. Two reasons:
+Measured 2026-08-25: the pinned render image
+(`mcr.microsoft.com/playwright:v1.60.0-noble`) carries 50 fonts and **zero** covering
+`ja`/`zh`/`ko`/`ar`/`he`, so the harness renders those six as tofu boxes. Adding
+`fonts-noto-cjk` + `fonts-noto-core` fixes it (351 fonts, full coverage) — but that
+must only ever be done to a SHOOTING container, never the gate one, or every visual
+baseline moves. A real HA box already has the fonts, which is what makes these cheap
+by hand and expensive to automate.
 
-1. **They are the only ones carrying claims the README currently cannot evidence.**
-   The text promises "including right-to-left Arabic & Hebrew" and lists Japanese,
-   Korean and Chinese — and every existing hero shot is Latin or Cyrillic. A reader
-   asking "does RTL actually mirror?" gets no answer from the images that exist to
-   answer it.
-2. **The harness cannot produce them.** Measured 2026-08-25: the pinned render image
-   (`mcr.microsoft.com/playwright:v1.60.0-noble`) has 50 fonts and **zero** covering
-   ja/zh/ko/ar/he, so those six render as tofu boxes. Installing `fonts-noto-cjk` +
-   `fonts-noto-core` fixes it (351 fonts, full coverage) — but that must never be
-   done to the GATE container, only to a shooting one, or every visual baseline moves.
-   A real HA box has system fonts already, which is why these are cheap for a human
-   and expensive for the harness.
+## Re-shooting
 
-The remaining eight (en/de/es/fr/it/nl/pt/ru) already appear in the two hero grids,
-so they are the ones to shoot last.
+These are real captures, so they carry real UI text and can go stale. That is not
+hypothetical: the pair they replaced was committed 2026-07-09 showing **"RUNS AS"**,
+`run_profiles.runs_as` became **"Runs in this order"** on 2026-07-12, and the README
+carried the outdated wording for six weeks — through the v2.1.0 release. If a visible
+string in either card changes, re-shoot the affected set.
+
+Nothing gates this. There is no check that these images match the shipped strings.

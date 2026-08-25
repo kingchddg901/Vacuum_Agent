@@ -64,11 +64,30 @@ The card **speaks eighteen languages** out of the box — English plus seventeen
 
 The proof is the everyday surfaces themselves — a room's own controls and a saved routine's step-by-step plan — rendered across the shipped languages:
 
-![The Room card's cleaning controls — mode, suction, path, passes, Start — shown across the shipped languages](docs/screenshots/translations-hero-room-card.png)
+![The Room card's cleaning controls — mode, suction, path, passes and Start — in English, Indonesian, Czech, German, Spanish and French](docs/screenshots/rooms_1-6.png)
 
-![The Profile card's "Runs as" step manifest and Run button, shown across the shipped languages](docs/screenshots/translations-hero-profile-card.png)
+![A saved routine's step-by-step plan and its Run button — in English, Indonesian, Czech, German, Spanish and French](docs/screenshots/profile_1-6.png)
 
-*Eight of the eighteen: English, German, Spanish, French, Italian, Dutch, Portuguese and Russian.*
+*Six of the eighteen. The other twelve — including right-to-left Arabic and Hebrew — are below.*
+
+<details>
+<summary><b>All eighteen languages</b> — the same two cards, in every language that ships</summary>
+
+<br>
+
+**The room card**
+
+![The room card in Italian, Dutch, Polish, Portuguese, Turkish and Russian](docs/screenshots/rooms_7-12.png)
+
+![The room card in Hebrew, Arabic, Korean, Japanese, Simplified Chinese and Traditional Chinese — Hebrew and Arabic are fully mirrored, with the controls right-aligned and Start moved to the left](docs/screenshots/rooms_13-18.png)
+
+**The routine card**
+
+![A saved routine in Italian, Dutch, Polish, Portuguese, Turkish and Russian](docs/screenshots/profile_7-12.png)
+
+![A saved routine in Hebrew, Arabic, Korean, Japanese, Simplified Chinese and Traditional Chinese — in Hebrew and Arabic the step numbers sit on the right and Run moves to the left](docs/screenshots/profile_13-18.png)
+
+</details>
 
 Fault names are translated too — 237 of them across both brands, so a base-station error reads as "Base station dust duct blocked" in your language rather than as code 6112.
 
