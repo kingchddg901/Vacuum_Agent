@@ -11695,10 +11695,26 @@ ${r}
     background: var(--evcc-surface-warning, rgba(255, 180, 0, 0.12));
     border: 1px solid var(--evcc-border-warning, rgba(255, 180, 0, 0.35));
     font-size: 0.82rem;
+    /* WRAP, and the body carries a real BASIS -- without both, this banner has two
+       failure modes and they are the same bug wearing different faces.
+       .evcc-incomplete-run-actions is flex-shrink:0 and the body was
+       flex: 1; min-width: 0, i.e. the actions take whatever they need and the body
+       absorbs the entire shortfall. In OpenDyslexic (~66% wider than Arial) the
+       English title starved into "Last / run / cancelled / - / 1 / room / missed",
+       one word per line beside the button; in French the label is
+       "Mettre en file les pieces manquees" and the actions could not fit at all, so
+       the banner forced HORIZONTAL OVERFLOW and the page clipped on both edges.
+       Reported from a phone in both languages.
+       The basis is what makes it wrap rather than starve: the wrap decision is made
+       on the hypothetical main size, so a body that ASKS for 16rem pushes the
+       actions onto their own line instead of squeezing itself to nothing.
+       min-width:0 stays -- it is what lets a genuinely long single word break once
+       the body has its own line. */
+    flex-wrap: wrap;
   }
 
   .evcc-incomplete-run-body {
-    flex: 1;
+    flex: 1 1 16rem;
     min-width: 0;
   }
 
