@@ -29,6 +29,31 @@ hard-coded constant. `--all` prints them.
 guards that legitimately never fire, and some bare mocks are correct entity-driving
 stubs. The output says WHERE TO LOOK; only reading the code says whether anything is
 wrong. Treating a flag as a defect would be the same error as treating 100% as proof.
+
+⚠⚠ ITS DISCRIMINATING POWER IS UNVALIDATED — AND ONE ATTEMPT WENT AGAINST IT.
+
+Tested 2026-08-25 by mutation, flagged arm against a zero-signal control, prediction
+written down before running (flagged survives, control dies):
+
+  * BOUNDARY mutations (`>=`->`>`, `==`->`>=`) — BOTH SURVIVED. No discrimination.
+    That round says more about the probe than the tool: branch coverage promises both
+    SIDES of a conditional were taken, never that the boundary VALUE was used, so
+    neither arm should have been expected to catch it. It did surface a real gap in
+    both modules, `core/charging.py` included at 100%: boundary values go untested.
+  * CONDITION INVERSION (`if X:` -> `if not X:`), which full branch coverage should
+    catch — BOTH CAUGHT, and the HEAVY-flagged module failed 20 tests against the
+    clean control's 2. The flagged module's tests were MORE sensitive, not less.
+
+n=1 module per arm, and the mutated line in the flagged module was a COVERED one while
+the signal actually points at its partial branches and its uncovered fifth — so this is
+a weak disconfirmation, not a refutation. But it is the opposite of support, and no
+run has yet supported it.
+
+USE THIS AS A READING ORDER ONLY. Do NOT cite a tier as evidence that a module is
+riskier, and do not scope an audit on it alone. Validating it properly means mutation
+testing at scale — many sites across many modules in each arm, comparing SURVIVAL
+RATES — which is a real instrument (mutmut, cosmic-ray) and a real investment. Until
+that runs, the tiers are a hypothesis about where to look first.
 """
 from __future__ import annotations
 
