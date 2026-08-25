@@ -64,13 +64,13 @@ The card **speaks eighteen languages** out of the box — English plus seventeen
 
 The proof is the everyday surfaces themselves — a room's own controls and a saved routine's step-by-step plan — rendered across the shipped languages:
 
-Fault names are translated too — 237 of them across both brands, so a base-station error reads as "Base station dust duct blocked" in your language rather than as code 6112.
-
 ![The Room card's cleaning controls — mode, suction, path, passes, Start — shown across the shipped languages](docs/screenshots/translations-hero-room-card.png)
 
 ![The Profile card's "Runs as" step manifest and Run button, shown across the shipped languages](docs/screenshots/translations-hero-profile-card.png)
 
-*Placeholder hero shots — these show seven of the eighteen languages; the final selection and layout are still being decided.*
+*Eight of the eighteen: English, German, Spanish, French, Italian, Dutch, Portuguese and Russian.*
+
+Fault names are translated too — 237 of them across both brands, so a base-station error reads as "Base station dust duct blocked" in your language rather than as code 6112.
 
 ## Also on Roborock
 
