@@ -1,4 +1,4 @@
-# SESSION HANDOFF — 2026-08-25 (Dreame guide families, then issue #55)
+# SESSION HANDOFF — 2026-08-26 (Dreame manual corpus; issue #55 closed)
 
 **Read this first on resume.** Index = durable facts, this = current state.
 
@@ -10,6 +10,23 @@ the working state. `do-not-push` still exists as a branch; we are not on it.
 opened, no reply drafted" while #55 was being diagnosed and fixed). Handoffs rot ONE
 WAY — written at the pause, never at the resume. Re-read the git log before trusting a
 status line here.
+
+---
+
+## ⭐ READ FIRST: `STATE-dreame-manual-corpus.md`
+
+The 2026-08-26 work — 229 manuals acquired, the channel map, six broken probes and two
+denominator corrections — is in `.claude/notes/STATE-dreame-manual-corpus.md`. It is the
+durable record; this file is the shorter status.
+
+**Corpus: 229 manuals / 2.8 GB. Target denominator 666 keys. Authored 75 (11.3%);
+manuals in hand cover ~43%.** Two background jobs were RUNNING at the pause: a
+regulatory-code verification, and a walk of `support.dreametech.com` (2,133 articles).
+Read their output before assuming either finished.
+
+⚠ **NEVER RENDER A VERDICT ON AN EMPTY SAMPLE.** A check that measured nothing printed a
+confident pass this session (`0 <= 0 * 0.25`), after being rate-limited behind a silent
+`except`. Guard every summary with "did I measure anything at all?"
 
 ---
 
