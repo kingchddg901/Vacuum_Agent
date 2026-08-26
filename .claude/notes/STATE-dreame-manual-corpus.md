@@ -102,6 +102,65 @@ someone re-checks it**, and this one had been load-bearing for weeks of workarou
 
 ---
 
+## THE NAMING CONVENTION, DECODED — so nobody reads 2,000 manuals again
+
+A regulatory code is ONE CERTIFIED MACHINE. So if two names share a code, the word that
+differs between them changed nothing physical. Measured across the corpus:
+
+| word | same code | different code | means |
+|---|---|---|---|
+| **Complete** | **5** | **0** | **packaging only — same robot, bigger box** |
+| Heat | 1 | 0 | firmware feature, no re-certification |
+| Pro | 1 | 8 | real hardware tier |
+| Ultra | 1 | 3 | real hardware tier |
+| Plus | 0 | 3 | real hardware |
+| Master | 0 | 1 | real — plumbed to mains water |
+| AE / CE | 0 | 8 | regional certification |
+
+`X60 Max Ultra Complete` therefore decodes as: the Max Ultra machine, in the Complete
+accessory bundle. Two superlatives are load-bearing, one is the box.
+
+**USE IT:** every `… Complete` name inherits its base family's guide. No separate
+authoring, no separate hunt. Same for `… Heat`.
+
+⚠ Sample sizes are small (5 pairs for Complete, 8 for Pro) and cover only names where we
+hold a manual printing a code. Indicative, not proven — but consistent with the Master
+finding, which was measured independently at 67% shared manual text.
+
+⚠ **MASTER IS SEPARATELY CERTIFIED AND STILL SHARES MAINTENANCE.** Mains water plus mains
+power is a different safety case, so it needs its own approval — while the brushes and
+filters stay identical. That makes the map ASYMMETRIC: *same code ⇒ same machine* is
+strong; *different code ⇒ different maintenance* is weak. Merge on a shared code freely;
+never SPLIT a guide family on a differing one without checking the parts table.
+
+---
+
+## ⚠ NAMES ARE BOOBY-TRAPPED — 25% OF THEM
+
+Of 389 declared names: **181** are a prefix of another name, **153** are a substring of
+another, 91 carry a parenthetical descriptor, 77 r-stems hold more than one product, 18
+names appear under more than one vendor prefix, 3 differ only by case. **96 names (25%)
+are ambiguous by at least one of these.** `S30 Pro` is a prefix of NINE others.
+
+Plus cross-industry collisions that aren't even in that count: `E20` is Dreame AND eufy.
+`M30` is Xiaomi AND a Tuya white-label. `D102CN` is Xiaomi AND a Korean call bell from
+2012. `D20` is a robot AND a hair dryer. `S50` is a robot AND an air fryer. `H40` is a
+robot AND a humidifier.
+
+**ONLY LONGEST-MATCH-WINS SURVIVES THIS.** Four matchers were written before that landed:
+bare substring (`e10` inside `shin-e10`), single-token equality (broke `GoVac 205 Plus`),
+contiguous token run (`E30 Pro` inside `e30-pro-PLUS`), and a throwaway verifier that
+reproduced the prefix bug an hour after it was fixed elsewhere. The correct rule was
+already sitting in the text join the whole time.
+
+⚠ **DESCRIPTOR NAMES ARE NOT RETAIL NAMES.** `X60 Pro Disc`, `X60 Pro Roller`,
+`X50 (Tracked Version)` are internal SKU labels for the mop mechanism — **zero of them
+appear anywhere in 1,999 manuals across 20 vendor stores.** They are unhuntable, not
+unfound. Where a descriptor IS retail — `Aqua10 Roller`, `Z60 Ultra Roller`, `S70 Roller`
+— the family has covered examples. Key the rule on that evidence, never on the word.
+
+---
+
 ## ⚠ THE UNIT IS THE MODEL NAME, NOT THE MODEL KEY
 
 Chris's correction, 2026-08-26, and it dissolves the join problem above rather than
