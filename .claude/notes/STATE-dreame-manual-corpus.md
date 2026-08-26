@@ -72,6 +72,65 @@ Same shape as the six probes below: a transform applied to one side of a compari
 
 ---
 
+## ⚠ THE UNIT IS THE MODEL NAME, NOT THE MODEL KEY
+
+Chris's correction, 2026-08-26, and it dissolves the join problem above rather than
+solving it. **Cover every NAME and the keys come with it.**
+
+* 339 target names carry 666 target keys — a name is worth 2.0 keys on average.
+* **94 of those names have keys under MORE THAN ONE r-code.** `X50 Ultra` spans four
+  (`r2489`, `r24896`, `r24898`, `r9538`); `Matrix10 Ultra` spans five. **No code-based
+  join can ever collect these** — which is exactly why key-space matching kept producing
+  a RANGE instead of a number.
+* A name is also the unit of WORK: one manual page, one guide family. Keys are the reach
+  it buys. The guide library already knew this — `A FAMILY IS A MANUAL PAGE`.
+
+The name join replaces the filename join: extract the model names a manual PRINTS, then
+expand each name to all its keys. Cached text lives in `manual_text_cache.json`, names
+per manual in `manual_names.json`, both rebuildable with `manual_name_index.py`.
+
+**Three states, not two.** A name is COVERED only when a manual's TEXT names it.
+A name whose only evidence is a FILENAME is ATTESTED — kept off the hunting list but not
+counted as covered, because a filename is the same class of claim that made a eufy manual
+look like a Dreame E20. 19 names sat in that state; `verify_attested.py` adjudicates them.
+
+⚠ **Don't prioritise the hunt and don't skip apparent variants.** One manual often names
+several models — `R2416A-X40_Ultra` names *X40 Ultra* AND *X40 Ultra Complete*, different
+r-codes entirely. Dedupe on arrival (SHA + printed names), never by guessing up front.
+
+---
+
+## GOVAC — CLOSED 2026-08-26, every model by vendor document
+
+The `support.dreametech.com` walk (2,133 articles → 1,156 attachments → **171 PDFs**)
+carried all ten GoVac manuals. Corpus went 229 → **385 files**; 156 new, 15 byte-identical
+dupes caught on arrival, 0 failures.
+
+| GoVac | reg-code | Western equivalent |
+|---|---|---|
+| 200 / 200 Kit | `RLF12SE` | none — own manual |
+| 205 Plus | — | own manual, **image-only, no text layer** |
+| 300 / 300 Kit | `RLD35GD` | **D20 Plus** |
+| 400 | `RLD52SE` | **L40 Ultra CE** |
+| 500 | `RLL77SE` | **L40 Ultra AE** |
+| 505 | `RLL51SE` | **L50 Ultra AE** |
+| 508 | `RLX63CE` | **X40 Ultra** |
+| 600 | `RLL94CE` | **L50 Ultra** |
+| 800 | `RLX85CE` | **X50 Ultra** |
+
+**GoVac 800 = X50 Ultra is the one that pays** — the `x50` guide family is already
+authored (41 keys), so it inherits a finished guide with no new work.
+
+⚠ **THE ONE PREDICTION THAT WAS TESTED, AND HELD.** Before the GoVac manuals existed on
+disk, 400/500/508 were inferred from two independent local lines: the reg-code sitting on
+exactly one Western manual, and the key structure (`r25799` = `r2579`+digit = L40 Ultra
+AE; `r24162` = `r2416`+digit = X40 Ultra). Ablated first — stem-minus-a-digit resolves for
+only **11% of 300 random keys**, so the rule is not vacuous. All five later matched the
+vendor documents exactly. Worth remembering as the shape of a claim that CAN be checked:
+two lines from different data, plus an ablation showing the instrument can say no.
+
+---
+
 ## CHANNEL MAP — what actually yields manuals
 
 | channel | yield | notes |
