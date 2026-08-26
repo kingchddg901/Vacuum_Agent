@@ -420,3 +420,45 @@ carrying the "filename is not a manifest" and "retailer listing is not a manifes
    the way back. A manual for `r500` is useless unless the reply says WHICH of its
    eight names it covers. Make `models_named_on_that_page` the join key and demote
    `r_code` to a bucket label.
+
+---
+
+## THE SWARM (2026-08-26)
+
+207 names were still open after every channel-walk this campaign could think of.
+Chris authorised a fan-out: **21 agents, 10 names each, dig everywhere, surface links
+they cannot follow.** The brief is in the workflow script and carries this campaign's
+whole failure list as instructions — search the marketing name never the model key;
+try the letter-suffix retail form (`100L` not `100 Lite`); parenthesised descriptors
+are translated Chinese retail names, so search the Chinese; check warehouse clubs;
+brand-verify from inside the PDF; a filename is a claim, not evidence; and report a
+blocked link as a **hit**, never as a negative.
+
+**Why the structural bottleneck matters more than the count:** only 6 of the 207 open
+names carry a known regulatory code. 201 have none. Without a code we cannot tell how
+many distinct *machines* those 207 names represent — the answer could be 40 or 200,
+and every plan built on the name count is built on sand. So the swarm was told to
+record a reg code wherever it appears — retailer titles, box photos, spec tabs,
+certification filings — and that a spec page carrying a code with no manual attached
+is a **good** result. The codes are worth more than the manuals; they are what
+collapses the list.
+
+### Two rules the swarm exists to test
+* *Absence of a search hit is not absence of a product.* This campaign wrote off
+  `GoVac 510 Complete` as probably-not-real. Chris found it on Costco Canada, item
+  1733460. The blind spot was **retail channel**, not search quality — warehouse clubs
+  and channel-exclusive SKUs are close to invisible to normal search, and that is the
+  entire point of a channel-exclusive rename.
+* *A found set is not the set.* "GoVac is fully closed" was reported off a haul of 10
+  when 15 are declared. Second time this campaign an enumeration was mistaken for a
+  census. The swarm's own output is subject to the same rule: **an agent that returns
+  nothing leaves its 10 names UNSEARCHED, not clean** — the script logs dead agents
+  separately for exactly this reason, and those names must not be scored as negatives.
+
+## RECURRING DEFECT — cp1252 ON WRITE
+
+`open(path, "w")` on this box defaults to cp1252 and dies on the first CJK character
+or `⚠`. It has now killed the *output* of four completed jobs — the work succeeded and
+the write threw. **Always `pathlib.Path.write_text(..., encoding="utf-8")`, and
+`PYTHONIOENCODING=utf-8` for anything that prints.** The failure mode is the expensive
+one: full cost paid, nothing kept.
