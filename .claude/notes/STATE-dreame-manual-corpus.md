@@ -102,6 +102,93 @@ someone re-checks it**, and this one had been load-bearing for weeks of workarou
 
 ---
 
+## ⚠ THE DEVICE LIST RENAMES THINGS. THREE TRANSLATION LAYERS, ALL MEASURED
+
+A name that returns nothing is often the vendor's name for a real product, rewritten.
+
+**1. SUFFIX LETTERS EXPANDED TO WORDS.** `GoVac 100 Lite` and `GoVac 200 lite` are
+declared names; retail sells **`GoVac 100L`** and **`GoVac 200L`**. Searching "Lite"
+returns nothing because nobody writes it. Try the letter form before concluding absence.
+
+**2. CHINESE VARIANT NAMES TRANSLATED TO ENGLISH.** The parenthetical descriptors are
+literal renderings of the Chinese retail line, confirmed against Chinese reviews:
+
+    X50 Pro 增强版      -> X50 Pro (Enhanced Edition)
+    X50 Pro 履带版      -> X50 Pro (Tracked Version)
+    X50 Pro 超薄上下水   -> X50 Pro (Ultra-Thin embedded) + water supply
+    X50 Pro 滚筒版      -> the Roller variants
+
+  So these are REAL products with REAL manuals, unfindable in English and findable in
+  Chinese. My earlier "internal SKU labels, unhuntable" was half right and half wrong.
+
+**3. PRO IS THE CHINA NAME FOR THE GLOBAL ULTRA (current generation).** `X50 Pro` is
+`r2489`; `X50 Ultra` is `r2489a/b/c`. Same platform, and `R2489A-X50_Series` is the manual
+for both. Bare `Pro` was a real retail name in the PREVIOUS generation (D9 Pro, L10 Pro,
+W10 Pro, X20 Pro — all held) and stopped being one after it. Dreame publishes
+`x50-pro-ultra-user-manual` pages and NO bare-Pro page.
+
+⚠ **REBRANDS CLOSE MODELS THAT HUNTING NEVER WILL.** `GoVac 100L` = `D9 Max Gen 2`,
+proven by the regulatory code `RLD34GA` printed on a Walmart spec sheet and on nine
+manuals we already hold. No document had to be found. **A retailer spec sheet carries the
+regulatory code, and the regulatory code is the join.**
+
+---
+
+## ⚠ CORRECTION: "GOVAC IS FULLY CLOSED" WAS WRONG
+
+Ten GoVac models were enumerated from the help-centre haul and every one resolved to a
+Western sibling. That was true. The device list declares **FIFTEEN** GoVac names, and the
+enumeration was never checked against the declaration — a set was closed and reported as
+the set. Second time in this campaign. **Coverage from scopes, never from findings.**
+
+Honest state: 9 held and named · `GoVac 205 Plus` (+case twin) held but vector-outline so
+no text join can read it · `GoVac 400 Complete` inherits GoVac 400 by the Complete rule ·
+`GoVac 505` held but not a declared model · `GoVac 100L` = D9 Max Gen 2 ·
+**`GoVac 200L` (`RL12SA`) is the one real gap** · `GoVac 510 Complete` returns zero hits
+in English AND Chinese, has no base model and no help-centre article — likely not a product.
+
+---
+
+## ⚠ THE R-STEM IS A BATCH, NOT A PRODUCT — REJECTED BY ITS OWN CONTROL
+
+A sweep rescuing every missing name whose r-stem is shared with a held name returned 53
+names / 79 keys and would have lifted coverage to 52%. **It failed its positive control:
+among held pairs where BOTH manuals can be read, a shared stem predicts a shared
+regulatory code only 45% of the time.** `Aqua 10 Roller` shares stem `r501` with
+`L10s Ultra Gen 3`, `L40 Ultra Gen 2` and `L50 Ultra CE` — four different certified
+machines. All 53 withdrawn.
+
+⚠ The registry ablation could not fire at all — zero overlap between the rescued names and
+the DoC index. **A guard that cannot go red proves nothing**, so the control had to be run
+where ground truth existed instead.
+
+---
+
+## CHINESE DOMESTIC CHANNEL — MAPPED, MOSTLY GATED
+
+| source | state |
+|---|---|
+| `dreame.tech/upload/down/` | **dead** — real once, now swallowed by a Nuxt SPA catch-all |
+| `doc.quark.cn` | JS shell -> page images via wenku, no file |
+| `pan.quark.cn` | listing API is PUBLIC, download is gated |
+| `shuomingshu.net` | works; **5 robot manuals in 90 pages**, proxies to Quark |
+
+Retrieval is a browser job, not a script job. Three domestic manuals obtained this way:
+
+    R2548   S50 Ultra (Ultra-Thin embedded)   RLS45CE / RLS46CE / RLS55CE
+    R2580   X50 Pro (Tracked Version)         RLZ61CE
+    R2580X  tracked + plumbed                 RLZ61CE  (same certified machine)
+
+All three from 追觅贸易（天津）有限公司 — first-party, not rebadges. They carry the first
+corpus evidence for **履带 tracked mop**, **升降 lifting LiDAR** and **机械足 mechanical
+feet**. ⚠ pypdf reads ~11 of 44 pages on these: identity and codes are solid, the
+maintenance steps are NOT readable without rendering.
+
+⚠ **GoVac HAS NO CHINESE PRESENCE.** Chinese-language hits are 北美/加拿大省钱快报 —
+diaspora deal sites quoting USD. JD, Suning and Zhihu show only the domestic line.
+
+---
+
 ## THE NAMING CONVENTION, DECODED — so nobody reads 2,000 manuals again
 
 A regulatory code is ONE CERTIFIED MACHINE. So if two names share a code, the word that
