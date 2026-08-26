@@ -149,9 +149,9 @@ that dropped real advice for brandless Eufy installs. Both were invisible on a r
   measured decay 364 lines in ~2 days. Fix is one `Generator(...)` entry plus a
   force-add. Held out of 2.1.0 deliberately.
 * **Issue [#55](https://github.com/kingchddg901/Vacuum_Agent/issues/55)** — DIAGNOSED
-  AND FIXED (`b39b7395`, `52ba1c4b`). **The reply is DRAFTED and NOT POSTED** —
-  `.claude/notes/ISSUE-55-reply-draft.md`, issue still OPEN with 0 comments, waiting on
-  Chris. Recommended: reply, ship, close as upstream-blocked rather than leaving `bug`.
+  AND FIXED (`b39b7395`, `52ba1c4b`), **REPLIED AND CLOSED 2026-08-26** as
+  `NOT_PLANNED` (comment `5418743449`). Nothing outstanding. The text sent is kept at
+  `.claude/notes/ISSUE-55-reply-draft.md`, marked POSTED — do not send it again.
 
   Root cause: a Roborock Q7 M5 is a **B01-protocol** device. HA routes it to
   `RoborockQ7Vacuum`, whose `get_maps()` is a stub raising `ServiceNotSupported`
