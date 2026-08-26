@@ -50,6 +50,14 @@ from pathlib import Path
 #: not inferred from model names, which is the assumption that eventually betrays you.
 ROBOT_TYPE = {0: "LIDAR", 1: "VSLAM", 2: "MOPPING", 3: "SWEEPING_AND_MOPPING"}
 
+#: ⚠ ``robot_type`` IS ONLY TRUSTWORTHY ON DREAME-BRANDED KEYS. Within brand 0 it varies
+#: (526/28/19/10 across the four values) and lines up with what the models are. On every
+#: OTHER brand it equals the brand id exactly — all 102 Mova keys read "2", all 12
+#: trouver read "3" — which is too perfect to be a robot classification. Treat a
+#: non-dreame ``robot_type`` as unproven rather than as a class, and let the segment
+#: capability carry the decision there.
+BRAND_OF = {0: "dreame", 1: "xiaomi", 2: "mova", 3: "trouver"}
+
 #: Capabilities that can only mean "this map has addressable rooms". Any ONE of these in
 #: a model's static overlay proves room semantics; none of them proves nothing.
 SEGMENT_CAPS = {
@@ -79,11 +87,25 @@ def load_device_info(const_path: Path):
 
 
 def load_names(devices_path: Path) -> dict[str, str]:
+    """model suffix -> marketing name, across EVERY vendor prefix the list declares.
+
+    ⚠ DO NOT HARD-CODE ``dreame.vacuum.``. The first cut did, and silently dropped 154
+    keys — the integration also declares ``mova.`` (102), ``xiaomi.`` (25),
+    ``trouver.`` (13), ``ijai.`` (11), ``deerma.`` (2) and ``szkj.`` (1). That made
+    every coverage percentage in the session 21% too generous, and nothing in the
+    output looked wrong: a denominator that is quietly too small reads exactly like
+    good progress.
+
+    They are NOT duplicates. All 741 suffixes are distinct and no suffix appears under
+    two prefixes, so these are additional devices rather than rebadges of dreame keys —
+    measured, because "Mova is just rebadged Dreame" was the plausible assumption and it
+    is false at the key level.
+    """
     out = {}
     for line in devices_path.read_text(encoding="utf-8", errors="replace").splitlines():
-        m = re.match(r"\|\s*(.+?)\s*\|\s*dreame\.vacuum\.([a-z0-9]+)\s*\|", line)
+        m = re.match(r"\|\s*(.+?)\s*\|\s*([a-z]+)\.vacuum\.([a-z0-9]+)\s*\|", line)
         if m:
-            out[m.group(2)] = m.group(1)
+            out[m.group(3)] = m.group(1)
     return out
 
 
@@ -92,15 +114,27 @@ def classify(key, name, devs, capsets, index):
     if key not in index:
         return "UNKNOWN", None, "no DEVICE_INFO record for this key"
     rec = devs[index[key]]
-    product_class, rtype = rec[0], rec[1]
-    if product_class != 0:
-        return ("EXCLUDED", None,
-                f"product class {product_class} — not the robot-vacuum line")
+    brand_id, rtype = rec[0], rec[1]
+    # ⚠ field[0] IS THE BRAND, NOT A PRODUCT CLASS, AND READING IT AS ONE EXCLUDED 118
+    # REAL ROBOT VACUUMS. It maps 1:1 onto the model prefix — dreame 0, xiaomi 1,
+    # mova 2, trouver 3 — and Mova's 102 keys carry segment capabilities on 99 of them,
+    # so they address rooms exactly like the Dreame-branded ones. The tell was that the
+    # excluded count landed on precisely the non-dreame prefixes; a filter whose output
+    # equals a category you already had is not filtering, it is renaming.
+    _ = brand_id
     kind = ROBOT_TYPE.get(rtype, f"type{rtype}")
     caps = {c[0] for c in capsets[rec[2]]} if rec[2] < len(capsets) else set()
     seg = sorted(SEGMENT_CAPS[c] for c in caps & set(SEGMENT_CAPS))
     mp = sorted(MAP_CAPS[c] for c in caps & set(MAP_CAPS))
 
+    if brand_id != 0:
+        # robot_type is unreliable off-brand (see BRAND_OF); the capability overlay is
+        # the only signal here that means what it says.
+        if seg:
+            return ("TARGET_CONFIRMED", f"{BRAND_OF.get(brand_id, brand_id)} rebadge",
+                    f"segment capability {seg[0]}")
+        return ("UNKNOWN", f"{BRAND_OF.get(brand_id, brand_id)} rebadge",
+                "rebadged brand with no segment evidence")
     if kind == "LIDAR":
         if seg:
             return "TARGET_CONFIRMED", kind, f"lidar + {seg[0]}"
