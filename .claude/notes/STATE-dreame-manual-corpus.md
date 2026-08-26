@@ -13,10 +13,10 @@ wrong because the corrections are the useful bit.
 | model keys the integration declares | **741** |
 | SUPPORTED TARGET (robot + map + rooms) | **666** |
 | authored upkeep guides | 75 keys (**11.3%**) |
-| manuals in hand covering target keys | ~285+ (**42.8%** at last count) |
 | manuals on disk | **229 files, 2.8 GB** |
+| target keys a manual covers | **31 (4.7%) to 186 (27.9%)** — a RANGE, see below |
 
-⚠ **TWO DENOMINATOR ERRORS, BOTH IN MY FAVOUR, BOTH CAUGHT LATE:**
+⚠ **THREE DENOMINATOR ERRORS, ALL IN MY FAVOUR, ALL CAUGHT LATE:**
 
 1. I parsed only `dreame.vacuum.*` = 587. The integration ALSO declares `mova` (102),
    `xiaomi` (25), `trouver` (13), `ijai` (11), `deerma` (2), `szkj` (1). **741 total, all
@@ -28,8 +28,47 @@ wrong because the corrections are the useful bit.
    excluded set equalled a category I already had: *a filter whose output equals an
    existing category is not filtering, it is renaming.*
 
+3. **THE 42.8% COVERAGE FIGURE WAS NEVER REAL.** It was a NAME count divided by a KEY
+   denominator — 285 names over 666 keys — two different units. The instrument itself
+   was honest; it prints `manuals in hand cover N target names`. I transcribed "names"
+   as "keys". Re-run today it says **87 names**, not 285. Nothing in the output looked
+   wrong, because a plausible number in the wrong unit reads exactly like a measurement.
+
 `scripts/dreame_target_models.py` now does this correctly. Re-run it rather than quoting
 numbers from memory.
+
+---
+
+## ⚠ COVERAGE CANNOT BE COMPUTED FROM FILENAMES — THE JOIN IS UNSOUND
+
+Dreame names its own manual PDFs by r-code (`R2562A-L40_s_Ultra_CE`, `R2551H_L40s_Ultra`),
+so matching manuals to model keys on that code looks obviously right. It is not.
+
+**The two namespaces only half-overlap.** Of the 63 distinct codes on 228 manuals,
+**31 are exactly a model key and 32 are not.** The misses are edition letters with no
+counterpart in the key list — `R2363K` and `R2363L` are manuals for a stem whose only
+keys are `r2363`, `r2363a`, `r2363n`. So:
+
+* **exact-code join UNDER-credits** — it throws away half the manuals: **31 keys, 4.7%**
+* **stem join OVER-credits** — one manual is credited to every sibling under the stem:
+  **186 keys, 27.9%**
+
+And the stem is genuinely ambiguous: **77 r-stems carry more than one marketing name,
+covering 324 keys — 43.7% of the catalogue.** `r9524` alone is *three different
+machines*: `r9524b` GoVac 200, `r9524c/k` D15 Plus, `r9524a/h/j/m` F10 Plus. Crediting
+the GoVac 200 manual to that stem silently covers six keys it says nothing about.
+
+The old matcher did BOTH wrong things at once — `R(\d{3,4})` truncates 5-digit codes
+(`R50573` → `r5057`, a stem belonging to something else) and drops the letter entirely.
+
+**The only sound join is the manual's own applicability statement** — the marketing names
+it prints, or the regulatory model codes on its Specifications page (`RLX85CE`, `RLD35GD`).
+Both require reading the PDF. `scripts/.../reg_codes.py` extracts exactly those, and is
+the instrument that collapses this range to a number. **Until it lands, quote the range.**
+
+⚠ I nearly reported "the namespaces are completely disjoint, 0 of 63" — that was my own
+bug, comparing `2562a` against `r2562a` after stripping the prefix on one side only.
+Same shape as the six probes below: a transform applied to one side of a comparison.
 
 ---
 
@@ -54,7 +93,8 @@ result as the channel's yield.
 
 ## THE LESSON THIS SESSION ACTUALLY TAUGHT
 
-**Six broken probes, one pattern: a narrowing decision made BEFORE seeing the evidence.**
+**Seven broken probes, one pattern: a transform applied to ONE SIDE of a comparison,
+or a narrowing decision made BEFORE seeing the evidence.**
 
 1. `--biggest-only` ranked PDFs by languages in the FILENAME → downloaded the Estonian and
    Khmer editions of four models and reported "0 failed".
@@ -133,5 +173,13 @@ carrying the "filename is not a manifest" and "retailer listing is not a manifes
 1. Read the two background jobs: reg-code verification, and the
    `support.dreametech.com` walk (2,133 articles — expected to be the biggest haul yet).
 2. Re-run coverage; re-generate the hand-off batches against what is actually left.
-3. **153+ keys have a manual on disk and no guide written.** That is transcription, not
-   hunting, and it is now the larger half of the remaining work.
+3. **Transcription backlog is between ~0 and ~111 keys**, not the "153+" this note
+   previously claimed — that figure came out of the broken filename join. At the stem
+   ceiling 186 target keys have a manual and 75 have a guide; at the exact join far
+   fewer. The reg-code output is what turns this into a real work queue.
+4. **Regenerate the hand-off briefs' RETURN shape.** The tables already list every
+   marketing name under a stem, so the ambiguity is disclosed going out — but the
+   example JSON keys the reply on `r_code`, which throws that disambiguation away on
+   the way back. A manual for `r500` is useless unless the reply says WHICH of its
+   eight names it covers. Make `models_named_on_that_page` the join key and demote
+   `r_code` to a bucket label.
