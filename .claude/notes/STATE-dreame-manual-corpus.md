@@ -72,6 +72,36 @@ Same shape as the six probes below: a transform applied to one side of a compari
 
 ---
 
+## ⚠ "NO RASTERISER IN THIS ENVIRONMENT" IS NO LONGER TRUE — I INSTALLED ONE
+
+Stated as a hard constraint in this note and in `pdf_layout_dump.py`, and it shaped real
+decisions: the layout-dump workaround exists *because* of it, and image-only manuals were
+written off as unreadable. It was true. It was also fixable in one command.
+
+    python -m pip install pypdfium2      # self-contained wheel, wraps Chrome's PDF engine
+
+    import pypdfium2 as pdfium
+    doc = pdfium.PdfDocument(path)
+    doc[i].render(scale=2.0).to_pil().save(png)     # 144 dpi, then just READ the png
+
+**60 of 631 cached manuals (9.5%) carry no usable text layer.** They are overwhelmingly
+NON-ROBOT products — electric toothbrushes, hair dryers, air purifiers, `Shine 10`,
+`Turbo`, `Aero C`. The robot cases are `GoVac 205 Plus` and Xiaomi `M40`.
+
+⚠ **THESE ARE NOT SCANS.** Text is converted to VECTOR OUTLINES — crisp at any zoom, but
+there is no text layer AND no embedded image, so `pypdf`'s `page.images` returns nothing
+either. Both obvious instruments report "empty" for a page that is perfectly legible.
+Rendering is the only thing that works, and it works completely.
+
+⚠ **CHECK THE TOOL, NOT ITS NAME.** `shutil.which("convert")` returns
+`C:\WINDOWS\system32\convert.EXE` — the Windows *filesystem* converter, nothing to do
+with ImageMagick. A name-only probe would have reported a rasteriser that was not there.
+
+The lesson is not about PDFs. **A capability recorded as absent stays absent only until
+someone re-checks it**, and this one had been load-bearing for weeks of workarounds.
+
+---
+
 ## ⚠ THE UNIT IS THE MODEL NAME, NOT THE MODEL KEY
 
 Chris's correction, 2026-08-26, and it dissolves the join problem above rather than
@@ -109,7 +139,7 @@ dupes caught on arrival, 0 failures.
 | GoVac | reg-code | Western equivalent |
 |---|---|---|
 | 200 / 200 Kit | `RLF12SE` | none — own manual |
-| 205 Plus | — | own manual, **image-only, no text layer** |
+| 205 Plus | — | own manual, no text layer — **readable by rendering** |
 | 300 / 300 Kit | `RLD35GD` | **D20 Plus** |
 | 400 | `RLD52SE` | **L40 Ultra CE** |
 | 500 | `RLL77SE` | **L40 Ultra AE** |
@@ -188,8 +218,8 @@ Verified against vendor documents, not assertions:
 * `r9524` / `r95249` GoVac 200 — manual in hand (`RLF12SE`).
 * `r5314` GoVac 300 → D20 Plus — Dreame's own maintenance kit names both.
 * `r95279` / `r63015` **GoVac 205 Plus — manual IN HAND but IMAGE-ONLY.** 26 pages,
-  12.6 MB, entire text layer is six characters (`US-A00`). No OCR and no rasteriser in
-  this environment, so `pdf_layout_dump` and the i18n segmenter are blind to it.
+  12.6 MB, entire text layer is six characters (`US-A00`). **SOLVED 2026-08-25** — see
+  below; it renders and reads cleanly now.
 * `r5021`, `r25799`, `r24162`, `r95385` — ChatGPT supplied regulatory codes
   (`RLD52SE`, `RLL77SE`, `RLX63CE-1`); **verification against held manuals was RUNNING
   when this was written** (`scripts/.../reg_codes.py`). Not yet confirmed.
@@ -218,7 +248,9 @@ and my "only 25% supported" was a floor I nearly reported as a verdict.
   anything it cannot cleanly split. **37 of 44 manuals passed at last full run.**
 * `dreame_target_models.py` — the four-bucket classifier and the honest denominator
 * `verify_rebadge_claims.py` — adjudicates external claims; exits 1 on conflict
-* `pdf_layout_dump.py` — visual reading order (no rasteriser exists here)
+* `pdf_layout_dump.py` — visual reading order. ⚠ **SUPERSEDED.** It reconstructs reading
+  order from text matrices *because* there was no rasteriser. There is one now; prefer
+  rendering the page.
 * `verify_dreame_guide_provenance.py` — 264 strings scored, 0 defects
 
 ## HAND-OFF PACKAGE

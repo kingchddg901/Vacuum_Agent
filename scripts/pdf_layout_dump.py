@@ -4,7 +4,11 @@ Why this exists: ``pypdf.extract_text()`` emits content-stream order, which on t
 Dreame manuals interleaves adjacent columns. A collapsed extract of the L10s Gen 2
 "Main Brush" block arrives with used-water-tank sentences inside it, and that produced
 a false "the dust bag differs" finding once, in a task whose whole output was
-transcribed prose. There is no rasteriser in this environment — no poppler, no
+⚠ SUPERSEDED 2026-08-25: `pip install pypdfium2` puts a real rasteriser here, so a page
+can simply be RENDERED and read. This module exists only because that was believed
+impossible. Prefer rendering; keep this for text-layer PDFs where it is cheaper.
+
+transcribed prose. There WAS no rasteriser in this environment — no poppler, no
 PyMuPDF — so page images are not an option and this is how the manuals get read.
 
 It reconstructs reading order from the text matrices: compose each run's text matrix
