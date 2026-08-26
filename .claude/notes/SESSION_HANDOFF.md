@@ -1,10 +1,15 @@
-# SESSION HANDOFF — 2026-08-25 (Dreame guide families; PAUSED at Chris's call)
+# SESSION HANDOFF — 2026-08-25 (Dreame guide families, then issue #55)
 
 **Read this first on resume.** Index = durable facts, this = current state.
 
-**Branch: `master`. Pushed through `6f64d557`.** ⚠ The previous handoff said "branch
+**Branch: `master`. Pushed through `52ba1c4b`.** ⚠ An older handoff said "branch
 `do-not-push` (never push it)" — that was the 2.1.0 release session and is NO LONGER
 the working state. `do-not-push` still exists as a branch; we are not on it.
+
+⚠ This file went stale on issue #55 within an hour of being written (it said "body not
+opened, no reply drafted" while #55 was being diagnosed and fixed). Handoffs rot ONE
+WAY — written at the pause, never at the resume. Re-read the git log before trusting a
+status line here.
 
 ---
 
@@ -21,8 +26,8 @@ d9f67af7  author x50; split x60 into the two families it always was
 67cad893  pin the Dreame family scope (superseded by 7b58f441)
 ```
 
-**4720 passed / 2 skipped locally. CI green on `6f64d557`** (run 32906756689, 3m08s) —
-verified at the pause, not assumed.
+**4730 passed / 2 skipped locally.** CI was green on `b39b7395`; `52ba1c4b`'s run was
+not checked before this was written — check it, do not assume it.
 
 ---
 
@@ -94,6 +99,33 @@ COUNT LINE (`4720 passed`), never the exit code.
 
 ---
 
+## THE ISSUE #55 ARC, IN ONE PLACE
+
+A support report turned into three defects of the same family — **naming a cause we
+could not see** — and one architectural gap.
+
+1. **`ServiceNotSupported` folded into "failed"** (`b39b7395`). A permanent refusal was
+   dressed as a transient fault with a bug report attached. He filed the report.
+2. **The diagnostic could not see WHY** (`52ba1c4b`). The room-source cache recorded
+   only SUCCESSES, so a refusal left no trace and the self-check inferred the reason
+   from the shape of the entity list. Now the outcome is recorded at the single point
+   every service-source exit funnels through, and read rather than deduced.
+3. **A fallback that yielded a BRAND'S WORD.** The self-check's `else` branches named
+   the Eufy app and the eufy-clean fork unconditionally — issue #46's defect, fixed in
+   the import message and left alive in the sibling path. De-branded WITHOUT deleting
+   the advice: a Eufy owner on the reduced transport genuinely needs that fork, and the
+   honest discriminator is `has_segments` (the transport signature), not the label.
+4. **Two causes, one signature.** The job-active warning asserted capability-gating
+   (#173282) as fact. For a B01 device that is simply wrong. It now names both and
+   asserts neither.
+
+⚠ **BOTH OF MY OWN DEFECTS HERE WERE CAUGHT BY EXISTING TESTS, NOT BY REVIEW** —
+`brand.lower()` on an Optional[str] (which would have made the whole self-check vanish
+silently, because its caller catches everything into `{"error": ...}`), and de-branding
+that dropped real advice for brandless Eufy installs. Both were invisible on a read.
+
+---
+
 ## TOOLING BUILT (both durable, both in `scripts/`)
 
 * **`pdf_layout_dump.py`** — reconstructs visual reading order from PDF text matrices.
@@ -116,10 +148,21 @@ COUNT LINE (`4720 passed`), never the exit code.
   `POST-2.1.0-deferred.md` entry 5. Not in `GENERATORS`, generator still untracked,
   measured decay 364 lines in ~2 days. Fix is one `Generator(...)` entry plus a
   force-add. Held out of 2.1.0 deliberately.
-* **Issue [#55](https://github.com/kingchddg901/Vacuum_Agent/issues/55)** — filed
-  2026-08-25 by `elgreko16`, tagged `bug`: "Asking `vacuum.roborock_q7_m5` for its maps
-  failed." A Q7 M5 is a Roborock we have not touched. **Body not opened, no reply
-  drafted.**
+* **Issue [#55](https://github.com/kingchddg901/Vacuum_Agent/issues/55)** — DIAGNOSED
+  AND FIXED (`b39b7395`, `52ba1c4b`). **The reply is DRAFTED and NOT POSTED** —
+  `.claude/notes/ISSUE-55-reply-draft.md`, issue still OPEN with 0 comments, waiting on
+  Chris. Recommended: reply, ship, close as upstream-blocked rather than leaving `bug`.
+
+  Root cause: a Roborock Q7 M5 is a **B01-protocol** device. HA routes it to
+  `RoborockQ7Vacuum`, whose `get_maps()` is a stub raising `ServiceNotSupported`
+  unconditionally (`components/roborock/vacuum.py`, 2026.8); the Q10 class is identical
+  and only V1 implements it. B01 devices also get no `selected_map` select and no binary
+  sensors at all. Our reading of his device was CORRECT; what was wrong was the cause we
+  named and what we told him to do about it.
+
+  ⚠ **THE FIX DOES NOT MAKE HIS VACUUM WORK** — it changes what he is TOLD. Chris's
+  point, and the draft says it outright: "we fixed it" reading as "your problem is
+  solved" would have him update, watch the import stop again, and conclude we lied.
 * Background chip pending: split `dreame_upkeep_guides.py` (1099 lines) into a package.
   "Not yet, revisit at N families" is a legitimate answer to record.
 
