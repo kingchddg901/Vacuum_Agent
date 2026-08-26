@@ -1009,3 +1009,152 @@ async def test_device_diagnostics_falls_back_rather_than_returning_nothing(hass)
 
     assert out["vacuums"], "an unmatched device must not produce an empty dump"
     assert out["scope"].startswith("entry")
+
+
+# --- ISSUE #55: "we cannot support this yet" gets its own answer ------------
+
+
+def _q7_m5_out(refresh: dict | None = None) -> dict:
+    """The reporter's install, reduced to the shape `_vacuum_diagnostics` assembles.
+
+    A Roborock Q7 M5 is a B01-protocol device: Home Assistant creates no map selector,
+    no current_room and no binary sensors for it, and `roborock.get_maps` raises
+    ServiceNotSupported. Eleven entities, none of them map-anything.
+    """
+    out = {
+        "capabilities": {
+            "detected_model": "roborock.vacuum.sc05",
+            "model_family": "generic",
+            "supports_room_clean": True,   # the ADAPTER's claim about the brand
+            "supports_rooms": False,
+        },
+        "entity_resolution": {"active_map": {"exists": False}},
+        "vacuum_state": {"segment_count": None},
+        "adapter": {"brand": "Roborock"},
+        "maps": {"map_count": 1, "maps": [{"map_id": "1", "room_count": 0}]},
+        "managed_rooms_by_map": {"1": {"room_count": 0}},
+        "roborock_geometry_drift": {"present": False, "reason": "no_geometry"},
+        "active_map_id": None,
+    }
+    if refresh is not None:
+        out["room_source_refresh"] = refresh
+    return out
+
+
+def test_self_check_says_not_yet_supported_when_ha_refused():
+    """[DIAG-20] A recorded refusal is READ, not deduced from entity shapes."""
+    sc = _self_check(_q7_m5_out({"ok": False, "reason": "service_not_supported"}))
+
+    assert "NOT YET SUPPORTED" in sc["note"]
+    assert "Roborock integration" in sc["note"], (
+        "name the integration that lacks support — 'not supported' with no subject "
+        "reads as 'your vacuum is not supported', which is false and discouraging"
+    )
+    assert "nothing to report" in sc["note"], (
+        "issue #55 was filed because we asked for a report; the self-check must not "
+        "reintroduce the ask by omission"
+    )
+    assert sc["rooms_importable"] == "no"
+    assert "unavailable" in sc["room_control"], (
+        "supports_room_clean is the adapter's claim about the BRAND and is True for "
+        "every Roborock; it cannot see that HA declines for THIS device. Left alone "
+        "it says 'available, but no rooms visible yet' — a wait that never resolves."
+    )
+    for word in ("Eufy", "eufy-clean", "smcneece"):
+        assert word not in str(sc), f"{word!r} shown to a Roborock owner"
+
+
+def test_self_check_does_not_claim_unsupported_without_evidence():
+    """[DIAG-20] The negative control, and the trap: {} means NEVER ASKED.
+
+    Absence of a refusal and a refusal read alike if the code branches on falsiness.
+    Without this, `not_yet_supported` could be written as `not _refresh.get("ok")` and
+    every never-refreshed vacuum would be declared permanently unsupported.
+    """
+    for refresh in (None, {}, {"ok": False, "reason": "entity_unavailable"},
+                    {"ok": False, "reason": "service_call_failed"}):
+        sc = _self_check(_q7_m5_out(refresh))
+        assert "NOT YET SUPPORTED" not in sc["note"], (
+            f"refresh={refresh!r} is not a statement that the device is unsupported"
+        )
+
+
+def test_self_check_fallback_never_names_a_brand_the_owner_lacks():
+    """[DIAG-21] ⚠ EUFY IS NOT THE DEFAULT — a fallback yielding a brand word IS the bug.
+
+    Issue #46 fixed this in the import message. The same text survived in the
+    self-check's `else` branches, so issue #55's Roborock owner was told to set his
+    rooms up in "the Eufy app" and to install "the smcneece eufy-clean fork".
+    """
+    sc = _self_check(_q7_m5_out())  # no refresh recorded -> the generic fallback
+
+    for word in ("Eufy", "eufy-clean", "smcneece"):
+        assert word not in sc["note"], f"{word!r} in the note for a Roborock owner"
+        assert word not in sc["map_image"], f"{word!r} in map_image for a Roborock owner"
+    assert "Roborock app" in sc["note"], (
+        "the fallback should name the owner's OWN app, which is the actionable thing"
+    )
+
+
+def test_self_check_still_helps_a_eufy_owner():
+    """[DIAG-21] The other side: de-branding the fallback must not strip real help.
+
+    A Eufy owner on the reduced transport genuinely does need the eufy-clean fork for
+    a map picture. Removing the brand word for everyone would have cost them that.
+    """
+    out = _q7_m5_out()
+    out["adapter"] = {"brand": "Eufy"}
+    out["capabilities"] = dict(out["capabilities"], detected_model="T2262")
+
+    sc = _self_check(out)
+
+    assert "eufy-clean fork" in sc["map_image"], (
+        "a Eufy owner still needs the fork; the fix was to stop showing it to "
+        "everyone else, not to delete the advice"
+    )
+    assert "Eufy app" in sc["note"]
+
+
+async def test_missing_job_active_warning_names_both_causes(hass):
+    """[DIAG-22] ⚠ TWO CAUSES, ONE SIGNATURE — name both or name neither.
+
+    "Declared but never created" is produced by at least two different things:
+    HA 2026.7 capability-gating (home-assistant/core#173282), and the brand
+    integration simply not building that entity for the model at all. Issue #55's
+    Roborock Q7 M5 is the second kind — HA's binary_sensor.py does not serve B01
+    coordinators, so that binary was never going to exist for him — yet the dump
+    told him, with confidence, that it was #173282.
+
+    The dump cannot see which, so it must not pick. The CONSEQUENCE is identical
+    either way and is the part the user can act on.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    manager = _FakeManager(
+        caps=_caps(), maps={"vacuum_entity_id": VACUUM, "map_count": 0, "maps": []},
+        rooms={}, upkeep={"highest_priority_status": "good"}, dashboard={},
+    )
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    register_adapter_config(VACUUM, {
+        "adapter_id": "rb", "source": "code", "brand": "Roborock",
+        "entities": {"vacuum": VACUUM, "job_active": "binary_sensor.alfred_cleaning"},
+        "completion": {"require_job_active_clear": True},
+    })
+    hass.states.async_set(VACUUM, "docked")   # the binary is NEVER created
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    warning = (diag["vacuums"][0].get("completion_health") or {}).get("warning") or ""
+
+    assert "never created" in warning.lower(), "wrong branch — fixture is not set up"
+    assert "173282" in warning, "the known gating cause must still be offered"
+    assert "does not build that entity" in warning, (
+        "the OTHER cause — the integration never builds it for this model — was the "
+        "true one for issue #55's reporter and was not mentioned at all"
+    )
+    assert "This is the Home Assistant 2026.7" not in warning, (
+        "that phrasing asserts one cause as fact; it is the sentence being fixed"
+    )
+    # The actionable part must survive the hedging.
+    assert "interrupted" in warning and "completion cannot arm" in warning.lower()

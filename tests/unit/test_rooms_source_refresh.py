@@ -33,6 +33,7 @@ from custom_components.eufy_vacuum.rooms.room_discovery import (
     discover_rooms_for_vacuum,
 )
 from custom_components.eufy_vacuum.rooms.source_refresh import (
+    get_last_refresh_outcome,
     async_refresh_room_source,
     flatten_maps_response,
     get_cached_room_source,
@@ -321,3 +322,57 @@ async def test_a_real_service_error_is_still_a_failure(hass):
         "`service_not_supported` the two branches have collapsed and real bugs will "
         "be told they are unsupported hardware."
     )
+
+
+async def test_refusal_is_RECORDED_not_just_returned(hass):
+    """[SR-15] the outcome must OUTLIVE the call, or diagnostics is back to guessing.
+
+    The room-source cache only ever stored successes, so a refusal left no trace and
+    the self-check had to infer "why has this device no rooms" from the shape of its
+    entity list — which is how a Roborock owner got told to use the Eufy app. Without
+    this test the recording call can be deleted and every other test stays green.
+    """
+    from homeassistant.exceptions import ServiceNotSupported
+
+    clear_registry()
+    _service_response_adapter()
+
+    assert get_last_refresh_outcome(hass, _VAC) == {}, (
+        "{} must mean NEVER ASKED — a vacuum with no recorded outcome is not a "
+        "vacuum known to be unsupported, and the two read alike"
+    )
+
+    async def _get_maps(call):
+        raise ServiceNotSupported("roborock", "get_maps", _VAC)
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY
+    )
+    hass.states.async_set(_VAC, "docked")
+
+    await async_refresh_room_source(hass, _VAC)
+
+    recorded = get_last_refresh_outcome(hass, _VAC)
+    assert recorded.get("reason") == "service_not_supported"
+    assert recorded.get("ok") is False
+    assert recorded.get("at"), "an outcome with no timestamp cannot be aged out later"
+
+
+async def test_success_is_recorded_too(hass):
+    """[SR-15] the negative control: recording only failures would make a stale
+    refusal permanent — a device fixed upstream would still read 'unsupported'."""
+    clear_registry()
+    _service_response_adapter()
+
+    async def _get_maps(call):
+        return {"maps": _MAPS}
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY
+    )
+    hass.states.async_set(_VAC, "docked")
+
+    await async_refresh_room_source(hass, _VAC)
+
+    recorded = get_last_refresh_outcome(hass, _VAC)
+    assert recorded.get("ok") is True and recorded.get("reason") is None

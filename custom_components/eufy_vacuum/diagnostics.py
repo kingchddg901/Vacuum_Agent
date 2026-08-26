@@ -151,6 +151,23 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     adapter = out.get("adapter") or {}
     brand = adapter.get("brand")
 
+    # ISSUE #55 — "we cannot support this YET" deserves its own answer.
+    #
+    # Read, not deduced: `room_source_refresh` carries the last refresh outcome, and
+    # `service_not_supported` means Home Assistant's own brand integration raised
+    # ServiceNotSupported — a PERMANENT refusal for this device that will be identical
+    # on every retry, not a fault and not a misconfiguration.
+    #
+    # ⚠ AN EMPTY BLOCK MEANS "NEVER ASKED", NOT "SUPPORTED". Absence and refusal read
+    # alike here and are opposite, so this branches on the reason being PRESENT and
+    # equal, never on it being falsy.
+    _refresh = out.get("room_source_refresh") or {}
+    not_yet_supported = _refresh.get("reason") == "service_not_supported"
+    _who_cannot = (
+        f"Home Assistant's {brand} integration" if brand
+        else "Home Assistant's integration for this vacuum"
+    )
+
     active_map_role = entity_res.get("active_map") or {}
     has_active_map_entity = bool(active_map_role.get("exists"))
     # EXISTS is a transport tell; only a real VALUE means a map can be resolved.
@@ -217,6 +234,11 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
             "attribute-mode (reduced / scalar-Tuya) — no active_map sensor; "
             "the room list is read from the vacuum's segments attribute"
         )
+    elif not_yet_supported:
+        transport = (
+            f"none available — {_who_cannot} does not implement map/room lookup for "
+            "this model"
+        )
     else:
         transport = (
             "unknown — no active_map sensor and no room segments visible yet"
@@ -232,6 +254,15 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
             room_control = f"available (via {src} — {room_total} rooms)"
         else:
             room_control = "available"
+    elif not_yet_supported:
+        # supports_room_clean is the ADAPTER's claim about the brand; it is true for
+        # every Roborock. It cannot see that HA declines to answer for THIS device, so
+        # left alone it reports "available, but no rooms visible yet" — a wait-and-see
+        # that never resolves. The refusal outranks the capability claim.
+        room_control = (
+            "unavailable — the vacuum supports room cleaning, but Home Assistant "
+            "cannot read its rooms, so nothing can target them"
+        )
     elif supports_room_clean:
         room_control = "reported available, but no rooms are visible yet"
     else:
@@ -258,11 +289,36 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
             "pending — no decoded map yet; open the live map or finish a mapping "
             "run once so the raw map can be decoded to a room raster"
         )
-    else:
+    elif not_yet_supported:
         map_image = (
-            "unavailable — the reduced transport has no map sensor; the live-map "
-            "backdrop needs the smcneece eufy-clean fork"
+            f"unavailable — {_who_cannot} does not provide map data for this model "
+            "yet, so there is no map to draw"
         )
+    else:
+        # ⚠ EUFY IS NOT THE DEFAULT. This branch used to name the eufy-clean fork
+        # unconditionally, so a Roborock owner was told to install a Eufy fork — the
+        # fallback yielded a BRAND'S WORD, which is the bug, not a wording nit.
+        # `brand` is Optional[str] — guard TRUTHINESS BEFORE .lower(). The first cut
+        # did not, and `_self_check` raised AttributeError on every brandless install;
+        # its caller catches everything into {"error": ...}, so the whole summary would
+        # have silently vanished from the dump rather than failing loudly.
+        # DISCRIMINATE ON THE TRANSPORT, NOT THE LABEL. `has_segments` — a `segments`
+        # attribute on the vacuum entity — IS the Eufy reduced-transport signature, and
+        # it is present on installs whose adapter never sets a `brand` string. Keying
+        # this on brand alone silently dropped the fork advice for exactly the users who
+        # need it (caught by DIAG-8). The goal was to stop showing it to OTHER brands,
+        # not to delete it.
+        _is_eufy = has_segments or (bool(brand) and str(brand).lower() == "eufy")
+        if _is_eufy:
+            _why = (
+                "; on Eufy's reduced transport the live-map backdrop needs the "
+                "smcneece eufy-clean fork"
+            )
+        elif brand:
+            _why = f"; the {brand} integration has not delivered one"
+        else:
+            _why = ""
+        map_image = "unavailable — no map sensor and no decoded map" + _why
 
     detected_model = caps.get("detected_model")
     family = caps.get("model_family")
@@ -273,7 +329,8 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     else:
         model_detection = "generic (model not detected)"
 
-    importable = has_rooms
+    # A refusal is a definite no, not a "not yet" — do not leave a user waiting.
+    importable = has_rooms and not not_yet_supported
 
     if active_map_usable:
         note = "Standard transport — maps, rooms and the live map all work."
@@ -301,11 +358,27 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
             "transport. Room cleaning works (rooms come from the vacuum's segments "
             "attribute); the map picture won't render without the eufy-clean fork."
         )
+    elif not_yet_supported:
+        # ISSUE #55, and the whole point of recording the refresh reason: this is a
+        # READ, not a deduction. Home Assistant told us it does not support the call.
+        note = (
+            f"NOT YET SUPPORTED — {_who_cannot} does not implement map/room lookup "
+            "for this model, so rooms cannot be imported and room features cannot "
+            "work. Nothing here is misconfigured and there is nothing to report: the "
+            "vacuum maps normally in its own app, Home Assistant simply has no way to "
+            "ask it for that map. Everything that does not need a map — status, "
+            "battery, consumables, start/stop — works as usual, and room features "
+            "should begin working on their own if support is added upstream."
+        )
     else:
+        # ⚠ EUFY IS NOT THE DEFAULT — see map_image above. This said "set your rooms up
+        # in the Eufy app" to every brand, which is issue #46's defect surviving in a
+        # sibling path after the workflow message was fixed.
+        app = f"the {brand} app" if brand else "the vacuum's own app"
         note = (
             "No active_map sensor and no room segments yet. If the robot is new, "
-            "finish a mapping run with rooms set up in the Eufy app — the room list "
-            "loads directly from the vacuum and may take a moment after startup."
+            f"finish a mapping run with rooms set up in {app} — the room list loads "
+            "directly from the vacuum and may take a moment after startup."
         )
 
     # Loud, actionable warnings that belong at the top of a support read. Today:
@@ -752,16 +825,26 @@ def _vacuum_diagnostics(
         }
         if _requires_job_active and not _presence.has_state:
             if _presence.never_created:
+                # ⚠ TWO CAUSES PRODUCE THIS EXACT SIGNATURE AND WE CANNOT SEE WHICH.
+                # This used to assert capability-gating as THE cause. Issue #55's
+                # Roborock Q7 M5 is a B01-protocol device, and HA's binary_sensor.py
+                # does not serve B01 coordinators AT ALL — that binary was never going
+                # to exist for him, nothing to do with #173282. Naming one cause with
+                # confidence sends half the readers after the wrong thing; naming both
+                # costs a clause. The CONSEQUENCE is identical either way, and that is
+                # the part the user needs.
                 _health["warning"] = (
                     f"The job-active binary ({_presence.entity_id}) is DECLARED but "
                     "was never created — absent from both the state machine and the "
-                    "entity registry. This is the Home Assistant 2026.7 "
-                    "capability-gating change (home-assistant/core#173282), not a "
-                    "connectivity problem: check whether this vacuum's other "
-                    "entities are reporting normally above. Completion cannot arm, "
-                    "so a dispatched run is force-closed as 'interrupted' about 15 "
-                    "minutes in — possibly while it is still cleaning. Tracked as "
-                    "issue #46."
+                    "entity registry. This is NOT a connectivity problem (check "
+                    "whether this vacuum's other entities are reporting normally "
+                    "above). Either Home Assistant's integration does not build that "
+                    "entity for this model at all, or the HA 2026.7 capability-gating "
+                    "change (home-assistant/core#173282) removed it — the dump cannot "
+                    "tell those apart, and the consequence is the same: completion "
+                    "cannot arm, so a dispatched run is force-closed as 'interrupted' "
+                    "about 15 minutes in, possibly while it is still cleaning. "
+                    "Tracked as issue #46."
                 )
             else:
                 _health["warning"] = (
@@ -916,6 +999,19 @@ def _vacuum_diagnostics(
         )
     except Exception as err:  # pragma: no cover - defensive
         out["upkeep_snapshot_error"] = _redact(repr(err))
+
+    # ISSUE #55: the last room-source refresh OUTCOME, successes and refusals alike.
+    # Without it the self-check below had to infer "why has this device no rooms" from
+    # the shape of its entity list, and that inference told a Roborock owner to go and
+    # set his rooms up in the Eufy app. A recorded reason is a reading, not a guess.
+    try:
+        from .rooms.source_refresh import get_last_refresh_outcome
+
+        outcome = get_last_refresh_outcome(hass, vacuum_entity_id)
+        if outcome:
+            out["room_source_refresh"] = outcome
+    except Exception as err:  # pragma: no cover - defensive
+        out["room_source_refresh_error"] = _redact(repr(err))
 
     # Interpreted, human-readable summary of everything above. Computed last
     # (needs all signals) but surfaced right after the id so it reads first.

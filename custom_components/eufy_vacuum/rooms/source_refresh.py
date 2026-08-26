@@ -439,6 +439,39 @@ def flatten_maps_response(
 # Async refresher
 # ---------------------------------------------------------------------------
 
+#: Last refresh OUTCOME per vacuum, successes and failures alike.
+#:
+#: ISSUE #55. The room-source cache only ever recorded SUCCESSES, so a refusal left no
+#: trace: diagnostics had to infer "why has this device no rooms" from the shape of its
+#: entity list, and inference is how a Roborock Q7 M5 owner got told to go and set his
+#: rooms up in the Eufy app. Recording the reason turns a guess into a reading.
+DATA_LAST_REFRESH = "room_source_last_refresh"
+
+
+def record_refresh_outcome(
+    hass: HomeAssistant, vacuum_entity_id: str, result: dict[str, Any]
+) -> None:
+    """Remember one refresh outcome so support surfaces can READ it, not deduce it."""
+    store = hass.data.setdefault(DOMAIN, {}).setdefault(DATA_LAST_REFRESH, {})
+    store[vacuum_entity_id] = {
+        "ok": bool(result.get("ok")),
+        "reason": result.get("reason"),
+        "at": utc_now_iso(),
+    }
+
+
+def get_last_refresh_outcome(
+    hass: HomeAssistant, vacuum_entity_id: str
+) -> dict[str, Any]:
+    """The last recorded outcome, or {} if this vacuum has never been refreshed.
+
+    ⚠ {} MEANS "NEVER ASKED", NOT "NOTHING WRONG". Those read alike and are opposite,
+    so callers must branch on presence before branching on `reason`.
+    """
+    store = hass.data.get(DOMAIN, {}).get(DATA_LAST_REFRESH) or {}
+    return dict(store.get(vacuum_entity_id) or {})
+
+
 def _refresh_result(ok: bool, reason: str | None) -> dict[str, Any]:
     """Build one refresh outcome.
 
@@ -517,7 +550,11 @@ async def async_refresh_room_source(
     )
     _INFLIGHT[vacuum_entity_id] = task
     try:
-        return await asyncio.shield(task)
+        result = await asyncio.shield(task)
+        # Recorded HERE — the one place every service-source exit funnels through, so
+        # a new reason cannot be added without being recorded (issue #55).
+        record_refresh_outcome(hass, vacuum_entity_id, result)
+        return result
     finally:
         if _INFLIGHT.get(vacuum_entity_id) is task:
             _INFLIGHT.pop(vacuum_entity_id, None)
