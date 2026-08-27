@@ -546,3 +546,69 @@ Rule earned: on this data, anchor with `(?<![A-Za-z0-9])` / `(?![A-Za-z0-9])`, n
   query returned 636 KB then 2.4 KB a minute later, and a stub reads exactly like "no
   results". **Alibaba is a hard block** - identical 89,630-byte page for every query.
   Both are better done in a human browser than in a script.
+
+---
+
+## THE S-SERIES RULE: ONE ROBOT, THREE DOCKS (2026-08-26)
+
+A 7-agent Chinese-language sweep of the 69 open S-series names (812k tokens, a fifth of
+the earlier English swarms) returned the structural answer the whole campaign needed.
+Chinese lineup guides state it outright:
+
+    追觅每款机型都有三种配置：基础水箱版、上下水版和超薄上下水版
+    Every Dreame model ships in three configurations: basic water-tank, plumbed
+    (auto water supply and drainage), and ultra-thin plumbed (cabinet-embedded).
+
+**The parenthesised descriptors are DOCK configurations, not robots.** One robot times
+three docks equals three catalogue names. Dreame also built the 超薄嵌入式 line by taking
+robots from *different* series and pairing them with the plumbing module - which is why
+the ultra-thin names cut across series so confusingly.
+
+Confirmed by CCC certificate, same certificate on both members of each pair:
+
+    2024010708696171   S50 Pro          = S50 Pro (Ultra-Thin embedded)
+    2024010708672454   S50 Ultra        = S50 Ultra (Ultra-Thin embedded)
+    2024010708672871   S40 (Enhanced)   = S40 (Enhanced Ultra-Thin embedded)
+    2024180708051259   S30 Pro Ultra (Enhanced) = ...(Enhanced Ultra-Thin embedded)
+    2024180708051259   all three S60 Premium Roller trims
+
+### Cross-name collapses - the ones nobody would guess
+* **S60 Disk = S50 Pro.** The S60 Pro 圆盘版 carries CCC `2024010708696171`, byte-for-byte
+  the S50 Pro's certificate. It is the S50 Pro platform sold under the S60 name.
+* **S40 Pro = S40 (Enhanced).** Same CCC `2024010708672871`.
+* **S10 Pro Plus 机械臂版 = S10 Pro Ultra 机械臂版.** One regulatory code `RLS62CE`, and a
+  single retail listing names BOTH: 「追觅 S10Pro Ultra/Plus机械臂版 扫地机器人 RLS62CE」.
+* **S10 Pro (Hot Water) = S10 Pro.** Chinese retail files both under 型号 "S10 Pro" - the
+  两 names on our list are one SKU.
+* **S60 Pro Roller is handed down from X60 Pro 滚筒版** (下放), 33000Pa vs 36000Pa.
+
+### The counter-example that matters most
+**S60 Pro Disc is NOT a mop-swap of S60 Pro Roller - it is a DIFFERENT ROBOT under the
+same marketing name.** Disc sits on the S50 Pro platform; Roller sits on the X60 Pro
+platform. Same two words in the name, two unrelated machines. Any rule that collapses on
+name similarity gets this backwards.
+
+### CCC certificates are FAMILY-level - coarser than an RL code
+`2023010708528676` covers nine names including S10 Pro, and was separately attributed to
+X40 Pro Ultra. A CCC certificate covers a manufacturer + product family, not one model.
+**A shared CCC alone is NOT proof of one machine.** It becomes strong only when the spec
+tab agrees too - identical 净重 / 额定功率 / 产品尺寸. The agents spotted this themselves
+and flagged it; it is the domestic analogue of the base-code-vs-exact-code distinction.
+
+### Maintenance-relevant deltas (the reason we asked for differences, not equivalences)
+* The S10 热水版 **removed** the camera and the auto cleaning-solution dosing versus the
+  old S10 - so there is no cleaning-solution cartridge to service. A procedure written
+  from the older manual would describe a part the machine does not have.
+* S10 Pro Plus 机械臂版 differs from S10 Pro Ultra 机械臂版 **only** by omitting the
+  割毛滚刷 (active hair-cutting roller, ~300元, separately purchasable). Every procedure
+  transfers except the roller one.
+* S40 Pro vs S40 增强版: navigation hardware differs (LDS vs LDS+structured light).
+
+### Parts as identity
+* `RAW0` - 自动上下水模块, fits S10 and S10 Plus.
+* `B101CN` - brush/mop/filter kit sold as fitting **S10, X10, L10s Ultra, L10s Pro** -
+  independent corroboration that the domestic S10 and the global L10s Ultra are one
+  maintenance group.
+* `RLS6LADC` is the platform code for the **global L10s Ultra**, and Chinese sources
+  describe it as "also known as the S10 series". Variants seen: `-2` (China domestic),
+  `-6-EU/AU`. **That is the S<->L bridge, at platform level.** We hold L10s Ultra manuals.
