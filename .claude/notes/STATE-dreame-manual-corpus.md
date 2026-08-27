@@ -612,3 +612,70 @@ and flagged it; it is the domestic analogue of the base-code-vs-exact-code disti
 * `RLS6LADC` is the platform code for the **global L10s Ultra**, and Chinese sources
   describe it as "also known as the S10 series". Variants seen: `-2` (China domestic),
   `-6-EU/AU`. **That is the S<->L bridge, at platform level.** We hold L10s Ultra manuals.
+
+---
+
+## CCC IS A GROUPING, NOT AN IDENTITY - and the registry is captcha-gated
+
+Two certificate detail pages, read from the official CNCA registry (Chris solved the
+captchas; the pages are not machine-reachable), settled a question that had been carrying
+most of the S-series collapse.
+
+### CCC certificate 2024010708696171
+    产品类别    0708：真空吸尘器
+    规格型号    RLX93CE、RLX94CE、RLX75CE、RLX75CE-1、RLX93CE-1、RLX96CE、RLX97CE
+    基站        RCXE0106、RCXE0107、RCXE0101、RCXE0102、RCSE0105、RCXE0106-1、RCXE0203
+    委托人/生产者 追觅贸易（天津）有限公司
+
+**ONE certificate carries SEVEN distinct regulatory codes.** Therefore two marketing names
+sharing a CCC number are NOT thereby one machine - they may be two different codes inside
+the same family. A CCC is a certification FAMILY, one level coarser than the RL code, in
+exactly the way a base code (RLX85CE) is coarser than an exact code (RLX85CE-4).
+
+**This invalidated 7 of the 12 "defensible" S-series merges**, all of which were built on
+shared-CCC. What survives is only:
+  * S10 Pro Plus 机械臂版 = S10 Pro Ultra 机械臂版  (shared exact code RLS62CE, and one
+    retail listing names both)
+  * S10 Pro (Hot Water) = S10 Pro                   (same 型号 in CN retail)
+  * S60 Pro Disc x3                                  (same 型号 S60Pro圆盘版)
+Honest S-series collapse: **69 open names -> about 65**, not the 57 previously reported.
+
+### The seven codes are NOT in our data at all
+RLX93CE / RLX94CE / RLX75CE / RLX75CE-1 / RLX93CE-1 / RLX96CE / RLX97CE appear in no
+manual, no DoC filing, and no swarm result. (We hold RLX96DE and RLX97DE - a D suffix,
+not C.) Seven certified robots we had no record of. **Evidence that the catalogue may be
+LARGER than 339 names implies, not smaller** - a point against the strong rebadging
+hypothesis, from the most authoritative source available.
+
+### Why this cannot be harvested
+The detail URL carries `captcha_output`, `pass_token` and `gen_time` - one captcha solve
+per certificate. Reusing a solved token against other certNumbers would be circumventing
+the control, so it is not an option. 198 household certificates for 追觅贸易（天津）,
+165 of them dated 2025-2026. Not harvestable by either of us at that rate.
+Worse, `规格型号` is sometimes just `见附页` (see attachment) - certificate 2024010708672871
+defers its model list to a downloadable attachment, so a solved captcha does not even
+guarantee data.
+
+### Incidental
+Both sampled robot certificates are 暂停 (suspended) with the identical window
+2026-08-24 to 2026-11-23. A simultaneous suspension across multiple Dreame vacuum
+certificates - noted, unexplained, and not something this project needs to resolve.
+
+## THE RECURRING ROOT CAUSE, STATED ONCE
+
+Every wrong number this campaign produced came from letting a GROUPING identifier stand
+in for an IDENTITY identifier:
+    filename shares a stem            -> assumed same product
+    record mentions a code            -> assumed the name carries that code
+    document contains code and name   -> assumed they pair (cartesian)
+    two names share a CCC certificate -> assumed same machine
+Each time the count went UP when the rule got looser, and each time that was the tell.
+**A join that finds more when you relax it is measuring the rule, not the world.**
+Rank of evidence, strongest first, for anything built on this corpus:
+    1. a code and a name printed in the same document, read from the document
+    2. a vendor certification FILENAME carrying both
+    3. an exact regulatory code shared between two names
+    4. a shared 型号 in retail
+    5. a shared BASE code            <- family, not identity
+    6. a shared CCC certificate      <- family, not identity
+    7. a code mentioned in prose near a name  <- not evidence
