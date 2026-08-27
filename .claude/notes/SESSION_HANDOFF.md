@@ -1,91 +1,243 @@
-# SESSION HANDOFF — 2026-08-26 (Dreame manual corpus; issue #55 closed)
+# SESSION HANDOFF — 2026-08-26 (evening) — Dreame pre-stage; `room_profiles` landed
 
 **Read this first on resume.** Index = durable facts, this = current state.
 
-**Branch: `master`. Pushed through `52ba1c4b`.** ⚠ An older handoff said "branch
-`do-not-push` (never push it)" — that was the 2.1.0 release session and is NO LONGER
-the working state. `do-not-push` still exists as a branch; we are not on it.
+**Branch: `master`. 10 commits AHEAD of `origin/master`, NOT pushed.** ⚠ The previous
+handoff said "Pushed through `52ba1c4b`" — that is no longer true, and five of the ten
+commits have DIFFERENT HASHES than they did this morning (see THE GIT REPAIR below).
+`do-not-push` still exists as a branch; we are not on it.
 
-⚠ This file went stale on issue #55 within an hour of being written (it said "body not
-opened, no reply drafted" while #55 was being diagnosed and fixed). Handoffs rot ONE
-WAY — written at the pause, never at the resume. Re-read the git log before trusting a
-status line here.
+⚠ Handoffs rot ONE WAY — written at the pause, never at the resume. Re-read the git log
+before trusting a status line here. **This file proved it again today**: its corpus line
+said "229 manuals / 2.8 GB" when the corpus on disk was 2,369 PDFs / 20 GB.
 
 ---
 
-## ⭐ READ FIRST: `STATE-dreame-manual-corpus.md`
+## ⭐ READ FIRST
 
-The 2026-08-26 work — 229 manuals acquired, the channel map, six broken probes and two
-denominator corrections — is in `.claude/notes/STATE-dreame-manual-corpus.md`. It is the
-durable record; this file is the shorter status.
+1. `.claude/notes/STATE-dreame-manual-corpus.md` — the durable record. Four new sections
+   were appended today; the newest supersedes older arithmetic in the same file.
+2. `.claude/notes/STATE-dreame-corpus-extraction.md` — supersedes the manual-corpus
+   arithmetic wherever they disagree.
 
-**Corpus: 229 manuals / 2.8 GB. Target denominator 666 keys. Authored 75 (11.3%);
-manuals in hand cover ~43%.** Two background jobs were RUNNING at the pause: a
-regulatory-code verification, and a walk of `support.dreametech.com` (2,133 articles).
-Read their output before assuming either finished.
+**Corpus lives OUTSIDE the repo** at `C:/Users/CKing/Documents/durable/dreame-port-fixture/`
+— 2,369 PDFs, 20 GB. Chris's ruling: **"those pdfs are not going to the repo."** There is
+still NO `.gitignore` guard for `*.pdf` or `durable/`.
 
 ⚠ **NEVER RENDER A VERDICT ON AN EMPTY SAMPLE.** A check that measured nothing printed a
-confident pass this session (`0 <= 0 * 0.25`), after being rate-limited behind a silent
-`except`. Guard every summary with "did I measure anything at all?"
+confident pass in a previous session (`0 <= 0 * 0.25`). Guard every summary with "did I
+measure anything at all?"
+
+---
+
+## ⚠ THE GIT REPAIR — READ BEFORE ANY COMMIT
+
+**HEAD's tree contained exactly ONE file this morning.** The five unpushed
+`notes(dreame)` commits had each written a tree containing only
+`STATE-dreame-manual-corpus.md`; every other file was recorded as deleted. `origin/master`
+was intact; the working tree was intact; only the commits were wrong.
+
+Repaired by replaying all five with `commit-tree` onto `496a57d6`'s tree, preserving
+messages, authors and dates:
+
+```
+9a735705 -> 905cf190    2c0a33ab -> a2aad2ca    5096d3f2 -> d267d59c
+e08944cb -> 460a4c0d    9b8c77d7 -> 19740ffb
+```
+
+Verified after: note blob identical (`2a0ca784`), all five messages preserved, 1345 files,
+0 PDFs, clean tree. Old tip `9b8c77d7` is recoverable via reflog. Nothing on disk changed.
+
+⚠ **THE LIKELY CAUSE, AND IT IS STILL LIVE.** `git add` on a TRACKED file under
+`.claude/` **succeeds but exits 1** — `.gitignore:83` carries `.claude/` and git prints
+ignored-path advice regardless of the file already being tracked. Any `git add ... && git
+commit ...` chain therefore stages the file and then SILENTLY SKIPS THE COMMIT. That is
+almost certainly how the `read-tree HEAD` seeding step got skipped five times in a row.
+
+**Do not chain add and commit with `&&` for anything under `.claude/`.** Run them as
+separate statements and check `git ls-tree -r HEAD --name-only | wc -l` (expect 1346)
+after every commit.
 
 ---
 
 ## WHERE THIS STOPPED
 
-Seven Dreame upkeep-guide families authored, every downloaded manual now transcribed.
-**Nothing is wired** — there is still no `BRAND_REGISTRARS` row, and that row is the
-release. Paused cleanly: working tree committed and pushed, suite green.
+Paused cleanly. Working tree clean except six untracked `scripts/dreame_*.py`. Suite not
+re-run this session — no Python behaviour changed until the last commit, and that commit
+is inert data with no importer.
 
 ```
-6f64d557  author l20, x40, l50 — every manual in hand is now a family
-d9f67af7  author x50; split x60 into the two families it always was
-7b58f441  correct the family rule — a family is a MANUAL PAGE, not an r-code
-67cad893  pin the Dreame family scope (superseded by 7b58f441)
+38ede994  feat(dreame): room-profile vocabulary, captured from a live device
+a6bb183e  notes(dreame): correct the -1 rule - it is a (robot, dock) pairing
+de8d7129  notes(dreame): the 51% caveat was pointed the wrong way - it is a floor
+5b7ceb11  notes(dreame): the document is the unit - one code, up to six SKUs
+80b2ffa2  notes(dreame): coverage vs the supported surface, and where the wandering was
 ```
 
-**4730 passed / 2 skipped locally.** CI was green on `b39b7395`; `52ba1c4b`'s run was
-not checked before this was written — check it, do not assume it.
+plus the five replayed commits beneath them. Tree: **1346 files, 0 PDFs.**
 
 ---
 
-## THE OPEN QUESTION CHRIS ASKED, AND THE ANSWER
+## THE FRAMING CHRIS GAVE, WHICH REFRAMES EVERYTHING ABOVE
 
-> "is that English only?"
+> "this was a pre stage i was trying to have it all ready for when upstream lands the fix
+> for all others to be able to use VA"
 
-**Yes.** All 264 authored strings come from EN sections. There is **no
-`upkeep_guides_i18n/` for Dreame at all**, while Eufy and Roborock each carry 17 packs
-plus the EN base. That is a standing gap against `f/no_string_without_i18n`.
+**VA = the integration itself** (`docs/dev/design/shipped/map-state-source.md`: "VA-owned
+reader", "the VA owns the frame"). NOT Voice Assist — the `VA:` in
+`voice-assist-wizard.md` is only a speaker label in a transcript. Do not confuse them.
 
-Chris said **"record this for now"** — so it is recorded, NOT started. The i18n rollout
-is marked LOCKED at 18 languages (`p/i18n_rollout`), so adding Dreame packs is a
-decision, not cleanup. **Do not begin translation work without his explicit go.**
+So the whole Dreame campaign is the **gate-independent half**, exactly as
+`adapters/dreame/__init__.py` already says: *"upkeep guides, and later the model/family
+metadata"*. The gate is a RELEASED upstream build carrying Tasshack **#1707**.
 
-Measured coverage of translated MANUFACTURER text already in hand, by family
-(`.claude/notes/SCOPE-dreame-guide-families.md` holds the full matrix):
+**#1707 is still OPEN** (checked 2026-08-26, last updated 2026-08-18): `_init_data()`
+clears `_capability` and `_aes_iv`, permanently breaking map decoding after an empty map.
+That is a VA blocker — no decode means no `map_state_source`.
 
-```
-EN 7/7 · DE 6/7 · FR 6/7 · IT 5/7 · ES/NL/PL 3/7 · HE/PT 2/7
-AR/ID/JA/TR/ZH-Hant 1/7 (l10s_gen2 only) · CS 0 · ZH-Hans 0
-KO — present for x50 and x60_ultra, see the correction below
-```
+⚠ **Chris HAS the patch applied locally** — `Z:\custom_components\dreame_vacuum\dreame\map.py`,
+marked `# --- VA LOCAL TEST 2026-08-11: upstream suggested fix from #1707`. So local
+validation is unblocked; PUBLIC RELEASE IS NOT. Adding the `BRAND_REGISTRARS` row now
+would break every user without the patch.
 
 ---
 
-## THE CORRECTION THAT CAME OUT OF IT
+## WHAT LANDED TODAY: `adapters/dreame/vocabulary.py`
 
-`synthesis/dreame-port/MANUAL-INVENTORY.md` records **`ko` as absent, with evidence** —
-Dreame Korea publishes exactly 12 manuals and no L10s of any generation, adjacent ids
-probed to prove the list complete. **That finding is correct and it is scoped to the
-L10s Ultra Gen 2**, which is the only device that inventory was ever about.
+`room_profiles` is the ONE adapter block where registration HARD-FAILS if absent
+(`docs/contributing/porting-guide.md` §10) and Dreame had none. It now exists, DATA ONLY,
+still no `adapter.py` and still no registrar row. `BRAND_REGISTRARS` is still
+`['roborock', 'eufy']` — verified after the commit.
 
-But those 12 Korean entries are X60 / Aqua10 / Matrix10 / X50s — and
-`durable/dreame-port-fixture/manuals/korean-vocabulary-source/` holds **R2489F and
-R5089F**, the Korean editions of the X50 and the X60 Ultra. Both are families authored
-today. So Korean IS in hand for two of the seven.
+**Every value was read off the live device**, not a manual — `vacuum.robin`, via
+`Z:\.storage\core.entity_registry`. The manuals do NOT carry these enums; the Aqua10
+manual defers to "Cleaning Mode settings in the app". Captured vocabulary is kept at
+`scratchpad/dreame_live_vocabulary.json` (scratchpad is session-local — re-capture rather
+than trust a copy).
 
-**Same shape as two other errors this session: a correct negative that outlived its
-scope.** The inventory has been annotated rather than rewritten — its Gen 2 finding
-stands.
+Three traps found in the capture, all documented in the file:
+
+1. **The vacuum entity disagrees with the select.** `fan_speed_list` says `Silent`;
+   `select.*_suction_level` takes `quiet`. A different WORD, not casing.
+2. **Per-room lists are not the global lists.** `cleaning_mode` is 4 globally / 3 per
+   room; `cleaning_route` is `quick|standard` globally / `standard|intensive|deep` per
+   room.
+3. **Dreame has NO no-water word.** `mop_pad_humidity` is three wet states;
+   `wetness_level` bottoms out at **1**, not 0.
+
+`FLOOR_TYPE_WATER_DEFAULTS` is therefore **declared EMPTY** rather than inventing an
+`"off"` the dispatch `options_key` filter would silently drop (the Roborock capital-O
+"Off" defect). The carpet-water-off guarantee still holds via the MODE DOWNGRADE in
+`profiles/manager.py` — a carpet room's `clean_mode` is rewritten to `"vacuum"`, which
+maps to Dreame's `sweeping`; after that `is_mop` is False so `queue_engine` never writes
+water either. Two gates, neither needing a no-water value.
+
+⚠ **DO NOT "FIX" THIS WITH VERSALIFT.** Chris's ruling: *"versa lift is pretty good but
+not every vacuum has it."* Mop lift is a PER-MODEL fact; leaning on it moves a framework
+safety property onto firmware that may be absent. Same reasoning as the Roborock
+`edge_mopping` ruling. The mode downgrade works on every Dreame ever made.
+
+---
+
+## COVERAGE, MEASURED AGAINST CHRIS'S SCOPE RULING
+
+Scope: *"we will support in general what they have listed"* — Tasshack's
+`supported_devices.md`, held locally at `durable/dreame-port-fixture/catalogue/`.
+**741 models / 386 names.** (A WebFetch of the same page returned 344 models and asserted
+a total of 511. Both wrong. The local copy is authoritative.)
+
+| | models | of 741 |
+|---|---|---|
+| guide authored (7 families) | 202 | 27% |
+| manual held | 383 | 51% |
+| **held but NOT authored** | **261** | **35%** |
+| no manual, no guide | 278 | 38% |
+
+**The 261 is the cheapest work left** — 98 names, no sourcing needed, and not fringe
+hardware: `matrix10ultra` (13 models), `p70proultra` (8), `s70ultraroller` (7).
+
+Every authored guide is `dreame.*`; all 154 non-Dreame IDs (mova 102, xiaomi 25,
+trouver 13, ijai 11, deerma 2, szkj 1) are uncovered — but 85 of them are authorable from
+manuals already on disk.
+
+---
+
+## THE DOCUMENT IS THE UNIT
+
+A manual is scoped to a SERIES and declares one base regulatory code plus N numbered SKU
+variants. **N reaches 6.** `RLX85CE` covers X50 / X50 Ultra / X50 Ultra Complete /
+GoVac 800 in one document. So ~202 open names is ~100 documents, not 202.
+
+**Track vs Roller costs exactly ONE part.** 27 maintenance rows shared with identical
+intervals; the delta is `Fluffing roller` (Roller only), a washboard-filter interval, and
+a relabel. A Track manual is ~96% of the upkeep content for the whole Aqua family.
+
+**The code collapses rebadges** — the census payoff:
+`RLX95CE` = Matrix10 Ultra = X50 Ultra MatriX · `RLX63CE` = X40 Ultra = GoVac 508 ·
+`RLX85CE` = X50 = GoVac 800 · `RLM83HE` = mova lr10 prime / nutripal10 / pf10 / lb10.
+
+⚠ **`-N` IS A (ROBOT, DOCK) PAIRING, NOT A BUNDLE.** An earlier commit today
+(`5b7ceb11`) generalised "one robot, one dock" from the Aqua10 case; an adversarial pass
+refuted it and `a6bb183e` corrected it. `doc_facts.json` measures 5 families with
+DIFFERENT docks vs 3 sharing one. **The S-series rule is the norm; Aqua10 Track is the
+exception.**
+
+X-series shape, for reference: X20 predates the `RL*` scheme entirely (no code);
+X30 Ultra `RLX56CE` (1); X40 Ultra `RLX63CE` (4); X40 Master `RLX73CE` (separate machine);
+X50 `RLX85CE` (6). And **`RLX` does not mean "X-series"** — it also carries L20 Ultra
+(`RLX41CE`) and L40 Ultra (`RLX53SE`). Weak hint, not identity.
+
+---
+
+## ⚠ THE MAPPING ALREADY EXISTS — DO NOT RE-DERIVE IT
+
+This session wasted effort regex-scanning `manual_text_cache.json` to build a 64-code map.
+The background jobs had already written better:
+
+* `derived/corpus-manifest.json` — 2,015 entries; 365 with `reg_codes`, 326 with
+  `names_printed`, 251 with BOTH; 96 distinct codes; yields **84 code→names groups**.
+* `derived/doc_facts.json` — **351 Declaration-of-Conformity certificates** →
+  `{model, base, product}`; 156 distinct models, 170 distinct base stations. This is the
+  AUTHORITATIVE model→dock source.
+
+These ARE the "model/family metadata" the adapter docstring names as the next
+gate-independent deliverable. **Read the manifest; do not re-derive from text.**
+
+---
+
+## CORRECTIONS MADE TODAY — DO NOT RE-BREAK THEM
+
+1. **The 51% is a FLOOR, not an inflated figure.** Resolved by READING
+   `scripts/dreame_corpus_name.py` rather than inferring: `--devices` is required and the
+   matcher is built from `supported_devices.md`, so the namer cannot emit a name outside
+   the catalogue. That makes "0 corpus names outside their list" a TAUTOLOGY, not evidence
+   of circularity. The 51% counts only COVERED (manual TEXT names the model), excludes
+   ATTESTED (filename-only claims), and can only MISS. Earlier guidance not to spend it
+   was wrong in DIRECTION.
+2. **`matrix10ultra` was ALWAYS in the held-but-not-authored bucket**, never "uncovered".
+   A restatement in conversation said otherwise; that was a slip.
+3. **"Aqua 10 Pro Roller" is NOT corpus-attested.** No document prints it. The held Roller
+   manual prints "Aqua10 Ultra Roller" (`RLH71DE` / `RLH71DE-1`). The only "Pro Roller"
+   anywhere in the corpus is S70 Pro Roller (`RLZ11HE`), a different machine. The
+   Pro/Ultra-share-a-code pattern IS evidenced on the TRACK side (R2527 vs R2527B) but not
+   for Roller. Chris's find stands alone — needs a second source.
+4. **A code merge CANNOT expand coverage** — tested, +0 models, +0 names. Codes are
+   observable only through manuals already held, whose names are already counted. Only the
+   registry can grow the number beyond the corpus.
+
+---
+
+## SCOPE-CREEP VERDICT (Chris: "my god we had some massive creep")
+
+**The hunting list never wandered.** All 202 open names on the Dreame Hunting List
+artifact are on the supported list — 202/202, zero off-list, 287 models behind them. The
+fence held exactly.
+
+What grew past its brief was the identity apparatus around it (CCC census, registry walks,
+code taxonomy, the 2,133-article support-site walk). **The corpus and the open hunting list
+overlap by SIX names** — 20 GB answered the easy half; the hard tail was never going to
+come from PDFs, which is what the notes' own "reg codes matter more than manuals" already
+said.
 
 ---
 
@@ -158,8 +310,16 @@ that dropped real advice for brandless Eufy installs. Both were invisible on a r
 
 ## WHAT IS NOT DONE
 
-* **22 of the 26 current-ish Dreame platforms have no manual and no family.** Next
-  family costs a NEW PDF, not a new read; ~13 manual pages would cover the rest.
+* **261 supported models (98 names) have a manual on disk and NO guide written.**
+  This supersedes the old "22 of 26 platforms" line — that count predated the 741-model
+  supported surface. No sourcing needed for any of them; see COVERAGE above. Two of the
+  98 are ready to author right now from manuals Chris hand-delivered today:
+  `aqua10_ultra_track` (R9528A, RLR81CE/-1) and `aqua10_ultra_roller` (R9535,
+  RLH71DE/-1). Costs ~15 components, of which FOUR are new to the library:
+  `fluffing_roller` (Roller only), `omnidirectional_wheel`, `retractable_legs`,
+  `clean_water_tank`.
+* **`BRAND_REGISTRARS` row — still the release, still gated.** See THE FRAMING above:
+  #1707 open upstream. Chris's local patch makes it TESTABLE, not shippable.
 * **Dreame i18n** — see above. Recorded, not started, needs Chris's go.
 * **`ADAPTER-CONFIG.generated.md` is committed but NOT freshness-gated** — see
   `POST-2.1.0-deferred.md` entry 5. Not in `GENERATORS`, generator still untracked,
@@ -223,6 +383,18 @@ The `tests` argument is load-bearing; bare `pytest` skips `tests/adapters`.
 `git reset -q HEAD -- <SPECIFIC PATHS>`. NEVER `-- .` (broadcasts a false-delete across
 the tree; recover with `git reset --mixed HEAD`). `.claude/` is gitignored, so notes
 need `git add -f`.
+
+⚠ **AND `git add` EXITS 1 ON A TRACKED `.claude/` FILE EVEN THOUGH IT SUCCEEDS.**
+`.gitignore:83` carries `.claude/`, so git prints ignored-path advice and returns
+non-zero regardless of the file already being tracked. `git add X && git commit ...`
+therefore stages the file and SILENTLY SKIPS THE COMMIT. This is the most likely cause
+of the tree corruption described at the top of this file. Run add and commit as
+SEPARATE statements, and verify with:
+
+```
+git ls-tree -r HEAD --name-only | wc -l     # expect 1346
+git ls-tree -r HEAD --name-only | grep -c '\.pdf$'   # expect 0
+```
 
 **Three ratchets live**:
 - New test file → a row in `docs/testing/subsystems/*.md` required.
