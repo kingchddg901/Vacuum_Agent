@@ -85,22 +85,24 @@ def contents(page) -> bytes:
         return b''
 
 
-def page_points(data: bytes) -> list[tuple[float, float]]:
-    """Ordered path coordinates on a page, in content-stream order."""
-    pts: list[tuple[float, float]] = []
-    nums: list[float] = []
-    for tok in data.split():
-        if NUM.match(tok):
-            try:
-                nums.append(float(tok))
-            except ValueError:
-                nums = []
-            continue
-        op = tok.decode('latin-1', 'replace')
-        if op in PATH_OPS and nums:
-            for i in range(0, len(nums) - 1, 2):
-                pts.append((nums[i], nums[i + 1]))
-        nums = []
+def page_points(data: bytes):
+    """Ordered path coordinates on a page, in PAGE coordinates.
+
+    ⚠ DELEGATES to dreame_figure_shape.segments(). The original implementation here
+    read m/l/re/h directly and did neither curve flattening nor `cm` tracking, so it
+    saw ~17% of the geometry (page furniture) with every figure stacked on the origin.
+    Every similarity number produced before 2026-08-27 came from that. Do not
+    reintroduce a local path parser; there must be exactly one.
+    """
+    from dreame_figure_shape import segments
+    segs = segments(data)
+    pts = []
+    last = None
+    for a, b in segs:
+        if a != last:
+            pts.append(a)
+        pts.append(b)
+        last = b
     return pts
 
 
