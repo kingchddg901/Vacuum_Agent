@@ -774,3 +774,94 @@ Method: series-token join (`x50 x60 l20 x40 l50 l10s`) against normalised
 (alnum-lowercase) names. Prefix-matching the raw family keys undercounts —
 `l10s_gen2` scores 0 because the catalogue writes "L10s Pro Gen 2"
 (`l10sprogen2`), which never starts with `l10sgen2`.
+
+## THE DOCUMENT IS THE UNIT (2026-08-26)
+
+Two manuals arrived from Chris's hunt. Together they settle how the remaining
+202-name hunt should be run.
+
+    R9528A   "Dreame Aqua10 Ultra Track Series"    RLR81CE / RLR81CE-1   station RCZE0308
+    R9535    "Dreame Aqua10 Ultra Roller Series"   RLH71DE / RLH71DE-1   station RCHE0401
+
+Each document is scoped to a SERIES and declares exactly two codes, a base and
+a `-1`. The series name is on the cover page - first-party, not a filename
+claim. **One document retires ~2 hunting-list rows.** 202 names is therefore
+~100 documents, not 202.
+
+### `-1` is a SKU variant, not a machine variant
+
+On the Track side the spec table gives ONE value column for both codes
+(charging 4.5 h, 14.4 V, 75 W, 2400-2483.5 MHz), ONE base station, ONE battery
+pair, and the EU DoC names them as a single radio equipment type
+"RLR81CE/RLR81CE-1". The English text never hedges by model - no "depending on
+model", no "selected models"; the single "depends" is about usage frequency.
+
+This refines THE S-SERIES RULE recorded above. Here it is not one robot three
+docks - it is **one robot, one dock, two SKUs**.
+
+### Track vs Roller costs exactly one part
+
+Maintenance tables diffed part-for-part (EN, R9528A p7 vs R9535 p13). 27 parts
+shared with identical names AND identical intervals. The complete delta:
+
+    TRACK only    Washboard filter            (once every 1-2 months)
+                  Washboard heating module    -- same component as below,
+    ROLLER only   Heating module              -- relabelled
+                  Fluffing roller             <- the only genuinely new part
+
+So a Track manual is ~96% of the upkeep content for the whole Aqua10 family.
+The library's existing split of `washboard` vs `washboard_filter` across
+families turns out to BE this Track/Roller distinction - the taxonomy already
+anticipated it.
+
+### Chris's ruling: plumbing is an accessory, not a variant
+
+Chris: "master we found is the plumbed in version. really no extra maintence
+that i can tell some setup though." The documents confirm it and go further -
+BOTH stations carry the same callout:
+
+    "Reserved Slot for Connecting the Water Hookup Kit for Auto Refilling and
+     Draining. Note: the kit needs to be purchased separately. (Only available
+     in specific regions)"
+
+Every unit ships plumbing-capable; the kit is bought separately. It adds ZERO
+rows to either maintenance table. **Aqua10 Ultra Roller Master (RLH91DE) joins
+the Roller group.**
+
+Generalised: **configuration variants do not fork a maintenance guide.**
+Plumbed vs tank-fed, bundle contents, `-1` suffix, dock hardware - none moved a
+maintenance line. Only the floor-contact mechanism did. Parts-groups are driven
+by MECHANISM, not SKU, which is why 202 names collapse toward the artifact's
+own count of 23 parts groups.
+
+### Consequence: stop hunting Aqua manuals
+
+Both Aqua10 mechanisms are now in hand, so the Aqua parts universe is complete.
+The remaining Aqua rows (Aqua10 Roller RLH31CE, Aqua10s Roller AE RLH21SE,
+Aqua20 Roller FE, Aqua10 Pro Roller) need a code->group ASSIGNMENT, not a
+manual. That is a lookup line, not a hunt.
+
+### Unresolved - do not write this down as fact
+
+Chris's find maps RLH71DE -> "Aqua 10 Pro Roller", but R9535's cover calls its
+series "Aqua10 Ultra Roller", and "Aqua10 Ultra Roller Master" carries a
+different code (RLH91DE) on the hunting list. So RLH71DE / RLH71DE-1 are two
+Ultra Roller SKUs whose marketing names are NOT pinned by the document.
+Proximity is not assertion - needs a second source.
+
+Also: "Aqua 10 Pro Roller" and "Aqua10 Pro Roller" are near-certainly one
+machine occupying two hunting rows. A spacing-variant dedup sweep across all
+202 is probably worth one script.
+
+### Hardware difference with no upkeep cost
+
+Track station RCZE0308 has a UV lamp ("Solid Blue: UV light is working");
+Roller station RCHE0401 documents only white and orange. Power differs too
+(20 V 2 A / 89 W vs 20 V 3 A / 112 W). Generates no maintenance task, but
+matters for station-level content.
+
+### Cost to author the Aqua10 families
+
+~15 components, of which FOUR are new to DREAME_UPKEEP_GUIDE_LIBRARY:
+`fluffing_roller` (Roller only), `omnidirectional_wheel`, `retractable_legs`,
+`clean_water_tank`. Everything else already exists in the taxonomy.
