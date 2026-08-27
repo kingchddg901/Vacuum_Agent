@@ -907,3 +907,69 @@ corpus-internal join can grow the number.
 Consequence: the captcha-gated registry walk is the ONLY lever that can expand
 coverage beyond the corpus. Worth weighing that against simply authoring the
 261 held-but-unauthored models, which needs no new sourcing at all.
+
+## CORRECTION: `-1` IS A (ROBOT, DOCK) PAIRING, NOT A BUNDLE (2026-08-26)
+
+Recorded above under THE DOCUMENT IS THE UNIT: "`-1` is a SKU variant, not a
+machine variant ... one robot, one dock, two SKUs." That was true for RLR81CE
+and WRONG as a generalisation. An adversarial pass caught it; `doc_facts.json`
+settles it.
+
+`doc_facts.json` (83 KB, 351 Declaration-of-Conformity certificates) is the
+authoritative model->dock source. Measured across every multi-SKU family it
+can resolve:
+
+    same dock   3 families
+    DIFFERENT   5 families
+
+    RLX86CE   -> RBXE0307        RLX86CE-1 -> RBXE0307-1     different
+    RLX53SE   -> RCXE0307-7      RLX53SE-1 -> RCXE0307-8     different
+    RLL32SE   -> RCLE0304-1      RLL32SE-1 -> RCLE0304-6     different
+    RLR81CE   -> RCZE0308        RLR81CE-1 -> RCZE0308       SAME
+    RLX63CE   -> RCXE0307   -2 -> RCXE0307   -6/-7 -> RCXE0307-7   MIXED
+
+So `-N` enumerates a (robot, dock) PAIRING. Within one family some suffixes
+share a dock and some do not - RLX63CE does both. The S-SERIES RULE recorded
+earlier ("one robot, three docks") is the NORM; Aqua10 Ultra Track is the
+exception, not a refinement of it.
+
+Maintenance consequence stands regardless: a shared robot means shared robot
+parts, and the Track/Roller diff showed the dock contributes only station-side
+rows. But a guide must not assume the dock is constant across a `-N` set.
+
+## THE MAPPING ALREADY EXISTED - THE BACKGROUND JOBS PRODUCED IT
+
+A regex scan of manual_text_cache.json re-derived a 64-code map this session.
+That was redundant. The background jobs had already written better:
+
+    corpus-manifest.json  2015 entries; 365 with reg_codes, 326 with
+                          names_printed, 251 with BOTH; 96 distinct codes.
+                          Yields 84 code -> names groups.
+    doc_facts.json        351 DoC certificates -> {model, base, product};
+                          156 distinct models, 170 distinct base stations.
+
+These are the "model/family metadata" the dreame/__init__.py docstring names as
+the next gate-independent deliverable. Do not re-derive them from text again -
+read the manifest. It is also the file the notes already called "the
+measurement" ("renaming a file must never be able to change a coverage
+number").
+
+Sample of the authoritative code -> names groups:
+
+    RLX85CE   GoVac 800 / X50 / X50 Ultra / X50 Ultra Complete
+    RLD35GD   D20 Plus / GoVac 300 / GoVac 300 Kit
+    RLE15SE   E50 Pro Ultra / E50 Ultra / P20 Ultra
+    RLX41CE   L20 Ultra / L20 Ultra Complete / L30 Ultra
+
+## UNCONFIRMED: "Aqua 10 Pro Roller"
+
+No document in the corpus prints "Aqua 10 Pro Roller". The held Roller manual
+prints "Aqua10 Ultra Roller" with reg_codes RLH71DE / RLH71DE-1. The only
+"Pro Roller" anywhere in the corpus is S70 Pro Roller (RLZ11HE), a different
+machine. So RLH71DE -> "Aqua 10 Pro Roller" rests on Chris's external find
+alone and is NOT corpus-attested.
+
+The Track side does support the Pro/Ultra-share-a-code pattern:
+R2527 DoC names RLR81CE "Aqua10 Ultra Track" while a separate R2527B edition
+prints "Aqua 10 Pro Track" against the same base code. So the pattern is real
+for Track; it is simply not yet evidenced for Roller.
