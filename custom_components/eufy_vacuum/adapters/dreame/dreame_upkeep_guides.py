@@ -21,9 +21,11 @@ manual, read page by page:
   ``x40``                     R2416A-X40_Ultra, EN pp. 19-26
   ``l50``                     R9493-L50_Ultra, EN pp. 23-30
   ``l10s_gen2``               R2469X-L10s_Ultra_Gen_2, EN pp. 19-25
+  ``aqua10_ultra_track``      R9528A-Aqua10_Ultra_Track_Series, EN pp. 9-12
+  ``aqua10_ultra_roller``     R9535-Aqua10_Ultra_Roller_Series, EN pp. 9-11
 
 Manuals are mirrored in the git-ignored fixture set. Guide content is AI-authored by
-default and transferred only when a manual is genuinely in hand; for all four it is.
+default and transferred only when a manual is genuinely in hand; for all nine it is.
 
 THREE THINGS ARE RECAST RATHER THAN TRANSCRIBED, and the distinction is worth keeping
 straight — "manufacturer text" is a provenance claim, and it is not true of these:
@@ -1054,6 +1056,372 @@ _L50: dict[str, dict] = {
 }
 
 
+# --------------------------------------------------------------------------
+# AQUA10 — TWO FAMILIES, AND THEY ARE NOT ONE FAMILY WITH A SPARE PART.
+#
+# `aqua10_ultra_track`  R9528A "Dreame Aqua10 Ultra Track Series",  EN pp. 9-12
+# `aqua10_ultra_roller` R9535  "Dreame Aqua10 Ultra Roller Series", EN pp. 9-11
+#
+# Each is transcribed from its own manual. They are NOT shared, and the reason is
+# worth stating because the frequency tables invite the opposite conclusion: those
+# tables differ by ONE ROW (`Fluffing roller`, Roller only) plus a relabel, which
+# reads like "same machine, one extra part". The PROSE was then diffed section by
+# section, and three procedures are genuinely different hardware:
+#
+#   washboard      Track prints TWO sections — `Washboard Filter` (F-1) and
+#                  `Washboard Heating Module` (F-2). The Roller prints ONE,
+#                  `Washboard and Heating Module`, and its heating module sits
+#                  UNDER the washboard rather than beside a separate filter.
+#   mop assembly   Track: four steps, the mop detaches from a BRACKET and the
+#                  assembly is pushed back into a compartment. Roller: two steps,
+#                  the whole assembly lifts out and clicks back.
+#   mop compartment Track cleans compartment + filter. Roller cleans compartment,
+#                  WIPER and filter, and separately de-hairs the fluffing roller.
+#
+# Following Track text on a Roller tells the owner to detach a mop from a bracket
+# that has none, and to remove a washboard filter that does not exist. That is the
+# `l10s_gen2` / X60 lesson repeating on new hardware: a part matrix measures
+# PRESENCE, never STEPS.
+#
+# The remaining ten components ARE word-for-word identical across the two manuals.
+# They are still duplicated below rather than factored out — the file's rule is
+# "state the diff or duplicate the prose", and with three real divergences a shared
+# base would have to be spelled out at every call site to stay honest.
+#
+# COMPONENTS DELIBERATELY ABSENT. `Clean water tank`, `Retractable legs`, `Main
+# wheels`, `Bottom of the robot` and `Used water box` appear in the frequency
+# TABLE with an interval but have no procedure section of their own (the used
+# water BOX has one — Track F-11, Roller F-4 — but no framework component key
+# exists for it, and inventing one yields a guide nothing ever looks up). The
+# omnidirectional wheel is keyed `caster_wheel`, following the six families above:
+# the KEY is the framework's, the NOUN in the prose stays Dreame's.
+# --------------------------------------------------------------------------
+
+_AQUA10_ULTRA_TRACK: dict[str, dict] = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard, and then "
+            "lift the brushes out of the robot.",
+            "Pull out the brushes as shown in the figure. Use a proper tool to remove "
+            "any hair tangled in the brushes. After cleaning, push the brushes firmly "
+            "into the main brush holder until they click into place.",
+            "With the screen-printed arrows facing upwards, insert the main brush "
+            "holder into the slots downwards in an inclined way.",
+            "Align the front end of the brush guard with the slot, insert it downwards "
+            "in an inclined way, and then press it into place.",
+        ],
+        "notes": [
+            "Be careful while pulling out the main brushes to prevent injury.",
+        ],
+    },
+    "side_brush": {
+        "steps": [
+            "Unscrew the side brush with a screwdriver, clean the hair from the brush, "
+            "and then screw it back on.",
+        ],
+        "notes": [],
+    },
+    "dustbin": {
+        "steps": [
+            "Remove the robot cover and press the dust box clip to remove the dust box.",
+            "Open the dust box cover, remove the filter, and then empty the dust box. "
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before "
+            "reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any "
+            "detergent.",
+            "Use the dust box and filter only when they are completely dry.",
+        ],
+    },
+    "filter": {
+        "steps": [
+            "Open the dust box cover and remove the filter.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the filter with water and dry it completely before reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse with clean water only. Do not use any detergent.",
+            "Use the filter only when it is completely dry.",
+        ],
+    },
+    "used_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use a proper tool to "
+            "clean the inner wall of the used water tank.",
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too "
+            "much force when cleaning it to avoid damaging it.",
+        ],
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover.",
+        ],
+        "notes": [
+            "Pulling upwards on the handle will seal the bag to prevent the dust and "
+            "debris from accidentally falling out.",
+        ],
+    },
+    "washboard_filter": {
+        "steps": [
+            "Take out the robot and remove the washboard filter after the mop cleaning "
+            "is complete.",
+            "Rinse the washboard filter with clean water, wipe it clean, and then "
+            "reinstall it in the washboard.",
+            "Use the app or press the button to return the robot to the base station, "
+            "or manually put the robot back.",
+        ],
+        "notes": [
+            "The washboard heating module may retain residual heat. To prevent "
+            "scalding, be careful when removing the washboard filter.",
+        ],
+    },
+    "washboard_heating_module": {
+        "steps": [
+            "During use, the washboard heating module may develop scale. To remove it, "
+            "take out the robot, pour a small amount of white vinegar (5% acetic acid) "
+            "on the surface of the heating module and clean it with a proper tool.",
+        ],
+        "notes": [
+            "To prevent scalding, wait until the surface of the heating module cools "
+            "down to room temperature before cleaning.",
+            "An appropriate descaler can also be used in accordance with the "
+            "instructions it provides.",
+            "Do not add white vinegar or descaler directly into the clean water tank "
+            "to help prevent malfunction.",
+            "Do not use sharp tools or corrosive liquids such as hydrochloric acid to "
+            "clean the heating module.",
+        ],
+    },
+    "mop_cloth": {
+        "steps": [
+            "Press and slide the mop assembly clip at the illustrated angle to remove "
+            "the mop assembly.",
+            "Detach the mop from the bracket and use a proper tool to remove the hair "
+            "tangled in the bracket.",
+            "Install the new mop to the bracket, ensuring it is in place. Then firmly "
+            "press the mop assembly clip to secure the mop.",
+            "Push the mop assembly back into the compartment until it fits into the "
+            "slot and clicks into place.",
+        ],
+        "notes": [
+            "It is normal for the slot to rotate automatically during installation.",
+        ],
+    },
+    "mop_pad_holder": {
+        "steps": [
+            "Remove the mop assembly from the robot. Clean the mop assembly "
+            "compartment and filter to prevent blockage.",
+        ],
+        "notes": [],
+    },
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of "
+            "the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under the running water and put it back "
+            "after drying it completely.",
+        ],
+        "notes": ["Do not use excessive force when separating the axle and tire."],
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area with a soft and dry "
+            "cloth.",
+        ],
+        "notes": [],
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft "
+            "and dry cloth.",
+        ],
+        "notes": [],
+    },
+    "sensor": {
+        "steps": [
+            "Wipe the robot sensors by using a soft and dry cloth: the bumper window, "
+            "VersaLift sensor, edge sensor, bumper, cliff sensors and carpet sensor.",
+        ],
+        "notes": [
+            "A wet cloth can damage sensitive elements within the robot and the base "
+            "station. Please use a dry cloth for cleaning.",
+        ],
+    },
+}
+
+
+_AQUA10_ULTRA_ROLLER: dict[str, dict] = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard, and then "
+            "lift the brushes out of the robot.",
+            "Pull out the brushes as shown in the figure. Use a proper tool to remove "
+            "any hair tangled in the brushes. After cleaning, push the brushes firmly "
+            "into the main brush holder until they click into place.",
+            "With the screen-printed arrows facing upwards, insert the main brush "
+            "holder into the slots downwards in an inclined way.",
+            "Align the front end of the brush guard with the slot, insert it downwards "
+            "in an inclined way, and then press it into place.",
+        ],
+        "notes": [
+            "Be careful while pulling out the main brushes to prevent injury.",
+        ],
+    },
+    "side_brush": {
+        "steps": [
+            "Unscrew the side brush with a screwdriver, clean the hair from the brush, "
+            "and then screw it back on.",
+        ],
+        "notes": [],
+    },
+    "dustbin": {
+        "steps": [
+            "Remove the robot cover and press the dust box clip to remove the dust box.",
+            "Open the dust box cover, remove the filter, and then empty the dust box. "
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before "
+            "reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any "
+            "detergent.",
+            "Use the dust box and filter only when they are completely dry.",
+        ],
+    },
+    "filter": {
+        "steps": [
+            "Open the dust box cover and remove the filter.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the filter with water and dry it completely before reinstalling.",
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp "
+            "objects to prevent damage.",
+            "Rinse with clean water only. Do not use any detergent.",
+            "Use the filter only when it is completely dry.",
+        ],
+    },
+    "used_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use a proper tool to "
+            "clean the inner wall of the used water tank.",
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too "
+            "much force when cleaning it to avoid damaging it.",
+        ],
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover.",
+        ],
+        "notes": [
+            "Pulling upwards on the handle will seal the bag to prevent the dust and "
+            "debris from accidentally falling out.",
+        ],
+    },
+    # ONE section in this manual, not two. The Track's separate `washboard_filter`
+    # and `washboard_heating_module` do not exist here: this robot has a washboard
+    # with the heating module UNDER it.
+    "washboard": {
+        "steps": [
+            "Take out the robot and remove the washboard after the mop cleaning is "
+            "complete. Then rinse the washboard with clean water and wipe it clean.",
+            "During use, the heating module may develop scale. To remove it, take out "
+            "the robot, pour a small amount of white vinegar (5% acetic acid) on the "
+            "surface of the heating module and clean it with a proper tool. Then "
+            "reinstall the washboard.",
+            "Use the app or press the button to return the robot to the base station, "
+            "or manually put the robot back.",
+        ],
+        "notes": [
+            "The heating module under the washboard may retain residual heat. To "
+            "prevent scalding, be careful when removing the washboard.",
+            "To prevent scalding, wait until the surface of the heating module cools "
+            "down to room temperature before cleaning.",
+            "An appropriate descaler can also be used in accordance with the "
+            "instructions it provides.",
+            "Do not add white vinegar or descaler directly into the clean water tank "
+            "to help prevent malfunction.",
+            "Do not use sharp tools or corrosive liquids such as hydrochloric acid to "
+            "clean the heating module.",
+        ],
+    },
+    # Two steps, not the Track's four. There is no bracket on this machine — the
+    # whole assembly lifts out and the replacement clicks back in.
+    "mop_cloth": {
+        "steps": [
+            "Press the clip and slowly lift the mop assembly to remove it.",
+            "Install the new mop assembly until it clicks into place.",
+        ],
+        "notes": [],
+    },
+    # Dreame prints the fluffing roller INSIDE this section rather than giving it
+    # one of its own, so it is keyed here rather than inventing a component the
+    # framework would never look up.
+    "mop_pad_holder": {
+        "steps": [
+            "Remove the mop assembly and fluffing roller from the robot. Clean the mop "
+            "assembly compartment, wiper and filter to prevent blockage.",
+            "Use a proper tool to remove any hair tangled in the roller. Then rinse it "
+            "with water and dry it completely before reinstalling.",
+        ],
+        "notes": [],
+    },
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of "
+            "the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under the running water and put it back "
+            "after drying it completely.",
+        ],
+        "notes": ["Do not use excessive force when separating the axle and tire."],
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area with a soft and dry "
+            "cloth.",
+        ],
+        "notes": [],
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft "
+            "and dry cloth.",
+        ],
+        "notes": [],
+    },
+    "sensor": {
+        "steps": [
+            "Wipe the robot sensors by using a soft and dry cloth: the bumper window, "
+            "VersaLift sensor, edge sensor, bumper, cliff sensors and carpet sensor.",
+        ],
+        "notes": [
+            "A wet cloth can damage sensitive elements within the robot and the base "
+            "station. Please use a dry cloth for cleaning.",
+        ],
+    },
+}
+
+
 DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
     # Each family is transcribed from ITS OWN manual. Prose crosses between two
     # families in exactly one place, and only because it was MEASURED to: the X60
@@ -1067,6 +1435,11 @@ DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
     "x40": _X40,
     "l50": _L50,
     "l10s_gen2": _L10S_GEN2,
+    # Two Aqua10 families, NOT one with a spare part. Their frequency tables
+    # differ by a single row, but three procedures are different hardware --
+    # washboard, mop assembly, mop compartment. See the block above them.
+    "aqua10_ultra_track": _AQUA10_ULTRA_TRACK,
+    "aqua10_ultra_roller": _AQUA10_ULTRA_ROLLER,
 }
 
 # ⚠ THERE IS DELIBERATELY NO "standard" FAMILY, AND THE FIRST CUT OF THIS FILE WAS

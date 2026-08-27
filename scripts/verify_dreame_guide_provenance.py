@@ -52,6 +52,13 @@ SOURCES = {
         "R2469X-Dreame_L10s_Ultra_Gen_2-_X-_ERP_EN_DE_FR_IT_ES.pdf",
         range(19, 26),
     ),
+    # Both live under manuals/robot/. Page numbers here are PDF pages. NOTE the
+    # fixture Track copy is the 220-page ONE-UP edition; the 110-page file that
+    # arrived by hand is a two-up imposition of the same content, so its page
+    # numbers do NOT transfer. Located by probing for "Routine Maintenance" and
+    # "Charging Contacts and Signaling Area" rather than by arithmetic.
+    "aqua10_ultra_track": ("robot/aqua10-ultra-track_R9528A.pdf", range(12, 15)),
+    "aqua10_ultra_roller": ("robot/aqua10-ultra-roller_R9535.pdf", range(13, 16)),
 }
 
 #: The recasts documented in the guide file's docstring. Expected to score low.
