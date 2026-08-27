@@ -462,3 +462,87 @@ or `⚠`. It has now killed the *output* of four completed jobs — the work suc
 the write threw. **Always `pathlib.Path.write_text(..., encoding="utf-8")`, and
 `PYTHONIOENCODING=utf-8` for anything that prints.** The failure mode is the expensive
 one: full cost paid, nothing kept.
+
+---
+
+## THE RESYNC: NAME <-> CODE <-> MACHINE (2026-08-26)
+
+The objective moved. Manuals stopped being the goal; the goal became collapsing 339
+marketing names onto the far smaller set of machines behind them. Chris's argument was
+from plausibility - **339 names is too large a line for anyone to actually maintain, so
+most of it has to be rebadging** - and the evidence now supports it.
+
+### The artefact that solves the resync
+`https://global.dreametech.com/pages/declaration-of-conformity` publishes 299
+certification PDFs whose FILENAMES carry all three identifiers at once:
+
+    DoC_English-R9527-RLF41GD_F20_Plus_<uuid>.pdf
+                 ^stem  ^code   ^marketing name
+
+That is the join the campaign had been missing. 171 filings parse; 54 target names gain
+a regulatory code from it alone.
+
+### Confirmed: the parenthesised descriptors collapse
+These are the highest-value rows, because descriptor variants are most of the open list:
+
+    RLP23SE   P50 (Auto Water Supply and Drainage) | P50 (Selected Auto...) | P50 (Selected Edition)
+    RLZ11HE   P70 (Clean World Edition) | P70 Pro | P70 Pro (Auto Water Supply and Drainage)
+    RLR81CE   Aqua10 Ultra Track | ...Complete | ...S
+    RLL42SDA  L10s Pro Gen 2 | L10s Pro Gen 3        <- a generation that is one filing
+    RLL53SE   L10s Ultra Gen 3 | L50 Ultra CE        <- across product LINES
+    RLF41GD   D20 Air Plus | F20 Plus                <- content-verified in both PDFs
+
+`Complete` = packaging is now confirmed on five more base codes (RLX41CE, RLX63CE,
+RLX85CE, RLR81CE, RLH71DE). `Heat` = firmware confirmed on RLL82CE.
+
+### The code is on manuals we ALREADY HOLD
+94 held manuals print a regulatory code and no recognised name - non-English editions,
+print files named by stem. Under a name join they are invisible: **we own the document
+and cannot tell what it is for.** Joining through the code resolved 88 of 94 and closed
+five open names (L30s Ultra, L40 Plus, X50s Pro Ultra, X60 Master, X60 Pro Ultra
+Complete). Only 4 codes on held manuals map to no known name: RLE22GD, RLE22GA,
+RLE23SD, RLR61CE. Those four are the genuine unknowns.
+
+## PROXIMITY IS NOT ASSERTION - three instances in one night
+
+Every wrong number tonight had the same shape: a join that treated *appearing near* as
+*being about*.
+
+1. **Rebadge count 67 -> 15.** Credited every code MENTIONED in a record to that
+   record's name. Put `F10 Plus` under RLF41GD when its own manual says RLF11SE.
+2. **Cartesian code<->name pairing.** A document with 6 codes and 3 names does not
+   assert 18 pairings. Across the corpus that manufactured up to **171 false edges**.
+   Fixed by using only 1xN or Nx1 documents; 32 ambiguous documents excluded.
+3. **Name co-listing.** A name in a manual is not proof the manual COVERS it -
+   compatibility lists name models too. Guarded by excluding high-count outliers.
+
+The tell in all three: the number went UP when the rule got looser. A join that finds
+more when you relax it is measuring the rule, not the world.
+
+## CONFIDENT ZEROS - the regex family
+
+Four separate zero-results tonight were the pattern, not the corpus:
+* `RL[A-Z]{2}` demanded two letters after RL. Real codes have ONE (`RLX85CE` = RL-X-85-CE).
+  Found zero codes in a file containing six.
+* Trailing letters are 1 to 4 (`RLS3D`, `RLS6LADC`), not a fixed 2.
+* Matched against the URL-ENCODED filename.
+* **`\b` between `RLS3D` and `_D10_Plus` never fires - underscore is a word character.**
+  Dropped 155 of 175 filings. This campaign had already been bitten by this once.
+
+Rule earned: on this data, anchor with `(?<![A-Za-z0-9])` / `(?![A-Za-z0-9])`, never `\b`.
+
+## INSTRUMENT NOTES
+* **pypdfium2 is 21x faster than pypdf** for text extraction on this corpus (0.35s vs
+  7.47s per file). A 4-hour job becomes 12 minutes.
+* **The undirected sweep beat the directed one.** Asking "what is X equivalent to"
+  primes for name-matches and discards everything else; asking "what is X in China / in
+  Japan / anywhere" returned ~200 code strings against the directed sweep's 38, plus
+  1,674 raw co-occurrence observations. Chris's method, and it won on the metric that
+  mattered. Record co-occurrence WITHOUT letting the agent judge relevance - the
+  interpreting happens over the whole pile, not at any one page.
+* **AliExpress answers scripted searches on regulatory codes AND internal stems**
+  (`R2489A` returns results) - sellers index on factory numbers, and a spare-part
+  compatibility list is a maintenance-equivalence graph. But it throttles fast: the same
+  query returned 636 KB then 2.4 KB a minute later, and a stub reads exactly like "no
+  results". **Alibaba is a hard block** - identical 89,630-byte page for every query.
+  Both are better done in a human browser than in a script.
