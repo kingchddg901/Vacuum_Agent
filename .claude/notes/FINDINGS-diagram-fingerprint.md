@@ -170,3 +170,58 @@ more cheaply and more directly.
 
 None of these were pursued, because tuning until the ground truth passes without
 confirming the controls still fail is the process failure named in Section 6.
+
+---
+
+# ⛔ RETRACTED, 2026-08-27 — THE EXTRACTOR WAS BROKEN
+
+**Everything above the line is measured on page furniture, not artwork. Do not cite
+any number in it.** The conclusion "the premise does not hold" is withdrawn; it was an
+artefact of the extractor, not a property of the corpus.
+
+Chris asked to SEE two mop-maintenance pages, to judge whether the similarity was
+computationally hard or visually absent. Rendering them is what exposed it: the first
+render was **a page of empty rectangles** — illustration frames and rules, with a dense
+blob in one corner and no drawings anywhere.
+
+Two bugs, both silent, both yielding confident numbers:
+
+1. **Every Bezier curve was discarded.** `segments()` handled `m`/`l`/`re`/`h` and not
+   `c`/`v`/`y`. On a figure page curves outnumber lines roughly 5:1 —
+   `l10s-pro-ultra` p4 carries **11,770 `c` against 2,443 `l`** — so about 17% of the
+   geometry was extracted, and the surviving 17% was the straight-line page furniture.
+
+2. **The transformation matrix was ignored.** Each figure is drawn in its own local
+   coordinate space and placed by `cm`; that same page carries **4,046 `cm`
+   operators**. Without a CTM stack every figure lands on the origin. That is the
+   corner blob, and it also explains the "large composite figures" artefact reported
+   above as a false-positive mechanism: connectivity grouping was merging art that
+   had all been stacked on top of itself.
+
+Both fixed in `scripts/dreame_figure_shape.py` (Bezier flattening + q/Q CTM stack).
+Segment counts on one page went 2,998 -> 97,350, and the renders now show the
+illustrations plainly.
+
+## What survives the retraction
+
+* The four STRUCTURAL facts about the corpus (no raster images; Form XObjects are
+  background boxes; artwork is inline vector paths; `page.get_contents()` returns
+  None). Those were measured independently and still hold.
+* The correction that Step 2 needs no PDF rasteriser. It is in fact stronger now:
+  self-rasterising the paths produces legible full-page renders.
+* The DF-weighting requirement. It was derived from a real observation (every document
+  shares some figure that normalises identically) and is unaffected.
+
+## What must be re-run before anything is concluded
+
+Every similarity measurement: the whole-document exact tier, the mop-section exact
+tier, the perceptual tier, the cutoff sweep, and the matched-figure characterisation.
+The numbers in the sections above are void.
+
+## The lesson, which this file already stated and I did not apply
+
+The report above opens by saying a uniform answer on this corpus is broken, not
+informative — and lists four cases where that held. The fifth case was the report's own
+conclusion. **A NEGATIVE RESULT IS A UNIFORM ANSWER TOO.** "No separation anywhere"
+should have been treated with the same suspicion as "zero assets everywhere", and the
+cheapest possible check — render it and look — was not run until Chris asked for it.

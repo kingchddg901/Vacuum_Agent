@@ -40,12 +40,63 @@ import numpy as np
 NUM = re.compile(rb'^-?\d*\.?\d+$')
 
 
+def _bezier(p0, p1, p2, p3, n=8):
+    """Flatten a cubic Bezier into n line segments."""
+    pts = [p0]
+    for i in range(1, n + 1):
+        t = i / n
+        u = 1.0 - t
+        x = (u*u*u*p0[0] + 3*u*u*t*p1[0] + 3*u*t*t*p2[0] + t*t*t*p3[0])
+        y = (u*u*u*p0[1] + 3*u*u*t*p1[1] + 3*u*t*t*p2[1] + t*t*t*p3[1])
+        pts.append((x, y))
+    return [(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+
+
+def _mul(m, n):
+    """Matrix product for PDF 2x3 affine matrices [a b c d e f]."""
+    a1, b1, c1, d1, e1, f1 = m
+    a2, b2, c2, d2, e2, f2 = n
+    return (a1*a2 + b1*c2, a1*b2 + b1*d2,
+            c1*a2 + d1*c2, c1*b2 + d1*d2,
+            e1*a2 + f1*c2 + e2, e1*b2 + f1*d2 + f2)
+
+
+def _apply(m, x, y):
+    a, b, c, d, e, f = m
+    return (a*x + c*y + e, b*x + d*y + f)
+
+
 def segments(data: bytes):
-    """Line segments as ((x0,y0),(x1,y1)) from moveto/lineto pairs."""
+    """Line segments from the page content stream, in PAGE coordinates.
+
+    ⚠ TWO OMISSIONS, EACH OF WHICH RENDERS THE PAGE BLANK-BUT-PLAUSIBLE.
+
+    1. CURVES ARE MOST OF THE ARTWORK. Handling only m/l/re/h discards every
+       Bezier, and on a figure page that is the drawing:
+           l10s-pro-ultra p4:  c = 11,770   l = 2,443
+       Rendering the line-only extraction produced a page of EMPTY RECTANGLES -
+       illustration frames and rules survived, illustrations did not.
+
+    2. `cm` MUST BE TRACKED. Each figure is drawn in its own local coordinate
+       space and positioned by a transformation matrix; that page carries 4,046
+       `cm` operators. Ignoring them stacks every figure on the origin, which
+       renders as a dense blob in one corner and a page of empty frames
+       everywhere else. It also destroys spatial grouping: connectivity merges
+       all the overlapping art into one "composite", which is exactly the
+       large-figure artefact that polluted the first similarity run.
+
+    Both bugs are silent. They produce confident numbers from page furniture.
+    """
     segs = []
     nums: list[float] = []
     cur = None
-    start = None
+    start_pt = None
+    ctm = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+    stack: list[tuple] = []
+
+    def pt(x, y):
+        return _apply(ctm, x, y)
+
     for tok in data.split():
         if NUM.match(tok):
             try:
@@ -54,21 +105,41 @@ def segments(data: bytes):
                 nums = []
             continue
         op = tok.decode('latin-1', 'replace')
-        if op == 'm' and len(nums) >= 2:
-            cur = (nums[-2], nums[-1])
-            start = cur
+        if op == 'q':
+            stack.append(ctm)
+        elif op == 'Q':
+            if stack:
+                ctm = stack.pop()
+        elif op == 'cm' and len(nums) >= 6:
+            ctm = _mul(tuple(nums[-6:]), ctm)
+        elif op == 'm' and len(nums) >= 2:
+            cur = pt(nums[-2], nums[-1])
+            start_pt = cur
         elif op == 'l' and len(nums) >= 2 and cur is not None:
-            nxt = (nums[-2], nums[-1])
+            nxt = pt(nums[-2], nums[-1])
             segs.append((cur, nxt))
             cur = nxt
-        elif op == 'h' and cur is not None and start is not None:
-            segs.append((cur, start))
-            cur = start
+        elif op == 'c' and len(nums) >= 6 and cur is not None:
+            c1 = pt(nums[-6], nums[-5]); c2 = pt(nums[-4], nums[-3]); p3 = pt(nums[-2], nums[-1])
+            segs.extend(_bezier(cur, c1, c2, p3))
+            cur = p3
+        elif op == 'v' and len(nums) >= 4 and cur is not None:
+            c2 = pt(nums[-4], nums[-3]); p3 = pt(nums[-2], nums[-1])
+            segs.extend(_bezier(cur, cur, c2, p3))
+            cur = p3
+        elif op == 'y' and len(nums) >= 4 and cur is not None:
+            c1 = pt(nums[-4], nums[-3]); p3 = pt(nums[-2], nums[-1])
+            segs.extend(_bezier(cur, c1, p3, p3))
+            cur = p3
+        elif op == 'h' and cur is not None and start_pt is not None:
+            segs.append((cur, start_pt))
+            cur = start_pt
         elif op == 're' and len(nums) >= 4:
             x, y, w, h = nums[-4:]
-            pts = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+            corners = [pt(x, y), pt(x + w, y), pt(x + w, y + h), pt(x, y + h)]
             for i in range(4):
-                segs.append((pts[i], pts[(i + 1) % 4]))
+                segs.append((corners[i], corners[(i + 1) % 4]))
+            cur = corners[0]; start_pt = cur
         nums = []
     return segs
 
