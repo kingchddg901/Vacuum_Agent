@@ -679,3 +679,44 @@ Rank of evidence, strongest first, for anything built on this corpus:
     5. a shared BASE code            <- family, not identity
     6. a shared CCC certificate      <- family, not identity
     7. a code mentioned in prose near a name  <- not evidence
+
+---
+
+## THE CENSUS: 107 ROBOT-VACUUM CERTIFICATES, ONE ENTITY, CHINA ONLY
+
+Filtering the CNCA registry by 获证组织名称 = 追觅贸易(天津) AND 产品名称及单元（主）=
+智能吸尘器 yields the robot-only subset. Counted, not estimated:
+
+    107 certificates      58 有效 (valid) · 23 暂停 (suspended) · 26 注销 (cancelled)
+    by year   2020:4  2021:6  2022:5  2023:15  2024:23  2025:31  2026:23
+
+That is **one entity, one country, robot vacuums only**. Our entire target catalogue is
+339 marketing names spanning Dreame + Mova + Trouver + Xiaomi across every market. And the
+single certificate we opened carried SEVEN distinct regulatory codes, so 107 is a floor on
+the number of certified domestic platforms, not a ceiling.
+
+### VERDICT ON THE REBADGING HYPOTHESIS
+Chris's argument was: 339 names is too large a line for anyone to maintain, therefore most
+of it must be rebadging. **The registry says otherwise.** Dreame certifies robot vacuums
+at a rate of ~25-30 new certificates a year and has done since 2023. They really do build
+and certify this many distinct machines.
+
+The collapse we did find is REAL but LOCAL:
+  * dock variants within one family (水箱版 / 上下水版 / 超薄上下水版) - one robot, three names
+  * trim within one family where a certificate or 型号 is shared
+  * "Complete" packaging variants - confirmed on five base codes
+It is NOT a catalogue-wide veneer over a handful of machines. The honest S-series number
+is 69 open names -> about 65 on sound evidence.
+
+### THE 有效 FILTER HID HALF THE DATA
+The first 198-row household pull was filtered to 有效, which silently dropped all 23
+suspended and all 26 cancelled robot certificates - 49 of 107, 46%. Three CCC numbers were
+briefly written off as "not present" purely because of that filter. **A status filter is a
+sampling decision, and a default one is still a decision.** Seven of the nine
+agent-sourced CCC numbers are confirmed robot certificates of this entity once the filter
+is off.
+
+### INCIDENTAL, UNEXPLAINED
+23 certificates share the identical suspension window 2026-08-24 to 2026-11-23. A mass
+simultaneous suspension across Dreame's vacuum line. Recorded because it is the kind of
+fact that explains a future surprise; not something this project needs to resolve.
