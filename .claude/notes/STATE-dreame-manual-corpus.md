@@ -865,3 +865,45 @@ matters for station-level content.
 ~15 components, of which FOUR are new to DREAME_UPKEEP_GUIDE_LIBRARY:
 `fluffing_roller` (Roller only), `omnidirectional_wheel`, `retractable_legs`,
 `clean_water_tank`. Everything else already exists in the taxonomy.
+
+## THE 51% CAVEAT WAS POINTED THE WRONG WAY (2026-08-26, same day)
+
+Recorded above: "Flagged the 51% as possibly circular ... Do not spend the 51%
+figure without breaking this." That warning was wrong in DIRECTION. Resolved by
+reading `scripts/dreame_corpus_name.py` instead of inferring from the data.
+
+The circularity is REAL: `--devices` is a required argument and the matcher is
+`build_matcher(target_names)` built from `supported_devices.md`. The namer
+cannot emit a name the catalogue does not declare.
+
+But that makes "0 of 127 corpus names outside their list" a TAUTOLOGY, not
+evidence of an inflated number. It was guaranteed by construction, so it is
+not a finding and should never have been reported as suspicious.
+
+The 51% itself is a FLOOR:
+  - it counts only COVERED (a manual's TEXT names the model), which is the
+    script's own strict state;
+  - ATTESTED (filename-only claims) is deliberately excluded from it;
+  - it can only MISS names the catalogue does not declare - the script's own
+    example is `X60 Ultra Complete`, a real retail name the integration never
+    declares.
+
+So the number is conservative and can be spent. True coverage is somewhat
+higher than 51%, not lower.
+
+Also corrected: matrix10ultra was reported here as the biggest name in the
+HELD-BUT-NOT-AUTHORED bucket, which was right. It was NOT "uncovered" - a
+later restatement in conversation said so and that was a slip. The RLX95CE
+finding (Matrix10 Ultra = X50 Ultra MatriX) does not move the coverage number;
+what it buys is that one guide serves both names.
+
+### The code merge cannot expand coverage - structural, not a bug
+
+Tested: merge every supported name that shares a regulatory code with a name
+the corpus already holds. Result +0 models, +0 names. Codes are observable ONLY
+through manuals already held, and those manuals' names are already counted. No
+corpus-internal join can grow the number.
+
+Consequence: the captcha-gated registry walk is the ONLY lever that can expand
+coverage beyond the corpus. Worth weighing that against simply authoring the
+261 held-but-unauthored models, which needs no new sourcing at all.
