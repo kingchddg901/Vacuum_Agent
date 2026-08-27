@@ -204,9 +204,14 @@ illustrations plainly.
 
 ## What survives the retraction
 
-* The four STRUCTURAL facts about the corpus (no raster images; Form XObjects are
-  background boxes; artwork is inline vector paths; `page.get_contents()` returns
-  None). Those were measured independently and still hold.
+* Three of the four STRUCTURAL facts: no raster images, Form XObjects are background
+  boxes, and `page.get_contents()` returns None. Measured independently, still hold.
+* ⚠ FACT 3 IS PARTLY WRONG AND IS CORRECTED HERE. "The artwork is inline vector paths"
+  holds. "One segment per `q...Q` block" does NOT - that count (174 moveto / 173
+  lineto inside 177 blocks) came from the same line-only parse, which could not see
+  the curves. A block contains a full path, usually curve-based. The conclusion drawn
+  from it - that q/Q is too fine to be figure granularity - therefore rests on nothing
+  and must be re-tested before shingles are preferred over block-level assets.
 * The correction that Step 2 needs no PDF rasteriser. It is in fact stronger now:
   self-rasterising the paths produces legible full-page renders.
 * The DF-weighting requirement. It was derived from a real observation (every document
