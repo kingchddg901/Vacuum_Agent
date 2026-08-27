@@ -720,3 +720,57 @@ is off.
 23 certificates share the identical suspension window 2026-08-24 to 2026-11-23. A mass
 simultaneous suspension across Dreame's vacuum line. Recorded because it is the kind of
 fact that explains a future surprise; not something this project needs to resolve.
+
+## COVERAGE AGAINST THE SUPPORTED SURFACE (2026-08-26)
+
+Chris's scope ruling: "we will support in general what they have listed."
+The list is Tasshack's `docs/supported_devices.md`, held locally at
+`durable/dreame-port-fixture/catalogue/supported_devices.md` — **741 models,
+386 distinct names**. (An earlier WebFetch of the same page returned 344 models
+and asserted a total of 511. Both wrong. The local copy is authoritative.)
+
+Measured against those 741:
+
+| | models | of 741 |
+|---|---|---|
+| guide authored (the 7 families) | 202 | 27% |
+| manual held in corpus | 383 | 51% |
+| **held but NOT authored** | **261** | **35%** |
+| no manual, no guide | 278 | 38% |
+
+Three findings.
+
+**The 261 is the cheapest work left.** 98 names have manuals on disk and no
+guide written — no sourcing, no scraping, no new jobs. Not fringe hardware:
+matrix10ultra (13 models), p70proultra (8), s70ultraroller (7), s70roller (7),
+s10 (6), z60ultrarollercomplete (6), aqua10ultrarollercomplete (6).
+
+**Every authored guide is `dreame.*`.** All 154 non-Dreame IDs (mova 102,
+xiaomi 25, trouver 13, ijai 11, deerma 2, szkj 1) have zero coverage. 85 of
+them are in the authorable pile (mova 67, trouver 10, xiaomi 7, ijai 1), so
+the ruling is mostly reachable from disk.
+
+**Nothing in the corpus was wasted.** Zero of 123 corpus names fall outside
+their list.
+
+### Caveat: the 51% may be circular
+
+Zero corpus names outside the catalogue is a suspicious result. Most likely
+`manual_names.json` was named *from* `supported_devices.md`, which would make
+the corpus→list join self-confirming — blind to any name the catalogue does
+not declare. **Do not spend the 51% figure without breaking this.** Re-run the
+join off manual *text* (`derived/attested.json`, `derived/manual_text_cache.json`,
+94 MB) rather than assigned filenames. The 27% authored figure does not depend
+on this join and stands.
+
+### Scope verdict
+
+The census method was right; the population was too big. 671 keys / 339 names
+was aimed past a 741-model / 386-name surface. The release gate is unchanged
+and unmet: **no `BRAND_REGISTRARS` row exists, and no model→family mapping
+exists at all** — so even the 202 covered models resolve to nothing at runtime.
+
+Method: series-token join (`x50 x60 l20 x40 l50 l10s`) against normalised
+(alnum-lowercase) names. Prefix-matching the raw family keys undercounts —
+`l10s_gen2` scores 0 because the catalogue writes "L10s Pro Gen 2"
+(`l10sprogen2`), which never starts with `l10sgen2`.
