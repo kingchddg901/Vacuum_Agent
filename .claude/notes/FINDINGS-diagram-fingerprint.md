@@ -230,3 +230,60 @@ informative — and lists four cases where that held. The fifth case was the rep
 conclusion. **A NEGATIVE RESULT IS A UNIFORM ANSWER TOO.** "No separation anywhere"
 should have been treated with the same suspicion as "zero assets everywhere", and the
 cheapest possible check — render it and look — was not run until Chris asked for it.
+
+---
+
+# CLOSED, 2026-08-27 — Chris's verdict on the corrected renders
+
+> "dead easy to eyeball, almost impossible to automate"
+
+The retraction above left this file in "needs re-run", which is not a resting state.
+It is now closed, and NOT on the strength of the void numbers: the extractor was
+fixed, four maintenance spreads were rendered from four different documents, and
+Chris judged them by eye.
+
+**What he saw, and it is the whole answer.** Two crops of the same procedure - main
+brush lifted out under a removable guard, hair pulled from it, side brush cleaned, two
+circular pads on the underside - drawn as:
+
+* one underside flat top-down, the other in three-quarter perspective;
+* genuinely different robot bodies;
+* hands entering at different angles and scales.
+
+A perceptual hash of a normalised bitmap cannot survive a reprojection from top-down
+to three-quarter. That is not a threshold to tune. It is a different image, of a
+different object, performing the same action. The human reads THROUGH the drawing to
+the action; the hash can only compare the drawing.
+
+So the original conclusion ("the premise does not hold") appears to be RIGHT, but it
+was reached from measurements that were garbage - three independent defects, any one
+of which would have destroyed the signal on its own. Right answer, worthless evidence.
+Do not cite the numbers; cite this section.
+
+## What survives and is worth keeping
+
+* **`scripts/dreame_figure_shape.py`** - correct vector extraction (Bezier flattening
+  + q/Q CTM stack) and `scratchpad/render_page.py`, which renders any manual page's
+  line art to PNG with NO PDF rasteriser in the environment. That tooling is not
+  wasted: it makes the thing that DOES work - a human eyeballing pages - fast and
+  batchable. A contact sheet of the mop page from forty manuals is now one script.
+* The structural facts about the corpus (no raster images, Form XObjects are
+  background boxes, artwork is inline vector paths, `page.get_contents()` returns
+  None on this corpus).
+* The mechanism classifier built for the proxy set: maintenance text naming mop pads /
+  mop pad holders vs fluffing roller vs mop assembly separates 26 distinct spinning-pad
+  machines from roller and assembly controls, from TEXT, cheaply and without any of
+  this.
+
+## If anyone revisits it
+
+Do not re-attempt drawing-to-drawing matching. The one reframe worth a run is
+DETECTION rather than MATCHING: "does this figure contain two similar circles in the
+lower half" is the dual-spinning-pad signature and survives viewpoint change, where
+hashing does not. A roller is one long cylinder; tracks are a different signature
+again. That answers the mechanism question directly instead of routing through
+procedure identity as a proxy. It is a different technique, not a tuning of this one.
+
+**And the primary signal was never the pictures.** Chris's hand-diff found the mop
+procedure TEXT identical across twenty manuals spanning five model years. The words
+were reused. The pictures were redrawn.
