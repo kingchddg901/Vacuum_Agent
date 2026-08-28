@@ -120,3 +120,80 @@ The R-code link at the top already gives HA model -> document with no network ca
 API is only worth chasing for the LANGUAGE EDITIONS the corpus lacks - principally
 Japanese, where only ~7 robot machines carry any kana at all. That is a real prize, but it
 is the only one left on this line.
+
+---
+
+# ✅ SOLVED, 2026-08-27 — the working pipeline
+
+The section above records where it stopped. It no longer stops there. A Wireshark SNI
+capture supplied the one missing fact: **the API is on a non-standard port.**
+
+## The pipeline
+
+    LOOKUP  (needs the account token)
+      GET https://us.iot.dreame.tech:13267/dreame-product/public/faqs/pdf
+          ?model=dreame.vacuum.r2469a&lang=en
+      headers: Authorization: Bearer <jwt>   (Dreame-Auth: <jwt> also accepted)
+      -> {"code":0,"success":true,"data":"https://oss.iot.dreame.tech/pub/faq/..."}
+
+    FETCH   (NO auth at all)
+      GET that URL with a bare User-Agent
+      -> HTTP 200, application/pdf, %PDF-1.4
+
+**The token is only needed for the LOOKUP. The PDFs are public**, on an Alibaba OSS
+bucket with the model in the path:
+
+    https://oss.iot.dreame.tech/pub/faq/000000/ali_dreame/{model}/{hash}{ts}.pdf
+
+⚠ PORT 13267, NOT 443. Nothing else answers. 443/80/8443 time out; 8080 is a different
+vhost that returns nginx 404 for every path and wasted an hour. The port came from the
+TCP SYN in the capture - `45738 -> 13267 [SYN]`.
+
+⚠ `lang` IS REQUIRED. Without it: `{"code":10005,"msg":"缺少必要的请求参数: lang"}`.
+
+## Other endpoints that work
+
+    /dreame-product/public/v1/productCategory/checkModel?model=X&lang=en
+        -> productId, categoryPath, displayName, images, firmware type
+    /dreame-product/public/v1/productCategory?lang=en
+        -> the OFFICIAL TAXONOMY: 26 robot-vacuum series (productList comes back EMPTY)
+    /dreame-product/public/products/?lang=en&tenantId=000000&size=500&page=0
+        -> paginated catalogue, 399 products (Spring Data Page shape)
+    /dreame-product/public/faqs/product?model=X&lang=en   -> FAQ text, not manuals
+
+⚠ `smarthomeManual/list` IS NOT MANUALS. Despite the name it returns Alexa / Google Home
+linking cards. The manual endpoint is `faqs/pdf`.
+
+## Result
+
+**114 of 114** models that had no manual in the corpus returned a URL. 112 distinct PDFs.
+Whole series recovered that the corpus never had: F21 (7/7), X60 (10/10), Aqua10 (11/11),
+Aqua20, D15, D40, M1, C9, C20, C30, E20, F9.
+
+Artifacts in `derived/`:
+    dreame_api_catalogue.json     399 products (US tenant)
+    dreame_api_categories.json    the official 26-series taxonomy
+    dreame_api_series_map.json    series -> models, with held/new flags
+    dreame_api_new_manuals.json   the 114 model -> URL results
+    api_fetch_manifest.json       what was downloaded
+
+## Scope limits, measured
+
+* **`tenantId` IS A NO-OP.** `000000`, `000001`, `100000`, `000002` all return the
+  identical 399. The app only ever sends `000000`.
+* **Region = HOST + ACCOUNT, not a parameter.** `cn.iot.dreame.tech:13267` returns
+  **HTTP 401** with the US token. The app's "Countries and Regions" screen is phone
+  dialling codes for account registration, not a catalogue switch. Reaching the CN
+  catalogue needs an account registered there.
+* **`lang` does not select a language edition.** `en`, `ja`, `de`, `fr`, `ko`, `es`, `it`
+  all return the SAME multilingual master; only `zh` differs. So Japanese is not
+  separately addressable - it is either inside the master or absent.
+* Tasshack lists 587 dreame models against this catalogue's 331; the 283 missing are
+  most likely the CN catalogue.
+
+## What this replaces
+
+The corpus was built by scraping 407 Shopify product pages and reconstructing each
+document's identity by inference - reg codes, cover names, printed-name joins, the whole
+apparatus in STATE-dreame-manual-corpus.md. This returns documents **already keyed to the
+model that requested them**. The hunting list is obsolete for `dreame.vacuum.*`.
