@@ -426,3 +426,82 @@ exactly like a pass. `card-visual.yml` runs `visual device-theme` — BOTH.
 Earlier release-session detail (the 17-task list, the three frontend i18n/RTL defects
 in `1f153481`, the sequence-toggle row in `89195039`) is in those commit messages and
 in `POST-2.1.0-deferred.md`; it is not repeated here now that 2.1.0 has shipped.
+
+---
+
+# 2026-08-27 — SECOND PAUSE (restart). Read this before the older sections.
+
+**Branch `master`, 25 commits ahead of origin, still unpushed. Tree 1352 files, 0 PDFs.**
+Working tree clean except the same six untracked `scripts/dreame_*.py`.
+
+## What landed today
+
+1. **`feat(dreame)`: the two Aqua10 families** (`258b69f2`). Nine families now. They are
+   NOT one family with a spare part - three procedures differ (washboard, mop assembly,
+   mop compartment). Provenance gate: 93 strings, 0 defects.
+   ⚠ The provenance verifier is broken for the ORIGINAL SEVEN families - the corpus
+   rename moved every source file, so all seven read "missing manual".
+
+2. **`feat(dreame)`: document -> supported-models cross-table** (`a4714332`).
+   `derived/doc_model_crosstable.{json,tsv}`. 2015 docs, 639 with an identity signal,
+   422 resolving to a model. Found 17 robots misfiled in `unclassified`.
+
+3. **Diagram fingerprinting: TESTED, RETRACTED, CLOSED.** See
+   `.claude/notes/FINDINGS-diagram-fingerprint.md` - read the CLOSED section at the
+   bottom, not the numbers above it. Chris's verdict on corrected renders:
+   *"dead easy to eyeball, almost impossible to automate."* The first conclusion was
+   right and its evidence was worthless - three independent extractor bugs.
+
+4. **Clone detection from DECLARED asset identity** (`dde6ca96`, `5b672614`,
+   `27dc5236`). Adobe stamps every placed illustration with `xmpMM:DocumentID`. Verified:
+   92% of repeatedly-placed assets have a constant path-operator count. 31-37x lift over
+   a 2.17% base rate. Full corpus: `derived/clone_pointers.json`, 232 pairs.
+
+5. **Procedure shape** (`3144fab8`) - and ⚠ the first version measured the WRONG THING.
+   It read the service-interval table; Chris: *"I don't care about the interval. I care
+   about the steps."* Replaced by ACTION SEQUENCE, which calibrates far better
+   (same-machine median 0.794 vs different 0.390, against intervals' 1.000 vs 0.667).
+
+## The one cross-name pair that survives all three signals
+
+    S70 Pro Roller (RLZ11HE) x S70 Ultra Roller (RLZ52EE)
+    artwork 4 (the WEAKEST link measured) | action shape p99.8 | text 1.000 IDENTICAL
+
+Contradicted, and they were the LOUDEST artwork pointers: `M40 x X20+` (35 shared assets,
+action shape p3.2) and `L10s Pro x M40` (p4.2). **Artwork proposes, procedure disposes.**
+
+Still undecided, with the text blocks already sent to Chris:
+`D20 Pro (RLD43SA) x E30 Pro Plus (RLE31SD)` - artwork 21, action p70.6, text 82%.
+
+## The composition model (design, not yet built)
+
+Everything decomposes into small key spaces, which makes i18n mostly LIFTING rather than
+translating - the manuals already carry 6-34 language editions of the same content at
+computable offsets, with the language code printed on the page.
+
+    interval:  [action] + [frequency] + [numeral] + [unit]
+               ~6 actions, ~4 frequencies, integers (not keys), 4 units
+               `repetition` is a TOKEN not a number, so "each_use" and "6-12" are
+               ordinary values, not special cases
+    procedure: a sequence of [action][object] pairs
+
+⚠ MAKE THE KEY THE WHOLE PATTERN, not the word "every". Japanese puts it as a SUFFIX
+(`6 ～ 12 カ月ごと`, `2 週間に一度`) so concatenating a prefix produces broken Japanese.
+
+Validated against the nine authored families: `main_brush` reduces to ONE skeleton with
+one node of difference (Group B has brush end-covers). `dustbin`'s six variants are one
+skeleton plus two booleans (`has_robot_cover`, `has_dust_box_cover`). `washboard` looked
+like it resisted composition and does NOT - Chris called that correctly; all four share
+`exit station -> remove washboard -> [CLEAN] -> reinstall -> return robot` and only the
+`[CLEAN]` sub-procedure varies, by hardware.
+
+⚠ `retractable legs`, `side brush extension` and `MopExtend` have NO maintenance
+procedure anywhere in the corpus - labels and one table row (`Clean it as needed`) only.
+
+## App API investigation
+
+See `.claude/notes/STATE-dreame-app-api.md`. Headline: **the HA model string IS the
+document code** (`dreame.vacuum.r2469a` -> R2469A), so HA model -> R-code -> document
+works with no network call at all. The API was never reached; a Wireshark SNI capture was
+in flight at the restart.
+
