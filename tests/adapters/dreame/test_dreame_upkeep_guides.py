@@ -5,33 +5,49 @@ contract suites reach it. Before this file, nothing in the tree could fail on an
 Dreame guide content: a family could be emptied, two families could be silently
 collapsed into one, or the release switch could be thrown, and the suite stayed green.
 
+The library now holds TWO kinds of family (see dreame_upkeep_guides.py):
+
+  * TIER profiles (standard / auto_empty / wash_station / _track / _roller /
+    _baseboard) — the composed default for the ~730 models with no authored manual.
+  * AUTHORED families (x50, x60_ultra, x60_pro_ultra_complete, l20, x40, l50,
+    l10s_gen2, aqua10_ultra_track, aqua10_ultra_roller) — measured off their own
+    manuals, each its tier minus absent hardware, overriding every component its manual
+    words differently. The override is the guard against the shared-base defect that was
+    shipped once and reverted (commit d45e2ec4): a family NEVER inherits base prose for a
+    component its manual stated differently. DUG-4 and DUG-6 pin exactly that.
+
 [DUG-1]  No BRAND_REGISTRARS row for Dreame. That row is the release, and it is gated
          on a RELEASED upstream build carrying Tasshack #1707.
-[DUG-2]  Every component in every family has at least one non-empty step.
+[DUG-2]  Every component in every family has at least one non-empty step and the four
+         contract fields. A renamed or dropped family fails here, not silently.
 [DUG-3]  x60_pro_ultra_complete is x60_ultra plus EXACTLY baseboard_brush, bodies
-         otherwise identical — the relationship that was measured off the two manuals
-         (48 of 49 care sentences shared) rather than assumed.
+         otherwise identical — the relationship measured off the two manuals.
 [DUG-4]  The X50 and the X60 are NOT the same family. The seven components measured to
-         differ must keep differing. This is the regression guard for the defect this
-         file already shipped once: a shared `_BASE` factored out because the component
-         NAMES lined up, which put X60 prose on five other platforms.
+         differ must keep differing — the regression guard for the shared-base defect.
 [DUG-5]  Hardware a family does not have gets no guide: no heating module or baseboard
-         brush on the X50, no separate auto-empty vents on the X60 (its manual prints
-         vents, contacts and signalling as one section), no detergent inlet on any
-         family but the L20.
-[DUG-6]  The L50 and the X50 -- 33 shared care sentences, 11 of 13 components identical,
-         the closest pair here -- stay two families. Both halves are pinned: the two
-         components that MUST differ, and the eleven that must stay the same, because a
-         difference-guard alone goes green on a corpus that has simply rotted.
+         brush on the X50, no separate auto-empty vents on the X60, no detergent inlet
+         on any family but the L20.
+[DUG-6]  The L50 and the X50 -- 11 of 13 components identical, the closest pair here --
+         stay two families; the two that MUST differ, and the eleven that must stay the
+         same, are both pinned.
+[DUG-7]  The composed TIER profiles nest (auto_empty superset of standard, wash_station
+         of auto_empty) and the mop tiers override the mop, not the brushes.
+[DUG-8]  Every family the CATALOG routes a model to exists in the library — an unrouted
+         family is a KeyError waiting for the release switch.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from custom_components.eufy_vacuum.adapters.dreame import DREAME_UPKEEP_GUIDE_LIBRARY
+from custom_components.eufy_vacuum.adapters.dreame import (
+    DREAME_MODEL_GUIDE_FAMILIES,
+    DREAME_GUIDE_FAMILY_NAMES,
+    DREAME_UPKEEP_GUIDE_LIBRARY,
+)
 
-FAMILIES = (
+#: measured off their own manuals — the quality anchors.
+AUTHORED_FAMILIES = (
     "x50",
     "x60_ultra",
     "x60_pro_ultra_complete",
@@ -39,7 +55,21 @@ FAMILIES = (
     "x40",
     "l50",
     "l10s_gen2",
+    "aqua10_ultra_track",
+    "aqua10_ultra_roller",
 )
+
+#: composed defaults for the unauthored tail.
+TIER_FAMILIES = (
+    "standard",
+    "auto_empty",
+    "wash_station",
+    "wash_station_track",
+    "wash_station_roller",
+    "wash_station_baseboard",
+)
+
+ALL_FAMILIES = AUTHORED_FAMILIES + TIER_FAMILIES
 
 
 def test_dreame_has_no_brand_registrar_row():
@@ -57,16 +87,16 @@ def test_dreame_has_no_brand_registrar_row():
 
 
 def test_every_family_is_present():
-    """[DUG-2] anchor: a renamed or dropped family fails here, not silently."""
-    assert set(DREAME_UPKEEP_GUIDE_LIBRARY) == set(FAMILIES), (
-        f"families are {sorted(DREAME_UPKEEP_GUIDE_LIBRARY)}, expected {sorted(FAMILIES)}. "
+    """[DUG-2] a renamed or dropped family fails here, not silently."""
+    assert set(DREAME_UPKEEP_GUIDE_LIBRARY) == set(ALL_FAMILIES), (
+        f"families are {sorted(DREAME_UPKEEP_GUIDE_LIBRARY)}, expected {sorted(ALL_FAMILIES)}. "
         "A family key is the routing key, so renaming one silently unroutes every model "
-        "that pointed at it — update FAMILIES deliberately, with the manual in hand."
+        "that pointed at it — update the lists here deliberately, with the manual in hand."
     )
 
 
-@pytest.mark.parametrize("family", FAMILIES)
-def test_every_component_has_steps(family):
+@pytest.mark.parametrize("family", ALL_FAMILIES)
+def test_every_component_has_steps_and_fields(family):
     """[DUG-2] an entry with no steps is worse than an absent one — it renders empty."""
     fam = DREAME_UPKEEP_GUIDE_LIBRARY[family]
     assert fam, f"{family} is empty"
@@ -77,6 +107,10 @@ def test_every_component_has_steps(family):
             isinstance(s, str) and s.strip() for s in steps
         ), f"{family}.{component} has a blank step"
         assert isinstance(guide.get("notes", []), list)
+        # the four-field contract (mirrors Roborock/Eufy) — frequencies may be None but
+        # the keys must be present so the card and the translation sync never KeyError.
+        for field in ("clean_frequency", "replace_frequency", "steps", "notes"):
+            assert field in guide, f"{family}.{component} is missing {field}"
 
 
 def test_x60_complete_is_ultra_plus_baseboard_brush_only():
@@ -102,7 +136,7 @@ def test_x60_complete_is_ultra_plus_baseboard_brush_only():
 
 
 #: Measured against R2489A (X50) and R5089B (X60 Ultra), page by page. Each of these is
-#: a hardware difference, not a wording one — see the block comment above ``_X50``.
+#: a hardware difference, not a wording one.
 X50_X60_MUST_DIFFER = (
     "main_brush",  # X50 ships a cleaning tool; the X60 manual says "a proper tool"
     "dustbin",  # the X50's dust box sits under a robot cover; the X60's does not
@@ -121,15 +155,13 @@ def test_x50_and_x60_do_not_share_prose(component):
     x60 = DREAME_UPKEEP_GUIDE_LIBRARY["x60_ultra"][component]
     assert x50 != x60, (
         f"x50.{component} is now identical to x60_ultra.{component}. These were read "
-        "off two different manuals and measured to differ. Identical content means "
-        "someone factored a shared base out of two families — which is exactly how a "
-        "user ends up told to unscrew a brush that clips."
+        "off two different manuals and measured to differ. Identical content means the "
+        "override was dropped and both now inherit the tier base — which is exactly how "
+        "a user ends up told to unscrew a brush that clips."
     )
 
 
-#: The L50 and the X50 share 33 care sentences and 11 of 13 components outright — the
-#: closest pair in the file, and the one most likely to invite "these are the same
-#: family". They are not, and the whole of the difference is here.
+#: The L50 and the X50 share 11 of 13 components outright — the closest pair in the file.
 L50_X50_MUST_DIFFER = (
     "dustbin",  # L50 OPENS the robot cover; the X50 REMOVES it
     "sensor",  # L50 has an LDS and no VersaLift; the X50 has a VersaLift and no LDS
@@ -138,13 +170,7 @@ L50_X50_MUST_DIFFER = (
 
 @pytest.mark.parametrize("component", L50_X50_MUST_DIFFER)
 def test_l50_and_x50_do_not_share_prose(component):
-    """[DUG-6] eleven of thirteen identical is not thirteen, and the two carry hardware.
-
-    This is the case DUG-3 is NOT. The X60 pair could share a body because their delta
-    was a whole extra component; here the delta lives INSIDE two shared components, so
-    merging them would quietly rewrite the two that matter — telling an L50 owner to
-    wipe a VersaLift sensor their robot has not got, and never mentioning its LDS.
-    """
+    """[DUG-6] eleven of thirteen identical is not thirteen, and the two carry hardware."""
     l50 = DREAME_UPKEEP_GUIDE_LIBRARY["l50"][component]
     x50 = DREAME_UPKEEP_GUIDE_LIBRARY["x50"][component]
     assert l50 != x50, (
@@ -155,12 +181,7 @@ def test_l50_and_x50_do_not_share_prose(component):
 
 
 def test_the_two_close_families_are_still_mostly_identical():
-    """[DUG-6] the other half — the 11/13 figure DUG-6 rests on, pinned.
-
-    Without this, deleting content from either family would make them 'differ' more and
-    DUG-6 would go green on a corpus that had rotted. A guard on a difference needs the
-    sameness pinned too, or it passes for the wrong reason.
-    """
+    """[DUG-6] the other half — the 11/13 figure DUG-6 rests on, pinned."""
     l50 = DREAME_UPKEEP_GUIDE_LIBRARY["l50"]
     x50 = DREAME_UPKEEP_GUIDE_LIBRARY["x50"]
     common = set(l50) & set(x50)
@@ -168,7 +189,7 @@ def test_the_two_close_families_are_still_mostly_identical():
     assert len(common) == 13 and len(identical) == 11, (
         f"l50/x50 overlap is now {len(identical)} identical of {len(common)} common, "
         "measured as 11 of 13. If the manuals were re-read and this genuinely changed, "
-        "update the number here AND the block comment above `_L50` together."
+        "update the number here AND the block comment in the guide file together."
     )
     assert common - identical == set(L50_X50_MUST_DIFFER), (
         f"the l50/x50 differences are now {sorted(common - identical)}, not "
@@ -206,4 +227,39 @@ def test_absent_hardware_gets_no_guide(family, component):
     assert component not in DREAME_UPKEEP_GUIDE_LIBRARY[family], (
         f"{family} now has a {component} guide. Its manual does not list that part, so "
         "this describes hardware the owner does not have."
+    )
+
+
+def test_tiers_nest_and_mop_is_an_override_axis():
+    """[DUG-7] the composed tail profiles are supersets up the dock ladder, and the mop
+    tiers change the mop, not the brushes — the property the composition is FOR."""
+    lib = DREAME_UPKEEP_GUIDE_LIBRARY
+    assert set(lib["standard"]) < set(lib["auto_empty"]), "auto_empty must add to standard"
+    assert set(lib["auto_empty"]) < set(lib["wash_station"]), "wash_station must add to auto_empty"
+    # the dock ladder shares component prose where it does not add hardware
+    for component in lib["standard"]:
+        assert lib["standard"][component] == lib["auto_empty"][component] == lib["wash_station"][component], (
+            f"{component} drifted across the dock ladder — the tiers no longer compose "
+            "from one base, which is the whole point of them."
+        )
+    # the mop tiers override ONLY the mop components, leaving the brushes/sensors alone
+    for mop_tier in ("wash_station_track", "wash_station_roller"):
+        changed = {c for c in lib["wash_station"] if lib["wash_station"][c] != lib[mop_tier].get(c)}
+        assert changed <= {"mop_cloth", "mop_pad_holder"}, (
+            f"{mop_tier} changed {changed - {'mop_cloth', 'mop_pad_holder'}} beyond the "
+            "mop — a mop variant must not rewrite the main brush."
+        )
+
+
+def test_every_catalog_family_exists_in_the_library():
+    """[DUG-8] the catalog is the routing table; a family it names that the library lacks
+    is a KeyError the moment the release switch is thrown and a device resolves to it."""
+    used = set(DREAME_MODEL_GUIDE_FAMILIES.values())
+    assert used <= set(DREAME_UPKEEP_GUIDE_LIBRARY), (
+        f"catalog routes models to {sorted(used - set(DREAME_UPKEEP_GUIDE_LIBRARY))} which "
+        "the library does not define. Every routed family must resolve to a guide."
+    )
+    assert used <= set(DREAME_GUIDE_FAMILY_NAMES), (
+        f"{sorted(used - set(DREAME_GUIDE_FAMILY_NAMES))} has no display name in "
+        "DREAME_GUIDE_FAMILY_NAMES — the card would show a bare routing key."
     )

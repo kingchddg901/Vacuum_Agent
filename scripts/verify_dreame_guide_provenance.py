@@ -41,17 +41,23 @@ from pathlib import Path
 DEFAULT_MANUALS = Path.home() / "Documents/durable/dreame-port-fixture/manuals"
 
 #: family -> (manual filename, EN care-section pages, 1-based inclusive)
+#:
+#: ⚠ PATHS REFRESHED for the post-dedup corpus layout (files moved to manuals/robot/ under
+#: canonical names). The page ranges were probed against the ORIGINAL editions; where the
+#: dedup kept a DIFFERENT edition of the same R-code the pages may not transfer and need
+#: re-probing — flagged inline. Same-R-code editions (x50, x60_ultra, l50, l10s, both
+#: aqua10) should still align.
 SOURCES = {
-    "x50": ("R2489A-X50_Series-EN_DE_FR.pdf", range(22, 31)),
-    "x60_ultra": ("R5089B-X60_Ultra-EN_KM.pdf", range(13, 16)),
-    "x60_pro_ultra_complete": ("R6001-X60_Series-28LANG.pdf", range(14, 17)),
-    "l20": ("R2394A-L20_Ultra-EN_DE_FR_IT.pdf", range(20, 27)),
-    "x40": ("R2416A-X40_Ultra-EN_DE_FR_IT.pdf", range(19, 27)),
-    "l50": ("R9493-L50_Ultra-EN_DE_FR_IT_ES_PL_NL_NO.pdf", range(23, 31)),
-    "l10s_gen2": (
-        "R2469X-Dreame_L10s_Ultra_Gen_2-_X-_ERP_EN_DE_FR_IT_ES.pdf",
-        range(19, 26),
-    ),
+    "x50": ("robot/x50_R2489A.pdf", range(22, 31)),
+    "x60_ultra": ("robot/x60-ultra_R5089B.pdf", range(13, 16)),
+    # edition drift: fixture now holds the 28-language R6001; re-probe if it flags.
+    "x60_pro_ultra_complete": ("robot-unmatched/r6001-x60-series-en-de-fr-it-es-pl-nl-no-sv-el-p.pdf", range(14, 17)),
+    # edition drift: fixture now holds the "Complete+1" R2394A; re-probe if it flags.
+    "l20": ("robot/l20-ultra-complete+1_R2394A.pdf", range(20, 27)),
+    # edition drift: fixture now holds the "Complete+1" R2416A; re-probe if it flags.
+    "x40": ("robot/x40-ultra-complete+1_R2416A.pdf", range(19, 27)),
+    "l50": ("robot/l50-ultra_R9493.pdf", range(23, 31)),
+    "l10s_gen2": ("robot/l10s-ultra-gen-2_R2469X.pdf", range(19, 26)),
     # Both live under manuals/robot/. Page numbers here are PDF pages. NOTE the
     # fixture Track copy is the 220-page ONE-UP edition; the 110-page file that
     # arrived by hand is a two-up imposition of the same content, so its page
@@ -111,10 +117,20 @@ def main() -> int:
     spec.loader.exec_module(module)
     library = module.DREAME_UPKEEP_GUIDE_LIBRARY
 
-    missing = set(library) - set(SOURCES)
-    if missing:
-        print(f"NO SOURCE RECORDED for {sorted(missing)} — add it to SOURCES above.")
+    # SOURCES lists the AUTHORED families — each transcribed from ONE manual. The composed
+    # TIER profiles (standard / auto_empty / wash_station / _track / _roller / _baseboard)
+    # carry no single manual: their prose is the most-complete wording drawn FROM the
+    # authored families and is therefore already scored below. They are skipped here, not
+    # errored. A source naming a family the library no longer defines is still a defect.
+    stale = set(SOURCES) - set(library)
+    if stale:
+        print(f"SOURCES names {sorted(stale)} which the library no longer defines.")
         return 2
+    authored = [f for f in library if f in SOURCES]
+    skipped = sorted(set(library) - set(SOURCES))
+    if skipped:
+        print(f"(skipping {len(skipped)} composed tier profiles, scored via their "
+              f"authored source families: {skipped})")
 
     haystacks = {}
     for family, (pdf, pages) in SOURCES.items():
@@ -132,7 +148,8 @@ def main() -> int:
 
     defects = 0
     total = 0
-    for family, components in library.items():
+    for family in authored:
+        components = library[family]
         for component, guide in components.items():
             for kind in ("steps", "notes"):
                 for text in guide.get(kind, []):
