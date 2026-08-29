@@ -204,7 +204,13 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
         if isinstance(m, dict)
     )
     room_total = imported_rooms or map_rooms
-    has_rooms = bool(room_total or has_segments or active_map_usable)
+    # The importer can ALSO discover rooms from a vacuum attribute while the active_map
+    # sensor is blank — a per_map_mapping single-map device (Dreame with one map) whose
+    # selector only turns available with multi-floor mapping ON. discoverable_room_count
+    # is get_active_map_id's own verdict (the resolver the import runs), so has_rooms
+    # tracks what "Import Active Map" will actually do rather than the selector's state.
+    discoverable_rooms = int(out.get("discoverable_room_count") or 0) > 0
+    has_rooms = bool(room_total or has_segments or active_map_usable or discoverable_rooms)
 
     # Rooms sourced OUTSIDE the Eufy transport (no active_map sensor, no segments
     # attribute) => a native brand integration (e.g. Roborock) provides them.
@@ -334,6 +340,13 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
 
     if active_map_usable:
         note = "Standard transport — maps, rooms and the live map all work."
+    elif has_active_map_entity and discoverable_rooms:
+        note = (
+            f"The active_map sensor reports '{active_map_state or 'no value'}' — this "
+            "device only makes that sensor available with multi-floor mapping ON — but "
+            "its single map's rooms import directly from the vacuum, so room features "
+            "work. Only the live-map PICTURE stays blank until the sensor reports a map."
+        )
     elif has_active_map_entity:
         note = (
             f"The active_map sensor exists but reports "
@@ -393,7 +406,7 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
         warnings.append(_area_units["warning"])
     # Present-but-valueless active_map: the importer will refuse this device, so say
     # so loudly instead of letting the reader infer it from a "no" three lines up.
-    if has_active_map_entity and not active_map_usable:
+    if has_active_map_entity and not active_map_usable and not discoverable_rooms:
         warnings.append(
             f"active_map entity "
             f"{active_map_role.get('entity_id') or '(unknown entity)'} reports "
@@ -934,6 +947,22 @@ def _vacuum_diagnostics(
     # so it's brand-agnostic: Roborock resolves its active map a different way and
     # exposes no such sensor, but its rooms still surface here.
     out["active_map_id"] = resolve_active_map_id(entity_resolution)
+
+    # The IMPORTER's own verdict, via the exact resolver "Import Active Map" runs, so the
+    # self-check cannot disagree with the behaviour. Covers the case a blank active_map
+    # sensor hides: a per_map_mapping device (Dreame) whose single map's rooms are
+    # discoverable from a vacuum attribute even while the selector reports 'unavailable'.
+    try:
+        from .rooms.room_discovery import discover_rooms_for_vacuum, get_active_map_id
+        _importer_map = get_active_map_id(hass, vacuum_entity_id)
+        out["importer_map_id"] = _importer_map
+        out["discoverable_room_count"] = (
+            len(discover_rooms_for_vacuum(
+                hass, vacuum_entity_id=vacuum_entity_id, map_id=_importer_map))
+            if _importer_map else 0
+        )
+    except Exception:  # pragma: no cover - defensive
+        out["discoverable_room_count"] = 0
 
     map_ids: list[str] = []
     try:

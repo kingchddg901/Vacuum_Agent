@@ -314,6 +314,19 @@ def register_dreame_adapter_for_vacuum(
                 "empty_dust": {"entity_suffixes": ["start_auto_empty"], "token_sets": [["start", "auto", "empty"]]},
             },
         },
+
+        # Bookkeeping so manager.refresh_vacuum_capabilities reproduces registration's
+        # detect_capabilities INPUTS instead of a reduced re-derivation. Without
+        # model_family + capability_hints stored, a refresh reverts model_family to
+        # "generic" (the live r2469a symptom) and drops input-only hints; without the
+        # full _entity_candidates it rebuilds a one-candidate-per-role set. Mirrors
+        # adapters/eufy/adapter.py. Underscore keys are unknown-key-check exempt.
+        "model_family": profile["family"],
+        "capability_hints": dict(capability_hints),
+        "_entity_candidates": entity_candidates,
+        "_entity_remaps": entity_remaps,
+        "_entity_overrides": dict(entity_overrides or {}),
+        "_reserved_suffixes": list(ALL_SUFFIXES),
     }
 
     register_adapter_config(vid, config)
