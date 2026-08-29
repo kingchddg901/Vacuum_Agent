@@ -150,10 +150,16 @@ def get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
                     active_map_entity, vacuum_entity_id, value,
                 )
                 return None
+            # per_map single-map: the selector is PRESENT-but-blank, so it is also
+            # REGISTERED — the registered-but-stateless wait-branch below (meant for a
+            # state-is-None entity) would wrongly return None and never reach the
+            # fallback. Go straight to the single-map anchor here; a >1-map device still
+            # returns None inside it.
             _LOGGER.debug(
                 "Active map entity %s blank for per-map-mapping %s (%s) — trying "
                 "single-map fallback", active_map_entity, vacuum_entity_id, value,
             )
+            return _implicit_attribute_map_id(hass, vacuum_entity_id, config)
         # Declared but not in the state machine. Distinguish a registered-but-
         # not-yet-materialised sensor (novel boot race → wait) from a sensor that
         # is never created (scalar/attribute mode → implicit fallback).

@@ -349,7 +349,14 @@ def test_rd_shape_3_per_map_single_map_anchors_on_a_blank_selector(hass, manager
     map key instead of refusing at "no map could be identified". The KEY is the anchor,
     not the declared implicit_map_id, so it survives a rename."""
     _per_map_adapter_single()
-    hass.states.async_set("sensor.alfred_map", "unavailable")  # exists, blank sentinel
+    # REGISTER it (not just a bare state): the live single-map selector is a real
+    # registered entity reporting 'unavailable', so this must exercise the
+    # registered-but-blank path — the blind spot that let a fall-through into the
+    # registered-but-stateless wait-branch return None on hardware.
+    er.async_get(hass).async_get_or_create(
+        "sensor", "eufy_vacuum", "alfred_map_unique", suggested_object_id="alfred_map",
+    )
+    hass.states.async_set("sensor.alfred_map", "unavailable")  # exists, registered, blank
     hass.states.async_set(_VAC, "docked", {"rooms": {
         "Main": [{"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Hall"}],
     }})
@@ -363,6 +370,9 @@ def test_rd_shape_4_per_map_multi_map_with_blank_selector_still_waits(hass, mana
     anchor a guess — >1 map key means the selector genuinely carried information we no
     longer have, so return None and wait (the per_map analogue of [RD-10])."""
     _per_map_adapter_single()
+    er.async_get(hass).async_get_or_create(
+        "sensor", "eufy_vacuum", "alfred_map_unique", suggested_object_id="alfred_map",
+    )
     hass.states.async_set("sensor.alfred_map", "unavailable")
     hass.states.async_set(_VAC, "docked", {"rooms": {
         "Main": [{"id": 1, "name": "Kitchen"}],
