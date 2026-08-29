@@ -130,13 +130,30 @@ def get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
         state = hass.states.get(active_map_entity)
         if state is not None:
             value = state.state
-            if is_blank_state(value):
+            if not is_blank_state(value):
+                return str(value)
+            # Blank/unavailable selector. The meaning depends on the room-list SHAPE:
+            #
+            #  * per_map_mapping (Dreame): this is the STEADY state of a SINGLE-map
+            #    device — the upstream integration only makes select.<id>_selected_map
+            #    available while multi-floor mapping is ON, so a one-map device leaves it
+            #    `unavailable`. The rooms live in the vacuum attribute keyed by map, so
+            #    fall through to the single-map fallback (narrow: exactly one map with
+            #    rooms; a real multi-map device has >1 key and still returns None).
+            #  * flat_list (Eufy scalar/Tuya): the selector IS the map identity and a
+            #    blank is TRANSIENT (the map momentarily offline). Falling through would
+            #    fork a phantom map for a device whose real map is about to return — the
+            #    [RD-10] guard. So keep waiting: return None.
+            if (config or {}).get("discovery", {}).get("room_list_shape") != SHAPE_PER_MAP_MAPPING:
                 _LOGGER.debug(
                     "Active map entity %s sentinel value for %s: %s",
                     active_map_entity, vacuum_entity_id, value,
                 )
                 return None
-            return str(value)
+            _LOGGER.debug(
+                "Active map entity %s blank for per-map-mapping %s (%s) — trying "
+                "single-map fallback", active_map_entity, vacuum_entity_id, value,
+            )
         # Declared but not in the state machine. Distinguish a registered-but-
         # not-yet-materialised sensor (novel boot race → wait) from a sensor that
         # is never created (scalar/attribute mode → implicit fallback).
@@ -240,6 +257,19 @@ def _implicit_attribute_map_id(
         return None
     state = hass.states.get(vacuum_entity_id)
     rooms = state.attributes.get(attr) if state is not None else None
+    # PER-MAP-MAPPING shape ({map_name: [rooms]}, e.g. Dreame): a device with exactly
+    # ONE map whose room list is usable anchors on that map's KEY — which is the value
+    # select_segments_for_map looks up, so discovery finds the rooms it just refreshed.
+    # `implicit_map_id` is the opt-in flag (checked above); the KEY is the real anchor,
+    # so it stays correct if the single map is renamed. Two+ maps -> None (the selector
+    # genuinely carried information; do not guess).
+    if discovery.get("room_list_shape") == SHAPE_PER_MAP_MAPPING:
+        if isinstance(rooms, dict) and len(rooms) == 1:
+            (map_name, seg), = rooms.items()
+            if isinstance(seg, list) and any(isinstance(r, dict) for r in seg):
+                return str(map_name)
+        return None
+    # FLAT-LIST shape (Eufy scalar/Tuya): the declared implicit id itself is the anchor.
     # Require at least one dict row — a non-empty list of non-dicts is not a usable
     # room list and must not anchor a phantom map (matches discover_rooms' filter).
     if isinstance(rooms, list) and any(isinstance(r, dict) for r in rooms):

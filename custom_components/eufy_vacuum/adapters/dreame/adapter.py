@@ -276,6 +276,13 @@ def register_dreame_adapter_for_vacuum(
             "room_list_attribute": "rooms",
             "room_id_key": "id",
             "room_name_key": "name",
+            # Opt in to the single-map anchor: a one-map Dreame leaves
+            # select.<id>_selected_map `unavailable` (the upstream integration only
+            # makes it available with multi-floor mapping ON), so the import would
+            # otherwise refuse at "no map could be identified". With this set, a single
+            # per-map key with rooms anchors on that key. The VALUE is only the opt-in
+            # flag; the real anchor is the live map name ("Main").
+            "implicit_map_id": "Main",
         },
 
         "setup": {

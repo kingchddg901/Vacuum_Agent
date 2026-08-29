@@ -328,6 +328,49 @@ def test_rd_shape_2_flat_list_is_still_the_default(hass, manager):
     assert [r["room_id"] for r in discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC)] == [4]
 
 
+def _per_map_adapter_single(implicit="Main"):
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"active_map": "sensor.alfred_map"},
+        "discovery": {
+            "room_list_entity": "vacuum_entity",
+            "room_list_attribute": "rooms",
+            "room_list_shape": "per_map_mapping",
+            "room_id_key": "id",
+            "room_name_key": "name",
+            "implicit_map_id": implicit,  # opt in to the single-map anchor
+        },
+    })
+
+
+def test_rd_shape_3_per_map_single_map_anchors_on_a_blank_selector(hass, manager):
+    """[RD-SHAPE-3] a single-map per_map_mapping device whose selector is PRESENT but
+    UNAVAILABLE (Dreame's steady state with multi-floor mapping off) anchors on its one
+    map key instead of refusing at "no map could be identified". The KEY is the anchor,
+    not the declared implicit_map_id, so it survives a rename."""
+    _per_map_adapter_single()
+    hass.states.async_set("sensor.alfred_map", "unavailable")  # exists, blank sentinel
+    hass.states.async_set(_VAC, "docked", {"rooms": {
+        "Main": [{"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Hall"}],
+    }})
+    assert get_active_map_id(hass, _VAC) == "Main"
+    rooms = discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC)
+    assert [r["room_id"] for r in rooms] == [1, 2]
+
+
+def test_rd_shape_4_per_map_multi_map_with_blank_selector_still_waits(hass, manager):
+    """[RD-SHAPE-4] the narrowing: a MULTI-map device with a blank selector must NOT
+    anchor a guess — >1 map key means the selector genuinely carried information we no
+    longer have, so return None and wait (the per_map analogue of [RD-10])."""
+    _per_map_adapter_single()
+    hass.states.async_set("sensor.alfred_map", "unavailable")
+    hass.states.async_set(_VAC, "docked", {"rooms": {
+        "Main": [{"id": 1, "name": "Kitchen"}],
+        "Upstairs": [{"id": 9, "name": "Loft"}],
+    }})
+    assert get_active_map_id(hass, _VAC) is None
+
+
 def test_rd_shape_3_a_mapping_without_the_declaration_still_discovers_nothing(hass, manager):
     """[RD-SHAPE-3] the shape must be DECLARED — it is never sniffed.
 
