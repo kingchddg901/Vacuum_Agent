@@ -39,6 +39,7 @@ from .entities import (
     SUFFIX_CLEANING_HISTORY,
     SUFFIX_CLEANING_TIME,
     SUFFIX_ACTIVE_CLEANING_TARGET,
+    SUFFIX_DOCK_STATUS,
     SUFFIX_ERROR_MESSAGE,
     SUFFIX_TASK_STATUS,
     build_entity_id,
@@ -99,6 +100,7 @@ def register_dreame_adapter_for_vacuum(
         "active_map": [build_entity_id(vid, SUFFIX_ACTIVE_MAP, DOMAIN_SELECT)],
         "cleaning_time": [build_entity_id(vid, SUFFIX_CLEANING_TIME)],
         "cleaning_area": [build_entity_id(vid, SUFFIX_CLEANING_AREA)],
+        "dock_status": [build_entity_id(vid, SUFFIX_DOCK_STATUS)],
     }
 
     capability_hints: dict[str, bool] = {
@@ -141,6 +143,8 @@ def register_dreame_adapter_for_vacuum(
         "battery": build_entity_id(vid, SUFFIX_BATTERY),
         "error_message": build_entity_id(vid, SUFFIX_ERROR_MESSAGE),
         "charging": build_entity_id(vid, SUFFIX_CHARGING, DOMAIN_BINARY_SENSOR),
+        # station wash/dry enum — drives dock-event counting + dock-action gating.
+        "dock_status": build_entity_id(vid, SUFFIX_DOCK_STATUS),
         # timestamp sensor carrying completed/cancelled — the completion discriminator
         # (PHASE 4: confirm cleaning_history.completed semantics on a real run end).
         "last_clean_end": build_entity_id(vid, SUFFIX_CLEANING_HISTORY),
@@ -195,6 +199,11 @@ def register_dreame_adapter_for_vacuum(
             "supports_path_control": profile.get("has_path_control", False),
             "supports_edge_mopping": False,
             "supports_zone_clean": caps.get("supports_zone_clean", False),
+            # supports_station_water is deliberately NOT declared (stays False). Dreame
+            # exposes NO numeric clean-water percent — every water sensor is an ENUM
+            # (clean_water_tank_status = not_available/not_installed/low_water/installed),
+            # and this role is consumed as a float percent (job_metrics/run_plan). A
+            # label-only display would need a separate enum role, not station_water.
         },
 
         "charging": {
@@ -251,6 +260,30 @@ def register_dreame_adapter_for_vacuum(
         },
 
         "maintenance_components": MAINTENANCE_COMPONENTS,
+
+        # Dock wash/dry cycle observation + the three dock action buttons. dock_status
+        # (sensor.<id>_self_wash_base_status) reads idle/washing/drying/... — verified
+        # HA states. Button suffixes verified in the live registry: self_clean /
+        # manual_drying / start_auto_empty.
+        #
+        # ⚠ GAP (accepted): Dreame splits station state across THREE sensors —
+        # self_wash_base_status (wash+dry), auto_empty_status (dust empty), and
+        # drainage_status. So last_dust_empty cannot be trigger-counted from the single
+        # dock_status role (the empty BUTTON still works; only auto-counting the event is
+        # lost). Not a safety issue; revisit with a second lifecycle-watched role later.
+        "dock_events": {
+            "enabled": True,
+            "triggers": {
+                "last_mop_wash": ["washing"],
+                "last_dry_start": ["drying"],
+            },
+            "debounce_seconds": {"last_mop_wash": 60},
+            "action_buttons": {
+                "wash_mop": {"entity_suffixes": ["self_clean"], "token_sets": [["self", "clean"]]},
+                "dry_mop": {"entity_suffixes": ["manual_drying"], "token_sets": [["manual", "drying"]]},
+                "empty_dust": {"entity_suffixes": ["start_auto_empty"], "token_sets": [["start", "auto", "empty"]]},
+            },
+        },
     }
 
     register_adapter_config(vid, config)

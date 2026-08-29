@@ -26,7 +26,20 @@ add an equality test against ``DREAME_MODEL_NAMES`` so the two tables cannot dri
 
 from __future__ import annotations
 
-from .upkeep_catalog import DREAME_MODEL_NAMES
+from .upkeep_catalog import DREAME_MODEL_GUIDE_FAMILIES, DREAME_MODEL_NAMES
+
+# guide/maintenance tier -> station capability set. Only ``standard`` (no station) and
+# ``auto_empty`` (collect only) REDUCE the station; every wash-station-class family
+# (wash_station[/_track/_roller/_baseboard] and the authored families x50/l20/... that
+# are all wash-station robots) falls through to DEFAULT_PROFILE's full-station flags.
+# Over-claiming a station only turns on a card control that fails safe at dock/manager
+# (``missing_action_entity`` when no button resolves); ``standard`` fails CLOSED.
+_TIER_STATION: dict[str, dict] = {
+    "standard": dict(has_station=False, station_collectable=False,
+                     station_washable=False, station_dryable=False),
+    "auto_empty": dict(has_station=True, station_collectable=True,
+                       station_washable=False, station_dryable=False),
+}
 
 # device.model -> capability profile (display_name injected by profile_for_model).
 #
@@ -75,13 +88,31 @@ DEFAULT_PROFILE: dict = {
 }
 
 
+#: Every model with a hardware-verified override MUST also be in the tier table, so the
+#: capability source and the guide/name source cannot drift (the two-table lesson).
+assert set(MODEL_PROFILES) <= set(DREAME_MODEL_GUIDE_FAMILIES), (
+    "MODEL_PROFILES has models absent from DREAME_MODEL_GUIDE_FAMILIES: "
+    f"{sorted(set(MODEL_PROFILES) - set(DREAME_MODEL_GUIDE_FAMILIES))}"
+)
+
+
 def profile_for_model(model: str | None) -> dict:
     """Return the capability profile for a device-registry model string.
 
-    ``display_name`` is injected from ``DREAME_MODEL_NAMES`` (single source of truth
-    for model names); an uncatalogued model keeps DEFAULT_PROFILE's capabilities and
-    takes its display name from the names table, or the generic brand name if absent.
+    Resolution order: (1) a hardware-verified override in ``MODEL_PROFILES``; else
+    (2) derive ``family`` + station flags from the model's guide/maintenance TIER
+    (``DREAME_MODEL_GUIDE_FAMILIES``) so every catalogued model gets its real family
+    instead of falling to a flat ``generic`` with all-station-on; else (3) the
+    conservative ``DEFAULT_PROFILE`` for a truly uncatalogued model. ``display_name`` is
+    single-sourced from ``DREAME_MODEL_NAMES`` (never stored per-profile).
     """
-    base = MODEL_PROFILES.get(model or "", DEFAULT_PROFILE)
-    display_name = DREAME_MODEL_NAMES.get(model or "", "Dreame")
-    return {**base, "display_name": display_name}
+    key = model or ""
+    if key in MODEL_PROFILES:
+        base = MODEL_PROFILES[key]
+    else:
+        tier = DREAME_MODEL_GUIDE_FAMILIES.get(key)
+        if tier:
+            base = {**DEFAULT_PROFILE, "family": tier, **_TIER_STATION.get(tier, {})}
+        else:
+            base = DEFAULT_PROFILE
+    return {**base, "display_name": DREAME_MODEL_NAMES.get(key, "Dreame")}

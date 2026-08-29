@@ -48,6 +48,10 @@ SUFFIX_TOTAL_CLEANING_TIME = "_total_cleaning_time"  # sensor — lifetime minut
 SUFFIX_BATTERY = "_battery_level"                # sensor — %
 SUFFIX_ERROR_MESSAGE = "_error"                  # sensor — enum error string
 
+# station / dock
+SUFFIX_DOCK_STATUS = "_self_wash_base_status"    # sensor — station wash/dry enum
+                                                 # (idle/washing/drying/paused/returning/...)
+
 # binary_sensor domain
 SUFFIX_CHARGING = "_charging_state"              # binary_sensor — dedicated charging signal
 
