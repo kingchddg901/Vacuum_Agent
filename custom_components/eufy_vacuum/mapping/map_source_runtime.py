@@ -685,6 +685,174 @@ def correspondences_from_mapdata(map_data: Any) -> list[tuple[float, float, floa
     return out
 
 
+# ---------------------------------------------------------------------------
+# Dreame (camera-attribute backend). The upstream `dreame_vacuum` integration
+# decodes the raw map ALL THE WAY and exposes it as extra_state_attributes on
+# camera.<id>_map: `as_dict()` geometry (segment bboxes x0/x1/y0/y1 in vacuum-mm)
+# + `calibration_points` — three {vacuum:{x,y}, map:{x,y}} pairs for vacuum (0,0),
+# (1000,0), (0,1000). We read those LIVE (hass.states — the recorder EXCLUDES these
+# camera attrs, but the state machine carries them), build the vacuum->image affine
+# from the three pairs, and project room bboxes + robot/dock anchors. Never raises;
+# always attaches a `diagnostics` breadcrumb, because the projection FRAME (which
+# camera exposes geometry at runtime, and the image pixel size used to normalize)
+# is confirmable only on the live device — the deploy tunes it, exactly like the
+# Roborock introspector (docs/dev/map-state-source.md).
+# ---------------------------------------------------------------------------
+
+
+def _dreame_affine(calibration_points: Any):
+    """Return an affine ``proj(vx, vy) -> (px, py)`` from 3 calibration pairs, or None.
+
+    Three non-collinear vacuum->pixel pairs define a unique 2x3 affine A with
+    ``[px, py] = A · [vx, vy, 1]``. Solve the x and y coefficient triples by Cramer's
+    rule. None on <3 pairs, malformed input, or a (near-)singular system.
+    """
+    try:
+        pts = list(calibration_points or [])
+        if len(pts) < 3:
+            return None
+        v = [(float(p["vacuum"]["x"]), float(p["vacuum"]["y"])) for p in pts[:3]]
+        m = [(float(p["map"]["x"]), float(p["map"]["y"])) for p in pts[:3]]
+    except (KeyError, TypeError, ValueError, IndexError):
+        return None
+    (x0, y0), (x1, y1), (x2, y2) = v
+    det = x0 * (y1 - y2) - y0 * (x1 - x2) + (x1 * y2 - x2 * y1)
+    if abs(det) < 1e-9:
+        return None
+
+    def _coeffs(m0: float, m1: float, m2: float) -> tuple[float, float, float]:
+        a = (m0 * (y1 - y2) - y0 * (m1 - m2) + (m1 * y2 - m2 * y1)) / det
+        b = (x0 * (m1 - m2) - m0 * (x1 - x2) + (x1 * m2 - x2 * m1)) / det
+        c = (x0 * (y1 * m2 - y2 * m1) - y0 * (x1 * m2 - x2 * m1) + m0 * (x1 * y2 - x2 * y1)) / det
+        return a, b, c
+
+    ax, bx, cx = _coeffs(m[0][0], m[1][0], m[2][0])
+    ay, by, cy = _coeffs(m[0][1], m[1][1], m[2][1])
+
+    def proj(vx: float, vy: float) -> tuple[float, float]:
+        return (ax * vx + bx * vy + cx, ay * vx + by * vy + cy)
+
+    return proj
+
+
+def dreame_camera_candidates(
+    hass: HomeAssistant,
+    source_cfg: dict[str, Any],
+    *,
+    image_entity_id: str | None,
+) -> dict[str, Any]:
+    """Locate the decoded map on the live camera entity. Returns a plain-data candidates
+    dict for ``dreame_result_from_candidates`` (which is pure + unit-testable). Never
+    raises; the ``diagnostics`` breadcrumb records where the read landed.
+    """
+    diag: dict[str, Any] = {"image_entity_id": image_entity_id, "read": None}
+    if not image_entity_id:
+        return {"present": False, "reason": "no_image_entity", "diagnostics": diag}
+
+    def _attrs(eid: str) -> dict[str, Any] | None:
+        st = hass.states.get(eid)
+        return dict(st.attributes) if st is not None else None
+
+    attrs = _attrs(image_entity_id)
+    if attrs is None:
+        diag["read"] = "image_entity_absent"
+        return {"present": False, "reason": "live_map_absent", "diagnostics": diag}
+
+    # Room GEOMETRY (segment bboxes) is present in as_dict() only for a saved/restored
+    # map; the live current-map camera (map_index 0) omits `rooms`. Fall back to the
+    # saved-map camera (`<entity>_1`) for geometry when the live one has none.
+    rooms_raw = attrs.get("rooms")
+    diag["read"] = "live_map_rooms" if rooms_raw else None
+    if not rooms_raw:
+        saved = _attrs(f"{image_entity_id}_1")
+        if saved and saved.get("rooms"):
+            rooms_raw = saved.get("rooms")
+            attrs = {**saved, **{k: v for k, v in attrs.items() if k in ("vacuum_position",)}}
+            diag["read"] = "saved_map_rooms"
+
+    return {
+        "present": True,
+        "calibration": attrs.get("calibration_points"),
+        "rooms_raw": rooms_raw,
+        "robot": attrs.get("vacuum_position"),
+        "dock": attrs.get("charger_position"),
+        # Adapter-declared pixel size of the rendered map PNG, used to normalize the
+        # projected pixel coords to 0..1. Confirmed/tuned on the live device.
+        "pixel_size": source_cfg.get("map_pixel_size"),
+        "diagnostics": diag,
+    }
+
+
+def dreame_result_from_candidates(candidates: dict[str, Any], *, present: bool) -> dict[str, Any]:
+    """PURE: normalized ``map_state_source`` result from the camera candidates. The affine
+    (vacuum->pixel from calibration) projects segment bboxes + anchors; pixel coords are
+    normalized by the adapter-declared ``map_pixel_size``. Absent marker on any missing
+    piece — never raises. The projection FRAME is the live-tuning point (see module head).
+    """
+    diag = candidates.get("diagnostics", {})
+    if not present or not candidates.get("present"):
+        return {**build_map_source_result(present=False, backend="dreame_camera_attrs",
+                                          reason=candidates.get("reason", "live_map_absent")),
+                "diagnostics": diag}
+    proj = _dreame_affine(candidates.get("calibration"))
+    if proj is None:
+        return {**build_map_source_result(present=False, backend="dreame_camera_attrs",
+                                          reason="no_calibration"), "diagnostics": diag}
+
+    size = candidates.get("pixel_size") or []
+    pw = float(size[0]) if len(size) == 2 and size[0] else None
+    ph = float(size[1]) if len(size) == 2 and size[1] else None
+
+    def _norm(vx: Any, vy: Any) -> list[float] | None:
+        try:
+            px, py = proj(float(vx), float(vy))
+        except (TypeError, ValueError):
+            return None
+        if pw and ph:
+            return [_clamp01(px / pw), _clamp01(py / ph)]
+        return [px, py]  # pixel frame (map_pixel_size not yet declared — tune on device)
+
+    rooms: list[dict[str, Any]] = []
+    raw = candidates.get("rooms_raw") or {}
+    items = raw.items() if hasattr(raw, "items") else enumerate(raw)
+    for seg_id, r in items:
+        if not isinstance(r, dict):
+            continue
+        x0, y0, x1, y1 = r.get("x0"), r.get("y0"), r.get("x1"), r.get("y1")
+        if None in (x0, y0, x1, y1):
+            continue
+        c0, c1 = _norm(x0, y0), _norm(x1, y1)
+        if not c0 or not c1:
+            continue
+        ax0, ax1 = sorted((c0[0], c1[0]))
+        ay0, ay1 = sorted((c0[1], c1[1]))
+        rooms.append({
+            "number": _as_int(r.get("room_id", seg_id)),
+            "name": str(r.get("name")) if r.get("name") else f"Room {seg_id}",
+            "bbox": [ax0, ay0, ax1, ay1],
+            "width_m": round(abs(float(x1) - float(x0)) / 1000.0, 2),
+            "height_m": round(abs(float(y1) - float(y0)) / 1000.0, 2),
+            "approximate": True,
+        })
+
+    anchors: dict[str, list[float]] = {}
+    robot = candidates.get("robot")
+    if isinstance(robot, dict) and robot.get("a") != 32767:  # 32767 = docked/unknown sentinel
+        p = _norm(robot.get("x"), robot.get("y"))
+        if p:
+            anchors["robot_anchor"] = p
+    dock = candidates.get("dock")
+    if isinstance(dock, dict):
+        p = _norm(dock.get("x"), dock.get("y"))
+        if p:
+            anchors["dock_anchor"] = p
+
+    extra = {"calibration_points": candidates.get("calibration")}
+    result = build_map_source_result(present=True, backend="dreame_camera_attrs",
+                                     rooms=rooms, anchors=anchors, extra=extra)
+    return {**result, "diagnostics": diag}
+
+
 def _proj_areas(areas: Any, proj) -> list[list[list[float]]]:
     """Project quadrilateral Areas (x0,y0..x3,y3 — no-go/no-mop) to 4-point polygons."""
     out: list[list[list[float]]] = []

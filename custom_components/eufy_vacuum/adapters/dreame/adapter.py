@@ -231,6 +231,29 @@ def register_dreame_adapter_for_vacuum(
         "mapping": {
             "segmenter_engine": "noop_fallback",
             "segmenter_tuning": {},
+            # The live-map backdrop is the upstream camera PNG (single map -> no slug).
+            "live_map_image_entity_pattern": "camera.{object_id}_map",
+        },
+
+        # Map geometry + pose from the decoded camera attributes (the upstream already
+        # decoded the raw map). NEW core backend 'dreame_camera_attrs' reads
+        # camera.<id>_map extra_state_attributes: as_dict() segment bboxes +
+        # calibration_points (3 vacuum->pixel pairs) + vacuum_position/charger_position.
+        # PHASE 4a: no map_render (supports_va_render stays False; the card uses the
+        # device PNG as backdrop). map_pixel_size is the rendered-PNG size used to
+        # normalize projected pixels to 0..1 — left None until confirmed on the live
+        # device (the reader falls back to a pixel frame + logs a diagnostic meanwhile).
+        "map_state_source": {
+            "backend": "dreame_camera_attrs",
+            "identifier_domain": "dreame_vacuum",
+            "present_requires_live_map_image": True,
+            "map_pixel_size": None,
+            # PHASE 4a.2 (deferred): a live_pose backend gives the FASTER robot-dot poll +
+            # the stall-capture dot. The full-map result already carries robot_anchor /
+            # dock_anchor (rendered like eufy's storage backend), so the dashboard map
+            # shows the robot now; live_pose only speeds its refresh. Adding it is a second
+            # core branch (a POSE_BACKEND_DREAME_CAMERA reader in async_get_map_live_pose)
+            # — done after the map path is confirmed on the live device.
         },
         "job_segmenter": {
             "engine": "noop_job_fallback",

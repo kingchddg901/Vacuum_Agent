@@ -250,6 +250,23 @@ class MapSourceCoordinator:
                         result.get("reason"), result.get("diagnostics"),
                     )
                 result = self._commit_result(vacuum_entity_id, map_id, result)
+            elif backend == "dreame_camera_attrs":
+                # Read the decoded map from camera.<id>_map extra_state_attributes (the
+                # upstream dreame_vacuum integration already decoded it). In-memory read
+                # off the live state — no IO — safe on the loop. The projection frame is
+                # tuned on the live device; the diagnostics breadcrumb records the read.
+                candidates = _msr.dreame_camera_candidates(
+                    self._manager.hass, source_cfg, image_entity_id=live_img
+                )
+                result = _msr.dreame_result_from_candidates(candidates, present=present)
+                if result.get("diagnostics") is not None:
+                    _LOGGER.debug(
+                        "map_state_source[%s] dreame camera-attr read: present=%s reason=%s "
+                        "rooms=%d diag=%s",
+                        vacuum_entity_id, result.get("present"), result.get("reason"),
+                        len(result.get("rooms") or []), result.get("diagnostics"),
+                    )
+                result = self._commit_result(vacuum_entity_id, map_id, result)
             else:
                 result = {"present": False, "reason": f"unknown_backend:{backend}"}
                 result = self._commit_result(vacuum_entity_id, map_id, result)
