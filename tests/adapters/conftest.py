@@ -65,11 +65,33 @@ def _build_roborock(hass) -> dict[str, Any]:
     return get_adapter_config("vacuum.ivy")
 
 
+def _build_dreame(hass) -> dict[str, Any]:
+    """Build + register the real Dreame adapter config for one vacuum.
+
+    No device-registry entry is set up here, so the model resolves to the catalog
+    DEFAULT_PROFILE — enough to exercise the real capability-detection + config-assembly
+    path for the brand-agnostic contract. Device-specific behaviour (the r2469a profile,
+    the live dreame_vacuum surface) is verified against the live device separately.
+
+    ⚠ The Dreame adapter is DATA-ONLY on master (no BRAND_REGISTRARS row, gated on
+    upstream #1707). This fixture calls the registrar DIRECTLY, which is the whole point:
+    it makes the config assembly testable without the release switch being thrown.
+    """
+    from custom_components.eufy_vacuum.adapters.dreame.adapter import (
+        register_dreame_adapter_for_vacuum,
+    )
+
+    hass.states.async_set("vacuum.robin", "cleaning", {"fan_speed": "Standard"})
+    register_dreame_adapter_for_vacuum(hass, "vacuum.robin")
+    return get_adapter_config("vacuum.robin")
+
+
 # Registry of every known adapter. KEY = brand name, VALUE = builder(hass)->config.
 # Adding a brand here wires it into every contract test in this suite.
 ADAPTER_BUILDERS: dict[str, Callable[[Any], dict[str, Any]]] = {
     "eufy": _build_eufy,
     "roborock": _build_roborock,
+    "dreame": _build_dreame,
 }
 
 
