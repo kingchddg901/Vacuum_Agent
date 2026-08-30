@@ -853,6 +853,218 @@ def dreame_result_from_candidates(candidates: dict[str, Any], *, present: bool) 
     return {**result, "diagnostics": diag}
 
 
+# ---------------------------------------------------------------------------
+# anchor: BNDREAMEMD
+# Dreame RASTER backend — consume the base integration's decoded MapData object
+# (pixel_type grid + segments + dimensions + pose + user-placed furniture) rather
+# than the camera-attr bboxes. Reached via the PUBLIC coordinator.device accessor,
+# resolved through the physical DEVICE (the `vacuum.*` entity may be our wrapper, so
+# its config_entry is ours; the device's config_entries carry the dreame entry).
+# Encoding proven on the live device (frame_type 73): pixel_type value N == segment N's
+# floor, 100+N its border; grid_size on dimensions gives the pixel->metre scale.
+# ---------------------------------------------------------------------------
+
+
+def dreame_coordinator(
+    hass: HomeAssistant, vacuum_entity_id: str, image_entity_id: str | None, domain: str
+) -> Any | None:
+    """Resolve the base ``dreame_vacuum`` coordinator (exposes ``.device``) or None.
+
+    Route 1: find the physical device behind the vacuum, then the dreame config entry
+    among ``device.config_entries`` (``hass.data[domain][entry_id]``, falling back to the
+    entry's ``runtime_data``). Registry-only + a dict lookup — loop-safe, never raises.
+    """
+    try:
+        bucket = hass.data.get(domain)
+        bucket = bucket if isinstance(bucket, dict) else {}
+        ent_reg = er.async_get(hass)
+        ent = ent_reg.async_get(vacuum_entity_id)
+        if ent is None and image_entity_id:
+            ent = ent_reg.async_get(image_entity_id)
+        if ent is not None and ent.device_id:
+            device = dr.async_get(hass).async_get(ent.device_id)
+            if device is not None:
+                for eid in device.config_entries:
+                    ce = hass.config_entries.async_get_entry(eid)
+                    if ce is not None and ce.domain == domain:
+                        coord = bucket.get(eid)
+                        if getattr(coord, "device", None) is None:
+                            coord = getattr(ce, "runtime_data", None)
+                        if getattr(coord, "device", None) is not None:
+                            return coord
+        # Fallback: exactly one dreame coordinator loaded.
+        loaded = [v for v in bucket.values() if getattr(v, "device", None) is not None]
+        return loaded[0] if len(loaded) == 1 else None
+    except Exception:  # noqa: BLE001 - never break the pre-warm
+        return None
+
+
+def dreame_mapdata_candidates(
+    hass: HomeAssistant,
+    vacuum_entity_id: str,
+    source_cfg: dict[str, Any],
+    image_entity_id: str | None,
+) -> dict[str, Any]:
+    """Locate the decoded ``MapData`` on the base coordinator's device. Returns
+    ``{present, map_data}`` (or an absent marker) for the pure transform. In-memory
+    read off the live object — loop-safe. Never raises.
+    """
+    domain = source_cfg.get("identifier_domain") or "dreame_vacuum"
+    coord = dreame_coordinator(hass, vacuum_entity_id, image_entity_id, domain)
+    dev = getattr(coord, "device", None)
+    if dev is None:
+        return {"present": False, "reason": "no_coordinator"}
+    status = getattr(dev, "status", None)
+    md = getattr(status, "selected_map", None) if status is not None else None
+    if md is None:
+        try:
+            md = dev.get_map(0)
+        except Exception:  # noqa: BLE001
+            md = None
+    if md is None or getattr(md, "pixel_type", None) is None:
+        return {"present": False, "reason": "no_mapdata"}
+    return {"present": True, "map_data": md}
+
+
+def _dreame_projector(dims: Any):
+    """Return ``(proj, width, height, grid_size)`` from ``MapImageDimensions`` or None.
+
+    Mirrors the base integration's ``to_coord``: ``px = (x-left)/grid_size``,
+    ``py = ((height*grid_size-1) - (y-top))/grid_size`` (Y-flipped, top-left origin) — the
+    grid-index frame the ``pixel_type`` raster is indexed in. Normalizing px/width, py/height
+    yields 0..1. No calibration pairs needed; the dims ARE the transform.
+    """
+    try:
+        gs = float(getattr(dims, "grid_size"))
+        top = float(getattr(dims, "top"))
+        left = float(getattr(dims, "left"))
+        w = int(getattr(dims, "width"))
+        h = int(getattr(dims, "height"))
+    except (TypeError, ValueError, AttributeError):
+        return None
+    if gs <= 0 or w <= 0 or h <= 0:
+        return None
+
+    def proj(vx: Any, vy: Any) -> tuple[float, float] | None:
+        try:
+            px = (float(vx) - left) / gs
+            py = ((h * gs - 1) - (float(vy) - top)) / gs
+        except (TypeError, ValueError):
+            return None
+        return (px, py)
+
+    return proj, w, h, gs
+
+
+def _furniture_slug(ftype: Any) -> str:
+    """Neutral lowercase slug from a Dreame FurnitureType (enum, name, or title str)."""
+    name = getattr(ftype, "name", ftype)
+    return str(name).strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def dreame_render_from_mapdata(md: Any, *, source_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    """PURE: normalized ``map_state_source`` result from a decoded Dreame ``MapData``.
+
+    Rooms carry TRUE per-room ``area_m2`` (segment pixel count × grid_size²), not the bbox
+    rectangle. Pose + user-placed furniture ride the same read (furniture kept as an overlay
+    — presentation only, never attribution). Absent marker on any missing piece; never raises.
+    Frame-robust: a segment's pixels are ``value ∈ {id, 100+id, 200+id}`` across frame_types.
+    """
+    diag: dict[str, Any] = {"backend": "dreame_mapdata"}
+    proj_geom = _dreame_projector(getattr(md, "dimensions", None))
+    if proj_geom is None:
+        return {**build_map_source_result(present=False, backend="dreame_mapdata",
+                                          reason="no_dimensions"), "diagnostics": diag}
+    proj, width, height, grid_size = proj_geom
+    m_per_px2 = (grid_size / 1000.0) ** 2
+
+    # Per-segment pixel counts (for true area) — numpy only; degrade to bbox-less area if absent.
+    counts: dict[int, int] = {}
+    try:
+        import numpy as np
+
+        arr = np.asarray(getattr(md, "pixel_type"))
+        vals, vcounts = np.unique(arr, return_counts=True)
+        hist = {int(v): int(c) for v, c in zip(vals, vcounts)}
+        diag["pixel_hist_size"] = len(hist)
+        segs_dict = getattr(md, "segments", None) or {}
+        for sid in (segs_dict.keys() if hasattr(segs_dict, "keys") else []):
+            s = int(sid)
+            counts[s] = hist.get(s, 0) + hist.get(100 + s, 0) + hist.get(200 + s, 0)
+    except Exception as exc:  # noqa: BLE001
+        diag["area_error"] = repr(exc)
+
+    def _n(vx: Any, vy: Any) -> list[float] | None:
+        p = proj(vx, vy)
+        if p is None:
+            return None
+        return [_clamp01(p[0] / width), _clamp01(p[1] / height)]
+
+    rooms: list[dict[str, Any]] = []
+    segs = getattr(md, "segments", None) or {}
+    items = segs.items() if hasattr(segs, "items") else enumerate(segs)
+    for sid, s in items:
+        x0, y0, x1, y1 = (getattr(s, "x0", None), getattr(s, "y0", None),
+                          getattr(s, "x1", None), getattr(s, "y1", None))
+        if None in (x0, y0, x1, y1):
+            continue
+        c0, c1 = _n(x0, y0), _n(x1, y1)
+        if not c0 or not c1:
+            continue
+        ax0, ax1 = sorted((c0[0], c1[0]))
+        ay0, ay1 = sorted((c0[1], c1[1]))
+        sidi = _as_int(sid)
+        room: dict[str, Any] = {
+            "number": _as_int(getattr(s, "id", sid)),
+            "name": str(getattr(s, "name", None)) if getattr(s, "name", None) else f"Room {sid}",
+            "bbox": [ax0, ay0, ax1, ay1],
+        }
+        px = counts.get(sidi)
+        if px is not None:
+            room["area_m2"] = round(px * m_per_px2, 2)
+        cx, cy = getattr(s, "x", None), getattr(s, "y", None)
+        if cx is not None and cy is not None:
+            centre = _n(cx, cy)
+            if centre:
+                room["centre"] = centre
+        rooms.append(room)
+
+    anchors: dict[str, list[float]] = {}
+    robot = getattr(md, "robot_position", None)
+    if robot is not None and getattr(robot, "a", None) != 32767:
+        p = _n(getattr(robot, "x", None), getattr(robot, "y", None))
+        if p:
+            anchors["robot_anchor"] = p
+    dock = getattr(md, "charger_position", None)
+    if dock is not None:
+        p = _n(getattr(dock, "x", None), getattr(dock, "y", None))
+        if p:
+            anchors["dock_anchor"] = p
+
+    furniture: list[dict[str, Any]] = []
+    fs = getattr(md, "furnitures", None) or getattr(md, "saved_furnitures", None) or {}
+    fitems = fs.items() if hasattr(fs, "items") else enumerate(fs)
+    for fid, f in fitems:
+        centre = _n(getattr(f, "x", None), getattr(f, "y", None))
+        if not centre:
+            continue
+        furniture.append({
+            "type": _furniture_slug(getattr(f, "type", None)),
+            "centre": centre,
+            "angle": float(getattr(f, "angle", 0) or 0),
+            "room": _as_int(getattr(f, "segment_id", None)),
+            "width_m": round(abs(float(getattr(f, "width", 0) or 0)) / 1000.0, 2),
+            "height_m": round(abs(float(getattr(f, "height", 0) or 0)) / 1000.0, 2),
+        })
+
+    extra: dict[str, Any] = {"grid_size_mm": grid_size}
+    if furniture:
+        extra["furniture"] = furniture
+    result = build_map_source_result(present=True, backend="dreame_mapdata",
+                                     rooms=rooms, anchors=anchors, extra=extra)
+    return {**result, "diagnostics": diag}
+
+
 def _proj_areas(areas: Any, proj) -> list[list[list[float]]]:
     """Project quadrilateral Areas (x0,y0..x3,y3 — no-go/no-mop) to 4-point polygons."""
     out: list[list[list[float]]] = []

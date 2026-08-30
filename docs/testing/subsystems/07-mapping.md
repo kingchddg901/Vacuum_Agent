@@ -211,6 +211,15 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   finding), and `geometry_drift`, the on-device decode self-validator overlaying the parser's
   bboxes against the raster (aligned / IoU / centre-drift, flip detection, `only_parser`
   set-diff).
+- **`dreame_render_from_mapdata`** (`DMD-*`, unit, `test_dreame_mapdata_decode.py`) — the
+  pure Dreame raster decoder over the base integration's decoded `MapData` (no HA/device; a
+  `SimpleNamespace` fake shaped from the live ground-truth probe on `vacuum.robin`): TRUE
+  per-room `area_m2` from the `pixel_type` grid (a segment's pixels are `value ∈ {id, 100+id,
+  200+id}` × `grid_size²` — DMD-2 bites the border `100+id` term, DMD-3 the `grid_size` term),
+  bbox projection via the base's own `dimensions` transform (normalized 0..1), user-placed
+  furniture as a neutral-slug overlay (+ room + size), robot/dock anchors, and the
+  no-dimensions → absent-marker degrade. The device-side reader (`dreame_coordinator` via the
+  public `coordinator.device`, `dreame_mapdata_candidates`) is validated live, not unit-tested.
 - **`map_source_coordinator`** (`CMP-*` + `LP-*`, integration,
   `test_manager_compare_sources.py` + `test_manager_live_pose.py`) — the manager
   delegators into `MapSourceCoordinator`: `async_compare_map_sources` (the verify
