@@ -419,7 +419,9 @@ export function applyRoomEditorState(proto) {
 
   proto.showWaterLevel = function () {
     if (this.isEditorRoomCarpet()) return false;
-    if (this.waterLevelOptions().length === 0) return false;
+    // Enum brands gate on the options list; a RANGE brand (Dreame wetness 1..32) has
+    // no options but a water_level_range, and still shows a (slider) water control.
+    if (this.waterLevelOptions().length === 0 && !this.waterLevelRange()) return false;
     // OBSERVE-ONLY tank brands (Roborock S6: a mop tank but no settable mode) report
     // mop_active from the water-box sensor and have no clean_mode — gate water on the
     // physical tank. A SETTABLE-mop brand (Roborock S7+, supports_water_control) has a
@@ -481,6 +483,10 @@ export function applyRoomEditorState(proto) {
 
   proto.showEdgeMopping = function () {
     if (this.isEditorRoomCarpet()) return false;
+    // Edge mopping is a per-model capability, not a universal mop feature: Dreame
+    // (and the Roborock S6) declare supports_edge_mopping False, so the toggle must
+    // not appear even in a mop mode. Default True keeps Eufy unchanged.
+    if (!this.supportsEdgeMopping()) return false;
     const fields = this.editorFields();
     if (!fields) return false;
     return this.isMopMode(fields.clean_mode);
@@ -570,6 +576,15 @@ export function applyRoomEditorState(proto) {
 
   proto.suctionLevelOptions = function () {
     return this._buildOptionListForRole("fan_speed", "fan_speed");
+  };
+
+  /**
+   * The continuous water axis `{min,max,step,labels}` for a RANGE brand (Dreame
+   * wetness 1..32), or null for an enum brand. Sibling of waterLevelOptions — the
+   * water field renders a slider from this when non-null, else chips from options.
+   */
+  proto.waterLevelRange = function () {
+    return this.adapterRangeFor?.("water_level") ?? null;
   };
 
   proto.waterLevelOptions = function () {

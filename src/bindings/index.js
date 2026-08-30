@@ -284,6 +284,34 @@ export class VacuumCardBindings {
       });
     });
 
+    // Slider fields (a continuous axis, e.g. Dreame wetness 1..32). Live-update the
+    // readout + draft on "input"; commit + re-render on "change". Same reason as the
+    // color picker below for not re-rendering mid-drag — swapping the <input> while the
+    // gesture is live drops it. The stored value is a numeric STRING (input.value).
+    host.querySelectorAll("[data-slider-field]").forEach((input) => {
+      const field = input.dataset.sliderField;
+      if (!field) return;
+      const row = input.parentElement;
+      const out = row?.querySelector(".slider-value, .evcc-slider-value");
+      const wordEl = row?.querySelector("[data-slider-word]");
+      const syncWord = () => {
+        if (!wordEl) return;
+        const v = Number(input.value), mn = Number(input.min), mx = Number(input.max);
+        const third = (mx - mn) / 3;
+        wordEl.textContent = v <= mn + third ? (input.dataset.wordLow || "")
+          : v >= mx - third ? (input.dataset.wordHigh || "") : (input.dataset.wordMid || "");
+      };
+      input.addEventListener("input", () => {
+        if (out) out.textContent = input.value;
+        syncWord();
+        this.card._state.updateEditorField(field, input.value);
+      });
+      input.addEventListener("change", () => {
+        this.card._state.updateEditorField(field, input.value);
+        this.card._scheduleRender();
+      });
+    });
+
     // Per-room color picker. Capture the pick LIVE on "input" WITHOUT re-rendering — the card also
     // re-renders on HA state updates, and swapping the <input> while its native OS picker is open
     // drops the pick. Commit + re-render on "change" (picker closed) so the hex + Reset appear.

@@ -129,6 +129,11 @@ export const en = {
   "vocab.fan_speed.boost": "Boost",               // suction level
   "vocab.fan_speed.turbo": "Turbo",               // suction level (Eufy app term; the value the device actually emits)
   "vocab.fan_speed.max": "Max",                   // suction level (highest)
+  // --- brand-scoped overrides (RN6F7RW6): a brand owns its value's word.
+  // vocab(t, field, value, fb, brand) tries `vocab.<brand>.<field>.<value>` FIRST,
+  // so the shared catalog above can NOT impose a cross-brand default. Dreame emits the
+  // token `turbo` for its HIGHEST suction, which its app labels "Max" — not the Eufy "Turbo".
+  "vocab.dreame.fan_speed.turbo": "Max",          // suction level (highest); Dreame app term for the `turbo` token
   "vocab.water_level.off": "Off",                 // water level: no water
   "vocab.water_level.low": "Low",                 // water level
   "vocab.water_level.medium": "Medium",           // water level

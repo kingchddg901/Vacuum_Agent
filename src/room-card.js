@@ -2,7 +2,7 @@
 
 import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "./i18n/index.js";
 import {
-  esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode, canonicalCleanMode, stripNull, defineCard,
+  esc, vocab, roomSwitchesFor, adapterOptions, adapterRange, sliderRow, SLIDER_ROW_CSS, committedRoomFields, isMopMode, canonicalCleanMode, stripNull, defineCard,
   renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang,
 } from "./cards/_shared.js";
 import { roomSuggestion } from "./cards/card-suggestions.js";
@@ -34,11 +34,12 @@ class EufyRoomCardEditor extends HTMLElement {
 
   t(key, vars)    { return translate(resolveLang(this._hass, this._config), key, vars); }
   tRaw(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars, { raw: true }); }
+  // RN6F7RW6 — a CALL SITE of the primary src/cards/_shared.js::vocab. The config editor
+  // does not currently render brand vocab, but stays a proper caller for consistency; brand
+  // is the selected vacuum's adapter_id (all its rooms share one adapter).
   tVocab(field, value, fallback) {
-    if (value == null || value === "") return esc(fallback ?? "");
-    const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-    const out = this.t(`vocab.${field}.${slug}`);
-    return out === `vocab.${field}.${slug}` ? esc(fallback ?? String(value)) : out;
+    return vocab((k, v) => this.t(k, v), field, value, fallback,
+      roomSwitchesFor(this._hass, this._config?.vacuum_entity_id)?.[0]?.attrs?.adapter_id);
   }
 
   _vacuumEntities() {
@@ -209,11 +210,12 @@ class EufyRoomCard extends HTMLElement {
 
   t(key, vars)    { return translate(resolveLang(this._hass, this._config, this._langOverride), key, vars); }
   tRaw(key, vars) { return translate(resolveLang(this._hass, this._config, this._langOverride), key, vars, { raw: true }); }
+  // RN6F7RW6 — a CALL SITE of the primary src/cards/_shared.js::vocab (no longer a
+  // hand-rolled deferred replica). Brand comes from the target room-switch attrs (this card
+  // has no service-layer snapshot); vocab() tries `vocab.<brand>.<field>.<value>` FIRST so a
+  // brand's declared label (Dreame "Max") is not overridden by the shared "Turbo".
   tVocab(field, value, fallback) {
-    if (value == null || value === "") return esc(fallback ?? "");
-    const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-    const out = this.t(`vocab.${field}.${slug}`);
-    return out === `vocab.${field}.${slug}` ? esc(fallback ?? String(value)) : out;
+    return vocab((k, v) => this.t(k, v), field, value, fallback, this._targetSwitch()?.attrs?.adapter_id);
   }
 
   /* =========================================================
@@ -323,8 +325,14 @@ class EufyRoomCard extends HTMLElement {
     const cleanModes       = this._cleanModeOptions();
     const suctionLevels    = this._suctionOptions();
     const waterLevels      = isMop && !isCarpet ? this._waterLevelOptions() : [];
+    // Range brands (Dreame wetness 1..32) declare water_level_range instead of options
+    // → a continuous slider, not chips. A brand declares exactly one; at most one is set.
+    const waterRange       = isMop && !isCarpet ? adapterRange(swAttrs, "water_level_range") : null;
     const cleanIntensities = this._cleanIntensityOptions(slug, mapId);
-    const showEdgeMopping  = isMop && !isCarpet;
+    // Hide the edge-mop toggle when the brand can't do it (Dreame/Roborock S6 declare
+    // supports_edge_mopping:false in the switch attrs). `!== false` keeps Eufy (omitted /
+    // true) unchanged; mirrors the dashboard-card gate.
+    const showEdgeMopping  = isMop && !isCarpet && swAttrs.supports_edge_mopping !== false;
 
     const chipRow = (label, fieldKey, options, currentVal) => {
       if (!options.length) return "";
@@ -493,6 +501,7 @@ class EufyRoomCard extends HTMLElement {
           border-color: color-mix(in srgb, var(--accent) 50%, transparent);
           color:        color-mix(in srgb, var(--accent) 90%, white);
         }
+        ${SLIDER_ROW_CSS}
 
         /* ---- footer ---- */
         .footer {
@@ -559,7 +568,9 @@ class EufyRoomCard extends HTMLElement {
         <div class="fields">
           ${chipRow(this.t("room_card.cleaning_mode_label"), "clean_mode", cleanModes, fields.clean_mode)}
           ${chipRow(this.t("room_card.suction_level_label"), "fan_speed", suctionLevels, fields.fan_speed)}
-          ${waterLevels.length ? chipRow(this.t("room_card.water_level_label"), "water_level", waterLevels, fields.water_level) : ""}
+          ${waterRange
+            ? sliderRow(this.t("room_card.water_level_label"), "water_level", waterRange, fields.water_level)
+            : (waterLevels.length ? chipRow(this.t("room_card.water_level_label"), "water_level", waterLevels, fields.water_level) : "")}
           ${chipRow(this.t("room_card.cleaning_path_label"), "clean_intensity", cleanIntensities, fields.clean_intensity)}
           ${passesRow()}
           ${edgeMopRow()}
@@ -602,6 +613,24 @@ class EufyRoomCard extends HTMLElement {
         if (field === "edge_mopping") parsed = value === "true";
         this._setField(field, parsed);
       });
+    });
+
+    /* ---- water slider (continuous axis, e.g. Dreame wetness 1..32) ---- */
+    this.shadowRoot.querySelectorAll("[data-slider-field]").forEach((input) => {
+      const field = input.dataset.sliderField;
+      if (!field) return;
+      const row = input.closest(".slider-row") || input.parentElement;
+      const out = row?.querySelector(".slider-value");
+      const wordEl = row?.querySelector("[data-slider-word]");
+      const syncWord = () => {
+        if (!wordEl) return;
+        const v = Number(input.value), mn = Number(input.min), mx = Number(input.max);
+        const third = (mx - mn) / 3;
+        wordEl.textContent = v <= mn + third ? (input.dataset.wordLow || "")
+          : v >= mx - third ? (input.dataset.wordHigh || "") : (input.dataset.wordMid || "");
+      };
+      input.addEventListener("input", () => { if (out) out.textContent = input.value; syncWord(); });
+      input.addEventListener("change", () => this._setField(field, input.value));
     });
 
     /* ---- save / start ---- */

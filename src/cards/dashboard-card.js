@@ -13,8 +13,8 @@
 
 import {
   translate, resolveLang, ensureLocalesLoaded, applyDir,
-  esc, vocab, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode,
-  chipRow, callResponse, registerCard, defineCard, stripNull,
+  esc, vocab, roomSwitchesFor, adapterOptions, adapterRange, committedRoomFields, isMopMode,
+  chipRow, sliderRow, SLIDER_ROW_CSS, callResponse, registerCard, defineCard, stripNull,
   renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang,
 } from "./_shared.js";
 import { emptyArmed, nextArmed, planStart, armedIsValid } from "./dashboard-dispatch.js";
@@ -267,7 +267,7 @@ class EufyDashboardCard extends HTMLElement {
 
   /* ---- i18n shims ---- */
   t(key, vars) { return translate(resolveLang(this._hass, this._config, this._langOverride), key, vars); }
-  _tVocab(field, value, fallback) { return vocab((k, v) => this.t(k, v), field, value, fallback); }
+  _tVocab(field, value, fallback) { return vocab((k, v) => this.t(k, v), field, value, fallback, this._snapshot?.adapter_id); }
 
   // Load the per-user language choice ONCE (server-side, cross-device). Fails soft.
   _maybeLoadLang() {
@@ -708,8 +708,14 @@ class EufyDashboardCard extends HTMLElement {
     const cleanModes = adapterOptions(attrs, "clean_mode_options");
     const suction    = adapterOptions(attrs, "fan_speed_options");
     const water      = isMop && !isCarpet ? adapterOptions(attrs, "water_level_options") : [];
+    // Range brands (Dreame wetness 1..32) declare water_level_range instead of options
+    // → a slider, not chips. A brand declares exactly one, so at most one is non-empty.
+    const waterRange = isMop && !isCarpet ? adapterRange(attrs, "water_level_range") : null;
     const intensity  = adapterOptions(attrs, "clean_intensity_options");
-    const showEdge   = isMop && !isCarpet;
+    // Edge mopping is a per-model capability (Dreame + Roborock S6 declare it False),
+    // not a universal mop feature — hide the toggle unless the brand supports it.
+    // Default (undefined) shows, keeping Eufy unchanged.
+    const showEdge   = isMop && !isCarpet && this._snapshot?.supports_edge_mopping !== false;
     // Clamp to [2, 9] (mirrors room-editor's maxCleanPasses) so a bad snapshot
     // value can't spin a huge chip loop.
     const maxPasses  = Math.min(Number(this._snapshot?.max_clean_passes ?? 2) || 2, 9);
@@ -734,7 +740,9 @@ class EufyDashboardCard extends HTMLElement {
       ${isCarpet ? `<div class="carpet">🪵 ${this.t("room_card.carpet_notice")}</div>` : ""}
       ${chipRow(this.t("room_card.cleaning_mode_label"), "clean_mode", cleanModes, fields.clean_mode, tv, roomId)}
       ${chipRow(this.t("room_card.suction_level_label"), "fan_speed", suction, fields.fan_speed, tv, roomId)}
-      ${water.length ? chipRow(this.t("room_card.water_level_label"), "water_level", water, fields.water_level, tv, roomId) : ""}
+      ${waterRange
+        ? sliderRow(this.t("room_card.water_level_label"), "water_level", waterRange, fields.water_level, roomId)
+        : (water.length ? chipRow(this.t("room_card.water_level_label"), "water_level", water, fields.water_level, tv, roomId) : "")}
       ${chipRow(this.t("room_card.cleaning_path_label"), "clean_intensity", intensity, fields.clean_intensity, tv, roomId)}
       ${passesRow()}
       ${edgeRow()}
@@ -928,6 +936,29 @@ class EufyDashboardCard extends HTMLElement {
         if (field === "edge_mopping") parsed = value === "true";
         this._setRoomField(scope, field, parsed);
       });
+    });
+    // Per-row water slider (continuous axis, e.g. Dreame wetness 1..32). Live-update the
+    // value pill + word chip on "input"; commit the numeric STRING on "change". Mirrors
+    // the modal's slider binding in bindings/index.js.
+    this.shadowRoot.querySelectorAll("[data-slider-field]").forEach((input) => {
+      const scope = input.dataset.scope;
+      const field = input.dataset.sliderField;
+      if (!scope || !field) return;
+      const row = input.closest(".slider-row") || input.parentElement;
+      const out = row?.querySelector(".slider-value");
+      const wordEl = row?.querySelector("[data-slider-word]");
+      const syncWord = () => {
+        if (!wordEl) return;
+        const v = Number(input.value), mn = Number(input.min), mx = Number(input.max);
+        const third = (mx - mn) / 3;
+        wordEl.textContent = v <= mn + third ? (input.dataset.wordLow || "")
+          : v >= mx - third ? (input.dataset.wordHigh || "") : (input.dataset.wordMid || "");
+      };
+      input.addEventListener("input", () => {
+        if (out) out.textContent = input.value;
+        syncWord();
+      });
+      input.addEventListener("change", () => this._setRoomField(scope, field, input.value));
     });
     // Run-launcher dropdowns (arm only — never fire here). Arming a profile/scene is a
     // complete run, so it clears the room selection (turns off the room switches).
@@ -1289,6 +1320,7 @@ const CARD_CSS = `
   .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); color: var(--text-muted); font-size: 0.80rem; font-weight: 500; cursor: pointer; transition: all 120ms ease; }
   .chip:hover { background: var(--evcc-surface-action-hover, rgba(255,255,255,0.08)); color: var(--text-primary); }
   .chip.active { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: color-mix(in srgb, var(--accent) 90%, white); }
+  ${SLIDER_ROW_CSS}
 
   .launcher { display: flex; flex-direction: column; gap: 10px; }
   .launch-group { display: flex; flex-direction: column; gap: 4px; }

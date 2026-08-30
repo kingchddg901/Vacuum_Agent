@@ -30,9 +30,25 @@ export function esc(str) {
  * provided label (escaped) when there's no catalog entry. `t` is the card's
  * bound translate function (locale already resolved).
  */
-export function vocab(t, field, value, fallback) {
+export function vocab(t, field, value, fallback, brand) {
   if (value == null || value === "") return esc(fallback ?? "");
   const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  // anchor: RN6F7RW6  brand-scoped vocab resolution — the replica set
+  // REPLICA RN6F7RW6 — twins: renderers/shared.js::tVocab and room-card.js::tVocab (two
+  // classes). All resolve a vocabulary label the SAME way and must agree.
+  //
+  // A brand OWNS its value's word (doc 20 · f/eufy_is_not_the_default): try
+  // `vocab.<brand>.<field>.<value>` FIRST, so a brand whose declared label differs from
+  // the shared catalog (Dreame fan_speed "turbo" → "Max" vs the shared Eufy-origin
+  // "Turbo") is NOT overridden by another brand's word. Then the shared
+  // `vocab.<field>.<value>`, then the adapter's declared label. Eufy/Roborock declare no
+  // `vocab.<brand>.*` keys, so they fall straight through — byte-identical. The key
+  // template stays INSIDE t() so check:i18n's template scan reaches it (3 segments →
+  // vocab.<seg>.<seg>.<seg>). brand is the adapter_id from the dashboard snapshot.
+  if (brand) {
+    const bo = t(`vocab.${brand}.${field}.${slug}`);
+    if (bo !== `vocab.${brand}.${field}.${slug}`) return bo;
+  }
   const out = t(`vocab.${field}.${slug}`);
   return out === `vocab.${field}.${slug}` ? esc(fallback ?? String(value)) : out;
 }
@@ -62,6 +78,18 @@ export function roomSwitchesFor(hass, vacuumEntityId) {
 export function adapterOptions(attrs, attrName) {
   const list = attrs?.[attrName];
   return Array.isArray(list) ? list : [];
+}
+
+/**
+ * Read an adapter-declared CONTINUOUS axis `{min,max,step,labels}` off switch attrs
+ * (Dreame wetness 1..32). Returns null when absent or malformed — a brand declares
+ * EITHER options (chip row) OR a range (slider), never both, so the caller branches
+ * on which is non-empty.
+ */
+export function adapterRange(attrs, attrName) {
+  const r = attrs?.[attrName];
+  if (!r || typeof r !== "object" || r.min == null || r.max == null) return null;
+  return r;
 }
 
 /** The committed (saved) per-room field values off a room switch's attributes. */
@@ -116,6 +144,88 @@ export function chipRow(label, fieldKey, options, currentVal, tVocabFn, idPrefix
     </div>
   `;
 }
+
+/**
+ * Build a single-value SLIDER for a continuous axis (Dreame wetness 1..32), the
+ * sibling of `chipRow` for a brand that declares `*_range` rather than `*_options`.
+ * The stored field value is a numeric STRING; the binding commits `input.value`.
+ * `range` is `{min,max,step,labels:{min_label,mid_label,max_label}}`. An unset value
+ * starts the thumb at the midpoint rather than at 0. `idPrefix` namespaces the
+ * data-attrs so a card with many rooms routes the input back to the right one.
+ */
+/**
+ * The band WORD for a continuous value — a single live label that shifts across the
+ * range (Dreame wetness: Slightly Dry -> Moist -> Wet) rather than showing all three
+ * endpoints at once. Thirds of [min,max]; used by the render (initial) and the slider
+ * binding (live on input), which recompute it identically from data-word-* attrs.
+ */
+export function sliderWord(val, min, max, labels) {
+  const l = labels || {};
+  const third = (max - min) / 3;
+  if (val <= min + third) return l.min_label ?? "";
+  if (val >= max - third) return l.max_label ?? "";
+  return l.mid_label ?? "";
+}
+
+export function sliderRow(label, fieldKey, range, currentVal, idPrefix = "") {
+  if (!range) return "";
+  const pre = idPrefix ? `data-scope="${esc(idPrefix)}" ` : "";
+  const min = Number(range.min);
+  const max = Number(range.max);
+  const step = Number(range.step ?? 1);
+  const lbls = range.labels ?? {};
+  const mid = Math.round((min + max) / 2);
+  const parsed = currentVal == null || currentVal === "" ? mid : Number(currentVal);
+  const val = Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : mid;
+  return `
+    <div class="field-group">
+      <div class="field-label">${label}</div>
+      <div class="slider-row">
+        <input type="range" class="range-slider"
+          ${pre}data-slider-field="${esc(fieldKey)}"
+          data-word-low="${esc(lbls.min_label ?? "")}"
+          data-word-mid="${esc(lbls.mid_label ?? "")}"
+          data-word-high="${esc(lbls.max_label ?? "")}"
+          min="${min}" max="${max}" step="${step}" value="${val}"
+          aria-label="${esc(label)}" />
+        <output class="slider-value">${val}</output>
+        <span class="slider-word-wrap"><span class="slider-word" data-slider-word>${esc(sliderWord(val, min, max, lbls))}</span></span>
+      </div>
+    </div>
+  `;
+}
+
+//: Shared CSS for the sliderRow() output (.slider-*). Interpolated into BOTH card
+//: shadow roots (dashboard-card CARD_CSS + room-card) so the wetness slider reads the
+//: same on every surface — the value as a small pill chip beside the slider, the live
+//: word (Slightly Dry / Moist / Wet) as a chip on its own line below. Mirrors the modal's
+//: .evcc-slider-* block in styles/modal-host.js. Tokens are chosen to resolve in either
+//: card (--surface-subtle in room-card, --evcc-surface-subtle in dashboard-card).
+export const SLIDER_ROW_CSS = `
+  .slider-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .range-slider { flex: 1 1 auto; min-width: 0; }
+  .slider-value {
+    flex: 0 0 auto;
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-subtle, var(--evcc-surface-subtle, rgba(255,255,255,0.04)));
+    color: var(--text-primary);
+    font-weight: 700; font-size: 0.80rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .slider-word-wrap { flex: 0 0 100%; }
+  .slider-word {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-subtle, var(--evcc-surface-subtle, rgba(255,255,255,0.04)));
+    color: var(--text-muted);
+    font-size: 0.78rem; font-weight: 600;
+    white-space: nowrap;
+  }
+`;
 
 /**
   * REPLICA RNGP3ZBE -- primary: src/actions/core.js::callService.

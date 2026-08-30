@@ -6065,6 +6065,10 @@ class EufyVacuumManager:
             "lifecycle": lifecycle,
             "upkeep": upkeep,
             "adapter_vocabulary": adapter_vocabulary,
+            # The brand id, so the card's vocab() can try a brand-scoped label
+            # (vocab.<adapter_id>.<field>.<value>) BEFORE the shared catalog — a brand
+            # owns its value's word and must not be overridden by another's (RN6F7RW6).
+            "adapter_id": _adapter_cfg.get("adapter_id"),
             "max_clean_passes": max_clean_passes,
             "mop_active": mop_active,
             # live:ENT-10 — the RESOLVED role -> entity_id map, for the card.

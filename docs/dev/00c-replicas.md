@@ -585,6 +585,47 @@ recording precisely because it is the kind of drift that has no other detector.
 
 ---
 
+### `RN6F7RW6` — the BRAND-SCOPED vocab resolution order · **1 primary + 2 renderer replicas + 4 call sites**
+
+`src/cards/_shared.js::vocab` (**primary** — carries the reasoning) takes a `brand` and, when
+present, tries `vocab.<brand>.<field>.<value>` in the catalog **BEFORE** the shared
+`vocab.<field>.<value>`, falling back to the adapter's declared label last.
+
+**Renderer replicas (must stay in lockstep):** `src/renderers/shared.js::tVocab` **and its RAW
+twin `tVocabRaw`** re-implement the same order (they can't call the primary — they escape via
+`t`/`tRaw` and route through the RNZQ33ZP pair). Both read the brand from the shared
+`_vocabBrand()` helper in that file.
+
+**Call sites of the primary (delegate the order, not replicas):** `dashboard-card.js::_tVocab`,
+`profile-card.js`, and BOTH classes in `room-card.js` all call `vocab(..., brand)`.
+
+**The load-bearing subtlety is the BRAND SOURCE, and getting it wrong is the whole bug this set
+was born from.** `brand` is `adapter_id`, but *where* it is read differs by render context:
+
+- **A real card element** (`dashboard-card`) has its own `this._snapshot` → `this._snapshot.adapter_id`.
+- **The renderer instance** (`VacuumCardRenderers`, which runs the modal + queue-manifest) has
+  **only `this.card`, never `this._snapshot`** → the brand must come from
+  `this.card._state.dashboardSnapshot().adapter_id` (what `_vocabBrand()` does). A first fix read
+  `this._snapshot?.adapter_id` here; it is always `undefined` on the renderer, so the modal showed
+  the shared **"Turbo"** while the dashboard-card accordion (a real element) showed **"Max"** — the
+  exact "card correct, panel wrong" split. **1035 unit tests stayed green** because none exercised
+  brand resolution on the renderer instance; `renderers/vocab-brand-scope.test.mjs` [VB-1..5] now
+  pins it.
+- **The standalone cards** (`room-card`, `profile-card`) have no service-layer snapshot at all →
+  the brand rides in on the **room-switch attrs** (`room_entities.py` serves `adapter_id` +
+  `supports_edge_mopping` there), read as `_targetSwitch().attrs.adapter_id`.
+
+**Why the order is load-bearing.** A brand OWNS its value's word (doc 20's
+`f/eufy_is_not_the_default`). Dreame emits the token `turbo` for its highest suction, which its
+app labels **"Max"**; the shared catalog carries `vocab.fan_speed.turbo` = "Turbo" (Eufy's
+term). Without the brand-first probe the shared entry silently overrode Dreame's declared word.
+Eufy-safe by construction: with no `vocab.<brand>.*` keys the lookup is byte-identical to the old
+path. Rides adjacent to [`RNZM4AYY`](00c-replicas.md) (most-specific-declaration ownership) and
+[`RNZQ33ZP`](00c-replicas.md) (the escaped/raw `tVocab` pairing in the same file — `tVocabRaw`
+being a co-replica here means a change touches BOTH sets at once).
+
+---
+
 ## Observational vs MUTATION replicas
 
 A replica set that decides **what to display or bind** is bad when it diverges: someone

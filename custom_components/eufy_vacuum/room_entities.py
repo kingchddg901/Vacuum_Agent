@@ -297,9 +297,9 @@ class EufyVacuumRoomEntity(Entity):
         # mode/speed/water/intensity pickers from the adapter without
         # probing upstream brand integration entities. Each list is
         # `[{value, label}, ...]`; absent role keys become empty lists.
-        _adapter_vocab = (
-            get_adapter_config(self._vacuum_entity_id) or {}
-        ).get("vocabulary", {}) or {}
+        _adapter_cfg = get_adapter_config(self._vacuum_entity_id) or {}
+        _adapter_vocab = _adapter_cfg.get("vocabulary", {}) or {}
+        _adapter_caps = _adapter_cfg.get("capabilities", {}) or {}
 
         # Surface the last-cleaned timestamp from room_history on every
         # room entity so the card can render a "2d ago" pill on each
@@ -340,8 +340,20 @@ class EufyVacuumRoomEntity(Entity):
             "grants_access_to": grants_access_to,
             "rules": room.get("rules", []),
             "integration": self._coordinator_key,
+            # The brand id, so the standalone card's tVocab can try a brand-scoped label
+            # (vocab.<adapter_id>.<field>.<value>) FIRST — a brand owns its value's word and
+            # must not be overridden by another brand's (RN6F7RW6). Mirrors the dashboard
+            # snapshot's adapter_id, but delivered via the switch attrs the standalone card
+            # reads (it has no service-layer snapshot).
+            "adapter_id": _adapter_cfg.get("adapter_id"),
             "clean_mode_options": _adapter_vocab.get("clean_mode_options") or [],
             "fan_speed_options": _adapter_vocab.get("fan_speed_options") or [],
             "water_level_options": _adapter_vocab.get("water_level_options") or [],
             "clean_intensity_options": _adapter_vocab.get("clean_intensity_options") or [],
+            # Continuous water axis (Dreame wetness 1..32) — a brand declares this OR
+            # water_level_options; the card branches slider-vs-chips. None when enum-shaped.
+            "water_level_range": _adapter_vocab.get("water_level_range"),
+            # Per-model edge-mopping capability so the inline cards can hide the toggle
+            # (Dreame + Roborock S6 declare False). Default True keeps Eufy unchanged.
+            "supports_edge_mopping": bool(_adapter_caps.get("supports_edge_mopping", True)),
         }

@@ -243,6 +243,12 @@ export const modalStyles = `
     letter-spacing: 0.05em;
   }
 
+  /* The WATER LEVEL continuous slider CSS (.evcc-slider-*) lives in
+     styles/modal-host.js (MODAL_HOST_STYLES), NOT here. _renderWetnessSlider renders in
+     the BODY-LEVEL modal host, which this shadow-root stylesheet does not reach — a copy
+     here was dead (no shadow-root consumer of .evcc-slider-*), which is exactly why an
+     edit here showed no visual change. Style the modal slider in modal-host.js. */
+
   /* =========================================================
      ROOM EDITOR SPECIFICS
      ========================================================= */

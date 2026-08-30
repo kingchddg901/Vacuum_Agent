@@ -87,6 +87,11 @@
       "turbo": "Turbo",  // suction level (Eufy app term; the value the device actually emits)
       "max": "Max"  // suction level (highest)
     },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Max"  // suction level (highest); Dreame app term for the `turbo` token
+      }
+    },
     "water_level": {
       "off": "Off",  // water level: no water
       "low": "Low",  // water level

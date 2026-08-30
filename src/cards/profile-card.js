@@ -16,7 +16,7 @@
 import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "../i18n/index.js";
 import {
   esc, callResponse, defineCard, registerCard, getStoredLang, setStoredLang,
-  renderLangControl, wireLangControl, LANG_CSS, vocab,
+  renderLangControl, wireLangControl, LANG_CSS, vocab, roomSwitchesFor,
 } from "./_shared.js";
 import { dashboardSuggestion } from "./card-suggestions.js";
 import { renderStepsManifest } from "../state/steps-manifest.js";
@@ -195,7 +195,11 @@ class VacuumAgentProfileCard extends HTMLElement {
       nameById: this._nameById(profile),
       t: (key, vars) => this.t(key, vars),
       escapeHtml: esc,
-      tVocab: (field, value, fb) => vocab((k, v) => this.t(k, v), field, value, fb),
+      // RN6F7RW6 — brand from the vacuum's room-switch attrs (this card has no dashboard
+      // snapshot of its own; `this._snapshot` never existed here). All rooms of one vacuum
+      // share one adapter, so the first switch's adapter_id is the brand.
+      tVocab: (field, value, fb) => vocab((k, v) => this.t(k, v), field, value, fb,
+        roomSwitchesFor(this._hass, this._vacuumId())?.[0]?.attrs?.adapter_id),
     });
   }
 

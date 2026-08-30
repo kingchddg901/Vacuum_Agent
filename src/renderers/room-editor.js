@@ -269,6 +269,11 @@ export function applyRoomEditorRenderer(proto) {
    * Visibility controlled by state.showWaterLevel().
    */
   proto._renderWaterLevelField = function (state, fields) {
+    // A RANGE brand (Dreame wetness 1..32) declares water_level_range, not options →
+    // a slider. A brand declares exactly one, so at most one branch renders.
+    const range = state.waterLevelRange && state.waterLevelRange();
+    if (range) return this._renderWetnessSlider(state, fields, range);
+
     const options = state.waterLevelOptions();
     if (options.length === 0) return "";
 
@@ -284,6 +289,42 @@ export function applyRoomEditorRenderer(proto) {
               data-value="${this.escapeHtml(opt.value)}"
             >${this.tVocab("water_level", opt.value, opt.label)}</button>
           `).join("")}
+        </div>
+      </div>
+    `;
+  };
+
+  /**
+   * Continuous wetness slider (Dreame 1..32). The stored water_level is a numeric
+   * STRING; the slider commits input.value via the [data-slider-field] binding in
+   * bindModalHostEvents. Endpoint labels come from the adapter's range.labels. An
+   * unset value starts the thumb at the midpoint, not 0.
+   */
+  proto._renderWetnessSlider = function (state, fields, range) {
+    const min = Number(range.min);
+    const max = Number(range.max);
+    const step = Number(range.step ?? 1);
+    const lbls = range.labels ?? {};
+    const mid = Math.round((min + max) / 2);
+    const parsed = fields.water_level == null || fields.water_level === ""
+      ? mid : Number(fields.water_level);
+    const val = Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : mid;
+    const third = (max - min) / 3;
+    const word = val <= min + third ? (lbls.min_label ?? "")
+      : val >= max - third ? (lbls.max_label ?? "") : (lbls.mid_label ?? "");
+    return `
+      <div class="evcc-editor-field-group">
+        <div class="evcc-field-label">${this.t("room_editor.water_level")}</div>
+        <div class="evcc-slider-row">
+          <input type="range" class="evcc-range-slider"
+            data-slider-field="water_level"
+            data-word-low="${this.escapeHtml(lbls.min_label ?? "")}"
+            data-word-mid="${this.escapeHtml(lbls.mid_label ?? "")}"
+            data-word-high="${this.escapeHtml(lbls.max_label ?? "")}"
+            min="${min}" max="${max}" step="${step}" value="${val}"
+            aria-label="${this.escapeHtml(this.t("room_editor.water_level"))}" />
+          <output class="evcc-slider-value">${val}</output>
+          <span class="evcc-slider-word-wrap"><span class="evcc-slider-word" data-slider-word>${this.escapeHtml(word)}</span></span>
         </div>
       </div>
     `;

@@ -44,13 +44,23 @@ from __future__ import annotations
 # clean_intensity / path_type. Only the four this brand actually exposes are
 # declared here.
 
-#: ``select.robin_room_N_suction_level``. See the vacuum-entity warning above:
-#: the first level is ``quiet`` here and ``Silent`` on the vacuum entity.
+#: ``select.robin_room_N_suction_level``. THREE label spaces disagree on this axis:
+#: the SELECT values are quiet/standard/strong/turbo, the vacuum entity's
+#: ``fan_speed_list`` is Silent/Standard/Strong/Turbo, and the DREAME APP shows
+#: Quiet/Standard/Intense/Max. The card renders ``label``, so the labels follow the
+#: APP -- the words the user actually recognizes on their phone -- while ``value`` stays
+#: the select's own word (what a per-room write and ``FAN_SPEED_WIRE_MAP`` target).
+#: strong == "Intense" == 2, turbo == "Max" == 3. The HIGHEST level is labelled "Max":
+#: that is the word the Dreame app shows for the ``turbo`` token, and the brand owns its
+#: own value's word (RN6F7RW6). The value stays ``turbo`` (the device/select token); only
+#: the human label is "Max". English now; the other languages come in the translate pass
+#: (the option labels are Dreame-cloud/MIoT-spec, not in the APK -- see
+#: `.claude/notes/STATE-dreame-app-api.md`).
 FAN_SPEED_OPTIONS: list[dict] = [
     {"value": "quiet", "label": "Quiet"},
     {"value": "standard", "label": "Standard"},
-    {"value": "strong", "label": "Strong"},
-    {"value": "turbo", "label": "Turbo"},
+    {"value": "strong", "label": "Intense"},
+    {"value": "turbo", "label": "Max"},
 ]
 
 #: ``select.robin_room_N_mop_pad_humidity``.
@@ -61,11 +71,28 @@ FAN_SPEED_OPTIONS: list[dict] = [
 #: not 0. Both Eufy ("Off") and Roborock ("off") declare a no-water word; Dreame
 #: has none to declare. That is why FLOOR_TYPE_WATER_DEFAULTS below is empty —
 #: see the long note there before adding a row.
+#: The COARSE 3-level view (``select.robin_room_N_mop_pad_humidity``). KEPT for
+#: reference, but NOT the declared axis — this brand's real water control is the fine
+#: 1..32 scale below, and a brand declares exactly one. Left here so the coarse
+#: ``water_volume`` wire (schema-required) has a documented mapping.
 WATER_LEVEL_OPTIONS: list[dict] = [
     {"value": "slightly_dry", "label": "Slightly Dry"},
     {"value": "moist", "label": "Moist"},
     {"value": "wet", "label": "Wet"},
 ]
+
+#: THE PRIMARY water axis: the FINE 1..32 wetness scale
+#: (``number.robin_room_N_wetness_level``, min 1 / max 32 / step 1), which the vendor
+#: app renders as a "Slightly Dry — Moist — Wet" slider. Robin declares
+#: ``wetness_level: True`` so the device uses this over the coarse ``water_volume``.
+#: Declared as ``water_level_range`` (NOT ``water_level_options``) so the card branches
+#: to a slider; the stored ``water_level`` is then a numeric STRING ("16"), opaque to
+#: the profiles subsystem exactly as an enum token is. Min is 1 — THERE IS NO 0/off
+#: (carpet no-water is the mode downgrade, see FLOOR_TYPE_WATER_DEFAULTS).
+WATER_LEVEL_RANGE: dict = {
+    "min": 1, "max": 32, "step": 1,
+    "labels": {"min_label": "Slightly Dry", "mid_label": "Moist", "max_label": "Wet"},
+}
 
 #: CANONICAL framework values, not device words — the same three Roborock
 #: declares. ``profiles/room_profiles.py::canonical_clean_mode`` resolves this
@@ -108,6 +135,44 @@ CLEAN_INTENSITY_OPTIONS: list[dict] = [
 CLEAN_PASSES_VALUE_MAP: dict[int, str] = {1: "1x", 2: "2x", 3: "3x"}
 
 
+# --- bulk-write wire value maps ---------------------------------------------
+#
+# ⚠ THE BULK SERVICE TAKES INTEGER CODES, NOT THE PER-ROOM SELECT'S STRINGS.
+# ``dreame_vacuum.vacuum_set_custom_cleaning`` (the SETTLED write path — the saved
+# store wins, ``vacuum_clean_segment`` params are decorative, see
+# ``.claude/notes/synthesis/dreame-port/FIELD-REPORT-first-run-2026-08-09.md``)
+# carries index-aligned INT arrays. These maps translate the framework's canonical
+# per-room profile values to those ints. Codes verified against the service's own
+# ``services.yaml`` examples and the ``DreameVacuum*`` enums in ``dreame/types.py``.
+# The per-room SELECT value_maps above (strings) are a DIFFERENT wire and stay as-is.
+
+#: fan_speed canonical -> ``suction_level`` int (0..3). quiet/standard/strong/turbo
+#: == device levels 0/1/2/3 (``DreameVacuumSuctionLevel``).
+FAN_SPEED_WIRE_MAP: dict[str, int] = {
+    "quiet": 0, "standard": 1, "strong": 2, "turbo": 3,
+}
+
+#: clean_mode canonical -> ``cleaning_mode`` int. sweeping=0 / mopping=1 /
+#: sweeping_and_mopping=2 (``DreameVacuumCleaningMode``; service example [2,2,0,1,0]).
+CLEAN_MODE_WIRE_MAP: dict[str, int] = {
+    "vacuum": 0, "mop": 1, "vacuum_mop": 2,
+}
+
+#: clean_intensity canonical -> ``cleaning_route`` int. STANDARD=1 / INTENSIVE=2 /
+#: DEEP=3 (``DreameVacuumCleaningRoute``; NOT_SET=0 and QUICK=4 are unused here).
+CLEAN_INTENSITY_WIRE_MAP: dict[str, int] = {
+    "standard": 1, "intensive": 2, "deep": 3,
+}
+
+#: water_level canonical -> ``water_volume`` int (1..3), the schema-REQUIRED coarse
+#: field. slightly_dry/moist/wet == 1/2/3. A vacuum-only room carries "" and takes
+#: the dispatch filler (1); the device ignores water when the mode is sweeping. The
+#: FINE 1..32 ``wetness_level`` axis is Stage 2 (Robin declares wetness_level: True).
+WATER_VOLUME_WIRE_MAP: dict[str, int] = {
+    "slightly_dry": 1, "moist": 2, "wet": 3,
+}
+
+
 # --- room profiles ----------------------------------------------------------
 #
 # Same profile KEYS as the framework catalog so stored rooms and the profile
@@ -144,7 +209,7 @@ ROOM_PROFILES: dict[str, dict] = {
         "label": "Quick",
         "clean_mode": "vacuum_mop",
         "fan_speed": "standard",
-        "water_level": "moist",
+        "water_level": "16",  # mid of the 1..32 wetness scale (app "Moist")
         "clean_intensity": "standard",
         "clean_passes": 1,
         "edge_mopping": False,
@@ -154,7 +219,7 @@ ROOM_PROFILES: dict[str, dict] = {
         "label": "Deep",
         "clean_mode": "vacuum_mop",
         "fan_speed": "turbo",
-        "water_level": "wet",
+        "water_level": "26",  # upper end of the 1..32 wetness scale (toward app "Wet")
         "clean_intensity": "deep",
         "clean_passes": 2,
         # Declared False to match the brand-wide position, NOT because every

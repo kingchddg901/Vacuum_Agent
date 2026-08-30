@@ -386,6 +386,18 @@ export function applyLearningState(proto) {
     return this.adapterOptionsFor(roleKey).map((o) => o?.value).filter(Boolean);
   };
 
+  /**
+   * The adapter-declared CONTINUOUS range `{min,max,step,labels}` for a role
+   * (Dreame water_level -> water_level_range). Null when the axis is enum-shaped
+   * (declares `<role>_options`) or absent — a brand declares exactly ONE per axis,
+   * so the card branches slider-vs-chips on which of the two is non-null.
+   */
+  proto.adapterRangeFor = function (roleKey) {
+    const vocab = this.dashboardAdapterVocabulary();
+    const r = vocab?.[`${roleKey}_range`];
+    return r && typeof r === "object" && r.min != null && r.max != null ? r : null;
+  };
+
   proto.dashboardStatusSummary = function () {
     return this.dashboardSnapshot()?.status_summary ?? null;
   };

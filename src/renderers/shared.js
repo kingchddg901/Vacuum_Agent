@@ -112,13 +112,37 @@ export function applySharedRenderers(proto) {
    * @param {string} [fallback] - the backend English label (used when unkeyed).
    * @returns {string} escaped, localized label.
    */
+  /**
+   * The active brand (adapter_id) for brand-scoped vocab resolution (RN6F7RW6).
+   *
+   * These methods run on the VacuumCardRenderers INSTANCE, where ONLY `this.card`
+   * is set — `this._snapshot` is undefined here (it lives on the dashboard-card
+   * element, a different object). So reach the snapshot the way every other
+   * renderer does: `this.card._state.dashboardSnapshot()` (precedent:
+   * renderers/rooms.js:459). The `this._snapshot` branch is first as a defensive
+   * no-op for any path where the proto is mixed onto a card that carries the
+   * snapshot directly. Getting THIS wrong is why the modal showed "Turbo" while
+   * the dashboard-card accordion (a real card, own `_snapshot`) showed "Max".
+   */
+  proto._vocabBrand = function () {
+    const snap = this._snapshot ?? this.card?._state?.dashboardSnapshot?.();
+    return snap?.adapter_id;
+  };
+
   proto.tVocab = function (field, value, fallback) {
     if (value == null || value === "") return this.escapeHtml(fallback ?? "");
     const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-    // The template literal lives INSIDE the t() call so check:i18n's template
-    // scan reaches every `vocab.<field>.<value>` key (a dynamic this.t(varKey)
-    // would read as a dead key). t() escapes its result and returns the key
-    // verbatim on a miss -> fall back to the backend label.
+    // REPLICA RN6F7RW6 — primary: src/cards/_shared.js::vocab; co-replica: tVocabRaw below.
+    // A brand OWNS its value's word: try `vocab.<brand>.<field>.<value>` FIRST so its
+    // declared label is not overridden by the shared catalog's word (Dreame fan_speed
+    // "turbo" → "Max" vs the shared "Turbo"). The template literals live INSIDE t() so
+    // check:i18n's template scan reaches every key. t() escapes and returns the key on a
+    // miss -> fall through.
+    const brand = this._vocabBrand();
+    if (brand) {
+      const bo = this.t(`vocab.${brand}.${field}.${slug}`);
+      if (bo !== `vocab.${brand}.${field}.${slug}`) return bo;
+    }
     const out = this.t(`vocab.${field}.${slug}`);
     return out === `vocab.${field}.${slug}` ? this.escapeHtml(fallback ?? String(value)) : out;
   };
@@ -141,6 +165,14 @@ export function applySharedRenderers(proto) {
   proto.tVocabRaw = function (field, value, fallback) {
     if (value == null || value === "") return fallback ?? "";
     const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    // REPLICA RN6F7RW6 (co-replica of tVocab above): brand-first, SAME resolution order.
+    // The RAW twin must brand-scope too, or a read-only fan_speed summary chip
+    // (renderers/rooms.js) shows the shared "Turbo" while the editable chip shows "Max".
+    const brand = this._vocabBrand();
+    if (brand) {
+      const bo = this.tRaw(`vocab.${brand}.${field}.${slug}`);
+      if (bo !== `vocab.${brand}.${field}.${slug}`) return bo;
+    }
     const out = this.tRaw(`vocab.${field}.${slug}`);
     return out === `vocab.${field}.${slug}` ? (fallback ?? String(value)) : out;
   };

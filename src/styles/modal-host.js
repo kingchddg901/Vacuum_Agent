@@ -455,6 +455,57 @@ export const MODAL_HOST_STYLES = `
     padding-top:    4px;
   }
 
+  /* WATER LEVEL continuous slider (Dreame wetness 1..32). LIVES HERE, not in
+     styles/modals.js: the slider markup (_renderWetnessSlider) renders in the
+     BODY-LEVEL modal host, which is styled by MODAL_HOST_STYLES — modals.js goes to
+     the card's shadow root, where these classes never appear (that copy was dead).
+     The numeric value reads as a small pill chip beside the slider; the live word
+     (Slightly Dry / Moist / Wet) drops to a chip on its own line below. Both reuse
+     the modal chip tokens so they match the SUCTION/PATH chips. */
+  .evcc-slider-row {
+    display:       flex;
+    align-items:   center;
+    gap:           10px;
+    flex-wrap:     wrap;
+  }
+  .evcc-range-slider {
+    flex:          1 1 auto;
+    min-width:     0;
+  }
+  .evcc-slider-value {
+    flex:          0 0 auto;
+    padding:       2px 12px;
+    border-radius: var(--evcc-chip-radius, 999px);
+    border:        1px solid
+      var(--evcc-modal-chip-border, var(--evcc-border-strong));
+    background:
+      var(--evcc-modal-chip-bg,
+      color-mix(in srgb, var(--evcc-modal-text-muted, var(--evcc-text-muted)) 18%, transparent));
+    color:
+      var(--evcc-modal-chip-text, var(--evcc-modal-text-primary, var(--evcc-text-primary)));
+    font-weight:   700;
+    font-size:     0.82rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .evcc-slider-word-wrap {
+    flex:          0 0 100%;
+  }
+  .evcc-slider-word {
+    display:       inline-block;
+    padding:       3px 12px;
+    border-radius: var(--evcc-chip-radius, 999px);
+    border:        1px solid
+      var(--evcc-modal-chip-border, var(--evcc-border-strong));
+    background:
+      var(--evcc-modal-chip-bg,
+      color-mix(in srgb, var(--evcc-modal-text-muted, var(--evcc-text-muted)) 18%, transparent));
+    color:
+      var(--evcc-modal-chip-text, var(--evcc-modal-text-primary, var(--evcc-text-primary)));
+    font-size:     0.8rem;
+    font-weight:   600;
+    white-space:   nowrap;
+  }
+
   /* anchor: CN0EX0CH */
   ${sharedChipStyles}
 
