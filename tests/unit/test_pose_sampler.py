@@ -26,12 +26,12 @@ def test_interval_from_adapter(monkeypatch):
 def test_interval_falls_back_to_engine_default(monkeypatch):
     """No interval_s in tuning -> the resolved engine's DEFAULT_TUNING (single source)."""
     from custom_components.eufy_vacuum.learning.room_attribution_engines import (
-        EufyAnchorWindingAttributor,
+        SweptAreaWindingAttributor,
     )
     monkeypatch.setattr(pose_sampler, "get_adapter_config",
-                        lambda vid: {"room_attribution": {"engine": "eufy_anchor_winding_v1"}})
+                        lambda vid: {"room_attribution": {"engine": "swept_area_winding_v1"}})
     assert (pose_sampler._room_attribution_interval_s("vacuum.alfred")
-            == EufyAnchorWindingAttributor.DEFAULT_TUNING["interval_s"])
+            == SweptAreaWindingAttributor.DEFAULT_TUNING["interval_s"])
 
 
 def test_interval_none_without_room_attribution(monkeypatch):
@@ -42,7 +42,7 @@ def test_interval_none_without_room_attribution(monkeypatch):
 def test_source_defaults_to_live_pose(monkeypatch):
     """Absent source key (block predates it) -> live_pose; explicit values pass through."""
     monkeypatch.setattr(pose_sampler, "get_adapter_config",
-                        lambda vid: {"room_attribution": {"engine": "eufy_anchor_winding_v1"}})
+                        lambda vid: {"room_attribution": {"engine": "swept_area_winding_v1"}})
     assert pose_sampler._room_attribution_source("vacuum.alfred") == "live_pose"
     monkeypatch.setattr(pose_sampler, "get_adapter_config",
                         lambda vid: {"room_attribution": {"source": "NATIVE_CURRENT_ROOM"}})
@@ -261,7 +261,7 @@ _ROBO_ACTIVE = ["segment_cleaning", "segment_mopping", "returning_home", "cleani
 
 def _cfg_native(_vid):
     return {
-        "room_attribution": {"engine": "eufy_anchor_winding_v1",
+        "room_attribution": {"engine": "swept_area_winding_v1",
                              "source": "native_current_room", "tuning": {"interval_s": 5.0}},
         "entities": {"active_cleaning_target": "sensor.ivy_current_room",
                      "cleaning_area": "sensor.ivy_cleaning_area",

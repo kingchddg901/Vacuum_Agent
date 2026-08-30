@@ -189,7 +189,7 @@ dependency (no Pillow). The VA owns the frame, so the overlays align perfectly (
 live-map-camera crop). Adapter-driven, brand-agnostic core + card.
 
 - **Adapter:** a `map_render: {format}` block declares the decode format (Eufy
-  `eufy_room_pixels_v1`) and **reuses the `map_state_source` store pointer** (no duplicate
+  `room_pixels_v1`) and **reuses the `map_state_source` store pointer** (no duplicate
   schema). Roborock omits it → `supports_va_render: false` → the card hides the toggle (its
   HA-core render is already frame-matched).
 

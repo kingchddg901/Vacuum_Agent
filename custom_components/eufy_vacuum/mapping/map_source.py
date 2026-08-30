@@ -756,7 +756,7 @@ def render_data_from_storage(map_data: dict[str, Any]) -> dict[str, Any] | None:
     version = eufy_version_of(map_data)
     return {
         "present": True,
-        "format": "eufy_room_pixels_v1",
+        "format": "room_pixels_v1",
         "width": width,            # render-canvas dims (main grid)
         "height": height,
         "ro_width": ro_w,          # room_pixels raster dims (room_outline frame)

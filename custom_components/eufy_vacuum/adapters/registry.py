@@ -252,7 +252,7 @@ class AdapterCoordinator:
 _EUFY_FALLBACK_BLOCKS: dict[str, tuple[str, str, str]] = {
     "mapping": (
         "map segmentation",
-        "eufy_cv_v1 (Eufy computer-vision room splitting)",
+        "cv_image_v1 (Eufy computer-vision room splitting)",
         "declare mapping.segmenter_engine='noop_fallback' if the brand yields no map image",
     ),
     "job_segmenter": (
@@ -262,7 +262,7 @@ _EUFY_FALLBACK_BLOCKS: dict[str, tuple[str, str, str]] = {
     ),
     "room_attribution": (
         "external-run room attribution",
-        "eufy_anchor_winding_v1 (Eufy live-pose anchor winding)",
+        "swept_area_winding_v1 (live-pose anchor winding)",
         "declare room_attribution.engine='noop_room_attribution' to disable auto-attribution",
     ),
 }

@@ -81,7 +81,7 @@ rules; the rest is unguarded.
 Almost every permissive default resolves to a concrete **Eufy** answer rather than to a refusal.
 That is the single largest brand-neutrality liability in the tree, and it is partly instrumented:
 `registry.py::_EUFY_FALLBACK_BLOCKS` makes three of them audible at registration — `mapping` →
-`eufy_cv_v1`, `job_segmenter` → `eufy_counter_v1`, `room_attribution` → `eufy_anchor_winding_v1`.
+`cv_image_v1`, `job_segmenter` → `eufy_counter_v1`, `room_attribution` → `swept_area_winding_v1`.
 Those warnings are silent today because both shipped brands declare all three.
 
 Not instrumented: an absent or unknown `dispatch.template` resolves to `_FALLBACK_TEMPLATE =

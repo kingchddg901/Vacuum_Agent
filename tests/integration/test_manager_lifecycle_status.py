@@ -136,7 +136,7 @@ async def test_dashboard_snapshot_no_tank_sensor_defaults(manager, hass):
         assert snap["supports_room_profiles"] is True
         # Default-REJECT: a bare adapter declares no dock_events + no segmenter,
         # so both tab flags resolve False (NOT hardcoded on). The REAL Eufy
-        # adapter declares dock_events.enabled + segmenter_engine="eufy_cv_v1" ->
+        # adapter declares dock_events.enabled + segmenter_engine="cv_image_v1" ->
         # both True (covered by test_dashboard_snapshot_tab_capabilities below).
         assert snap["supports_base_station"] is False
         assert snap["supports_map_bounds"] is False
@@ -161,7 +161,7 @@ async def test_dashboard_snapshot_tab_capabilities(manager, hass):
     # Dock + CV (the Eufy shape) -> both tabs shown.
     s = _snap({
         "dock_events": {"enabled": True},
-        "mapping": {"segmenter_engine": "eufy_cv_v1"},
+        "mapping": {"segmenter_engine": "cv_image_v1"},
     })
     assert s["supports_base_station"] is True
     assert s["supports_map_bounds"] is True
@@ -176,7 +176,7 @@ async def test_dashboard_snapshot_tab_capabilities(manager, hass):
 
     # noop segmenter (native segments) -> Map Bounds hidden; a real engine -> shown.
     assert _snap({"mapping": {"segmenter_engine": "noop_fallback"}})["supports_map_bounds"] is False
-    assert _snap({"mapping": {"segmenter_engine": "eufy_cv_v1"}})["supports_map_bounds"] is True
+    assert _snap({"mapping": {"segmenter_engine": "cv_image_v1"}})["supports_map_bounds"] is True
 
     # Live map image (Roborock): declared AND the derived image.{object_id}_{slug}
     # entity exists -> the entity id is surfaced; declared but the entity is absent

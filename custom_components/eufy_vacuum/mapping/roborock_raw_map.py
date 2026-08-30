@@ -162,7 +162,7 @@ def roborock_render_data(
     *,
     version: str | None = None,
 ) -> dict[str, Any] | None:
-    """Build the card's render-data (the generic ``eufy_room_pixels_v1`` shape) from a
+    """Build the card's render-data (the generic ``room_pixels_v1`` shape) from a
     decoded Roborock raster, so Roborock rides the SAME frontend decode as Eufy.
 
     The decoded raster already holds resolved room ids, so ``rid_shift`` is 0; the raster
@@ -208,7 +208,7 @@ def roborock_render_data(
         version = hashlib.sha1(raw).hexdigest()[:12]
     return {
         "present": True,
-        "format": "eufy_room_pixels_v1",     # the card's brand-agnostic raster decode
+        "format": "room_pixels_v1",     # the card's brand-agnostic raster decode
         "width": int(width),
         "height": int(height),
         "ro_width": int(width),              # the raster IS the canvas (no outline frame)

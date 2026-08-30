@@ -358,9 +358,9 @@ def test_omitting_an_engine_block_warns_which_eufy_default_takes_over(caplog):
 
     text = caplog.text
     for block, eufy_default in (
-        ("mapping", "eufy_cv_v1"),
+        ("mapping", "cv_image_v1"),
         ("job_segmenter", "eufy_counter_v1"),
-        ("room_attribution", "eufy_anchor_winding_v1"),
+        ("room_attribution", "swept_area_winding_v1"),
     ):
         assert block in text, f"no advisory for the omitted {block!r} block"
         assert eufy_default in text, (

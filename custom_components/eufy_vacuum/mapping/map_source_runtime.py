@@ -191,7 +191,7 @@ def eufy_render_data_from_store(
 ) -> dict[str, Any]:
     """PURE: the card-render raster + decode params from a loaded Eufy Store dict.
 
-    Version-guards the wrapper (the `eufy_room_pixels_v1` format), then extracts the
+    Version-guards the wrapper (the `room_pixels_v1` format), then extracts the
     raster + explicit decode params via ``render_data_from_storage``. Degrades to
     ``{present: false, reason}`` on any mismatch — never raises. Unit-tested without HA.
     """
@@ -791,12 +791,12 @@ def dreame_result_from_candidates(candidates: dict[str, Any], *, present: bool) 
     """
     diag = candidates.get("diagnostics", {})
     if not present or not candidates.get("present"):
-        return {**build_map_source_result(present=False, backend="dreame_camera_attrs",
+        return {**build_map_source_result(present=False, backend="camera_attrs",
                                           reason=candidates.get("reason", "live_map_absent")),
                 "diagnostics": diag}
     proj = _dreame_affine(candidates.get("calibration"))
     if proj is None:
-        return {**build_map_source_result(present=False, backend="dreame_camera_attrs",
+        return {**build_map_source_result(present=False, backend="camera_attrs",
                                           reason="no_calibration"), "diagnostics": diag}
 
     size = candidates.get("pixel_size") or []
@@ -848,7 +848,7 @@ def dreame_result_from_candidates(candidates: dict[str, Any], *, present: bool) 
             anchors["dock_anchor"] = p
 
     extra = {"calibration_points": candidates.get("calibration")}
-    result = build_map_source_result(present=True, backend="dreame_camera_attrs",
+    result = build_map_source_result(present=True, backend="camera_attrs",
                                      rooms=rooms, anchors=anchors, extra=extra)
     return {**result, "diagnostics": diag}
 

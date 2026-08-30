@@ -93,7 +93,7 @@ def test_eufy_cv_segmenter_wraps(tmp_path):
     path = _map_png(str(tmp_path), saturated=True)
     result = EufyCVSegmenter().segment_map_image(
         image_path=path, tuning={"min_area_pixels": 200})
-    assert result["engine"] == "eufy_cv_v1"
+    assert result["engine"] == "cv_image_v1"
     assert result["available"] is True
     assert len(result["segments"]) >= 1
     assert "summary" in result

@@ -26,7 +26,7 @@ from typing import Any, Literal, NotRequired, Protocol, TypedDict
 
 # DELIBERATE DEVIATION (accepted, not drift): the CV segmentation pipeline is Eufy-special and
 # lives in the Eufy adapter (adapters/eufy/segmentor). This brand-agnostic registry imports it and
-# statically registers it under the GENERIC engine key 'eufy_cv_v1' — routing stays adapter-config-
+# statically registers it under the GENERIC engine key 'cv_image_v1' — routing stays adapter-config-
 # driven by mapping.segmenter_engine name, never by a brand check. It is the one engine class not
 # relocated behind an adapter hook, because the optional numpy/Pillow CV stack makes a lazy adapter-
 # side registration awkward; the import lives here by design. See [[project_custom_segment_path]].
@@ -223,7 +223,7 @@ class EufyCVSegmenter:
     don't have to know they exist.
     """
 
-    engine_name = "eufy_cv_v1"
+    engine_name = "cv_image_v1"
 
     # Keys we accept in adapter_config.mapping.segmenter_tuning.
     _KNOWN_TUNING_KEYS: frozenset[str] = frozenset({
@@ -409,8 +409,13 @@ class NoopSegmenter:
 # =============================================================================
 
 
+_cv_image_segmenter = EufyCVSegmenter()
 _SEGMENTER_ENGINES: dict[str, MapSegmenter] = {
-    "eufy_cv_v1":    EufyCVSegmenter(),
+    "cv_image_v1":   _cv_image_segmenter,
+    # dual-accept the legacy "eufy_cv_v1" key from a stored adapter config for one
+    # release — unknown here falls back to noop (CV silently stops), so the alias
+    # is load-bearing, not just cosmetic.
+    "eufy_cv_v1":    _cv_image_segmenter,
     "noop_fallback": NoopSegmenter(),
     # "roborock_deterministic": RoborockDeterministicSegmenter(),  # when ready
 }
@@ -453,7 +458,7 @@ def _engine_unavailable(
 ) -> SegmentationResult:
     """Canonical empty SegmentationResult for engines that can't run.
 
-    Only ``eufy_cv_v1`` surfaces a runtime-capabilities block on failure — it
+    Only ``cv_image_v1`` surfaces a runtime-capabilities block on failure — it
     is the diagnostic that tells the user "you're missing scipy" or similar.
     Deterministic and noop engines have no library dependency to report.
     """

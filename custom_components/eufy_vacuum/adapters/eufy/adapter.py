@@ -736,12 +736,12 @@ def register_eufy_adapter_for_vacuum(
             # looks the name up in mapping.segmenter_engines._SEGMENTER_ENGINES;
             # unknown names degrade to noop_fallback with a warning.
             #
-            # eufy_cv_v1 wraps the Pillow + NumPy + SciPy pipeline in
+            # cv_image_v1 wraps the Pillow + NumPy + SciPy pipeline in
             # adapters/eufy/segmentor.py. Adapters without a usable image
             # asset should declare "noop_fallback" here so the card stops
             # trying to render polygonal overlays while the trace tracker
             # keeps working off vacuum-space coordinates.
-            "segmenter_engine": "eufy_cv_v1",
+            "segmenter_engine": "cv_image_v1",
             "segmenter_tuning": {
                 # All keys map to detect_room_segments() kwargs. The
                 # engine's validate_tuning() rejects unknown keys at
@@ -856,7 +856,7 @@ def register_eufy_adapter_for_vacuum(
             # `map_state_source` above — no duplicate schema. Roborock omits this block
             # (its HA-core image render is already frame-matched); absence => the card's
             # "VA-rendered map" backdrop source is hidden for that brand.
-            "format": "eufy_room_pixels_v1",
+            "format": "room_pixels_v1",
         },
 
         "job_segmenter": {
@@ -890,14 +890,14 @@ def register_eufy_adapter_for_vacuum(
             # time-series (current_room + anchor + cleaning_area). A DIFFERENT axis from
             # job_segmenter (which owns time/area boundaries); this owns room identity.
             # Looked up in learning.room_attribution_engines._ROOM_ATTRIBUTION_ENGINES;
-            # absent/unknown falls back to eufy_anchor_winding_v1 (NOT noop).
+            # absent/unknown falls back to swept_area_winding_v1 (NOT noop).
             # LIVE. R2-STALE-4: this said "DORMANT until the run-active pose sampler (W5b)
             # + finalize wiring (W5c) land". Both landed — listeners/pose_sampler.py feeds
             # the buffer and room_attribution_engines._segment_by_room consumes it.
-            # eufy_anchor_winding_v1 segments by current_room, drops transit by
+            # swept_area_winding_v1 segments by current_room, drops transit by
             # path-winding, and separates cleaned vs parked-dock by the cleaning_area
             # (swept m²) delta. See docs/dev/eufy-native-transition.md.
-            "engine": "eufy_anchor_winding_v1",
+            "engine": "swept_area_winding_v1",
             # Capture path: the fork's decoded-map pixel pose (async_get_map_live_pose)
             # — the raster-lookup that yields current_room + robot_anchor + heading.
             # Declared explicitly so the sampler's source dispatch is stated, not inferred;

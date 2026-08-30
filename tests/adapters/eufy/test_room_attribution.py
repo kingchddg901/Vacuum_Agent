@@ -1,6 +1,6 @@
 """Real Eufy room-attribution classifier — adversarial regression (SOLO Eufy fixtures).
 
-Pins the ported classifier (learning/room_attribution_engines.EufyAnchorWindingAttributor)
+Pins the ported classifier (learning/room_attribution_engines.SweptAreaWindingAttributor)
 to the 3 deliberately-adversarial external runs captured on vacuum.alfred (the 9/9
 validation; see docs/dev/eufy-native-transition.md). Each fixture is the per-room
 EVIDENCE the analyzer produced (max over that room's runs) + the per-room swept area +
@@ -19,7 +19,7 @@ from custom_components.eufy_vacuum.learning.room_attribution_engines import (
     DWELL_MIN_TICKS,
     SWEPT_AREA_MIN_M2,
     WIND_TRANSIT,
-    EufyAnchorWindingAttributor,
+    SweptAreaWindingAttributor,
     _classify,
 )
 
@@ -124,7 +124,7 @@ def _straight_run(rid, n, area):
 def test_attribute_full_pipeline_robust_excludes_parked_dock():
     """Full segment -> run_metrics -> swept-area -> classify: a cleaned room is kept, a
     straight transit is dropped, and a jittering parked dock (flat area) is excluded."""
-    engine = EufyAnchorWindingAttributor()
+    engine = SweptAreaWindingAttributor()
     stream = (
         _clean_run(5, n=12, area0=0.0, step=0.2)   # 5 cleaned: covered, area 0 -> 2.2
         + _transit_run(7, n=4, area=2.2)           # 7 transit: straight, area flat
@@ -140,7 +140,7 @@ def test_attribute_full_pipeline_robust_excludes_parked_dock():
 def test_attribute_anchor_only_false_positives_the_dock():
     """Same parked-dock run with NO cleaning_area -> anchor-only -> wrongly 'cleaned'
     (30 ticks > 12, high winding). Documents the limitation the area signal closes."""
-    engine = EufyAnchorWindingAttributor()
+    engine = SweptAreaWindingAttributor()
     park = [{"current_room": 8, "anchor": list(((0.5, 0.5), (0.51, 0.51))[i % 2])} for i in range(30)]
     result = engine.attribute(park)
     assert result["mode"] == "anchor_only"
@@ -152,7 +152,7 @@ def test_robust_keeps_cleaned_room_whose_best_run_is_a_transit_pass():
     clean of the same room. best_run_by_room picks the transit (max spread, winding ~1),
     so a winding short-circuit would drop the room — but swept area says cleaned. Robust
     mode must keep it. (The fixtures above never hit this: each room had one run.)"""
-    engine = EufyAnchorWindingAttributor()
+    engine = SweptAreaWindingAttributor()
     stream = (
         _straight_run(5, n=6, area=0.0)             # room 5: long straight pass, no area, winding ~1
         + _transit_run(9, n=2, area=0.0)            # leave room 5

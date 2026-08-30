@@ -42,8 +42,16 @@ from custom_components.eufy_vacuum.mapping.segmenter_engines import (
 
 def test_get_engine_known():
     """[SE-1]"""
+    engine = get_segmenter_engine("cv_image_v1")
+    assert engine.engine_name == "cv_image_v1"
+
+
+def test_legacy_cv_key_still_resolves():
+    """[SE-1b] dual-accept: the pre-rename "eufy_cv_v1" key from a stored adapter config
+    still resolves to the CV engine, NOT the noop fallback. Bites hard — drop the alias
+    and this key falls through to noop_fallback (engine_name != "cv_image_v1")."""
     engine = get_segmenter_engine("eufy_cv_v1")
-    assert engine.engine_name == "eufy_cv_v1"
+    assert engine.engine_name == "cv_image_v1"
 
 
 def test_get_engine_none_falls_back():
@@ -66,7 +74,7 @@ def test_eufy_engine_detect_raises_returns_unavailable(monkeypatch):
         raise RuntimeError("cv exploded")
 
     monkeypatch.setattr(se, "detect_room_segments", _boom)
-    engine = get_segmenter_engine("eufy_cv_v1")
+    engine = get_segmenter_engine("cv_image_v1")
     result = engine.segment_map_image(image_path="/tmp/nope.png", tuning={})
     assert result["available"] is False
     assert result["reason"] == "engine_exception"
@@ -76,7 +84,8 @@ def test_eufy_engine_detect_raises_returns_unavailable(monkeypatch):
 def test_known_engine_names():
     """[SE-4]"""
     names = known_engine_names()
-    assert "eufy_cv_v1" in names
+    assert "cv_image_v1" in names             # canonical
+    assert "eufy_cv_v1" in names              # legacy alias — dual-accept, remove after one release
     assert "noop_fallback" in names
 
 
@@ -143,7 +152,7 @@ def test_cv_segment_no_image_path():
     result = EufyCVSegmenter().segment_map_image(image_path=None, tuning={})
     assert result["available"] is False
     assert result["reason"] == "no_image_path"
-    assert result["engine"] == "eufy_cv_v1"
+    assert result["engine"] == "cv_image_v1"
     assert result["segments"] == []
 
 
@@ -212,7 +221,7 @@ def test_cv_reshape_runtime_only_omits_segmentation():
     assert "segmentation" not in result["engine_diagnostics"]
     assert result["available"] is False
     assert result["reason"] == "pipeline_unavailable"
-    assert result["engine"] == "eufy_cv_v1"
+    assert result["engine"] == "cv_image_v1"
     assert result["segments"] == []
 
 
@@ -224,5 +233,5 @@ def test_cv_reshape_no_diagnostic_blocks_yields_empty_diagnostics():
     result = EufyCVSegmenter()._reshape(raw)
     assert result["engine_diagnostics"] == {}
     assert result["available"] is True
-    assert result["engine"] == "eufy_cv_v1"
+    assert result["engine"] == "cv_image_v1"
 

@@ -169,7 +169,7 @@ non-pair robot pixel with a valid dock resolves the robot to the dock.
 | the `present_requires_live_map_image` gate means the live map is working | it tests presence in the **state machine**. An `unavailable` entity still has a State object and passes |
 | an mtime cache hit re-applies the current pose, so a moving robot is never frozen | true of the **return value**, false of the **cache** — the hit branch mutates a shallow copy |
 | the multi-vacuum cross-contamination guard is closed | the `device_id` parameter exists and works; **no production call site passes it** |
-| `format: "eufy_room_pixels_v1"` means the data came from Eufy | it is the card's brand-agnostic decoder name, reused on purpose |
+| the render format `room_pixels_v1` is Eufy-specific, or the legacy `eufy_room_pixels_v1` key is dead | it is the card's **brand-agnostic** decoder name (both brands emit it), renamed to drop the brand word; the coordinator still **dual-accepts** the legacy `eufy_room_pixels_v1` for one release so a stored config isn't stranded |
 | the render-data candidate walk tries every root until one yields a usable render | it short-circuits on a partial success — an absent-marker dict is not `None` |
 
 ---

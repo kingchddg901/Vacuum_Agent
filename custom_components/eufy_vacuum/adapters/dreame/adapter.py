@@ -236,7 +236,7 @@ def register_dreame_adapter_for_vacuum(
         },
 
         # Map geometry + pose from the decoded camera attributes (the upstream already
-        # decoded the raw map). NEW core backend 'dreame_camera_attrs' reads
+        # decoded the raw map). NEW core backend 'camera_attrs' reads
         # camera.<id>_map extra_state_attributes: as_dict() segment bboxes +
         # calibration_points (3 vacuum->pixel pairs) + vacuum_position/charger_position.
         # PHASE 4a: no map_render (supports_va_render stays False; the card uses the
@@ -244,7 +244,7 @@ def register_dreame_adapter_for_vacuum(
         # normalize projected pixels to 0..1 — left None until confirmed on the live
         # device (the reader falls back to a pixel frame + logs a diagnostic meanwhile).
         "map_state_source": {
-            "backend": "dreame_camera_attrs",
+            "backend": "camera_attrs",
             "identifier_domain": "dreame_vacuum",
             "present_requires_live_map_image": True,
             "map_pixel_size": None,

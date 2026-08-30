@@ -275,7 +275,7 @@ context in [24 — The Roborock Adapter](../dev/24-roborock-adapter.md).
 - `room_attribution` — a pluggable engine that recovers **which** managed rooms an
   **external** (undispatched) run cleaned, from a per-tick pose time-series. A
   different axis from the job/run segmenter (§9): that one owns time/area
-  boundaries, this one owns room identity. Eufy declares `eufy_anchor_winding_v1`;
+  boundaries, this one owns room identity. Eufy declares `swept_area_winding_v1`;
   absent/unknown falls back to it (not noop).
 - `dispatch.zone_command` + `capabilities.supports_zone_clean` — ad-hoc free-form
   **zone cleaning** (draw a box on the live map, clean that rectangle). The verb
@@ -337,7 +337,7 @@ one turns a *map image* into geometry; that one turns a *run's counter stream*
 into per-room timing boundaries.
 
 `mapping.segmenter_engine` selects a map-image segmenter by name from
-`mapping/segmenter_engines.py` (`eufy_cv_v1`, or `noop_fallback` to disable the
+`mapping/segmenter_engines.py` (`cv_image_v1`, or `noop_fallback` to disable the
 polygonal overlay while trace-based bounds keep working). The Eufy CV pipeline
 lives in `adapters/eufy/segmentor.py` (`detect_room_segments`) and is built on
 the brand-agnostic primitives in `mapping/segment_primitives.py`.

@@ -250,7 +250,11 @@ class MapSourceCoordinator:
                         result.get("reason"), result.get("diagnostics"),
                     )
                 result = self._commit_result(vacuum_entity_id, map_id, result)
-            elif backend == "dreame_camera_attrs":
+            elif backend in ("camera_attrs", "dreame_camera_attrs"):
+                # dual-accept the legacy "dreame_camera_attrs" key from a stored adapter
+                # config for one release (Dreame lands with no registrar, so the stored
+                # value is authoritative). Renamed neutral: the mechanism is generic
+                # (decode a camera entity's map attrs), not Dreame-specific.
                 # Read the decoded map from camera.<id>_map extra_state_attributes (the
                 # upstream dreame_vacuum integration already decoded it). In-memory read
                 # off the live state — no IO — safe on the loop. The projection frame is
@@ -763,7 +767,9 @@ class MapSourceCoordinator:
             )
 
         if not (
-            fmt == "eufy_room_pixels_v1"
+            # dual-accept the legacy "eufy_room_pixels_v1" key from a stored adapter
+            # config (map_render.format round-trips through .storage) for one release.
+            fmt in ("room_pixels_v1", "eufy_room_pixels_v1")
             and isinstance(source_cfg, dict)
             and source_cfg.get("backend") == "storage"
         ):

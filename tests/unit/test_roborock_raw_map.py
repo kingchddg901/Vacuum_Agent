@@ -12,7 +12,7 @@ Coverage targets
 [RRD-4]  decode: empty / truncated / garbage bytes -> None (never raises).
 [RRD-5]  decode: IMAGE dims larger than the pixel data -> None; (5b) ROBORO-7: header_len
          below the real 24-byte v1 layout -> None (no bogus dims read out of overlapping fields).
-[RRD-6]  render_data: a decoded raster -> the generic eufy_room_pixels_v1 render-data shape.
+[RRD-6]  render_data: a decoded raster -> the generic room_pixels_v1 render-data shape.
 [RRD-7]  render_data: empty / None decoded input -> None; (7b) ROBORO-1: zero-room decode
          (room_ids empty) -> present:False, reason:no_rooms, not a false present:True.
 [RRD-8]  render_data_from_candidates: BFS to a MapContent -> decode its raw_api_response.
@@ -149,11 +149,11 @@ def test_decode_short_pixel_data_is_none():
 # ---------------------------------------------------------------------------
 
 def test_render_data_shape():
-    """[RRD-6] a decoded raster -> the generic eufy_room_pixels_v1 render-data shape."""
+    """[RRD-6] a decoded raster -> the generic room_pixels_v1 render-data shape."""
     decoded = decode_roborock_v1_segments(_blob(_image_block(4, 3, bytes([_room(5)] * 12))))
     rd = roborock_render_data(decoded, {5: "Kitchen"})
 
-    assert rd["present"] is True and rd["format"] == "eufy_room_pixels_v1"
+    assert rd["present"] is True and rd["format"] == "room_pixels_v1"
     assert rd["width"] == 4 and rd["height"] == 3
     assert rd["ro_width"] == 4 and rd["ro_height"] == 3 and rd["ro_dx"] == 0 and rd["ro_dy"] == 0
     assert rd["rid_shift"] == 0 and rd["catch_all_rid"] == CATCH_ALL_RID and rd["flip_y"] is True

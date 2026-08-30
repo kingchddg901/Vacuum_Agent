@@ -429,7 +429,7 @@ def test_stale_area_first_room_rescued_real_capture():
 # job-segmenter is `noop_job_fallback`, so counter segmentation finds nothing and every external
 # run lands in build_attributed_job. The clean decision is the engine's ROBUST (swept-area) mode
 # — pose-free — so anchors are never needed. vacuum_entity_id=None resolves the Eufy fallback
-# engine = eufy_anchor_winding_v1, the exact engine Roborock declares (only the robust-mode-
+# engine = swept_area_winding_v1, the exact engine Roborock declares (only the robust-mode-
 # irrelevant dwell/interval tuning differs), so this is a faithful shape test. Models the
 # recorder-verified Ivy runs (reference_roborock_ivy_signals).
 # =============================================================================

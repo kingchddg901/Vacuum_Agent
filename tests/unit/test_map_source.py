@@ -525,7 +525,7 @@ def test_render_data_from_storage():
     leak to the card — it gets dims/offset/flip/rid_shift verbatim)."""
     md = _md([(5, 2, 2, 2, 2)], room_names={"5": "Kitchen"})
     rd = render_data_from_storage(md)
-    assert rd["present"] is True and rd["format"] == "eufy_room_pixels_v1"
+    assert rd["present"] is True and rd["format"] == "room_pixels_v1"
     assert rd["width"] == 10 and rd["height"] == 10
     assert rd["ro_width"] == 10 and rd["ro_height"] == 10
     assert rd["ro_dx"] == 0 and rd["ro_dy"] == 0

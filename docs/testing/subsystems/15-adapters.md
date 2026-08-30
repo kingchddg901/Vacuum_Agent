@@ -357,7 +357,7 @@ brand-agnostic — see [06 — learning](06-learning.md)):
 
 | Engine seam (under `learning/`) | Test file | Layer |
 |---------------------------------|-----------|-------|
-| `room_attribution_engines.py` (`EufyAnchorWindingAttributor`) | `test_room_attribution.py` | adapter |
+| `room_attribution_engines.py` (`SweptAreaWindingAttributor`) | `test_room_attribution.py` | adapter |
 | `job_segmenter_engines.py` (`EufyCounterSegmenter`) | `test_job_segmenter_config.py` | adapter |
 
 (Adapter-config *services* are in [17 — services](17-services.md) via
@@ -410,7 +410,7 @@ brand-agnostic — see [06 — learning](06-learning.md)):
   there runs the whole conformance suite against it with no new test code.
 - **Eufy engine seams** (also in `tests/adapters/eufy/`) — the two pluggable
   engines the Eufy adapter declares. `test_room_attribution.py` pins the ported
-  `EufyAnchorWindingAttributor` (`learning/room_attribution_engines.py`) against
+  `SweptAreaWindingAttributor` (`learning/room_attribution_engines.py`) against
   the 3 adversarial external-run fixtures (the 9/9 dwell + spread + winding +
   swept-area attribution, dock-trap exclusion included). `test_job_segmenter_config.py`
   asserts the Eufy adapter declares `job_segmenter.engine = "eufy_counter_v1"`,

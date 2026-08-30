@@ -856,7 +856,7 @@ def register_roborock_adapter_for_vacuum(
             # captures carry no position, which is exactly the "a brand having no dot for
             # months" state listeners/stall_capture.py now emits a receipt to detect.
             #
-            # The engine is brand-AGNOSTIC despite the Eufy-flavoured name: eufy_anchor_winding_v1's
+            # The engine is brand-AGNOSTIC and its name now reflects that: swept_area_winding_v1's
             # ROBUST clean-vs-transit decision keys on the cleaning_area (swept m²) delta over each
             # current-room segment, which needs NO pose — the pose-only spread/winding just degrade
             # to display labelling, which the swept-area path already covers. Recorder-verified on
@@ -868,7 +868,7 @@ def register_roborock_adapter_for_vacuum(
             # claim against its Eufy copy: this said "DORMANT until the consumption wire (W3):
             # the sampler buffers pose_samples but nothing attributes them yet". They are
             # attributed — room_attribution_engines._segment_by_room consumes the buffer.
-            "engine": "eufy_anchor_winding_v1",
+            "engine": "swept_area_winding_v1",
             "source": "native_current_room",
             "tuning": {
                 # current_room re-emits ON CHANGE only, so SAMPLE PERIODICALLY at a cadence fine

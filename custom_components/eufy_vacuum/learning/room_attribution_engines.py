@@ -12,7 +12,7 @@ the cleaned-room SET from a per-tick pose time-series, so the wizard can open
 already-answered. It is a DIFFERENT axis from the job segmenter: the segmenter owns
 *time/area* boundaries; this owns *which managed room* each segment is.
 
-EUFY ENGINE (``eufy_anchor_winding_v1``). Validated on 3 deliberately-adversarial
+THE ANCHOR-WINDING ENGINE (``swept_area_winding_v1``). Validated on 3 deliberately-adversarial
 external runs (9/9 cleaned-room calls; see ``docs/dev/eufy-native-transition.md`` and
 ``scratch-external-estimator/room_attribution.py`` — the pure prototype this ports
 verbatim). The rule, per contiguous ``current_room`` run:
@@ -277,14 +277,14 @@ def _classify(
     }
 
 
-class EufyAnchorWindingAttributor:
+class SweptAreaWindingAttributor:
     """Anchor + winding + swept-area room attribution for an external run.
 
     Ports ``scratch-external-estimator/room_attribution.py`` verbatim (thresholds
     parameterized for tuning) and adds the per-room swept-area derivation from the
     live ``cleaning_area`` timeline (the prototype received it pre-aligned)."""
 
-    engine_name = "eufy_anchor_winding_v1"
+    engine_name = "swept_area_winding_v1"
 
     # BY REFERENCE to the module constants above — do NOT retype the literals.
     DEFAULT_TUNING: dict[str, float] = {
@@ -375,12 +375,16 @@ class NoopRoomAttributor:
 # Registry.
 # =============================================================================
 
+_swept_area_winding = SweptAreaWindingAttributor()
 _ROOM_ATTRIBUTION_ENGINES: dict[str, RoomAttributionEngine] = {
-    "eufy_anchor_winding_v1": EufyAnchorWindingAttributor(),
+    "swept_area_winding_v1": _swept_area_winding,
+    # dual-accept the legacy "eufy_anchor_winding_v1" key from a stored adapter config
+    # for one release (round-trips through .storage; both shipped brands declare it).
+    "eufy_anchor_winding_v1": _swept_area_winding,
     "noop_room_attribution": NoopRoomAttributor(),
 }
 
-_FALLBACK_ROOM_ENGINE = "eufy_anchor_winding_v1"  # Eufy fallback, NOT noop
+_FALLBACK_ROOM_ENGINE = "swept_area_winding_v1"  # the brand-agnostic fallback, NOT noop
 
 
 def get_room_attribution_engine(name: str | None) -> RoomAttributionEngine:

@@ -5896,7 +5896,7 @@ class EufyVacuumManager:
         #   The card hides the Base Station nav tab when this is False.
         # - supports_map_bounds: whether the brand does CV map segmentation — gated
         #   on the STATIC segmenter engine declaration (a real non-noop engine,
-        #   Eufy "eufy_cv_v1", vs "noop_fallback" = native segments / no CV,
+        #   Eufy "cv_image_v1", vs "noop_fallback" = native segments / no CV,
         #   Roborock). Deliberately NOT gated on the runtime-detected
         #   supports_robot_position so a detection blip can't flip it for Eufy.
         #   NOTE: the Map Bounds review tab this once gated was removed with the

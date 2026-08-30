@@ -204,7 +204,7 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   / dims-exceed-data → `None`, never raises), `resolve_rid`'s per-pixel encoding (`byte >> 3`
   only when the low 3 bits == 7; `0xFF` catch-all; scan/wall/outside → 0; the `0x08`
   obstacle-bit collision a naive shift would mislabel as room 1), `roborock_render_data`
-  wrapping a decoded raster in the shared `eufy_room_pixels_v1` payload (b64 round-trip,
+  wrapping a decoded raster in the shared `room_pixels_v1` payload (b64 round-trip,
   `flip_y`, `catch_all_rid`, room_names), the `..._from_candidates` introspection bridges
   (BFS to a `MapContent`, absent-marker on no match), `raster_room_bboxes` (per-room
   normalized bbox with `flip_y` honored so raw top rows land at the rendered bottom — the Ivy

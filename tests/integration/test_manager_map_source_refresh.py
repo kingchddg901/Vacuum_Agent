@@ -471,7 +471,7 @@ async def test_render_data_memory_primary(manager, monkeypatch):
     """[RND-3] memory-primary -> render data from the fresh in-memory map (no file read)."""
     _register(
         source={"backend": "storage", "memory": {"mapdata_attrs": ["_map_data"]}},
-        render={"format": "eufy_room_pixels_v1"},
+        render={"format": "room_pixels_v1"},
     )
     monkeypatch.setattr(msr, "eufy_inmem_candidates", lambda *a, **k: ["cand"])
     monkeypatch.setattr(
@@ -496,7 +496,7 @@ async def test_render_data_storage_fallback(manager, monkeypatch):
     """[RND-4] in-memory absent -> the .storage render-data read."""
     _register(
         source={"backend": "storage", "memory": {"mapdata_attrs": ["_map_data"]}},
-        render={"format": "eufy_room_pixels_v1"},
+        render={"format": "room_pixels_v1"},
     )
     monkeypatch.setattr(msr, "eufy_inmem_candidates", lambda *a, **k: [])
     monkeypatch.setattr(
@@ -517,7 +517,20 @@ async def test_render_data_storage_no_device(manager, monkeypatch):
     """[RND-5] storage path with no device -> no_device."""
     _register(
         source={"backend": "storage"},  # no memory block -> straight to storage
-        render={"format": "eufy_room_pixels_v1"},
+        render={"format": "room_pixels_v1"},
+    )
+    monkeypatch.setattr(msr, "eufy_store_path", lambda *a, **k: "")
+    out = await manager.map_source.async_get_map_render_data(vacuum_entity_id=_VAC)
+    assert out == {"present": False, "reason": "no_device"}
+
+
+async def test_render_data_legacy_format_key(manager, monkeypatch):
+    """[RND-5b] dual-accept: a stored config with the pre-rename "eufy_room_pixels_v1"
+    format still PASSES the gate (reaches the storage path -> no_device), rather than
+    being rejected as unknown_format. Bites if the coordinator drops the legacy key."""
+    _register(
+        source={"backend": "storage"},
+        render={"format": "eufy_room_pixels_v1"},  # legacy key — remove after one release
     )
     monkeypatch.setattr(msr, "eufy_store_path", lambda *a, **k: "")
     out = await manager.map_source.async_get_map_render_data(vacuum_entity_id=_VAC)
@@ -730,11 +743,11 @@ async def test_render_data_roborock_dispatches(manager, monkeypatch):
 
     def _fake_bridge(candidates, room_names):
         seen["room_names"] = room_names
-        return {"present": True, "format": "eufy_room_pixels_v1", "room_pixels": "x"}
+        return {"present": True, "format": "room_pixels_v1", "room_pixels": "x"}
 
     monkeypatch.setattr(msr, "roborock_candidates", lambda *a, **k: ["cand"])
     monkeypatch.setattr(msr, "roborock_render_data_from_candidates", _fake_bridge)
 
     out = await manager.map_source.async_get_map_render_data(vacuum_entity_id=_VAC)
-    assert out["present"] is True and out["format"] == "eufy_room_pixels_v1"
+    assert out["present"] is True and out["format"] == "room_pixels_v1"
     assert seen["room_names"] == {"7": "Den"}     # sourced from the manager's rooms

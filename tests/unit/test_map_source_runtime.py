@@ -98,7 +98,7 @@ def test_eufy_result_from_store_presence_gate():
 def test_eufy_render_data_from_store():
     """[MSR-1g] render-data reader: version guard + extract; degrade-not-crash."""
     out = eufy_render_data_from_store(_store(), expected_version=1)
-    assert out["present"] is True and out["format"] == "eufy_room_pixels_v1"
+    assert out["present"] is True and out["format"] == "room_pixels_v1"
     assert out["room_pixels"] == _store()["data"]["map_data"]["room_pixels"]
     assert eufy_render_data_from_store(
         _store(version=2), expected_version=1)["reason"] == "store_version_mismatch"

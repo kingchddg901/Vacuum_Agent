@@ -24,7 +24,7 @@ from custom_components.eufy_vacuum.learning.room_attribution_engines import (
     DWELL_MIN_TICKS,
     SWEPT_AREA_MIN_M2,
     WIND_TRANSIT,
-    EufyAnchorWindingAttributor,
+    SweptAreaWindingAttributor,
     NoopRoomAttributor,
     get_room_attribution_engine,
     known_room_attribution_names,
@@ -54,26 +54,41 @@ def _run_with_areas(rid, areas):
 
 def test_resolves_registered_engine():
     """[RA-1]"""
-    engine = get_room_attribution_engine("eufy_anchor_winding_v1")
-    assert isinstance(engine, EufyAnchorWindingAttributor)
-    assert engine.engine_name == "eufy_anchor_winding_v1"
+    engine = get_room_attribution_engine("swept_area_winding_v1")
+    assert isinstance(engine, SweptAreaWindingAttributor)
+    assert engine.engine_name == "swept_area_winding_v1"
 
 
-def test_absent_name_falls_back_to_eufy():
+def test_absent_name_falls_back_to_default():
     """[RA-2]"""
-    assert isinstance(get_room_attribution_engine(None), EufyAnchorWindingAttributor)
-    assert isinstance(get_room_attribution_engine(""), EufyAnchorWindingAttributor)
+    assert isinstance(get_room_attribution_engine(None), SweptAreaWindingAttributor)
+    assert isinstance(get_room_attribution_engine(""), SweptAreaWindingAttributor)
 
 
-def test_unknown_name_falls_back_to_eufy():
-    """[RA-3] falls back to Eufy, NOT noop."""
-    assert isinstance(get_room_attribution_engine("totally_made_up"), EufyAnchorWindingAttributor)
+def test_unknown_name_falls_back_to_default():
+    """[RA-3] falls back to the default engine, NOT noop."""
+    assert isinstance(get_room_attribution_engine("totally_made_up"), SweptAreaWindingAttributor)
+
+
+def test_legacy_key_resolves_without_warning(caplog):
+    """[RA-1b] dual-accept: the pre-rename "eufy_anchor_winding_v1" key resolves via the
+    registered ALIAS, NOT the warn+fallback path. The fallback happens to be the same
+    engine, so an ``is`` check can't tell them apart — the observable difference is the
+    absence of the unknown-engine warning. Bites if the alias is dropped."""
+    import logging
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        engine = get_room_attribution_engine("eufy_anchor_winding_v1")
+    assert engine.engine_name == "swept_area_winding_v1"
+    assert not any("Unknown room_attribution engine" in r.getMessage() for r in caplog.records)
 
 
 def test_known_names():
     """[RA-4]"""
     known = known_room_attribution_names()
-    assert "eufy_anchor_winding_v1" in known
+    assert "swept_area_winding_v1" in known    # canonical
+    assert "eufy_anchor_winding_v1" in known   # legacy alias — dual-accept, remove after one release
     assert "noop_room_attribution" in known
 
 
@@ -91,7 +106,7 @@ def test_noop_returns_empty():
 
 def test_default_tuning_by_reference():
     """[RA-6] DEFAULT_TUNING references the module constants (single source)."""
-    dt = EufyAnchorWindingAttributor.DEFAULT_TUNING
+    dt = SweptAreaWindingAttributor.DEFAULT_TUNING
     assert dt["wind_transit"] == WIND_TRANSIT
     assert dt["dwell_min_ticks"] == DWELL_MIN_TICKS
     assert dt["swept_area_min_m2"] == SWEPT_AREA_MIN_M2
@@ -99,7 +114,7 @@ def test_default_tuning_by_reference():
 
 def test_validate_tuning():
     """[RA-7]"""
-    engine = EufyAnchorWindingAttributor()
+    engine = SweptAreaWindingAttributor()
     assert engine.validate_tuning("nope") == ["room_attribution.tuning must be a dict"]
     assert any("unknown tuning key" in m and "bogus" in m for m in engine.validate_tuning({"bogus": 1}))
     assert engine.validate_tuning({"wind_transit": -1})
@@ -115,7 +130,7 @@ def test_partial_tuning_merges_over_defaults():
     A covered room with ~2.2 m² swept is CLEANED under the default
     swept_area_min_m2=0.5; raise ONLY that key above 2.2 and it flips to parked —
     proving the partial dict merged over the defaults (wind_transit etc. unchanged)."""
-    engine = EufyAnchorWindingAttributor()
+    engine = SweptAreaWindingAttributor()
     run = _clean_run(5, n=12, step=0.2)  # 11 steps * 0.2 = 2.2 m² swept
     assert 5 in engine.attribute(run)["cleaned"]
     assert 5 not in engine.attribute(run, tuning={"swept_area_min_m2": 5.0})["cleaned"]
@@ -123,7 +138,7 @@ def test_partial_tuning_merges_over_defaults():
 
 def test_empty_and_mode_selection():
     """[RA-9] empty -> empty; mode = robust iff any cleaning_area present."""
-    engine = EufyAnchorWindingAttributor()
+    engine = SweptAreaWindingAttributor()
     empty = engine.attribute([])
     assert empty["cleaned"] == set()
     assert empty["mode"] == "anchor_only"
@@ -139,7 +154,7 @@ def test_swept_area_rebaselines_on_nonmonotonic_drop():
     """[RA-11] cleaning_area that RESETS mid-run (drops, then climbs) — as Eufy's does live
     (Alfred 2026-07-11 fell 21.5→10.8 then rose) — is re-baselined: swept-area sums the POSITIVE
     rises before AND after the drop, not last-minus-first (which would undercount by the drop)."""
-    engine = EufyAnchorWindingAttributor()
+    engine = SweptAreaWindingAttributor()
     # rise 0→2, DROP to 0.5, rise 0.5→3.5: true sweep = (0→2) + (0.5→3.5) = 5.0; last-first = 3.5.
     run = _run_with_areas(5, [0.0, 1.0, 2.0, 0.5, 1.5, 2.5, 3.5])
     result = engine.attribute(run)
@@ -150,7 +165,7 @@ def test_swept_area_rebaselines_on_nonmonotonic_drop():
 def test_swept_area_monotonic_equals_last_minus_first():
     """[RA-12] regression: a clean monotonic counter (Roborock-style, 0→4.4) is unchanged —
     the positive-increment sum equals last-minus-first."""
-    engine = EufyAnchorWindingAttributor()
+    engine = SweptAreaWindingAttributor()
     assert engine.attribute(_run_with_areas(5, [0.0, 1.1, 2.2, 3.3, 4.4]))["per_room"][5]["swept_area_m2"] == 4.4
 
 
@@ -158,7 +173,7 @@ def test_swept_area_multiroom_reset_between_rooms():
     """[RA-13] a multi-room run where cleaning_area resets at the room change: each room is
     credited its OWN positive rise, never the raw counter value — the exact shape a multi-room
     external vacuum clean exercises (kitchen then dining, sensor re-baselines between them)."""
-    engine = EufyAnchorWindingAttributor()
+    engine = SweptAreaWindingAttributor()
     run = _run_with_areas(5, [0.0, 1.5, 3.0]) + _run_with_areas(8, [0.7, 2.2, 3.7])
     result = engine.attribute(run)
     assert result["cleaned"] == {5, 8}

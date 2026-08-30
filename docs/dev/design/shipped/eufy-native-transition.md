@@ -242,7 +242,7 @@ plays today, but grounded in observed position + device area.
   workflow). Wires the classifier into the external-capture path to auto-derive cleaned rooms, gated
   on a confidence check with the manual wizard as fallback. Sliced:
   - **W5a — DONE 2026-06-20.** Ported the classifier to a pluggable engine
-    `learning/room_attribution_engines.py` (`eufy_anchor_winding_v1`, mirrors the `job_segmenter`
+    `learning/room_attribution_engines.py` (`swept_area_winding_v1`, mirrors the `job_segmenter`
     seam: Protocol + by-ref `DEFAULT_TUNING` + Eufy-fallback registry); added the swept-area-from-
     `cleaning_area`-timeline derivation the prototype received pre-aligned; declared the adapter
     `room_attribution` block (`adapters/eufy/adapter.py`) + registry validation. **Ships DORMANT** —

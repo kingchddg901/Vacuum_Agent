@@ -79,7 +79,7 @@ is the shared counter-plateau segmentation primitive used here and by the jobs
 subsystem's live rollover, tabled here alongside the engine that wraps it.
 
 ¹ `room_attribution_engines.py` reads low in the *learning* run because the real
-`eufy_anchor_winding_v1` classifier (winding/swept-area math) is exercised in
+`swept_area_winding_v1` classifier (winding/swept-area math) is exercised in
 `tests/adapters/eufy/test_room_attribution.py` (Eufy-specific, run with the
 adapter suite, not these other files); the learning-run number only reflects the
 seam-level registry/tuning tests in `tests/unit/test_room_attribution_engines.py`.
@@ -232,7 +232,7 @@ not its *time/area* boundary). Split across two files:
   `DEFAULT_TUNING`-by-reference, `validate_tuning` (partial merge over defaults),
   and the `NoopRoomAttributor` (empty result, key-rejecting `validate_tuning`).
 - **Classifier tests** (`tests/adapters/eufy/test_room_attribution.py`, run with
-  the adapter suite): the real `eufy_anchor_winding_v1` rule — segment by
+  the adapter suite): the real `swept_area_winding_v1` rule — segment by
   `current_room`, drop transit by path-winding, separate cleaned-vs-parked-dock by
   swept `cleaning_area`, and the anchor-only fallback when area is absent.
   Validated on the three adversarial external runs (9/9 cleaned-room calls).
