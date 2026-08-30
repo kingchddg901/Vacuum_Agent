@@ -181,8 +181,22 @@ def evaluate_job_lifecycle(
     task_status_n = _norm(task_status)
     dock_status_n = _norm(dock_status)
     active_cleaning_target_n = _norm(active_cleaning_target)
-    active_map_id_n = str(active_map_id or "").strip()
-    selected_map_id_n = str(selected_map_id or "").strip()
+    # anchor: RND4MHSR  map-id mismatch normalization — the replica set
+    # REPLICA RND4MHSR — the twin is build_start_blocker_from_lifecycle (this file).
+    #
+    # Normalize BOTH through _norm so sentinel states (unavailable/unknown/none)
+    # map to "" and skip the check. A brand whose active-map selector goes
+    # `unavailable` in steady state (Dreame: select.<id>_selected_map is
+    # unavailable unless switch.<id>_multi_floor_map is ON, even on a one-map
+    # device) would otherwise compare "unavailable" != the real selected id and
+    # fire a phantom mismatch. When the selector IS live (multi-map), both sides
+    # carry a real id and the guard still protects against a genuine mismatch.
+    # The twin derives map_mismatch independently for the START blocker; both MUST
+    # normalize identically or one clears the mismatch while the other re-fires it —
+    # which is precisely the bug this anchor now guards (a green suite could not see
+    # it: each copy passed its own tests).
+    active_map_id_n = _norm(active_map_id)
+    selected_map_id_n = _norm(selected_map_id)
 
     if selected_map_id_n and active_map_id_n and selected_map_id_n != active_map_id_n:
         return {
@@ -264,8 +278,15 @@ def build_start_blocker_from_lifecycle(
     first-phase-only behaviour is preserved for callers that have no plan to
     count (A5-PP-RP-2).
     """
-    selected_map_id_n = str(selected_map_id or "").strip()
-    active_map_id_n = str(active_map_id or "").strip()
+    # REPLICA RND4MHSR — the twin (and the reasoning) is evaluate_job_lifecycle, this file.
+    # This derives map_mismatch INDEPENDENTLY for the START blocker; it MUST normalize
+    # identically to the twin or one clears the mismatch while the other re-fires it —
+    # the phantom-block that shipped (Dreame: select.<id>_selected_map reads `unavailable`
+    # with multi_floor_map OFF, even on a one-map device). Both route through _norm so a
+    # sentinel active-map maps to "" and the check is skipped; a live multi-map selector
+    # carries a real id and still guards.
+    selected_map_id_n = _norm(selected_map_id)
+    active_map_id_n = _norm(active_map_id)
     queue_count = len(queue_room_ids or [])
 
     if not selected_map_id_n:

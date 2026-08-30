@@ -195,6 +195,20 @@ def test_lifecycle_map_mismatch():
     assert result["blocking"] is True
 
 
+def test_lifecycle_no_map_mismatch_on_sentinel_active_map():
+    """[JM-11b] RND4MHSR: a sentinel active-map must NOT fire a phantom map_mismatch.
+
+    Dreame's ``select.<id>_selected_map`` reads ``unavailable`` with multi_floor_map
+    OFF, even on a one-map device — comparing that against the real selected id fired a
+    mismatch and disabled Start. The twin is test_blocker_no_map_mismatch_on_sentinel_
+    active_map; both siblings are pinned so a fix to one that skips the other goes red."""
+    for sentinel in ("unavailable", "unknown", "none", "None", ""):
+        result = _eval(selected_map_id="Main", active_map_id=sentinel)
+        assert result["lifecycle_state"] != "map_mismatch", (
+            f"sentinel active_map {sentinel!r} fired a phantom map_mismatch"
+        )
+
+
 def test_lifecycle_mid_job_service():
     """[JM-12]"""
     result = _eval(dock_status="washing", hard_service_states=frozenset({"washing"}))
@@ -301,6 +315,20 @@ def test_blocker_map_mismatch():
     result = _blocker(selected_map_id="6", active_map_id="7")
     assert result["reason"] == "map_mismatch"
     assert result["blocked"] is True
+
+
+def test_blocker_no_map_mismatch_on_sentinel_active_map():
+    """[JM-23b] RND4MHSR sibling of test_lifecycle_no_map_mismatch_on_sentinel_active_map.
+
+    The START blocker must ALSO skip map_mismatch on a sentinel active-map, or Start
+    stays disabled on a one-map Dreame while the lifecycle state has already cleared —
+    which is exactly the bug that shipped when only the twin (evaluate_job_lifecycle)
+    was fixed and this copy kept the naive ``str(active_map_id or "").strip()``."""
+    for sentinel in ("unavailable", "unknown", "none", "None", ""):
+        result = _blocker(selected_map_id="Main", active_map_id=sentinel)
+        assert result["reason"] != "map_mismatch", (
+            f"sentinel active_map {sentinel!r} fired a phantom map_mismatch in the blocker"
+        )
 
 
 def test_blocker_no_rooms_selected():

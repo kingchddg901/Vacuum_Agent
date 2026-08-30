@@ -508,6 +508,24 @@ learning bucket built from it. Nothing raises; the numbers are just wrong.
 
 ---
 
+### `RND4MHSR` — map-id mismatch NORMALIZATION · **2 sites, one file**
+
+`jobs/job_monitor.py::evaluate_job_lifecycle` (**primary** — carries the reasoning) and
+`build_start_blocker_from_lifecycle` each derive `map_mismatch` independently: the first for
+the lifecycle / card-readiness state, the second for the START protection result. Both must
+run `selected_map_id` / `active_map_id` through `_norm`, so a sentinel active-map selector
+(Dreame's `select.<id>_selected_map` reads `unavailable` with `multi_floor_map` OFF, even on
+a one-map device) maps to `""` and the guard is SKIPPED.
+
+**Already drifted once.** The fix first landed in `evaluate_job_lifecycle` only; the sibling
+kept `str(active_map_id or "").strip()`, so `"unavailable"` stayed truthy and the START
+blocker re-fired the phantom mismatch — Start stayed disabled on a one-map Dreame while the
+lifecycle state had already cleared. A helper for just the normalize-and-compare is the
+eventual target (`derived > helper`); recorded as a set meanwhile because the two return
+different result shapes (lifecycle dict vs blocker dict) for different consumers.
+
+---
+
 ### `RNGP3ZBE` — the RESPONSE-CAPABLE service-call convention · **2 copies**
 
 `src/actions/core.js::callService` (**primary**) and `src/cards/_shared.js`, restated
