@@ -6,8 +6,8 @@ not drift and that the engine resolves correctly.
 
 Coverage targets
 ----------------
-[JSC-1] The Eufy adapter declares job_segmenter.engine = "eufy_counter_v1".
-[JSC-2] job_segmenter.tuning == EufyCounterSegmenter.DEFAULT_TUNING (which equals the
+[JSC-1] The Eufy adapter declares job_segmenter.engine = "counter_plateau_v1".
+[JSC-2] job_segmenter.tuning == CounterPlateauSegmenter.DEFAULT_TUNING (which equals the
         counter_segmentation module constants via [JE-6]) — no threshold drift.
 [JSC-3] live_transition no longer carries the threshold keys (single source = tuning).
 [JSC-4] The declared engine resolves and validates clean.
@@ -20,7 +20,7 @@ from custom_components.eufy_vacuum.adapters.eufy.adapter import (
 )
 from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
 from custom_components.eufy_vacuum.learning.job_segmenter_engines import (
-    EufyCounterSegmenter,
+    CounterPlateauSegmenter,
     get_job_segmenter_engine,
     known_job_engine_names,
 )
@@ -36,7 +36,7 @@ def _eufy_config(hass) -> dict:
 def test_job_segmenter_engine_declared(hass):
     """[JSC-1]"""
     js = _eufy_config(hass).get("job_segmenter") or {}
-    assert js.get("engine") == "eufy_counter_v1"
+    assert js.get("engine") == "counter_plateau_v1"
     assert js.get("engine") in known_job_engine_names()
 
 
@@ -44,7 +44,7 @@ def test_job_segmenter_tuning_matches_engine_defaults(hass):
     """[JSC-2] the adapter tuning literals equal the engine defaults — the dedup that
     moved them out of live_transition did not change a single number."""
     js = _eufy_config(hass).get("job_segmenter") or {}
-    assert js.get("tuning") == EufyCounterSegmenter.DEFAULT_TUNING
+    assert js.get("tuning") == CounterPlateauSegmenter.DEFAULT_TUNING
 
 
 def test_live_transition_thresholds_moved_out(hass):

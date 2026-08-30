@@ -864,13 +864,13 @@ def register_eufy_adapter_for_vacuum(
             # detection of per-room boundaries from a run's progress signal. The
             # framework looks the name up in
             # learning.job_segmenter_engines._JOB_SEGMENTER_ENGINES; an absent or
-            # unknown engine falls back to eufy_counter_v1 (NOT noop), so live rollover
-            # + external ingest + learned history keep working. eufy_counter_v1 reads
+            # unknown engine falls back to counter_plateau_v1 (NOT noop), so live rollover
+            # + external ingest + learned history keep working. counter_plateau_v1 reads
             # the cleaning_time / cleaning_area counters (no geometry; coordinates
             # drift). `tuning` is the SINGLE source of the gap/area/cadence thresholds —
             # live rollover, external ingest, AND learned history all read it. A brand
             # with native room-transition telemetry registers its own engine here.
-            "engine": "eufy_counter_v1",
+            "engine": "counter_plateau_v1",
             "tuning": {
                 "gap_delayed_s": 35.0,
                 "gap_transit_s": 60.0,

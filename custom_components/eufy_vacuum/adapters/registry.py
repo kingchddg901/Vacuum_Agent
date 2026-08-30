@@ -258,7 +258,7 @@ _EUFY_FALLBACK_BLOCKS: dict[str, tuple[str, str, str]] = {
     ),
     "job_segmenter": (
         "per-room run boundaries",
-        "eufy_counter_v1 (Eufy counter-plateau detection)",
+        "counter_plateau_v1 (counter-plateau detection; legacy eufy_counter_v1 accepted)",
         "declare job_segmenter.engine='noop_job_fallback' if the brand emits no per-room signal",
     ),
     "room_attribution": (

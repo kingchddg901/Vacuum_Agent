@@ -36,7 +36,7 @@ map seam:
     map seam falls back to a *noop* — that would silently stop live rollover here.
     ``NoopJobSegmenter`` stays registered for a future brand that genuinely emits
     no segmentable signal, but it is **not** the fallback.
-  - **Byte-identical by delegation.** ``EufyCounterSegmenter`` delegates verbatim
+  - **Byte-identical by delegation.** ``CounterPlateauSegmenter`` delegates verbatim
     to the existing ``counter_segmentation`` primitives and its ``DEFAULT_TUNING``
     is defined *by reference* to that module's constants, so the Eufy path is
     byte-for-byte identical to the pre-engine code by construction (drift is a
@@ -185,16 +185,19 @@ class JobSegmenter(Protocol):
 # =============================================================================
 
 
-class EufyCounterSegmenter:
-    """Counter-plateau segmentation over ``cleaning_time``/``cleaning_area``.
+class CounterPlateauSegmenter:
+    """Counter-plateau segmentation over ``cleaning_time``/``cleaning_area`` — the
+    brand-agnostic dispatch-style engine (was ``eufy_counter_v1``; renamed neutral
+    2026-08-30 when Dreame became the second brand to use it, per
+    drop-brand-names-in-core — the legacy id is dual-accepted one release).
 
     Wraps ``counter_segmentation``'s primitives unchanged — the original
-    implementation — so the Eufy path is byte-for-byte identical to pre-engine
+    implementation — so the output is byte-for-byte identical to pre-engine
     output. ``DEFAULT_TUNING`` is defined *by reference* to that module's
     constants, so it can never drift from the primitives' own kwarg defaults.
     """
 
-    engine_name = "eufy_counter_v1"
+    engine_name = "counter_plateau_v1"
 
     # The single in-code source of these six numbers for the Eufy engine. BY
     # REFERENCE to counter_segmentation's module constants — do NOT retype the
@@ -340,12 +343,16 @@ class NoopJobSegmenter:
 # Registry.
 # =============================================================================
 
+_counter_plateau = CounterPlateauSegmenter()
 _JOB_SEGMENTER_ENGINES: dict[str, JobSegmenter] = {
-    "eufy_counter_v1": EufyCounterSegmenter(),
+    "counter_plateau_v1": _counter_plateau,
+    # dual-accept the legacy brand-named id one release (stored adapter configs may
+    # still carry it) — drop-brand-names-in-core. Remove after the next release.
+    "eufy_counter_v1": _counter_plateau,
     "noop_job_fallback": NoopJobSegmenter(),
 }
 
-_FALLBACK_JOB_ENGINE = "eufy_counter_v1"  # Eufy fallback (dispatch-style), NOT noop
+_FALLBACK_JOB_ENGINE = "counter_plateau_v1"  # brand-agnostic dispatch fallback, NOT noop
 
 
 def get_job_segmenter_engine(name: str | None) -> JobSegmenter:

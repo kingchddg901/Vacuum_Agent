@@ -7,7 +7,7 @@ Coverage targets
 [JE-3]  get_job_segmenter_engine: unknown name -> Eufy fallback (NOT noop).
 [JE-4]  known_job_engine_names includes the registered engines.
 [JE-5]  noop engine resolves and every stage returns [].
-[JE-6]  EufyCounterSegmenter.DEFAULT_TUNING == the counter_segmentation module constants.
+[JE-6]  CounterPlateauSegmenter.DEFAULT_TUNING == the counter_segmentation module constants.
 [JE-7]  Eufy engine fidelity: find_candidates / build_segments / segment_legacy ==
         the counter_segmentation primitives byte-for-byte, across a battery of streams.
 [JE-8]  validate_tuning: non-dict, unknown key, bad value, and valid cases.
@@ -32,7 +32,7 @@ from custom_components.eufy_vacuum.counter_segmentation import (
     select_active,
 )
 from custom_components.eufy_vacuum.learning.job_segmenter_engines import (
-    EufyCounterSegmenter,
+    CounterPlateauSegmenter,
     NoopJobSegmenter,
     get_job_segmenter_engine,
     known_job_engine_names,
@@ -101,28 +101,32 @@ _STREAMS: list[list[dict]] = [
 
 
 def test_resolves_registered_engine():
-    """[JE-1]"""
-    engine = get_job_segmenter_engine("eufy_counter_v1")
-    assert isinstance(engine, EufyCounterSegmenter)
-    assert engine.engine_name == "eufy_counter_v1"
+    """[JE-1] the neutral id resolves; the legacy brand-named id still resolves to the
+    SAME engine (dual-accept, drop-brand-names-in-core). BITES the alias: drop the
+    ``eufy_counter_v1`` registry row and the last assert goes red."""
+    engine = get_job_segmenter_engine("counter_plateau_v1")
+    assert isinstance(engine, CounterPlateauSegmenter)
+    assert engine.engine_name == "counter_plateau_v1"
+    assert get_job_segmenter_engine("eufy_counter_v1") is engine
 
 
 def test_absent_name_falls_back_to_eufy():
     """[JE-2] None and "" both route to the Eufy engine (legacy default)."""
-    assert isinstance(get_job_segmenter_engine(None), EufyCounterSegmenter)
-    assert isinstance(get_job_segmenter_engine(""), EufyCounterSegmenter)
+    assert isinstance(get_job_segmenter_engine(None), CounterPlateauSegmenter)
+    assert isinstance(get_job_segmenter_engine(""), CounterPlateauSegmenter)
 
 
 def test_unknown_name_falls_back_to_eufy():
     """[JE-3] a genuinely unregistered name falls back to Eufy, NOT noop."""
     engine = get_job_segmenter_engine("totally_made_up")
-    assert isinstance(engine, EufyCounterSegmenter)
+    assert isinstance(engine, CounterPlateauSegmenter)
 
 
 def test_known_engine_names():
     """[JE-4]"""
     known = known_job_engine_names()
-    assert "eufy_counter_v1" in known
+    assert "counter_plateau_v1" in known
+    assert "eufy_counter_v1" in known  # dual-accept, one release
     assert "noop_job_fallback" in known
 
 
@@ -141,7 +145,7 @@ def test_noop_engine_returns_empty():
 
 def test_default_tuning_matches_module_constants():
     """[JE-6] the dedup single-source equals the primitives' own kwarg defaults."""
-    assert EufyCounterSegmenter.DEFAULT_TUNING == {
+    assert CounterPlateauSegmenter.DEFAULT_TUNING == {
         "gap_delayed_s": _GAP_DELAYED_S,
         "gap_transit_s": _GAP_TRANSIT_S,
         "gap_plateau_s": _GAP_PLATEAU_S,
@@ -153,16 +157,16 @@ def test_default_tuning_matches_module_constants():
 
 def test_find_candidates_fidelity():
     """[JE-7] engine.find_candidates == module find_candidates, with and without tuning."""
-    engine = EufyCounterSegmenter()
+    engine = CounterPlateauSegmenter()
     for stream in _STREAMS:
         expected = find_candidates(stream)
         assert engine.find_candidates(stream) == expected
-        assert engine.find_candidates(stream, tuning=EufyCounterSegmenter.DEFAULT_TUNING) == expected
+        assert engine.find_candidates(stream, tuning=CounterPlateauSegmenter.DEFAULT_TUNING) == expected
 
 
 def test_build_segments_fidelity():
     """[JE-7] engine.build_segments == module build_segments for a chosen active set."""
-    engine = EufyCounterSegmenter()
+    engine = CounterPlateauSegmenter()
     for stream in _STREAMS:
         active = select_active(
             find_candidates(stream), default="all", kinds={"wash_plateau", "area_jump"}
@@ -172,7 +176,7 @@ def test_build_segments_fidelity():
 
 def test_segment_legacy_fidelity():
     """[JE-7] engine.segment_legacy == module segment_counters across expected_rooms."""
-    engine = EufyCounterSegmenter()
+    engine = CounterPlateauSegmenter()
     for stream in _STREAMS:
         for expected_rooms in (None, 1, 2, 3):
             assert engine.segment_legacy(stream, expected_rooms=expected_rooms) == segment_counters(
@@ -185,18 +189,18 @@ def test_segment_legacy_fidelity():
 
 def test_validate_tuning_rejects_non_dict():
     """[JE-8]"""
-    assert EufyCounterSegmenter().validate_tuning("nope") == ["job_segmenter.tuning must be a dict"]
+    assert CounterPlateauSegmenter().validate_tuning("nope") == ["job_segmenter.tuning must be a dict"]
 
 
 def test_validate_tuning_flags_unknown_key():
     """[JE-8]"""
-    issues = EufyCounterSegmenter().validate_tuning({"bogus": 1})
+    issues = CounterPlateauSegmenter().validate_tuning({"bogus": 1})
     assert any("unknown tuning key" in m and "bogus" in m for m in issues)
 
 
 def test_validate_tuning_flags_bad_values():
     """[JE-8] non-positive, non-number, and bool values are rejected."""
-    engine = EufyCounterSegmenter()
+    engine = CounterPlateauSegmenter()
     assert engine.validate_tuning({"gap_plateau_s": -5})
     assert engine.validate_tuning({"gap_plateau_s": "x"})
     assert engine.validate_tuning({"cadence_s": True})  # bool is not a valid number here
@@ -204,8 +208,8 @@ def test_validate_tuning_flags_bad_values():
 
 def test_validate_tuning_accepts_valid():
     """[JE-8]"""
-    assert EufyCounterSegmenter().validate_tuning({}) == []
-    assert EufyCounterSegmenter().validate_tuning({"gap_plateau_s": 120, "area_jump_m2": 1.5}) == []
+    assert CounterPlateauSegmenter().validate_tuning({}) == []
+    assert CounterPlateauSegmenter().validate_tuning({"gap_plateau_s": 120, "area_jump_m2": 1.5}) == []
 
 
 def test_partial_tuning_merges_over_defaults():
@@ -216,7 +220,7 @@ def test_partial_tuning_merges_over_defaults():
     is no longer a wash, but the +2 m² still trips ``area_jump`` because
     ``area_jump_m2`` kept its default — proving the partial dict merged over the
     defaults rather than replacing them."""
-    engine = EufyCounterSegmenter()
+    engine = CounterPlateauSegmenter()
     stream = _STREAMS[1]
 
     default_cands = engine.find_candidates(stream)

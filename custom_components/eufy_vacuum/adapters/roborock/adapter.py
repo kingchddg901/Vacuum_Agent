@@ -824,7 +824,7 @@ def register_roborock_adapter_for_vacuum(
         "job_segmenter": {
             # Roborock reports per-room progress NATIVELY (sensor.{id}_current_room +
             # segment_cleaning status), so there is no counter stream to plateau-detect.
-            # Declare noop EXPLICITLY — an absent block falls back to eufy_counter_v1,
+            # Declare noop EXPLICITLY — an absent block falls back to counter_plateau_v1,
             # which would fabricate phantom room boundaries on Roborock's counters
             # (empirically: the only area plateaus in the run trace were obstacle
             # stalls, not room boundaries). No `tuning` (noop rejects keys).
