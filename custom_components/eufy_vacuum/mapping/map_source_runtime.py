@@ -923,7 +923,16 @@ def dreame_mapdata_candidates(
             md = None
     if md is None or getattr(md, "pixel_type", None) is None:
         return {"present": False, "reason": "no_mapdata"}
-    return {"present": True, "map_data": md}
+    out: dict[str, Any] = {"present": True, "map_data": md}
+    # The camera entity's live vacuum_position/charger_position are the CORRECTED pose (==
+    # the dock when docked), unlike MapData.robot_position's {0,0} origin sentinel. Read
+    # them for the anchors when we have the image entity.
+    if image_entity_id:
+        st = hass.states.get(image_entity_id)
+        if st is not None:
+            out["robot_pos"] = st.attributes.get("vacuum_position")
+            out["dock_pos"] = st.attributes.get("charger_position")
+    return out
 
 
 def _dreame_projector(dims: Any):
@@ -962,7 +971,22 @@ def _furniture_slug(ftype: Any) -> str:
     return str(name).strip().lower().replace(" ", "_").replace("-", "_")
 
 
-def dreame_render_from_mapdata(md: Any, *, source_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+def _pt_xy_a(o: Any) -> tuple[Any, Any, Any]:
+    """(x, y, a) from a Point-like object or a {'x','y','a'} dict; (None,)*3 for None."""
+    if o is None:
+        return (None, None, None)
+    if isinstance(o, dict):
+        return (o.get("x"), o.get("y"), o.get("a"))
+    return (getattr(o, "x", None), getattr(o, "y", None), getattr(o, "a", None))
+
+
+def dreame_render_from_mapdata(
+    md: Any,
+    *,
+    source_cfg: dict[str, Any] | None = None,
+    robot_pos: Any = None,
+    dock_pos: Any = None,
+) -> dict[str, Any]:
     """PURE: normalized ``map_state_source`` result from a decoded Dreame ``MapData``.
 
     Rooms carry TRUE per-room ``area_m2`` (segment pixel count × grid_size²), not the bbox
@@ -1029,15 +1053,19 @@ def dreame_render_from_mapdata(md: Any, *, source_cfg: dict[str, Any] | None = N
                 room["centre"] = centre
         rooms.append(room)
 
+    # Anchors: PREFER the camera's live vacuum_position/charger_position (robot_pos/dock_pos)
+    # over MapData.robot_position — the latter is the {0,0} ORIGIN SENTINEL when docked/parked,
+    # which projects to a fixed WRONG pixel. The camera value is the corrected live position
+    # (== the charger when docked), the same source the mascot-follow rides.
     anchors: dict[str, list[float]] = {}
-    robot = getattr(md, "robot_position", None)
-    if robot is not None and getattr(robot, "a", None) != 32767:
-        p = _n(getattr(robot, "x", None), getattr(robot, "y", None))
+    rx, ry, ra = _pt_xy_a(robot_pos if robot_pos is not None else getattr(md, "robot_position", None))
+    if rx is not None and ry is not None and ra != 32767:  # 32767 = docked/unknown sentinel
+        p = _n(rx, ry)
         if p:
             anchors["robot_anchor"] = p
-    dock = getattr(md, "charger_position", None)
-    if dock is not None:
-        p = _n(getattr(dock, "x", None), getattr(dock, "y", None))
+    dx, dy, _da = _pt_xy_a(dock_pos if dock_pos is not None else getattr(md, "charger_position", None))
+    if dx is not None and dy is not None:
+        p = _n(dx, dy)
         if p:
             anchors["dock_anchor"] = p
 

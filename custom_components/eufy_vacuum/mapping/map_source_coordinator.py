@@ -270,7 +270,9 @@ class MapSourceCoordinator:
                 )
                 if md_cand.get("present"):
                     result = _msr.dreame_render_from_mapdata(
-                        md_cand["map_data"], source_cfg=source_cfg
+                        md_cand["map_data"], source_cfg=source_cfg,
+                        robot_pos=md_cand.get("robot_pos"),
+                        dock_pos=md_cand.get("dock_pos"),
                     )
                 if result is None or not result.get("present"):
                     candidates = _msr.dreame_camera_candidates(

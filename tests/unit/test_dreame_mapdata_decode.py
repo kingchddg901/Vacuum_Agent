@@ -110,6 +110,22 @@ def test_anchors_and_furniture_ride_along():
     assert fur[0]["width_m"] == 1.8 and fur[0]["height_m"] == 2.1
 
 
+def test_anchors_prefer_live_camera_position_over_sentinel():
+    """[DMD-9] robot_pos/dock_pos (the camera's live vacuum_position/charger_position)
+    OVERRIDE MapData.robot_position — which is the {0,0} origin sentinel when docked, and
+    projects to a fixed WRONG pixel. BITES the pose fix: with the override the anchor moves
+    off the sentinel; without it, it doesn't."""
+    md = _make_md()
+    md.robot_position = types.SimpleNamespace(x=0, y=0, a=0)  # docked -> origin sentinel
+    sentinel = dreame_render_from_mapdata(md)                 # no override -> uses {0,0}
+    live = dreame_render_from_mapdata(
+        md, robot_pos={"x": 150, "y": 100, "a": 0}, dock_pos={"x": 150, "y": 100, "a": 0}
+    )
+    assert live["robot_anchor"] != sentinel["robot_anchor"]
+    # the override is honored for the dock too
+    assert live["dock_anchor"] == live["robot_anchor"]
+
+
 def test_no_dimensions_is_absent_not_raise():
     """[DMD-5] a MapData without usable dimensions degrades to an absent marker."""
     md = _make_md()
