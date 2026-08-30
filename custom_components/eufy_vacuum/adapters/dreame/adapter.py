@@ -205,6 +205,12 @@ def register_dreame_adapter_for_vacuum(
             "supports_path_control": profile.get("has_path_control", False),
             "supports_edge_mopping": False,
             "supports_zone_clean": caps.get("supports_zone_clean", False),
+            # Dreame cleans rooms in the DISPATCHED queue order — PROVEN 2026-08-30 on
+            # robin: active_segments carried the tap order [3,1,7] and the robot executed
+            # Kitchen->Entryway->Dining in exactly that order (FINDINGS-dreame-external-
+            # attribution). Enables the phase-run per-room segmentation gate (job_segmenter
+            # below), plus the running_long band and skipped_room_ids in active_job.
+            "honors_clean_order": True,
             # supports_station_water is deliberately NOT declared (stays False). Dreame
             # exposes NO numeric clean-water percent — every water sensor is an ENUM
             # (clean_water_tank_status = not_available/not_installed/low_water/installed),
@@ -337,7 +343,18 @@ def register_dreame_adapter_for_vacuum(
             "format": "room_pixels_v1",
         },
         "job_segmenter": {
-            "engine": "noop_job_fallback",
+            # Reuse the brand-agnostic counter-plateau engine: Dreame's cleaning_time /
+            # cleaning_area counters are CUMULATIVE across rooms and go FLAT during
+            # inter-room transit — exactly the plateau this engine keys on (proven on the
+            # 3-room run2 tape → 3 segments; areas Kitchen~5 / Entryway~1 / Dining~10).
+            # Dreame's transits are SHORTER than Eufy's, so gap_transit/plateau are lowered
+            # from the 60/90 s defaults. First-cut tuning — refine from live phase.segment
+            # logs (esp. mop runs, where a real mid-room wash can add a spurious plateau).
+            "engine": "counter_plateau_v1",
+            "tuning": {
+                "gap_transit_s": 20.0,
+                "gap_plateau_s": 45.0,
+            },
         },
         "room_attribution": {
             "engine": "noop_room_attribution",
