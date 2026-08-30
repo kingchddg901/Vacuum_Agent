@@ -32,6 +32,9 @@ from __future__ import annotations
 
 # === LIFECYCLE / JOB =====================================================
 SUFFIX_TASK_STATUS = "_task_status"              # sensor — machine lifecycle enum (completion reads this)
+SUFFIX_TASK_TYPE = "_task_type"                  # sensor — custom/... during a run, clears to `unavailable`
+                                                 # at completion (the completion SECONDARY-clear signal;
+                                                 # current_room can't be — it reverts to the DOCK ROOM)
 SUFFIX_STATUS = "_status"                        # sensor — human status enum (observability)
 SUFFIX_STATE = "_state"                          # sensor — HA-mirrored state enum
 SUFFIX_ACTIVE_CLEANING_TARGET = "_current_room"  # sensor — native live-room (segment cleans)

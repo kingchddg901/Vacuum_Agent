@@ -639,3 +639,122 @@ class DispatchManager:
                     "global pre-call %s.%s failed for %s",
                     domain, service_name, vacuum_entity_id,
                 )
+
+    async def _run_settings_write(
+        self,
+        *,
+        vacuum_entity_id: str,
+        resolved_rooms: list[dict[str, Any]],
+    ) -> None:
+        """Bulk-write the device's saved per-room settings before a segment dispatch.
+
+        The THIRD pre-dispatch shape, distinct from ``global_pre_calls`` (one global
+        scalar per run) and ``per_room_live_settings`` (one per-room ENTITY write per
+        room, mid-run). Dreame's per-room settings are PERSISTENT DEVICE STATE and the
+        saved store WINS over the ``vacuum_clean_segment`` payload (settled on hardware
+        2026-08-10, docstring at dreame/device.py:6931). So the real control surface is
+        ONE ``vacuum_set_custom_cleaning`` call carrying index-aligned INT arrays over
+        the queued rooms, applied while the robot is parked — the device refuses to edit
+        while running, which is why its per-room entities go ``unavailable`` mid-run.
+
+        Config: ``dispatch.settings_write`` = {domain, service, segment_id_field,
+        fields:[{canonical, wire, value_map?, required?, filler?, clamp?,
+        gate_room_suffix?}]}. A field with ``gate_room_suffix`` emits ONLY when
+        ``select.<obj>_room_<first_id>_<suffix>`` exists (capability by entity presence
+        — a registered-but-UI-unavailable entity still means the device is capable; the
+        bulk call ignores the per-room UI mode-gate). Required fields always emit; a room
+        whose canonical value is empty takes ``filler``; an unmapped value takes it too,
+        so no stray string reaches an int-typed selector.
+
+        Best-effort but LOUD: a failed write logs at ERROR and the run proceeds on the
+        device's stored settings (there is no wet-mop safety hazard here, unlike the
+        Roborock safe-water pre-call, so it does not abort). Absent config => no-op for
+        every other brand.
+        """
+        cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        sw = cfg.get("settings_write")
+        if not sw or not resolved_rooms:
+            return
+        domain = sw.get("domain")
+        service = sw.get("service")
+        seg_field = sw.get("segment_id_field", "segment_id")
+        if not (domain and service):
+            return
+
+        try:
+            seg_ids = [int(r["room_id"]) for r in resolved_rooms]
+        except (KeyError, TypeError, ValueError):
+            _LOGGER.error(
+                "settings_write for %s: resolved rooms missing a numeric room_id; "
+                "skipping the per-room settings write",
+                vacuum_entity_id,
+            )
+            return
+
+        object_id = vacuum_entity_id.split(".", 1)[-1]
+        data: dict[str, Any] = {"entity_id": vacuum_entity_id, seg_field: seg_ids}
+
+        for fld in sw.get("fields") or []:
+            wire = fld.get("wire")
+            if not wire:
+                continue
+
+            # A CONSTANT field emits a fixed value for every room — a schema-required
+            # wire the device ignores (Dreame water_volume, superseded by wetness_level
+            # when the device has it). No canonical, no capability gate.
+            if "constant" in fld:
+                data[wire] = [fld["constant"]] * len(resolved_rooms)
+                continue
+
+            canonical = fld.get("canonical")
+            if not canonical:
+                continue
+
+            # Capability by per-room ENTITY PRESENCE. Registered == capable even when the
+            # entity is UI-`unavailable` (the bulk call bypasses the mode-gate). Probing
+            # the first queued room is enough — the per-room entity set is uniform.
+            # gate_domain defaults to `select`; a NUMBER-backed axis (Dreame's
+            # wetness_level lives on number.<obj>_room_N_wetness_level) probes `number`.
+            gate = fld.get("gate_room_suffix")
+            if gate:
+                gate_domain = fld.get("gate_domain", "select")
+                probe = f"{gate_domain}.{object_id}_room_{seg_ids[0]}_{gate}"
+                if self._manager.hass.states.get(probe) is None:
+                    continue
+
+            value_map = fld.get("value_map") or {}
+            filler = fld.get("filler", 0)
+            clamp = fld.get("clamp")
+            column: list[Any] = []
+            for room in resolved_rooms:
+                raw = room.get(canonical)
+                if raw is None or raw == "":
+                    value = filler
+                elif value_map:
+                    # An unmapped value -> filler, never a stray string on an int-typed
+                    # wire (the object selector would reject the whole call).
+                    value = value_map.get(str(raw).strip().lower(), filler)
+                else:
+                    value = raw
+                if clamp:
+                    try:
+                        value = max(int(clamp[0]), min(int(clamp[1]), int(value)))
+                    except (TypeError, ValueError):
+                        value = filler
+                column.append(value)
+            data[wire] = column
+
+        # This MUTATES persistent device state (the saved per-room store), and the
+        # change outlives the job — the same store the vendor app edits. That is the
+        # brand's own model, not a leak: customized_cleaning ON means the saved store
+        # applies to every run until changed.
+        try:
+            await self._manager.hass.services.async_call(
+                domain, service, data, blocking=True
+            )
+        except Exception as err:  # noqa: BLE001 — best-effort-loud; the run still proceeds
+            _LOGGER.error(
+                "settings_write %s.%s failed for %s (%s) — the run will use the "
+                "device's stored per-room settings instead of the requested ones",
+                domain, service, vacuum_entity_id, err,
+            )

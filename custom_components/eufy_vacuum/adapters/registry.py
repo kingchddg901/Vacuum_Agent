@@ -184,6 +184,7 @@ class AdapterCoordinator:
 
         _warn_eufy_fallbacks(vacuum_entity_id, config)
         _warn_completion_gate_orphan(vacuum_entity_id, config)
+        _warn_completion_gate_default(vacuum_entity_id, config)
 
         self._registry[vacuum_entity_id] = config
         _LOGGER.debug(
@@ -656,6 +657,48 @@ def _warn_completion_gate_orphan(vacuum_entity_id: str, config: dict[str, Any]) 
     )
 
 
+def _warn_completion_gate_default(vacuum_entity_id: str, config: dict[str, Any]) -> None:
+    """RC-4 for the COMPLETION gate: warn (never raise) when a brand declares
+    neither ``completion.secondary_clear_entity`` nor
+    ``completion.require_job_active_clear``, so the completion gate silently
+    inherits Eufy's model — ``active_cleaning_target`` must read a clear sentinel
+    at end-of-run (listeners/_common.py::completed_finalize_signals defaults the
+    secondary key to ``active_cleaning_target``).
+
+    Sibling in spirit to ``_warn_eufy_fallbacks``: every permissive default here
+    resolves to a concrete EUFY answer, not a refusal. All three shipped brands
+    declare one key explicitly (Eufy ``secondary_clear_entity``, Roborock
+    ``require_job_active_clear``, Dreame ``secondary_clear_entity: task_type``),
+    so this is silent on every real install today. It bites the NEXT brand whose
+    ``active_cleaning_target`` (``current_room``) reverts to the DOCK ROOM at
+    end-of-run rather than clearing — it would inherit a gate that never passes,
+    and its jobs would never auto-finalize. That is a stuck state, discoverable
+    only by watching a run hang; making it audible at setup is the point.
+
+    Advisory only, like the orphan warning above: the default is fail-closed (a
+    run hangs, it does not mis-finalize), a genuinely Eufy-shaped brand may rely
+    on the default, and declaring ``secondary_clear_entity: "active_cleaning_target"``
+    explicitly (as Eufy does) silences it.
+    """
+    if not isinstance(config, dict):
+        return
+    completion_block = config.get("completion")
+    completion = completion_block if isinstance(completion_block, dict) else {}
+    if completion.get("secondary_clear_entity") or completion.get(
+        "require_job_active_clear"
+    ):
+        return
+    _LOGGER.warning(
+        "adapter '%s' for %s declares neither completion.secondary_clear_entity "
+        "nor completion.require_job_active_clear, so completion falls back to the "
+        "default active_cleaning_target sentinel gate (Eufy's model). If this "
+        "brand's active_cleaning_target does not clear to a sentinel at end-of-run, "
+        "its jobs will never auto-finalize; declare completion.secondary_clear_entity "
+        "to point at an entity that does, or silence this by declaring it explicitly.",
+        config.get("adapter_id", "unknown"), vacuum_entity_id,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Bare-function shims.
 #
@@ -711,6 +754,7 @@ def register_adapter_config(
 
     _warn_eufy_fallbacks(vacuum_entity_id, config)
     _warn_completion_gate_orphan(vacuum_entity_id, config)
+    _warn_completion_gate_default(vacuum_entity_id, config)
 
     _REGISTRY[vacuum_entity_id] = config
     _LOGGER.debug(

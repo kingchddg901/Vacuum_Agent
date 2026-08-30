@@ -264,11 +264,29 @@ def completed_finalize_signals(
             return ""
         return str(state_obj.state).strip().lower()
 
+    # The secondary-clear signal's ENTITY is configurable via
+    # completion.secondary_clear_entity. Until 2026-08-29 this declared field was never
+    # read; the entity was hardcoded to active_cleaning_target — Eufy's completion model
+    # baked into shared lifecycle code. Eufy declares it explicitly and still resolves it;
+    # Roborock never reaches here (it takes the require_job_active_clear branch), so both
+    # are unchanged. Dreame's active_cleaning_target (current_room) reverts to the DOCK
+    # ROOM at end-of-run and never clears, so it declares its own entity — task_type
+    # (custom -> `unavailable` at the same instant task_status -> completed, verified
+    # on-device). The `or "active_cleaning_target"` below is the FAIL-CLOSED default: a
+    # brand declaring neither this nor require_job_active_clear inherits Eufy's gate, which
+    # HANGS (never mis-finalizes) if its active_cleaning_target does not clear. That silent
+    # inheritance is made audible at registration by
+    # adapters/registry.py::_warn_completion_gate_default.
+    _secondary_key = (
+        (config.get("completion") or {}).get("secondary_clear_entity")
+        or "active_cleaning_target"
+    )
+
     return {
         "vacuum_state": _state(vacuum_entity_id),
         "task_status": _state(entities.get("task_status")),
         "dock_status": _state(entities.get("dock_status")),
-        "active_target": _state(entities.get("active_cleaning_target")),
+        "active_target": _state(entities.get(_secondary_key)),
         # PRESENCE, not value. `completion_secondary_satisfied` used to accept a
         # DECLARED job_active key as proof the signal existed; on a localized install
         # the declared id resolves to nothing and the gate reported "satisfied" about
@@ -347,7 +365,16 @@ def completion_secondary_satisfied(
         failure falls through to the default sentinel check below, i.e. behaves
         as if the flag were never set.
 
-      - default (Eufy): the active_cleaning_target must read a clear sentinel.
+      - default (sentinel-clear): the ``secondary_clear_entity`` must read one of
+        the ``secondary_clear_sentinels``. This branch is BRAND-PARAMETERIZED, not
+        Eufy-only: Eufy takes it on ``active_cleaning_target``, and Dreame takes
+        the same branch on its declared ``task_type`` (which clears
+        custom -> ``unavailable`` at end-of-run, where ``active_cleaning_target``
+        would instead revert to the dock room). The entity and its sentinel set
+        both come from the adapter's ``completion`` block; the entity DEFAULTS to
+        ``active_cleaning_target`` when unspecified, and registration warns a brand
+        that declares neither this nor ``require_job_active_clear``
+        (adapters/registry.py::_warn_completion_gate_default).
     """
     if bool(get_adapter_value(
         vacuum_entity_id, "completion", "require_job_active_clear", fallback=False

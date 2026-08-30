@@ -42,6 +42,7 @@ from .entities import (
     SUFFIX_DOCK_STATUS,
     SUFFIX_ERROR_MESSAGE,
     SUFFIX_TASK_STATUS,
+    SUFFIX_TASK_TYPE,
     build_entity_id,
 )
 from .maintenance_components import MAINTENANCE_COMPONENTS
@@ -96,6 +97,7 @@ def register_dreame_adapter_for_vacuum(
     # --- capability gating ----------------------------------------------------
     entity_candidates: dict[str, list[str]] = {
         "task_status": [build_entity_id(vid, SUFFIX_TASK_STATUS)],
+        "task_type": [build_entity_id(vid, SUFFIX_TASK_TYPE)],
         "active_cleaning_target": [build_entity_id(vid, SUFFIX_ACTIVE_CLEANING_TARGET)],
         "active_map": [build_entity_id(vid, SUFFIX_ACTIVE_MAP, DOMAIN_SELECT)],
         "cleaning_time": [build_entity_id(vid, SUFFIX_CLEANING_TIME)],
@@ -136,6 +138,8 @@ def register_dreame_adapter_for_vacuum(
     # --- entity ID map --------------------------------------------------------
     entities = {
         "task_status": build_entity_id(vid, SUFFIX_TASK_STATUS),
+        # The completion SECONDARY-clear signal (custom -> `unavailable` at end-of-run).
+        "task_type": build_entity_id(vid, SUFFIX_TASK_TYPE),
         "active_cleaning_target": build_entity_id(vid, SUFFIX_ACTIVE_CLEANING_TARGET),
         "active_map": build_entity_id(vid, SUFFIX_ACTIVE_MAP, DOMAIN_SELECT),
         "cleaning_time": build_entity_id(vid, SUFFIX_CLEANING_TIME),
@@ -169,7 +173,9 @@ def register_dreame_adapter_for_vacuum(
 
         "vocabulary": {
             "fan_speed_options": vocabulary.FAN_SPEED_OPTIONS,
-            "water_level_options": vocabulary.WATER_LEVEL_OPTIONS,
+            # RANGE, not options: this brand's water is the fine 1..32 wetness scale,
+            # so the card branches to a slider and water_level stores a numeric string.
+            "water_level_range": vocabulary.WATER_LEVEL_RANGE,
             "clean_mode_options": vocabulary.CLEAN_MODE_OPTIONS,
             "clean_intensity_options": vocabulary.CLEAN_INTENSITY_OPTIONS,
         },
@@ -210,19 +216,86 @@ def register_dreame_adapter_for_vacuum(
             "low_battery_threshold_percent": LOW_BATTERY_THRESHOLD_PERCENT,
         },
 
+        # Auto-finalization gate. Primary END signal: task_status -> "completed" (fires
+        # for a finish AND a cancel; the finish/cancel split is the cleaning_history
+        # discriminator — a follow-up). SECONDARY-clear signal: task_type, NOT the
+        # default active_cleaning_target — Dreame's current_room reverts to the DOCK
+        # ROOM at end-of-run (never a sentinel), while task_type clears
+        # custom -> `unavailable` at the SAME instant task_status -> completed
+        # (verified on-device 2026-08-29 from the recorder timeline). No job_active
+        # binary, so require_job_active_clear does not apply.
+        "completion": {
+            "task_status_value": "completed",
+            "secondary_clear_entity": "task_type",
+            "secondary_clear_sentinels": ["", "unknown", "unavailable", "none", "null"],
+        },
+
         # PRIMARY room dispatch: dreame_vacuum.vacuum_clean_segment. Verified against the
-        # upstream services.yaml — the room field is `segments` (NOT segment_id) and the
-        # passes field is `repeats` (NOT repeat). The `dreame_room_clean` engine is
-        # registered at queue/dispatch_engines.py. Per-room suction_level/water_volume
-        # arrays are also accepted inline (PHASE 3: wire per-room fan/water).
+        # upstream services.yaml — the room field is `segments` (NOT segment_id). The
+        # `dreame_room_clean` engine is registered at queue/dispatch_engines.py.
+        #
+        # ⚠ TWO-CALL DISPATCH. The per-room settings do NOT ride vacuum_clean_segment —
+        # its suction/water/repeats params are DECORATIVE (the device uses its saved
+        # custom-cleaning store; settled on hardware 2026-08-10, docstring at
+        # dreame/device.py:6931). So the clean call goes BARE and the real per-room
+        # control is a separate `settings_write` bulk call that runs WHILE PARKED just
+        # before it (dispatch/manager.py::_run_settings_write).
         "dispatch": {
             "template": "dreame_room_clean",
             "service_domain": "dreame_vacuum",
             "service_name": "vacuum_clean_segment",
+            # DIRECT-MERGE envelope (data = {entity_id, **payload}). Declared NULL
+            # explicitly because vacuum_clean_segment takes `segments` directly, not
+            # the wrapped {command, params} shape. Omitting the key made
+            # _dispatch_clean_payload default to command="room_clean" (DQ-DE-3) and
+            # ship Eufy's wrapped envelope to a service with no command field.
+            "command": None,
             "rooms_field": "segments",
-            "clean_passes_field": "repeats",
+            # BARE clean call: {segments:[...]}. Passes rides settings_write below, not
+            # the clean payload (the wire param is ignored). None => engine emits no
+            # passes array.
+            "clean_passes_field": None,
             "passes_max": 3,
             "passes_is_global": False,
+            # ── THE PER-ROOM SETTINGS WRITE (the real control surface) ──────────────
+            # ONE bulk vacuum_set_custom_cleaning call, index-aligned INT arrays over
+            # the queued rooms. The device honors every field regardless of the per-room
+            # ENTITY's UI mode-gate (route is `unavailable` on a non-mopping room, but
+            # the call sets mode+route in one aligned tuple, applied atomically). Fields
+            # with `gate_room_suffix` emit only when select.<obj>_room_<id>_<suffix>
+            # exists (capability by entity presence). Required fields always emit, with
+            # `filler` for a room whose canonical value is empty. mop_temperature/
+            # mop_pressure OMITTED — Robin lacks them and passing them RAISES; a model
+            # that has them adds the field (gated on its per-room entity).
+            "settings_write": {
+                "domain": "dreame_vacuum",
+                "service": "vacuum_set_custom_cleaning",
+                "segment_id_field": "segment_id",
+                "fields": [
+                    {"canonical": "fan_speed", "wire": "suction_level",
+                     "value_map": vocabulary.FAN_SPEED_WIRE_MAP,
+                     "required": True, "filler": 0},
+                    # Water: the FINE 1..32 wetness_level is the real per-room control
+                    # (Robin declares wetness_level: True, so the device uses it over
+                    # water_volume). water_volume stays schema-REQUIRED but the device
+                    # ignores it when wetness is present, so it rides a constant filler.
+                    # water_level is a numeric STRING ("16"); clamp coerces it to an int
+                    # array. wetness is a NUMBER entity, so the capability gate probes
+                    # the number domain, not select.
+                    {"wire": "water_volume", "constant": 2, "required": True},
+                    {"canonical": "water_level", "wire": "wetness_level",
+                     "clamp": [1, 32], "filler": 16,
+                     "gate_room_suffix": "wetness_level", "gate_domain": "number"},
+                    {"canonical": "clean_passes", "wire": "repeats",
+                     "required": True, "filler": 1, "clamp": [1, 3]},
+                    {"canonical": "clean_mode", "wire": "cleaning_mode",
+                     "value_map": vocabulary.CLEAN_MODE_WIRE_MAP,
+                     "gate_room_suffix": "cleaning_mode", "filler": 0},
+                    {"canonical": "clean_intensity", "wire": "cleaning_route",
+                     "value_map": vocabulary.CLEAN_INTENSITY_WIRE_MAP,
+                     "gate_room_suffix": "cleaning_route", "filler": 1},
+                ],
+            },
         },
 
         # Dreame reports native per-room progress + native rooms, so the CV/counter/anchor

@@ -388,6 +388,54 @@ def test_declaring_the_blocks_is_silent(caplog):
         assert f"declares no '{block}' block" not in caplog.text
 
 
+def test_omitting_the_completion_gate_warns_which_eufy_default_takes_over(caplog):
+    """[RC-4] The completion gate is the same class of silent-Eufy-default as the engine
+    blocks. A brand that declares neither completion.secondary_clear_entity nor
+    completion.require_job_active_clear inherits Eufy's model — active_cleaning_target
+    must clear to a sentinel — and if that entity reverts to the dock room at end-of-run
+    (the Dreame/Roborock shape) its jobs never auto-finalize, a stuck state discoverable
+    only by watching a run hang. Knowable at registration; must be audible there.
+    """
+    import logging
+    caplog.set_level(logging.WARNING)
+    clear_registry()
+
+    # _minimal() declares no completion block at all -> neither key present.
+    register_adapter_config("vacuum.brand3", _minimal())
+
+    text = caplog.text
+    assert "secondary_clear_entity" in text, (
+        "the advisory does not name the field that opts out"
+    )
+    assert "active_cleaning_target" in text, (
+        "the advisory does not name the Eufy default it falls back to"
+    )
+    assert "auto-finalize" in text, (
+        "the advisory does not state the failure mode (jobs never finalize)"
+    )
+
+
+@pytest.mark.parametrize(
+    "completion",
+    [
+        {"secondary_clear_entity": "active_cleaning_target"},  # Eufy
+        {"require_job_active_clear": True},                    # Roborock
+        {"secondary_clear_entity": "task_type"},               # Dreame
+    ],
+)
+def test_declaring_a_completion_gate_key_is_silent(caplog, completion):
+    """[RC-4] All three shipped brands declare one of the two keys, so the completion-gate
+    advisory must be silent for each — an advisory that fires for correct configs is noise.
+    """
+    import logging
+    caplog.set_level(logging.WARNING)
+    clear_registry()
+
+    register_adapter_config("vacuum.brand3", _minimal(completion=completion))
+
+    assert "declares neither completion.secondary_clear_entity" not in caplog.text
+
+
 def test_an_unknown_capability_hint_is_reported_not_ignored():
     """[RC-3] A hint key the reader does not know is a SILENT no-op.
 

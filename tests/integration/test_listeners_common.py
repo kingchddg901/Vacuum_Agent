@@ -356,6 +356,31 @@ async def test_completed_finalize_signals_reads_adapter_entities(hass, manager):
     assert signals["dock_status"] == "washing"
 
 
+async def test_completed_finalize_signals_secondary_clear_entity_override(hass, manager):
+    """[LC-10b] completion.secondary_clear_entity redirects active_target to a DIFFERENT
+    entity than the default active_cleaning_target.
+
+    Dreame's shape: current_room reverts to the DOCK ROOM at end-of-run (never a
+    sentinel), while task_type clears custom -> `unavailable` at the same instant. Naming
+    task_type as the secondary makes active_target read the entity that actually clears.
+    Bite: revert the field to the hardcoded active_cleaning_target and active_target reads
+    "dining room" (the dock room) — the exact reason Dreame never finalized. Also proves
+    the field is no longer dead (declared-but-unread) config."""
+    register_adapter_config(_VAC, {
+        **_MINIMAL_ADAPTER,
+        "entities": {
+            **_MINIMAL_ADAPTER["entities"],
+            "task_type": "sensor.alfred_task_type",
+        },
+        "completion": {"secondary_clear_entity": "task_type"},
+    })
+    hass.states.async_set("sensor.alfred_target", "Dining Room")     # dock room, NOT sentinel
+    hass.states.async_set("sensor.alfred_task_type", "unavailable")  # clears at completion
+    await hass.async_block_till_done()
+    signals = completed_finalize_signals(hass, _VAC)
+    assert signals["active_target"] == "unavailable"  # from task_type, not the dock-room target
+
+
 # ---------------------------------------------------------------------------
 # [LC-11] — [LC-14] job_finished_event_data
 # ---------------------------------------------------------------------------

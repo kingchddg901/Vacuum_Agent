@@ -154,6 +154,17 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Degradation: lifecycle and learning disabled without it."
                 ),
             },
+            "task_type": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Optional secondary completion signal. Some brands (Dreame) expose a "
+                    "task_type sensor that clears to `unavailable` at end-of-run — named "
+                    "by completion.secondary_clear_entity when the default "
+                    "active_cleaning_target reverts to the DOCK ROOM instead of clearing. "
+                    "Absent = no override; the default gate applies."
+                ),
+            },
             "dock_status": {
                 "type": "str",
                 "required": False,
@@ -584,6 +595,30 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "entry_fields": {
                     "value": {"type": "str", "required": True},
                     "label": {"type": "str", "required": True},
+                },
+            },
+            "water_level_range": {
+                "type": "dict",
+                "required": False,
+                "description": (
+                    "CONTINUOUS water/wetness axis, for a brand whose water is a "
+                    "numeric scale rather than a fixed enum (Dreame: wetness_level "
+                    "1..32, step 1). {min, max, step} ints (step default 1). A mop-"
+                    "capable brand declares EXACTLY ONE of water_level_options "
+                    "(dropdown) or water_level_range (slider) — the sibling axis is "
+                    "the framework's own 'declare exactly one' rule (clean_intensity/"
+                    "path_type). The stored water_level is then a numeric STRING "
+                    "(\"16\"), opaque to the profiles subsystem the same way an enum "
+                    "token is, so nothing there needs a numeric branch; only the card "
+                    "(slider vs dropdown) and the adapter's wire mapping read the "
+                    "shape. optional endpoint labels via water_level_range.labels "
+                    "{min_label, mid_label, max_label} for the slider ends."
+                ),
+                "fields": {
+                    "min": {"type": "int", "required": True},
+                    "max": {"type": "int", "required": True},
+                    "step": {"type": "int", "required": False},
+                    "labels": {"type": "dict", "required": False},
                 },
             },
             "clean_intensity_options": {
@@ -1296,12 +1331,16 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "description": "HA service name. Example: 'send_command'.",
             },
             "command": {
-                "type": "str",
+                "type": "str | null",
                 "required": False,
                 "description": (
                     "Command string passed to the service. Required for "
                     "templates that use a 'command' field (e.g. Eufy). "
-                    "Omit for templates that call the service directly."
+                    "Declare NULL (not omit) for a direct-merge service that takes "
+                    "the payload fields inline (Dreame's vacuum_clean_segment): an "
+                    "omitted key defaults to command='room_clean' and ships the "
+                    "wrapped {command, params} envelope (DQ-DE-3), so the intended "
+                    "direct-merge shape must be stated explicitly as null."
                 ),
             },
             "params_as_list": {
@@ -1341,11 +1380,15 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 ),
             },
             "clean_passes_field": {
-                "type": "str",
+                "type": "str | null",
                 "required": False,
                 "description": (
                     "Field name for clean passes in each room payload entry. "
-                    "Example: 'clean_times' for Eufy, 'repeat' for Roborock."
+                    "Example: 'clean_times' for Eufy, 'repeat' for Roborock. Declare "
+                    "NULL when passes do NOT ride the clean payload (PAY-7) — Dreame "
+                    "sends a BARE segment clean and applies passes via "
+                    "dispatch.settings_write instead; the engine then emits no passes "
+                    "array."
                 ),
             },
             "passes_is_global": {
@@ -1379,6 +1422,34 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "so a stored id never cleans the wrong room. A target whose slug "
                     "is absent from the current map is skipped; an unavailable source "
                     "falls back to the stored ids. Default: False (use stored ids)."
+                ),
+            },
+            "settings_write": {
+                "type": "dict",
+                "required": False,
+                "description": (
+                    "A single BULK per-room settings write pushed pre-dispatch while the "
+                    "robot is parked, for brands whose per-room settings are PERSISTENT "
+                    "DEVICE STATE the clean payload cannot carry (Dreame: "
+                    "vacuum_set_custom_cleaning — the saved store WINS, so "
+                    "vacuum_clean_segment's own suction/water/repeats are decorative). "
+                    "The THIRD pre-dispatch shape: distinct from global_pre_calls (one "
+                    "global scalar/run) and per_room_live_settings (one per-room ENTITY "
+                    "write per room, mid-run) — this is ONE service call carrying index-"
+                    "aligned arrays over the queued rooms. Shape: {'domain', 'service', "
+                    "'segment_id_field' (default 'segment_id'), 'fields': [{'canonical' "
+                    "(room field, e.g. 'fan_speed'), 'wire' (service field, e.g. "
+                    "'suction_level'), optional 'value_map' (canonical->wire; an unmapped "
+                    "value takes the filler, never a stray string on an int wire), "
+                    "optional 'filler' (value for an empty room field; default 0), "
+                    "optional 'clamp' [min,max], optional 'gate_room_suffix' — emit the "
+                    "field ONLY when select.<obj>_room_<first_id>_<suffix> is registered "
+                    "(capability by entity presence; a UI-unavailable but registered "
+                    "entity still counts)}]}. Best-effort but LOUD: a failed write logs "
+                    "at ERROR and the run proceeds on the device's stored settings (no "
+                    "wet-mop hazard, so it does not abort). Executed by "
+                    "dispatch/manager.py::_run_settings_write. Absent = no settings write "
+                    "(every brand but Dreame)."
                 ),
             },
             "per_room_live_settings": {

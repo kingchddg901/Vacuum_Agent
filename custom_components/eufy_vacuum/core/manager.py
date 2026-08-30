@@ -6868,6 +6868,22 @@ class EufyVacuumManager:
             resolved_rooms=resolved_rooms,
         )
 
+    async def _run_settings_write(
+        self,
+        *,
+        vacuum_entity_id: str,
+        resolved_rooms: list[dict[str, Any]],
+    ) -> None:
+        """Bulk-write the device's saved per-room store before dispatch (Dreame's
+        vacuum_set_custom_cleaning) — delegates to DispatchManager. Kept on the manager
+        for the same reason as _run_global_pre_calls: the start path and the dispatch
+        tests reference it. No-op for brands without dispatch.settings_write. See
+        dispatch/manager.py::_run_settings_write."""
+        return await self.dispatch._run_settings_write(
+            vacuum_entity_id=vacuum_entity_id,
+            resolved_rooms=resolved_rooms,
+        )
+
     async def maybe_advance_phase(
         self,
         *,
@@ -7060,6 +7076,17 @@ class EufyVacuumManager:
         # concurrently — a bigger design, and worth doing only with an S6 to
         # verify against, since every pre-call here is Roborock-only and marked
         # UNVERIFIED on-device in adapters/roborock/adapter.py.
+        # Bulk-write the saved per-room store FIRST, while the robot is still parked —
+        # this is the real per-room control surface for brands whose settings are
+        # persistent device state (Dreame: vacuum_set_custom_cleaning; the segment
+        # payload's own params are decorative). No-op for every other brand. Ordered
+        # before the global pre-calls and the dispatch so the settings land before the
+        # run starts; the device refuses store edits once `started`.
+        await self._run_settings_write(
+            vacuum_entity_id=vacuum_entity_id,
+            resolved_rooms=list(payload_state.get("resolved_rooms", [])),
+        )
+
         await self._run_global_pre_calls(
             vacuum_entity_id=vacuum_entity_id,
             resolved_rooms=list(payload_state.get("resolved_rooms", [])),
