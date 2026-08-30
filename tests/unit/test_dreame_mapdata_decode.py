@@ -126,6 +126,19 @@ def test_anchors_prefer_live_camera_position_over_sentinel():
     assert live["dock_anchor"] == live["robot_anchor"]
 
 
+def test_robot_heading_from_angle():
+    """[DMD-10] robot_heading = (a - 90) mod 360 — calibrated on straight live runs (MAD ~2°):
+    Dreame `a` is degrees CCW-from-east; the card arrow is CSS rotate (0=north, CW). a=90 (facing
+    +y/north) → 0; a=0 → 270; a=180 → 90; a=270 → 180."""
+    md = _make_md()
+    for a, expect in [(90, 0.0), (0, 270.0), (180, 90.0), (270, 180.0), (353, 263.0)]:
+        out = dreame_render_from_mapdata(md, robot_pos={"x": 150, "y": 100, "a": a})
+        assert out["robot_heading"] == expect, f"a={a} -> {out.get('robot_heading')} != {expect}"
+    # docked/unknown sentinel a=32767 -> no anchor, no heading
+    docked = dreame_render_from_mapdata(md, robot_pos={"x": 150, "y": 100, "a": 32767})
+    assert "robot_heading" not in docked
+
+
 def test_no_dimensions_is_absent_not_raise():
     """[DMD-5] a MapData without usable dimensions degrades to an absent marker."""
     md = _make_md()

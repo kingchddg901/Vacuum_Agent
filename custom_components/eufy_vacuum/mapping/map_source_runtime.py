@@ -1058,11 +1058,19 @@ def dreame_render_from_mapdata(
     # which projects to a fixed WRONG pixel. The camera value is the corrected live position
     # (== the charger when docked), the same source the mascot-follow rides.
     anchors: dict[str, list[float]] = {}
+    robot_heading: float | None = None
     rx, ry, ra = _pt_xy_a(robot_pos if robot_pos is not None else getattr(md, "robot_position", None))
     if rx is not None and ry is not None and ra != 32767:  # 32767 = docked/unknown sentinel
         p = _n(rx, ry)
         if p:
             anchors["robot_anchor"] = p
+            if ra is not None:
+                # Dreame `a` is degrees CCW-from-east; the card's arrow is CSS rotate
+                # (0=north, CW). Calibrated on straight live runs (MAD ~2°): h = (a-90) mod 360.
+                try:
+                    robot_heading = (float(ra) - 90.0) % 360.0
+                except (TypeError, ValueError):
+                    robot_heading = None
     dx, dy, _da = _pt_xy_a(dock_pos if dock_pos is not None else getattr(md, "charger_position", None))
     if dx is not None and dy is not None:
         p = _n(dx, dy)
@@ -1086,6 +1094,8 @@ def dreame_render_from_mapdata(
         })
 
     extra: dict[str, Any] = {"grid_size_mm": grid_size}
+    if robot_heading is not None:
+        extra["robot_heading"] = round(robot_heading, 1)
     if furniture:
         extra["furniture"] = furniture
     result = build_map_source_result(present=True, backend="dreame_mapdata",
