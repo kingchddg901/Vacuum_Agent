@@ -312,10 +312,11 @@ def register_dreame_adapter_for_vacuum(
         # decoded the raw map). NEW core backend 'camera_attrs' reads
         # camera.<id>_map extra_state_attributes: as_dict() segment bboxes +
         # calibration_points (3 vacuum->pixel pairs) + vacuum_position/charger_position.
-        # PHASE 4a: no map_render (supports_va_render stays False; the card uses the
-        # device PNG as backdrop). map_pixel_size is the rendered-PNG size used to
-        # normalize projected pixels to 0..1 — left None until confirmed on the live
-        # device (the reader falls back to a pixel frame + logs a diagnostic meanwhile).
+        # map_render (below) declares the shared room_pixels_v1 raster decode, so
+        # supports_va_render is True and the card draws our OWN themed floor plan from the
+        # decoded pixel_type (dreame_render_data_from_mapdata) instead of the device PNG.
+        # map_pixel_size only matters to the camera-attr BBOX fallback (normalizing
+        # projected pixels to 0..1); left None — the MapData path uses dimensions.grid_size.
         "map_state_source": {
             "backend": "camera_attrs",
             "identifier_domain": "dreame_vacuum",
@@ -327,6 +328,13 @@ def register_dreame_adapter_for_vacuum(
             # shows the robot now; live_pose only speeds its refresh. Adding it is a second
             # core branch (a POSE_BACKEND_DREAME_CAMERA reader in async_get_map_live_pose)
             # — done after the map path is confirmed on the live device.
+        },
+        "map_render": {
+            # Ride the shared frontend raster decode (Eufy/Roborock use it too). The
+            # room_pixels raster is built from the decoded MapData pixel_type by the
+            # camera_attrs backend branch in async_get_map_render_data. Reuses the
+            # map_state_source pointer above (no duplicate schema).
+            "format": "room_pixels_v1",
         },
         "job_segmenter": {
             "engine": "noop_job_fallback",

@@ -218,8 +218,13 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   200+id}` × `grid_size²` — DMD-2 bites the border `100+id` term, DMD-3 the `grid_size` term),
   bbox projection via the base's own `dimensions` transform (normalized 0..1), user-placed
   furniture as a neutral-slug overlay (+ room + size), robot/dock anchors, and the
-  no-dimensions → absent-marker degrade. The device-side reader (`dreame_coordinator` via the
-  public `coordinator.device`, `dreame_mapdata_candidates`) is validated live, not unit-tested.
+  no-dimensions → absent-marker degrade. `dreame_render_data_from_mapdata` builds the shared
+  `room_pixels_v1` raster (pixel_type → resolved rids `{id,100+id,200+id}`, transposed to
+  row-major `ry*width+rx`, `flip_y` auto-detected by matching a room's raster centroid to its
+  projected centroid) — DMD-6/7/8 pin the format contract, rid mapping, and row-major order on a
+  non-square fake so `[x][y]` vs `[y][x]` can't hide. The device-side readers (`dreame_coordinator`
+  via the public `coordinator.device`, `dreame_mapdata_candidates`) are validated live, not
+  unit-tested.
 - **`map_source_coordinator`** (`CMP-*` + `LP-*`, integration,
   `test_manager_compare_sources.py` + `test_manager_live_pose.py`) — the manager
   delegators into `MapSourceCoordinator`: `async_compare_map_sources` (the verify

@@ -13,14 +13,17 @@ import types
 
 import pytest
 
+import base64
+
 from custom_components.eufy_vacuum.mapping.map_source_runtime import (
+    dreame_render_data_from_mapdata,
     dreame_render_from_mapdata,
 )
 
 np = pytest.importorskip("numpy")
 
 
-def _dims(grid_size=50, top=0, left=0, width=4, height=4):
+def _dims(grid_size=50, top=0, left=0, width=4, height=3):
     return types.SimpleNamespace(grid_size=grid_size, top=top, left=left, width=width, height=height)
 
 
@@ -29,15 +32,16 @@ def _seg(sid, x0, y0, x1, y1, name, cx, cy):
 
 
 def _make_md():
-    # 4x4 raster: seg 1 = four `1` cells + one `101` border cell (5 px);
-    #             seg 2 = four `2` cells (4 px); 0 = outside.
+    # NON-square (width=4, height=3) so [x][y] vs [y][x] is unambiguous. pixel_type is
+    # (width, height) = pt[x][y], matching np.full((width, height)) on the real device.
+    # seg 1 = four `1` cells + one `101` border cell (5 px); seg 2 = three `2` cells (3 px).
     pt = np.array(
-        [[1, 1, 101, 0],
-         [1, 1, 2, 2],
-         [0, 2, 2, 0],
-         [0, 0, 0, 0]],
+        [[1, 1, 101],   # x=0 (y = 0,1,2)
+         [1, 1, 2],     # x=1
+         [0, 2, 2],     # x=2
+         [0, 0, 0]],    # x=3
         dtype=np.uint8,
-    )
+    )  # shape (4, 3) = (width, height)
     return types.SimpleNamespace(
         pixel_type=pt,
         dimensions=_dims(),
@@ -73,7 +77,7 @@ def test_true_per_room_area_counts_interior_and_border():
     md.dimensions = _dims(grid_size=200)
     rooms = {r["name"]: r for r in dreame_render_from_mapdata(md)["rooms"]}
     assert rooms["Kitchen"]["area_m2"] == 0.2       # 5 px × 0.04
-    assert rooms["Dining Room"]["area_m2"] == 0.16  # 4 px × 0.04
+    assert rooms["Dining Room"]["area_m2"] == 0.12  # 3 px × 0.04
     assert rooms["Kitchen"]["area_m2"] > rooms["Dining Room"]["area_m2"]
 
 
@@ -113,3 +117,51 @@ def test_no_dimensions_is_absent_not_raise():
     out = dreame_render_from_mapdata(md)
     assert out["present"] is False
     assert out["reason"] == "no_dimensions"
+
+
+# --- render-data (room_pixels_v1 raster) ------------------------------------
+
+
+def _ridmap(v: int) -> int:
+    """Expected rid for a pixel_type value given rooms {1, 2}."""
+    for s in (1, 2):
+        if v in (s, 100 + s, 200 + s):
+            return s
+    return 0
+
+
+def test_render_data_shape_and_format():
+    """[DMD-6] the render-data carries the shared room_pixels_v1 contract."""
+    rd = dreame_render_data_from_mapdata(_make_md())
+    assert rd is not None
+    assert rd["format"] == "room_pixels_v1"
+    assert rd["present"] is True
+    assert rd["width"] == 4 and rd["height"] == 3
+    assert rd["ro_width"] == rd["width"] and rd["ro_height"] == rd["height"]
+    assert rd["rid_shift"] == 0 and rd["catch_all_rid"] == 255
+    assert rd["res"] == 50
+    assert rd["room_names"]["1"] == "Kitchen" and rd["room_names"]["2"] == "Dining Room"
+
+
+def test_render_data_raster_is_rowmajor_resolved_rids():
+    """[DMD-7] room_pixels decodes to a row-major (ry*width+rx) rid raster. BITES the whole
+    encoding: a segment's pixels are value ∈ {id, 100+id, 200+id} → id (border folds into the
+    room), everything else → 0. Drop the 100+id fold and pt[0][2]==101 reads 0 not 1."""
+    md = _make_md()
+    rd = dreame_render_data_from_mapdata(md)
+    w, h = rd["width"], rd["height"]
+    raw = base64.b64decode(rd["room_pixels"])
+    assert len(raw) == w * h
+    arr = md.pixel_type  # (width, height) = [x][y]
+    for ry in range(h):
+        for rx in range(w):
+            assert raw[ry * w + rx] == _ridmap(int(arr[rx][ry])), f"mismatch at ry={ry} rx={rx}"
+    # the border cell (value 101 at x=0,y=2) folded into room 1
+    assert raw[2 * w + 0] == 1
+
+
+def test_render_data_no_rooms_is_none():
+    """[DMD-8] a MapData with no segments yields no render-data (card hides VA render)."""
+    md = _make_md()
+    md.segments = {}
+    assert dreame_render_data_from_mapdata(md) is None

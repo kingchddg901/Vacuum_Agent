@@ -1065,6 +1065,113 @@ def dreame_render_from_mapdata(md: Any, *, source_cfg: dict[str, Any] | None = N
     return {**result, "diagnostics": diag}
 
 
+def _dreame_raster_flip(grid_hw: Any, segs: Any, proj: Any, height: int) -> bool:
+    """Pick ``flip_y`` by matching a room's raster row-centroid to its projected centroid.
+
+    The room raster and the projected bboxes/anchors must share a frame; if the raster's
+    rows run opposite to the projection's y, the card must flip on paint. Decided per-room
+    on the first room that has both signals; defaults to False. Self-validating, like the
+    Roborock geometry-drift check.
+    """
+    try:
+        import numpy as np
+
+        items = segs.items() if hasattr(segs, "items") else []
+        for sid, s in items:
+            cx, cy = getattr(s, "x", None), getattr(s, "y", None)
+            if cx is None or cy is None:
+                continue
+            ys, _xs = np.where(grid_hw == int(sid))
+            if ys.size == 0:
+                continue
+            raster_cy = float(ys.mean()) / height
+            p = proj(cx, cy)
+            if p is None:
+                continue
+            proj_cy = p[1] / height
+            # Same orientation if the raster centroid is nearer proj_cy than its mirror.
+            return abs(raster_cy - proj_cy) > abs(raster_cy - (1.0 - proj_cy))
+    except Exception:  # noqa: BLE001
+        pass
+    return False
+
+
+def dreame_render_data_from_mapdata(
+    md: Any, room_names: Any = None, *, version: str | None = None
+) -> dict[str, Any] | None:
+    """Build the card's ``room_pixels_v1`` render-data from a decoded Dreame ``MapData`` — so
+    Dreame rides the SAME frontend raster decode as Eufy/Roborock (VA render, our own themed
+    floor plan instead of the device PNG).
+
+    ``pixel_type`` value → resolved rid: a segment's pixels are ``value ∈ {id, 100+id, 200+id}``
+    (interior + border), everything else 0 (the card skips rid 0). ``pixel_type`` is
+    ``(width, height)`` = ``[x][y]``; the card wants row-major ``ry*width+rx``, so transpose to
+    ``(height, width)`` and C-flatten. ``rid_shift`` 0 (byte IS the rid; ids 1..~30 fit a byte).
+    ``flip_y`` auto-detected. Returns None on missing pieces / no rooms.
+    """
+    import base64
+    import hashlib
+
+    try:
+        import numpy as np
+    except Exception:  # noqa: BLE001 - numpy is required for the raster
+        return None
+
+    pt = getattr(md, "pixel_type", None)
+    proj_geom = _dreame_projector(getattr(md, "dimensions", None))
+    if pt is None or proj_geom is None:
+        return None
+    proj, width, height, grid_size = proj_geom
+    arr = np.asarray(pt)
+    if arr.shape == (height, width):
+        arr = arr.T  # normalize to (width, height)
+    if arr.shape != (width, height):
+        return None
+
+    segs = getattr(md, "segments", None) or {}
+    room_ids = sorted(int(s) for s in (segs.keys() if hasattr(segs, "keys") else []))
+    if not room_ids:
+        return None
+
+    rid = np.zeros(arr.shape, dtype=np.uint8)
+    for sid in room_ids:
+        if sid <= 0 or sid >= 200:  # keep rids in a byte, below the catch-all
+            continue
+        rid[(arr == sid) | (arr == 100 + sid) | (arr == 200 + sid)] = sid
+
+    grid_hw = np.ascontiguousarray(rid.T)  # (height, width), row-major = ry*width+rx
+    flip_y = _dreame_raster_flip(grid_hw, segs, proj, height)
+    room_bytes = grid_hw.tobytes()
+    if version is None:
+        version = hashlib.sha1(room_bytes).hexdigest()[:12]
+
+    if isinstance(room_names, dict) and room_names:
+        names = room_names
+    else:
+        names = {}
+        for sid, seg in (segs.items() if hasattr(segs, "items") else []):
+            nm = getattr(seg, "name", None)
+            names[int(sid)] = str(nm) if nm else f"Room {sid}"
+
+    return {
+        "present": True,
+        "format": "room_pixels_v1",
+        "width": int(width),
+        "height": int(height),
+        "ro_width": int(width),      # the raster IS the render canvas — no outline frame
+        "ro_height": int(height),
+        "ro_dx": 0,
+        "ro_dy": 0,
+        "rid_shift": 0,              # each byte already holds the resolved room id
+        "catch_all_rid": 255,
+        "flip_y": bool(flip_y),
+        "res": int(round(grid_size)),   # mm/px; pose-overlay coord mapping only
+        "room_pixels": base64.b64encode(room_bytes).decode("ascii"),
+        "room_names": {str(k): str(v) for k, v in names.items()},
+        "version": version,
+    }
+
+
 def _proj_areas(areas: Any, proj) -> list[list[list[float]]]:
     """Project quadrilateral Areas (x0,y0..x3,y3 — no-go/no-mop) to 4-point polygons."""
     out: list[list[list[float]]] = []

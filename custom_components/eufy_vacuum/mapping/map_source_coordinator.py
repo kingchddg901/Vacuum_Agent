@@ -781,6 +781,24 @@ class MapSourceCoordinator:
                 candidates, self._roborock_render_room_names(vacuum_entity_id)
             )
 
+        # Dreame: build the room_pixels_v1 raster from the base integration's decoded
+        # MapData (pixel_type grid) reached via the PUBLIC coordinator.device — the same
+        # shared frontend decode as Eufy/Roborock. In-memory read; loop-safe (numpy unique
+        # + b64, no per-pixel Python loop). Degrades to an absent marker.
+        if (
+            fmt == "room_pixels_v1"
+            and isinstance(source_cfg, dict)
+            and source_cfg.get("backend") in ("camera_attrs", "dreame_camera_attrs")
+        ):
+            md_cand = _msr.dreame_mapdata_candidates(
+                self._manager.hass, vacuum_entity_id, source_cfg, None
+            )
+            if md_cand.get("present"):
+                rd = _msr.dreame_render_data_from_mapdata(md_cand["map_data"])
+                if rd:
+                    return rd
+            return {"present": False, "reason": md_cand.get("reason", "no_mapdata")}
+
         if not (
             # dual-accept the legacy "eufy_room_pixels_v1" key from a stored adapter
             # config (map_render.format round-trips through .storage) for one release.
