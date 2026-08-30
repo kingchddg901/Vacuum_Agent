@@ -30,6 +30,17 @@ Architecture reference: [05 — While a Run Is Live](../../dev/05-run-live.md)
   against the real manager with seeded managed rooms; the queue payload shape and
   the round-trip through `data["queue"]`.
 
+- **Bulk per-room settings write** (integration) — `test_dispatch_settings_write.py`
+  covers the third pre-dispatch shape (`dispatch/manager.py::_run_settings_write`),
+  distinct from `global_pre_calls` and `per_room_live_settings`: a brand whose
+  per-room settings are persistent device state (Dreame) fires ONE
+  `vacuum_set_custom_cleaning` with index-aligned INT arrays over the queued rooms
+  while parked, just before a bare segment dispatch (the saved store wins over the
+  clean payload). Asserts array alignment, `value_maps` application, the filler for
+  empty/unmapped fields, gate-entity gating, the `[1,3]`/`[1,32]` clamps, ordering
+  before the global pre-calls, and best-effort-loud failure (logs, never raises).
+  No-op for every brand that does not declare `dispatch.settings_write`.
+
 ---
 
 ## How it's tested
