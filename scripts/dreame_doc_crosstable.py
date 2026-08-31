@@ -102,7 +102,7 @@ def clean(cand: str) -> str:
     # 2. drop edition markers, reg codes and stray markers wherever they sit
     words = [w for w in words
              if not RE_EDITION.match(w)
-             and not re.fullmatch(r"RL[A-Z]\d{2}[A-Z]{2}(?:-[A-Z0-9]+)*", w)
+             and not re.fullmatch(r"RL[A-Z]\d{1,2}[A-Z]{2,4}(?:-[A-Z0-9]+)*", w)
              and not re.fullmatch(r"EN|ENContents|Contents", w, re.I)]
 
     # 3. trim junk vocabulary from BOTH ends (never the middle: "Ultra Roller Kit")
@@ -127,7 +127,7 @@ def cover_name(text: str) -> str:
     return ''
 
 
-RE_ROBOT = re.compile(r"\bRL[A-Z]\d{2}[A-Z]{2}(?:-\d+)?\b")
+RE_ROBOT = re.compile(r"\bRL[A-Z]\d{1,2}[A-Z]{2,4}(?:-\d+)?\b")
 
 
 def main() -> int:
