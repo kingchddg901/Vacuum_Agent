@@ -27,6 +27,9 @@ Coverage targets
 [MSD-11] refresh: backend=memory (Roborock introspect) -> result + cache.
 [MSD-12] refresh: unknown backend -> unknown_backend marker, cached.
 [MSD-13] refresh: a backend raising -> caught, refresh_error marker, cached.
+[MSD-14] refresh: camera_attrs + native_current_room -> current_room injected from the NAME
+         entity (the card's current-room highlight source; decode leaves vacuum_room null).
+[MSD-15] refresh: camera_attrs, native name matches no managed room -> current_room stays None.
 [GLM-1]  get_live_mapdata_obj: not configured -> None.
 [GLM-2]  get_live_mapdata_obj: backend=memory -> first found MapData object.
 [GLM-3]  get_live_mapdata_obj: backend=storage+memory -> object from candidates.
@@ -402,6 +405,78 @@ async def test_refresh_backend_raises_degrades(manager, monkeypatch):
     )
     assert out == {"present": False, "reason": "refresh_error"}
     assert manager._map_state_source_cache[_VAC]["result"] == out
+
+
+# ---------------------------------------------------------------------------
+# camera_attrs — native current-room HIGHLIGHT injection (declaration-proving gate)
+# ---------------------------------------------------------------------------
+
+def _register_native_camera_attrs() -> None:
+    """A Dreame-shaped brand: camera_attrs render + a native current-room NAME entity."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "dreame", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.alfred_current_room"},
+        "room_attribution": {"engine": "noop_room_attribution",
+                             "source": "native_current_room"},
+        "map_state_source": {"backend": "camera_attrs"},
+    })
+
+
+async def test_refresh_camera_attrs_injects_native_current_room(manager, monkeypatch):
+    """[MSD-14] THE GATE. A native_current_room brand whose decoded map carries NO current_room
+    (vacuum_room null) gets it filled from the NAME entity, so the card's current-room highlight
+    finally has an id to draw. Drop the coordinator injection (or let the resolver miss) and
+    current_room stays absent -> the highlight goes dark again, which is exactly the drift this
+    proves against: two brands fill current_room from their own decode, this brand could not."""
+    _register_native_camera_attrs()
+    _present(manager, monkeypatch)
+    manager.hass.states.async_set("sensor.alfred_current_room", "Kitchen")
+    monkeypatch.setattr(
+        manager, "get_managed_rooms",
+        lambda **k: {"rooms": {3: {"room_id": 3, "name": "Kitchen"}}},
+    )
+    # decoded-map render is PRESENT but carries no current_room (Dreame's vacuum_room is null)
+    monkeypatch.setattr(
+        msr, "dreame_mapdata_candidates",
+        lambda *a, **k: {"present": True, "map_data": object()},
+    )
+    monkeypatch.setattr(
+        msr, "dreame_render_from_mapdata",
+        lambda *a, **k: {"present": True, "backend": "camera_attrs",
+                         "rooms": [{"number": 3, "name": "Kitchen"}]},
+    )
+
+    out = await manager.map_source.async_refresh_map_state_source(
+        vacuum_entity_id=_VAC, map_id="6"
+    )
+    assert out["current_room"] == 3
+
+
+async def test_refresh_camera_attrs_transit_leaves_current_room_absent(manager, monkeypatch):
+    """[MSD-15] When the NAME entity names no managed room (a transit tick, or the dock room
+    that isn't a cleanable segment), the resolver returns None and current_room is NOT set —
+    the highlight shows nothing rather than a wrong room. BITE: name a managed room instead and
+    current_room appears (MSD-14), so this is not vacuously green."""
+    _register_native_camera_attrs()
+    _present(manager, monkeypatch)
+    manager.hass.states.async_set("sensor.alfred_current_room", "Garage")  # no such room
+    monkeypatch.setattr(
+        manager, "get_managed_rooms",
+        lambda **k: {"rooms": {3: {"room_id": 3, "name": "Kitchen"}}},
+    )
+    monkeypatch.setattr(
+        msr, "dreame_mapdata_candidates",
+        lambda *a, **k: {"present": True, "map_data": object()},
+    )
+    monkeypatch.setattr(
+        msr, "dreame_render_from_mapdata",
+        lambda *a, **k: {"present": True, "backend": "camera_attrs", "rooms": []},
+    )
+
+    out = await manager.map_source.async_refresh_map_state_source(
+        vacuum_entity_id=_VAC, map_id="6"
+    )
+    assert out.get("current_room") is None
 
 
 # ---------------------------------------------------------------------------

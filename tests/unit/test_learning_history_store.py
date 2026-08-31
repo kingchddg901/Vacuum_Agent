@@ -17,6 +17,7 @@ import pytest
 from custom_components.eufy_vacuum.learning.history_store import (
     LearningHistoryStore,
     _build_transit_blocks,
+    _build_native_room_timings,
     _vacuum_slug,
 )
 
@@ -1218,6 +1219,68 @@ def test_build_transit_blocks_no_samples():
     """[HS-T4] no capture (e.g. adapter without the counters) -> empty + invalid."""
     timings, transitions, valid = _build_transit_blocks(
         counter_samples=[], queue_room_ids=[1, 2], slug_by_id={},
+    )
+    assert timings == [] and transitions == [] and valid is False
+
+
+# ---------------------------------------------------------------------------
+# _build_native_room_timings — cut at the native current_room boundaries (Dreame).
+# The counter tool (above) returns ONE segment for this brand's cumulative counters +
+# sub-30s transits (HS-T3: valid=False, the LAST room dropped). The native builder cuts at
+# the pose stream's current_room boundaries and captures EVERY room including the last.
+# ---------------------------------------------------------------------------
+
+def _ps(sec: int, room: int | None, ca: float | None = None) -> dict:
+    """A pose sample at 09:00:00 + sec carrying the native current_room."""
+    t = datetime(2026, 1, 1, 9, 0, 0) + timedelta(seconds=sec)
+    return {"t": t.isoformat(), "current_room": room, "cleaning_area": ca}
+
+
+def test_native_room_timings_last_room_is_captured():
+    """[HS-N1] THE BITE. A 2-room run whose counters the eufy tool cannot split (HS-T3) yields
+    TWO native timings, and the LAST room (Kitchen) gets a real, positive timing — the failure
+    that read "Not reached". Ablate: drop the ``i+1 < len(order)`` last-room window and the
+    second row (Kitchen) disappears -> len != 2 goes red."""
+    counter = [_cs(0, 0, 0), _cs(100, 120, 2), _cs(300, 420, 6)]  # cumulative s / m²
+    pose = [
+        _ps(30, 8),        # Living Room (transit — not a queue target) → ignored
+        _ps(50, 1),        # Entryway (id 1) arrives
+        _ps(120, 8),       # transit
+        _ps(200, 3),       # Kitchen (id 3) arrives
+        _ps(280, 3),
+    ]
+    timings, transitions, valid = _build_native_room_timings(
+        pose_samples=pose, counter_samples=counter,
+        queue_room_ids=[1, 3], slug_by_id={1: "entryway", 3: "kitchen"},
+    )
+    assert valid is True and transitions == []
+    assert [t["room_id"] for t in timings] == [1, 3]
+    assert timings[0]["slug"] == "entryway" and timings[0]["cleaning_seconds"] == 120
+    assert timings[0]["area_m2"] == 2.0 and timings[0]["boundary"] == "native_current_room"
+    # Kitchen — the room the counter tool dropped — is present with its own delta to run-end.
+    assert timings[1]["slug"] == "kitchen"
+    assert timings[1]["cleaning_seconds"] == 300 and timings[1]["area_m2"] == 4.0
+
+
+def test_native_room_timings_unseen_queue_room_not_reached():
+    """[HS-N2] a queued room the pose stream never names gets NO timing (correctly "not
+    reached") and the capture is invalid (count != queue), so it never poisons the aggregate."""
+    counter = [_cs(0, 0, 0), _cs(200, 240, 4)]
+    pose = [_ps(50, 1), _ps(150, 1)]  # only Entryway ever seen; Kitchen (3) never reached
+    timings, _tr, valid = _build_native_room_timings(
+        pose_samples=pose, counter_samples=counter,
+        queue_room_ids=[1, 3], slug_by_id={1: "entryway", 3: "kitchen"},
+    )
+    assert [t["room_id"] for t in timings] == [1]
+    assert valid is False  # 1 timing != 2 queued
+
+
+def test_native_room_timings_no_pose_is_empty():
+    """[HS-N3] no native signal buffered -> empty + invalid (never falls back to the counter
+    tool, which is exactly what "drop the eufy tool" means here)."""
+    timings, transitions, valid = _build_native_room_timings(
+        pose_samples=[], counter_samples=[_cs(0, 0, 0), _cs(100, 120, 2)],
+        queue_room_ids=[1, 3], slug_by_id={},
     )
     assert timings == [] and transitions == [] and valid is False
 

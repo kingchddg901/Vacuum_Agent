@@ -40,6 +40,9 @@ class BrandFacts(Protocol):
 
     job_segmenter: EngineSpec
     room_attribution: EngineSpec
+    native_finalize: bool                               # atomic finalize cuts per-room timings at
+                                                        # the native current_room (pose_samples),
+                                                        # not the counter segmenter (Dreame)
 
 
 class EufyBrandFacts:
@@ -97,6 +100,16 @@ class EufyBrandFacts:
     def room_attribution(self) -> EngineSpec:
         ra = self._cfg.get("room_attribution")
         return (ra.get("engine"), ra.get("tuning")) if isinstance(ra, dict) else (None, None)
+
+    @property
+    def native_finalize(self) -> bool:
+        """True when ``job_segmenter.finalize_source == 'native_current_room'`` — the atomic
+        finalize cuts per-room timings at the native current_room boundaries (pose_samples)
+        rather than segmenting the counter stream. Declared by a brand (Dreame) whose cumulative
+        counters + sub-30 s transits defeat the counter segmenter and whose native live-room
+        signal is exact. Absent/other → False (Eufy, Roborock: the counter/reconcile path)."""
+        js = self._cfg.get("job_segmenter")
+        return isinstance(js, dict) and js.get("finalize_source") == "native_current_room"
 
 
 def brand_facts_for(vacuum_entity_id: str) -> BrandFacts:

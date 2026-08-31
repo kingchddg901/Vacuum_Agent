@@ -247,6 +247,39 @@ def error_label_key(vacuum_entity_id: str, code: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def error_label_key_from_message(vacuum_entity_id: str, message: Any) -> str | None:
+    """Form ``fault.<brand>.<slug>`` from the error entity's STATE, for a brand whose fault is a
+    SLUG, not a numeric code.
+
+    Dreame reports the live fault on ``sensor.<obj>_error`` whose STATE is the slug itself
+    (dreame_vacuum's ``ERROR_*`` value, e.g. ``"brush"``) — there is no numeric ``code`` on any
+    HA-visible attribute the code path can read, so ``error_label_key`` returns None. Here the
+    slug IS the key segment: ``fault.dreame.brush``. The strings are the frontend locale packs'
+    (``fault.dreame.*`` harvested from dreame_vacuum's own translations, MIT — see ATTRIBUTIONS).
+
+    Gated on ``error_tracking.fault_label_from_message`` so a brand whose message is a human
+    SENTENCE (Eufy) never mis-keys a sentence as a slug. None for a sentinel value / empty / a
+    brand that has not opted in — the caller then falls back to the raw code, as before."""
+    cfg = _error_tracking_cfg(vacuum_entity_id)
+    if not cfg.get("fault_label_from_message"):
+        return None
+    slug = str(message or "").strip().lower()
+    if not slug or slug in _get_not_error_set(vacuum_entity_id):
+        return None
+    adapter = get_adapter_config(vacuum_entity_id) or {}
+    brand = str(adapter.get("adapter_id") or adapter.get("brand") or "").strip().lower()
+    return f"fault.{brand}.{slug}" if brand else None
+
+
+def default_error_source(vacuum_entity_id: str) -> str | None:
+    """Adapter-declared fallback fault source (``error_tracking.default_error_source``), used
+    when the code table cannot place a fault. Dreame declares ``"robot"``: its faults are
+    component-side (brush / wheel / sensor), so ``"robot"`` is a more honest default than
+    ``"unknown"`` for a brand whose codes are slugs the source table was never built for."""
+    src = _error_tracking_cfg(vacuum_entity_id).get("default_error_source")
+    return str(src).strip().lower() if isinstance(src, str) and src.strip() else None
+
+
 def _code_set(value: Any) -> frozenset[Any]:
     """Coerce a declared code list to comparable keys — ints AND enum strings.
 

@@ -94,7 +94,7 @@ def _iso_now() -> str:
     """UTC ISO seconds — the same shape read_range compares lexicographically."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 from ..learning.utils import cleaning_area_to_m2, read_cleaning_area_m2
-from ..rooms.utils import slugify_room_name
+from ..rooms.current_room import resolve_native_current_room_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -197,43 +197,6 @@ def _read_cleaning_area(hass, cfg: dict) -> float | None:
     return read_cleaning_area_m2(hass, cfg)
 
 
-def _resolve_managed_room_id(
-    hass, manager, vacuum_entity_id: str, cfg: dict, map_id_str: str
-) -> int | None:
-    """Resolve the brand's NATIVE current-room NAME (``entities.active_cleaning_target``, e.g.
-    Roborock ``sensor.<id>_current_room``) to a MANAGED room id on this map, by slug.
-
-    Mirrors ``ActiveJobTracker._resolve_native_target_room_id`` but matches against ALL managed
-    rooms (an external run has no job targets to match against), not the job queue. Returns None
-    for the dock / a transit room / a sentinel / any name not among the managed rooms — recorded
-    as a None current_room (transit), which the engine ignores."""
-    entity_id = (cfg.get("entities", {}) or {}).get("active_cleaning_target")
-    if not entity_id:
-        return None
-    state = hass.states.get(entity_id)
-    if state is None:
-        return None
-    name = str(getattr(state, "state", "") or "").strip()
-    if not name or name.lower() in {"unknown", "unavailable", "none", "null"}:
-        return None
-    signal_slug = slugify_room_name(name)
-    managed = manager.get_managed_rooms(vacuum_entity_id=vacuum_entity_id, map_id=map_id_str)
-    rooms = managed.get("rooms", {}) if isinstance(managed, dict) else {}
-    for key, room in rooms.items():
-        if not isinstance(room, dict):
-            continue
-        room_slug = (
-            str(room.get("slug") or "").strip().lower()
-            or slugify_room_name(str(room.get("name") or room.get("room_name") or ""))
-        )
-        if room_slug and room_slug == signal_slug:
-            try:
-                return int(room.get("room_id", key))
-            except (TypeError, ValueError):
-                return None
-    return None
-
-
 async def _read_live_pose_sample(hass, manager, vacuum_entity_id: str, cfg: dict) -> dict | None:
     """``source: live_pose`` — the Eufy fork's decoded-map pixel pose. Returns a normalized
     sample, or None to SKIP this tick (no live map decoded → don't pollute the buffer).
@@ -285,7 +248,7 @@ async def _read_native_current_room_sample(
     active_cleaning_target to the dock room, task_status → charging) is nulled to None — and
     nulls the anchor with it, so dock-sitting ticks never enter the ring as positions."""
     docked = _is_parked(hass, cfg, {})  # no pose flag — task_status is the parked signal
-    room_id = None if docked else _resolve_managed_room_id(
+    room_id = None if docked else resolve_native_current_room_id(
         hass, manager, vacuum_entity_id, cfg, map_id_str
     )
 

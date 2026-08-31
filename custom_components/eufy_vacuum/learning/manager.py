@@ -35,7 +35,12 @@ _LOGGER = logging.getLogger(__name__)
 
 from .brand_facts import brand_facts_for
 from ..const import DOMAIN
-from ..core.error_tracker import error_label_key, error_source_for_code
+from ..core.error_tracker import (
+    default_error_source,
+    error_label_key,
+    error_label_key_from_message,
+    error_source_for_code,
+)
 from ..profiles.room_profiles import get_default_room_profiles
 from ..timestamp_utils import parse_timestamp, utc_now
 from .utils import _iso_now, _room_key, _room_profile_key, _safe_float, _safe_int
@@ -93,15 +98,24 @@ def _run_error_rows(vacuum_entity_id: str, outcome: dict[str, Any]) -> list[dict
         if not isinstance(entry, dict):
             continue
         code = entry.get("code")
+        # Code path first (Eufy/Roborock: numeric code -> adapter table). A slug-fault
+        # brand (Dreame) has no readable code, so fall back to the error entity's STATE
+        # slug -> fault.<brand>.<slug>. Gated inside the helper on the adapter opting in.
+        label_key = error_label_key(vacuum_entity_id, code)
+        if label_key is None:
+            label_key = error_label_key_from_message(vacuum_entity_id, entry.get("message"))
+        # "dock" / "robot" / "unknown". Unknown is a real answer, not a fallback to the
+        # majority class -- blaming the robot for a code newer than the adapter's table
+        # points the user at hardware that is fine. But a brand whose codes are slugs the
+        # source table was never built for can declare a default (Dreame: "robot").
+        source = error_source_for_code(vacuum_entity_id, code)
+        if source == "unknown":
+            source = default_error_source(vacuum_entity_id) or "unknown"
         rows.append(
             {
                 "code": code,
-                "label_key": error_label_key(vacuum_entity_id, code),
-                # "dock" / "robot" / "unknown". Unknown is a real answer, not a
-                # fallback to the majority class -- blaming the robot for a code
-                # newer than the adapter's table points the user at hardware that
-                # is fine.
-                "source": error_source_for_code(vacuum_entity_id, code),
+                "label_key": label_key,
+                "source": source,
                 # recovered_at is stamped by the falling edge. Absent means the
                 # fault was still latched when the run ended -- which is NOT the
                 # same as "the fault ended the run", so this reports recovery only

@@ -187,6 +187,40 @@ class ExternalRunManager:
         value = str(getattr(state_obj, "state", "") or "").strip().lower()
         return value in {str(s).strip().lower() for s in mid_run}
 
+    def _external_queued_room_ids(
+        self, vacuum_entity_id: str, map_id: str
+    ) -> list[int] | None:
+        """The device's OWN queue snapshot for an app-started run — which rooms were selected
+        and in what tap ORDER — read from the live-map camera's ``active_segments`` attribute.
+        Ground truth vs. the swept-area inference; drives ``not_reached`` on the external record.
+
+        Gated on the adapter declaring ``external_run.queue_from_active_segments`` (Dreame), so a
+        brand with no such snapshot keeps the pose-only path. None on any miss — never raises."""
+        from ..adapters.registry import get_adapter_config
+
+        adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
+        if not (adapter_cfg.get("external_run") or {}).get("queue_from_active_segments"):
+            return None
+        try:
+            cam = self._manager._resolve_live_map_image_entity(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id, adapter_cfg=adapter_cfg
+            )
+            state_obj = self._manager.hass.states.get(cam) if cam else None
+            seg = (getattr(state_obj, "attributes", {}) or {}).get("active_segments")
+        except Exception:  # noqa: BLE001 - a device read must never break finalize
+            return None
+        if not isinstance(seg, list):
+            return None
+        ids: list[int] = []
+        for value in seg:
+            try:
+                rid = int(value)
+            except (TypeError, ValueError):
+                continue
+            if rid > 0 and rid not in ids:  # preserve tap ORDER; dedupe defensively
+                ids.append(rid)
+        return ids or None
+
     def _external_grace_cb(self, vacuum_entity_id: str, map_id: str):
         @callback
         def _fire(_now) -> None:
@@ -439,6 +473,12 @@ class ExternalRunManager:
         # history recoverable instead of destroying it.
         peeked_errors = self._peek_run_errors(vacuum_entity_id)
 
+        # active_segments: the device's OWN queue snapshot (which rooms were selected + the tap
+        # ORDER) — the ground truth for an app-started run, vs. inferring the cleaned set from
+        # swept area. Read from the live-map camera attribute (persists post-dock; briefly None
+        # at run start, which is why it is read at finalize). Gated on the adapter declaring it.
+        queued_room_ids = self._external_queued_room_ids(vacuum_entity_id, map_id)
+
         def _build_and_write() -> dict[str, Any] | None:
             import json
 
@@ -471,6 +511,7 @@ class ExternalRunManager:
                 vacuum_entity_id=vacuum_entity_id,
                 pose_samples=pose_samples,
                 footprint_by_id=footprints,
+                queued_room_ids=queued_room_ids,
             )
             if record is None:
                 return None

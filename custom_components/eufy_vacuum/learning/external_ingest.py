@@ -685,6 +685,7 @@ def build_attributed_job(
     rooms: dict[str, Any],
     baselines: list[dict[str, Any]],
     footprint_by_id: dict[int, float] | None = None,
+    queued_room_ids: list[int] | None = None,
 ) -> dict[str, Any] | None:
     """Stand up a pending review record straight from the pose attribution, for a run the
     counter segmenter couldn't split (the common app-run case — see the section note). One
@@ -791,6 +792,20 @@ def build_attributed_job(
         # attributed per-room sum is checked against downstream (build_jobs_index_payload).
         "cleaning_area_sensor_m2": _max_cleaning_area_m2(pose_samples),
         "segments": segments,
+        # active_segments — the DEVICE'S OWN queue snapshot (which rooms were selected + the tap
+        # ORDER), the ground truth for an app-started run vs. the swept-area INFERENCE above.
+        # not_reached = queued but never accrued area (canceled / skipped). Absent when the brand
+        # exposes no queue snapshot -> pre-existing pose-only behaviour, byte-for-byte.
+        **(
+            {
+                "queued_room_ids": [int(r) for r in queued_room_ids],
+                "not_reached_room_ids": [
+                    int(r) for r in queued_room_ids if int(r) not in cleaned
+                ],
+            }
+            if queued_room_ids
+            else {}
+        ),
     }
 
 
@@ -805,6 +820,7 @@ def build_pending_record(
     vacuum_entity_id: str | None = None,
     pose_samples: list[dict[str, Any]] | None = None,
     footprint_by_id: dict[int, float] | None = None,
+    queued_room_ids: list[int] | None = None,
 ) -> dict[str, Any] | None:
     """Turn a captured external run into a pending review record (schema v2), or None
     when there is no usable cleaning signal (so a false-start writes nothing).
@@ -842,7 +858,7 @@ def build_pending_record(
         return build_attributed_job(
             detection_ts=detection_ts, map_id=map_id, pose_samples=pose_samples,
             attribution=attribution, settings_samples=settings, rooms=rooms, baselines=baselines,
-            footprint_by_id=footprint_by_id,
+            footprint_by_id=footprint_by_id, queued_room_ids=queued_room_ids,
         )
 
     out_segments, _confident_count, active_ids, selected_ids = _enrich_segments(
@@ -854,7 +870,7 @@ def build_pending_record(
         return build_attributed_job(
             detection_ts=detection_ts, map_id=map_id, pose_samples=pose_samples,
             attribution=attribution, settings_samples=settings, rooms=rooms, baselines=baselines,
-            footprint_by_id=footprint_by_id,
+            footprint_by_id=footprint_by_id, queued_room_ids=queued_room_ids,
         )
 
     if attribution and pose_samples:

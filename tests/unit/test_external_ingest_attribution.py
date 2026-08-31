@@ -190,6 +190,34 @@ def test_build_attributed_job_stands_up_pose_only_record():
     assert len(rec["pose_samples"]) == len(pose)  # raw pose embedded for re-attribution
 
 
+def test_build_attributed_job_carries_device_queue_and_not_reached():
+    """The device's active_segments queue is GROUND TRUTH: the record carries queued_room_ids
+    (tap ORDER preserved) and not_reached_room_ids (queued but the swept-area engine never
+    confirmed cleaned). Room 8 was tapped but not cleaned -> not reached. BITE: pass no queue and
+    both fields are absent (pose-only behaviour, byte-for-byte)."""
+    attribution = {
+        "cleaned": {5, 9}, "mode": "robust", "interval_s": 2.0,
+        "per_room": {5: {"swept_area_m2": 6.0}, 9: {"swept_area_m2": 2.0}}, "verdicts": {},
+    }
+    pose = (
+        [{"t": _pose_t(s), "current_room": 5} for s in range(0, 24, 2)]
+        + [{"t": _pose_t(s), "current_room": 9} for s in range(24, 60, 2)]
+    )
+    rec = build_attributed_job(
+        detection_ts=_BASE.isoformat(), map_id="6", pose_samples=pose,
+        attribution=attribution, settings_samples=[], rooms=_ROOMS, baselines=[],
+        queued_room_ids=[9, 5, 8],  # tapped Kitchen, Entryway, then a room never cleaned
+    )
+    assert rec["queued_room_ids"] == [9, 5, 8]  # tap ORDER preserved (base truth, not id-sorted)
+    assert rec["not_reached_room_ids"] == [8]   # queued but never accrued swept area
+
+    rec_none = build_attributed_job(
+        detection_ts=_BASE.isoformat(), map_id="6", pose_samples=pose,
+        attribution=attribution, settings_samples=[], rooms=_ROOMS, baselines=[],
+    )
+    assert "queued_room_ids" not in rec_none and "not_reached_room_ids" not in rec_none
+
+
 def test_build_attributed_job_stamps_sensor_total():
     """cleaning_area_sensor_m2 = the PEAK cleaning_area across the pose stream (the device's own
     run total), independent of the per-room swept attribution — the sanity bound the sum is

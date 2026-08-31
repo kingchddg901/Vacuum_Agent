@@ -183,8 +183,10 @@ def _build_transit_blocks(
     return room_timings, transitions, valid
 
 
-def _counter_at(counter_samples: Any, when_iso: Any) -> float | None:
-    """``cleaning_time`` as of ``when_iso`` - the last sample at or before it."""
+def _counter_at(counter_samples: Any, when_iso: Any, field: str = "cleaning_time") -> float | None:
+    """A cumulative counter ``field`` (``cleaning_time`` seconds / ``cleaning_area`` m²) as of
+    ``when_iso`` — the last sample at or before it. Cumulative, so this IS the value at that
+    instant; a window delta is ``_counter_at(end) - _counter_at(start)``."""
     if not when_iso:
         return None
     best: float | None = None
@@ -192,7 +194,7 @@ def _counter_at(counter_samples: Any, when_iso: Any) -> float | None:
         if not isinstance(sample, dict):
             continue
         stamp = sample.get("t")
-        value = sample.get("cleaning_time")
+        value = sample.get(field)
         if not stamp or value is None or str(stamp) > str(when_iso):
             continue
         try:
@@ -200,6 +202,98 @@ def _counter_at(counter_samples: Any, when_iso: Any) -> float | None:
         except (TypeError, ValueError):
             continue
     return best
+
+
+def _iso_span_seconds(start_iso: Any, end_iso: Any) -> int:
+    """Clock seconds between two ISO stamps (0 on a parse failure or a missing end)."""
+    if not start_iso or not end_iso:
+        return 0
+    try:
+        a = datetime.fromisoformat(str(start_iso).replace("Z", "+00:00"))
+        b = datetime.fromisoformat(str(end_iso).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return 0
+    return max(int((b - a).total_seconds()), 0)
+
+
+def _build_native_room_timings(
+    *,
+    pose_samples: list[dict[str, Any]],
+    counter_samples: list[dict[str, Any]],
+    queue_room_ids: list[Any],
+    slug_by_id: dict[int, str | None],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
+    """Per-room timings cut at the NATIVE current_room boundaries the pose sampler buffered.
+
+    For a brand (Dreame) whose live room is a device signal and whose cumulative counters +
+    sub-30 s inter-room transits defeat the counter segmenter — it yields ONE segment (whole run
+    → the first queue room, so the LAST room reads "Not reached"), and ``noop`` yields none. The
+    POSE stream owns *which room and when*; the COUNTER stream owns *time and area*.
+
+    Each queue room's window is ``[its first appearance in the pose stream, the next queue room's
+    first appearance)``; the last room runs to the end of the counter stream — so the final room
+    IS captured here, which the live rollover cannot do (it never completes the current room).
+    Per window: ``cleaning_seconds`` = the cumulative ``cleaning_time`` (seconds) delta, ``area_m2``
+    = the cumulative ``cleaning_area`` delta, wall = the window's clock span. The inter-room gap is
+    transit, folded into the room being LEFT (the cut is at the next room's arrival), which keeps
+    the parts telescoping to the run total. A queue room never seen in the pose stream gets NO
+    timing → it is correctly reported "not reached". Returns ``(room_timings, [], valid)`` — no
+    transitions and no reconcile pass (the pose signal already owns identity)."""
+    queue_ids = [_safe_int(r, -1) for r in (queue_room_ids or []) if _safe_int(r, -1) > 0]
+    queue_set = set(queue_ids)
+
+    # First appearance (in stream order) of each queue room in the native pose signal.
+    order: list[tuple[int, str]] = []
+    seen: set[int] = set()
+    for sample in pose_samples or []:
+        if not isinstance(sample, dict):
+            continue
+        rid = _safe_int(sample.get("current_room"), -1)
+        stamp = sample.get("t")
+        if rid in queue_set and rid not in seen and stamp:
+            seen.add(rid)
+            order.append((rid, str(stamp)))
+    if not order:
+        return [], [], False
+
+    stamps = [
+        str(s.get("t")) for s in (counter_samples or [])
+        if isinstance(s, dict) and s.get("t")
+    ]
+    end_iso = max(stamps) if stamps else None
+
+    rows: list[dict[str, Any]] = []
+    for i, (rid, start_iso) in enumerate(order):
+        stop_iso = order[i + 1][1] if i + 1 < len(order) else end_iso
+        ct0 = _counter_at(counter_samples, start_iso, "cleaning_time") or 0.0
+        ct1 = _counter_at(counter_samples, stop_iso, "cleaning_time")
+        ct1 = ct0 if ct1 is None else ct1
+        ca0 = _counter_at(counter_samples, start_iso, "cleaning_area") or 0.0
+        ca1 = _counter_at(counter_samples, stop_iso, "cleaning_area")
+        ca1 = ca0 if ca1 is None else ca1
+        rows.append(
+            {
+                "room_id": rid,
+                "slug": slug_by_id.get(rid),
+                "cleaning_start": start_iso,
+                "cleaning_end": stop_iso,
+                "cleaning_seconds": max(int(round(ct1 - ct0)), 0),
+                "cleaning_wall_seconds": _iso_span_seconds(start_iso, stop_iso),
+                "area_m2": round(max(ca1 - ca0, 0.0), 2),
+                "boundary": "native_current_room",
+            }
+        )
+    valid = len(rows) == len(queue_ids)
+    return rows, [], valid
+
+
+def _native_finalize_brand(vacuum_entity_id: str | None) -> bool:
+    """True when the vacuum's adapter declares the native-current_room finalize (Dreame)."""
+    if not vacuum_entity_id:
+        return False
+    from .brand_facts import brand_facts_for
+
+    return bool(brand_facts_for(vacuum_entity_id).native_finalize)
 
 
 def _idle_seconds(counter_samples: Any, start_iso: Any, end_iso: Any) -> int | None:
@@ -2045,6 +2139,26 @@ class LearningHistoryStore:
             room_timings = _phase_room_timings
             transitions = []  # inter-phase gaps are dock overhead, not room-to-room transit
             transit_capture_valid = _every_phase_captured
+        elif _native_finalize_brand(vacuum_entity_id):
+            # NATIVE FINALIZE (Dreame): the counter segmenter cannot split this brand's
+            # cumulative counters across its sub-30 s inter-room transits — it yields ONE segment
+            # (whole run → the first queue room, so the LAST room reads "Not reached") and noop
+            # yields none. Cut per-room timings at the native current_room boundaries the pose
+            # sampler buffered instead; the pose signal owns identity, so no reconcile follows.
+            room_timings, transitions, transit_capture_valid = _build_native_room_timings(
+                pose_samples=(
+                    (active_job_state.get("pose_samples") or [])
+                    if isinstance(active_job_state, dict)
+                    else []
+                ),
+                counter_samples=(
+                    active_job_state.get("counter_samples", [])
+                    if isinstance(active_job_state, dict)
+                    else []
+                ),
+                queue_room_ids=_queue_ids_for_transit,
+                slug_by_id=slug_by_id,
+            )
         else:
             room_timings, transitions, transit_capture_valid = _build_transit_blocks(
                 counter_samples=(

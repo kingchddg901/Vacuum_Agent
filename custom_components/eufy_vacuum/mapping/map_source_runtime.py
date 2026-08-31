@@ -647,41 +647,102 @@ def rooms_from_mapdata(map_data: Any) -> list[dict[str, Any]]:
     return out
 
 
-def correspondences_from_mapdata(map_data: Any) -> list[tuple[float, float, float, float]]:
+def correspondences_from_mapdata(
+    map_data: Any, *, offset: tuple[float, float] = (0.0, 0.0)
+) -> list[tuple[float, float, float, float]]:
     """``(nx, ny, mmx, mmy)`` pairs from the live map's room-bbox corners.
 
-    This is the input the zone-dispatch affine fit needs to invert the normalized->mm
-    mapping for brands (Roborock) whose zone command wants device millimetres. Each room
-    contributes its four axis-aligned corners, projected device-mm -> normalized via the
-    shared ``_mapdata_projector`` (the parser's OWN transform — same source of truth as
-    ``rooms_from_mapdata``). Returns ``[]`` when geometry is unavailable; bad/clamped
-    corners are ACTUALLY skipped (GEO-4/RB-8: ``proj`` is called with
-    ``reject_out_of_grid=True`` here, so a corner that projects outside the image is
-    dropped rather than silently accepted as a clamped edge point — a clamped-but-wrong
-    correspondence would otherwise feed the affine fit a corrupted data point instead of
-    being excluded from it).
+    This is the input the zone-dispatch / go-to affine fit needs to invert the
+    normalized->mm mapping for brands (Roborock, Dreame) whose command wants device
+    millimetres. Each room contributes its four axis-aligned corners, projected
+    device-mm -> normalized via the shared ``_mapdata_projector`` (the parser's OWN
+    transform — same source of truth as ``rooms_from_mapdata``). Returns ``[]`` when
+    geometry is unavailable; bad/clamped corners are ACTUALLY skipped (GEO-4/RB-8: ``proj``
+    is called with ``reject_out_of_grid=True`` here, so a corner that projects outside the
+    image is dropped rather than silently accepted as a clamped edge point — a
+    clamped-but-wrong correspondence would otherwise feed the affine fit a corrupted data
+    point instead of being excluded from it).
+
+    ``offset`` = the render's ``map_state_source.map_frame_offset_mm`` [x_mm, y_mm]. The
+    Dreame render shifts the whole raster onto the device's own frame by adding this to the
+    vacuum coord before projection (see ``dreame_render_from_mapdata``'s ``_n``); the
+    NORMALIZED side of each correspondence must carry the SAME shift so the fitted affine
+    matches what the card actually renders — else a tap lands ~offset away. The mm side
+    stays the TRUE room coord, so the affine maps rendered-normalized -> true-vacuum-mm.
+
+    Dispatches by MapData SHAPE: a Roborock/Eufy parser MapData (``.image.dimensions.to_img``
+    + ``.rooms``) uses the parser projector here; a decoded Dreame MapData (``.dimensions``
+    grid + ``.segments``) has neither, so it is delegated to
+    ``dreame_correspondences_from_mapdata``, which mirrors the Dreame render's own projection.
     """
+    try:
+        ox, oy = float(offset[0]), float(offset[1])
+    except (TypeError, ValueError, IndexError):
+        ox, oy = 0.0, 0.0
+    # Roborock/Eufy parser MapData path — `.rooms` bboxes through the parser's own transform.
     rooms_attr = getattr(map_data, "rooms", None)
-    if rooms_attr is None:
-        return []
     proj_geom = _mapdata_projector(map_data)
+    if rooms_attr is not None and proj_geom is not None:
+        proj = proj_geom[0]
+        items = rooms_attr.values() if hasattr(rooms_attr, "values") else rooms_attr
+        out: list[tuple[float, float, float, float]] = []
+        for r in items:
+            x0 = getattr(r, "x0", None); y0 = getattr(r, "y0", None)
+            x1 = getattr(r, "x1", None); y1 = getattr(r, "y1", None)
+            if None in (x0, y0, x1, y1):
+                continue
+            for mx, my in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+                p = proj(mx + ox, my + oy, reject_out_of_grid=True)
+                if p:
+                    try:
+                        out.append((p[0], p[1], float(mx), float(my)))
+                    except (TypeError, ValueError):
+                        continue
+        return out
+    # Dreame decoded MapData path — `.segments` bboxes through the Dreame render's projector.
+    return dreame_correspondences_from_mapdata(map_data, offset=(ox, oy))
+
+
+def dreame_correspondences_from_mapdata(
+    md: Any, *, offset: tuple[float, float] = (0.0, 0.0)
+) -> list[tuple[float, float, float, float]]:
+    """``(nx, ny, mmx, mmy)`` pairs from a decoded Dreame ``MapData``'s SEGMENT-bbox corners.
+
+    REPLICA RN0Y49XS — this MUST project exactly like ``dreame_render_from_mapdata``'s ``_n``:
+    add ``map_frame_offset_mm`` to the vacuum coord, run it through the SAME
+    ``_dreame_projector``, normalize by ``(width, height)``. The go-to / zone affine is fitted
+    from these pairs, so if this drifts from the render a tap lands ~offset from where the
+    robot actually goes. It differs from ``_n`` in ONE deliberate way — it REJECTS an
+    out-of-grid corner (a clamped corner is a corrupted correspondence for the fit) where
+    ``_n`` clamps for display. Change the render projection and change this too
+    (docs/dev/00c-replicas.md). ``[]`` when dimensions or segments are unavailable.
+    """
+    proj_geom = _dreame_projector(getattr(md, "dimensions", None))
     if proj_geom is None:
         return []
-    proj = proj_geom[0]
-    items = rooms_attr.values() if hasattr(rooms_attr, "values") else rooms_attr
+    proj, width, height, _gs = proj_geom
+    try:
+        ox, oy = float(offset[0]), float(offset[1])
+    except (TypeError, ValueError, IndexError):
+        ox, oy = 0.0, 0.0
+    segs = getattr(md, "segments", None) or {}
+    items = segs.values() if hasattr(segs, "values") else segs
     out: list[tuple[float, float, float, float]] = []
-    for r in items:
-        x0 = getattr(r, "x0", None); y0 = getattr(r, "y0", None)
-        x1 = getattr(r, "x1", None); y1 = getattr(r, "y1", None)
+    for s in items:
+        x0 = getattr(s, "x0", None); y0 = getattr(s, "y0", None)
+        x1 = getattr(s, "x1", None); y1 = getattr(s, "y1", None)
         if None in (x0, y0, x1, y1):
             continue
         for mx, my in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
-            p = proj(mx, my, reject_out_of_grid=True)
-            if p:
-                try:
-                    out.append((p[0], p[1], float(mx), float(my)))
-                except (TypeError, ValueError):
-                    continue
+            try:
+                p = proj(float(mx) + ox, float(my) + oy)
+            except (TypeError, ValueError):
+                continue
+            if p is None:
+                continue
+            nx, ny = p[0] / width, p[1] / height
+            if 0.0 <= nx <= 1.0 and 0.0 <= ny <= 1.0:
+                out.append((nx, ny, float(mx), float(my)))
     return out
 
 
@@ -854,7 +915,7 @@ def dreame_result_from_candidates(candidates: dict[str, Any], *, present: bool) 
 
 
 # ---------------------------------------------------------------------------
-# anchor: BNDREAMEMD
+# anchor: BN47Z0PR
 # Dreame RASTER backend — consume the base integration's decoded MapData object
 # (pixel_type grid + segments + dimensions + pose + user-placed furniture) rather
 # than the camera-attr bboxes. Reached via the PUBLIC coordinator.device accessor,
@@ -1018,6 +1079,11 @@ def dreame_render_from_mapdata(
     except Exception as exc:  # noqa: BLE001
         diag["area_error"] = repr(exc)
 
+    # anchor: RN0Y49XS  Dreame render projection ↔ go-to/zone correspondences — the replica
+    # This `_n` (proj + map_frame_offset_mm, normalize by width/height) is the transform the
+    # go-to / zone affine must INVERT. dreame_correspondences_from_mapdata restates it corner
+    # for corner; change one and change the other or a tap lands ~offset off. See 00c-replicas.md.
+    #
     # Frame alignment tune (adapter `map_frame_offset_mm` = [x_mm, y_mm], vacuum frame):
     # our dims-based projection sits ~1 robot-diameter off Dreame's own render (the
     # authoritative frame the robot obeys), so we nudge the WHOLE raster — rooms AND

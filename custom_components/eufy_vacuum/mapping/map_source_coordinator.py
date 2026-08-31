@@ -287,6 +287,29 @@ class MapSourceCoordinator:
                         result.get("reason"), len(result.get("rooms") or []),
                         result.get("diagnostics"),
                     )
+                # Current-room HIGHLIGHT source for native_current_room brands. The shared
+                # raster render carries geometry only, and Dreame's decoded map leaves
+                # vacuum_room null (robot_pose_from_mapdata sets current_room only for an int),
+                # so the card's current-room layer had no id to fill — it stayed dark. When the
+                # adapter declares the native source, resolve the live room from its NAME entity
+                # (the SAME managed id the attribution path banks) so the highlight and the
+                # per-room split ride ONE signal. Skip when the decode already supplied one, so a
+                # future brand whose parser fills vacuum_room keeps its own answer.
+                if (
+                    isinstance(result, dict)
+                    and result.get("present")
+                    and not result.get("current_room")
+                    and (adapter_cfg.get("room_attribution") or {}).get("source")
+                    == "native_current_room"
+                ):
+                    from ..rooms.current_room import resolve_native_current_room_id
+
+                    cr = resolve_native_current_room_id(
+                        self._manager.hass, self._manager,
+                        vacuum_entity_id, adapter_cfg, str(map_id),
+                    )
+                    if cr is not None:
+                        result["current_room"] = cr
                 result = self._commit_result(vacuum_entity_id, map_id, result)
             else:
                 result = {"present": False, "reason": f"unknown_backend:{backend}"}
@@ -467,6 +490,17 @@ class MapSourceCoordinator:
                 )
                 if found.get("present"):
                     return found.get("obj")
+            elif backend == "camera_attrs":
+                # Dreame: the decoded MapData lives on the base integration's coordinator
+                # device (the render's OWN source), reached via the vacuum entity — not a
+                # live-image entity. `.segments` + `.dimensions` is all the go-to / zone
+                # affine needs (correspondences_from_mapdata delegates to the Dreame path);
+                # pose is irrelevant here, so no image entity is resolved.
+                found = _msr.dreame_mapdata_candidates(
+                    self._manager.hass, vacuum_entity_id, source_cfg, None,
+                )
+                if found.get("present"):
+                    return found.get("map_data")
         except Exception:  # noqa: BLE001 - never break dispatch; caller refuses on None
             _LOGGER.debug(
                 "get_live_mapdata_obj failed for %s", vacuum_entity_id, exc_info=True,
