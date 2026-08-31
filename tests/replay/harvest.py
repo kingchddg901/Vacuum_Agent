@@ -376,8 +376,12 @@ def harvest_run(
     events, _deduped = _dedupe(events)
 
     rooms = job.get("room_timings") or []
-    # A PHASE-CHILD record leaves cleaning_area_m2 at 0.0 while its room rows
-    # carry the real figures, so comparing truth against the job-level field
+    # A phase-child record written BEFORE the phase-scope key fix left
+    # cleaning_area_m2 at 0.0 while its room rows carried the real figures (the
+    # scope summed a mis-keyed "cleaning_area_m2" the rows never held; they use
+    # "area_m2"). New records carry the correct job-level total, but pre-fix
+    # children are still on disk, so this fallback stays: prefer the summed room
+    # rows whenever the job field is a falsy 0.0. Comparing against the job field
     # alone reported a fabricated -6 m2 gap on exactly the runs that mattered.
     _job_area = job.get("cleaning_area_m2")
     _room_area = round(sum(float(r.get("area_m2") or 0) for r in rooms), 3) if rooms else None

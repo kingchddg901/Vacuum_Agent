@@ -613,3 +613,83 @@ def test_rounding_jitter_is_not_a_counter_reset():
     # does the total. It must not go DOWN either.
     assert round(out[3]["cleaning_area"], 6) == 3.0
     assert [round(s["cleaning_area"], 6) for s in out] == [1.0, 2.0, 3.0, 3.0, 4.0]
+
+
+# ---------------------------------------------------------------------------
+# live:PHASE-ATTR-2 — an isolated sensor spike at phase start is not progress
+# ---------------------------------------------------------------------------
+
+def test_phase_start_area_spike_is_not_counted_as_progress():
+    """[SOPT-19] Dreame's ``_cleaned_area`` re-publishes its stale pre-reset value for
+    ~1 s at each phase start, then settles to 0 and ramps.
+
+    MEASURED on the live box 2026-08-30 (recorder history, ``sensor.robin_cleaned_area``,
+    phased run pj_2026-08-30T15-19-31): a run whose entryway swept ~1 m2 and kitchen
+    ~5 m2 read ``0, 5, 0, 1`` and ``0, 1, 0, 1..5`` per phase — the 5 and the leading 1
+    are stale-value spikes. Un-deglitched, ``_phase_progress_samples`` books the 0->5 as
+    real progress and the 5->0 as a reset that adds ``max(0, 0)`` (never SUBTRACTS the
+    phantom), so BOTH phases accumulated exactly 6.0 m2 — the phantom quantum plus the
+    real ramp — and the card showed 6.0 / 6.0 instead of ~1 / ~5.
+
+    The numbers below are the device's own quantised integers, not a scale I chose.
+    BITE: drop the _isolated_spike_indices mute and entryway reads 6.0, kitchen 6.0.
+    """
+    # Phase 0 (Entryway): first phase, no prior floor. The 5.0 is the stale spike.
+    entry = phase_runner_mod._phase_progress_samples(
+        [],
+        [
+            _cs("2026-08-30T22:19:31Z", 0, 0.0),     # run start / reset
+            _cs("2026-08-30T22:19:42Z", 0, 5.0),     # GLITCH: kitchen's stale 5 reappears
+            _cs("2026-08-30T22:19:43Z", 0, 0.0),     # gone, 1 s later
+            _cs("2026-08-30T22:20:39Z", 0, 1.0),     # entryway climbs for real
+            _cs("2026-08-30T22:20:45Z", 60, 1.0),    # ct ticks, carries ca=1
+            _cs("2026-08-30T22:21:45Z", 120, 1.0),
+        ],
+    )
+    assert entry[-1]["cleaning_area"] == 1.0     # NOT 6.0
+    assert entry[-1]["cleaning_time"] == 120.0   # the (un-glitched) time is untouched
+    # The spike sample is carried, not counted: it neither rose the total nor reset it.
+    assert entry[1]["cleaning_area"] == 0.0
+
+    # Phase 2 (Kitchen): prior floor is entryway's last area (1.0). Leading 1.0 is the spike.
+    kitchen = phase_runner_mod._phase_progress_samples(
+        [_cs("2026-08-30T22:21:45Z", 120, 1.0)],
+        [
+            _cs("2026-08-30T22:24:30Z", 0, 0.0),     # kitchen reset
+            _cs("2026-08-30T22:24:40Z", 0, 1.0),     # GLITCH spike
+            _cs("2026-08-30T22:24:41Z", 0, 0.0),     # gone
+            _cs("2026-08-30T22:25:20Z", 0, 1.0),
+            _cs("2026-08-30T22:26:05Z", 60, 2.0),
+            _cs("2026-08-30T22:27:02Z", 120, 3.0),
+            _cs("2026-08-30T22:28:17Z", 180, 4.0),
+            _cs("2026-08-30T22:28:56Z", 240, 5.0),
+        ],
+    )
+    assert kitchen[-1]["cleaning_area"] == 5.0   # NOT 6.0
+    assert kitchen[-1]["cleaning_time"] == 240.0
+
+
+def test_a_real_peak_before_a_reset_is_not_mistaken_for_a_spike():
+    """[SOPT-20] The deglitch must NOT touch a real segment peak that precedes a
+    legitimate per-room reset — the multi-room group path (``_segment_group_room_timing``)
+    depends on those resets. The discriminator is flank SYMMETRY: a glitch rises from a
+    level and returns to that SAME level (``0, 5, 0``); a real peak rose GRADUALLY and
+    drops away (``…, 4, 5, 0`` — flanks 4 and 0, unequal), so it survives.
+
+    Room A ramps 0->3 and the counter resets to 0 for room B, which ramps 0->2. The 3.0
+    peak is flanked by 2.0 (its own ramp) and 0.0 (the reset) — asymmetric, so it is kept
+    and room A's third square metre is not lost. BITE: widen the flank test to ignore
+    symmetry and room A reads 2 m2, the whole run 4 m2 instead of 5."""
+    out = phase_runner_mod._phase_progress_samples(
+        [_cs("2026-01-01T00:00:00Z", 0, 0.0)],
+        [
+            _cs("2026-01-01T00:00:30Z", 30, 1.0),
+            _cs("2026-01-01T00:01:00Z", 60, 2.0),
+            _cs("2026-01-01T00:01:30Z", 90, 3.0),    # room A's real peak
+            _cs("2026-01-01T00:02:00Z", 0, 0.0),     # reset to room B
+            _cs("2026-01-01T00:02:30Z", 30, 1.0),
+            _cs("2026-01-01T00:03:00Z", 60, 2.0),    # room B's peak
+        ],
+    )
+    # 3 (room A) accumulated, then 2 more (room B) = 5, with the 3.0 peak intact.
+    assert [s["cleaning_area"] for s in out] == [1.0, 2.0, 3.0, 3.0, 4.0, 5.0]

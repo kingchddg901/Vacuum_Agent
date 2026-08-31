@@ -660,8 +660,10 @@ class LearningJobFinalizer:
         # uses (REC-B's break-phase-aware fallback included) rather than
         # reporting a fabricated zero.
         _phase_sum: int | None = None
+        _phase_area_sum: float | None = None
         if isinstance(_phases_for_metrics, list) and _phases_for_metrics:
             _phase_sum = 0
+            _phase_area_sum = 0.0
             _any_captured = False
             for _p in _phases_for_metrics:
                 if not isinstance(_p, dict):
@@ -669,13 +671,16 @@ class LearningJobFinalizer:
                 for _rt in (_p.get("room_timing") or []):
                     if isinstance(_rt, dict):
                         _phase_sum += _safe_int(_rt.get("cleaning_seconds"), 0)
+                        _phase_area_sum += _safe_float(_rt.get("area_m2"), 0.0)
                         _any_captured = True
                 _zt = _p.get("zone_timing")
                 if isinstance(_zt, dict):
                     _phase_sum += _safe_int(_zt.get("wall_seconds"), 0)
+                    _phase_area_sum += _safe_float(_zt.get("area_m2"), 0.0)
                     _any_captured = True
             if not _any_captured:
                 _phase_sum = None
+                _phase_area_sum = None
 
         if _phase_sum is not None:
             cleaning_time_seconds: int | None = _phase_sum
@@ -685,14 +690,28 @@ class LearningJobFinalizer:
             cleaning_time_seconds = _safe_int(
                 _job_state_for_metrics.get("last_cleaning_time_seconds"), None
             )
-        # Neither the device counter NOR cleaning_area_m2 are reliable job
-        # totals for a stepped run (area ACCUMULATES across phases while time
-        # does not — the two counters reset differently and nothing documents
-        # that per brand), so area/water stay on the existing last_* path
-        # unchanged regardless of which cleaning_time_seconds path was taken.
-        cleaning_area_m2: float | None = _safe_float(
-            _job_state_for_metrics.get("last_cleaning_area_m2"), None
-        )
+        # A STEPPED run resets the device's cleaning_area counter per phase on at
+        # least one brand — Dreame, VERIFIED live 2026-08-30: entryway swept 0->1,
+        # reset, kitchen 0->5, so last_cleaning_area_m2 held only the final 5 while
+        # the run cleaned 6. The old premise here ("area ACCUMULATES across phases
+        # while time does not") was an unverified guess and is FALSE for such a
+        # brand, so both the job total AND its sanity bound (cleaning_area_sensor_m2,
+        # set from this value below) read short by every earlier phase — the card's
+        # "Area Cleaned" then disagreed with its own per-room breakdown (5 vs 1+5).
+        # Sum the per-phase captured areas exactly as the seconds are summed above.
+        # For a brand that DOES accumulate, each phase's progress-since-phase-start
+        # figure telescopes to the same run total, so this is correct either way.
+        # Water stays on the last_* path (no per-phase capture to sum).
+        # Truthy, not `is not None`: a stepped run that captured timing but ZERO area
+        # (a flat area sensor with no learned fallback) must not report 0 m² — fall
+        # through to the device counter, the same "we don't know, use the best signal"
+        # stance the time path takes when nothing was captured.
+        if _phase_area_sum:
+            cleaning_area_m2: float | None = round(_phase_area_sum, 3)
+        else:
+            cleaning_area_m2 = _safe_float(
+                _job_state_for_metrics.get("last_cleaning_area_m2"), None
+            )
         water_end_station_percent: float | None = _safe_float(
             _job_state_for_metrics.get("last_station_water_percent"), None
         )

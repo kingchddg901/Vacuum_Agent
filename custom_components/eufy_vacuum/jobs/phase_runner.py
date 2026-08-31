@@ -140,6 +140,56 @@ _PHASE_COUNTER_KEYS = ("cleaning_time", "cleaning_area")
 _RESET_EPS = {"cleaning_time": 0.5, "cleaning_area": 0.01}
 
 
+def _isolated_spike_indices(
+    slice_samples: list[dict[str, Any]], key: str, eps: float
+) -> set[int]:
+    """Sample indices whose ``key`` reading is a spurious ISOLATED SPIKE — a strict
+    local maximum flanked by two roughly-equal lower values (``low, PEAK, low``).
+
+    live:PHASE-ATTR-2. Dreame's ``_cleaned_area`` sensor re-publishes its stale
+    pre-reset value for ~1 s at each phase start, then settles to 0 and ramps.
+    VERIFIED on the live box 2026-08-30 (recorder history, ``sensor.robin_cleaned_area``):
+    a run whose entryway swept ~1 m2 and kitchen ~5 m2 read ``0, 5, 0, 1`` and
+    ``0, 1, 0, 1..5`` per phase. ``_phase_progress_samples`` counts the 0->5 as real
+    progress and the 5->0 as a reset that adds ``max(0, 0)`` — it never SUBTRACTS the
+    phantom — so both phases accumulated 6.0 m2 (the phantom quantum plus the real ramp).
+
+    The discriminator is the FLANK SYMMETRY, not time: a glitch rises from a level and
+    returns to that SAME level (``0, 5, 0`` — flanks equal), whereas a real segment peak
+    before a legitimate per-room reset rose GRADUALLY and drops away (``4, 5, 0`` — flanks
+    4 and 0, unequal). So only a strict local max whose neighbours are within ``eps`` of
+    each other is muted; a real ramp's peak-before-reset is preserved untouched, which is
+    what keeps the multi-room group path (intra-slice resets between members) correct.
+
+    ``eps`` is the counter's reset tolerance; a spike must clear its flanks by more than
+    that (real jitter never does). The first/last point of a slice is never a candidate —
+    a spike needs both flanks to be judged isolated.
+    """
+    pts: list[tuple[int, float]] = []
+    for si, sample in enumerate(slice_samples):
+        if not isinstance(sample, dict):
+            continue
+        raw = sample.get(key)
+        if raw is None:
+            continue
+        try:
+            pts.append((si, float(raw)))
+        except (TypeError, ValueError):
+            continue
+    muted: set[int] = set()
+    for k in range(1, len(pts) - 1):
+        si, value = pts[k]
+        v_prev = pts[k - 1][1]
+        v_next = pts[k + 1][1]
+        if (
+            value > v_prev + eps
+            and value > v_next + eps
+            and abs(v_prev - v_next) <= eps
+        ):
+            muted.add(si)
+    return muted
+
+
 def _phase_progress_samples(
     prior_samples: list[dict[str, Any]] | None,
     slice_samples: list[dict[str, Any]],
@@ -193,17 +243,29 @@ def _phase_progress_samples(
     for key in _PHASE_COUNTER_KEYS:
         floors[key] = _last_counter_value(prior_samples or [], key)
 
+    # live:PHASE-ATTR-2. Mute isolated sensor spikes (Dreame re-publishes its stale
+    # pre-reset counter for ~1 s at each phase start) BEFORE accumulating: a muted
+    # reading is carried as a hole, so it neither books a phantom rise nor a phantom
+    # reset. See _isolated_spike_indices for the flank-symmetry discriminator that
+    # leaves a real peak-before-reset untouched.
+    muted: dict[str, set[int]] = {
+        key: _isolated_spike_indices(slice_samples, key, _RESET_EPS.get(key, 0.0))
+        for key in _PHASE_COUNTER_KEYS
+    }
+
     totals: dict[str, float] = {key: 0.0 for key in _PHASE_COUNTER_KEYS}
     out: list[dict[str, Any]] = []
-    for sample in slice_samples:
+    for si, sample in enumerate(slice_samples):
         if not isinstance(sample, dict):
             continue
         row = dict(sample)
         for key in _PHASE_COUNTER_KEYS:
             raw = sample.get(key)
-            if raw is None:
+            if raw is None or si in muted[key]:
                 # Carry the running total rather than a hole: a sample appended
                 # because the OTHER counter moved still describes this instant.
+                # A muted spike takes the same path — it does not update the floor,
+                # so the next real reading is measured against the pre-spike level.
                 row[key] = totals[key] if floors[key] is not None else None
                 continue
             try:
@@ -760,7 +822,11 @@ class PhaseRunner:
             # captured nothing, which is the same "we don't know" path an atomic job
             # takes rather than a fabricated zero.
             _areas = [
-                _safe_float(rt.get("cleaning_area_m2"), 0.0)
+                # The per-room capture writes the area under "area_m2" (see
+                # _phase_room_timing / _split_group_room_timing); reading
+                # "cleaning_area_m2" here always missed, zeroing the child's
+                # (and so the parent's summed) cleaning_area_m2 on every phased run.
+                _safe_float(rt.get("area_m2"), 0.0)
                 for rt in (phase.get("room_timing") or [])
                 if isinstance(rt, dict)
             ]

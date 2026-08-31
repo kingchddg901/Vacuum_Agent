@@ -167,14 +167,27 @@ remaining ~8% is defensive guards and edge branches — see **Known gaps**.
   `_await_phase_started` / `_dispatch_active_phase`, the per-phase re-dispatch that
   works around a path-optimizing brand ignoring a clean sent the instant it docks.
 
-Covered by `tests/integration/test_strict_order_phase_timing.py` (`SOPT`, 6
-tests): per-phase capture from its own slice (`SOPT-1`), capture idempotence on
+Covered by `tests/integration/test_strict_order_phase_timing.py` (`SOPT`):
+per-phase capture from its own slice (`SOPT-1`), capture idempotence on
 retry/double-completion (`SOPT-2`), the learned-area fallback when a flat
 `cleaning_area` sensor leaves no in-slice delta (`SOPT-3` / `SOPT-6`), atomic
 (no-phase) jobs as a no-op (`SOPT-4`), and the per-phase battery/area/wall deltas
 (`SOPT-7`). The watchdog timing defaults (`_PHASE_*` / the adapter
 `dispatch.phase_timing` overrides) stay resolved on the core manager via
 `_phase_timing`.
+
+`_phase_progress_samples` re-expresses a phase's counter slice as progress since
+THAT phase began, so downstream consumers share one baseline (`PHASE-ATTR-1`):
+a reset that lags into the slice (`SOPT-15`), an unknown floor that must not be
+assumed zero (`SOPT-16`), non-mutation of the shared buffer (`SOPT-17`), and
+rounding jitter that is not a reset (`SOPT-18`). `PHASE-ATTR-2` adds
+`_isolated_spike_indices`: Dreame's `_cleaned_area` sensor re-publishes its stale
+pre-reset value for ~1 s at each phase start, and an un-deglitched accumulator
+books that as a phantom quantum — measured live 2026-08-30 as both a ~1 m² and a
+~5 m² room reading 6.0 m². The mute keys off flank SYMMETRY (a glitch returns to
+the level it rose from; a real peak-before-reset does not), so the multi-room
+group path's legitimate resets survive (`SOPT-19` the deglitch, `SOPT-20` the
+real-peak guard).
 
 ---
 

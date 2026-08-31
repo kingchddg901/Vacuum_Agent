@@ -773,6 +773,67 @@ def test_collect_inputs_stepped_job_sums_room_and_zone_phases_not_break(finalize
     assert inputs["cleaning_time_seconds"] == 255 + 302 + 90
 
 
+def test_collect_inputs_stepped_job_sums_room_areas_not_device_counter(finalizer):
+    """REC-A companion for AREA: a stepped run's cleaning_area_m2 is the SUM of its
+    phases' captured areas, never the device's last-seen cleaning_area counter — which,
+    on a brand that RESETS the area counter per phase (Dreame, VERIFIED live 2026-08-30:
+    entryway 0->1, reset, kitchen 0->5), only reflects the FINAL phase. The clobbered
+    counter here is 5; the run cleaned 1 + 5 = 6, and that total is also the sanity bound
+    (cleaning_area_sensor_m2), so a short read makes the per-room sum look over-attributed.
+    BITE: read last_cleaning_area_m2 instead of summing and this returns 5.0 — the live
+    card defect where 'Area Cleaned: 5 m²' disagreed with its own '1.0 + 5.0' breakdown."""
+    m = _inputs_manager()
+    m.get_active_job.return_value = {
+        "last_cleaning_time_seconds": 240,
+        "last_cleaning_area_m2": 5.0,  # the clobbered per-phase-reset counter — must be ignored
+        "phases": [
+            {"phase_type": "room_group", "room_timing": [
+                {"room_id": 1, "cleaning_seconds": 120, "area_m2": 1.0}]},
+            {"phase_type": "room_group", "room_timing": [
+                {"room_id": 3, "cleaning_seconds": 240, "area_m2": 5.0}]},
+        ],
+    }
+    inputs = finalizer._collect_finalization_inputs(
+        manager=m,
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=90,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    assert inputs["cleaning_area_m2"] == 6.0
+    assert inputs["cleaning_time_seconds"] == 360
+
+
+def test_collect_inputs_stepped_captured_time_but_no_area_falls_back_to_counter(finalizer):
+    """The truthy guard: a stepped run that captured timing but ZERO area (a flat area
+    sensor, no learned fallback) must NOT report 0 m² — it falls through to the device
+    counter, the same 'use the best signal we have' stance the time path takes when a
+    phase captured nothing. BITE: change the guard back to `is not None` and this run
+    reports 0.0 instead of the counter's 7.0."""
+    m = _inputs_manager()
+    m.get_active_job.return_value = {
+        "last_cleaning_area_m2": 7.0,  # the only area signal — must survive
+        "phases": [
+            {"phase_type": "room_group", "room_timing": [
+                {"room_id": 1, "cleaning_seconds": 120, "area_m2": 0.0}]},
+        ],
+    }
+    inputs = finalizer._collect_finalization_inputs(
+        manager=m,
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=90,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    assert inputs["cleaning_area_m2"] == 7.0
+
+
 def test_collect_inputs_stepped_group_phase_multi_room_sums_all_entries(finalizer):
     """Compose-safe with RP-013b: a group phase's room_timing can carry more
     than one entry (one per member, after RP-013b's allocated split) — all of

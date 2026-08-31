@@ -214,11 +214,17 @@ def test_children_partition_the_run_instead_of_repeating_it(store, runner):
     phase on the active job, so an unscoped child would inherit its predecessors — the
     last one carrying the whole run's 1140 s while the others also claim theirs."""
     job = _job()
+    # room_timing rows carry area under "area_m2" (the key _phase_room_timing /
+    # _split_group_room_timing actually emit). This fixture once used
+    # "cleaning_area_m2" here — a key the producer never writes — and it AGREED with
+    # the scoping code's matching typo, so both read the phantom key together and the
+    # test went green while every phased run wrote cleaning_area_m2: 0.0. Deriving the
+    # fixture from the real row shape is what makes this assertion able to bite.
     job["phases"][0]["room_timing"] = [
-        {"room_id": 5, "cleaning_seconds": 570, "cleaning_area_m2": 8.0}]
+        {"room_id": 5, "cleaning_seconds": 570, "area_m2": 8.0}]
     job["phases"][2]["room_timing"] = [
-        {"room_id": 8, "cleaning_seconds": 300, "cleaning_area_m2": 5.0},
-        {"room_id": 4, "cleaning_seconds": 270, "cleaning_area_m2": 4.0}]
+        {"room_id": 8, "cleaning_seconds": 300, "area_m2": 5.0},
+        {"room_id": 4, "cleaning_seconds": 270, "area_m2": 4.0}]
     _open(store, job)
     _run_all_phases(runner, job)
     kids = [
