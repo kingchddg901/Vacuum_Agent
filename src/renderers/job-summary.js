@@ -243,12 +243,15 @@ export function applyJobSummaryRenderers(proto) {
     if (!faults.length) return "";
 
     const body = faults.map((f) => {
-      // faultLabel lives on VacuumCardState (applyFaultState on state proto),
-      // NOT on the renderer proto — so it MUST be called via the `state`
-      // parameter, never via `this` on the renderer. A prior call to
-      // this.faultLabel(...) shipped a runtime crash on every job that carried
-      // a run_error (the exact scenario the fault section exists for).
-      const label = state.faultLabel(f.label_key, f.code);
+      // faultLabel resolves fault.<brand>.<slug> and falls back to the raw code. It
+      // lives on VacuumCardState (applyFaultState) and resolves via `this.t` — but the
+      // STATE carries no translator; `.t` is on the RENDERER. So take the method off
+      // state's proto and run it with the RENDERER as `this` (which HAS `.t`). Two prior
+      // shapes each crashed a faulted job's modal: `this.faultLabel(...)` (renderer proto
+      // has no faultLabel) and `state.faultLabel(...)` (state has no `.t`). This bridges
+      // both halves. (Idiomatically faultLabel should TAKE the translator like its siblings
+      // resolveCodedLabel / room-rules — a follow-up that removes the split entirely.)
+      const label = state.faultLabel.call(this, f.label_key, f.code);
 
       const meta = [];
       const src = String(f.source ?? "").trim().toLowerCase();

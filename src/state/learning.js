@@ -307,6 +307,29 @@ export function applyLearningState(proto) {
   };
 
   /**
+   * Whether the provider accepts a cruise-to-point ("tap the map → send the robot
+   * there") command. Like supportsZoneClean this defaults to FALSE when absent: go-to
+   * is a new, opt-in capability that only an adapter declaring a `goto` dispatch block
+   * (currently Dreame) reports true, so an older snapshot or a brand without it must NOT
+   * surface the control.
+   */
+  proto.supportsGoto = function () {
+    return Boolean(this.dashboardSnapshot()?.supports_goto);
+  };
+
+  /**
+   * Native per-clean zone settings the card renders as selects — a list of
+   * {key, label, options:[{value,label}], default}, derived backend-side from the
+   * adapter's zone.params (Dreame suction/water). The chosen tokens ride the zone CALL
+   * (start_zone_clean.settings), NOT a global entity set. Empty for brands whose zone
+   * takes no per-call settings (Roborock/Eufy) — the panel then uses its entity rows.
+   */
+  proto.zoneSettings = function () {
+    const z = this.dashboardSnapshot()?.zone_settings;
+    return Array.isArray(z) ? z : [];
+  };
+
+  /**
    * Whether the provider's edge-mopping control is meaningful on this device
    * (Q11/CARD-8). Defaults true when the snapshot omits the key -- mirrors
    * supportsBaseStation and the Eufy adapter's own default, so an older

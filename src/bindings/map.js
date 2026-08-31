@@ -900,9 +900,9 @@ export function applyMapBindings(proto) {
       let _clickTimer = null;
 
       this.card._on(el, "click", (e) => {
-        // In zone-draw mode the rubber-band owns the map — a tap must not toggle a
-        // room (belt-and-suspenders to the CSS pointer-events suppression).
-        if (this.card._state.zoneDrawMode?.()) return;
+        // In zone-draw / go-to mode the map tap is owned elsewhere — a tap must not
+        // toggle a room (belt-and-suspenders to the CSS pointer-events suppression).
+        if (this.card._state.zoneDrawMode?.() || this.card._state.gotoMode?.()) return;
         e.stopPropagation();
         if (this.card._mapDragOccurred) {
           this.card._mapDragOccurred = false;
@@ -1943,9 +1943,9 @@ export function applyMapBindings(proto) {
 
       this.card._on(el, "pointerdown", (e) => {
         if (e.button !== 0) return;
-        // In zone-draw mode the rubber-band owns the press — don't let the mascot
+        // In zone-draw / go-to mode the map tap is owned elsewhere — don't let the mascot
         // swallow a drag that happens to start over the floating animal.
-        if (this.card._state.zoneDrawMode?.()) return;
+        if (this.card._state.zoneDrawMode?.() || this.card._state.gotoMode?.()) return;
         e.stopPropagation();   // prevent the pan handler from starting a drag
         e.preventDefault();    // prevent text selection, browser scroll takeover
 
@@ -2031,8 +2031,8 @@ export function applyMapBindings(proto) {
 
       this.card._on(el, "pointerdown", (e) => {
         if (e.button !== 0) return;
-        // Don't swallow a rubber-band (zone/hide draw) that starts over a chip.
-        if (this.card._state.zoneDrawMode?.() || this.card._state.hideDrawMode?.()) return;
+        // Don't swallow a rubber-band (zone/hide draw) or a go-to tap that starts over a chip.
+        if (this.card._state.zoneDrawMode?.() || this.card._state.hideDrawMode?.() || this.card._state.gotoMode?.()) return;
         e.stopPropagation();   // keep the pan handler from starting a drag
         e.preventDefault();
 
@@ -2118,8 +2118,8 @@ export function applyMapBindings(proto) {
 
       this.card._on(el, "pointerdown", (e) => {
         if (e.button !== 0) return;
-        // Don't swallow a rubber-band (zone/hide draw) that starts over a label.
-        if (this.card._state.zoneDrawMode?.() || this.card._state.hideDrawMode?.()) return;
+        // Don't swallow a rubber-band (zone/hide draw) or a go-to tap that starts over a label.
+        if (this.card._state.zoneDrawMode?.() || this.card._state.hideDrawMode?.() || this.card._state.gotoMode?.()) return;
         e.stopPropagation();   // keep the pan handler from starting a drag
         e.preventDefault();
 
@@ -2555,6 +2555,8 @@ export function applyMapBindings(proto) {
    */
   proto._handleRoomTap = function (container, clientX, clientY) {
     const state = this.card._state;
+    // Go-to mode: a clean tap cruises the robot to that point instead of toggling a room.
+    if (state.gotoMode?.()) { this._handleGotoTap(container, clientX, clientY); return; }
     if (state.zoneDrawMode?.() || state.hideDrawMode?.() || state.isMapAnchorMode?.()) return;
     // Only hit-test over a backdrop the device-frame raster is registered to (VA render or live
     // image). On an uploaded/CV --fill backdrop the raster doesn't co-register, so a tap would
@@ -2578,6 +2580,29 @@ export function applyMapBindings(proto) {
     const mapId = state.activeMapId?.();
     const room = (state.getRoomsForActiveMap?.() ?? []).find((rm) => Number(rm.id) === Number(rid));
     this.card._actions?.toggleRoomEnabled?.(mapId, rid, room?.enabled ?? false);
+    this.card._scheduleRender?.();
+  };
+
+  /**
+   * Go-to tap: convert a clean tap into a normalized live-map point and dispatch the cruise.
+   * Same co-registration gate as the room tap — only over a device-frame backdrop (VA render
+   * or live image) does a tap map to a real device point, so refuse otherwise (the backend
+   * would refuse the bad projection too, but bail early rather than round-trip). Single-shot:
+   * exit go-to after dispatching so the next tap resumes room-select.
+   */
+  proto._handleGotoTap = function (container, clientX, clientY) {
+    const state = this.card._state;
+    if (!(state.overlaysAligned?.() ?? false)) return;
+    const layers = container.querySelector(".evcc-map-layers");
+    if (!layers) return;
+    const r = layers.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const fx = (clientX - r.left) / r.width  * 100;
+    const fy = (clientY - r.top)  / r.height * 100;
+    const point = state.gotoPointToNormalized?.(fx, fy, this._liveMapDims(container));
+    if (!point) return;
+    this.card._actions?.sendGoto?.(point);
+    state.setGotoMode?.(false);
     this.card._scheduleRender?.();
   };
 
@@ -2704,7 +2729,24 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='toggle-zone-draw']").forEach((btn) => {
       this.card._on(btn, "click", (e) => {
         e.stopPropagation();
-        this.card._state.setZoneDrawMode?.(!this.card._state.zoneDrawMode?.());
+        const on = !this.card._state.zoneDrawMode?.();
+        if (on) this.card._state.setGotoMode?.(false);   // one map-press owner at a time
+        this.card._state.setZoneDrawMode?.(on);
+        this.card._scheduleRender?.();
+      });
+    });
+    // Go-to: toggle "tap the map to send the robot to a point" mode. Mutually exclusive with
+    // the zone/hide rubber-bands (they own the same map press). A tap dispatches immediately
+    // and exits (see _handleGotoTap) — no draft, no confirm.
+    root.querySelectorAll("[data-action='toggle-goto']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        const on = !this.card._state.gotoMode?.();
+        if (on) {
+          this.card._state.setZoneDrawMode?.(false);
+          this.card._state.setHideDrawMode?.(false);
+        }
+        this.card._state.setGotoMode?.(on);
         this.card._scheduleRender?.();
       });
     });
@@ -2728,6 +2770,14 @@ export function applyMapBindings(proto) {
       this.card._on(sel, "change", (e) => {
         e.stopPropagation();
         this.card._actions.setVacuumSetting?.(sel.dataset.entityId, sel.value);
+      });
+    });
+    // Native per-clean zone settings (Dreame suction/water): record the pick in card state
+    // (rides start_zone_clean.settings at confirm); no device entity is set here.
+    root.querySelectorAll("[data-action='zone-native-setting']").forEach((sel) => {
+      this.card._on(sel, "change", (e) => {
+        e.stopPropagation();
+        this.card._state.setZoneSetting?.(sel.dataset.settingKey, sel.value);
       });
     });
     // Fallback suction row (brands with no fan-speed `select` entity, e.g. Roborock):
@@ -2769,7 +2819,8 @@ export function applyMapBindings(proto) {
           return;
         }
         try {
-          await this.card._actions.cleanZone?.(rects, 1);
+          const settings = this.card._state.zoneSettingsPayload?.() ?? null;
+          await this.card._actions.cleanZone?.(rects, 1, settings);
         } catch (err) {
           console.error("[eufy-vacuum-command-center] zone clean failed:", err);
         }

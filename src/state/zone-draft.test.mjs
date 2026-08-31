@@ -183,3 +183,45 @@ test("[ZD-12] canDrawZone also lights up over an active VA raster (Roborock cv-m
   s = base(); s.isVaRenderActive = () => false;
   assert.equal(s.canDrawZone(), false);
 });
+
+// --- Go-to point conversion (gotoPointToNormalized) -----------------------------------
+// The point sibling of _rectToNormalized: same object-fit:contain letterbox + C31
+// un-rotation, but a POINT has no size so there is no MIN_SIDE degeneracy guard — a tap
+// anywhere resolves. Feeds the goto (cruise-to-point) service.
+const gconv = (px, py, dims) => makeState().gotoPointToNormalized(px, py, dims);
+
+test("[GPT-1] square image: pct maps straight to normalized (no letterbox)", () => {
+  const p = gconv(25, 40, { width: 500, height: 500 });
+  assert.ok(approx(p[0], 0.25) && approx(p[1], 0.4));
+});
+
+test("[GPT-2] wide image (360x301): X maps directly, Y is letterbox-corrected", () => {
+  // offY = (100 - 100*301/360)/2 = 8.194; imgPctH = 83.611.
+  const p = gconv(20, 50, { width: 360, height: 301 });
+  assert.ok(approx(p[0], 0.2));               // x: 20/100
+  assert.ok(approx(p[1], 0.5, 2e-3));         // y: (50-8.194)/83.611 = 0.5
+});
+
+test("[GPT-3] tall image (300x400): Y maps directly, X is letterbox-corrected", () => {
+  // offX = (100 - 100*300/400)/2 = 12.5; imgPctW = 75. A tap at the image's left edge.
+  const p = gconv(12.5, 30, { width: 300, height: 400 });
+  assert.ok(approx(p[0], 0));                  // x: (12.5-12.5)/75 = 0
+  assert.ok(approx(p[1], 0.3));                // y direct: 30/100
+});
+
+test("[GPT-4] 90° rotation un-rotates the tapped point (C31)", () => {
+  // Same real inputs as ZD-11: a VA raster rotated 90°. unrotatePct(25,40,90)=[40,75]
+  // -> square 500 -> [0.4, 0.75]. Proves go-to reads effectiveMapRotation, not raw.
+  const s = makeState();
+  s.dashboardSnapshot = () => ({ live_map_rotation: 90 });
+  s.isVaRenderActive = () => true;
+  const p = s.gotoPointToNormalized(25, 40, { width: 500, height: 500 });
+  assert.ok(approx(p[0], 0.4) && approx(p[1], 0.75));
+});
+
+test("[GPT-5] tap clamps to [0,1] outside the image; bad dims -> null", () => {
+  const p = gconv(130, -20, { width: 500, height: 500 });   // off-map tap
+  assert.ok(p[0] === 1 && p[1] === 0);                      // clamped, not NaN
+  assert.equal(gconv(50, 50, null), null);
+  assert.equal(gconv(50, 50, { width: 0, height: 0 }), null);
+});

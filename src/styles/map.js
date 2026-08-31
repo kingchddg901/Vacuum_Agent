@@ -368,7 +368,8 @@ export const mapStyles = `
   /* In draw mode: crosshair cursor; segment polygons + labels stop intercepting
      the press so the rubber-band handler owns the drag. */
   .evcc-map-container--zone,
-  .evcc-map-container--hide { cursor: crosshair; }
+  .evcc-map-container--hide,
+  .evcc-map-container--goto { cursor: crosshair; }
   /* The segment polygons + companion set pointer-events:all, which stays hittable
      even under a parent svg's pointer-events:none — so suppress the ACTUAL targets
      (higher specificity wins) so the rubber-band owns the press. */
@@ -379,7 +380,31 @@ export const mapStyles = `
   .evcc-map-container--hide .evcc-map-svg,
   .evcc-map-container--hide .evcc-map-polygon,
   .evcc-map-container--hide .evcc-map-animal,
-  .evcc-map-container--hide .evcc-map-label { pointer-events: none !important; }
+  .evcc-map-container--hide .evcc-map-label,
+  .evcc-map-container--goto .evcc-map-svg,
+  .evcc-map-container--goto .evcc-map-polygon,
+  .evcc-map-container--goto .evcc-map-animal,
+  .evcc-map-container--goto .evcc-map-label { pointer-events: none !important; }
+
+  /* Go-to: a single tap dispatches immediately (no rubber-band, no draft). The
+     suppression above lets that tap reach the container from anywhere on the map;
+     this pill tells the user the map is armed. */
+  .evcc-goto-hint {
+    position:       absolute;
+    top:            8px;
+    left:           50%;
+    transform:      translateX(-50%);
+    z-index:        6;
+    padding:        4px 10px;
+    border-radius:  999px;
+    font-size:      0.75rem;
+    font-weight:    600;
+    white-space:    nowrap;
+    pointer-events: none;
+    color:          var(--evcc-text-on-accent, #fff);
+    background:     var(--evcc-accent, #3b82f6);
+    box-shadow:     0 2px 10px rgba(0, 0, 0, 0.35);
+  }
 
   /* The in-progress drag box (dashed), positioned in pct of .evcc-map-layers. */
   .evcc-zone-draft {

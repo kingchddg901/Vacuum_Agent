@@ -164,6 +164,14 @@ export function applyMapRenderers(proto) {
     // GRID-frame backdrop their normalized coords align to: the live device image OR
     // the VA-rendered canvas (Wave 3c overlays; Wave 1 self-render).
     const deviceOverlays = state.overlaysAligned?.() ?? false;
+    // Go-to (cruise-to-point): a tap must map to a real device point, so gate on a
+    // co-registered device-frame backdrop (deviceOverlays) + a grounded frame + the
+    // provider declaring the command. Mutually exclusive with zone/hide draw (they own
+    // the same map press; the bindings enforce it). gotoMode is gated by canGoto so the
+    // container class + hint can never be live while the gate is false.
+    const canGoto  = (state.supportsGoto?.() ?? false) && deviceOverlays
+        && !(state.frameUngrounded?.() ?? false);
+    const gotoMode = canGoto && (state.gotoMode?.() ?? false);
     // Furnished render (Wave 1): the whole-home art layer + the base-fade mode. The art
     // is only live on the "Live map" custom layout; the base live <img> stays MOUNTED
     // always (opacity-faded, never unmounted — it anchors the overlay frame + keeps the
@@ -180,7 +188,7 @@ export function applyMapRenderers(proto) {
     const staleAgo = isStale ? (this.formatRelativeAgo?.(state.mapStaleSince?.()) ?? null) : null;
     return `
       <div class="evcc-map-view">
-        <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}${hideMode ? " evcc-map-container--hide" : ""}${isStale ? " evcc-map-container--stale" : ""}">
+        <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}${hideMode ? " evcc-map-container--hide" : ""}${gotoMode ? " evcc-map-container--goto" : ""}${isStale ? " evcc-map-container--stale" : ""}">
           ${staleAgo ? `
             <div class="evcc-map-stale-badge" title="${this.escapeHtml(this.t("map.stale_badge_title"))}">
               ${this.escapeHtml(this.t("map.stale_last_seen", { value: staleAgo }))}
@@ -291,10 +299,16 @@ export function applyMapRenderers(proto) {
             <button class="evcc-map-zoom-btn${zoneMode ? " evcc-map-zoom-btn--on" : ""}"
                     data-action="toggle-zone-draw"
                     title="${this.t("map.draw_zone")}" aria-label="${this.t("map.draw_zone")}">▢</button>` : ""}
+            ${canGoto ? `
+            <button class="evcc-map-zoom-btn${gotoMode ? " evcc-map-zoom-btn--on" : ""}"
+                    data-action="toggle-goto"
+                    title="${this.t("map.goto_point")}" aria-label="${this.t("map.goto_point")}">⌖</button>` : ""}
             ${(state.embeddedInCard?.() ?? false) ? this._renderMapSwitch(state) : ""}
             <span class="evcc-map-zoom-readout"
                   aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}${this.t("metrics.unit_percent")}</span>
           </div>
+
+          ${gotoMode ? `<div class="evcc-goto-hint">${this.escapeHtml(this.t("map.goto_hint"))}</div>` : ""}
 
           ${this._renderMapFrameGateBanner(state)}
 
@@ -834,6 +848,15 @@ export function applyMapRenderers(proto) {
    */
   proto._renderZoneSettingRows = function (state, action = "zone-setting") {
     const esc = (s) => this.escapeHtml(String(s));
+    // Native per-clean settings (Dreame suction/water): value-backed selects whose chosen
+    // tokens ride the zone CALL, not a device entity set. Scoped to the ad-hoc zone panel
+    // ("zone-setting") — the saved-zones panel ("sz-setting") dispatches a different path
+    // (cleanSavedZones) and by design runs off the device's saved settings, so it keeps the
+    // entity/fallback rows (empty for a brand with no setting selects, e.g. Dreame).
+    const native = state.zoneSettings?.() ?? [];
+    if (native.length && action === "zone-setting") {
+      return this._renderNativeZoneSettingRows(state, native);
+    }
     const settingEntities = state.settingEntities?.() ?? {};
     const SETTINGS = [
       { key: "fan_speed",       label: this.t("map.zone_setting_suction") },
@@ -865,6 +888,29 @@ export function applyMapRenderers(proto) {
     // settings" model as the select rows. Only when there's no fan_speed select (no doubling).
     const fanFallback = settingEntities.fan_speed ? "" : this._renderVacuumFanSpeedRow(state);
     return fanFallback + rows;
+  };
+
+  /**
+   * Native per-clean zone-setting selects (Dreame suction/water). Options + labels come
+   * from the snapshot's zone_settings (the adapter's zone.params); the chosen token is held
+   * in card state (setZoneSetting) and sent in start_zone_clean.settings — no device entity
+   * is touched. The `zone-native-setting` change binding records the pick.
+   */
+  proto._renderNativeZoneSettingRows = function (state, native) {
+    const esc = (s) => this.escapeHtml(String(s));
+    return native.map((p) => {
+      const opts = Array.isArray(p?.options) ? p.options : [];
+      if (!p?.key || !opts.length) return "";
+      const cur = state.zoneSettingValue?.(p.key, p.default);
+      return `
+        <label class="evcc-zone-setting">
+          <span class="evcc-zone-setting-label">${esc(p.label || p.key)}</span>
+          <select class="evcc-zone-setting-select" data-action="zone-native-setting"
+                  data-setting-key="${esc(p.key)}">
+            ${opts.map((o) => `<option value="${esc(o.value)}"${o.value === cur ? " selected" : ""}>${esc(o.label ?? o.value)}</option>`).join("")}
+          </select>
+        </label>`;
+    }).join("");
   };
 
   /**

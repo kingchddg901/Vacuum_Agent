@@ -249,34 +249,43 @@ test("[JS-10] an unlabelled fault falls back to the raw code", async () => {
   const fs = await import("node:fs");
   const src = fs.readFileSync(new URL("./job-summary.js", import.meta.url), "utf-8");
   // faultLabel(key, code) already implements the fallback; the modal must pass the
-  // CODE through rather than resolving the key alone and rendering a blank.
-  // Note: called on the STATE parameter, not `this` on the renderer — faultLabel
-  // is applied to VacuumCardState.prototype (applyFaultState) and the renderer
-  // proto never gets it. A prior `this.faultLabel(...)` shipped a runtime crash.
-  assert.match(src, /state\.faultLabel\(f\.label_key, f\.code\)/);
-  // No non-comment `this.faultLabel(...)` call — faultLabel is on state proto,
-  // not the renderer, so calling via `this` on the renderer throws.
+  // CODE through rather than resolving the key alone and rendering a blank. It is taken
+  // off state's proto (where applyFaultState puts it) but RUN with the renderer as `this`
+  // — faultLabel resolves via `this.t`, and `.t` is on the renderer, not the state.
   const nonComment = src.split("\n").filter(l => !/^\s*(\/\/|\*)/.test(l)).join("\n");
+  assert.match(nonComment, /state\.faultLabel\.call\(this, f\.label_key, f\.code\)/);
+  // No BARE `state.faultLabel(...)` call (state has no `.t` → this.t crash) and no
+  // `this.faultLabel(...)` (renderer proto has no faultLabel). Only the `.call(this)` bridge.
+  assert.doesNotMatch(nonComment, /[^.]state\.faultLabel\(/,
+    "state.faultLabel(...) called bare crashes on this.t — must be .call(this, ...)");
   assert.doesNotMatch(nonComment, /this\.faultLabel\(/,
-    "faultLabel must never be called on the renderer — it lives on state, not on the renderer proto");
+    "faultLabel is on state, not the renderer proto — this.faultLabel throws");
 });
 
-test("[JS-11] _renderJobSummaryFaults does not throw when the renderer has no faultLabel", async () => {
-  // The bite: prior to the fix, `this.faultLabel` was undefined at runtime and
-  // any job with run_errors crashed the whole modal. Assemble a renderer host
-  // that intentionally lacks faultLabel, hand the state a faultLabel that only
-  // exists on state, and prove the render succeeds.
+test("[JS-11] _renderJobSummaryFaults renders faults with the REAL faultLabel (state has no .t)", async () => {
+  // THE BITE — with the real objects, not a mock that sidesteps the crash. faultLabel is
+  // applied to the STATE (which carries NO translator) and resolves via `this.t`; `.t` is
+  // on the RENDERER. A prior mock faultLabel here (a plain arrow) never touched `this.t`,
+  // so the modal kept crashing live while this test stayed green. Now: the real faultLabel
+  // on a `.t`-less state, a renderer that HAS `.t`. A bare `state.faultLabel(...)` throws
+  // (this.t undefined); the `.call(this)` bridge resolves via the renderer's translator.
   const { applyJobSummaryRenderers } = await import("./job-summary.js");
+  const { applyFaultState } = await import("../state/faults.js");
   const proto = {};
   proto.escapeHtml = (s) => String(s ?? "");
-  proto.t = (k) => k;
+  proto.t = (k) => (k === "fault.eufy.rb_stuck" ? "Roller brush stuck" : k);
   proto._renderJobSummaryFaultTimestamp = () => "12:00";
   applyJobSummaryRenderers(proto);
   const renderer = Object.create(proto);
-  const state = {
-    jobSummaryFaults: () => [{ label_key: "fault.eufy.rb_stuck", code: 4, source: "robot", recovered: false }],
-    faultLabel: (key, code) => key === "fault.eufy.rb_stuck" ? "Roller brush stuck" : `Error ${code}`,
-  };
+
+  // The real faultLabel lives on state's proto; the state instance has NO `.t` of its own.
+  const stateProto = {};
+  applyFaultState(stateProto);
+  const state = Object.create(stateProto);
+  state.jobSummaryFaults = () => [
+    { label_key: "fault.eufy.rb_stuck", code: 4, source: "robot", recovered: false },
+  ];
+
   assert.doesNotThrow(() => renderer._renderJobSummaryFaults(state));
   const html = renderer._renderJobSummaryFaults(state);
   assert.match(html, /Roller brush stuck/, "the resolved label must appear in the output");

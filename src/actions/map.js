@@ -28,6 +28,7 @@ import {
   SERVICE_SET_FURNISHED_ART_PLACEMENT,
   SERVICE_SET_FURNISHED_RENDER_MODE,
   SERVICE_START_ZONE_CLEAN,
+  SERVICE_GOTO,
 } from "../constants.js";
 
 export function applyMapActions(proto) {
@@ -41,14 +42,35 @@ export function applyMapActions(proto) {
    * @param {number[][]} zones
    * @param {number} [cleanTimes=1]
    */
-  proto.cleanZone = async function (zones, cleanTimes = 1) {
+  proto.cleanZone = async function (zones, cleanTimes = 1, settings = null) {
     const vacuum = this.state.vacuumEntityId();
     if (!vacuum || !Array.isArray(zones) || zones.length === 0) return null;
     const data = { vacuum_entity_id: vacuum, zones, clean_times: cleanTimes };
+    // Native per-clean settings (Dreame suction/water) ride the call when present; brands
+    // without a zone.params mapping ignore them server-side.
+    if (settings && Object.keys(settings).length) data.settings = settings;
     const mapId = this.state.activeMapId?.();
     if (mapId) data.map_id = mapId;
     this.state.resetLiveTrail?.();   // fresh trace for this zone clean
     return await this.callService(DOMAIN, SERVICE_START_ZONE_CLEAN, data, true);
+  };
+
+  /**
+   * Send the robot to ONE tapped point (cruise-to-point, no clean). `point` is a
+   * normalized [nx, ny] (fractions 0-1 of the live-map image, top-left origin) — the
+   * backend (dispatch_goto) fits it to device-mm and refuses on a bad projection.
+   * Fire-and-forget like cleanZone. Returns the service response (a status dict) or null.
+   *
+   * @param {number[]} point
+   */
+  proto.sendGoto = async function (point) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !Array.isArray(point) || point.length !== 2) return null;
+    const data = { vacuum_entity_id: vacuum, point };
+    const mapId = this.state.activeMapId?.();
+    if (mapId) data.map_id = mapId;
+    this.state.resetLiveTrail?.();   // fresh trace for this cruise
+    return await this.callService(DOMAIN, SERVICE_GOTO, data, true);
   };
 
   /**

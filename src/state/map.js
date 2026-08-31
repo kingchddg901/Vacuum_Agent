@@ -296,6 +296,8 @@ export function applyMapState(proto) {
       this._composeLoadedFor = null;
       this._zoneDrawMode = false;      // exit ad-hoc zone-draw on any map/layout switch
       this._zoneDrafts = [];
+      this._zoneSettingsDraft = null;  // reseed native zone settings from defaults
+      this._gotoMode = false;          // exit go-to on any map/layout switch (frame changed)
       this._mascotDwellState = null;   // fresh dwell tracking for the new map/layout
       this._furnishedArtDraft = null;  // new map/layout → reseed the art draft from its saved transform
       this._furnishedArtDraftKey = null;
@@ -703,6 +705,65 @@ export function applyMapState(proto) {
     if (i >= 0 && i < list.length) list.splice(i, 1);
   };
   proto.clearZoneDrafts = function () { this._zoneDrafts = []; };
+
+  // --- Go-to: cruise the robot to one tapped point (the point sibling of zone-draw) ----
+  // _gotoMode toggles the "tap the map to send the robot here" interaction. No drafts — a
+  // single tap dispatches immediately (dispatch/manager.py::dispatch_goto validates +
+  // converts to device-mm, refusing on a bad projection). Never persisted; reset on any
+  // map/layout switch (alongside _zoneDrawMode above).
+  proto._gotoMode = false;
+  proto.gotoMode = function () { return this._gotoMode; };
+  proto.setGotoMode = function (on) { this._gotoMode = Boolean(on); };
+
+  /**
+   * Convert ONE tapped point (pct 0-100 of the SQUARE map container) into a normalized
+   * [nx, ny] in the live-map IMAGE frame (fractions 0-1, top-left origin) — the frame the
+   * go-to service expects. Reuses the zone-draw un-rotation (C31: the wrong rotation sends
+   * the robot a quarter-turn off) + letterbox correction, minus _rectToNormalized's
+   * MIN_SIDE guard (a point has no size). null when the backdrop dims aren't ready.
+   * @param {number} pctX @param {number} pctY @param {{width:number,height:number}} backdropDims
+   */
+  proto.gotoPointToNormalized = function (pctX, pctY, backdropDims) {
+    if (!backdropDims) return null;
+    const rot = this.effectiveMapRotation?.() ?? 0;
+    const [ux, uy] = this.unrotatePct(pctX, pctY, rot);
+    const W = backdropDims.width, H = backdropDims.height;
+    if (!(W > 0) || !(H > 0)) return null;
+    const imgPctW = W >= H ? 100 : (100 * W) / H;
+    const imgPctH = H >= W ? 100 : (100 * H) / W;
+    const offX = (100 - imgPctW) / 2;
+    const offY = (100 - imgPctH) / 2;
+    const clamp01 = (v) => Math.min(Math.max(v, 0), 1);
+    return [clamp01((ux - offX) / imgPctW), clamp01((uy - offY) / imgPctH)];
+  };
+
+  // --- Native per-clean zone settings draft (Dreame suction/water) --------------------
+  // The chosen canonical token per param key (seeded from zoneSettings() defaults on
+  // read), sent in start_zone_clean.settings. NOT a device entity set — it rides the zone
+  // call. Reset on any map/layout switch (alongside the zone drafts above).
+  proto._zoneSettingsDraft = null;
+  proto.zoneSettingValue = function (key, dflt) {
+    const d = this._zoneSettingsDraft;
+    return (d && d[key] != null) ? d[key] : dflt;
+  };
+  proto.setZoneSetting = function (key, value) {
+    if (!this._zoneSettingsDraft) this._zoneSettingsDraft = {};
+    this._zoneSettingsDraft[key] = value;
+  };
+  /**
+   * The {key: token} settings to send with a zone clean — each declared param's chosen
+   * value or its default. Empty object when the brand declares no native zone settings
+   * (so start_zone_clean omits `settings` and the device keeps its saved values).
+   */
+  proto.zoneSettingsPayload = function () {
+    const out = {};
+    for (const p of (this.zoneSettings?.() ?? [])) {
+      if (!p || !p.key) continue;
+      const v = this.zoneSettingValue(p.key, p.default);
+      if (v != null && v !== "") out[p.key] = v;
+    }
+    return out;
+  };
 
   /**
    * Convert ONE pct rect (0-100 of the SQUARE map container) into a normalized
