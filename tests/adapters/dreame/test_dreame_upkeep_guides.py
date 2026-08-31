@@ -10,9 +10,11 @@ The library now holds TWO kinds of family (see dreame_upkeep_guides.py):
   * TIER profiles (standard / auto_empty / wash_station / _track / _roller /
     _baseboard) — the composed default for the ~730 models with no authored manual.
   * AUTHORED families (x50, x60_ultra, x60_pro_ultra_complete, l20, x40, l50,
-    l10s_gen2, aqua10_ultra_track, aqua10_ultra_roller) — measured off their own
-    manuals, each its tier minus absent hardware, overriding every component its manual
-    words differently. The override is the guard against the shared-base defect that was
+    l10s_gen2, aqua10_ultra_track, aqua10_ultra_roller, and the 2026-08-31 batch:
+    matrix10, l60_ultra, l60_ultra_pe, l40s_ultra, d30_ultra, d20_pro_plus, d20_plus)
+    — measured off their own manuals, each its tier minus absent hardware, overriding
+    every component its manual words differently. The override is the guard against the
+    shared-base defect that was
     shipped once and reverted (commit d45e2ec4): a family NEVER inherits base prose for a
     component its manual stated differently. DUG-4 and DUG-6 pin exactly that.
 
@@ -34,6 +36,11 @@ The library now holds TWO kinds of family (see dreame_upkeep_guides.py):
          of auto_empty) and the mop tiers override the mop, not the brushes.
 [DUG-8]  Every family the CATALOG routes a model to exists in the library — an unrouted
          family is a KeyError waiting for the release switch.
+[DUG-9]  Cadence is SINGLE-SOURCED in COMPONENT_FREQUENCIES — no family carries its own
+         frequency. The invariant the flat model rests on; before the flatten nothing
+         checked frequencies at all (they were implicitly inherited from the tier base).
+[DUG-10] Every cadence value is a KNOWN interval — a typo or an unregistered new interval
+         fails here instead of rendering untranslated (the freq backfill only covers these).
 """
 
 from __future__ import annotations
@@ -45,6 +52,18 @@ from custom_components.eufy_vacuum.adapters.dreame import (
     DREAME_GUIDE_FAMILY_NAMES,
     DREAME_UPKEEP_GUIDE_LIBRARY,
 )
+from custom_components.eufy_vacuum.adapters.dreame.dreame_upkeep_guides import (
+    COMPONENT_FREQUENCIES,
+)
+
+#: the controlled cadence vocabulary. A NEW interval must be added here AND to
+#: scripts/data/guide-frequency-translations.json (or it renders untranslated); this set is
+#: the tripwire that forces both. ``None`` = a part with no replacement interval.
+KNOWN_INTERVALS = {
+    None, "after each use", "as needed", "weekly", "monthly",
+    "every 1-2 months", "every 1-3 months", "every 2-4 months",
+    "every 3-6 months", "every 6-12 months",
+}
 
 #: measured off their own manuals — the quality anchors.
 AUTHORED_FAMILIES = (
@@ -57,6 +76,15 @@ AUTHORED_FAMILIES = (
     "l10s_gen2",
     "aqua10_ultra_track",
     "aqua10_ultra_roller",
+    # overnight batch 2026-08-31: authored from the api-fetch corpus, provenance-scored
+    # (d20_pro_plus's manual is a non-extractable font, verified via the OCR fallback).
+    "matrix10",
+    "l60_ultra",
+    "l60_ultra_pe",
+    "l40s_ultra",
+    "d30_ultra",
+    "d20_pro_plus",
+    "d20_plus",
 )
 
 #: composed defaults for the unauthored tail.
@@ -263,3 +291,36 @@ def test_every_catalog_family_exists_in_the_library():
         f"{sorted(used - set(DREAME_GUIDE_FAMILY_NAMES))} has no display name in "
         "DREAME_GUIDE_FAMILY_NAMES — the card would show a bare routing key."
     )
+
+
+def test_frequencies_are_single_sourced():
+    """[DUG-9] cadence lives ONLY in COMPONENT_FREQUENCIES — no family carries its own.
+
+    This is the invariant the flat model rests on: steps/notes are per-manual, frequencies
+    are one shared owned map. Before the flatten they were inherited implicitly from the
+    tier base and NOTHING checked them. This bites if a family dict grows its own
+    ``clean_frequency``/``replace_frequency`` (which ``_with_cadence`` would let silently
+    override the map), or if the map drifts from what a family renders."""
+    for family, comps in DREAME_UPKEEP_GUIDE_LIBRARY.items():
+        for component, guide in comps.items():
+            assert component in COMPONENT_FREQUENCIES, (
+                f"{family}.{component} has no cadence in COMPONENT_FREQUENCIES"
+            )
+            for field in ("clean_frequency", "replace_frequency"):
+                assert guide.get(field) == COMPONENT_FREQUENCIES[component][field], (
+                    f"{family}.{component}.{field} = {guide.get(field)!r} but the owned map "
+                    f"says {COMPONENT_FREQUENCIES[component][field]!r} — cadence is not "
+                    "per-family; put it in COMPONENT_FREQUENCIES or you have introduced drift."
+                )
+
+
+def test_cadence_vocabulary_is_controlled():
+    """[DUG-10] every cadence value is a known interval. A typo (\"montly\") or a new
+    unregistered interval fails here rather than rendering untranslated on the card — the
+    frequency backfill (guide-frequency-translations.json) only covers KNOWN_INTERVALS."""
+    for component, cad in COMPONENT_FREQUENCIES.items():
+        for field in ("clean_frequency", "replace_frequency"):
+            assert cad[field] in KNOWN_INTERVALS, (
+                f"{component}.{field} = {cad[field]!r} is not a known interval; add it to "
+                "KNOWN_INTERVALS and to scripts/data/guide-frequency-translations.json."
+            )
