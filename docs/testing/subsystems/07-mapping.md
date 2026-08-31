@@ -198,6 +198,22 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   > Note the LP-3 test records the call rather than raising from the stub.
   > `_apply_inmem_pose_to_result` swallows `Exception` by design, so a raising probe is
   > eaten and the test passes with the gate removed — it did, until ablation caught it.
+- **the native current-room HIGHLIGHT source** (`CRR-*`, unit,
+  `tests/unit/test_current_room_resolve.py`; `MSD-14`/`MSD-15`, integration,
+  `test_manager_map_source_refresh.py`) — the SAME sibling-drift as the live-pose seam,
+  one layer over. The render frame's `current_room` (what the card's current-room layer
+  fills) is supplied per brand: Eufy by pixel lookup, Roborock by `vacuum_room`. Dreame's
+  decoded map leaves `vacuum_room` null, so the `camera_attrs` render carried no
+  `current_room` and the highlight stayed dark — even though the brand answers the question
+  directly via its native `active_cleaning_target` NAME entity (already consumed for
+  attribution). `rooms/current_room.py::resolve_native_current_room_id` is the ONE resolver
+  both consumers share (name → slug → managed room id; None for the dock / a transit room /
+  an unmatched name); a THIRD, deliberately different variant on `ActiveJobTracker` matches
+  the job QUEUE and is not unified. `MSD-14` is the declaration-proving gate: a
+  `native_current_room` brand whose decode omits `current_room` gets it injected from the
+  NAME entity, and it goes red (`KeyError: current_room`) with the injection removed —
+  ablation-confirmed. `MSD-15` holds the None case (an unmatched name draws nothing rather
+  than a wrong room).
 - **`roborock_raw_map`** (`RRD-*`, unit, `test_roborock_raw_map.py`) — the pure Roborock
   v1 raw-map segment decoder, no HA/device: `decode_roborock_v1_segments` (a well-formed
   IMAGE block → resolved room-id raster + dims + ids; no-IMAGE / empty / truncated / garbage

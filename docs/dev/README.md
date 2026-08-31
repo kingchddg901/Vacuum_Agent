@@ -115,11 +115,10 @@ assuming the doc is stale.
 - [design/shipped/eufy-native-transition.md](design/shipped/eufy-native-transition.md)
 - [design/planning/entity-resolution-reliability.md](design/planning/entity-resolution-reliability.md)
 - [design/planning/voice-assist-wizard.md](design/planning/voice-assist-wizard.md)
-- [design/core-minimality.md](design/core-minimality.md) — a dated *measurement*, not a plan and
-  not history; it sits at the `design/` root because neither sub-shelf fits it
 
 ## HISTORY — what we stopped doing
 
+- [core-minimality.md](history/core-minimality.md) — the irreducible-core map + the DECLINED B1/B2/B3 refactor (2026-08-30); the atom+rings model stays live in [01 §2](01-architecture-overview.md)
 Never wrong: a record of what was true then.
 
 - [history/disaster-recovery-standard.md](history/disaster-recovery-standard.md)

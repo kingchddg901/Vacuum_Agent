@@ -1,5 +1,10 @@
 # Core Minimality & Deconstruction
 
+> **STATUS: DECLINED — HISTORY (2026-08-30).** The "make the core stand alone" refactor scoped
+> below (**B1/B2/B3**) will not be done (Chris's call), so this moved from `design/` to `history/`.
+> What retires is the *refactor plan*; the **atom + rings model remains live architecture**
+> (normative in `01-architecture-overview.md` §4). Kept as the dated measurement behind that model.
+
 *What is the irreducible core, and how much can be removed while the system still cleans a room?*
 
 This is the measured answer to that question — the second axis of the doc-as-spec / deconstruction work (see `10-learning-system.md` §9.3 for the same exercise scoped to one subsystem). It is a **map, not a changelog**: nothing here has been refactored. It records where the real waterline sits so that a "make the core stand alone" refactor (called **B** below) can be scoped honestly — or deliberately declined.
@@ -9,8 +14,8 @@ Method: an AST subsystem-dependency map plus a runtime trace of a single `room_c
 > **Where this lives, and why.** Moved out of the numbered reading order on
 > 2026-08-15 (it was `32-core-minimality-and-deconstruction.md`, sitting between two
 > real subsystem references and asserting a peerage it does not have). It is a dated
-> audit plus a blueprint for work deliberately not done, which is what `design/`
-> holds. The **atom + rings model itself is architecture, not proposal** — it is
+> audit plus a blueprint for work now DECLINED (2026-08-30) and moved to `history/`.
+> The **atom + rings model itself is architecture, not proposal** — it is
 > stated normatively in `01-architecture-overview.md`
 > §4, which also carries its acceptance test; this document is the *measurement* behind
 > it and the refactor plan on top of it.

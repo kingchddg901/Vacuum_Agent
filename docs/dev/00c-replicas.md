@@ -295,7 +295,7 @@ That third row exists because the register's whole purpose is to make deliberate
 affordable. Without it duplication is a silent hazard, so the only safe response is to
 unify — and unifying welds. An extraction that makes a subsystem depend on something it did
 not depend on before is a **coupling decision**, not a cleanup; it belongs to
-`design/core-minimality.md`, not to a tidy-up pass.
+`history/core-minimality.md`, not to a tidy-up pass.
 
 A set can split across dispositions. `RNJ9YQF7`'s seven members are four leaf utilities and
 three functions carrying profile/water/carpet vocabulary — same set, opposite correct
@@ -641,6 +641,62 @@ Eufy-safe by construction: with no `vocab.<brand>.*` keys the lookup is byte-ide
 path. Rides adjacent to [`RNZM4AYY`](00c-replicas.md) (most-specific-declaration ownership) and
 [`RNZQ33ZP`](00c-replicas.md) (the escaped/raw `tVocab` pairing in the same file — `tVocabRaw`
 being a co-replica here means a change touches BOTH sets at once).
+
+---
+
+### `RNQ433CB` — card-facing CAPABILITY copy · **1 primary + 3 adapter config blocks**
+
+A `supports_*` capability the card reads is written twice: the adapter's `capabilities`
+config block declares it, and `core/manager.py`'s dashboard snapshot copies it out by an
+**explicit key list** (extract + emit), not a spread. Miss the snapshot half and the flag
+never reaches the card.
+
+| Site | Kind |
+|---|---|
+| `core/manager.py` dashboard-snapshot capability block | **primary** — the explicit copy + reasoning |
+| `adapters/dreame/adapter.py` `capabilities` block | source copy |
+| `adapters/eufy/adapter.py` `capabilities` block | source copy |
+| `adapters/roborock/adapter.py` `capabilities` block | source copy |
+
+**Load-bearing** — the snapshot is deliberately an allowlist (the card must not receive the
+whole capability payload), so it cannot be dissolved into a spread. **Observational** — it
+decides which controls the card exposes — but silent both ways: a flag added to a config
+block and not forwarded renders no control with every test green, and a forwarded flag no
+config block sets is dead. `supports_goto` shipped exactly this way on 2026-08-30 — the
+button never appeared and all suites passed; `supports_zone_clean` is the in-tree member
+that proves the pattern. The `config_schema.py` `capabilities` decl is a THIRD site but is
+**test-gated** (schema conformance fails LOUD), so it is discharged, not a silent member.
+
+**Declared at** `core/manager.py`'s dashboard-snapshot capability block.
+
+*History: minted AT the fix that added `supports_goto` — the bug that convicted the set
+([[feedback_anchor_replica_at_the_fix]]).*
+
+---
+
+### `RN0Y49XS` — the Dreame render PROJECTION ↔ go-to/zone correspondences · **2 copies**
+
+| Site | Kind |
+|---|---|
+| `mapping/map_source_runtime.py::dreame_render_from_mapdata` `_n` | **primary** — carries the offset reasoning |
+| `mapping/map_source_runtime.py::dreame_correspondences_from_mapdata` | the copy — restates it corner for corner |
+
+Both add `map_frame_offset_mm` to the vacuum coord, project through the SAME
+`_dreame_projector`, and normalize by `(width, height)`. `_n` produces the rendered rooms;
+the correspondences produce the `(nx, ny, mmx, mmy)` pairs the go-to / zone affine is fitted
+from — so the affine INVERTS `_n`. **Load-bearing (runtime data path), MUTATION-adjacent:**
+diverge and a tap lands ~offset from where the robot drives, silently — the affine still
+fits, just to the wrong frame. They differ in ONE deliberate way — the correspondences
+REJECT an out-of-grid corner where `_n` clamps for display; that is the exception, not drift.
+
+**This shipped broken and the test could not see it.** The go-to path called the
+Roborock-shaped `correspondences_from_mapdata` on a Dreame MapData, which read `.rooms`
+(absent on a Dreame MapData) and returned `[]`; the unit test mocked the projector, so it
+agreed with the caller and never exercised the real Dreame shape (2026-08-30, live "no live
+map / projection failed" on the first real tap — [[feedback_anchor_replica_at_the_fix]],
+[[feedback_test_discipline]]).
+
+**Declared at** `dreame_render_from_mapdata`'s `_n`.
 
 ---
 

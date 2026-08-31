@@ -231,6 +231,20 @@ Provenance is checked outside the suite by `scripts/verify_dreame_guide_provenan
 which cannot be a gate here because the manuals are vendor copyright and stay out of
 the repo.
 
+### `dreame/test_dreame_adapter_config.py` — the native current-room wires
+
+3 tests (`DAC-*`). Dreame publishes the live room on `sensor.<id>_current_room`
+(`active_cleaning_target`), and THREE subsystems must ride that one signal: the map
+current-room highlight, the pose sampler's attribution, and the room rollover that writes
+`completed_rooms`. Each was a declared-but-unwired gap at some point — the same shape as
+the map-highlight fix one layer over. `DAC-1` pins `live_transition.native_transition_source:
+True` so the rollover follows the native signal instead of Eufy's `counter_plateau` (which,
+on Dreame, mis-attributed the whole run's area to the first room and dropped the LAST room —
+"Not reached", observed live twice). `DAC-2` pins `room_attribution.source:
+native_current_room`. `DAC-3` asserts both together — a brand that declares the native
+attribution source but not the native rollover splits its signal across subsystems, the exact
+drift these guard.
+
 ### `../unit/test_adapter_config_parity.py` — the schema is a FLOOR, not the contract
 
 3 tests, added 2026-08-15. `test_declaration_contract.py` above pins what happens

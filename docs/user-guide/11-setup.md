@@ -50,6 +50,20 @@ or revisit room settings.
 
 ## Step 1 — Add Vacuum
 
+!!! note "Dreame — map your robot in the app first"
+
+    Before you add a **Dreame** robot, give it a saved map: run at least one
+    full mapping pass in the Dreame app and let it save. On a Dreame that has
+    **no saved map yet**, a known bug in the underlying `dreame_vacuum`
+    integration (Tasshack
+    [#1707](https://github.com/Tasshack/dreame-vacuum/issues/1707)) can leave
+    the live map failing to render until that integration is reloaded — its
+    first, empty map frame clears the decode key. If your map does not appear
+    after the robot finishes its first mapping run, reload the Dreame
+    integration once (**Settings → Devices & Services → dreame_vacuum → ⋮ →
+    Reload**). A robot that already has a saved map is never affected — this is
+    only ever a first-setup step.
+
 Click **Add Vacuum**. The card shows "Working…" while the service
 call runs.
 

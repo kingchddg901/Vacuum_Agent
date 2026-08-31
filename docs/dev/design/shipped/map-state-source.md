@@ -242,3 +242,43 @@ reader.
   in-memory attrs). Contained by the adapter pointer + defensive parse + presence gate.
 - Roborock exactness needs a reconstruction step (color-seg / re-parse) — dev cost, not user cost.
 - Roborock backend can't be verified offline — W1 introspector confirms it at runtime.
+
+## Dreame frame alignment — `map_frame_offset_mm` (live-tuned, per-model if it drifts)
+
+The Dreame `camera_attrs` backend renders from the decoded `MapData` via a dims-based
+projection (`_dreame_projector`). That projection sits ~1 robot-diameter off Dreame's OWN
+render of the same data — the frame the vendor app draws and the robot obeys. The adapter's
+`map_state_source.map_frame_offset_mm` = `[x_mm, y_mm]` (vacuum frame, **+x = east, +y =
+north**) is a fixed shift added to every vacuum coord before projection, nudging the WHOLE
+raster — rooms, robot/dock anchors, furniture — onto Dreame's frame. Same "tune it on the
+live device" pattern as the Roborock introspector above and as `map_pixel_size`. Current
+value: `[30, 290]`, tuned live on `vacuum.robin` (`dreame.vacuum.r2469a`, L10s Ultra Gen 2).
+
+**It is a single value in the shared adapter block, verified on ONE model** — the only
+Dreame available to tune against. Whether it generalises across models cannot be checked
+offline (same shape as the Roborock introspector risk).
+
+**The stakes are COSMETIC, not functional — this is why a wrong value can't misdirect the
+robot.** The offset is applied in TWO places that carry it identically (replica `RN0Y49XS`):
+the render's `_n` AND `dreame_correspondences_from_mapdata` (the go-to / zone affine's input
+pairs). So it **cancels in the tap→dispatch round-trip**: a tap at the rendered position of a
+physical point inverts back to that true point regardless of the offset value, because the
+correspondences shift by exactly what the render shifted. Coordinate dispatch (go-to, zone)
+is therefore offset-ROBUST; room-clean uses segment ids and never touches it. What the offset
+actually buys is **render fidelity** — our map lining up with the Dreame app, and the
+robot/dock/furniture overlays sitting where the app shows them. A wrong value for some future
+model shows up as *our render sitting shifted from the vendor app*, never as a go-to landing
+in the wrong place.
+
+**How to re-tune for a new model** (the fix, since we can't pre-verify): overlay the card's
+render on a Dreame-app screenshot at the same zoom (a docked robot + a distinctive notch is
+enough); if shifted, adjust `[x_mm, y_mm]` and redeploy (backend change → **full restart**),
+then re-compare — exactly how `[30, 290]` was found. **If it turns out to differ per model,**
+promote `map_frame_offset_mm` from the shared `map_state_source` block in
+`adapters/dreame/adapter.py` to a per-model value in `adapters/dreame/model_catalog.py`
+(keyed like `has_path_control`), and read it in the profile the way the other per-model
+fields are — one offset per model, defaulting to the current shared value.
+
+*Provenance: `[30, 290]` validated live 2026-08-30 — a go-to target placed on the card
+appeared at the same spot in the Dreame app and the robot drove there (a differential proof
+that our render frame and Dreame's agree).*
