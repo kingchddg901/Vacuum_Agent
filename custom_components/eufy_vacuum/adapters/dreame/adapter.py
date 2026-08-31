@@ -328,6 +328,15 @@ def register_dreame_adapter_for_vacuum(
             "identifier_domain": "dreame_vacuum",
             "present_requires_live_map_image": True,
             "map_pixel_size": None,
+            # Frame-alignment tune ([x_mm, y_mm], vacuum frame; +x = EAST, +y = NORTH): the
+            # dims-based raster projection sits south/west of Dreame's OWN render (the
+            # authoritative frame the robot obeys), so shift the whole raster — rooms and
+            # anchors together — onto theirs. Target = Dreame's DOCK DISC centre, NOT the robot
+            # puck (vacuum_position == charger_position, verified {-553,132}, so the docked puck
+            # is drawn FORWARD of the dock as pure style). Live tune 2026-08-30: 225 N landed on
+            # the disc; centred at +30 E, +290 N (fine-tuned live; disc-gap measured against
+            # the robot's ~350 mm diameter as the px->mm scale).
+            "map_frame_offset_mm": [30, 290],
             # PHASE 4a.2 (deferred): a live_pose backend gives the FASTER robot-dot poll +
             # the stall-capture dot. The full-map result already carries robot_anchor /
             # dock_anchor (rendered like eufy's storage backend), so the dashboard map

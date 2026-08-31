@@ -1018,8 +1018,23 @@ def dreame_render_from_mapdata(
     except Exception as exc:  # noqa: BLE001
         diag["area_error"] = repr(exc)
 
+    # Frame alignment tune (adapter `map_frame_offset_mm` = [x_mm, y_mm], vacuum frame):
+    # our dims-based projection sits ~1 robot-diameter off Dreame's own render (the
+    # authoritative frame the robot obeys), so we nudge the WHOLE raster — rooms AND
+    # anchors both ride this _n — onto theirs. +y is NORTH (up the map; the calibration
+    # pairs put +vacuum-y at a smaller pixel-y). Confirmed on the live device by overlaying
+    # our marker on Dreame's robot, exactly like map_pixel_size is tuned. [0,0] = no shift.
+    _off = (source_cfg or {}).get("map_frame_offset_mm") or (0, 0)
+    try:
+        _ox, _oy = float(_off[0]), float(_off[1])
+    except (TypeError, ValueError, IndexError):
+        _ox, _oy = 0.0, 0.0
+
     def _n(vx: Any, vy: Any) -> list[float] | None:
-        p = proj(vx, vy)
+        try:
+            p = proj(float(vx) + _ox, float(vy) + _oy)
+        except (TypeError, ValueError):
+            return None
         if p is None:
             return None
         return [_clamp01(p[0] / width), _clamp01(p[1] / height)]
