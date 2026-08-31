@@ -63,9 +63,11 @@ MODEL_PROFILES: dict[str, dict] = {
         "supports_segments": True,    # per-room selects present
         # per-room cleaning_route (standard/intensive/deep) is the route axis.
         "has_path_control": True,
-        # No zone-clean entity is exposed; zone cleaning is a service, verified in
-        # dispatch (Phase 3), so leave it to the authoritative default until confirmed.
-        "supports_zone_clean": False,
+        # Zone cleaning is a service (dreame_vacuum.vacuum_clean_zone), not an entity.
+        # Enabled on the L10s: it reuses the SAME live-proven go-to affine + map_frame_offset
+        # to invert a drawn box to true device-mm (go-to landed dead-on on robin 2026-08-30).
+        # The generic default stays False (fail-closed) until a model is validated.
+        "supports_zone_clean": True,
     },
 }
 

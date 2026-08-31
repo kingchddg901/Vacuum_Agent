@@ -291,3 +291,41 @@ FLOOR_TYPE_FAN_DEFAULTS: dict[str, str] = {
 #: "this brand supports the contract and has none"; ABSENT says "the declaration
 #: is incomplete" and is a validation error. The two must not be the same state.
 LEGACY_ALIASES: dict[str, str] = {}
+
+
+# --- external-run task-status vocabulary ------------------------------------
+#
+# Values of ``sensor.<obj>_task_status`` (dreame_vacuum's DreameVacuumTaskStatus,
+# translations `entity/sensor/task_status/state`). Used by the EXTERNAL-run path:
+# the pose sampler's parked check and the mid-run-dock grace on an app-started run.
+# FIRST CUT, sourced from tasshack's canonical values + Roborock's granularity;
+# refine from a live external run once one is observed on robin.
+
+#: A clean is IN PROGRESS — the robot is moving/cleaning, so the pose sampler must
+#: NOT treat the tick as parked (returning states ride along at ~0 swept area ->
+#: transit). Mirrors Roborock's ACTIVE_RUN_TASK_STATES: the cleaning + navigation
+#: states, NOT the paused/terminal ones (`completed`/`unknown` mean parked/idle).
+ACTIVE_RUN_TASK_STATES: set[str] = {
+    "cleaning",
+    "room_cleaning",
+    "zone_cleaning",
+    "spot_cleaning",
+    "returning_to_install_mop",
+    "returning_to_remove_mop",
+}
+
+#: The robot is DOCKED / returning for a station cycle MID-run and WILL resume — an
+#: external run must not be finalized on these (the analogue of Eufy's "Washing Mop"
+#: / "Emptying Dust"). Dreame's station-clean, mop-change returns, mop-wash pauses,
+#: and mid-run dockings.
+EXTERNAL_MID_RUN_STATUSES: set[str] = {
+    "station_cleaning",
+    "returning_to_install_mop",
+    "returning_to_remove_mop",
+    "auto_cleaning_washing_paused",
+    "area_cleaning_washing_paused",
+    "custom_cleaning_washing_paused",
+    "docking_paused",
+    "room_docking_paused",
+    "zone_docking_paused",
+}
