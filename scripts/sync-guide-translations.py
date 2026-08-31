@@ -34,9 +34,11 @@ ADAPTERS = os.path.join(ROOT, "custom_components", "eufy_vacuum", "adapters")
 # is pure data (no cross-adapter imports) — bare imports are safe.
 sys.path.insert(0, os.path.join(ADAPTERS, "eufy"))
 sys.path.insert(0, os.path.join(ADAPTERS, "roborock"))
+sys.path.insert(0, os.path.join(ADAPTERS, "dreame"))
 
 import eufy_upkeep_guides as base          # noqa: E402
 import roborock_upkeep_guides as rr_base   # noqa: E402
+import dreame_upkeep_guides as dr_base     # noqa: E402
 
 
 def _load_pkg(pkg_dir, modname):
@@ -54,13 +56,14 @@ def _load_pkg(pkg_dir, modname):
 
 i18n = _load_pkg(os.path.join(ADAPTERS, "eufy", "upkeep_guides_i18n"), "eufy_upkeep_guides_i18n")
 rr_i18n = _load_pkg(os.path.join(ADAPTERS, "roborock", "upkeep_guides_i18n"), "roborock_upkeep_guides_i18n")
+dr_i18n = _load_pkg(os.path.join(ADAPTERS, "dreame", "upkeep_guides_i18n"), "dreame_upkeep_guides_i18n")
 
 FIELDS = ("steps", "notes", "clean_frequency", "replace_frequency")
 LANGS = ("de", "fr", "es", "it", "nl", "pt", "ru", "ar", "he", "ja", "zh-Hans", "zh-Hant", "ko")
 
-# English base, trimmed to the localizable fields. Both brands' libraries are
-# namespaced by guide family (Eufy: x10_pro_omni…; Roborock: s6/s7/s8), so they
-# coexist in one `en` map — the card picks the family for the active vacuum.
+# English base, trimmed to the localizable fields. Eufy (x10_pro_omni…) and Roborock
+# (standard/auto_empty/wash_station) use disjoint family keys, so they coexist in one
+# `en` map — the card picks the family for the active vacuum.
 merged = {"en": {}}
 for library in (base.UPKEEP_GUIDE_LIBRARY, rr_base.ROBOROCK_UPKEEP_GUIDE_LIBRARY):
     for family, comps in library.items():
@@ -68,11 +71,34 @@ for library in (base.UPKEEP_GUIDE_LIBRARY, rr_base.ROBOROCK_UPKEEP_GUIDE_LIBRARY
             comp: {k: g[k] for k in FIELDS if k in g} for comp, g in comps.items()
         }
 
-# Official manual translations on top — BOTH brands (families namespaced by key,
-# so Eufy's x10_pro_omni… and Roborock's standard/auto_empty/wash_station coexist).
+# Dreame is added AFTER, COLLISION-SAFE. Its generic tier families (standard / auto_empty
+# / wash_station / wash_station_track / _roller / _baseboard) share KEYS with Roborock's
+# but hold DIFFERENT prose (measured off different manuals), and the card looks a family
+# up by its bare key with no brand qualifier (renderers/maintenance.js). Overwriting would
+# silently swap Roborock's tier guide for Dreame's. So Dreame only CLAIMS keys no earlier
+# brand used: its uniquely-named authored families (matrix10, l60_ultra, x50, l10s_gen2,
+# aqua10_ultra_*, …) localize on the card, while its bare-tier-family models fall back to
+# English until the keys are brand-namespaced (the proper fix — a cross-brand card change,
+# deferred). Skipped keys are reported below.
+_claimed = set(merged["en"])
+dreame_skipped = sorted(set(dr_base.DREAME_UPKEEP_GUIDE_LIBRARY) & _claimed)
+for family, comps in dr_base.DREAME_UPKEEP_GUIDE_LIBRARY.items():
+    if family in _claimed:
+        continue
+    merged["en"][family] = {
+        comp: {k: g[k] for k in FIELDS if k in g} for comp, g in comps.items()
+    }
+
+# Official manual translations on top. Eufy + Roborock first (disjoint keys), then Dreame
+# with the same collision-skip so it never overwrites a family an earlier brand claimed.
 for src in (i18n.UPKEEP_GUIDE_TRANSLATIONS, rr_i18n.ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS):
     for lang, fams in src.items():
         merged.setdefault(lang, {}).update(json.loads(json.dumps(fams)))  # deep copy
+for lang, fams in dr_i18n.DREAME_UPKEEP_GUIDE_TRANSLATIONS.items():
+    dest = merged.setdefault(lang, {})
+    for family, comps in json.loads(json.dumps(fams)).items():
+        if family not in _claimed:
+            dest[family] = comps
 
 # Back-fill frequency gaps from the machine-translated unique phrases.
 with open(os.path.join(ROOT, "scripts", "data", "guide-frequency-translations.json"), encoding="utf-8") as fh:
@@ -110,3 +136,6 @@ with open(out_path, "w", encoding="utf-8") as fh:
     fh.write(header + "export const GUIDE_TRANSLATIONS = " + data + ";\n")
 
 print(f"wrote {out_path} ({len(data)} bytes data, {filled} frequency gaps filled)")
+if dreame_skipped:
+    print(f"Dreame families NOT localized on the card (key shared with an earlier brand; "
+          f"fall back to English until brand-namespaced): {dreame_skipped}")
