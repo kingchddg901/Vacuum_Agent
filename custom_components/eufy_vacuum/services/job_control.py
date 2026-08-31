@@ -65,6 +65,7 @@ from ..const import (
     SERVICE_GET_JOB_PROGRESS_SNAPSHOT,
     SERVICE_GET_LIFECYCLE_STATE,
     SERVICE_GET_START_STATUS,
+    SERVICE_GOTO,
     SERVICE_PAUSE_ACTIVE_JOB,
     SERVICE_RESUME_ACTIVE_JOB,
     SERVICE_START_RUN_PROFILE,
@@ -145,6 +146,20 @@ _START_RUN_PROFILE_SCHEMA = vol.Schema(
 # a drag to the image edge can land slightly outside, and the provider clamps.
 _ZONE_RECT_SCHEMA = vol.All([vol.Coerce(float)], vol.Length(min=4, max=4))
 
+_GOTO_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        # Optional + auto-resolved; NOT forwarded (the provider cruises on its own map).
+        vol.Optional("map_id"): cv.string,
+        # Normalized [nx, ny], 0..1 of the live-map image (top-left origin) — the same
+        # frame the card renders and the user taps. Converted to device-mm at dispatch.
+        vol.Required("point"): vol.All(
+            [vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0))],
+            vol.Length(min=2, max=2),
+        ),
+    }
+)
+
 _START_ZONE_CLEAN_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
@@ -163,6 +178,11 @@ _START_ZONE_CLEAN_SCHEMA = vol.Schema(
         vol.Optional("clean_times", default=1): vol.All(
             vol.Coerce(int), vol.Range(min=1)
         ),
+        # Native per-clean settings (canonical token per key, e.g. {suction: strong,
+        # water: moist}). The adapter's zone.params maps each to its device wire code;
+        # brands/keys without a mapping are ignored at dispatch. Optional — omitted keys
+        # keep the device's saved setting.
+        vol.Optional("settings"): vol.Schema({cv.string: cv.string}),
     }
 )
 
@@ -262,6 +282,25 @@ async def _handle_start_zone_clean(hass: HomeAssistant, call: ServiceCall) -> di
     except Exception as err:
         raise HomeAssistantError(f"Failed to start zone clean: {err}") from err
     _LOGGER.debug("start_zone_clean complete: %s", payload)
+    return payload
+
+
+async def _handle_goto(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Cruise the robot to one tapped point (normalized [nx, ny] on the live map).
+
+    Navigation, NOT a clean: it carries no room ids and does not touch the job/queue/
+    learning store (no async_save). Deliberately does NOT consult the in-flight gate the
+    way start_zone_clean does — a go-to is a positioning command a user reasonably issues
+    at any time (including to reposition mid-idle); the device arbitrates against its own
+    state. dispatch_goto converts the normalized point to device-mm via the live map's
+    affine and REFUSES if that can't be validated.
+    """
+    resolved = resolved_call_data(hass, call)
+    try:
+        payload = await get_manager(hass).dispatch_goto(**resolved)
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to send go-to: {err}") from err
+    _LOGGER.debug("goto complete: %s", payload)
     return payload
 
 
@@ -380,6 +419,10 @@ def register(hass: HomeAssistant) -> None:
     async def start_zone_clean(call: ServiceCall) -> dict:
         return await _handle_start_zone_clean(hass, call)
 
+    @debug_traceable(SERVICE_GOTO)
+    async def goto(call: ServiceCall) -> dict:
+        return await _handle_goto(hass, call)
+
     async def pause_active_job(call: ServiceCall) -> dict:
         return await _handle_pause_active_job(hass, call)
 
@@ -419,6 +462,10 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_START_ZONE_CLEAN, start_zone_clean,
         schema=_START_ZONE_CLEAN_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GOTO, goto,
+        schema=_GOTO_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_PAUSE_ACTIVE_JOB, pause_active_job,

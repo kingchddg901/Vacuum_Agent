@@ -111,6 +111,12 @@ def register_dreame_adapter_for_vacuum(
         "supports_mop_dry": station_dryable,
         "supports_empty_dust": station_collectable,
         "supports_path_control": profile.get("has_path_control", False),
+        # Cruise-to-point button gate (frontend supports_goto). Tied to path control: the
+        # `goto` dispatch block below IS a path-control command, so a model without path
+        # control gets no button. Presentation-only; dispatch gates on supports_path_control.
+        # This hint feeds detect_capabilities → the `capabilities` config block's
+        # supports_goto → manager's snapshot copy → the card (all four must carry it).
+        "supports_goto": profile.get("has_path_control", False),
         # Declared False in the capabilities block below too — it must ALSO be a hint,
         # because the room-payload gate reads the runtime-detected capabilities payload,
         # not the config block (the D18 lesson from Roborock). Dreame HAS edge mopping on
@@ -178,6 +184,45 @@ def register_dreame_adapter_for_vacuum(
             "water_level_range": vocabulary.WATER_LEVEL_RANGE,
             "clean_mode_options": vocabulary.CLEAN_MODE_OPTIONS,
             "clean_intensity_options": vocabulary.CLEAN_INTENSITY_OPTIONS,
+            # Values of sensor.<obj>_error that mean NO fault. The error tracker fires on
+            # ANY non-sentinel observation (not just transitions), so WITHOUT "no_error"
+            # here the clear-to-"no_error" reads as a fresh error and latches a PHANTOM
+            # fault every time a real error ends (observed live: one brush jam recorded as
+            # TWO faults — the rise + the clear). Declaring the set REPLACES the generic
+            # default, so the HA non-values are re-included. "no_error" is dreame_vacuum's
+            # ERROR_NO_ERROR (dreame/const.py); every other ERROR_* slug is a real fault.
+            "not_error_sentinels": ["no_error", "", "unknown", "unavailable"],
+            # Task-status values that mean a clean is IN PROGRESS — read by the pose
+            # sampler's parked check so an app-started (external) run's dock-sitting ticks
+            # are not attributed to a room. (Dispatched runs already sampled correctly via
+            # the no-pose fallback; this sharpens the EXTERNAL path.)
+            "active_run_task_states": sorted(vocabulary.ACTIVE_RUN_TASK_STATES),
+        },
+        # An external (app-started) run must not finalize while the robot is docked for a
+        # station cycle (mop wash / mop change / mid-run docking) — it will resume. These
+        # task_status values hold the grace-finalize open. Eufy's "Washing Mop" analogue.
+        "external_mid_run_statuses": sorted(vocabulary.EXTERNAL_MID_RUN_STATUSES),
+        "external_run": {
+            # active_segments (camera.<obj>_map attr) is the DEVICE'S OWN queue snapshot for an
+            # app-started run — which rooms were selected + the TAP ORDER — persisted post-dock
+            # (proven live: tap [3,1,7] came back exactly, executed in that order). Ground TRUTH
+            # for the external record's queue + not_reached, vs. inferring the cleaned set from
+            # swept area. Read at finalize (it is briefly None at run start). Dreame-only for now
+            # (Eufy/Roborock expose no equivalent snapshot).
+            "queue_from_active_segments": True,
+        },
+        "error_tracking": {
+            # Dreame reports the live fault on sensor.<obj>_error whose STATE is the fault SLUG
+            # itself (dreame_vacuum's ERROR_* value, e.g. "brush"), not a numeric code on an
+            # attribute — so the code->label table can't name it. fault_label_from_message routes
+            # the slug straight to fault.<brand>.<slug> (fault.dreame.brush); the strings are the
+            # locale packs' fault.dreame.* keys, HARVESTED from dreame_vacuum's own 40-language
+            # translations (MIT, Copyright (c) 2022 Tasshack — see ATTRIBUTIONS.md).
+            "fault_label_from_message": True,
+            # Dreame's faults are component-side (brush / wheel / sensor / dock), so "robot" is a
+            # more honest source than "unknown" when the code-based source table (built for
+            # numeric codes) can't place a slug fault.
+            "default_error_source": "robot",
         },
 
         # core owns the room-profile KEYS; the adapter owns every VALUE (doc 20). The
@@ -196,15 +241,30 @@ def register_dreame_adapter_for_vacuum(
 
         # detect_capabilities OR-ed the profile hints with live entity presence; the
         # resolved payload is what the dispatch/queue gates actually read.
+        # REPLICA RNQ433CB — every card-facing flag here is copied by hand into the
+        # dashboard snapshot at core/manager.py; add a flag here AND there or the card
+        # never sees it (silent, all-green). See docs/dev/00c-replicas.md.
         "capabilities": {
             "supports_mop_features": caps.get("supports_mop_features", profile["has_mop"]),
             "supports_water_control": mop_settable,
             "supports_mop_wash": caps.get("supports_mop_wash", station_washable),
             "supports_mop_dry": caps.get("supports_mop_dry", station_dryable),
             "supports_empty_dust": caps.get("supports_empty_dust", station_collectable),
-            "supports_path_control": profile.get("has_path_control", False),
+            # Go-to (cruise-to-a-point) via dreame_vacuum.vacuum_goto — the `goto` block
+            # below declares the service; enabled by default (standard on novel-protocol
+            # Dreames), a model without it overrides has_path_control=False in its profile.
+            "supports_path_control": profile.get("has_path_control", True),
             "supports_edge_mopping": False,
             "supports_zone_clean": caps.get("supports_zone_clean", False),
+            # dreame_vacuum.vacuum_clean_zone accepts at most 10 zones per call (confirmed
+            # on robin 2026-08-31). Declared so the card's draw + the dispatch count-cap
+            # stop at the real limit rather than the framework default.
+            "zone_max": 10,
+            # Cruise-to-point button gate (snapshot supports_goto → card). The `goto` block
+            # below is a path-control command, so this tracks supports_path_control. Copied
+            # here AND forwarded in manager.py's snapshot — the two move together (a config
+            # flag the snapshot omits never reaches the card).
+            "supports_goto": caps.get("supports_goto", False),
             # Dreame cleans rooms in the DISPATCHED queue order — PROVEN 2026-08-30 on
             # robin: active_segments carried the tap order [3,1,7] and the robot executed
             # Kitchen->Entryway->Dining in exactly that order (FINDINGS-dreame-external-
@@ -246,6 +306,75 @@ def register_dreame_adapter_for_vacuum(
         # dreame/device.py:6931). So the clean call goes BARE and the real per-room
         # control is a separate `settings_write` bulk call that runs WHILE PARKED just
         # before it (dispatch/manager.py::_run_settings_write).
+        # Go-to: cruise the robot to one tapped point. dreame_vacuum.vacuum_goto takes x/y
+        # in the DEVICE (vacuum-mm) frame directly (upstream services.yaml: fields x, y);
+        # dispatch/manager.py::dispatch_goto converts the card's normalized tap to mm via the
+        # live map's affine (offset-aware, matching the render alignment) and sends
+        # {entity_id, x, y}. Gated by supports_path_control (declared above).
+        "goto": {
+            "service_domain": "dreame_vacuum",
+            "service_name": "vacuum_goto",
+            "x_field": "x",
+            "y_field": "y",
+        },
+        # Ad-hoc zone clean (draw-a-box). Unlike Roborock/Eufy — whose zone rides the same
+        # send_command verb as room-clean — Dreame's zone is its OWN service
+        # (vacuum_clean_zone), distinct from room-clean's vacuum_clean_segment. So it needs a
+        # dedicated block like `goto`, NOT a dispatch.zone_command verb override.
+        # Upstream fields (live services.yaml): `zone` = [[x0,y0,x1,y1], ...] in DEVICE mm
+        # (4-tuples, NOT Roborock's 5-tuple), `repeats` = a per-zone or single int. Coords
+        # come from the card's normalized box → the live map's affine (offset-aware, same
+        # frame as go-to). Gated by supports_zone_clean. suction_level/water_volume are
+        # available upstream but deliberately not sent (v1 uses the device's saved settings).
+        "zone": {
+            "service_domain": "dreame_vacuum",
+            "service_name": "vacuum_clean_zone",
+            "zone_coords": "device_mm",
+            "zone_field": "zone",
+            "repeats_field": "repeats",
+            "zone_passes_max": 2,
+            # A zone clean is a GLOBAL clean: the device's global cleaning settings apply,
+            # so the card's suction/water/mode/route are set on the global SELECT entities as
+            # PRE-CALLS, verified by readback, then the bare zone executes (device uses the
+            # globals). The globals are gated by switch.<obj>_customized_cleaning (per-room
+            # custom cleaning): ON makes them `unavailable`, so the sequence flips it OFF
+            # first and restores it after. suction is identity (select tokens == our
+            # canonical), water → the coarse mop_pad_humidity, route/mode → their selects
+            # (mode via CLEAN_MODE_VALUE_MAP). See dispatch/manager.py::dispatch_zone_clean.
+            # Each setting resolves an entity `<domain>.<obj>_<entity_suffix>` and is applied
+            # via <domain>.<service> with {value_field: <wire>}. Selects default (select /
+            # select_option / option); water is the FINE wetness NUMBER. `value_map` folds
+            # our canonical token to the wire (mode → cleaning_mode option; suction/route
+            # tokens ARE the select options so identity; water → a wetness_level int). BEFORE
+            # execute the sequence snapshots each entity's current value + the gate, and RIGHT
+            # AT ZONE COMPLETION restores them (so a zone clean never persists its settings).
+            "global_precall": {
+                "gate_switch_suffix": "customized_cleaning",
+                "restore_gate": True,
+                "settings": [
+                    {"key": "mode", "label": "Mode", "entity_suffix": "cleaning_mode",
+                     "options": vocabulary.CLEAN_MODE_OPTIONS,
+                     "value_map": vocabulary.CLEAN_MODE_VALUE_MAP, "default": "vacuum"},
+                    {"key": "suction", "label": "Suction", "entity_suffix": "suction_level",
+                     "options": vocabulary.FAN_SPEED_OPTIONS, "default": "standard"},
+                    {"key": "route", "label": "Route", "entity_suffix": "cleaning_route",
+                     "options": [
+                         {"value": "quick", "label": "Quick"},
+                         {"value": "standard", "label": "Standard"},
+                         {"value": "intensive", "label": "Intensive"},
+                         {"value": "deep", "label": "Deep"},
+                     ], "default": "standard"},
+                    # Water is the FINE global wetness (number.<obj>_wetness_level, 1..32),
+                    # the app's "Mop Wetness" slider — NOT the coarse water_volume. The 3
+                    # card states fold to representative points on the scale.
+                    {"key": "water", "label": "Water", "entity_suffix": "wetness_level",
+                     "domain": "number", "service": "set_value", "value_field": "value",
+                     "options": vocabulary.WATER_LEVEL_OPTIONS,
+                     "value_map": {"slightly_dry": 8, "moist": 16, "wet": 27},
+                     "default": "moist"},
+                ],
+            },
+        },
         "dispatch": {
             "template": "dreame_room_clean",
             "service_domain": "dreame_vacuum",
@@ -352,23 +481,43 @@ def register_dreame_adapter_for_vacuum(
             "format": "room_pixels_v1",
         },
         "job_segmenter": {
-            # Reuse the brand-agnostic counter-plateau engine: Dreame's cleaning_time /
-            # cleaning_area counters are CUMULATIVE across rooms and go FLAT during
-            # inter-room transit — exactly the plateau this engine keys on (proven on the
-            # 3-room run2 tape → 3 segments; areas Kitchen~5 / Entryway~1 / Dining~10).
-            # Dreame's transits are SHORTER than Eufy's, so gap_transit/plateau are lowered
-            # from the 60/90 s defaults. First-cut tuning — refine from live phase.segment
-            # logs (esp. mop runs, where a real mid-room wash can add a spurious plateau).
-            "engine": "counter_plateau_v1",
-            "tuning": {
-                "gap_transit_s": 20.0,
-                "gap_plateau_s": 45.0,
-            },
+            # DROP the counter tool for Dreame (Chris, 2026-08-30: "it does not work on dreame").
+            # The cleaning_time/cleaning_area counters are CUMULATIVE across rooms and the
+            # inter-room transits are SUB-30 s, so counter-plateau detection cannot find the
+            # boundary — it returns ONE segment for a multi-room run (the whole run lands on the
+            # first queue room; the last room reads "Not reached"). noop is the explicit "no
+            # counter stream to plateau-detect" (same declaration Roborock makes). finalize_source
+            # routes the ATOMIC per-room timings through the NATIVE current_room boundaries the
+            # pose sampler buffers instead (learning/history_store._build_native_room_timings) —
+            # exact, and it captures the LAST room the live rollover structurally cannot.
+            "engine": "noop_job_fallback",
+            "finalize_source": "native_current_room",
         },
         "room_attribution": {
             "engine": "noop_room_attribution",
             "source": "native_current_room",
             "tuning": {},
+        },
+        "live_transition": {
+            # NATIVE current-room rollover — the TWIN of the map-highlight wire. Dreame
+            # reports the live room directly (sensor.<id>_current_room =
+            # entities.active_cleaning_target), the SAME signal that now drives the map
+            # highlight and that the pose sampler already banks. Follow it for room rollover
+            # instead of Eufy's counter_plateau heuristic (the default), which on Dreame
+            # mis-attributed the whole run's area to the FIRST room and dropped the LAST room
+            # (counter_plateau can only roll a room when it detects the NEXT room's boundary,
+            # so the final room never completes -> "Not reached"). Proven live: the native
+            # signal split Entryway then Kitchen cleanly where counter_plateau could not.
+            #
+            # Dreame cleans in strict queue order and does not revisit rooms
+            # (honors_clean_order=True), so a transition OFF a room is proof that room is done
+            # -> rooms_unique_per_job stays at its default (True): complete-on-transition,
+            # UNLIKE Roborock's path-optimized revisiting (rooms_unique_per_job=False, all
+            # completion deferred to finalize). The LAST room is still resolved at finalize by
+            # learning/external_ingest.reconcile_dispatched_identity, the same path Roborock
+            # uses. Eufy leaves native_transition_source False (the default) and is untouched.
+            "enabled": True,
+            "native_transition_source": True,
         },
 
         # Rooms are a per-map mapping {map_name: [{id,name,icon}]} served as a LIVE

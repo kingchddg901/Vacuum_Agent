@@ -99,6 +99,34 @@ def max_residual_mm(coeffs, correspondences: Iterable[Sequence[float]]) -> float
     return worst
 
 
+def normalized_point_to_mm(
+    correspondences: Iterable[Sequence[float]],
+    point: Sequence[float],
+    *,
+    validate_tol_mm: float = 50.0,
+):
+    """Convert one normalized ``(nx, ny)`` point (0..1, top-left origin) to device-mm
+    ``(x, y)`` via the affine fit from ``correspondences``.
+
+    The single-point sibling of :func:`normalized_rects_to_mm`, for go-to. Same fit, same
+    round-trip validation, same refuse-rather-than-mis-place contract — a wrong inverse
+    drives the robot to the WRONG place, which is exactly when NOT to send a coordinate.
+    Returns ``(x_mm, y_mm)`` or ``None`` (caller MUST refuse to dispatch on ``None``).
+    """
+    coeffs = fit_normalized_to_mm(correspondences)
+    if coeffs is None:
+        return None
+    if max_residual_mm(coeffs, correspondences) > validate_tol_mm:
+        return None
+    if not isinstance(point, (list, tuple)) or len(point) != 2:
+        return None
+    try:
+        nx, ny = float(point[0]), float(point[1])
+    except (TypeError, ValueError):
+        return None
+    return _apply(coeffs, nx, ny)
+
+
 def normalized_rects_to_mm(
     correspondences: Iterable[Sequence[float]],
     rects: Iterable[Sequence[float]],

@@ -794,6 +794,30 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "brand that says nothing keeps the attribute-only behaviour."
                 ),
             },
+            "fault_label_from_message": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "TRUE when this brand's error_message entity STATE is a fault SLUG "
+                    "(dreame_vacuum reports `brush`), so the fault names itself "
+                    "`fault.<brand>.<slug>` directly — no numeric code and no code->key "
+                    "table. DISTINCT from `message_is_code`, which carries the message "
+                    "into `code` for the classification tables; this one forms the DISPLAY "
+                    "label_key (core.error_tracker.error_label_key_from_message). Default: "
+                    "False — a human-sentence message brand keeps code-based labels."
+                ),
+            },
+            "default_error_source": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Fallback fault source ('robot' / 'dock') used when the code-based "
+                    "source table cannot place a fault — for a brand whose codes are slugs "
+                    "the table was never built for. Dreame declares 'robot' (its faults are "
+                    "component-side: brush / wheel / sensor / dock). Default: none, so the "
+                    "source stays the honest 'unknown'."
+                ),
+            },
             "task_status_error_value": {
                 "type": "str",
                 "required": False,
@@ -1675,6 +1699,7 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "supports_mop_features": {"type": "bool", "required": False},
             "supports_water_control": {"type": "bool", "required": False},
             "supports_path_control": {"type": "bool", "required": False},
+            "supports_goto": {"type": "bool", "required": False},
             "supports_edge_mopping": {"type": "bool", "required": False},
             "supports_mop_wash": {"type": "bool", "required": False},
             "supports_mop_dry": {"type": "bool", "required": False},
@@ -1760,6 +1785,28 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "holds the run open while task_status is one of these instead of closing "
             "it at the dock, so a vacuum->mop run stays one multi-segment record."
         ),
+    },
+
+    "external_run": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "External (app-started) run capture options."
+        ),
+        "fields": {
+            "queue_from_active_segments": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "TRUE when the live-map camera exposes the run's queue snapshot on its "
+                    "`active_segments` attribute (Dreame): the rooms the user selected AND the "
+                    "tap ORDER, persisted post-dock. Read at finalize as the GROUND-TRUTH queue "
+                    "for the external record — drives `queued_room_ids` + `not_reached_room_ids` "
+                    "(queued but never accrued swept area), independent of the pose inference. "
+                    "Default: False — a brand with no such snapshot keeps the pose-only path."
+                ),
+            },
+        },
     },
 
     # === SETTINGS SELECTS (external-run capture) ===========================
@@ -2052,6 +2099,30 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         ),
     },
 
+    "goto": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Go-to (cruise-to-a-point) service declaration: service_domain / service_name "
+            "and x_field / y_field for the device-mm coordinate. Consumed by "
+            "dispatch/manager.py::dispatch_goto; gated by capabilities.supports_path_control. "
+            "Interior not validated (opaque, like map_state_source)."
+        ),
+    },
+
+    "zone": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "DEDICATED zone-clean service declaration (a brand whose zone clean is its own "
+            "service rather than a send_command verb — Dreame's vacuum_clean_zone): "
+            "service_domain / service_name, zone_field / repeats_field, zone_coords, "
+            "zone_passes_max. Consumed by dispatch/manager.py::dispatch_zone_clean; gated by "
+            "capabilities.supports_zone_clean. Brands whose zone rides a send_command verb use "
+            "dispatch.zone_command instead. Interior not validated (opaque, like goto)."
+        ),
+    },
+
     "map_render": {
         "type": "dict",
         "required": False,
@@ -2187,7 +2258,8 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "key gets is not visible from here. "
             "AUTHORITATIVE (`_hint_wins` — a declared False is binding): "
             "supports_water_control, supports_edge_mopping, supports_passes, "
-            "supports_custom_room_config, supports_room_clean, supports_zone_clean. "
+            "supports_custom_room_config, supports_room_clean, supports_zone_clean, "
+            "supports_goto. "
             "PERMISSIVE (hint OR live entity presence — a declared False is OVERRIDDEN "
             "when the entity resolves): supports_mop_features, supports_mop_wash, "
             "supports_mop_dry, supports_empty_dust, supports_path_control, "

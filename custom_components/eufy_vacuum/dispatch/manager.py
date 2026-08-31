@@ -27,9 +27,32 @@ from ..profiles.room_profiles import may_wet_floor
 import logging
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.event import async_track_state_change_event
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
+
+#: Vacuum states that mean a clean is over and the robot has settled — the moment to
+#: restore the globals a zone precall changed. "returning" is NOT terminal (still moving).
+_ZONE_DONE_STATES: frozenset[str] = frozenset({"docked", "idle"})
+#: Vacuum states that confirm the zone clean actually STARTED (so a restore only arms
+#: after motion begins, never firing on the pre-clean docked state).
+_ZONE_ACTIVE_STATES: frozenset[str] = frozenset({"cleaning", "returning"})
+
+
+def _values_match(actual: Any, wire: Any) -> bool:
+    """Readback equality tolerant of the str/number gap — a NUMBER entity reports its value
+    as ``"16"``/``"16.0"`` while the wire we set was ``16``. None (missing/unavailable) never
+    matches, so a setting that did not take is caught."""
+    if actual is None:
+        return False
+    if str(actual) == str(wire):
+        return True
+    try:
+        return abs(float(actual) - float(wire)) < 1e-6
+    except (TypeError, ValueError):
+        return False
 
 if TYPE_CHECKING:
     from ..core.manager import EufyVacuumManager
@@ -105,6 +128,156 @@ class DispatchManager:
         # chokepoint on purpose, so a dispatch is always visible in a diff at one place.
         await self._manager.hass.services.async_call(domain, name, data, blocking=True)
 
+    def _live_correspondences(
+        self, *, vacuum_entity_id: str, map_id: str | None,
+    ) -> list[tuple[float, float, float, float]] | None:
+        """The live map's ``(nx, ny, mmx, mmy)`` pairs for the normalized→device-mm affine.
+
+        The SINGLE source both go-to and zone dispatch invert — so they cannot disagree on
+        the frame. Reads the SAME ``map_state_source.map_frame_offset_mm`` the render applies
+        (a bare, offset-less build would cruise/clean ~offset away on Dreame — the frame the
+        card draws is the offset one). Returns ``None`` when no live map is available; the
+        caller MUST then refuse to dispatch rather than send the robot to a guess.
+        """
+        from ..mapping import map_source_runtime as _msr
+
+        adapter = _get_adapter_config(vacuum_entity_id) or {}
+        map_obj = self._manager.map_source.get_live_mapdata_obj(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id or ""),
+        )
+        if map_obj is None:
+            return None
+        _off = (adapter.get("map_state_source") or {}).get("map_frame_offset_mm") or (0.0, 0.0)
+        return _msr.correspondences_from_mapdata(map_obj, offset=_off)
+
+    def _state_or_none(self, entity_id: str) -> str | None:
+        """The entity's state string, or None when missing / unknown / unavailable."""
+        st = self._manager.hass.states.get(entity_id)
+        if st is None or st.state in ("unknown", "unavailable", "none", ""):
+            return None
+        return st.state
+
+    async def _dispatch_zone_with_global_precall(
+        self,
+        *,
+        vacuum_entity_id: str,
+        gp: dict[str, Any],
+        settings: dict[str, str],
+        zone_domain: str,
+        zone_service: str,
+        zone_data: dict[str, Any],
+    ) -> None:
+        """A zone is a GLOBAL clean. Snapshot the device's global settings + the gate switch,
+        flip the gate OFF so the globals become settable, bulk-set the chosen values, READ
+        THEM BACK (refuse rather than clean with unconfirmed settings), execute the bare zone,
+        and restore the snapshot RIGHT AT ZONE COMPLETION — a zone never persists its settings.
+
+        The gate is ``switch.<obj>_<gate_switch_suffix>`` (Dreame's customized-cleaning
+        switch): ON makes the global selects ``unavailable``, so it is flipped OFF for the
+        run and restored after. Moves the robot — same chokepoint discipline as
+        ``_dispatch_clean_payload`` / ``dispatch_goto``.
+        """
+        hass = self._manager.hass
+        obj = vacuum_entity_id.split(".", 1)[1]  # "vacuum.robin" -> "robin"
+        gate_eid = f"switch.{obj}_{gp['gate_switch_suffix']}"
+
+        # Resolve each CHOSEN setting to an apply-plan (domain/service/entity/value_field/wire).
+        plan: list[dict[str, Any]] = []
+        for s in (gp.get("settings") or []):
+            key = s.get("key")
+            val = settings.get(key) if key else None
+            if val in (None, ""):
+                continue
+            eid = f"{s.get('domain', 'select')}.{obj}_{s['entity_suffix']}"
+            plan.append({
+                "key": key,
+                "dom": s.get("domain", "select"),
+                "svc": s.get("service", "select_option"),
+                "vf": s.get("value_field", "option"),
+                "eid": eid,
+                "wire": (s.get("value_map") or {}).get(val, val),
+            })
+
+        # No settings chosen → nothing to pre-set: just run the bare zone (the device keeps
+        # its current globals). No gate flip, no restore.
+        if not plan:
+            await hass.services.async_call(zone_domain, zone_service, zone_data, blocking=True)
+            return
+
+        # Snapshot BEFORE any change — the target of the restore-at-completion.
+        gate_prior = self._state_or_none(gate_eid)          # "on" / "off" / None
+        for p in plan:
+            p["prior"] = self._state_or_none(p["eid"])      # may be None while gated
+
+        async def _apply(dom: str, svc: str, eid: str, vf: str, value: Any) -> None:
+            await hass.services.async_call(dom, svc, {"entity_id": eid, vf: value}, blocking=True)
+
+        async def _restore() -> None:
+            # Globals FIRST (while still ungated), then the gate LAST (re-gates them).
+            for p in plan:
+                if p.get("prior") is not None:
+                    try:
+                        await _apply(p["dom"], p["svc"], p["eid"], p["vf"], p["prior"])
+                    except Exception:  # noqa: BLE001 - best-effort restore
+                        _LOGGER.warning("zone restore: %s -> %r failed", p["eid"], p["prior"], exc_info=True)
+            if gate_prior == "on":
+                try:
+                    await hass.services.async_call("switch", "turn_on", {"entity_id": gate_eid}, blocking=True)
+                except Exception:  # noqa: BLE001
+                    _LOGGER.warning("zone restore: re-enabling %s failed", gate_eid, exc_info=True)
+
+        # 1. Flip the gate OFF so the globals become settable.
+        if gate_prior == "on":
+            await hass.services.async_call("switch", "turn_off", {"entity_id": gate_eid}, blocking=True)
+
+        # 2. Bulk-set the chosen globals, then 3. READ BACK — refuse (and restore) on mismatch,
+        #    rather than clean with settings that did not take.
+        try:
+            for p in plan:
+                await _apply(p["dom"], p["svc"], p["eid"], p["vf"], p["wire"])
+            mismatches = [
+                f"{p['key']} ({p['eid']}={self._state_or_none(p['eid'])!r}, wanted {p['wire']!r})"
+                for p in plan
+                if not _values_match(self._state_or_none(p["eid"]), p["wire"])
+            ]
+            if mismatches:
+                await _restore()
+                raise ValueError(
+                    f"{vacuum_entity_id}: zone settings did not take — refusing to clean with "
+                    f"unconfirmed settings: {'; '.join(mismatches)}"
+                )
+        except ValueError:
+            raise
+        except Exception:
+            await _restore()  # any set/readback failure: put the device back before propagating
+            raise
+
+        # 4. EXECUTE the bare zone — the device uses the globals we set + verified.
+        # ENFV9F37 sibling: THIS LINE MOVES A ROBOT.
+        await hass.services.async_call(zone_domain, zone_service, zone_data, blocking=True)
+
+        # 5. Arm restore-at-completion. Only after the robot ACTUALLY starts (a cleaning/
+        #    returning state) does a return to docked/idle count as "done" — so the restore
+        #    never fires on the pre-clean docked state. If the run never starts or HA restarts
+        #    mid-clean, the device is left in global mode (a known edge, logged).
+        started = {"v": False}
+        holder: dict[str, Any] = {"unsub": None}
+
+        @callback
+        def _on_state(event: Any) -> None:
+            new = event.data.get("new_state")
+            st = new.state if new is not None else None
+            if st in _ZONE_ACTIVE_STATES:
+                started["v"] = True
+                return
+            if started["v"] and st in _ZONE_DONE_STATES:
+                if holder["unsub"] is not None:
+                    holder["unsub"]()
+                    holder["unsub"] = None
+                hass.async_create_task(_restore())
+
+        holder["unsub"] = async_track_state_change_event(hass, [vacuum_entity_id], _on_state)
+
     @staticmethod
     def _check_zone_bounds(
         *,
@@ -154,6 +327,7 @@ class DispatchManager:
         zones: list[list[float]],
         clean_times: int = 1,
         map_id: str | None = None,
+        settings: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Dispatch an ad-hoc free-form zone clean (fire-and-forget).
 
@@ -180,17 +354,23 @@ class DispatchManager:
             _x0, _y0, _x1, _y1 = _z
             if abs(_x1 - _x0) < _MIN_SIDE or abs(_y1 - _y0) < _MIN_SIDE:
                 raise ValueError(f"zone {_z!r} is degenerate (near-zero area)")
-        cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        adapter = _get_adapter_config(vacuum_entity_id) or {}
+        cfg = adapter.get("dispatch", {})
+        # Two zone-dispatch shapes: a send_command VERB shared with room-clean
+        # (`dispatch.zone_command` — Roborock/Eufy), or a DEDICATED service block like
+        # `goto` (`zone.service_name` — Dreame, whose vacuum_clean_zone is its own service).
+        zone_svc = adapter.get("zone") or {}
         zone_command = cfg.get("zone_command")
-        if not zone_command:
+        _dedicated = bool(zone_svc.get("service_name"))
+        if not zone_command and not _dedicated:
             raise ValueError(
-                f"{vacuum_entity_id}: this vacuum's adapter declares no zone_command "
+                f"{vacuum_entity_id}: this vacuum's adapter declares no zone service "
                 "(zone cleaning is not supported for this brand/provider)"
             )
         # ZONE-2: only the card previously consulted supports_zone_clean -- a direct
         # service call or automation reached the device even when the brand declares
         # it unsupported. Checked here so every call path is covered.
-        _zone_caps = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
+        _zone_caps = adapter.get("capabilities", {})
         if _zone_caps.get("supports_zone_clean") is False:
             raise ValueError(
                 f"{vacuum_entity_id}: this vacuum's adapter declares zone cleaning "
@@ -218,19 +398,20 @@ class DispatchManager:
         # we convert here via the live map's own projection and REFUSE rather than
         # dispatch if the conversion can't be validated (a wrong inverse cleans the
         # wrong area — see dispatch/zone_dispatch.py).
-        if cfg.get("zone_coords") == "device_mm":
-            from ..mapping import map_source_runtime as _msr
+        if (zone_svc.get("zone_coords") or cfg.get("zone_coords")) == "device_mm":
             from . import zone_dispatch as _zd
 
-            map_obj = self._manager.map_source.get_live_mapdata_obj(
-                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id or ""),
+            # Single-source, offset-aware correspondences — the SAME frame go-to inverts, so
+            # a drawn box lands where the card drew it (a bare build omits map_frame_offset_mm
+            # and cleans ~offset away on Dreame).
+            corr = self._live_correspondences(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id,
             )
-            if map_obj is None:
+            if corr is None:
                 raise ValueError(
                     f"{vacuum_entity_id}: no live map available to convert the zone to "
                     "device coordinates — open the robot's map and try again"
                 )
-            corr = _msr.correspondences_from_mapdata(map_obj)
             mm_rects = _zd.normalized_rects_to_mm(corr, zones)
             if mm_rects is None:
                 raise ValueError(
@@ -246,23 +427,50 @@ class DispatchManager:
                     min_side=_min_side, max_side=_max_side,
                     min_area=_min_a, max_area=_max_a,
                 )
-            # Per-zone repeat cap comes from the adapter, not a hardcoded 3:
-            # dispatch.zone_passes_max (a zone-specific override) or the general
-            # dispatch.passes_max, default 3 (covers Roborock 1-3). Unaffected by
-            # Q12 -- Q12 is scoped to the non-device_mm (Eufy) branch below.
-            _zone_repeat_max = int(cfg.get("zone_passes_max", cfg.get("passes_max", 3)) or 3)
-            repeat = max(1, min(int(clean_times), _zone_repeat_max))
-            # app_zoned_clean params ARE the zone list: [[x0,y0,x1,y1,repeat], ...] (int mm).
-            payload: dict[str, Any] | list[Any] = [
-                [int(round(x0)), int(round(y0)), int(round(x1)), int(round(y1)), repeat]
-                for (x0, y0, x1, y1) in mm_rects
-            ]
-            await self._dispatch_clean_payload(
-                vacuum_entity_id=vacuum_entity_id,
-                payload=payload,
-                command_override=zone_command,
-                params_as_list_override=False,  # payload is already the params list
-            )
+            if _dedicated:
+                # Dreame vacuum_clean_zone — its OWN service. `zone` = [[x0,y0,x1,y1], ...]
+                # (4-tuple int mm, NOT Roborock's 5-tuple); `repeats` = one int for every zone.
+                _repeat_max = int(zone_svc.get("zone_passes_max", 1) or 1)
+                repeat = max(1, min(int(clean_times), _repeat_max))
+                zone_data = {
+                    "entity_id": vacuum_entity_id,
+                    zone_svc.get("zone_field", "zone"): [
+                        [int(round(x0)), int(round(y0)), int(round(x1)), int(round(y1))]
+                        for (x0, y0, x1, y1) in mm_rects
+                    ],
+                    zone_svc.get("repeats_field", "repeats"): repeat,
+                }
+                _gp = zone_svc.get("global_precall")
+                if _gp:
+                    # A zone is a GLOBAL clean: pre-set + READBACK-VERIFY the device's global
+                    # settings (ungating them via the customized-cleaning switch), execute the
+                    # bare zone, and restore the prior state at zone COMPLETION. One method.
+                    await self._dispatch_zone_with_global_precall(
+                        vacuum_entity_id=vacuum_entity_id, gp=_gp, settings=settings or {},
+                        zone_domain=zone_svc["service_domain"],
+                        zone_service=zone_svc["service_name"], zone_data=zone_data,
+                    )
+                else:
+                    # ENFV9F37 sibling: THIS LINE MOVES A ROBOT — the dedicated zone chokepoint.
+                    await self._manager.hass.services.async_call(
+                        zone_svc["service_domain"], zone_svc["service_name"],
+                        zone_data, blocking=True,
+                    )
+            else:
+                # Roborock app_zoned_clean: the params ARE the 5-tuple zone list (repeat baked
+                # per-zone). Cap from dispatch.zone_passes_max/passes_max (default 3; RRK 1-3).
+                _zone_repeat_max = int(cfg.get("zone_passes_max", cfg.get("passes_max", 3)) or 3)
+                repeat = max(1, min(int(clean_times), _zone_repeat_max))
+                payload: dict[str, Any] | list[Any] = [
+                    [int(round(x0)), int(round(y0)), int(round(x1)), int(round(y1)), repeat]
+                    for (x0, y0, x1, y1) in mm_rects
+                ]
+                await self._dispatch_clean_payload(
+                    vacuum_entity_id=vacuum_entity_id,
+                    payload=payload,
+                    command_override=zone_command,
+                    params_as_list_override=False,  # payload is already the params list
+                )
         else:
             # Eufy ships the 0-1 image rects VERBATIM (the fork de-normalizes on its side).
             # Any declared bound (area OR side) requires the live map's own dims to convert
@@ -327,6 +535,66 @@ class DispatchManager:
             "zone_count": len(zones),
             "clean_times": repeat,
         }
+
+    async def dispatch_goto(
+        self,
+        *,
+        vacuum_entity_id: str,
+        point: list[float],
+        map_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Send the robot to a single POINT (fire-and-forget navigation — NOT a clean, so it
+        BYPASSES the job/queue/learning pipeline: nothing to track or roll over).
+
+        ``point`` is a normalized ``[nx, ny]`` (0..1 of the live-map image, top-left origin) —
+        the SAME frame the card renders and the user taps. Converted to device-mm via the live
+        map's own affine (offset-aware, so it matches the render alignment) and dispatched to
+        the adapter's ``goto`` service (declared only by brands whose provider accepts go-to,
+        gated by ``supports_path_control``). REFUSES rather than dispatch when the map is absent
+        or the affine can't be validated — a wrong inverse drives the robot to the WRONG place.
+
+        ``map_id`` is accepted (the service layer auto-resolves it) but NOT sent: the provider
+        cruises on its own currently-loaded map, the one the live image was drawn on.
+        """
+        adapter = _get_adapter_config(vacuum_entity_id) or {}
+        goto = adapter.get("goto") or {}
+        name = goto.get("service_name")
+        if not name:
+            raise ValueError(
+                f"{vacuum_entity_id}: this vacuum's adapter declares no goto service "
+                "(go-to is not supported for this brand/provider)"
+            )
+        if (adapter.get("capabilities") or {}).get("supports_path_control") is False:
+            raise ValueError(
+                f"{vacuum_entity_id}: this vacuum declares path control (go-to) unsupported "
+                "(supports_path_control: false)"
+            )
+        if not isinstance(point, (list, tuple)) or len(point) != 2:
+            raise ValueError(f"go-to needs a [nx, ny] point, got {point!r}")
+        from . import zone_dispatch as _zd
+
+        corr = self._live_correspondences(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if corr is None:
+            raise ValueError(
+                f"{vacuum_entity_id}: no live map available to place the go-to point on the "
+                "device coordinate frame — open the robot's map and try again"
+            )
+        mm = _zd.normalized_point_to_mm(corr, point)
+        if mm is None:
+            raise ValueError(
+                f"{vacuum_entity_id}: could not place the go-to point on the device coordinate "
+                "frame (map projection failed validation) — refusing to dispatch rather than "
+                "sending the robot to the wrong place"
+            )
+        x, y = int(round(mm[0])), int(round(mm[1]))
+        domain = goto.get("service_domain", "vacuum")
+        xf = goto.get("x_field", "x")
+        yf = goto.get("y_field", "y")
+        data = {"entity_id": vacuum_entity_id, xf: x, yf: y}
+        # ENFV9F37 sibling: THIS LINE MOVES A ROBOT — a single, non-idempotent send, kept at
+        # one visible chokepoint exactly like _dispatch_clean_payload.
+        await self._manager.hass.services.async_call(domain, name, data, blocking=True)
+        return {"status": "dispatched", "vacuum_entity_id": vacuum_entity_id, "point_mm": [x, y]}
 
     async def _resolve_live_dispatch_payload(
         self,

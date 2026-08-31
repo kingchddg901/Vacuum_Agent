@@ -164,3 +164,158 @@ def test_zdm9_correspondences_skip_out_of_grid_corner():
     # corners (x1=200000) are skipped, its two in-grid corners (x0=20000) survive.
     assert len(corr) == 4 + 2
     assert not any(mmx == 200000.0 for _, _, mmx, _ in corr)
+
+
+# ---------------------------------------------------------------------------
+# go-to: the SINGLE-POINT converter (same affine + refuse contract as zones)
+# ---------------------------------------------------------------------------
+
+_ROOM_CORNERS = [
+    (25000, 20000), (40000, 20000), (40000, 38000), (25000, 38000),
+    (30000, 25000), (35000, 25000),  # >= 3 non-collinear
+]
+
+
+def _corr_from_fwd(mm_corners):
+    return [(_fwd(mmx, mmy)[0], _fwd(mmx, mmy)[1], float(mmx), float(mmy))
+            for mmx, mmy in mm_corners]
+
+
+def test_normalized_point_to_mm_round_trips():
+    """[ZPT-1] the go-to converter recovers device-mm for a normalized point, inverting the
+    SAME Y-flipped affine as the zone converter: forward a target mm to normalized, convert
+    back, get the mm. BITE: swap _apply's x/y coeffs and this misses."""
+    corr = _corr_from_fwd(_ROOM_CORNERS)
+    target = (33000.0, 31000.0)
+    nx, ny = _fwd(*target)
+    got = zd.normalized_point_to_mm(corr, [nx, ny])
+    assert got is not None
+    assert round(got[0]) == round(target[0])
+    assert round(got[1]) == round(target[1])
+
+
+def test_normalized_point_to_mm_refuses_bad_geometry():
+    """[ZPT-2] the safety contract: too few / collinear correspondences, or a malformed
+    point -> None, so dispatch_goto REFUSES rather than send the robot to a guess."""
+    corr = _corr_from_fwd(_ROOM_CORNERS)
+    assert zd.normalized_point_to_mm([], [0.5, 0.5]) is None
+    assert zd.normalized_point_to_mm(corr[:2], [0.5, 0.5]) is None            # < 3
+    collinear = [(0.0, 0.0, 0.0, 0.0), (0.5, 0.5, 500.0, 500.0), (1.0, 1.0, 1000.0, 1000.0)]
+    assert zd.normalized_point_to_mm(collinear, [0.3, 0.3]) is None           # degenerate
+    assert zd.normalized_point_to_mm(corr, [0.5]) is None                     # bad point shape
+
+
+def test_correspondences_carry_the_render_frame_offset():
+    """[ZPT-3] the render's map_frame_offset_mm must ALSO shift the correspondences'
+    NORMALIZED side — the card renders (and the user taps) WITH the offset, so the affine
+    fit must too, or a go-to lands ~offset away. Identity 1000px projector: a +50mm x offset
+    moves a corner's nx by 0.05 while the mm side stays the TRUE corner. BITE: drop the
+    offset from correspondences_from_mapdata and nx stays 0.0 (unshifted)."""
+    from custom_components.eufy_vacuum.mapping.map_source_runtime import (
+        correspondences_from_mapdata,
+    )
+
+    class _P:
+        def __init__(self, x, y):
+            self.x, self.y = x, y
+
+    class _Dims:
+        rotation = 0
+
+        def to_img(self, xy):
+            return _P(xy.x, xy.y)  # identity mm -> pixel
+
+    class _Data:
+        size = (1000, 1000)
+
+    class _Img:
+        dimensions = _Dims()
+        data = _Data()
+
+    class _Room:
+        x0, y0, x1, y1 = 0.0, 0.0, 100.0, 100.0
+
+    class _MD:
+        image = _Img()
+        rooms = [_Room()]
+
+    md = _MD()
+    base = correspondences_from_mapdata(md)
+    shifted = correspondences_from_mapdata(md, offset=(50.0, 0.0))
+    b00 = next(c for c in base if c[2] == 0.0 and c[3] == 0.0)
+    s00 = next(c for c in shifted if c[2] == 0.0 and c[3] == 0.0)
+    assert round(b00[0], 4) == 0.0
+    assert round(s00[0], 4) == 0.05
+    assert (s00[2], s00[3]) == (0.0, 0.0)  # mm side stays the TRUE corner
+
+
+# ---------------------------------------------------------------------------
+# go-to on a DREAME MapData — the shape that shipped broken (RN0Y49XS): the
+# decoded Dreame MapData has `.dimensions` (grid) + `.segments`, NOT the parser's
+# `.image.dimensions.to_img` + `.rooms`. The old correspondences read `.rooms`
+# (absent) and returned [], so every real tap refused with "no live map /
+# projection failed". These drive the ACTUAL Dreame shape through the real
+# `_dreame_projector` — no mocked projector — so they bite that bug.
+# ---------------------------------------------------------------------------
+
+class _DreameDims:
+    grid_size = 50.0
+    top = 0.0
+    left = 0.0
+    width = 100
+    height = 100
+
+
+class _DreameSeg:
+    def __init__(self, x0, y0, x1, y1):
+        self.x0, self.y0, self.x1, self.y1 = x0, y0, x1, y1
+
+
+class _DreameMD:
+    # No `.image`, no `.rooms` — exactly the shape that made the parser path return [].
+    dimensions = _DreameDims()
+    segments = {
+        1: _DreameSeg(200, 200, 2400, 1200),
+        2: _DreameSeg(2600, 1400, 4600, 3800),
+    }
+
+
+def test_dgt1_dreame_shape_round_trips_through_correspondences():
+    """[DGT-1] correspondences_from_mapdata dispatches a Dreame MapData to the Dreame
+    builder (parser path returns [] on this shape), and an INDEPENDENT interior point —
+    projected the SAME way the render's _n does — inverts back to its true vacuum-mm.
+    BITE: before the shape dispatch, corr is [] and normalized_point_to_mm returns None."""
+    corr = msr.correspondences_from_mapdata(_DreameMD())
+    assert len(corr) == 8  # two segments x four corners, all in-grid
+    proj, w, h, _gs = msr._dreame_projector(_DreameDims())
+    vx, vy = 1500.0, 900.0                       # not one of the bbox corners
+    px, py = proj(vx, vy)
+    got = zd.normalized_point_to_mm(corr, [px / w, py / h])
+    assert got is not None
+    assert round(got[0]) == round(vx)
+    assert round(got[1]) == round(vy)
+
+
+def test_dgt2_dreame_correspondences_carry_the_offset():
+    """[DGT-2] map_frame_offset_mm shifts the NORMALIZED side (render frame), mm side stays
+    TRUE — the Dreame analog of ZPT-3. +500mm x over a grid_size 50 / width 100 projector =
+    +0.10 nx. BITE: drop the offset and the shift is 0, so a tap lands ~offset away."""
+    base = msr.dreame_correspondences_from_mapdata(_DreameMD(), offset=(0.0, 0.0))
+    shifted = msr.dreame_correspondences_from_mapdata(_DreameMD(), offset=(500.0, 0.0))
+    b = next(c for c in base if (c[2], c[3]) == (200.0, 200.0))
+    s = next(c for c in shifted if (c[2], c[3]) == (200.0, 200.0))
+    assert round(s[0] - b[0], 4) == 0.10
+    assert (s[2], s[3]) == (200.0, 200.0)        # mm side stays the true corner
+
+
+def test_dgt3_dreame_correspondences_empty_without_geometry():
+    """[DGT-3] refuse-safe inputs: no dimensions or no segments -> [] (dispatch then refuses
+    rather than sending the robot to a guess)."""
+    class _NoDims:
+        segments = {1: _DreameSeg(0, 0, 100, 100)}
+
+    class _NoSegs:
+        dimensions = _DreameDims()
+
+    assert msr.dreame_correspondences_from_mapdata(_NoDims()) == []
+    assert msr.dreame_correspondences_from_mapdata(_NoSegs()) == []

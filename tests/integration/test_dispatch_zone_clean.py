@@ -97,13 +97,14 @@ async def test_command_override(hass, manager):
 
 
 async def test_no_zone_command_raises(hass, manager):
-    """[ZC-3] an adapter without dispatch.zone_command rejects zone cleaning."""
+    """[ZC-3] an adapter with NEITHER dispatch.zone_command NOR a dedicated `zone` block
+    rejects zone cleaning (message widened when the dedicated-service shape was added)."""
     _register(hass, {
         "service_domain": "vacuum", "service_name": "send_command",
         "command": "room_clean",
     })
     _capture_send(hass)
-    with pytest.raises(ValueError, match="zone_command"):
+    with pytest.raises(ValueError, match="no zone service"):
         await manager.dispatch_zone_clean(vacuum_entity_id=_VAC, zones=[[0, 0, 1, 1]])
 
 
@@ -438,3 +439,277 @@ async def test_eufy_zone_side_check_skipped_without_map(hass, manager, monkeypat
             vacuum_entity_id=_VAC, zones=[[0.1, 0.1, 0.8, 0.3]]
         )
     assert calls == []
+
+
+# --- Dreame DEDICATED-service branch (vacuum_clean_zone) ----------------------
+# Unlike Roborock/Eufy (a send_command verb), Dreame's zone is its own service, so the
+# adapter declares a top-level `zone` block (like `goto`). The MapData is the Dreame SHAPE
+# (`.dimensions` grid + `.segments`, no `.image`/`.rooms`), projected through the real
+# _dreame_projector — NO mock projector — and the offset comes from map_state_source.
+
+class _DrDims:
+    grid_size = 50.0
+    top = 0.0
+    left = 0.0
+    width = 100
+    height = 100
+
+
+class _DrSeg:
+    def __init__(self, x0, y0, x1, y1):
+        self.x0, self.y0, self.x1, self.y1 = x0, y0, x1, y1
+
+
+class _DreameMapData:
+    # 5 m grid; corners kept off the edge so none project out-of-grid (the -1 in the
+    # projector nudges the far edge just negative).
+    dimensions = _DrDims()
+    segments = {
+        1: _DrSeg(100, 100, 2400, 2400),
+        2: _DrSeg(2600, 2600, 4900, 4900),
+    }
+
+
+_DR_ZONE = {
+    "service_domain": "dreame_vacuum",
+    "service_name": "vacuum_clean_zone",
+    "zone_coords": "device_mm",
+    "zone_field": "zone",
+    "repeats_field": "repeats",
+    "zone_passes_max": 2,
+    # A zone is a GLOBAL clean: settings are pre-set on the device's global entities
+    # (ungated by flipping the customized-cleaning switch off), verified by readback, then
+    # the bare zone runs; the prior state is restored at zone completion.
+    "global_precall": {
+        "gate_switch_suffix": "customized_cleaning",
+        "restore_gate": True,
+        "settings": [
+            {"key": "suction", "label": "Suction", "entity_suffix": "suction_level",
+             "options": [{"value": "strong", "label": "Intense"}], "default": "standard"},
+            {"key": "water", "label": "Water", "entity_suffix": "wetness_level",
+             "domain": "number", "service": "set_value", "value_field": "value",
+             "options": [{"value": "wet", "label": "Wet"}],
+             "value_map": {"slightly_dry": 8, "moist": 16, "wet": 27}, "default": "moist"},
+        ],
+    },
+}
+
+
+def _wire_precall(hass):
+    """Register fake select/number/switch services that UPDATE their entity state (so the
+    readback sees the set take), plus the zone service — and capture every call in order."""
+    calls: list[tuple[str, dict]] = []
+
+    async def _sel(call):
+        calls.append(("select", dict(call.data)))
+        hass.states.async_set(call.data["entity_id"], call.data["option"])
+
+    async def _num(call):
+        calls.append(("number", dict(call.data)))
+        hass.states.async_set(call.data["entity_id"], str(call.data["value"]))
+
+    async def _swon(call):
+        calls.append(("switch_on", dict(call.data)))
+        hass.states.async_set(call.data["entity_id"], "on")
+
+    async def _swoff(call):
+        calls.append(("switch_off", dict(call.data)))
+        hass.states.async_set(call.data["entity_id"], "off")
+
+    async def _zone(call):
+        calls.append(("zone", dict(call.data)))
+
+    hass.services.async_register("select", "select_option", _sel)
+    hass.services.async_register("number", "set_value", _num)
+    hass.services.async_register("switch", "turn_on", _swon)
+    hass.services.async_register("switch", "turn_off", _swoff)
+    hass.services.async_register("dreame_vacuum", "vacuum_clean_zone", _zone)
+    return calls
+
+
+def _register_dreame(hass, *, offset=(0, 0)):
+    register_adapter_config(_VAC, {
+        "adapter_id": "dreame", "source": "code",
+        # room-clean is a DIFFERENT service; the dedicated zone block must win over it.
+        "dispatch": {"service_domain": "dreame_vacuum",
+                     "service_name": "vacuum_clean_segment", "command": None},
+        "zone": dict(_DR_ZONE),
+        "map_state_source": {"backend": "camera_attrs", "map_frame_offset_mm": list(offset)},
+        "capabilities": {"supports_zone_clean": True},
+    })
+
+
+def _capture_dreame_zone(hass):
+    calls: list[dict] = []
+
+    async def _svc(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("dreame_vacuum", "vacuum_clean_zone", _svc)
+    return calls
+
+
+async def test_dreame_zone_dedicated_service_shape(hass, manager, monkeypatch):
+    """[ZC-DR-1] Dreame routes to its OWN service dreame_vacuum.vacuum_clean_zone with
+    `zone`=[[x0,y0,x1,y1]] (4-tuple int mm, NOT the 5-tuple) + a separate `repeats` int —
+    NOT vacuum_clean_segment via a command override. BITE: the old command-override path
+    would call vacuum_clean_segment and never register a vacuum_clean_zone call."""
+    _register_dreame(hass)
+    calls = _capture_dreame_zone(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    out = await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]], clean_times=2
+    )
+    assert len(calls) == 1
+    d = calls[0]
+    assert d["entity_id"] == _VAC
+    assert d["repeats"] == 2                       # honored up to zone_passes_max
+    zone = d["zone"]
+    assert isinstance(zone, list) and len(zone) == 1 and len(zone[0]) == 4  # 4-tuple, not 5
+    x0, y0, x1, y1 = zone[0]
+    # nx 0.3/0.5 -> mm 1500/2500 ; ny 0.3/0.5 -> mm 3499/2499 (Y-flip), min/max ordered.
+    assert x0 == pytest.approx(1500, abs=2) and x1 == pytest.approx(2500, abs=2)
+    assert y0 == pytest.approx(2499, abs=2) and y1 == pytest.approx(3499, abs=2)
+    assert out["zone_count"] == 1
+
+
+async def test_dreame_zone_carries_the_frame_offset(hass, monkeypatch, manager):
+    """[ZC-DR-2] the map_frame_offset_mm the render applies MUST reach the correspondences,
+    or the box cleans ~offset away. With offset [500,0] the SAME drawn box inverts to a
+    mm rect shifted -500 in x. BITE: the old bare correspondences_from_mapdata(map_obj)
+    call ignored the offset and would report x0≈1500, not 1000."""
+    _register_dreame(hass, offset=(500, 0))
+    calls = _capture_dreame_zone(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]], clean_times=1
+    )
+    x0, _y0, x1, _y1 = calls[0]["zone"][0]
+    assert x0 == pytest.approx(1000, abs=2)        # 1500 - 500 offset
+    assert x1 == pytest.approx(2000, abs=2)        # 2500 - 500 offset
+
+
+async def test_dreame_zone_no_map_refuses(hass, manager, monkeypatch):
+    """[ZC-DR-3] dedicated path with no live map -> refuse (ValueError), nothing sent."""
+    _register_dreame(hass)
+    calls = _capture_dreame_zone(hass)
+    _stub_map_source(manager, monkeypatch, None)
+    with pytest.raises(ValueError, match="no live map"):
+        await manager.dispatch_zone_clean(
+            vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]]
+        )
+    assert calls == []
+
+
+async def test_dreame_goto_dispatch_shares_the_offset_helper(hass, manager, monkeypatch):
+    """[GOTO-DR-1] dispatch_goto routes to dreame_vacuum.vacuum_goto with x/y = the
+    offset-corrected device-mm of the tapped point, through the SAME _live_correspondences
+    helper zone uses (locks the refactor that extracted it). offset [500,0]: nx 0.4 -> x
+    0.4*5000-500=1500 ; ny 0.4 -> y 4999-0.4*5000=2999. BITE: a bare (offset-less) build
+    would send x≈2000."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "dreame", "source": "code",
+        "dispatch": {"service_domain": "dreame_vacuum",
+                     "service_name": "vacuum_clean_segment", "command": None},
+        "goto": {"service_domain": "dreame_vacuum", "service_name": "vacuum_goto",
+                 "x_field": "x", "y_field": "y"},
+        "map_state_source": {"backend": "camera_attrs", "map_frame_offset_mm": [500, 0]},
+        "capabilities": {"supports_path_control": True},
+    })
+    calls: list[dict] = []
+
+    async def _svc(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("dreame_vacuum", "vacuum_goto", _svc)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    await manager.dispatch_goto(vacuum_entity_id=_VAC, point=[0.4, 0.4])
+    assert len(calls) == 1
+    assert calls[0]["entity_id"] == _VAC
+    assert calls[0]["x"] == pytest.approx(1500, abs=3)
+    assert calls[0]["y"] == pytest.approx(2999, abs=3)
+
+
+async def test_dreame_zone_global_precall_flips_sets_reads_executes(hass, manager, monkeypatch):
+    """[ZC-DR-4] a zone WITH settings runs the GLOBAL precall: flip customized_cleaning OFF
+    (ungates the globals), set the global suction SELECT + wetness NUMBER, read them back,
+    THEN execute the bare zone. suction 'strong' -> option 'strong'; water 'wet' ->
+    number.<obj>_wetness_level 27 (value_map). BITE: the old params path put suction_level
+    in the zone call and never touched the gate/selects."""
+    _register_dreame(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    hass.states.async_set("switch.alfred_customized_cleaning", "on")
+    hass.states.async_set("vacuum.alfred", "docked")
+    calls = _wire_precall(hass)
+    await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]],
+        settings={"suction": "strong", "water": "wet"},
+    )
+    kinds = [c[0] for c in calls]
+    assert kinds.index("switch_off") < kinds.index("zone")       # gate flipped BEFORE execute
+    sel = next(d for k, d in calls if k == "select")
+    assert sel["entity_id"] == "select.alfred_suction_level" and sel["option"] == "strong"
+    num = next(d for k, d in calls if k == "number")
+    assert num["entity_id"] == "number.alfred_wetness_level" and num["value"] == 27
+    assert "zone" in kinds                                        # executed after readback OK
+
+
+async def test_dreame_zone_global_precall_readback_mismatch_refuses(hass, manager, monkeypatch):
+    """[ZC-DR-5] a global setting that does NOT read back as set -> REFUSE (never clean with
+    unconfirmed settings) and restore the gate. Nothing executed."""
+    _register_dreame(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    hass.states.async_set("switch.alfred_customized_cleaning", "on")
+    calls: list[tuple[str, dict]] = []
+
+    async def _sel_wrong(call):     # sets a value OTHER than requested -> readback fails
+        calls.append(("select", dict(call.data)))
+        hass.states.async_set(call.data["entity_id"], "quiet")
+
+    async def _swon(call):
+        calls.append(("switch_on", dict(call.data)))
+        hass.states.async_set(call.data["entity_id"], "on")
+
+    async def _swoff(call):
+        calls.append(("switch_off", dict(call.data)))
+        hass.states.async_set(call.data["entity_id"], "off")
+
+    async def _zone(call):
+        calls.append(("zone", dict(call.data)))
+
+    hass.services.async_register("select", "select_option", _sel_wrong)
+    hass.services.async_register("switch", "turn_on", _swon)
+    hass.services.async_register("switch", "turn_off", _swoff)
+    hass.services.async_register("dreame_vacuum", "vacuum_clean_zone", _zone)
+    with pytest.raises(ValueError, match="did not take"):
+        await manager.dispatch_zone_clean(
+            vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]], settings={"suction": "strong"},
+        )
+    kinds = [c[0] for c in calls]
+    assert "zone" not in kinds        # refused — never executed
+    assert "switch_on" in kinds       # gate restored on refuse
+
+
+async def test_dreame_zone_global_precall_restores_at_completion(hass, manager, monkeypatch):
+    """[ZC-DR-6] the prior state is restored RIGHT AT ZONE COMPLETION, not before: the gate
+    stays OFF while the robot runs, and flips back ON only after it starts (cleaning) and
+    returns (docked) — so per-room room cleans work again afterward."""
+    _register_dreame(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    hass.states.async_set("switch.alfred_customized_cleaning", "on")
+    hass.states.async_set("vacuum.alfred", "docked")
+    calls = _wire_precall(hass)
+    await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]], settings={"suction": "strong"},
+    )
+    kinds = [c[0] for c in calls]
+    assert "switch_off" in kinds and "switch_on" not in kinds    # gate off, NOT yet restored
+    calls.clear()
+    # Simulate the run: the pre-clean docked state must NOT trigger restore; only docked
+    # AFTER an active state does.
+    hass.states.async_set("vacuum.alfred", "cleaning")
+    await hass.async_block_till_done()
+    assert "switch_on" not in [c[0] for c in calls]              # still running
+    hass.states.async_set("vacuum.alfred", "docked")
+    await hass.async_block_till_done()
+    assert "switch_on" in [c[0] for c in calls]                  # restored at completion

@@ -953,6 +953,9 @@ def register_eufy_adapter_for_vacuum(
             "normalize_defaults": DEFAULT_CUSTOM_ROOM_PROFILE,
         },
 
+        # REPLICA RNQ433CB — every card-facing flag here is copied by hand into the
+        # dashboard snapshot at core/manager.py; add a flag here AND there or the card
+        # never sees it (silent, all-green). See docs/dev/00c-replicas.md.
         "capabilities": {
             # Sourced from detect_capabilities() above — reflects actual
             # HA entity surface for this installation rather than model spec.

@@ -388,6 +388,7 @@ KNOWN_CAPABILITY_HINTS: frozenset[str] = frozenset({
     "supports_custom_room_config",
     "supports_edge_mopping",
     "supports_empty_dust",
+    "supports_goto",
     "supports_mop_dry",
     "supports_mop_features",
     "supports_mop_wash",
@@ -1061,6 +1062,12 @@ def detect_capabilities(
     # to say so, because there was nothing to declare AGAINST. True stays the default — both
     # brands do support it today — but it is now a hint a model catalog can override.
     supports_zone_clean         = _hint_wins("supports_zone_clean", True)
+    # Cruise-to-point ("tap the map → send the robot there"). A brand-new, opt-in control
+    # like zone-clean, but it defaults FALSE: only an adapter that declares a `goto` dispatch
+    # block (currently Dreame) sets the hint True, so an older snapshot or a brand without the
+    # command never surfaces the button. Presentation-only — the dispatch gate reads
+    # supports_path_control + the goto block, not this.
+    supports_goto               = _hint_wins("supports_goto", False)
 
     # --- maintenance sources ------------------------------------------------
 
@@ -1172,6 +1179,7 @@ def detect_capabilities(
         "supports_room_clean": supports_room_clean,
         "supports_custom_room_config": supports_custom_room_config,
         "supports_zone_clean": supports_zone_clean,
+        "supports_goto": supports_goto,
         "supports_rooms": supports_rooms,
         "supports_segments": supports_segments,
         "supports_active_map": supports_active_map,

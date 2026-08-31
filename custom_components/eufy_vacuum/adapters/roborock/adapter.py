@@ -880,6 +880,9 @@ def register_roborock_adapter_for_vacuum(
             },
         },
 
+        # REPLICA RNQ433CB — every card-facing flag here is copied by hand into the
+        # dashboard snapshot at core/manager.py; add a flag here AND there or the card
+        # never sees it (silent, all-green). See docs/dev/00c-replicas.md.
         "capabilities": {
             # Mops (tank-based). Whether the mop is PROGRAMMATICALLY controllable is
             # per-model: the S6 rejects SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE

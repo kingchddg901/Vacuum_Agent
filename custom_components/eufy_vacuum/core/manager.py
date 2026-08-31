@@ -5920,12 +5920,37 @@ class EufyVacuumManager:
         supports_map_bounds = bool(
             _segmenter_engine and _segmenter_engine != "noop_fallback"
         )
+        # anchor: RNQ433CB  card-facing capability copy: adapter `capabilities` config
+        # block ↔ this snapshot — the replica set
+        # This snapshot is an EXPLICIT key list, NOT a spread of `_caps_cfg`. So every
+        # capability flag the card reads is written twice: once in the adapter's
+        # `capabilities` config block (the source) and once HERE (extract + emit below).
+        # Add a flag to a config block but not here and it never reaches the card — silent,
+        # all tests green (each side self-consistent). That is exactly how `supports_goto`
+        # shipped invisible on 2026-08-30. When you add a card-facing capability, touch BOTH
+        # sites; see docs/dev/00c-replicas.md.
+        #
         # Ad-hoc free-form zone cleaning (draw a box on the live map → clean it).
         # Brand capability flag (adapter dispatch.zone_command provides the verb).
         # The card ADDITIONALLY requires a resolved live-map image before exposing
         # the zone-draw control — you draw the box on that image, and the live map
         # only exists on the fork that also accepts zone_clean.
         supports_zone_clean = bool(_caps_cfg.get("supports_zone_clean", False))
+        # Cruise-to-point ("tap the map → send the robot there"). Brand capability flag
+        # (adapter dispatch.goto provides the verb); the card additionally requires a
+        # co-registered live-map/VA backdrop before exposing the tap control.
+        supports_goto = bool(_caps_cfg.get("supports_goto", False))
+        # Native per-clean zone settings the card renders as selects (Dreame suction/water),
+        # derived from the adapter's zone.params: {key,label,options[{value,label}],default}.
+        # The card sends the chosen canonical tokens back in start_zone_clean.settings, and
+        # dispatch maps each to its device wire code. Empty for brands whose zone takes no
+        # per-call settings (Roborock/Eufy) — the card then falls back to its own controls.
+        zone_settings = [
+            {"key": _p.get("key"), "label": _p.get("label") or _p.get("key"),
+             "options": _p.get("options") or [], "default": _p.get("default")}
+            for _p in (((_adapter_cfg.get("zone") or {}).get("global_precall") or {}).get("settings") or [])
+            if _p.get("key") and _p.get("options")
+        ]
         # Per-clean zone cap surfaced to the card so the draw stops at the brand limit
         # (Eufy 10, Roborock S6 5). Per-zone SIZE limits are enforced server-side at dispatch.
         zone_max = int(_caps_cfg.get("zone_max", 10) or 10)
@@ -6095,6 +6120,8 @@ class EufyVacuumManager:
             "supports_base_station": supports_base_station,
             "supports_map_bounds": supports_map_bounds,
             "supports_zone_clean": supports_zone_clean,
+            "supports_goto": supports_goto,
+            "zone_settings": zone_settings,
             "zone_max": zone_max,
             "zone_bounds": zone_bounds,
             "supports_water_control": supports_water_control,
@@ -6826,6 +6853,7 @@ class EufyVacuumManager:
         zones: list[list[float]],
         clean_times: int = 1,
         map_id: str | None = None,
+        settings: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Dispatch an ad-hoc free-form zone clean — delegates to DispatchManager.
         Kept on the manager because mapping/mapping_services.py, services/job_control.py,
@@ -6835,6 +6863,23 @@ class EufyVacuumManager:
             vacuum_entity_id=vacuum_entity_id,
             zones=zones,
             clean_times=clean_times,
+            map_id=map_id,
+            settings=settings,
+        )
+
+    async def dispatch_goto(
+        self,
+        *,
+        vacuum_entity_id: str,
+        point: list[float],
+        map_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Send the robot to a single tapped point (normalized [nx, ny]) — delegates to
+        DispatchManager. Kept on the manager because the goto service handler references
+        manager.dispatch_goto. See dispatch/manager.py::dispatch_goto."""
+        return await self.dispatch.dispatch_goto(
+            vacuum_entity_id=vacuum_entity_id,
+            point=point,
             map_id=map_id,
         )
 
