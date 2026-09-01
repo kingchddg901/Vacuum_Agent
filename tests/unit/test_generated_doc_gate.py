@@ -26,6 +26,10 @@ a typo breaks.
   GDG-14  STALE fires when a region generator's own check exits non-zero
   GDG-15  a region check that cannot run is BROKEN, not STALE
   GDG-16  a registry entry declaring neither shape, or both, is rejected
+  GDG-17  a map-only generator is NOT run, but still owns its outputs (not UNGATED)
+  GDG-18  UNGATED is repo-wide — a generated file OUTSIDE docs/ with no owner fires
+  GDG-19  on the real tree every banner-bearing file has an owner; the map is registered
+  GDG-20  a map-only entry declaring out_env/check_cmd is rejected
   ANC-4   the generated card bundles are NOT declaration sites
 """
 
@@ -44,8 +48,12 @@ from check_generated_docs import (  # noqa: E402
     GENERATORS,
     Generator,
     banner_bearing_files,
+    banner_scan,
     check,
+    registered_files,
 )
+
+GEN_BANNER = '"""GENERATED — do not hand-edit."""\nX = 1\n'
 
 BODY = "<!-- GENERATED FILE — DO NOT EDIT BY HAND. -->\n\n# Fake reference\n\nvalue: 1\n"
 REL = "docs/dev/reference/FAKE.md"
@@ -620,3 +628,92 @@ def test_anc4_a_real_duplicate_in_source_still_fires(tmp_path):
     assert proc.returncode != 0 and "DUPLICATE" in proc.stdout, (
         f"two real source declarations must still be a DUPLICATE:\n{proc.stdout}"
     )
+
+
+def test_gdg17_map_only_generator_not_run_but_owns_its_output(tmp_path):
+    """[GDG-17] A map-only entry (durable/ inputs) is NOT run — running it would be
+    BROKEN, not a verdict — yet its banner-bearing output is owned, so not UNGATED.
+
+    Bites two ways: drop the `if not gen.gated: continue` and the runner tries to
+    execute a command that does not exist (BROKEN); drop map-only files from the
+    registered set and the output reports UNGATED.
+    """
+    root = _fake_root(tmp_path)
+    (root / REL).write_text(BODY, encoding="utf-8")
+    (root / "custom_components").mkdir()
+    (root / "custom_components" / "thing.py").write_text(GEN_BANNER, encoding="utf-8")
+
+    gens = _gen() + (
+        Generator(
+            id="maponly",
+            cmd=(sys.executable, "not-runnable-in-this-test.py"),
+            gated=False,
+            files=("custom_components/thing.py",),
+            sources=("durable/x.json",),
+            regen="by hand",
+        ),
+    )
+    problems, checked, ran = check(gens, root=root)
+
+    assert problems == [], problems           # neither BROKEN nor UNGATED
+    assert ran == ["fake"]                    # the map-only one was skipped
+    assert "maponly" not in ran
+
+
+def test_gdg18_ungated_is_repo_wide_not_docs_only(tmp_path):
+    """[GDG-18] The scan is repo-wide: a generated file OUTSIDE docs/ with no owner is
+    UNGATED. The old docs-only SCAN_DIRS could not see it — a banner is a banner
+    wherever the file lives.
+    """
+    root = _fake_root(tmp_path)
+    (root / REL).write_text(BODY, encoding="utf-8")
+    src = root / "custom_components" / "eufy_vacuum"
+    src.mkdir(parents=True)
+    (src / "orphan_gen.py").write_text(GEN_BANNER, encoding="utf-8")
+
+    problems, _, _ = check(_gen(), root=root)
+
+    assert _kinds(problems) == ["UNGATED"]
+    assert "custom_components/eufy_vacuum/orphan_gen.py" in problems[0]
+
+
+def test_gdg19_real_registry_owns_every_generated_file():
+    """[GDG-19] On the shipped tree, every recognized-banner tracked file has a registry
+    owner (UNGATED is empty), and the generation map is itself a gated generated doc so
+    it cannot silently go stale about the others.
+    """
+    import subprocess
+
+    # Tracked-tree property: without git, the scan would sweep in uncommitted banner
+    # files (e.g. an on-disk-but-unstaged i18n bundle) and false-fail. Skip rather than
+    # assert against a set that is not the committed tree.
+    try:
+        probe = subprocess.run(
+            ["git", "-C", str(REPO), "ls-files"], capture_output=True, text=True
+        )
+    except (FileNotFoundError, OSError):
+        pytest.skip("git not available — this pins the committed tree")
+    if probe.returncode != 0 or not probe.stdout.strip():
+        pytest.skip("git ls-files unavailable — this pins the committed tree")
+
+    recognized, _suspect = banner_scan(REPO)
+    registered = registered_files(GENERATORS, REPO)
+    assert recognized - registered == set(), (
+        f"UNGATED on the real tree — generated files with no owner: "
+        f"{sorted(recognized - registered)}"
+    )
+
+    by_id = {g.id: g for g in GENERATORS}
+    assert "generation-map" in by_id, "the map must be registered so IT is gated too"
+    m = by_id["generation-map"]
+    assert m.gated and m.out_env, "the map must be a gated whole-file generator"
+
+
+def test_gdg20_map_only_entry_rejects_gate_wiring():
+    """[GDG-20] A map-only entry opts out of the staleness runner, so declaring out_env
+    or check_cmd (the wiring the runner needs) is a registry error, not a silent no-op.
+    """
+    Generator(id="ok", cmd=("x",), files=("a.py",), gated=False, sources=("s",))
+
+    with pytest.raises(ValueError, match="map-only"):
+        Generator(id="bad", cmd=("x",), files=("a.py",), gated=False, out_env="OUT")

@@ -65,14 +65,156 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-# The marker every generated doc carries on its first line. Used two ways: the
-# generators write it, and the UNGATED scan looks for tracked files carrying it that
-# no registry entry owns.
+# The marker docs carry on their first line. Kept for the docs-only helper
+# `banner_bearing_files`; the repo-wide scan uses the richer patterns below.
 BANNER_MARK = "GENERATED FILE"
 
-# Directories scanned for the UNGATED check. Anything outside these may carry the
-# words "GENERATED FILE" in ordinary prose without tripping the gate.
+# Directories scanned by the docs-only `banner_bearing_files` helper.
 SCAN_DIRS = ("docs",)
+
+# A RECOGNIZED banner: the header of a generated file, as a directive to whoever opens
+# it. Matched only against the FIRST meaningful line (below), which is what separates a
+# generated file (banner on line one) from a generator whose docstring merely mentions
+# "the output is a GENERATED file" a few lines down. Any tracked file matching this MUST
+# have a registry owner — that is the completeness gate.
+import re  # noqa: E402  (local to the scan machinery)
+
+RECOGNIZED_BANNER = re.compile(
+    r"AUTO-?GENERATED|GENERATED FILE|GENERATED\s*[—–-]\s*DO NOT\s+(?:HAND-?EDIT|EDIT)",
+    re.I,
+)
+# A SUSPECT header: looks generated but the banner is not on line one, or is phrased in
+# a way RECOGNIZED does not know. Advisory only — it exists so a novel banner phrasing
+# or a buried banner cannot silently escape the completeness demand; a human standardizes
+# the banner to line one or registers the file.
+SUSPECT_BANNER = re.compile(
+    r"DO NOT\s+(?:HAND-?EDIT|EDIT BY HAND)|AUTO-?GENERATED|NEVER HAND-?EDIT|@generated",
+    re.I,
+)
+# Non-text tracked files the banner scan skips (git tracks binaries too).
+_BINARY_EXT = {
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp", ".woff", ".woff2",
+    ".ttf", ".otf", ".eot", ".pdf", ".zip", ".gz", ".tgz", ".jar", ".map", ".svg",
+    ".mp4", ".mov", ".webm", ".mp3", ".wav",
+}
+
+
+def _banner_line(text: str) -> str:
+    """The first meaningful line: leading blanks and a shebang skipped.
+
+    A generated file states its banner here; a generator's summary docstring states
+    what it produces here, and only mentions 'GENERATED' further down. That difference
+    is the whole reason the recognized scan looks at THIS line and no other.
+    """
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    if i < len(lines) and lines[i].lstrip().startswith("#!"):
+        i += 1
+        while i < len(lines) and not lines[i].strip():
+            i += 1
+    return lines[i] if i < len(lines) else ""
+
+
+def _repo_text_files(root: pathlib.Path):
+    """(relposix, path) for every text file to scan.
+
+    Real repo: git's TRACKED set, so build artifacts, caches and scratchpad — none of
+    which are maintained source — are excluded for free. A throwaway root that is not a
+    git repo (the gate's own tests build these) falls back to a filesystem walk, so the
+    completeness check still works there.
+    """
+    rels: list[str] = []
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "ls-files"],
+            capture_output=True, text=True, timeout=60,
+        )
+        if proc.returncode == 0:
+            rels = [ln for ln in proc.stdout.splitlines() if ln.strip()]
+    except (OSError, subprocess.SubprocessError):
+        rels = []
+    if rels:
+        pairs = ((rel, root / rel) for rel in rels)
+    else:
+        pairs = _walk_pruned(root)
+    for rel, p in pairs:
+        if p.suffix.lower() in _BINARY_EXT:
+            continue
+        yield rel, p
+
+
+# Directories the git-less fallback walk never descends into: version control, package
+# and build output, caches. Not maintained source, and crawling `.git`/`node_modules`
+# on the real tree is what makes a git-less run appear to hang.
+_WALK_PRUNE = {
+    ".git", "node_modules", "dist", "build", ".venv", "venv", "__pycache__",
+    ".mypy_cache", ".pytest_cache", ".ruff_cache", "coverage", "htmlcov", ".idea",
+}
+
+
+def _walk_pruned(root: pathlib.Path):
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _WALK_PRUNE]
+        for name in filenames:
+            p = pathlib.Path(dirpath) / name
+            yield p.relative_to(root).as_posix(), p
+
+
+def _generator_scripts(generators: tuple[Generator, ...]) -> set[str]:
+    """Repo-relative script paths that ARE generators — never generated outputs.
+
+    Excluded from the SUSPECT scan so a generator whose docstring quotes the banner it
+    writes (``gen_event_docs.py`` says 'the output is a GENERATED file') is not flagged.
+    """
+    return {
+        part for gen in generators for part in gen.cmd
+        if part.endswith((".py", ".mjs", ".js", ".sh"))
+    }
+
+
+def banner_scan(
+    root: pathlib.Path = ROOT, generators: tuple[Generator, ...] | None = None
+) -> tuple[set[str], set[str]]:
+    """(recognized, suspect) repo-relative paths carrying a generated-file banner.
+
+    RECOGNIZED — a known banner on the first meaningful line; CI demands a registry
+    owner (the UNGATED failure). SUSPECT — a generated-looking header elsewhere or
+    phrased differently; advisory, so the recognized set cannot silently rot.
+    """
+    if generators is None:  # resolved at call time — GENERATORS is defined below this
+        generators = GENERATORS
+    gen_scripts = _generator_scripts(generators)
+    recognized: set[str] = set()
+    suspect: set[str] = set()
+    for rel, path in _repo_text_files(root):
+        text = read(path)
+        if text is None:
+            continue
+        if RECOGNIZED_BANNER.search(_banner_line(text)):
+            recognized.add(rel)
+            continue
+        if rel in gen_scripts:
+            continue
+        head = "\n".join(text.splitlines()[:15])
+        if SUSPECT_BANNER.search(head):
+            suspect.add(rel)
+    return recognized, suspect
+
+
+def registered_files(
+    generators: tuple[Generator, ...], root: pathlib.Path = ROOT
+) -> set[str]:
+    """Every output path the registry claims, with globs expanded against the tree."""
+    reg: set[str] = set()
+    for gen in generators:
+        for pat in gen.files:
+            if any(ch in pat for ch in "*?[]"):
+                reg |= {p.relative_to(root).as_posix() for p in root.glob(pat)}
+            else:
+                reg.add(pat)
+    return reg
 
 
 @dataclass(frozen=True)
@@ -94,19 +236,43 @@ class Generator:
     """
 
     id: str
-    cmd: tuple[str, ...]  # regenerates in place; used by --fix
-    files: tuple[str, ...]  # repo-relative posix paths
+    cmd: tuple[str, ...]  # regenerates in place; used by --fix (gated) / shown (map-only)
+    files: tuple[str, ...]  # repo-relative posix paths; may contain globs
     out_env: str | None = None
     check_cmd: tuple[str, ...] | None = None
     note: str = ""
     env: dict[str, str] = field(default_factory=dict)
+    # The authoritative inputs a human EDITS to change these outputs. Repo-relative
+    # posix paths or dirs; MAY point OUTSIDE the tree (e.g. durable/ TM fixtures) —
+    # those are provenance edges the map shows but the gate never tries to run from.
+    sources: tuple[str, ...] = ()
+    # GATED (default): CI runs the generator and diffs, so it must be re-runnable from
+    # in-tree inputs. MAP-ONLY (gated=False): its inputs live outside the tree or it is
+    # only run by hand, so the gate does NOT run it — but the generation map still shows
+    # it and UNGATED still demands it own its banner-bearing outputs. Distinct because
+    # trying to run a durable-fed generator in CI is BROKEN, not a staleness verdict.
+    gated: bool = True
+    # Exact command(s) a human runs, when it is not a single tuple `cmd` (a two-step
+    # pipeline, a per-file codegen). Falls back to `hint` (derived from cmd) when empty.
+    regen: str = ""
 
     def __post_init__(self) -> None:
-        if bool(self.out_env) == bool(self.check_cmd):
+        if self.gated:
+            if bool(self.out_env) == bool(self.check_cmd):
+                raise ValueError(
+                    f"gated generator {self.id!r} must set exactly one of out_env"
+                    " (whole-file, render-and-diff) or check_cmd (region, own check)"
+                )
+        elif self.out_env or self.check_cmd:
             raise ValueError(
-                f"generator {self.id!r} must set exactly one of out_env (whole-file,"
-                " render-and-diff) or check_cmd (region, brings its own check)"
+                f"map-only generator {self.id!r} sets out_env/check_cmd — those wire the"
+                " staleness runner it is opted OUT of; drop them or set gated=True"
             )
+
+    @property
+    def regen_cmd(self) -> str:
+        """The regenerate command shown in the map — explicit `regen` or the `hint`."""
+        return self.regen or self.hint
 
     @property
     def hint(self) -> str:
@@ -140,6 +306,7 @@ GENERATORS: tuple[Generator, ...] = (
             "docs/dev/reference/THEME_TOKEN_MAP.md",
             "docs/dev/reference/THEME_TOKEN_USAGE.md",
         ),
+        sources=("src/theme-tokens/", "src/styles/"),
         note="theme editor registry + card CSS",
     ),
     Generator(
@@ -147,6 +314,7 @@ GENERATORS: tuple[Generator, ...] = (
         cmd=(sys.executable, "scripts/gen_event_docs.py"),
         out_env="EVCC_GENDOC_OUT",
         files=("docs/dev/reference/EVENTS.md",),
+        sources=("custom_components/eufy_vacuum/",),
         note="every hass.bus.async_fire call site",
     ),
     # The Mocking column in every subsystem coverage table. A region generator: it
@@ -158,7 +326,79 @@ GENERATORS: tuple[Generator, ...] = (
         cmd=(sys.executable, "scripts/mock_docs.py"),
         check_cmd=(sys.executable, "scripts/mock_docs.py", "--check"),
         files=("docs/testing/subsystems/*.md",),
+        sources=("tests/",),
         note="the generated Mocking column, from the mock census",
+    ),
+    # ── MAP-ONLY entries ─────────────────────────────────────────────────────────
+    # Re-runnable only from inputs OUTSIDE the tree (durable/ TM fixtures) or by hand,
+    # so the gate does not run them — but the generation map shows them and UNGATED
+    # still demands they own their banner-bearing outputs.
+    Generator(
+        id="eufy-guides",
+        cmd=(sys.executable, "scripts/emit_libs.py", "--emit"),
+        gated=False,
+        files=(
+            "custom_components/eufy_vacuum/adapters/eufy/eufy_upkeep_guides.py",
+            "custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/*.py",
+        ),
+        sources=("durable/eufy-port-fixture/care_tm_full.json",
+                 "durable/eufy-port-fixture/eufy_care_corpus.json"),
+        regen="python scripts/build_guides.py && python scripts/emit_libs.py --emit",
+        note="lifted manufacturer TM (real manual wording) -> per-family guide lib + i18n",
+    ),
+    Generator(
+        id="roborock-guides",
+        cmd=(sys.executable, "scripts/emit_libs.py", "--emit"),
+        gated=False,
+        files=(
+            "custom_components/eufy_vacuum/adapters/roborock/roborock_upkeep_guides.py",
+            "custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/*.py",
+        ),
+        sources=("durable/roborock-port-fixture/care_tm_full.json",
+                 "durable/roborock-port-fixture/roborock_care_corpus.json"),
+        regen="python scripts/build_guides.py && python scripts/emit_libs.py --emit",
+        note="lifted manufacturer TM (real manual wording) -> per-family guide lib + i18n",
+    ),
+    Generator(
+        id="guide-translations",
+        cmd=(sys.executable, "scripts/sync-guide-translations.py"),
+        gated=False,
+        files=("src/i18n/guide-translations.js",),
+        sources=(
+            "custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/",
+            "custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/",
+            "custom_components/eufy_vacuum/adapters/dreame/upkeep_guides_i18n/",
+            "scripts/data/guide-frequency-translations.json",
+        ),
+        regen="python scripts/sync-guide-translations.py",
+        note="merges the brand i18n packs -> card's EN base + served per-lang guide JSON",
+    ),
+    Generator(
+        id="locale-reference",
+        cmd=("node", "scripts/build-locale-reference.mjs"),
+        gated=False,
+        files=("custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc",),
+        sources=("src/i18n/en.js",),
+        regen="npm run build:locale-reference",
+        note="translator reference: full nested key structure + context comments of en.js",
+    ),
+    Generator(
+        id="animal-modules",
+        cmd=("node", "scripts/build-animal.mjs"),
+        gated=False,
+        files=("custom_components/eufy_vacuum/frontend/animal-svg/animals/*.js",),
+        sources=("custom_components/eufy_vacuum/frontend/animal-svg/src/",),
+        regen="node scripts/build-animal.mjs <descriptor.json> --first-party",
+        note="per-animal codegen from a sanitised descriptor; own gate is check-animal-pr",
+    ),
+    # ── the map itself — gated, so it can never go stale about the others ─────────
+    Generator(
+        id="generation-map",
+        cmd=(sys.executable, "scripts/gen_generation_map.py"),
+        out_env="EVCC_GENDOC_OUT",
+        files=("docs/dev/reference/GENERATION_MAP.md",),
+        sources=("scripts/check_generated_docs.py",),
+        note="this registry, rendered as the who-generates-what navigation graph",
     ),
 )
 
@@ -266,6 +506,11 @@ def check(
 
     with tempfile.TemporaryDirectory(prefix="evcc-gendoc-") as tmp:
         for gen in generators:
+            # MAP-ONLY — its inputs are outside the tree (durable/ fixtures) or it is
+            # run by hand, so the gate does not run it. It still owns its outputs for
+            # the UNGATED completeness scan below; it just is not staleness-diffed.
+            if not gen.gated:
+                continue
             # REGION generator — it brings its own check; non-zero means stale.
             if gen.check_cmd:
                 rc, msg = run(gen.check_cmd, gen, root=root)
@@ -337,12 +582,16 @@ def check(
                     f"STALE    {rel}\n      regenerate:  {gen.hint}\n{body}"
                 )
 
-    # UNGATED — a generated file nobody registered. The omission failure.
-    registered = {rel for gen in generators for rel in gen.files}
-    for rel in sorted(banner_bearing_files(root, scan_dirs) - registered):
+    # UNGATED — a generated file nobody registered. The omission failure, now REPO-WIDE
+    # and banner-driven (not docs-only): every TRACKED file whose first meaningful line
+    # is a recognized GENERATED banner must have an owner, wherever it lives.
+    registered = registered_files(generators, root)
+    recognized, _suspect = banner_scan(root, generators)
+    for rel in sorted(recognized - registered):
         problems.append(
-            f"UNGATED  {rel}: carries the GENERATED banner but no entry in GENERATORS"
-            " owns it, so nothing checks whether it is current"
+            f"UNGATED  {rel}: carries a GENERATED banner but no entry in GENERATORS"
+            " owns it, so nothing records how to regenerate it or what it is generated"
+            " from"
         )
 
     return problems, checked, ran
@@ -365,6 +614,11 @@ def main() -> int:
 
     if args.fix:
         for gen in GENERATORS:
+            if not gen.gated:
+                # Map-only: durable/ inputs or a per-file/by-hand run. --fix can neither
+                # provide those nor guess the arguments, so it does not touch them.
+                print(f"skipped      {gen.id} (map-only; regen: {gen.regen_cmd})")
+                continue
             # Both shapes regenerate the same way — in place, with gen.cmd. The
             # out_env redirect exists only so the CHECK can avoid touching the tree.
             rc, msg = run(gen.cmd, gen)
@@ -385,10 +639,20 @@ def main() -> int:
         print("FAIL     compared zero files — the registry names no readable output")
         return 1
 
+    # SUSPECT — advisory, not a failure: a header that looks generated but whose banner
+    # is not on line one or is phrased in a way RECOGNIZED does not know. Surfaced so the
+    # recognized set cannot silently rot; a human standardizes the banner or registers it.
+    _recognized, suspect = banner_scan()
+    for rel in sorted(suspect - registered_files(GENERATORS)):
+        print(f"SUSPECT  {rel}: header looks generated but its banner is not recognized"
+              " on line one — standardize the banner, or register + own it")
+
+    gated = sum(1 for g in GENERATORS if g.gated)
+    maponly = len(GENERATORS) - gated
     print()
     print(
-        f"{len(ran)}/{len(GENERATORS)} generators ran · {len(checked)} files compared"
-        f" · {len(problems)} problem(s)"
+        f"{len(ran)}/{gated} gated generators ran · {maponly} map-only ·"
+        f" {len(checked)} files compared · {len(problems)} problem(s)"
     )
     if problems:
         print("Fix with:  python scripts/check_generated_docs.py --fix")
