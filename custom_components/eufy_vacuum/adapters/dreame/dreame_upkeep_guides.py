@@ -412,6 +412,27 @@ _X50 = {
     },
 }
 
+# x50_master — RLX86CE, the plumbed X50 (automatic water supply + drainage), from
+# robot/x50-master_RLX86CE-1.pdf. Its Routine Maintenance is identical to the X50 Ultra
+# (_X50) EXCEPT: it has no manual used-water tank (the base auto-drains), so that
+# component is dropped; and its washboard-filter procedure is worded differently — it
+# names the washboard base clips and the water-status sensors — so that one is taken
+# from the X50 Master manual, not inherited (the measured-off-its-own-manual rule).
+_X50_MASTER = _profile(_X50, drop=('dirty_water_tank',), override={
+    'washboard_filter': {
+        "steps": [
+            'After the mop pad cleaning is complete, take out the robot and press the washboard base clips to remove the washboard filter.',
+            'Remove and rinse the washboard filter with clean water, and wipe it clean.',
+            'Reinstall the washboard filter first, and then the washboard base.',
+            'Use the app or press the button to return the robot to the base station, or manually put the robot back.',
+        ],
+        "notes": [
+            'If there are water stains remaining on the water status sensors, be sure to wipe them with a soft and dry cloth before reinstalling the washboard base.',
+            'When reinstalling the washboard base, make sure that the clips at both ends are firmly in place after you hear a click.',
+        ],
+    },
+})
+
 # x60_ultra — authored verbatim from robot/x60-ultra_R5089B.pdf
 _X60_ULTRA = {
     'main_brush': {
@@ -2167,6 +2188,727 @@ _D20_PLUS = {
 
 
 # ============================ THE LIBRARY (inject the shared cadence) ============================
+# ==== PILOT-FAMILIES-START ====
+# e30_ultra - authored from the manual via the Sonnet->Haiku pipeline (pilot 2026-09-01)
+_E30_ULTRA = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
+            "Pull out the brush covers at both ends of the brush as shown in the figure. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush. Press on the brush guard to lock it in place."
+        ],
+        "notes": []
+    },
+    "side_brush": {
+        "steps": [
+            "Remove and clean the side brush."
+        ],
+        "notes": []
+    },
+    "filter": {
+        "steps": [
+            "Open the robot cover and press the dust box clip to remove the dust box.",
+            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dustbin": {
+        "steps": [
+            "Open the robot cover and press the dust box clip to remove the dust box.",
+            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover."
+        ],
+        "notes": [
+            "Pulling upwards on the handle will seal the bag to prevent the dust and debris from accidentally falling out."
+        ]
+    },
+    "mop_cloth": {
+        "steps": [
+            "Remove the mop pad from the mop pad holder to replace it."
+        ],
+        "notes": []
+    },
+    "mop_pad_holder": {
+        "steps": [
+            "Remove and clean the mop pad holder."
+        ],
+        "notes": []
+    },
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under the running water and put it back after drying it completely."
+        ],
+        "notes": [
+            "Do not use excessive force."
+        ]
+    },
+    "sensor": {
+        "steps": [
+            "Wipe robot sensors by using a soft and dry cloth, as shown in the below figure."
+        ],
+        "notes": [
+            "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
+        ]
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "dirty_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use a proper cleaning tool to clean the inner wall of the used water tank."
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too much force when cleaning it to avoid damaging it."
+        ]
+    },
+    "washboard": {
+        "steps": [
+            "Enable the washboard base cleaning function in the app, and the robot will exit the base station automatically. Take out the washboard and wait for water to fill the bottom of the base station.",
+            "Rinse the washboard with clean water, and use a proper cleaning tool to clean the bottom of the base station.",
+            "After a moment, the base station will automatically pump out the used water. Then dry it with a soft and dry cloth, and put the washboard back into place.",
+            "Use the app or briefly press the button on the robot to make it return to the base station."
+        ],
+        "notes": [
+            "During cleaning, do not make the robot return to the base station."
+        ]
+    }
+}
+
+# e50_ultra - authored from the manual via the Sonnet->Haiku pipeline (pilot 2026-09-01)
+_E50_ULTRA = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
+            "Pull out the brush covers at both ends of the brush as shown in the figure. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush. Press on the brush guard to lock it in place."
+        ],
+        "notes": []
+    },
+    "side_brush": {
+        "steps": [
+            "Unscrew the side brush with a screwdriver, clean the hair from the brush, and then screw it back on."
+        ],
+        "notes": []
+    },
+    "filter": {
+        "steps": [
+            "Open the robot cover and press the dust box clip to remove the dust box.",
+            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the figure.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dustbin": {
+        "steps": [
+            "Open the robot cover and press the dust box clip to remove the dust box.",
+            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the figure.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover."
+        ],
+        "notes": [
+            "Pulling the handle outward will seal the bag to prevent the dust and debris from accidentally falling out."
+        ]
+    },
+    "mop_cloth": {
+        "steps": [
+            "Remove the mop pad from the mop pad holder to replace it."
+        ],
+        "notes": []
+    },
+    "mop_pad_holder": {
+        "steps": [
+            "Remove and clean the mop pad holders."
+        ],
+        "notes": []
+    },
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under the running water and put it back after drying it completely."
+        ],
+        "notes": [
+            "Do not use excessive force."
+        ]
+    },
+    "sensor": {
+        "steps": [
+            "Wipe the robot sensors by using a soft and dry cloth, as shown in the figure below."
+        ],
+        "notes": [
+            "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
+        ]
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the auto-empty vents, charging contacts and the signaling area with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents, charging contacts and the signaling area with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "dirty_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use a proper cleaning tool to clean the inner wall of the used water tank."
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too much force when cleaning it to avoid damaging it."
+        ]
+    },
+    "washboard_filter": {
+        "steps": [
+            "Take out the robot and remove the washboard filter after the mop pad cleaning is complete.",
+            "Rinse the washboard filter with clean water, wipe it clean, and then reinstall it in the washboard.",
+            "Use the app or press the button to return the robot to the base station, or manually put the robot back."
+        ],
+        "notes": []
+    }
+}
+
+# l50_pro_ultra - authored from the manual via the Sonnet->Haiku pipeline (pilot 2026-09-01)
+_L50_PRO_ULTRA = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
+            "Pull out the brushes as shown in the figure. Use the provided cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
+            "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
+            "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place."
+        ],
+        "notes": [
+            "Be careful while pulling out the main brushes to prevent injury."
+        ]
+    },
+    "side_brush": {
+        "steps": [
+            "Unscrew the side brush with a screwdriver, clean the hair from the brush, and then screw it back on."
+        ],
+        "notes": []
+    },
+    "filter": {
+        "steps": [
+            "Remove the robot cover and press the dust box clip to remove the dust box.",
+            "Remove the dust box filter, and then empty the dust box.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dustbin": {
+        "steps": [
+            "Remove the robot cover and press the dust box clip to remove the dust box.",
+            "Remove the dust box filter, and then empty the dust box.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover."
+        ],
+        "notes": [
+            "Pulling upwards on the handle will seal the bag to prevent the dust and debris from accidentally falling out."
+        ]
+    },
+    "mop_cloth": {
+        "steps": [
+            "Remove the mop pads from the mop pad holders to replace them."
+        ],
+        "notes": []
+    },
+    "mop_pad_holder": {
+        "steps": [
+            "Remove and clean the mop pad holders."
+        ],
+        "notes": []
+    },
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under the running water and put it back after drying it completely."
+        ],
+        "notes": [
+            "Do not use excessive force."
+        ]
+    },
+    "main_wheel": {
+        "steps": [
+            "Rotate the auxiliary climbing wheel until the \"OUT\" arrow is facing upward, and then pull out the wheel.",
+            "Use a proper tool to clean the hair tangled in the main wheel and auxiliary climbing wheel.",
+            "After cleaning, rotate the main wheel to align the two arrows (see Figure ①). Then, with the \"IN\" arrow facing downward, insert the left and right auxiliary climbing wheels accordingly until they click into place (see Figure ②)."
+        ],
+        "notes": []
+    },
+    "sensor": {
+        "steps": [
+            "Wipe the robot sensors by using a soft and dry cloth, as shown in the below figure."
+        ],
+        "notes": []
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area with a soft and dry cloth."
+        ],
+        "notes": [
+            "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
+        ]
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "dirty_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use the provided cleaning tool to clean the inner wall of the used water tank."
+        ],
+        "notes": [
+            "Be careful while pulling out the main brush to prevent injury."
+        ]
+    },
+    "washboard_filter": {
+        "steps": [
+            "Take out the robot and remove the washboard filter after the mop pad cleaning is complete.",
+            "Rinse the washboard filter with clean water, wipe it clean, and then reinstall it in the washboard.",
+            "Use the app or press the button to return the robot to the base station, or manually put the robot back."
+        ],
+        "notes": []
+    }
+}
+
+# l50s_ultra - authored from the manual via the Sonnet->Haiku pipeline (pilot 2026-09-01)
+_L50S_ULTRA = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
+            "Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
+            "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
+            "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place."
+        ],
+        "notes": [
+            "Be careful while pulling out the main brushes to prevent injury."
+        ]
+    },
+    "side_brush": {
+        "steps": [
+            "Unscrew the side brush with a screwdriver, clean the hair from the brush, and then screw it back on."
+        ],
+        "notes": []
+    },
+    "filter": {
+        "steps": [
+            "Remove the robot cover and press the dust box clip to remove the dust box.",
+            "Remove the dust box filter, and then empty the dust box.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dustbin": {
+        "steps": [
+            "Remove the robot cover and press the dust box clip to remove the dust box.",
+            "Remove the dust box filter, and then empty the dust box.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover."
+        ],
+        "notes": [
+            "Pulling upwards on the handle will seal the bag to prevent the dust and debris from accidentally falling out."
+        ]
+    },
+    "mop_cloth": {
+        "steps": [
+            "Remove the mop pads from the mop pad holders to replace them."
+        ],
+        "notes": []
+    },
+    "mop_pad_holder": {
+        "steps": [
+            "Remove and clean the mop pad holders."
+        ],
+        "notes": []
+    },
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under the running water and put it back after drying it completely."
+        ],
+        "notes": [
+            "Do not use excessive force."
+        ]
+    },
+    "sensor": {
+        "steps": [
+            "Wipe the robot sensors by using a soft and dry cloth, as shown in the below figure: Rear ToF Sensor, Bumper Window, Edge Sensor, Bumper, Cliff Sensors, Carpet Sensor."
+        ],
+        "notes": [
+            "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
+        ]
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "dirty_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use a proper tool to clean the inner wall of the used water tank."
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too much force when cleaning it to avoid damaging it."
+        ]
+    },
+    "washboard_filter": {
+        "steps": [
+            "Take out the robot and remove the washboard filter after the mop pad cleaning is complete.",
+            "Rinse the washboard filter with clean water, wipe it clean, and then reinstall it in the washboard.",
+            "Use the app or press the button to return the robot to the base station, or manually put the robot back."
+        ],
+        "notes": [
+            "The washboard heating module may retain residual heat. To prevent scalding, be careful when removing the washboard filter."
+        ]
+    },
+    "washboard_heating_module": {
+        "steps": [
+            "During use, the washboard heating module may develop scale. To remove it, take out the robot, pour a small amount of white vinegar (5% acetic acid) on the surface of the heating module and clean it with a proper tool."
+        ],
+        "notes": [
+            "To prevent scalding, wait until the surface of the heating module cools down to room temperature before cleaning.",
+            "An appropriate descaler can also be used in accordance with the instructions it provides.",
+            "Do not add white vinegar or descaler directly into the clean water tank to help prevent malfunction.",
+            "Do not use sharp tools or corrosive liquids such as hydrochloric acid to clean the heating module."
+        ]
+    }
+}
+
+# d20_ultra - authored from the manual via the Sonnet->Haiku pipeline (pilot 2026-09-01)
+_D20_ULTRA = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
+            "Pull out the brush covers at both ends of the brush as shown in the figure. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush.",
+            "Press on the brush guard to lock it in place."
+        ],
+        "notes": []
+    },
+    "side_brush": {
+        "steps": [
+            "Remove and clean the side brush."
+        ],
+        "notes": []
+    },
+    "filter": {
+        "steps": [
+            "Open the robot cover and press the dust box clip to remove the dust box.",
+            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dustbin": {
+        "steps": [
+            "Open the robot cover and press the dust box clip to remove the dust box.",
+            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover."
+        ],
+        "notes": [
+            "Pulling upwards on the handle will seal the bag to prevent the dust and debris from accidentally falling out."
+        ]
+    },
+    "mop_cloth": {
+        "steps": [
+            "Remove the mop pad from the mop pad holder to replace it."
+        ],
+        "notes": []
+    },
+    "mop_pad_holder": {
+        "steps": [
+            "Remove and clean the mop pad holder."
+        ],
+        "notes": []
+    },
+    "caster_wheel": {
+        "steps": [
+            "Use a tool such as a small screwdriver to separate the axle and tire of the omnidirectional wheel.",
+            "Rinse the omnidirectional wheel under the running water and put it back after drying it completely."
+        ],
+        "notes": [
+            "Do not use excessive force."
+        ]
+    },
+    "sensor": {
+        "steps": [
+            "Wipe robot sensors by using a soft and dry cloth, as shown in the below figure."
+        ],
+        "notes": [
+            "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
+        ]
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "dirty_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use a proper cleaning tool to clean the inner wall of the used water tank."
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too much force when cleaning it to avoid damaging it."
+        ]
+    },
+    "washboard": {
+        "steps": [
+            "Enable the washboard base cleaning function in the app, and the robot will exit the base station automatically. Take out the washboard and wait for water to fill the bottom of the base station.",
+            "Rinse the washboard with clean water, and use a proper cleaning tool to clean the bottom of the base station.",
+            "After a moment, the base station will automatically pump out the used water. Then dry it with a soft and dry cloth, and put the washboard back into place.",
+            "Use the app or briefly press the button on the robot to make it return to the base station."
+        ],
+        "notes": [
+            "During cleaning, do not make the robot return to the base station."
+        ]
+    }
+}
+
+# l40s_pro_ultra - authored from the manual via the Sonnet->Haiku pipeline (pilot 2026-09-01)
+_L40S_PRO_ULTRA = {
+    "main_brush": {
+        "steps": [
+            "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
+            "Pull out the brushes as shown in the figure. Use the provided cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
+            "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
+            "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place."
+        ],
+        "notes": [
+            "Be careful while pulling out the main brushes to prevent injury."
+        ]
+    },
+    "side_brush": {
+        "steps": [
+            "Unscrew the side brush with a screwdriver, clean the hair from the brush, and then screw it back on."
+        ],
+        "notes": []
+    },
+    "filter": {
+        "steps": [
+            "Open the robot cover and press the dust box clip to remove the dust box.",
+            "Remove the dust box filter, and then empty the dust box.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dustbin": {
+        "steps": [
+            "Open the robot cover and press the dust box clip to remove the dust box.",
+            "Remove the dust box filter, and then empty the dust box.",
+            "Gently tap the basket of the filter to remove the dirt.",
+            "Rinse the dust box and filter with water and dry them completely before reinstalling."
+        ],
+        "notes": [
+            "Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.",
+            "Rinse the dust box and filter with clean water only. Do not use any detergent.",
+            "Use the dust box and filter only when they are completely dry."
+        ]
+    },
+    "dust_bag": {
+        "steps": [
+            "Remove the dust tank cover and discard the dust bag.",
+            "Remove the dust and debris from the filter with a dry cloth.",
+            "Install a new dust bag.",
+            "Reinstall the dust tank cover."
+        ],
+        "notes": [
+            "Pulling upwards on the handle will seal the bag to prevent the dust and debris from accidentally falling out."
+        ]
+    },
+    "mop_cloth": {
+        "steps": [
+            "Remove the mop pads from the mop pad holders to replace them."
+        ],
+        "notes": []
+    },
+    "mop_pad_holder": {
+        "steps": [
+            "Remove and clean the mop pad holders."
+        ],
+        "notes": []
+    },
+    "caster_wheel": {
+        "steps": [
+            "Insert the omnidirectional wheel under the running water and put it back after drying it completely."
+        ],
+        "notes": [
+            "Use tools such as a small screwdriver to separate the axle and tire of the omnidirectional wheel. Do not use excessive force."
+        ]
+    },
+    "main_wheel": {
+        "steps": [
+            "Rotate the auxiliary climbing wheel until the \"OUT\" arrow is facing upward, and then pull out the wheel.",
+            "Use a proper tool to clean the hair tangled in the main wheel and auxiliary climbing wheel.",
+            "After cleaning, rotate the main wheel to align the two arrows (see Figure). Then, with the \"IN\" arrow facing downward, insert the left and right auxiliary climbing wheels accordingly until they click into place. (see Figure)."
+        ],
+        "notes": []
+    },
+    "sensor": {
+        "steps": [
+            "Wipe the robot sensors by using a soft and dry cloth, as shown in the below figure: sensors: 1. Laser Distance Sensor (LDS) 2. 3D Dual-Line Laser Sensors 3. Bumper Window 4. Edge Sensor 5. Bumper 6. Cliff Sensors 7. Carpet Sensor"
+        ],
+        "notes": [
+            "Wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
+        ]
+    },
+    "dock_contacts": {
+        "steps": [
+            "Clean the charging contacts and the signaling area with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "auto_empty_vents": {
+        "steps": [
+            "Clean the auto-empty vents of the robot and the base station with a soft and dry cloth."
+        ],
+        "notes": []
+    },
+    "dirty_water_tank": {
+        "steps": [
+            "Remove the used water tank, open its cover and pour out the used water.",
+            "Rinse the used water tank with clean water, and use the provided cleaning tool to clean the inner wall of the used water tank."
+        ],
+        "notes": [
+            "The float ball in the used water tank is a movable part. Do not apply too much force when cleaning it to avoid damaging it."
+        ]
+    },
+    "washboard_filter": {
+        "steps": [
+            "Take out the robot and remove the washboard filter after the mop pad cleaning is complete.",
+            "Rinse the washboard filter with clean water, wipe it clean, and then reinstall it in the washboard.",
+            "Use the app or press the button to return the robot to the base station, or manually put the robot back."
+        ],
+        "notes": []
+    }
+}
+# ==== PILOT-FAMILIES-END ====
+
 DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
     # --- tier profiles: composed fallback for unauthored models ---
     'standard': _with_cadence(_profile(_STANDARD)),
@@ -2177,6 +2919,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
     'wash_station_baseboard': _with_cadence(_profile(_STANDARD, _AUTO_EMPTY, _WASH_STATION, add=_BASEBOARD)),
     # --- authored families: flat per-manual tables ---
     'x50': _with_cadence(_X50),
+    'x50_master': _with_cadence(_X50_MASTER),
     'x60_ultra': _with_cadence(_X60_ULTRA),
     'l20': _with_cadence(_L20),
     'x40': _with_cadence(_X40),
@@ -2192,4 +2935,10 @@ DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
     'd30_ultra': _with_cadence(_D30_ULTRA),
     'd20_pro_plus': _with_cadence(_D20_PRO_PLUS),
     'd20_plus': _with_cadence(_D20_PLUS),
+    'e30_ultra': _with_cadence(_E30_ULTRA),
+    'e50_ultra': _with_cadence(_E50_ULTRA),
+    'l50_pro_ultra': _with_cadence(_L50_PRO_ULTRA),
+    'l50s_ultra': _with_cadence(_L50S_ULTRA),
+    'd20_ultra': _with_cadence(_D20_ULTRA),
+    'l40s_pro_ultra': _with_cadence(_L40S_PRO_ULTRA),
 }

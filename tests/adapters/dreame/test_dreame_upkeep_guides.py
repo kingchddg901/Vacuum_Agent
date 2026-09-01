@@ -10,8 +10,9 @@ The library now holds TWO kinds of family (see dreame_upkeep_guides.py):
   * TIER profiles (standard / auto_empty / wash_station / _track / _roller /
     _baseboard) — the composed default for the ~730 models with no authored manual.
   * AUTHORED families (x50, x60_ultra, x60_pro_ultra_complete, l20, x40, l50,
-    l10s_gen2, aqua10_ultra_track, aqua10_ultra_roller, and the 2026-08-31 batch:
-    matrix10, l60_ultra, l60_ultra_pe, l40s_ultra, d30_ultra, d20_pro_plus, d20_plus)
+    l10s_gen2, aqua10_ultra_track, aqua10_ultra_roller, the 2026-08-31 batch:
+    matrix10, l60_ultra, l60_ultra_pe, l40s_ultra, d30_ultra, d20_pro_plus, d20_plus,
+    and the 2026-09-01 top-down-by-recency batch: x50_master)
     — measured off their own manuals, each its tier minus absent hardware, overriding
     every component its manual words differently. The override is the guard against the
     shared-base defect that was
@@ -46,6 +47,9 @@ The library now holds TWO kinds of family (see dreame_upkeep_guides.py):
          Gen 2==the L50 machine/RLH41CE, Aqua 10 Pro Track==Aqua10 Ultra Track/RLR81CE) route
          to that AUTHORED family, not the generic tier. Reverting any row to its old tier —
          or dropping GoVac 800 back to the no-station `standard` — goes red here.
+[DUG-12] X50 Master (RLX86CE) is authored as the plumbed X50 — the real X50 maintenance
+         minus the manual used-water tank (it auto-drains), with its own washboard-filter
+         wording. Its SKUs route to x50_master, not the generic wash_station tier.
 """
 
 from __future__ import annotations
@@ -54,6 +58,7 @@ import pytest
 
 from custom_components.eufy_vacuum.adapters.dreame import (
     DREAME_MODEL_GUIDE_FAMILIES,
+    DREAME_MODEL_NAMES,
     DREAME_GUIDE_FAMILY_NAMES,
     DREAME_UPKEEP_GUIDE_LIBRARY,
 )
@@ -73,6 +78,7 @@ KNOWN_INTERVALS = {
 #: measured off their own manuals — the quality anchors.
 AUTHORED_FAMILIES = (
     "x50",
+    "x50_master",
     "x60_ultra",
     "x60_pro_ultra_complete",
     "l20",
@@ -90,6 +96,14 @@ AUTHORED_FAMILIES = (
     "d30_ultra",
     "d20_pro_plus",
     "d20_plus",
+    # 2026-09-01 pipeline pilot (Sonnet extract -> Haiku classify -> deterministic emit),
+    # authored from each model's own manual; DUG-2/5/9 gate them like any other family.
+    "e30_ultra",
+    "e50_ultra",
+    "l50_pro_ultra",
+    "l50s_ultra",
+    "d20_ultra",
+    "l40s_pro_ultra",
 )
 
 #: composed defaults for the unauthored tail.
@@ -347,6 +361,34 @@ def test_govac800_station_is_promoted_from_standard():
         f"GoVac 800 profile lost its station: {prof} — `standard` under-claimed the dock; "
         "x50 falls through to the full-station DEFAULT_PROFILE, which is correct."
     )
+
+
+def test_x50_master_is_the_plumbed_x50_not_generic():
+    """[DUG-12] X50 Master (RLX86CE) is the plumbed X50 — automatic water supply and
+    drainage — so its authored guide is the real X50 maintenance MINUS the manual
+    used-water tank, plus its own washboard-filter wording. Routing its SKUs to the
+    generic wash_station tier (the pre-authoring state) is the bug this bites: generic
+    prose, and a used-water-tank guide for hardware it does not have (DUG-5)."""
+    x50 = DREAME_UPKEEP_GUIDE_LIBRARY["x50"]
+    master = DREAME_UPKEEP_GUIDE_LIBRARY["x50_master"]
+
+    assert "dirty_water_tank" in x50, "anchor: X50 Ultra DOES have a manual used-water tank"
+    assert "dirty_water_tank" not in master, (
+        "X50 Master auto-drains — a used-water-tank guide is hardware it lacks"
+    )
+    # washboard_filter is measured off X50 Master's OWN manual, not inherited from _X50.
+    wb = " ".join(master["washboard_filter"]["steps"])
+    assert "washboard base clips" in wb, (
+        "washboard_filter must carry X50 Master's own wording (names the base clips)"
+    )
+    assert master["washboard_filter"]["steps"] != x50["washboard_filter"]["steps"]
+    # every X50 Master SKU routes to the authored family, not the generic tier.
+    masters = [m for m, n in DREAME_MODEL_NAMES.items() if n == "X50 Master"]
+    assert masters, "anchor: X50 Master must be a catalogued platform"
+    for m in masters:
+        assert DREAME_MODEL_GUIDE_FAMILIES[m] == "x50_master", (
+            f"{m} (X50 Master) routes to {DREAME_MODEL_GUIDE_FAMILIES[m]!r}, not x50_master"
+        )
 
 
 def test_frequencies_are_single_sourced():
