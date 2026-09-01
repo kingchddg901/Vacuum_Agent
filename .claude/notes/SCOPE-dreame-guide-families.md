@@ -4,6 +4,45 @@
 argued for the r-code rule; that rule is retired below and the title outlived it by a
 few hours — which is exactly how a dead premise keeps reading as authority.)*
 
+---
+
+## ⚠ ARITHMETIC SUPERSEDED 2026-09-01 — the RULE below still stands, the COUNTS do not
+
+The manual-page rule (a family is a manual page; scope = every key whose marketing name
+appears on it) is unchanged and correct. The figures in the headline and coverage
+sections were written at "7 families / English-only / 4-of-26 covered" and are now stale
+on every axis. Measured from source + the corpus derived data (`durable/dreame-port-fixture/`):
+
+* **Model→manual mapping is DONE: 717 / 741 (96.8%)** (`derived/coverage_final.json`). The
+  24 uncovered are NOT Dreame — 22 `mova.vacuum.*` + 2 `xiaomi.vacuum.*` (Mijia M30),
+  all behind the +86-wall (CN-market sibling brands, no accessible manual). The
+  `dreame CN-exclusive` bucket is EMPTY. "Carve-outs are the Chinese ones" holds.
+* **16 authored families** (was 7): + matrix10, l60_ultra, l60_ultra_pe, l40s_ultra,
+  d30_ultra, d20_pro_plus, d20_plus, aqua10_ultra_roller, aqua10_ultra_track.
+* **128 models** route to an authored family (was 75 keys). The rest resolve to a
+  dock-appropriate generic TIER — real content, not a gap.
+* **i18n is DONE, not English-only**: 17 packs (`upkeep_guides_i18n/`), all 22 families ×
+  291 component-guides with real translated steps. The §"English-only" note below is dead.
+
+### Reg-code (PLATFORM) promotions applied 2026-09-01 — 14 rows in `upkeep_catalog.py`
+The one actionable delta was models on a generic tier that share a CERTIFIED MACHINE
+(reg-code) with an authored line — i.e. the manual page names them, so the rule already
+says they belong to that family. Adjudicated against each model's own DoC reg-code
+(`derived/doc_facts.json`), not the over-resolving crosstable:
+
+| models | → family | reg-code | note |
+|---|---|---|---|
+| GoVac 800 (`r2489d`,`r95385`) | `x50` | RLX85CE | manual names GoVac 800 + X50 + X50 Ultra; also fixes an under-claimed station (`standard`→full dock) |
+| L10s Ultra Gen 3 (`r501h/he/tt`,`r5023a/e`,`r5025b/t`) + L40 Ultra Gen 2 (`r501t`) | `l50` | RLH41CE | same certified machine as the L50 line |
+| Aqua 10 Pro Track (`r2527b/j/t/u`) | `aqua10_ultra_track` | RLR81CE | all 5 of its own manuals print RLR81CE |
+
+Guarded by DUG-11 in `test_dreame_upkeep_guides.py` (bite-proven: reverting a row reds it).
+Two apparent "one machine, two authored families" conflicts (`RLX95CE`, `RLL51SE`) were
+crosstable name-resolution artifacts, NOT mis-routing — confirmed against each family's
+own DoC. **No new authoring is outstanding for Dreame**; the remaining unprovable tail
+(GoVac 300/508/600, L30 Ultra, L50s Pro Ultra, X50 SKUs with no DoC) stays on generic
+tiers by lack of evidence, not by a decision to skip.
+
 **Decision (Chris, 2026-08-25): the target is Dreame's CURRENT-ISH lineup**, i.e. what
 their own comparison page still lists — `dreametech.com/pages/robot-vacuum-and-mop-comparison`.
 Not the 587 models the integration declares, and not the 228 historical platforms.

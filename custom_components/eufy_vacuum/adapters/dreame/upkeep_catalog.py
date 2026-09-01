@@ -1,11 +1,16 @@
 """Dreame upkeep catalog — model -> (display name, maintenance family).
 
-family is either one of the 9 AUTHORED families (dreame_upkeep_guides.py; assigned
-ONLY on an exact authored-line name match, so measured prose never lands on a
-differently-mopped variant) or a generic name-derived TIER for the long tail. Both
-PROVISIONAL from the marketing name; refine from the DEVICE_INFO capability table
-(AUTO_EMPTY / SELF_WASH / WATER_TANK / MOP_PAD|ROLLER). Unauthored families fall back
-to `standard` in the manager. Generated from supported_devices.md."""
+family is either one of the 16 AUTHORED families (dreame_upkeep_guides.py) or a generic
+name-derived TIER for the long tail. An authored family is assigned on an exact
+authored-line name match, OR on a reg-code (PLATFORM) match proving the same certified
+machine as an authored line — verify_rebadge_claims.py's rule "two names sharing an
+r-code are the same hardware, proof not inference" (e.g. GoVac 800 == X50 on RLX85CE,
+L10s Ultra Gen 3 / L40 Ultra Gen 2 == the L50 machine on RLH41CE, Aqua 10 Pro Track ==
+Aqua10 Ultra Track on RLR81CE). Either way measured prose never lands on a
+differently-mopped variant. Generic tiers are PROVISIONAL from the marketing name;
+refine from the DEVICE_INFO capability table (AUTO_EMPTY / SELF_WASH / WATER_TANK /
+MOP_PAD|ROLLER). Unauthored families fall back to `standard` in the manager. Model list
+generated from supported_devices.md; family column hand-refined (no generator emits it)."""
 
 from __future__ import annotations
 
@@ -218,7 +223,7 @@ DREAME_MODELS: list[tuple[str, str, str]] = [
     ("dreame.vacuum.r2487", "S40 Pro", "standard"),
     ("dreame.vacuum.r2488", "X30s Pro", "standard"),
     ("dreame.vacuum.r2489", "X50 Pro", "standard"),
-    ("dreame.vacuum.r2489d", "GoVac 800", "standard"),
+    ("dreame.vacuum.r2489d", "GoVac 800", "x50"),
     ("dreame.vacuum.r2508", "S50 Pro", "standard"),
     ("dreame.vacuum.r2515", "X50 Pro (Enhanced Edition)", "standard"),
     ("dreame.vacuum.r2553", "S40", "standard"),
@@ -300,7 +305,7 @@ DREAME_MODELS: list[tuple[str, str, str]] = [
     ("dreame.vacuum.r9526c", "D20 Air", "standard"),
     ("dreame.vacuum.r9526h", "F20", "standard"),
     ("dreame.vacuum.r9526k", "D20 Air", "standard"),
-    ("dreame.vacuum.r95385", "GoVac 800", "standard"),
+    ("dreame.vacuum.r95385", "GoVac 800", "x50"),
     ("dreame.vacuum.r95425", "L40", "standard"),
     ("dreame.vacuum.r9542a", "L40", "standard"),
     ("dreame.vacuum.r9542b", "L10s Pro Gen3", "standard"),
@@ -458,11 +463,11 @@ DREAME_MODELS: list[tuple[str, str, str]] = [
     ("dreame.vacuum.r500zh", "L40 Ultra AE", "wash_station"),
     ("dreame.vacuum.r500zk", "L40s Ultra AE", "wash_station"),
     ("dreame.vacuum.r501da", "L60 Pro Ultra", "wash_station"),
-    ("dreame.vacuum.r501h", "L10s Ultra Gen 3", "wash_station"),
-    ("dreame.vacuum.r501he", "L10s Ultra Gen 3", "wash_station"),
+    ("dreame.vacuum.r501h", "L10s Ultra Gen 3", "l50"),
+    ("dreame.vacuum.r501he", "L10s Ultra Gen 3", "l50"),
     ("dreame.vacuum.r501st", "L30s Pro Ultra", "wash_station"),
-    ("dreame.vacuum.r501t", "L40 Ultra Gen 2", "wash_station"),
-    ("dreame.vacuum.r501tt", "L10s Ultra Gen 3", "wash_station"),
+    ("dreame.vacuum.r501t", "L40 Ultra Gen 2", "l50"),
+    ("dreame.vacuum.r501tt", "L10s Ultra Gen 3", "l50"),
     ("dreame.vacuum.r501vr", "L60 Ultra AE", "wash_station"),
     ("dreame.vacuum.r501w", "X60 Master (Ultimate edition)", "wash_station"),
     ("dreame.vacuum.r5021a", "L40 Ultra CE", "wash_station"),
@@ -473,11 +478,11 @@ DREAME_MODELS: list[tuple[str, str, str]] = [
     ("dreame.vacuum.r5021t", "L10s Ultra CE", "wash_station"),
     ("dreame.vacuum.r5021u", "GoVac 400 Complete", "wash_station"),
     ("dreame.vacuum.r5022a", "D20 Ultra", "wash_station"),
-    ("dreame.vacuum.r5023a", "L10s Ultra Gen 3", "wash_station"),
-    ("dreame.vacuum.r5023e", "L10s Ultra Gen 3", "wash_station"),
+    ("dreame.vacuum.r5023a", "L10s Ultra Gen 3", "l50"),
+    ("dreame.vacuum.r5023e", "L10s Ultra Gen 3", "l50"),
     ("dreame.vacuum.r5024t", "L30s Pro Ultra", "wash_station"),
-    ("dreame.vacuum.r5025b", "L10s Ultra Gen 3", "wash_station"),
-    ("dreame.vacuum.r5025t", "L10s Ultra Gen 3", "wash_station"),
+    ("dreame.vacuum.r5025b", "L10s Ultra Gen 3", "l50"),
+    ("dreame.vacuum.r5025t", "L10s Ultra Gen 3", "l50"),
     ("dreame.vacuum.r502ca", "Matrix10 Ultra", "matrix10"),
     ("dreame.vacuum.r502k3", "L50s Ultra", "wash_station"),
     ("dreame.vacuum.r502ka", "L50s Pro Ultra", "wash_station"),
@@ -690,10 +695,10 @@ DREAME_MODELS: list[tuple[str, str, str]] = [
     ("trouver.vacuum.r9540v", "Z60 Ultra Roller Complete", "wash_station_roller"),
     ("trouver.vacuum.r9543r", "S70 Pro Roller", "wash_station_roller"),
     ("dreame.vacuum.r2527", "X50 Ultra (Tracked Version)", "wash_station_track"),
-    ("dreame.vacuum.r2527b", "Aqua 10 Pro Track", "wash_station_track"),
-    ("dreame.vacuum.r2527j", "Aqua 10 Pro Track", "wash_station_track"),
-    ("dreame.vacuum.r2527t", "Aqua 10 Pro Track", "wash_station_track"),
-    ("dreame.vacuum.r2527u", "Aqua 10 Pro Track", "wash_station_track"),
+    ("dreame.vacuum.r2527b", "Aqua 10 Pro Track", "aqua10_ultra_track"),
+    ("dreame.vacuum.r2527j", "Aqua 10 Pro Track", "aqua10_ultra_track"),
+    ("dreame.vacuum.r2527t", "Aqua 10 Pro Track", "aqua10_ultra_track"),
+    ("dreame.vacuum.r2527u", "Aqua 10 Pro Track", "aqua10_ultra_track"),
     ("dreame.vacuum.r2580", "X50 Pro (Tracked Version)", "wash_station_track"),
     ("dreame.vacuum.r2581", "X50 (Tracked Version)", "wash_station_track"),
     ("dreame.vacuum.r501wu", "X60 Track", "wash_station_track"),

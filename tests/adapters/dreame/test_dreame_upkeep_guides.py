@@ -41,6 +41,11 @@ The library now holds TWO kinds of family (see dreame_upkeep_guides.py):
          checked frequencies at all (they were implicitly inherited from the tier base).
 [DUG-10] Every cadence value is a KNOWN interval — a typo or an unregistered new interval
          fails here instead of rendering untranslated (the freq backfill only covers these).
+[DUG-11] The reg-code (PLATFORM) promotions hold: models proven to be the same certified
+         machine as an authored line (GoVac 800==X50/RLX85CE, L10s Ultra Gen 3 & L40 Ultra
+         Gen 2==the L50 machine/RLH41CE, Aqua 10 Pro Track==Aqua10 Ultra Track/RLR81CE) route
+         to that AUTHORED family, not the generic tier. Reverting any row to its old tier —
+         or dropping GoVac 800 back to the no-station `standard` — goes red here.
 """
 
 from __future__ import annotations
@@ -290,6 +295,57 @@ def test_every_catalog_family_exists_in_the_library():
     assert used <= set(DREAME_GUIDE_FAMILY_NAMES), (
         f"{sorted(used - set(DREAME_GUIDE_FAMILY_NAMES))} has no display name in "
         "DREAME_GUIDE_FAMILY_NAMES — the card would show a bare routing key."
+    )
+
+
+#: reg-code (PLATFORM) promotions — (model, expected authored family, proving reg-code).
+#: Each is the SAME certified machine as an authored line (verify_rebadge_claims.py's rule
+#: "two names sharing an r-code are the same hardware, proof not inference"), so it must get
+#: that line's measured guide, not the generic tier it defaulted to. The bite input is the
+#: old tier: revert a row and the family assertion goes red naming the model.
+REGCODE_PROMOTIONS = [
+    ("dreame.vacuum.r2489d", "x50", "RLX85CE"),   # GoVac 800  (was `standard`)
+    ("dreame.vacuum.r95385", "x50", "RLX85CE"),   # GoVac 800  (was `standard`)
+    ("dreame.vacuum.r501h", "l50", "RLH41CE"),    # L10s Ultra Gen 3 (was `wash_station`)
+    ("dreame.vacuum.r501he", "l50", "RLH41CE"),   # L10s Ultra Gen 3
+    ("dreame.vacuum.r501t", "l50", "RLH41CE"),    # L40 Ultra Gen 2
+    ("dreame.vacuum.r501tt", "l50", "RLH41CE"),   # L10s Ultra Gen 3
+    ("dreame.vacuum.r5023a", "l50", "RLH41CE"),   # L10s Ultra Gen 3
+    ("dreame.vacuum.r5023e", "l50", "RLH41CE"),   # L10s Ultra Gen 3
+    ("dreame.vacuum.r5025b", "l50", "RLH41CE"),   # L10s Ultra Gen 3
+    ("dreame.vacuum.r5025t", "l50", "RLH41CE"),   # L10s Ultra Gen 3
+    ("dreame.vacuum.r2527b", "aqua10_ultra_track", "RLR81CE"),  # Aqua 10 Pro Track (was _track tier)
+    ("dreame.vacuum.r2527j", "aqua10_ultra_track", "RLR81CE"),  # Aqua 10 Pro Track
+    ("dreame.vacuum.r2527t", "aqua10_ultra_track", "RLR81CE"),  # Aqua 10 Pro Track
+    ("dreame.vacuum.r2527u", "aqua10_ultra_track", "RLR81CE"),  # Aqua 10 Pro Track
+]
+
+
+@pytest.mark.parametrize("model,family,regcode", REGCODE_PROMOTIONS)
+def test_regcode_promotion_routes_to_authored_family(model, family, regcode):
+    """[DUG-11] a same-machine model gets the authored guide, not the generic tier."""
+    got = DREAME_MODEL_GUIDE_FAMILIES.get(model)
+    assert got == family, (
+        f"{model} routes to {got!r}, expected {family!r} — it is the same certified "
+        f"machine ({regcode}) as an authored line and must share its measured guide."
+    )
+    assert family in AUTHORED_FAMILIES, (
+        f"{family} is not an authored family — the promotion's whole point is a "
+        "manual-specific guide, not a generic tier."
+    )
+
+
+def test_govac800_station_is_promoted_from_standard():
+    """[DUG-11] GoVac 800 == X50 (RLX85CE) has the full wash dock (dual tank, mop self-clean,
+    per its retail spec). The old `standard` tier declared has_station=False, hiding its real
+    dock controls; the `x50` promotion must restore the full station. Red if it reverts."""
+    from custom_components.eufy_vacuum.adapters.dreame.model_catalog import profile_for_model
+
+    prof = profile_for_model("dreame.vacuum.r2489d")
+    assert prof["family"] == "x50"
+    assert prof["has_station"] and prof["station_washable"] and prof["station_dryable"], (
+        f"GoVac 800 profile lost its station: {prof} — `standard` under-claimed the dock; "
+        "x50 falls through to the full-station DEFAULT_PROFILE, which is correct."
     )
 
 
