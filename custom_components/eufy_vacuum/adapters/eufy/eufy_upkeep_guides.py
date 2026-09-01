@@ -63,7 +63,7 @@ UPKEEP_GUIDE_LIBRARY = {
             ],
             "notes": [],
         },
-        "rolling_brush": {
+        "main_brush": {
             "clean_frequency": "monthly",
             "replace_frequency": "every 6 months",
             "steps": [
@@ -77,7 +77,7 @@ UPKEEP_GUIDE_LIBRARY = {
                 "Brush guard should also be replaced every 3-6 months or when worn.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "clean_frequency": "wash after use / inspect regularly",
             "replace_frequency": "every 3-6 months",
             "steps": [
@@ -99,7 +99,7 @@ UPKEEP_GUIDE_LIBRARY = {
                 "Dirty water tank should be emptied and rinsed when full.",
             ],
         },
-        "swivel_wheel": {
+        "caster_wheel": {
             "clean_frequency": "monthly",
             "replace_frequency": None,
             "steps": [
@@ -144,7 +144,7 @@ UPKEEP_GUIDE_LIBRARY = {
             ],
             "notes": [],
         },
-        "rolling_brush": {
+        "main_brush": {
             "clean_frequency": "every 180 hours",
             "replace_frequency": "every 6 months",
             "steps": [
@@ -154,7 +154,7 @@ UPKEEP_GUIDE_LIBRARY = {
             ],
             "notes": [],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "clean_frequency": "every 60 hours",
             "replace_frequency": "every 6 months",
             "steps": [
@@ -178,7 +178,7 @@ UPKEEP_GUIDE_LIBRARY = {
                 "Also clean the clean/dirty water tanks and dirty water filter as needed.",
             ],
         },
-        "swivel_wheel": {
+        "caster_wheel": {
             "clean_frequency": "as needed",
             "replace_frequency": None,
             "steps": [
@@ -219,7 +219,7 @@ UPKEEP_GUIDE_LIBRARY = {
             ],
             "notes": [],
         },
-        "rolling_brush": {
+        "main_brush": {
             "clean_frequency": "periodically",
             "replace_frequency": "as needed",
             "steps": [
@@ -231,7 +231,7 @@ UPKEEP_GUIDE_LIBRARY = {
                 "The Pro-Detangle Comb reduces but does not eliminate manual cleaning.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "clean_frequency": "after dirty runs / regularly",
             "replace_frequency": "as needed",
             "steps": [
@@ -283,7 +283,7 @@ UPKEEP_GUIDE_LIBRARY = {
             ],
             "notes": [],
         },
-        "rolling_brush": {
+        "main_brush": {
             "clean_frequency": "regularly",
             "replace_frequency": "every 3-6 months",
             "steps": [
@@ -294,7 +294,7 @@ UPKEEP_GUIDE_LIBRARY = {
             ],
             "notes": [],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "clean_frequency": "after mop runs",
             "replace_frequency": "as needed",
             "steps": [
@@ -336,7 +336,7 @@ UPKEEP_GUIDE_LIBRARY = {
             ],
             "notes": [],
         },
-        "rolling_brush": {
+        "main_brush": {
             "clean_frequency": "at least weekly",
             "replace_frequency": "every 3-6 months",
             "steps": [
@@ -349,7 +349,7 @@ UPKEEP_GUIDE_LIBRARY = {
                 "SES models also use automatic hair-cutting to reduce maintenance.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "clean_frequency": "after mop runs",
             "replace_frequency": "as needed",
             "steps": [

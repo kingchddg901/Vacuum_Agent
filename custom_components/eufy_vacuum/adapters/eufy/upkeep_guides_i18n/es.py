@@ -38,7 +38,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una vez a 
                                        'limpiar el filtro.',
                                        'No utilice el filtro si no está completamente seco, de lo '
                                        'contrario puede afectar el rendimiento de limpieza.']},
-                  'rolling_brush': {'clean_frequency': 'Una vez al mes',
+                  'main_brush': {'clean_frequency': 'Una vez al mes',
                                     'replace_frequency': 'Cada 6 meses',
                                     'steps': ['Tire de las pestañas de liberación para desbloquear '
                                               'la protección del cepillo, como se muestra.',
@@ -83,7 +83,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una vez a 
                                               'Coloque la bandeja de nuevo en la Estación Omni.'],
                                     'notes': ['El tanque de agua sucia debe vaciarse y enjuagarse '
                                               'cuando esté lleno.']},
-                  'mopping_cloth': {'clean_frequency': 'lavar después del uso / inspeccionar '
+                  'mop_cloth': {'clean_frequency': 'lavar después del uso / inspeccionar '
                                                        'regularmente',
                                     'replace_frequency': 'Cada 3-6 meses',
                                     'steps': ['Retire los pads de fregado del robot.',
@@ -92,7 +92,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una vez a 
                                               'Reemplace los pads cuando estén desgastados o ya no '
                                               'limpien eficazmente.'],
                                     'notes': []},
-                  'swivel_wheel': {'clean_frequency': 'Una vez al mes',
+                  'caster_wheel': {'clean_frequency': 'Una vez al mes',
                                    'replace_frequency': None,
                                    'steps': ['Inspeccione la rueda giratoria para detectar cabello '
                                              'o residuos enroscados.',
@@ -118,11 +118,11 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una vez a 
                                      'Retire la acumulación alrededor de la base y las cerdas.',
                                      'Reemplace el cepillo si las cerdas están dobladas o '
                                      'dañadas.']},
-            'rolling_brush': {'steps': ['Retire la protección del cepillo giratorio.',
+            'main_brush': {'steps': ['Retire la protección del cepillo giratorio.',
                                         'Revise el cepillo y las tapas de ambos extremos en busca '
                                         'de cabello enredado o residuos.',
                                         'Limpie el cepillo a fondo antes de volver a instalarlo.']},
-            'mopping_cloth': {'steps': ['Retire la mopa de rodillo o las superficies de contacto '
+            'mop_cloth': {'steps': ['Retire la mopa de rodillo o las superficies de contacto '
                                         'de la mopa y limpie los residuos.',
                                         'Deje secar las piezas limpias antes de reutilizarlas.',
                                         'Reemplace el consumible de fregado cuando el desgaste sea '
@@ -136,7 +136,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una vez a 
                                         'Vuelva a instalarla después de limpiarla.'],
                               'notes': ['Limpie también los depósitos de agua limpia y sucia y el '
                                         'filtro de agua sucia según sea necesario.']},
-            'swivel_wheel': {'steps': ['Inspeccione la rueda giratoria en busca de cabello y '
+            'caster_wheel': {'steps': ['Inspeccione la rueda giratoria en busca de cabello y '
                                        'residuos.',
                                        'Retire la acumulación y confirme que la rueda gira '
                                        'libremente.']}},
@@ -154,14 +154,14 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una vez a 
                                        'la base.',
                                        'Reemplace el cepillo si las cerdas están dobladas o '
                                        'faltan.']},
-              'rolling_brush': {'steps': ['Inspeccione el cepillo giratorio en busca de cabello '
+              'main_brush': {'steps': ['Inspeccione el cepillo giratorio en busca de cabello '
                                           'enredado o residuos.',
                                           'Use la herramienta de limpieza o unas tijeras para '
                                           'cortar el material enrollado.',
                                           'Vuelva a instalarlo después de limpiarlo.'],
                                 'notes': ['El peine antienredos Pro-Detangle reduce la limpieza '
                                           'manual, pero no la elimina.']},
-              'mopping_cloth': {'steps': ['Retire las almohadillas de fregado del robot o de la '
+              'mop_cloth': {'steps': ['Retire las almohadillas de fregado del robot o de la '
                                           'estación.',
                                           'Límpielas y séquelas por completo antes de '
                                           'reutilizarlas.',
@@ -184,13 +184,13 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una vez a 
                                         'Retire el cabello y los residuos del cepillo y de su '
                                         'base.',
                                         'Vuelva a colocarlo o reemplácelo si está desgastado.']},
-               'rolling_brush': {'steps': ['Apriete las pestañas de la protección del cepillo '
+               'main_brush': {'steps': ['Apriete las pestañas de la protección del cepillo '
                                            'giratorio y retire la protección.',
                                            'Levante para sacar el cepillo giratorio.',
                                            'Use la herramienta de limpieza o unas tijeras para '
                                            'retirar el cabello y los residuos.',
                                            'Vuelva a instalar el cepillo y la protección.']},
-               'mopping_cloth': {'steps': ['Retire la almohadilla de fregado del soporte.',
+               'mop_cloth': {'steps': ['Retire la almohadilla de fregado del soporte.',
                                            'Lávela y séquela antes de reutilizarla.',
                                            'Reemplácela si se desgasta o pierde eficacia.'],
                                  'notes': ['Solo se aplica a los modelos X8 híbridos o con '
@@ -205,7 +205,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una vez a 
                 'side_brush': {'steps': ['Tire del cepillo lateral para extraerlo.',
                                          'Retire el cabello enredado y los residuos.',
                                          'Vuelva a colocarlo o reemplácelo si está desgastado.']},
-                'rolling_brush': {'steps': ['Retire la cubierta del cepillo giratorio.',
+                'main_brush': {'steps': ['Retire la cubierta del cepillo giratorio.',
                                             'Levante para sacar el cepillo giratorio.',
                                             'Limpie el cabello enrollado y los residuos del '
                                             'cepillo y de los cojinetes.',
@@ -213,7 +213,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una vez a 
                                             'protección.'],
                                   'notes': ['Los modelos SES también utilizan el corte automático '
                                             'de cabello para reducir el mantenimiento.']},
-                'mopping_cloth': {'steps': ['Retire la almohadilla o el paño de fregado.',
+                'mop_cloth': {'steps': ['Retire la almohadilla o el paño de fregado.',
                                             'Límpielo y séquelo por completo antes de '
                                             'reutilizarlo.',
                                             'Reemplace el paño cuando esté desgastado.'],

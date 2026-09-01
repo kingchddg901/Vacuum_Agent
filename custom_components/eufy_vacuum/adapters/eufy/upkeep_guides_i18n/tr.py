@@ -37,7 +37,7 @@ GUIDE_TRANSLATIONS = {
                 "Filtreyi her 3-6 ayda bir değiştirin.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "clean_frequency": "Ayda bir",
             "replace_frequency": "Her 6 ayda bir",
             "steps": [
@@ -85,7 +85,7 @@ GUIDE_TRANSLATIONS = {
                 "Kirli su deposu dolduğunda boşaltılmalı ve durulanmalıdır.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "clean_frequency": "Kullanımdan sonra yıkayın / düzenli olarak kontrol edin",
             "replace_frequency": "Her 3-6 ayda bir",
             "steps": [
@@ -95,7 +95,7 @@ GUIDE_TRANSLATIONS = {
             ],
             "notes": [],
         },
-        "swivel_wheel": {
+        "caster_wheel": {
             "clean_frequency": "Ayda bir",
             "replace_frequency": None,
             "steps": [
@@ -132,14 +132,14 @@ GUIDE_TRANSLATIONS = {
                 "Kıllar bükülmüş veya hasarlıysa fırçayı değiştirin.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Ana fırça korumasını çıkarın.",
                 "Fırçayı ve her iki uç kapağını dolaşmış saç veya kalıntı için kontrol edin.",
                 "Yeniden takmadan önce fırçayı iyice temizleyin.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Döner paspası veya paspas temas yüzeylerini çıkarın ve kalıntıları temizleyin.",
                 "Temizlenen parçaları yeniden kullanmadan önce kurumaya bırakın.",
@@ -159,7 +159,7 @@ GUIDE_TRANSLATIONS = {
                 "Gerektiğinde temiz/kirli su depolarını ve kirli su filtresini de temizleyin.",
             ],
         },
-        "swivel_wheel": {
+        "caster_wheel": {
             "steps": [
                 "Döner tekerlekte saç ve kalıntı olup olmadığını kontrol edin.",
                 "Birikintileri temizleyin ve tekerleğin serbestçe döndüğünü doğrulayın.",
@@ -189,7 +189,7 @@ GUIDE_TRANSLATIONS = {
                 "Kıllar bükülmüş veya eksikse fırçayı değiştirin.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Ana fırçada dolaşmış saç veya kalıntı olup olmadığını kontrol edin.",
                 "Sarılmış malzemeyi kesmek için temizleme aracını veya makası kullanın.",
@@ -199,7 +199,7 @@ GUIDE_TRANSLATIONS = {
                 "Pro-Detangle Tarağı manuel temizliği azaltır ancak ortadan kaldırmaz.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Paspas bezlerini robottan veya istasyondan çıkarın.",
                 "Yeniden kullanmadan önce temizleyin ve tamamen kurutun.",
@@ -237,7 +237,7 @@ GUIDE_TRANSLATIONS = {
                 "Aşınmışsa yeniden takın veya değiştirin.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Ana fırça koruma tırnaklarını sıkın ve korumayı çıkarın.",
                 "Ana fırçayı kaldırarak çıkarın.",
@@ -245,7 +245,7 @@ GUIDE_TRANSLATIONS = {
                 "Fırçayı ve korumayı yeniden takın.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Paspas bezini tutucusundan çıkarın.",
                 "Yeniden kullanmadan önce yıkayın ve kurutun.",
@@ -276,7 +276,7 @@ GUIDE_TRANSLATIONS = {
                 "Aşınmışsa yeniden takın veya değiştirin.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Ana fırça kapağını çıkarın.",
                 "Ana fırçayı kaldırarak çıkarın.",
@@ -287,7 +287,7 @@ GUIDE_TRANSLATIONS = {
                 "SES modelleri, bakımı azaltmak için otomatik saç kesme özelliğini de kullanır.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Paspas pedini veya bezini çıkarın.",
                 "Yeniden kullanmadan önce temizleyin ve tamamen kurutun.",

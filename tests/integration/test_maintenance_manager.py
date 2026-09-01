@@ -337,7 +337,7 @@ def test_guide_only_component_family_gated(mnt, manager, monkeypatch):
         "maintenance_components": {
             "main_brush": {"label": "Main Brush", "sensor_suffix": "x"},          # sensor-backed
             "dustbin": {"label": "Dustbin", "maintenance_only": True},            # guide-only, in family
-            "dock_dust_bag": {"label": "Dock Dust Bag", "maintenance_only": True},  # guide-only, NOT in family
+            "dust_bag": {"label": "Dock Dust Bag", "maintenance_only": True},  # guide-only, NOT in family
         },
         "upkeep_catalog": {
             "model_guide_families": {"test.model": "base"},
@@ -349,7 +349,7 @@ def test_guide_only_component_family_gated(mnt, manager, monkeypatch):
     comps = {i["component"] for i in mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)["maintenance_items"]}
     assert "main_brush" in comps        # sensor-backed → always shown
     assert "dustbin" in comps           # guide-only + in family → shown
-    assert "dock_dust_bag" not in comps  # guide-only + NOT in family → gated out
+    assert "dust_bag" not in comps  # guide-only + NOT in family → gated out
 
 
 def _caps_with_entities(manager, monkeypatch, entities):

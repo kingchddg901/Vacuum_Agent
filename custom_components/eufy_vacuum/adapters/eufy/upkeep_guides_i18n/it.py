@@ -39,7 +39,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una volta 
                                        'volta a settimana, sostituzione ogni 3-6 mesi.',
                                        'Contenitore per la polvere — pulizia una volta a settimana '
                                        '(nessuna frequenza di sostituzione indicata).']},
-                  'rolling_brush': {'clean_frequency': 'Una volta al mese',
+                  'main_brush': {'clean_frequency': 'Una volta al mese',
                                     'replace_frequency': 'Ogni 6 mesi',
                                     'steps': ['Tirare le linguette di sblocco per sbloccare la '
                                               'protezione della spazzola, come indicato.',
@@ -95,7 +95,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una volta 
                                               'Rimettere il vassoio nella Stazione Omni.'],
                                     'notes': ["Il serbatoio dell'acqua sporca deve essere svuotato "
                                               'e sciacquato quando è pieno.']},
-                  'mopping_cloth': {'clean_frequency': "Lavare dopo l'uso / ispezionare "
+                  'mop_cloth': {'clean_frequency': "Lavare dopo l'uso / ispezionare "
                                                        'regolarmente',
                                     'replace_frequency': 'Ogni 3-6 mesi',
                                     'steps': ['Rimuovere i panni per pulire il pavimento dal '
@@ -105,7 +105,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una volta 
                                               'Sostituire i panni quando diventano usurati o non '
                                               'puliscono più efficacemente.'],
                                     'notes': []},
-                  'swivel_wheel': {'clean_frequency': 'Una volta al mese',
+                  'caster_wheel': {'clean_frequency': 'Una volta al mese',
                                    'replace_frequency': None,
                                    'steps': ['Ispezionare la ruota girevole per capelli o detriti '
                                              'avvolti.',
@@ -131,12 +131,12 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una volta 
                                      'Rimuovere gli accumuli intorno alla base e alle setole.',
                                      'Sostituire la spazzola se le setole sono piegate o '
                                      'danneggiate.']},
-            'rolling_brush': {'steps': ['Rimuovere la protezione della spazzola rotante.',
+            'main_brush': {'steps': ['Rimuovere la protezione della spazzola rotante.',
                                         'Controllare la spazzola ed entrambi i cappucci terminali '
                                         'per capelli aggrovigliati o detriti.',
                                         'Pulire accuratamente la spazzola prima di '
                                         'reinstallarla.']},
-            'mopping_cloth': {'steps': ['Rimuovere il mop rotante o le superfici di contatto del '
+            'mop_cloth': {'steps': ['Rimuovere il mop rotante o le superfici di contatto del '
                                         'mop ed eliminare i residui.',
                                         'Lasciare asciugare le parti pulite prima del riutilizzo.',
                                         "Sostituire il materiale di consumo del mop quando l'usura "
@@ -149,7 +149,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una volta 
                                         'Reinstallare dopo la pulizia.'],
                               'notes': ["Pulire anche i serbatoi dell'acqua pulita e sporca e il "
                                         "filtro dell'acqua sporca secondo necessità."]},
-            'swivel_wheel': {'steps': ['Ispezionare la ruota piroettante per capelli e detriti.',
+            'caster_wheel': {'steps': ['Ispezionare la ruota piroettante per capelli e detriti.',
                                        'Rimuovere gli accumuli e verificare che la ruota giri '
                                        'liberamente.']}},
  'omni_c20': {'filter': {'steps': ['Rimuovere il contenitore della polvere o il vano del filtro.',
@@ -166,14 +166,14 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una volta 
                                        'base.',
                                        'Sostituire la spazzola se le setole sono piegate o '
                                        'mancanti.']},
-              'rolling_brush': {'steps': ['Ispezionare la spazzola rotante per capelli '
+              'main_brush': {'steps': ['Ispezionare la spazzola rotante per capelli '
                                           'aggrovigliati o detriti.',
                                           'Usare lo strumento di pulizia o delle forbici per '
                                           'tagliare via il materiale avvolto.',
                                           'Reinstallare dopo la pulizia.'],
                                 'notes': ['Il pettine Pro-Detangle riduce ma non elimina la '
                                           'pulizia manuale.']},
-              'mopping_cloth': {'steps': ['Rimuovere i panni per lavaggio dal robot o dalla '
+              'mop_cloth': {'steps': ['Rimuovere i panni per lavaggio dal robot o dalla '
                                           'stazione.',
                                           'Pulirli e asciugarli completamente prima del '
                                           'riutilizzo.',
@@ -196,13 +196,13 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una volta 
                                         'Eliminare capelli e detriti dalla spazzola e dalla sua '
                                         'base.',
                                         'Rimontare o sostituire se usurata.']},
-               'rolling_brush': {'steps': ['Premere le linguette della protezione della spazzola '
+               'main_brush': {'steps': ['Premere le linguette della protezione della spazzola '
                                            'rotante e rimuovere la protezione.',
                                            'Sollevare ed estrarre la spazzola rotante.',
                                            'Usare lo strumento di pulizia o delle forbici per '
                                            'rimuovere capelli e detriti.',
                                            'Reinstallare la spazzola e la protezione.']},
-               'mopping_cloth': {'steps': ['Rimuovere il panno per lavaggio dal supporto.',
+               'mop_cloth': {'steps': ['Rimuovere il panno per lavaggio dal supporto.',
                                            'Lavarlo e asciugarlo prima del riutilizzo.',
                                            'Sostituirlo se diventa usurato o inefficace.'],
                                  'notes': ['Si applica solo ai modelli X8 ibridi o con funzione '
@@ -218,7 +218,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una volta 
                 'side_brush': {'steps': ['Staccare la spazzola laterale.',
                                          'Rimuovere capelli aggrovigliati e detriti.',
                                          'Rimontare o sostituire se usurata.']},
-                'rolling_brush': {'steps': ['Rimuovere la copertura della spazzola rotante.',
+                'main_brush': {'steps': ['Rimuovere la copertura della spazzola rotante.',
                                             'Sollevare ed estrarre la spazzola rotante.',
                                             'Rimuovere capelli e detriti avvolti dalla spazzola e '
                                             'dai cuscinetti.',
@@ -226,7 +226,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Una volta 
                                             'la protezione.'],
                                   'notes': ['I modelli SES utilizzano anche il taglio automatico '
                                             'dei capelli per ridurre la manutenzione.']},
-                'mopping_cloth': {'steps': ['Rimuovere il tampone o il panno per lavaggio.',
+                'mop_cloth': {'steps': ['Rimuovere il tampone o il panno per lavaggio.',
                                             'Pulirlo e asciugarlo completamente prima del '
                                             'riutilizzo.',
                                             'Sostituire il panno quando è usurato.'],

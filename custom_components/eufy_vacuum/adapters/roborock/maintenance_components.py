@@ -183,7 +183,7 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     # family documents it — so these appear on dock/station models and stay hidden on
     # a dockless base robot. Guides live in roborock_upkeep_guides.py under the
     # auto_empty / wash_station families.
-    "dock_dust_bag": {
+    "dust_bag": {
         "maintenance_only": True,
         "label": "Dock Dust Bag",
         "icon": "mdi:sack",

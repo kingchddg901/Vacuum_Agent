@@ -400,6 +400,11 @@ class MaintenanceManager:
         _family_guide_components = set(_upkeep.get("guide_library", {}).get(_guide_family or "", {}))
         for component, meta in _maintenance_components.items():
             label = meta.get("label", component.replace("_", " ").title())
+            # Per-brand DISPLAY key: the component key is canonical (`main_brush`),
+            # but a brand may keep its own display word (Eufy shows "Rolling Brush")
+            # via label_key -> its own translated vocab entry. Absent => the card
+            # uses `component`. Core owns the key; the brand keeps the word.
+            label_key = meta.get("label_key")
             # A "maintenance_only" component (e.g. the cleaning tray — a cleanable,
             # not a service-life wear part) is not surfaced as a Replacement row;
             # only its integration-tracked Maintenance row shows (issue #38).
@@ -483,6 +488,7 @@ class MaintenanceManager:
             replacement_item = {
                 "component": component,
                 "label": label,
+                "label_key": label_key,
                 "component_label": _display_label(component) or label,
                 "kind": "replacement",
                 "kind_label": "Replacement",
@@ -563,6 +569,7 @@ class MaintenanceManager:
             maintenance_item = {
                 "component": component,
                 "label": label,
+                "label_key": label_key,
                 "component_label": _display_label(component) or label,
                 "kind": "maintenance",
                 "kind_label": "Maintenance",

@@ -37,7 +37,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': None,
                                        'Não utilize o filtro se ele não estiver completamente '
                                        'seco, caso contrário, isso pode afetar o desempenho da '
                                        'limpeza.']},
-                  'rolling_brush': {'clean_frequency': None,
+                  'main_brush': {'clean_frequency': None,
                                     'replace_frequency': None,
                                     'steps': ['Puxe as abas de liberação para destravar o protetor '
                                               'de escova, conforme mostrado.',
@@ -84,7 +84,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': None,
                                               'Coloque a bandeja de volta na Omni Station.'],
                                     'notes': ['O tanque de água suja deve ser esvaziado e '
                                               'enxaguado quando estiver cheio.']},
-                  'mopping_cloth': {'clean_frequency': 'lavar após o uso / inspecionar '
+                  'mop_cloth': {'clean_frequency': 'lavar após o uso / inspecionar '
                                                        'regularmente',
                                     'replace_frequency': 'A cada 3-6 meses',
                                     'steps': ['Remova os panos de esfregão do robô.',
@@ -93,7 +93,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': None,
                                               'Substitua os panos quando estiverem gastos ou não '
                                               'limparem mais efetivamente.'],
                                     'notes': []},
-                  'swivel_wheel': {'clean_frequency': 'Uma vez por mês',
+                  'caster_wheel': {'clean_frequency': 'Uma vez por mês',
                                    'replace_frequency': None,
                                    'steps': ['Inspecione a roda giratória para verificar se há '
                                              'cabelos ou detritos enrolados.',
@@ -117,11 +117,11 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': None,
                                      'Remova a acumulação à volta da base e das cerdas.',
                                      'Substitua a escova se as cerdas estiverem dobradas ou '
                                      'danificadas.']},
-            'rolling_brush': {'steps': ['Retire a proteção da escova rotativa.',
+            'main_brush': {'steps': ['Retire a proteção da escova rotativa.',
                                         'Verifique a escova e ambas as tampas das extremidades em '
                                         'busca de cabelos enrolados ou detritos.',
                                         'Limpe bem a escova antes de a voltar a instalar.']},
-            'mopping_cloth': {'steps': ['Retire a mopa rotativa ou as superfícies de contacto da '
+            'mop_cloth': {'steps': ['Retire a mopa rotativa ou as superfícies de contacto da '
                                         'mopa e limpe os resíduos.',
                                         'Deixe as peças limpas secar antes de as reutilizar.',
                                         'Substitua o consumível da mopa quando o desgaste for '
@@ -134,7 +134,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': None,
                                         'Volte a instalar após a limpeza.'],
                               'notes': ['Limpe também os depósitos de água limpa e suja e o filtro '
                                         'de água suja conforme necessário.']},
-            'swivel_wheel': {'steps': ['Inspecione a roda giratória em busca de cabelos e '
+            'caster_wheel': {'steps': ['Inspecione a roda giratória em busca de cabelos e '
                                        'detritos.',
                                        'Remova a acumulação e confirme que a roda roda '
                                        'livremente.']}},
@@ -151,14 +151,14 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': None,
                                        'base.',
                                        'Substitua a escova se as cerdas estiverem dobradas ou em '
                                        'falta.']},
-              'rolling_brush': {'steps': ['Inspecione a escova rotativa em busca de cabelos '
+              'main_brush': {'steps': ['Inspecione a escova rotativa em busca de cabelos '
                                           'enrolados ou detritos.',
                                           'Use a ferramenta de limpeza ou uma tesoura para cortar '
                                           'o material enrolado.',
                                           'Volte a instalar após a limpeza.'],
                                 'notes': ['O Pente Pro-Detangle reduz, mas não elimina, a limpeza '
                                           'manual.']},
-              'mopping_cloth': {'steps': ['Retire os panos de limpeza do robô ou da base.',
+              'mop_cloth': {'steps': ['Retire os panos de limpeza do robô ou da base.',
                                           'Limpe-os e seque-os completamente antes de os '
                                           'reutilizar.',
                                           'Substitua os panos quando estiverem gastos ou já não '
@@ -178,13 +178,13 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': None,
                'side_brush': {'steps': ['Retire a escova lateral.',
                                         'Remova os cabelos e os detritos da escova e da sua base.',
                                         'Volte a colocar ou substitua se estiver gasta.']},
-               'rolling_brush': {'steps': ['Aperte as patilhas da proteção da escova rotativa e '
+               'main_brush': {'steps': ['Aperte as patilhas da proteção da escova rotativa e '
                                            'retire a proteção.',
                                            'Retire a escova rotativa.',
                                            'Use a ferramenta de limpeza ou uma tesoura para '
                                            'remover os cabelos e os detritos.',
                                            'Volte a instalar a escova e a proteção.']},
-               'mopping_cloth': {'steps': ['Retire o pano de limpeza do suporte.',
+               'mop_cloth': {'steps': ['Retire o pano de limpeza do suporte.',
                                            'Lave-o e seque-o antes de o reutilizar.',
                                            'Substitua-o se ficar gasto ou ineficaz.'],
                                  'notes': ['Aplica-se apenas aos modelos X8 híbridos/com função de '
@@ -199,14 +199,14 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': None,
                 'side_brush': {'steps': ['Retire a escova lateral.',
                                          'Remova os cabelos enrolados e os detritos.',
                                          'Volte a colocar ou substitua se estiver gasta.']},
-                'rolling_brush': {'steps': ['Retire a tampa da escova rotativa.',
+                'main_brush': {'steps': ['Retire a tampa da escova rotativa.',
                                             'Retire a escova rotativa.',
                                             'Limpe os cabelos enrolados e os detritos da escova e '
                                             'dos rolamentos.',
                                             'Seque e volte a instalar a escova e a proteção.'],
                                   'notes': ['Os modelos SES usam também corte automático de '
                                             'cabelos para reduzir a manutenção.']},
-                'mopping_cloth': {'steps': ['Retire o pano de limpeza ou o tecido da mopa.',
+                'mop_cloth': {'steps': ['Retire o pano de limpeza ou o tecido da mopa.',
                                             'Limpe-o e seque-o completamente antes de o '
                                             'reutilizar.',
                                             'Substitua o pano quando estiver gasto.'],

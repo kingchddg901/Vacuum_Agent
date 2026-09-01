@@ -209,14 +209,14 @@ def test_detect_maintenance_sources(hass):
             "no_suffix": {"sensor_suffix": None},                     # None suffix → None
             "filter": {"sensor_suffix": "filter_remaining"},
             # proxies filter when present
-            "swivel_wheel": {"sensor_suffix": "swivel_wheel_remaining", "proxy_for": "filter"},
+            "caster_wheel": {"sensor_suffix": "swivel_wheel_remaining", "proxy_for": "filter"},
         },
     )
     assert sources["main_brush"] == "sensor.alfred_main_brush_remaining"
     assert sources["side_brush"] is None
     assert sources["no_suffix"] is None
     # swivel wheel proxies the filter entity when present
-    assert sources["swivel_wheel"] == "sensor.alfred_filter_remaining"
+    assert sources["caster_wheel"] == "sensor.alfred_filter_remaining"
 
 
 def test_detect_maintenance_swivel_own_fallback(hass):
@@ -225,10 +225,10 @@ def test_detect_maintenance_swivel_own_fallback(hass):
     sources = _detect_maintenance_sources(
         hass, object_id="alfred",
         maintenance_components={
-            "swivel_wheel": {"sensor_suffix": "swivel_wheel_remaining", "proxy_for": "filter"},
+            "caster_wheel": {"sensor_suffix": "swivel_wheel_remaining", "proxy_for": "filter"},
         },
     )
-    assert sources["swivel_wheel"] == "sensor.alfred_swivel_wheel_remaining"
+    assert sources["caster_wheel"] == "sensor.alfred_swivel_wheel_remaining"
 
 
 async def test_maintenance_override_wins_when_it_still_resolves(hass):

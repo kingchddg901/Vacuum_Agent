@@ -270,7 +270,7 @@ def test_maintenance_components(s6_config):
         "main_brush", "side_brush", "filter", "sensor",
         "cleaning_brush", "strainer",
         "dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
-        "dock_dust_bag", "clean_water_tank", "dirty_water_tank",
+        "dust_bag", "clean_water_tank", "dirty_water_tank",
     }
     assert mc["main_brush"]["sensor_suffix"] == "main_brush_time_left"
     assert mc["main_brush"]["maintenance_only"] is False
@@ -284,7 +284,7 @@ def test_maintenance_components(s6_config):
     assert mc["filter"]["reset_button"]["entity_suffixes"] == ["reset_air_filter_consumable"]
     # Guide-only cleanables: maintenance_only, no upstream sensor, zero intervals.
     for comp in ("dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
-                 "dock_dust_bag", "clean_water_tank", "dirty_water_tank"):
+                 "dust_bag", "clean_water_tank", "dirty_water_tank"):
         assert mc[comp]["maintenance_only"] is True
         assert mc[comp]["sensor_suffix"] is None
         assert mc[comp]["default_interval_hours"] == 0.0
@@ -367,10 +367,10 @@ def test_upkeep_catalog(s6_config):
         assert "clean_frequency" in guide and "replace_frequency" in guide, comp
 
     # Composed step-up tiers: base 9 inherited + dock deltas; base robot has none of them.
-    assert "dock_dust_bag" not in std
-    assert set(lib["auto_empty"]) == set(std) | {"dock_dust_bag"}
-    assert set(lib["wash_station"]) == set(std) | {"dock_dust_bag", "clean_water_tank", "dirty_water_tank"}
-    for comp in ("dock_dust_bag", "clean_water_tank", "dirty_water_tank"):
+    assert "dust_bag" not in std
+    assert set(lib["auto_empty"]) == set(std) | {"dust_bag"}
+    assert set(lib["wash_station"]) == set(std) | {"dust_bag", "clean_water_tank", "dirty_water_tank"}
+    for comp in ("dust_bag", "clean_water_tank", "dirty_water_tank"):
         assert lib["wash_station"][comp]["steps"], comp
     # Station mop_cloth is overridden (dock auto-washes) — differs from the base.
     assert lib["wash_station"]["mop_cloth"] != std["mop_cloth"]
@@ -382,7 +382,7 @@ def test_upkeep_catalog(s6_config):
     # Every language covers the full standard set (9 comps) + the station dock deltas.
     _STD = {"main_brush", "side_brush", "filter", "sensor", "dustbin",
             "mop_cloth", "water_filter", "caster_wheel", "main_wheel"}
-    _DOCK = {"dock_dust_bag", "clean_water_tank", "dirty_water_tank"}
+    _DOCK = {"dust_bag", "clean_water_tank", "dirty_water_tank"}
     for lang in gt:
         assert _STD <= set(gt[lang]["standard"]), f"{lang} std missing {_STD - set(gt[lang]['standard'])}"
         assert _DOCK <= set(gt[lang]["wash_station"]), f"{lang} station missing {_DOCK - set(gt[lang]['wash_station'])}"

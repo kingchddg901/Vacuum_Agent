@@ -46,3 +46,17 @@ def test_wear_parts_default_to_not_maintenance_only(hass):
     renders as a Replacement item."""
     mc = _maintenance_components(hass)
     assert mc["filter"]["maintenance_only"] is False
+
+
+def test_label_key_survives_config_build(hass):
+    """The per-brand DISPLAY key survives the adapter's explicit-key reconstruction —
+    SAME class as #38: a new field silently dropped by the fixed whitelist. Without it
+    the canonical component key (main_brush) title-cases to "Main Brush" on the card
+    instead of Eufy's translated "Rolling Brush" (caught live, not by the green suite).
+    The three canonicalized Eufy components each carry their legacy display key; an
+    unchanged component carries none (the card then uses the component key directly)."""
+    mc = _maintenance_components(hass)
+    assert mc["main_brush"]["label_key"] == "rolling_brush"
+    assert mc["caster_wheel"]["label_key"] == "swivel_wheel"
+    assert mc["mop_cloth"]["label_key"] == "mopping_cloth"
+    assert mc["filter"].get("label_key") is None

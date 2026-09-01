@@ -33,7 +33,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Een keer p
                                        'Plaats het filter terug in de stofbak.',
                                        'Duw de stofbak terug in de hoofdeenheid.'],
                              'notes': ['Opvangbak — Reinigingsfrequentie: Eenmaal per week.']},
-                  'rolling_brush': {'clean_frequency': 'Eenmaal per maand',
+                  'main_brush': {'clean_frequency': 'Eenmaal per maand',
                                     'replace_frequency': 'Elke zes maanden',
                                     'steps': ['Trek aan de ontgrendelingslipjes om de '
                                               'borstelbeschermer te ontgrendelen, zoals getoond.',
@@ -78,7 +78,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Een keer p
                                               'Plaats de lade terug in het Omni Station.'],
                                     'notes': ['Vuilwatertank moet leeg worden gemaakt en worden '
                                               'gereinigd wanneer vol.']},
-                  'mopping_cloth': {'clean_frequency': 'Na elk gebruik wassen / regelmatig '
+                  'mop_cloth': {'clean_frequency': 'Na elk gebruik wassen / regelmatig '
                                                        'controleren',
                                     'replace_frequency': 'Elke drie tot zes maanden',
                                     'steps': ['Verwijder de moppeermallen van de robot.',
@@ -87,7 +87,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Een keer p
                                               'Vervang de mallen wanneer ze slijten of niet meer '
                                               'effectief reinigen.'],
                                     'notes': []},
-                  'swivel_wheel': {'clean_frequency': 'Eenmaal per maand',
+                  'caster_wheel': {'clean_frequency': 'Eenmaal per maand',
                                    'replace_frequency': None,
                                    'steps': ['Controleer het zwenkelwiel op ingewikkeld haar of '
                                              'vuil.',
@@ -110,11 +110,11 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Een keer p
                                      'Verwijder opgehoopt vuil rond de voet en de borstelharen.',
                                      'Vervang de borstel als de borstelharen verbogen of '
                                      'beschadigd zijn.']},
-            'rolling_brush': {'steps': ['Verwijder de borstelbeschermer van de rolborstel.',
+            'main_brush': {'steps': ['Verwijder de borstelbeschermer van de rolborstel.',
                                         'Controleer de borstel en beide eindkapjes op verwikkelde '
                                         'haren of vuil.',
                                         'Reinig de borstel grondig voordat u hem terugplaatst.']},
-            'mopping_cloth': {'steps': ['Verwijder de rollende dweil of de dweilcontactvlakken en '
+            'mop_cloth': {'steps': ['Verwijder de rollende dweil of de dweilcontactvlakken en '
                                         'verwijder alle resten.',
                                         'Laat de gereinigde onderdelen drogen voordat u ze opnieuw '
                                         'gebruikt.',
@@ -128,7 +128,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Een keer p
                                         'Plaats de bak na het reinigen terug.'],
                               'notes': ['Reinig indien nodig ook de schoonwater- en vuilwatertank '
                                         'en het vuilwaterfilter.']},
-            'swivel_wheel': {'steps': ['Controleer het zwenkwiel op haren en vuil.',
+            'caster_wheel': {'steps': ['Controleer het zwenkwiel op haren en vuil.',
                                        'Verwijder opgehoopt vuil en controleer of het wiel vrij '
                                        'draait.']}},
  'omni_c20': {'filter': {'steps': ['Haal de stofbak of het filtervak eruit.',
@@ -145,13 +145,13 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Een keer p
                                        'de voet.',
                                        'Vervang de borstel als de borstelharen verbogen zijn of '
                                        'ontbreken.']},
-              'rolling_brush': {'steps': ['Controleer de rolborstel op verwikkelde haren of vuil.',
+              'main_brush': {'steps': ['Controleer de rolborstel op verwikkelde haren of vuil.',
                                           'Gebruik het schoonmaakgereedschap of een schaar om '
                                           'vastgewikkeld materiaal weg te knippen.',
                                           'Plaats de borstel na het reinigen terug.'],
                                 'notes': ['De Pro-Detangle-kam vermindert het handmatig reinigen, '
                                           'maar maakt het niet overbodig.']},
-              'mopping_cloth': {'steps': ['Verwijder de dweildoeken van de robot of het station.',
+              'mop_cloth': {'steps': ['Verwijder de dweildoeken van de robot of het station.',
                                           'Reinig ze en laat ze volledig drogen voordat u ze '
                                           'opnieuw gebruikt.',
                                           'Vervang de dweildoeken wanneer ze versleten zijn of '
@@ -171,13 +171,13 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Een keer p
                'side_brush': {'steps': ['Verwijder de zijborstel.',
                                         'Verwijder haren en vuil van de borstel en de voet.',
                                         'Bevestig hem opnieuw of vervang hem bij slijtage.']},
-               'rolling_brush': {'steps': ['Knijp de lipjes van de borstelbeschermer samen en '
+               'main_brush': {'steps': ['Knijp de lipjes van de borstelbeschermer samen en '
                                            'verwijder de beschermer.',
                                            'Til de rolborstel eruit.',
                                            'Gebruik het schoonmaakgereedschap of een schaar om '
                                            'haren en vuil te verwijderen.',
                                            'Plaats de borstel en de beschermer terug.']},
-               'mopping_cloth': {'steps': ['Haal de dweildoek uit de houder.',
+               'mop_cloth': {'steps': ['Haal de dweildoek uit de houder.',
                                            'Was en droog hem voordat u hem opnieuw gebruikt.',
                                            'Vervang hem als hij versleten of niet meer effectief '
                                            'is.'],
@@ -194,7 +194,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Een keer p
                 'side_brush': {'steps': ['Trek de zijborstel eraf.',
                                          'Verwijder verwikkelde haren en vuil.',
                                          'Bevestig hem opnieuw of vervang hem bij slijtage.']},
-                'rolling_brush': {'steps': ['Verwijder de borstelbeschermer van de rolborstel.',
+                'main_brush': {'steps': ['Verwijder de borstelbeschermer van de rolborstel.',
                                             'Til de rolborstel eruit.',
                                             'Verwijder vastgewikkelde haren en vuil van de borstel '
                                             'en de lagers.',
@@ -202,7 +202,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Een keer p
                                             'terug.'],
                                   'notes': ['SES-modellen knippen haar ook automatisch af om het '
                                             'onderhoud te verminderen.']},
-                'mopping_cloth': {'steps': ['Verwijder de dweildoek.',
+                'mop_cloth': {'steps': ['Verwijder de dweildoek.',
                                             'Reinig hem en laat hem volledig drogen voordat u hem '
                                             'opnieuw gebruikt.',
                                             'Vervang de dweildoek bij slijtage.'],

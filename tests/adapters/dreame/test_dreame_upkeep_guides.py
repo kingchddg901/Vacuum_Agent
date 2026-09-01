@@ -169,7 +169,7 @@ X50_X60_MUST_DIFFER = (
     "main_brush",  # X50 ships a cleaning tool; the X60 manual says "a proper tool"
     "dustbin",  # the X50's dust box sits under a robot cover; the X60's does not
     "dust_bag",  # X50 splits install/reinstall into two steps; the X60 merges them
-    "used_water_tank",  # provided cleaning tool vs "a proper tool" again
+    "dirty_water_tank",  # provided cleaning tool vs "a proper tool" again
     "washboard_filter",  # the X60 warns of a heating module the X50 has not got
     "sensor",  # X50 3D dual-line laser vs X60 dust illumination light
     "dock_contacts",  # the X60 folds the auto-empty vents into this section

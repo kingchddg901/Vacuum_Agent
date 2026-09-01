@@ -63,18 +63,22 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
         "label": "Side Brush",
         "icon": "mdi:broom",
     },
-    "rolling_brush": {
+    "main_brush": {
         "sensor_suffix": "rolling_brush_remaining",
         "default_interval_hours": 30.0,
         "max_interval_hours": 360,
         "label": "Rolling Brush",
+        # Component key is canonical (`main_brush`); Eufy keeps its display WORD via
+        # the per-brand label_key -> the existing translated `rolling_brush` label.
+        "label_key": "rolling_brush",
         "icon": "mdi:broom",
     },
-    "mopping_cloth": {
+    "mop_cloth": {
         "sensor_suffix": "mopping_cloth_remaining",
         "default_interval_hours": 20.0,
         "max_interval_hours": 120,
         "label": "Mopping Cloth",
+        "label_key": "mopping_cloth",
         "icon": "mdi:water",
     },
     "cleaning_tray": {
@@ -86,12 +90,13 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
         # A cleanable, not a service-life wear part — Maintenance row only.
         "maintenance_only": True,
     },
-    "swivel_wheel": {
+    "caster_wheel": {
         "sensor_suffix": "swivel_wheel_remaining",
         "proxy_for": "filter",
         "default_interval_hours": 60.0,
         "max_interval_hours": 360,
         "label": "Swivel Wheel",
+        "label_key": "swivel_wheel",
         "icon": "mdi:rotate-360",
     },
 }

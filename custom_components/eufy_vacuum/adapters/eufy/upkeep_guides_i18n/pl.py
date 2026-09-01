@@ -39,7 +39,7 @@ GUIDE_TRANSLATIONS = {
                 'Wymieniaj filtr co 3-6 miesięcy.',
             ],
         },
-        'rolling_brush': {
+        'main_brush': {
             'clean_frequency': 'Co miesiąc',
             'replace_frequency': 'Co 6 miesięcy',
             'steps': [
@@ -89,7 +89,7 @@ GUIDE_TRANSLATIONS = {
                 'Zbiornik brudnej wody należy opróżnić i wypłukać, gdy jest pełny.',
             ],
         },
-        'mopping_cloth': {
+        'mop_cloth': {
             'clean_frequency': 'Myj po użyciu / regularnie sprawdzaj',
             'replace_frequency': 'Co 3-6 miesięcy',
             'steps': [
@@ -99,7 +99,7 @@ GUIDE_TRANSLATIONS = {
             ],
             'notes': [],
         },
-        'swivel_wheel': {
+        'caster_wheel': {
             'clean_frequency': 'Co miesiąc',
             'replace_frequency': None,
             'steps': [
@@ -142,7 +142,7 @@ GUIDE_TRANSLATIONS = {
                 'Wymień szczotkę, jeśli włosie jest wygięte lub uszkodzone.',
             ],
         },
-        'rolling_brush': {
+        'main_brush': {
             'steps': [
                 'Zdejmij osłonę szczotki głównej.',
                 'Sprawdź szczotkę i obie nasadki końcowe pod kątem splątanych '
@@ -150,7 +150,7 @@ GUIDE_TRANSLATIONS = {
                 'Dokładnie wyczyść szczotkę przed ponownym montażem.',
             ],
         },
-        'mopping_cloth': {
+        'mop_cloth': {
             'steps': [
                 'Zdejmij mop obrotowy lub powierzchnie kontaktowe mopa i usuń '
                 'osad.',
@@ -175,7 +175,7 @@ GUIDE_TRANSLATIONS = {
                 'oraz filtr brudnej wody.',
             ],
         },
-        'swivel_wheel': {
+        'caster_wheel': {
             'steps': [
                 'Sprawdź, czy na kółku obrotowym nie ma włosów i zanieczyszczeń.',
                 'Usuń nagromadzone zanieczyszczenia i upewnij się, że kółko obraca '
@@ -212,7 +212,7 @@ GUIDE_TRANSLATIONS = {
                 'Wymień szczotkę, jeśli włosie jest wygięte lub go brakuje.',
             ],
         },
-        'rolling_brush': {
+        'main_brush': {
             'steps': [
                 'Sprawdź szczotkę główną pod kątem splątanych włosów lub '
                 'zanieczyszczeń.',
@@ -225,7 +225,7 @@ GUIDE_TRANSLATIONS = {
                 'czyszczenia.',
             ],
         },
-        'mopping_cloth': {
+        'mop_cloth': {
             'steps': [
                 'Zdejmij nakładki mopujące z robota lub stacji.',
                 'Wyczyść je i całkowicie wysusz przed ponownym użyciem.',
@@ -266,7 +266,7 @@ GUIDE_TRANSLATIONS = {
                 'Zamontuj ponownie lub wymień, jeśli jest zużyta.',
             ],
         },
-        'rolling_brush': {
+        'main_brush': {
             'steps': [
                 'Ściśnij zaczepy osłony szczotki głównej i zdejmij osłonę.',
                 'Wyjmij szczotkę główną.',
@@ -275,7 +275,7 @@ GUIDE_TRANSLATIONS = {
                 'Zamontuj ponownie szczotkę i osłonę.',
             ],
         },
-        'mopping_cloth': {
+        'mop_cloth': {
             'steps': [
                 'Zdejmij nakładkę mopującą z uchwytu.',
                 'Wypierz ją i wysusz przed ponownym użyciem.',
@@ -309,7 +309,7 @@ GUIDE_TRANSLATIONS = {
                 'Zamontuj ponownie lub wymień, jeśli jest zużyta.',
             ],
         },
-        'rolling_brush': {
+        'main_brush': {
             'steps': [
                 'Zdejmij pokrywę szczotki głównej.',
                 'Wyjmij szczotkę główną.',
@@ -322,7 +322,7 @@ GUIDE_TRANSLATIONS = {
                 'włosów, co ogranicza konserwację.',
             ],
         },
-        'mopping_cloth': {
+        'mop_cloth': {
             'steps': [
                 'Zdejmij nakładkę mopującą lub ściereczkę.',
                 'Wyczyść ją i całkowicie wysusz przed ponownym użyciem.',

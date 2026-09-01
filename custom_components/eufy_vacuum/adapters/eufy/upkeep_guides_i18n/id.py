@@ -58,7 +58,7 @@ GUIDE_TRANSLATIONS = {
             ],
             "notes": [],
         },
-        "rolling_brush": {
+        "main_brush": {
             "clean_frequency": "Setiap bulan",
             "replace_frequency": "Setiap 6 bulan",
             "steps": [
@@ -72,7 +72,7 @@ GUIDE_TRANSLATIONS = {
                 "Pelindung sikat juga sebaiknya diganti setiap 3-6 bulan atau saat aus.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "clean_frequency": "Cuci setelah digunakan / periksa secara berkala",
             "replace_frequency": "Setiap 3-6 bulan",
             "steps": [
@@ -94,7 +94,7 @@ GUIDE_TRANSLATIONS = {
                 "Tangki air kotor sebaiknya dikosongkan dan dibilas saat penuh.",
             ],
         },
-        "swivel_wheel": {
+        "caster_wheel": {
             "clean_frequency": "Setiap bulan",
             "replace_frequency": None,
             "steps": [
@@ -131,14 +131,14 @@ GUIDE_TRANSLATIONS = {
                 "Ganti sikat jika bulunya bengkok atau rusak.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Lepaskan pelindung sikat gulung.",
                 "Periksa sikat dan kedua tutup ujungnya dari rambut atau kotoran yang kusut.",
                 "Bersihkan sikat secara menyeluruh sebelum dipasang kembali.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Lepaskan pel gulung atau permukaan kontak pel dan bersihkan sisa kotorannya.",
                 "Biarkan bagian yang telah dibersihkan mengering sebelum digunakan kembali.",
@@ -158,7 +158,7 @@ GUIDE_TRANSLATIONS = {
                 "Bersihkan juga tangki air bersih/kotor dan filter air kotor sesuai kebutuhan.",
             ],
         },
-        "swivel_wheel": {
+        "caster_wheel": {
             "steps": [
                 "Periksa roda putar dari rambut dan kotoran.",
                 "Singkirkan penumpukan kotoran dan pastikan roda berputar bebas.",
@@ -188,7 +188,7 @@ GUIDE_TRANSLATIONS = {
                 "Ganti sikat jika bulunya bengkok atau hilang.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Periksa sikat gulung dari rambut atau kotoran yang kusut.",
                 "Gunakan alat pembersih atau gunting untuk memotong material yang melilit.",
@@ -198,7 +198,7 @@ GUIDE_TRANSLATIONS = {
                 "Sisir Pro-Detangle mengurangi, tetapi tidak menghilangkan, kebutuhan pembersihan manual.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Lepaskan kain pel dari robot atau stasiun.",
                 "Bersihkan dan keringkan sepenuhnya sebelum digunakan kembali.",
@@ -236,7 +236,7 @@ GUIDE_TRANSLATIONS = {
                 "Pasang kembali atau ganti jika sudah aus.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Tekan kait pelindung sikat utama dan lepaskan pelindungnya.",
                 "Angkat sikat utama keluar.",
@@ -244,7 +244,7 @@ GUIDE_TRANSLATIONS = {
                 "Pasang kembali sikat dan pelindungnya.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Lepaskan kain pel dari dudukannya.",
                 "Cuci dan keringkan sebelum digunakan kembali.",
@@ -275,7 +275,7 @@ GUIDE_TRANSLATIONS = {
                 "Pasang kembali atau ganti jika sudah aus.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Lepaskan penutup sikat utama.",
                 "Angkat sikat gulung keluar.",
@@ -286,7 +286,7 @@ GUIDE_TRANSLATIONS = {
                 "Model SES juga menggunakan pemotongan rambut otomatis untuk mengurangi perawatan.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Lepaskan kain pel atau kainnya.",
                 "Bersihkan dan keringkan sepenuhnya sebelum digunakan kembali.",

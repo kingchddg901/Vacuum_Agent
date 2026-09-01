@@ -88,7 +88,9 @@ export function applyMaintenanceRenderers(proto) {
    * @returns {string} A translated display name.
    */
   proto._maintenanceItemName = function (item, fallbackKey = "maintenance.unnamed_item") {
-    const componentKey = item?.component;
+    // Per-brand display: canonical component key, but the label follows label_key
+    // when present (e.g. Eufy `main_brush` -> "rolling_brush" label).
+    const componentKey = item?.label_key ?? item?.component;
     if (componentKey) {
       const key = `maintenance.component_label.${componentKey}`;
       const translated = this.t(key);
@@ -473,7 +475,7 @@ export function applyMaintenanceRenderers(proto) {
         style="--maintenance-remaining:${fillPercent}%;"
       >
         <div class="evcc-maintenance-card-header">
-          <div class="evcc-maintenance-card-title">${this.escapeHtml(this.tVocabRaw("maintenance_component", item?.component, name))}</div>
+          <div class="evcc-maintenance-card-title">${this.escapeHtml(this.tVocabRaw("maintenance_component", item?.label_key ?? item?.component, name))}</div>
           <div class="evcc-maintenance-card-status">${this.escapeHtml(status)}</div>
         </div>
 
@@ -627,7 +629,7 @@ export function applyMaintenanceRenderers(proto) {
       <div class="evcc-modal-backdrop" data-action="close-maintenance-modal">
         <div class="evcc-modal evcc-maintenance-modal" data-stop-propagation>
           <div class="evcc-modal-header">
-            <div class="evcc-modal-title">${this.escapeHtml(this.tVocabRaw("maintenance_component", item?.component, name))}</div>
+            <div class="evcc-modal-title">${this.escapeHtml(this.tVocabRaw("maintenance_component", item?.label_key ?? item?.component, name))}</div>
             <button
               type="button"
               class="evcc-chip evcc-chip--icon"

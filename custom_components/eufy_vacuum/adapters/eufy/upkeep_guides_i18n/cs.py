@@ -37,7 +37,7 @@ GUIDE_TRANSLATIONS = {
                 "Filtr vyměňte každé 3-6 měsíce.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "clean_frequency": "Jednou měsíčně",
             "replace_frequency": "Každých 6 měsíců",
             "steps": [
@@ -85,7 +85,7 @@ GUIDE_TRANSLATIONS = {
                 "Nádržku na špinavou vodu je třeba vyprázdnit a vypláchnout, když je plná.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "clean_frequency": "Prát po použití / pravidelně kontrolovat",
             "replace_frequency": "Každé 3-6 měsíce",
             "steps": [
@@ -95,7 +95,7 @@ GUIDE_TRANSLATIONS = {
             ],
             "notes": [],
         },
-        "swivel_wheel": {
+        "caster_wheel": {
             "clean_frequency": "Jednou měsíčně",
             "replace_frequency": None,
             "steps": [
@@ -132,14 +132,14 @@ GUIDE_TRANSLATIONS = {
                 "Kartáč vyměňte, pokud jsou štětiny ohnuté nebo poškozené.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Sejměte kryt válcového kartáče.",
                 "Zkontrolujte kartáč a obě koncové krytky, zda na nich nejsou namotané vlasy nebo nečistoty.",
                 "Před opětovným nasazením kartáč důkladně vyčistěte.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Sejměte válcový mop nebo kontaktní plochy mopu a odstraňte zbytky nečistot.",
                 "Před dalším použitím nechte vyčištěné části uschnout.",
@@ -159,7 +159,7 @@ GUIDE_TRANSLATIONS = {
                 "Podle potřeby vyčistěte také nádržky na čistou/špinavou vodu a filtr špinavé vody.",
             ],
         },
-        "swivel_wheel": {
+        "caster_wheel": {
             "steps": [
                 "Zkontrolujte otočné kolečko, zda na něm nejsou vlasy a nečistoty.",
                 "Odstraňte nánosy a ujistěte se, že se kolečko volně otáčí.",
@@ -189,7 +189,7 @@ GUIDE_TRANSLATIONS = {
                 "Kartáč vyměňte, pokud jsou štětiny ohnuté nebo chybějí.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Zkontrolujte válcový kartáč, zda na něm nejsou namotané vlasy nebo nečistoty.",
                 "Namotaný materiál odstřihněte pomocí čisticího nástroje nebo nůžek.",
@@ -199,7 +199,7 @@ GUIDE_TRANSLATIONS = {
                 "Hřeben Pro-Detangle omezuje, ale zcela neodstraňuje nutnost ručního čištění.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Sejměte mopovací hadříky z robota nebo stanice.",
                 "Před dalším použitím je vyčistěte a nechte zcela uschnout.",
@@ -237,7 +237,7 @@ GUIDE_TRANSLATIONS = {
                 "Nasaďte jej zpět nebo vyměňte, pokud je opotřebený.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Stiskněte pojistky krytu hlavního kartáče a kryt sejměte.",
                 "Vyjměte hlavní kartáč.",
@@ -245,7 +245,7 @@ GUIDE_TRANSLATIONS = {
                 "Kartáč a kryt vraťte zpět.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Sejměte mopovací hadřík z držáku.",
                 "Před dalším použitím jej vyperte a usušte.",
@@ -276,7 +276,7 @@ GUIDE_TRANSLATIONS = {
                 "Nasaďte jej zpět nebo vyměňte, pokud je opotřebený.",
             ],
         },
-        "rolling_brush": {
+        "main_brush": {
             "steps": [
                 "Sejměte kryt hlavního kartáče.",
                 "Vyjměte válcový kartáč.",
@@ -287,7 +287,7 @@ GUIDE_TRANSLATIONS = {
                 "Modely SES navíc používají automatické stříhání vlasů, které snižuje nároky na údržbu.",
             ],
         },
-        "mopping_cloth": {
+        "mop_cloth": {
             "steps": [
                 "Sejměte mopovací hadřík nebo utěrku.",
                 "Před dalším použitím jej vyčistěte a nechte zcela uschnout.",

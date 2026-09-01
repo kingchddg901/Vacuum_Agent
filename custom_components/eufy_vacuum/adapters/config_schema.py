@@ -1887,6 +1887,18 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "required": True,
                 "description": "Human-readable component name for display.",
             },
+            "label_key": {
+                "type": "str | null",
+                "required": False,
+                "description": (
+                    "Per-brand DISPLAY key. The component key is canonical (e.g. "
+                    "main_brush); a brand that keeps its own display word points "
+                    "label_key at its translated vocab.maintenance_component entry "
+                    "(Eufy main_brush -> 'rolling_brush' -> 'Rolling Brush'). Absent "
+                    "= the card uses the component key. Core owns the key; the brand "
+                    "keeps the word."
+                ),
+            },
             "icon": {
                 "type": "str",
                 "required": True,
@@ -1964,12 +1976,16 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "required": False,
                 "description": (
                     "Two-level dict: family_key → component_key → guide entry. "
-                    "Component keys must match maintenance_components keys "
-                    "(filter, side_brush, rolling_brush, dust_bag, mop_pad, "
-                    "sensor, etc.). Each guide entry has fields: "
+                    "Component keys must match the CANONICAL maintenance_components "
+                    "keys (filter, side_brush, main_brush, mop_cloth, dust_bag, "
+                    "caster_wheel, sensor, etc.). Each guide entry has fields: "
                     "clean_frequency (str), replace_frequency (str | null), "
                     "steps (list[str]), notes (list[str]). "
-                    "Absent component keys produce no card in the upkeep view."
+                    "Absent component keys produce no card in the upkeep view. "
+                    "The legacy Eufy keys (rolling_brush → main_brush, swivel_wheel "
+                    "→ caster_wheel, mopping_cloth → mop_cloth) and dock_dust_bag → "
+                    "dust_bag were canonicalized 2026-09; a custom guide config using "
+                    "a legacy key should be updated to the canonical one."
                 ),
             },
         },

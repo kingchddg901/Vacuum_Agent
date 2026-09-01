@@ -42,7 +42,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Une fois p
                                        'les instructions ci-dessous pour nettoyer et entretenir '
                                        'régulièrement. La fréquence de nettoyage et de '
                                        "remplacement dépendra de vos habitudes d'utilisation."]},
-                  'rolling_brush': {'clean_frequency': 'Une fois par mois',
+                  'main_brush': {'clean_frequency': 'Une fois par mois',
                                     'replace_frequency': 'Tous les 6 mois',
                                     'steps': ['Tirez sur les languettes de déverrouillage pour '
                                               'déverrouiller le protège-brosse comme indiqué.',
@@ -89,7 +89,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Une fois p
                                               'Replacez le plateau dans la Station Omni.'],
                                     'notes': ["Le réservoir d'eau sale doit être vidé et rincé "
                                               'quand il est plein.']},
-                  'mopping_cloth': {'clean_frequency': 'Lavez après utilisation / inspectez '
+                  'mop_cloth': {'clean_frequency': 'Lavez après utilisation / inspectez '
                                                        'régulièrement',
                                     'replace_frequency': 'Tous les 3-6 mois',
                                     'steps': ['Retirez les tampons de lavage du robot.',
@@ -98,7 +98,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Une fois p
                                               'Remplacez les tampons quand ils deviennent usés ou '
                                               'ne nettoient plus efficacement.'],
                                     'notes': []},
-                  'swivel_wheel': {'clean_frequency': 'Une fois par mois',
+                  'caster_wheel': {'clean_frequency': 'Une fois par mois',
                                    'replace_frequency': None,
                                    'steps': ['Inspectez la roue pivotante pour vérifier la '
                                              'présence de cheveux ou débris.',
@@ -125,12 +125,12 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Une fois p
                                      "Retirez l'accumulation autour de la base et des poils.",
                                      'Remplacez la brosse si les poils sont tordus ou '
                                      'endommagés.']},
-            'rolling_brush': {'steps': ['Retirez le protège-brosse rotative.',
+            'main_brush': {'steps': ['Retirez le protège-brosse rotative.',
                                         'Vérifiez la présence de cheveux emmêlés ou de débris sur '
                                         'la brosse et sur les deux embouts.',
                                         'Nettoyez soigneusement la brosse avant de la '
                                         'réinstaller.']},
-            'mopping_cloth': {'steps': ['Retirez la serpillière rotative ou les surfaces de '
+            'mop_cloth': {'steps': ['Retirez la serpillière rotative ou les surfaces de '
                                         'contact de la serpillière et éliminez les résidus.',
                                         'Laissez sécher les pièces nettoyées avant de les '
                                         'réutiliser.',
@@ -144,7 +144,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Une fois p
                                         'Réinstallez-le après le nettoyage.'],
                               'notes': ["Nettoyez également les réservoirs d'eau propre et d'eau "
                                         "sale ainsi que le filtre d'eau sale selon les besoins."]},
-            'swivel_wheel': {'steps': ['Vérifiez que la roue pivotante ne contient ni cheveux ni '
+            'caster_wheel': {'steps': ['Vérifiez que la roue pivotante ne contient ni cheveux ni '
                                        'débris.',
                                        "Retirez l'accumulation et vérifiez que la roue tourne "
                                        'librement.']}},
@@ -163,14 +163,14 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Une fois p
                                        'de sa base.',
                                        'Remplacez la brosse si les poils sont tordus ou '
                                        'manquants.']},
-              'rolling_brush': {'steps': ['Vérifiez la présence de cheveux emmêlés ou de débris '
+              'main_brush': {'steps': ['Vérifiez la présence de cheveux emmêlés ou de débris '
                                           'sur la brosse rotative.',
                                           "Utilisez l'outil de nettoyage ou des ciseaux pour "
                                           'couper les matières enroulées.',
                                           'Réinstallez-la après le nettoyage.'],
                                 'notes': ['Le peigne anti-emmêlement Pro-Detangle réduit le '
                                           "nettoyage manuel sans l'éliminer."]},
-              'mopping_cloth': {'steps': ['Retirez les tampons de serpillière du robot ou de la '
+              'mop_cloth': {'steps': ['Retirez les tampons de serpillière du robot ou de la '
                                           'station.',
                                           'Nettoyez-les et séchez-les complètement avant de les '
                                           'réutiliser.',
@@ -192,13 +192,13 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Une fois p
                                         'Éliminez les cheveux et les débris de la brosse et de sa '
                                         'base.',
                                         'Refixez-la ou remplacez-la si elle est usée.']},
-               'rolling_brush': {'steps': ['Pincez les languettes du protège-brosse rotative et '
+               'main_brush': {'steps': ['Pincez les languettes du protège-brosse rotative et '
                                            'retirez le protège-brosse.',
                                            'Soulevez la brosse rotative pour la retirer.',
                                            "Utilisez l'outil de nettoyage ou des ciseaux pour "
                                            'retirer les cheveux et les débris.',
                                            'Réinstallez la brosse et le protège-brosse.']},
-               'mopping_cloth': {'steps': ['Retirez le tampon de serpillière de son support.',
+               'mop_cloth': {'steps': ['Retirez le tampon de serpillière de son support.',
                                            'Lavez-le et séchez-le avant de le réutiliser.',
                                            "Remplacez-le s'il devient usé ou inefficace."],
                                  'notes': ["S'applique uniquement aux modèles X8 hybrides / "
@@ -213,7 +213,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Une fois p
                 'side_brush': {'steps': ['Retirez la brosse latérale en tirant.',
                                          'Retirez les cheveux emmêlés et les débris.',
                                          'Refixez-la ou remplacez-la si elle est usée.']},
-                'rolling_brush': {'steps': ['Retirez le cache de la brosse rotative.',
+                'main_brush': {'steps': ['Retirez le cache de la brosse rotative.',
                                             'Soulevez la brosse rotative pour la retirer.',
                                             'Nettoyez les cheveux enroulés et les débris sur la '
                                             'brosse et les paliers.',
@@ -221,7 +221,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Une fois p
                                             'protège-brosse.'],
                                   'notes': ['Les modèles SES utilisent aussi une découpe '
                                             "automatique des poils pour réduire l'entretien."]},
-                'mopping_cloth': {'steps': ['Retirez le tampon de serpillière ou le chiffon.',
+                'mop_cloth': {'steps': ['Retirez le tampon de serpillière ou le chiffon.',
                                             'Nettoyez-le et séchez-le complètement avant de le '
                                             'réutiliser.',
                                             "Remplacez le chiffon lorsqu'il est usé."],

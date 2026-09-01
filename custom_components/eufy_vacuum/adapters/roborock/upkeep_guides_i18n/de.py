@@ -155,9 +155,9 @@ _DIRTY_WATER_TANK = {
 _BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
     "standard": _BASE,
-    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "auto_empty": {**_BASE, "dust_bag": _DOCK_DUST_BAG},
     "wash_station": {
-        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        **_BASE, "dust_bag": _DOCK_DUST_BAG,
         "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
     },
 }

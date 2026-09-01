@@ -1031,6 +1031,12 @@ def register_eufy_adapter_for_vacuum(
                 "default_interval_hours": component["default_interval_hours"],
                 "max_interval_hours": component["max_interval_hours"],
                 "label": component["label"],
+                # Per-brand DISPLAY key: the component key is canonical, but a brand
+                # keeps its own display word via label_key -> its translated vocab
+                # entry (Eufy `main_brush` -> "rolling_brush" -> "Rolling Brush").
+                # Absent => the card uses the component key. Dropping it here silently
+                # reverts the display to the title-cased canonical key.
+                "label_key": component.get("label_key"),
                 "icon": component["icon"],
                 # Cleanables (e.g. the cleaning tray) are surfaced as a Maintenance
                 # item only, never a Replacement row. Optional; default False.

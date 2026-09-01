@@ -236,11 +236,11 @@ _MOP_CLOTH_STATION = {
 # station mop routine.  (dual_pad reserved for a future true rotating-mop model.)
 ROBOROCK_UPKEEP_GUIDE_LIBRARY["auto_empty"] = {
     **_std,
-    "dock_dust_bag": _DOCK_DUST_BAG,
+    "dust_bag": _DOCK_DUST_BAG,
 }
 ROBOROCK_UPKEEP_GUIDE_LIBRARY["wash_station"] = {
     **_std,
-    "dock_dust_bag": _DOCK_DUST_BAG,
+    "dust_bag": _DOCK_DUST_BAG,
     "clean_water_tank": _CLEAN_WATER_TANK,
     "dirty_water_tank": _DIRTY_WATER_TANK,
     "mop_cloth": _MOP_CLOTH_STATION,

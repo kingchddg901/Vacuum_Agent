@@ -83,7 +83,7 @@ COMPONENT_FREQUENCIES = {
     'mop_pad_holder': {"clean_frequency": 'every 1-2 months', "replace_frequency": None},
     'sensor': {"clean_frequency": 'monthly', "replace_frequency": None},
     'side_brush': {"clean_frequency": 'monthly', "replace_frequency": 'every 3-6 months'},
-    'used_water_tank': {"clean_frequency": 'after each use', "replace_frequency": None},
+    'dirty_water_tank': {"clean_frequency": 'after each use', "replace_frequency": None},
     'washboard': {"clean_frequency": 'as needed', "replace_frequency": None},
     'washboard_filter': {"clean_frequency": 'every 1-2 months', "replace_frequency": None},
     'washboard_heating_module': {"clean_frequency": 'as needed', "replace_frequency": None},
@@ -193,7 +193,7 @@ _AUTO_EMPTY = {
 }
 
 _WASH_STATION = {
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use the provided cleaning tool to clean the inner wall of the used water tank.',
@@ -387,7 +387,7 @@ _X50 = {
         ],
         "notes": [],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use the provided cleaning tool to clean the inner wall of the used water tank.',
@@ -492,7 +492,7 @@ _X60_ULTRA = {
             'Pulling upwards on the handle will seal the bag to prevent the dust and debris from accidentally falling out.',
         ],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use a proper tool to clean the inner wall of the used water tank.',
@@ -609,7 +609,7 @@ _L20 = {
         ],
         "notes": [],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use the provided cleaning tool to clean the inner wall of the used water tank.',
@@ -725,7 +725,7 @@ _X40 = {
         ],
         "notes": [],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use the provided cleaning tool to clean the inner wall of the used water tank.',
@@ -844,7 +844,7 @@ _L50 = {
         ],
         "notes": [],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use the provided cleaning tool to clean the inner wall of the used water tank.',
@@ -955,7 +955,7 @@ _L10S_GEN2 = {
         ],
         "notes": [],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use the provided cleaning tool to clean the inner wall of the used water tank.',
@@ -1063,7 +1063,7 @@ _X60_PRO_ULTRA_COMPLETE = {
             'Pulling upwards on the handle will seal the bag to prevent the dust and debris from accidentally falling out.',
         ],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use a proper tool to clean the inner wall of the used water tank.',
@@ -1201,7 +1201,7 @@ _AQUA10_ULTRA_TRACK = {
         ],
         "notes": [],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use a proper tool to clean the inner wall of the used water tank.',
@@ -1330,7 +1330,7 @@ _AQUA10_ULTRA_ROLLER = {
         ],
         "notes": [],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use a proper tool to clean the inner wall of the used water tank.',
@@ -1443,7 +1443,7 @@ _MATRIX10 = {
             'Pulling upwards on the handle will seal the bag to prevent the dust and debris from accidentally falling out.',
         ],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use a proper tool to clean the inner wall of the used water tank.',
@@ -1562,7 +1562,7 @@ _L60_ULTRA = {
             'Pulling upwards on the handle will seal the bag to prevent the dust and debris from accidentally falling out.',
         ],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use a proper tool to clean the inner wall of the used water tank.',
@@ -1682,7 +1682,7 @@ _L60_ULTRA_PE = {
             'Pulling upwards on the handle will seal the bag to prevent the dust and debris from accidentally falling out.',
         ],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use a proper tool to clean the inner wall of the used water tank.',
@@ -1809,7 +1809,7 @@ _L40S_ULTRA = {
         ],
         "notes": [],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use the provided cleaning tool to clean the inner wall of the used water tank.',
@@ -1933,7 +1933,7 @@ _D30_ULTRA = {
         ],
         "notes": [],
     },
-    'used_water_tank': {
+    'dirty_water_tank': {
         "steps": [
             'Remove the used water tank, open its cover and pour out the used water.',
             'Rinse the used water tank with clean water, and use a proper tool to clean the inner wall of the used water tank.',

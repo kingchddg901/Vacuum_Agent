@@ -8,8 +8,9 @@ overlay consumes.
 [GI-2] Translated components are a SUBSET of the English base (no orphan keys);
        every entry has non-empty steps that actually differ from English.
 [GI-3] The four formerly-missing gaps are now translated in every language:
-       mopping_cloth + swivel_wheel components, and the rolling_brush /
-       cleaning_tray notes (brush-guard / dirty-water-tank).
+       mop_cloth + caster_wheel components, and the main_brush /
+       cleaning_tray notes (brush-guard / dirty-water-tank). (Canonical keys;
+       Eufy legacy rolling_brush/swivel_wheel/mopping_cloth renamed 2026-09.)
 [GI-4] frequency values, when present, are strings (not accidentally objects).
 """
 
@@ -52,14 +53,15 @@ def test_components_subset_and_translated():
 
 def test_gap_components_now_translated():
     """[GI-3] The four formerly-missing gaps are filled in EVERY language, so a
-    localized maintenance card no longer drops to English there: mopping_cloth +
-    swivel_wheel components have steps, and rolling_brush (brush-guard note) +
-    cleaning_tray (dirty-water-tank note) carry non-empty notes."""
+    localized maintenance card no longer drops to English there: mop_cloth +
+    caster_wheel components have steps, and main_brush (brush-guard note) +
+    cleaning_tray (dirty-water-tank note) carry non-empty notes. (Canonical keys —
+    Eufy legacy rolling_brush/swivel_wheel/mopping_cloth renamed 2026-09.)"""
     for lang in LANGS:
         fam = UPKEEP_GUIDE_TRANSLATIONS[lang][FAMILY]
-        assert fam.get("mopping_cloth", {}).get("steps"), f"{lang}: mopping_cloth missing/empty"
-        assert fam.get("swivel_wheel", {}).get("steps"), f"{lang}: swivel_wheel missing/empty"
-        assert fam["rolling_brush"].get("notes"), f"{lang}: rolling_brush note missing"
+        assert fam.get("mop_cloth", {}).get("steps"), f"{lang}: mop_cloth missing/empty"
+        assert fam.get("caster_wheel", {}).get("steps"), f"{lang}: caster_wheel missing/empty"
+        assert fam["main_brush"].get("notes"), f"{lang}: main_brush note missing"
         assert fam["cleaning_tray"].get("notes"), f"{lang}: cleaning_tray note missing"
 
 

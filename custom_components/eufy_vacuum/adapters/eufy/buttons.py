@@ -84,17 +84,17 @@ RESET_CANDIDATES: dict[str, list[str]] = {
     "side_brush": [
         "_reset_side_brush",
     ],
-    "rolling_brush": [
+    "main_brush": [
         "_reset_rolling_brush",
     ],
-    "mopping_cloth": [
+    "mop_cloth": [
         "_reset_mopping_cloth",
         "_reset_mop_cloth",
     ],
     "cleaning_tray": [
         "_reset_cleaning_tray",
     ],
-    "swivel_wheel": [
+    "caster_wheel": [
         "_reset_swivel_replacement",
         "_reset_swivel_wheel",
     ],
@@ -114,17 +114,17 @@ RESET_TOKENS: dict[str, list[list[str]]] = {
     "side_brush": [
         ["reset", "side", "brush"],
     ],
-    "rolling_brush": [
+    "main_brush": [
         ["reset", "rolling", "brush"],
     ],
-    "mopping_cloth": [
+    "mop_cloth": [
         ["reset", "mopping", "cloth"],
         ["reset", "mop", "cloth"],
     ],
     "cleaning_tray": [
         ["reset", "cleaning", "tray"],
     ],
-    "swivel_wheel": [
+    "caster_wheel": [
         ["reset", "swivel", "replacement"],
         ["reset", "swivel"],
     ],

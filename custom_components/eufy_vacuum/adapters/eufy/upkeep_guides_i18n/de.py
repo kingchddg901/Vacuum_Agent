@@ -37,7 +37,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Einmal pro
                              'notes': ['Verwenden Sie keine Bürste, kein heißes Wasser und keine '
                                        'Reinigungsmittel.',
                                        'Ersetzen Sie den Filter alle 3-6 Monate.']},
-                  'rolling_brush': {'clean_frequency': 'Einmal pro Monat',
+                  'main_brush': {'clean_frequency': 'Einmal pro Monat',
                                     'replace_frequency': 'Alle 6 Monate',
                                     'steps': ['Ziehen Sie wie abgebildet an den '
                                               'Entriegelungslaschen, um den Bürstenschutz zu '
@@ -86,7 +86,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Einmal pro
                                               'Setzen Sie das Tablett zurück in die Omni Station.'],
                                     'notes': ['Schmutzwassertank sollte geleert und gereinigt '
                                               'werden, wenn er voll ist.']},
-                  'mopping_cloth': {'clean_frequency': 'Nach Gebrauch waschen / regelmäßig '
+                  'mop_cloth': {'clean_frequency': 'Nach Gebrauch waschen / regelmäßig '
                                                        'überprüfen',
                                     'replace_frequency': 'Alle 3-6 Monate',
                                     'steps': ['Entfernen Sie die Wischmopps vom Roboter.',
@@ -95,7 +95,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Einmal pro
                                               'Ersetzen Sie die Mopps, wenn sie abgenutzt sind '
                                               'oder nicht mehr wirksam reinigen.'],
                                     'notes': []},
-                  'swivel_wheel': {'clean_frequency': 'Einmal pro Monat',
+                  'caster_wheel': {'clean_frequency': 'Einmal pro Monat',
                                    'replace_frequency': None,
                                    'steps': ['Überprüfen Sie das Drehrad auf verwickelte Haare '
                                              'oder Verschmutzung.',
@@ -123,12 +123,12 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Einmal pro
                                      'Borsten.',
                                      'Ersetzen Sie die Bürste, wenn die Borsten verbogen oder '
                                      'beschädigt sind.']},
-            'rolling_brush': {'steps': ['Entfernen Sie den Bürstenschutz der Rollbürste.',
+            'main_brush': {'steps': ['Entfernen Sie den Bürstenschutz der Rollbürste.',
                                         'Prüfen Sie die Bürste und beide Endkappen auf verhedderte '
                                         'Haare oder Schmutz.',
                                         'Reinigen Sie die Bürste gründlich, bevor Sie sie wieder '
                                         'einsetzen.']},
-            'mopping_cloth': {'steps': ['Entfernen Sie den Rollmopp bzw. die Mopp-Kontaktflächen '
+            'mop_cloth': {'steps': ['Entfernen Sie den Rollmopp bzw. die Mopp-Kontaktflächen '
                                         'und entfernen Sie Rückstände.',
                                         'Lassen Sie die gereinigten Teile vor der Wiederverwendung '
                                         'trocknen.',
@@ -142,7 +142,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Einmal pro
                                         'Setzen Sie sie nach der Reinigung wieder ein.'],
                               'notes': ['Reinigen Sie bei Bedarf auch den Frisch- und '
                                         'Schmutzwassertank sowie den Schmutzwasserfilter.']},
-            'swivel_wheel': {'steps': ['Überprüfen Sie das Lenkrad auf Haare und Schmutz.',
+            'caster_wheel': {'steps': ['Überprüfen Sie das Lenkrad auf Haare und Schmutz.',
                                        'Entfernen Sie Ablagerungen und stellen Sie sicher, dass '
                                        'sich das Rad frei dreht.']}},
  'omni_c20': {'filter': {'steps': ['Nehmen Sie den Staubbehälter bzw. das Filterfach heraus.',
@@ -159,14 +159,14 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Einmal pro
                                        'und der Basis.',
                                        'Ersetzen Sie die Bürste, wenn Borsten verbogen sind oder '
                                        'fehlen.']},
-              'rolling_brush': {'steps': ['Überprüfen Sie die Rollbürste auf verhedderte Haare '
+              'main_brush': {'steps': ['Überprüfen Sie die Rollbürste auf verhedderte Haare '
                                           'oder Schmutz.',
                                           'Schneiden Sie umwickeltes Material mit dem '
                                           'Reinigungswerkzeug oder einer Schere ab.',
                                           'Setzen Sie sie nach der Reinigung wieder ein.'],
                                 'notes': ['Der Pro-Detangle-Kamm reduziert die manuelle Reinigung, '
                                           'macht sie aber nicht überflüssig.']},
-              'mopping_cloth': {'steps': ['Entfernen Sie die Mopp-Pads vom Roboter oder von der '
+              'mop_cloth': {'steps': ['Entfernen Sie die Mopp-Pads vom Roboter oder von der '
                                           'Station.',
                                           'Reinigen und trocknen Sie sie vor der Wiederverwendung '
                                           'vollständig.',
@@ -191,13 +191,13 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Einmal pro
                                         'Basis.',
                                         'Bringen Sie sie wieder an oder ersetzen Sie sie bei '
                                         'Abnutzung.']},
-               'rolling_brush': {'steps': ['Drücken Sie die Laschen des Hauptbürstenschutzes '
+               'main_brush': {'steps': ['Drücken Sie die Laschen des Hauptbürstenschutzes '
                                            'zusammen und entfernen Sie den Schutz.',
                                            'Heben Sie die Hauptbürste heraus.',
                                            'Entfernen Sie Haare und Schmutz mit dem '
                                            'Reinigungswerkzeug oder einer Schere.',
                                            'Setzen Sie die Bürste und den Schutz wieder ein.']},
-               'mopping_cloth': {'steps': ['Entfernen Sie das Wischpad aus der Halterung.',
+               'mop_cloth': {'steps': ['Entfernen Sie das Wischpad aus der Halterung.',
                                            'Waschen und trocknen Sie es vor der Wiederverwendung.',
                                            'Ersetzen Sie es, wenn es abgenutzt oder unwirksam '
                                            'wird.'],
@@ -215,7 +215,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Einmal pro
                                          'Entfernen Sie verhedderte Haare und Schmutz.',
                                          'Bringen Sie sie wieder an oder ersetzen Sie sie bei '
                                          'Abnutzung.']},
-                'rolling_brush': {'steps': ['Entfernen Sie die Abdeckung der Hauptbürste.',
+                'main_brush': {'steps': ['Entfernen Sie die Abdeckung der Hauptbürste.',
                                             'Heben Sie die Walzenbürste heraus.',
                                             'Entfernen Sie umwickelte Haare und Schmutz von der '
                                             'Bürste und den Lagern.',
@@ -224,7 +224,7 @@ GUIDE_TRANSLATIONS = {'x10_pro_omni': {'filter': {'clean_frequency': 'Einmal pro
                                   'notes': ['SES-Modelle nutzen zusätzlich ein automatisches '
                                             'Haarschneidesystem, um den Wartungsaufwand zu '
                                             'reduzieren.']},
-                'mopping_cloth': {'steps': ['Entfernen Sie das Wischpad bzw. das Wischtuch.',
+                'mop_cloth': {'steps': ['Entfernen Sie das Wischpad bzw. das Wischtuch.',
                                             'Reinigen und trocknen Sie es vor der Wiederverwendung '
                                             'vollständig.',
                                             'Ersetzen Sie das Wischtuch bei Abnutzung.'],
