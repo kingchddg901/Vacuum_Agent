@@ -120,22 +120,78 @@ for lang in LANGS:
                     node[field] = tr
                     filled += 1
 
-data = json.dumps(merged, ensure_ascii=False, separators=(",", ":"))
+# =====================================================================
+# EMIT the import-loader layout (mirrors the UI-locale debundle: bundle `en`,
+# serve the rest lazily):
+#   (1) src/i18n/guide-translations.js — EN ONLY, the always-bundled base +
+#       universal fallback (must be sync-available; see renderers/maintenance.js
+#       _localizedGuide, which always needs the en value even on a miss).
+#   (2) custom_components/eufy_vacuum/frontend/guides/<lang>.json — one served
+#       file per non-en language, fetched on demand by the guide loader.
+#   (3) guides/index.json — the discovery list (like locales/index.json).
+# The split is a pure partition-by-language of `merged`; the self-check below
+# reconstructs it byte-for-byte — the data-level no-op the whole cutover rests on.
+# =====================================================================
+def _canon(obj):
+    return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+full_bytes = len(json.dumps(merged, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+en_bundle = {"en": merged["en"]}
+en_data = json.dumps(en_bundle, ensure_ascii=False, separators=(",", ":"))
 header = (
     "/**\n"
-    " * GUIDE TRANSLATIONS — per-language upkeep guide content (steps / notes /\n"
-    " * frequencies), so the maintenance guide follows the CARD per-user language\n"
-    " * (the globe), not the HA instance language.\n"
+    " * GUIDE TRANSLATIONS — the ENGLISH BASE for upkeep guide content (steps /\n"
+    " * notes / frequencies). English is BUNDLED (always sync-available as the\n"
+    " * universal fallback); every other language is SERVED and lazy-loaded from\n"
+    " * custom_components/eufy_vacuum/frontend/guides/<lang>.json by the guide\n"
+    " * loader (src/i18n/guide-loader.js) — the same bundle-en / serve-the-rest\n"
+    " * split the UI locales use.\n"
     " * GENERATED — do not hand-edit. Run: python scripts/sync-guide-translations.py\n"
-    " * Source: adapters/{eufy/eufy,roborock/roborock}_upkeep_guides.py + eufy/upkeep_guides_i18n/<lang>.py + scripts/data/guide-frequency-translations.json\n"
+    " * Source: adapters/{eufy,roborock,dreame}/<brand>_upkeep_guides.py + <brand>/upkeep_guides_i18n/<lang>.py + scripts/data/guide-frequency-translations.json\n"
     " * Shape: GUIDE_TRANSLATIONS[lang][family][component] = { steps[], notes[], clean_frequency, replace_frequency }\n"
     " */\n"
 )
 out_path = os.path.join(ROOT, "src", "i18n", "guide-translations.js")
 with open(out_path, "w", encoding="utf-8") as fh:
-    fh.write(header + "export const GUIDE_TRANSLATIONS = " + data + ";\n")
+    fh.write(header + "export const GUIDE_TRANSLATIONS = " + en_data + ";\n")
 
-print(f"wrote {out_path} ({len(data)} bytes data, {filled} frequency gaps filled)")
+# --- served per-language files + discovery index (the lazy-loaded layout) ---
+guides_dir = os.path.join(ROOT, "custom_components", "eufy_vacuum", "frontend", "guides")
+os.makedirs(guides_dir, exist_ok=True)
+# Remove any stale served file for a language no longer present, so a dropped
+# language cannot linger and be served after the source stops emitting it.
+_current = {f"{lang}.json" for lang in merged if lang != "en"} | {"index.json"}
+for existing in os.listdir(guides_dir):
+    if existing.endswith(".json") and existing not in _current:
+        os.remove(os.path.join(guides_dir, existing))
+
+langs = sorted(k for k in merged if k != "en")
+index, served_bytes = [], 0
+for lang in langs:
+    payload = json.dumps(merged[lang], ensure_ascii=False, separators=(",", ":"))
+    with open(os.path.join(guides_dir, f"{lang}.json"), "w", encoding="utf-8") as fh:
+        fh.write(payload)
+    served_bytes += len(payload.encode("utf-8"))
+    index.append(f"{lang}.json")
+with open(os.path.join(guides_dir, "index.json"), "w", encoding="utf-8") as fh:
+    json.dump(index, fh, ensure_ascii=False)
+
+# --- self-verify the split is a faithful no-op: en (bundled) + served == merged ---
+recon = {"en": merged["en"]}
+for lang in langs:
+    with open(os.path.join(guides_dir, f"{lang}.json"), encoding="utf-8") as fh:
+        recon[lang] = json.load(fh)
+if _canon(recon) != _canon(merged):
+    raise SystemExit("FATAL: guides/ split is NOT a no-op — reconstruct != merged source")
+
+en_bytes = len(en_data.encode("utf-8"))
+print(f"wrote {out_path} (EN-only base, {en_bytes} bytes, {filled} frequency gaps filled)")
+print(f"wrote {len(langs)} served guide files + index.json to {guides_dir}")
+print(f"  languages served: {', '.join(langs)}")
+print(f"  no-op self-check: en + served reconstructs merged  OK")
+print(f"  bundle: {full_bytes} -> {en_bytes} bytes "
+      f"({100 * (1 - en_bytes / full_bytes):.0f}% smaller); {served_bytes} bytes now lazy-loaded")
 if dreame_skipped:
     print(f"Dreame families NOT localized on the card (key shared with an earlier brand; "
           f"fall back to English until brand-namespaced): {dreame_skipped}")

@@ -13,9 +13,29 @@
 //                                             remaining_percent <= 20 boundary
 //   [PCT-*]  _maintenanceRemainingPercent   — explicit percent wins; replacement uses
 //                                             max_life/total_life, maintenance uses interval
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { maintenanceDueInBucket, applyMaintenanceRenderers } from "./maintenance.js";
+import { loadGuideCatalog } from "../i18n/guide-loader.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+// The translated guide catalogs are now SERVED + lazy-loaded (bundle-en / serve-
+// the-rest, like the UI locales). Register the languages the [LG-*] tests need from
+// the REAL generated frontend/guides/<lang>.json files, exactly as the runtime
+// loader does — a Node fetchImpl reads them off disk. Keeps these tests on real
+// guide data, not a stub, and would still catch the zh-Hans/zh-Hant collapse bug.
+const _GUIDES_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "custom_components", "eufy_vacuum", "frontend", "guides");
+const _guideFetch = (lang) => async () => ({
+  ok: true,
+  json: async () => JSON.parse(readFileSync(join(_GUIDES_DIR, `${lang}.json`), "utf8")),
+});
+before(async () => {
+  for (const lang of ["zh-Hans", "zh-Hant", "pt"]) {
+    await loadGuideCatalog(`served:${lang}`, lang, { fetchImpl: _guideFetch(lang) });
+  }
+});
 
 // A fixed "now" and a reset 10 days earlier: chosen so daysSinceReset (10) clears the
 // >=3-day guard, and hours_per_day is a clean divisor of remaining_hours in each case.

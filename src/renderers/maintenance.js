@@ -9,7 +9,7 @@
  * ============================================================
  */
 
-import { GUIDE_TRANSLATIONS } from "../i18n/guide-translations.js";
+import { guideCatalog, ensureGuideLanguage } from "../i18n/guide-loader.js";
 
 /**
  * Pure "due in N days" projection for a maintenance item.
@@ -127,9 +127,9 @@ export function applyMaintenanceRenderers(proto) {
     const family = item?.guide?.source_guide_family ?? item?.guide?.guide_family ?? item?.guide_family;
     const component = item?.component;
     const kind = String(item?.kind ?? "maintenance");
-    const byLang = GUIDE_TRANSLATIONS[fullLang]?.[family]?.[component]
-                ?? GUIDE_TRANSLATIONS[baseLang]?.[family]?.[component];
-    const byEn = GUIDE_TRANSLATIONS.en?.[family]?.[component];
+    const byLang = guideCatalog(fullLang)?.[family]?.[component]
+                ?? guideCatalog(baseLang)?.[family]?.[component];
+    const byEn = guideCatalog("en")?.[family]?.[component];
     if (!byLang && !byEn) return display; // unknown family/component → backend value
     const pick = (field) => byLang?.[field] ?? byEn?.[field];
     const freq = kind === "replacement" ? pick("replace_frequency") : pick("clean_frequency");
@@ -154,6 +154,12 @@ export function applyMaintenanceRenderers(proto) {
    */
   proto.renderMaintenanceView = function (ctx) {
     const { state } = ctx;
+
+    // The translated guide catalogs are served + lazy-loaded ON DEMAND: fetch only
+    // the card's active language (+ its base for a regional tag), not all ~17.
+    // English (bundled) renders until the catalog arrives, so a globe switch is
+    // English → translated, never blank. Idempotent per language.
+    ensureGuideLanguage(this._i18nLanguage?.() ?? "en", () => this._scheduleRender?.());
 
     const upkeep = state.dashboardUpkeep?.() ?? {};
     // CENSUS-6: composed CARD-side from the count. The backend ships this as an

@@ -18,6 +18,7 @@ import { join } from "node:path";
 
 const TEXTURES_DIR = "custom_components/eufy_vacuum/textures";
 const LOCALES_DIR = "custom_components/eufy_vacuum/frontend/locales";
+const GUIDES_DIR = "custom_components/eufy_vacuum/frontend/guides";
 
 // Content hash of a directory tree: name + bytes of every file. Used as a
 // cache-bust token so a CHANGE to the assets yields a new ?v=<hash> URL (browsers
@@ -46,6 +47,7 @@ const outDir = deploy ? "custom_components/eufy_vacuum/frontend" : "dist";
 
 const assetVer = hashDir(TEXTURES_DIR);
 const localeVer = hashDir(LOCALES_DIR);
+const guideVer = hashDir(GUIDES_DIR);
 
 const shared = {
   bundle: true,
@@ -57,7 +59,7 @@ const shared = {
   // so esbuild leaves the dynamic import() as a runtime URL instead of trying to
   // resolve/bundle it (the map host is a BUILD OUTPUT, not a source file).
   external: ["/eufy_vacuum/frontend/*"],
-  define: { __ASSET_VER__: JSON.stringify(assetVer), __LOCALE_VER__: JSON.stringify(localeVer) },
+  define: { __ASSET_VER__: JSON.stringify(assetVer), __LOCALE_VER__: JSON.stringify(localeVer), __GUIDE_VER__: JSON.stringify(guideVer) },
 };
 
 // THREE self-contained ESM bundles (no code-splitting):
