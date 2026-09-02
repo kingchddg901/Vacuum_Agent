@@ -34,6 +34,9 @@ provenance + the divergence lessons live in .claude/notes/SCOPE-dreame-guide-fam
 
 from __future__ import annotations
 
+from .dreame_upkeep_guides_generated import GENERATED_FAMILIES
+from .dreame_upkeep_guides_translated import TRANSLATED_FAMILIES
+
 
 def _profile(*groups, override=None, drop=(), add=None):
     """Compose a TIER profile: stack steps/notes groups, drop absent hardware, apply
@@ -66,7 +69,9 @@ def _with_cadence(components):
 # Component-type -> normalised service interval. Shared on purpose (see module docstring);
 # NOT per-manual. Every component a family uses MUST have an entry here.
 COMPONENT_FREQUENCIES = {
+    'acoustic_foam': {"clean_frequency": 'as needed', "replace_frequency": 'as needed'},
     'air_duct': {"clean_frequency": 'as needed', "replace_frequency": None},
+    'base_station_filter': {"clean_frequency": 'as needed', "replace_frequency": None},
     'auto_empty_vents': {"clean_frequency": 'monthly', "replace_frequency": None},
     'baseboard_brush': {"clean_frequency": None, "replace_frequency": None},
     'caster_wheel': {"clean_frequency": 'monthly', "replace_frequency": None},
@@ -76,10 +81,12 @@ COMPONENT_FREQUENCIES = {
     'dock_contacts': {"clean_frequency": 'monthly', "replace_frequency": None},
     'dust_bag': {"clean_frequency": None, "replace_frequency": 'every 2-4 months'},
     'dustbin': {"clean_frequency": 'as needed', "replace_frequency": None},
+    'fluffing_roller': {"clean_frequency": 'as needed', "replace_frequency": None},
     'filter': {"clean_frequency": 'weekly', "replace_frequency": 'every 3-6 months'},
     'main_brush': {"clean_frequency": 'monthly', "replace_frequency": 'every 6-12 months'},
     'main_wheel': {"clean_frequency": 'monthly', "replace_frequency": None},
     'mop_cloth': {"clean_frequency": 'after each use', "replace_frequency": 'every 1-3 months'},
+    'mop_compartment': {"clean_frequency": 'as needed', "replace_frequency": None},
     'mop_pad_holder': {"clean_frequency": 'every 1-2 months', "replace_frequency": None},
     'sensor': {"clean_frequency": 'monthly', "replace_frequency": None},
     'side_brush': {"clean_frequency": 'monthly', "replace_frequency": 'every 3-6 months'},
@@ -91,83 +98,90 @@ COMPONENT_FREQUENCIES = {
 
 
 # ============================ TIER GROUPS (steps/notes; the no-manual fallback) ============================
-# base prose = the most-complete wording measured across the authored lineups.
+# ⚠ MECHANISM-NEUTRAL BY RULE (rewritten 2026-09-02). A tier is the fallback for a model whose
+# manual we do NOT have, so its prose must hold for EVERY machine: it says WHAT to do, never HOW to
+# detach. The previous text was "the most-complete wording measured across the authored lineups",
+# which is backwards for a fallback - the most complete wording is the most SPECIFIC. It told owners
+# of unknown hardware to "press and slide the mop assembly clip at the illustrated angle" (one
+# premium tracked-mop model's procedure) and to "unscrew the side brush with a screwdriver" (plenty
+# of models clip on). Measured at the time: mop_cloth, mop_pad_holder and sensor each matched
+# exactly ONE authored family.
+#
+# "Remove the mop pad" is true whether the pad is velcro, clipped, or on a tray. Anything
+# mechanism-specific belongs in an AUTHORED family, transcribed from that model's own manual.
+# Cadence still comes from COMPONENT_FREQUENCIES via _with_cadence (DUG-9) - never stated here.
 _STANDARD = {
     'main_brush': {
         "steps": [
-            'Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.',
-            'Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
-            'With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.',
-            'Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.',
+            'Remove the main brush from the underside of the robot.',
+            'Remove any hair or thread wound around the brush and its end caps.',
+            'Refit the brush and check that it turns freely.',
         ],
         "notes": [
-            'Be careful while pulling out the main brushes to prevent injury.',
+            'Brush releases differ between models - check your manual rather than forcing it.',
         ],
     },
     'side_brush': {
         "steps": [
-            'Unscrew the side brush with a screwdriver, clean the hair from the brush, and then screw it back on.',
+            'Remove the side brush.',
+            'Remove any hair wound around the brush and its spindle.',
+            'Refit the side brush.',
         ],
-        "notes": [],
+        "notes": [
+            'Some side brushes clip on, others are held by a screw.',
+        ],
     },
     'filter': {
         "steps": [
-            'Open the dust box cover and remove the filter.',
-            'Gently tap the basket of the filter to remove the dirt.',
-            'Rinse the filter with water and dry it completely before reinstalling.',
+            'Remove the filter from the dust bin.',
+            'Tap it gently to shake the dust loose.',
+            'Rinse it with clean water only, then let it dry completely before refitting.',
         ],
         "notes": [
-            'Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.',
-            'Rinse with clean water only. Do not use any detergent.',
-            'Use the filter only when it is completely dry.',
+            'Do not scrub the filter with a brush, your fingers or anything sharp.',
+            'Never refit a filter that is still damp.',
         ],
     },
     'dustbin': {
         "steps": [
-            'Open the robot cover and press the dust box clip to remove the dust box.',
-            'Open the dust box cover, remove the filter, and then empty the dust box.',
-            'Gently tap the basket of the filter to remove the dirt.',
-            'Rinse the dust box and filter with water and dry them completely before reinstalling.',
+            'Remove the dust bin from the robot.',
+            'Empty it.',
+            'Rinse it with clean water only, then dry it fully before refitting.',
         ],
         "notes": [
-            'Do not attempt to clean the filter with a brush, a finger or sharp objects to prevent damage.',
-            'Rinse the dust box and filter with clean water only. Do not use any detergent.',
-            'Use the dust box and filter only when they are completely dry.',
+            'Do not use detergent.',
         ],
     },
     'mop_cloth': {
         "steps": [
-            'Press and slide the mop assembly clip at the illustrated angle to remove the mop assembly.',
-            'Detach the mop from the bracket and use a proper tool to remove the hair tangled in the bracket.',
-            'Install the new mop to the bracket, ensuring it is in place. Then firmly press the mop assembly clip to secure the mop.',
-            'Push the mop assembly back into the compartment until it fits into the slot and clicks into place.',
+            'Remove the mop pad.',
+            'Rinse it under running water until the water runs clear.',
+            'Let it air-dry fully before refitting it.',
         ],
         "notes": [
-            'It is normal for the slot to rotate automatically during installation.',
+            'Replace the pad when it stays discoloured or stops absorbing.',
         ],
     },
     'mop_pad_holder': {
         "steps": [
-            'Remove the mop assembly and fluffing roller from the robot. Clean the mop assembly compartment, wiper and filter to prevent blockage.',
-            'Use a proper tool to remove any hair tangled in the roller. Then rinse it with water and dry it completely before reinstalling.',
+            'Remove the mop pad holder.',
+            'Rinse away trapped dirt and remove any hair wound around it.',
+            'Refit it once it is dry.',
         ],
         "notes": [],
     },
     'caster_wheel': {
         "steps": [
-            'Use a tool such as a small screwdriver to separate the axle and tire of the omnidirectional wheel.',
-            'Rinse the omnidirectional wheel under the running water and put it back after drying it completely.',
+            'Remove any hair or debris wound around the caster wheel so that it turns freely.',
         ],
-        "notes": [
-            'Do not use excessive force when separating the axle and tire.',
-        ],
+        "notes": [],
     },
     'sensor': {
         "steps": [
-            "Wipe the robot's sensors and charging contacts with a soft, dry cloth: the AI visual sensor, line laser sensors, LED fill lights, laser distance sensor (LDS), edge sensor, bumper, charging contacts, cliff sensors and carpet sensor.",
+            'Wipe the sensors and charging contacts with a soft, dry cloth.',
         ],
         "notes": [
-            'A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning.',
+            'Never use water, detergent or spray on sensors or contacts.',
         ],
     },
 }
@@ -175,18 +189,18 @@ _STANDARD = {
 _AUTO_EMPTY = {
     'dust_bag': {
         "steps": [
-            'Unlock the dust tank cover and then remove it.',
-            'Discard the dust bag.',
-            'Remove the dust and debris from the filter with a dry cloth.',
-            'Install a new dust bag. Then install back the dust tank cover and lock it.',
+            'Open the dust compartment on the base station.',
+            'Remove the full dust bag and dispose of it.',
+            'Fit a new bag and close the compartment.',
         ],
         "notes": [
-            'Pulling outwards on the handle will seal the dust bag to prevent the dust and debris from accidentally falling out.',
+            'Close the bag before lifting it out so that dust does not escape.',
         ],
     },
     'auto_empty_vents': {
         "steps": [
-            'Clean the auto-empty vents of the robot and the base station with a soft and dry cloth.',
+            'Check the auto-empty vent on the robot and on the base station.',
+            'Clear any blockage and wipe the vent with a dry cloth.',
         ],
         "notes": [],
     },
@@ -195,77 +209,71 @@ _AUTO_EMPTY = {
 _WASH_STATION = {
     'dirty_water_tank': {
         "steps": [
-            'Remove the used water tank, open its cover and pour out the used water.',
-            'Rinse the used water tank with clean water, and use the provided cleaning tool to clean the inner wall of the used water tank.',
+            'Remove the dirty water tank from the base station.',
+            'Empty it and rinse it with clean water.',
+            'Refit it once it is dry.',
         ],
         "notes": [
-            'The float ball in the used water tank is a movable part. Do not apply too much force when cleaning it to avoid damaging it.',
+            'Empty it after each wash cycle to stop odours developing.',
         ],
     },
     'washboard': {
         "steps": [
-            'Enable the washboard base cleaning function in the app, and the robot will exit the base station automatically. Take out the washboard and wait for water to fill the washboard base.',
-            'Use the cleaning tool to clean the washboard base. After a moment, the base station will automatically pump out the used water. Then wipe the washboard base with a soft and dry cloth.',
-            'Flip the washboard over, remove the roller cover and the roller in turn, and then pull off the end caps of the roller.',
-            'Remove the hair tangled in the roller, and then reassemble the parts according to corresponding colors.',
-            'Rinse the washboard with clean water, wipe it clean and then put it back into the base station downwards in an inclined way.',
-            'Use the app or briefly press the button on the robot to make it return to the base station.',
+            'Remove the washboard from the base station.',
+            'Rinse it and clear away trapped hair and debris.',
+            'Wipe the tray it sits in, then refit the washboard once dry.',
         ],
-        "notes": [
-            'If the roller cover is blocked by wipers on both sides of the washboard, rotate the roller to move them aside.',
-            'During cleaning, do not make the robot return to the base station.',
-        ],
+        "notes": [],
     },
     'washboard_filter': {
         "steps": [
-            'Take out the robot and remove the washboard filter after the mop pad cleaning is complete.',
-            'Rinse the washboard filter with clean water, wipe it clean, and then reinstall it in the washboard.',
-            'Use the app or press the button to return the robot to the base station, or manually put the robot back.',
+            'Remove the washboard filter.',
+            'Rinse it clean and let it dry fully before refitting.',
         ],
-        "notes": [
-            'The washboard heating module may retain residual heat. To prevent scalding, be careful when removing the washboard filter.',
-        ],
+        "notes": [],
     },
     'washboard_heating_module': {
         "steps": [
-            'During use, the washboard heating module may develop scale. To remove it, take out the robot, pour a small amount of white vinegar (5% acetic acid) on the surface of the heating module and clean it with a proper tool.',
+            'Check the heating module for scale build-up.',
+            'If your base station provides a descaling routine, run it.',
         ],
         "notes": [
-            'To prevent scalding, wait until the surface of the heating module cools down to room temperature before cleaning.',
-            'An appropriate descaler can also be used in accordance with the instructions it provides.',
-            'Do not add white vinegar or descaler directly into the clean water tank, to help prevent malfunction.',
-            'Do not use sharp tools or corrosive liquids such as hydrochloric acid to clean the heating module.',
+            'Scale builds up faster in hard-water areas.',
         ],
     },
     'dock_contacts': {
         "steps": [
-            'Clean the charging contacts and the signaling area of the base station with a soft and dry cloth.',
+            'Wipe the charging contacts and signal area on the base station with a soft, dry cloth.',
         ],
-        "notes": [],
+        "notes": [
+            'Never use water or detergent on the contacts.',
+        ],
     },
     'detergent_inlet': {
         "steps": [
-            'If the cleaning solution adding inlet is dirty, wipe it with a soft and dry cloth.',
+            'If the cleaning-solution inlet is dirty, wipe it with a soft, dry cloth.',
         ],
-        "notes": [],
+        "notes": [
+            'Use only the cleaning solution approved for your model.',
+        ],
     },
 }
 
+# Mop-type overrides. Still mechanism-neutral - they only name the part correctly for that hardware.
 _MOP_TRACK = {
     'mop_cloth': {
         "steps": [
-            'Press and slide the mop assembly clip at the illustrated angle to remove the mop assembly.',
-            'Detach the mop from the bracket and use a proper tool to remove the hair tangled in the bracket.',
-            'Install the new mop to the bracket, ensuring it is in place. Then firmly press the mop assembly clip to secure the mop.',
-            'Push the mop assembly back into the compartment until it fits into the slot and clicks into place.',
+            'Remove the mop from its track assembly.',
+            'Rinse it under running water until the water runs clear.',
+            'Let it air-dry fully before refitting it.',
         ],
-        "notes": [
-            'It is normal for the slot to rotate automatically during installation.',
-        ],
+        "notes": [],
     },
     'mop_pad_holder': {
         "steps": [
-            'Remove the mop assembly from the robot. Clean the mop assembly compartment and filter to prevent blockage.',
+            'Remove the mop track assembly.',
+            'Rinse away trapped dirt and remove any hair wound around it.',
+            'Refit it once it is dry.',
         ],
         "notes": [],
     },
@@ -274,15 +282,17 @@ _MOP_TRACK = {
 _MOP_ROLLER = {
     'mop_cloth': {
         "steps": [
-            'Press the clip and slowly lift the mop assembly to remove it.',
-            'Install the new mop assembly until it clicks into place.',
+            'Remove the roller mop.',
+            'Rinse it under running water until the water runs clear.',
+            'Let it air-dry fully before refitting it.',
         ],
         "notes": [],
     },
     'mop_pad_holder': {
         "steps": [
-            'Remove the mop assembly and fluffing roller from the robot. Clean the mop assembly compartment, wiper and filter to prevent blockage.',
-            'Use a proper tool to remove any hair tangled in the roller. Then rinse it with water and dry it completely before reinstalling.',
+            'Remove the roller mop assembly.',
+            'Rinse away trapped dirt and remove any hair wound around it.',
+            'Refit it once it is dry.',
         ],
         "notes": [],
     },
@@ -291,7 +301,9 @@ _MOP_ROLLER = {
 _BASEBOARD = {
     'baseboard_brush': {
         "steps": [
-            'After the baseboard cleaning task is complete, pull the cleaning brush upward to remove it, wipe the bristles with a clean damp cloth, and store it properly after air drying.',
+            'Remove the baseboard brush.',
+            'Wipe the bristles clean and remove any trapped hair.',
+            'Let it dry, then refit or store it.',
         ],
         "notes": [],
     },
@@ -2942,3 +2954,28 @@ DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
     'd20_ultra': _with_cadence(_D20_ULTRA),
     'l40s_pro_ultra': _with_cadence(_L40S_PRO_ULTRA),
 }
+
+# ── GENERATED FAMILIES ───────────────────────────────────────────────────────────────────────
+# 159 families extracted from each model's OWN English manual by the staged authoring pipeline
+# and emitted deterministically (see dreame_upkeep_guides_generated.py). Merged here rather than
+# inlined so the hand-authored families above stay untouched and the generated set regenerates
+# (or backs out) as one unit. Cadence is STILL single-sourced: _with_cadence injects
+# COMPONENT_FREQUENCIES, so no generated block carries a frequency of its own (DUG-9).
+# A generated family NEVER shadows a hand-authored one — the emitter skips any key collision.
+DREAME_UPKEEP_GUIDE_LIBRARY.update(
+    {family: _with_cadence(components) for family, components in GENERATED_FAMILIES.items()}
+)
+
+# ── TRANSLATED FAMILIES ──────────────────────────────────────────────────────────────────────
+# 91 families whose manual is NOT in English (87 Chinese, plus ru/ko/ja/de/nl/fr/it). Extracted
+# from each model's OWN manual and translated DIRECT to English (never pivoted), anchored on
+# Dreame's own English wording so terminology matches the rest of the library.
+# ⚠ The NATIVE-language source text is preserved in durable/dreame-port-fixture/authoring/
+# slices_nonen/ — when the per-language packs are built, LIFT the native language from there.
+# Generating e.g. `zh` from this English would be CN->EN->CN and would discard Dreame's own
+# Chinese wording. See .claude/notes/DESIGN-reverse-translate-provenance.md.
+# Cadence still single-sourced via _with_cadence (DUG-9); a translated family never shadows a
+# hand-authored or English-manual one (the emitter skips key collisions).
+DREAME_UPKEEP_GUIDE_LIBRARY.update(
+    {family: _with_cadence(components) for family, components in TRANSLATED_FAMILIES.items()}
+)
