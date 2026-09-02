@@ -10566,7 +10566,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
     },
     # Mi Robot Vacuum-Mop 2 Pro+
-    "mi_robot_vacuum_mop_2_pro": {
+    "mi_robot_vacuum_mop_2_pro_plus": {
         "caster_wheel": {
             "steps": [
                 "Flip the vacuum-mop over and pull out the omnidirectional wheel.",
@@ -12713,7 +12713,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
     },
     # S20+
-    "s20": {
+    "s20_plus": {
         "caster_wheel": {
             "steps": [
                 "Flip the robot vacuum over and pull out the omnidirectional wheel.",
@@ -14569,117 +14569,6 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             ],
         },
     },
-    # X20+
-    "x20": {
-        "auto_empty_vents": {
-            "steps": [
-                "Clean the auto-empty vents of the omni station with a soft, dry cloth.",
-            ],
-            "notes": [],
-        },
-        "caster_wheel": {
-            "steps": [
-                "Flip the robot vacuum over and pull out the caster wheel.",
-                "Remove hair, dirt, and other debris from the wheel and axle.",
-                "Reinsert the caster wheel and press it firmly back into place.",
-            ],
-            "notes": [
-                "A small screwdriver or other pry tool can be used to gently pop out and remove the wheel.",
-                "The wheel can be cleaned with water and reinstalled after drying.",
-            ],
-        },
-        "charging_contacts": {
-            "steps": [
-                "Use a soft cloth to clean the charging contacts on the back of the robot vacuum.",
-            ],
-            "notes": [],
-        },
-        "clean_water_tank": {
-            "steps": [
-                "Remove the clean water tank, open its cover, and pour out the water.",
-                "Use clean water to completely wash the tank, then wipe the outside of the tank dry before reinserting it into the omni station.",
-            ],
-            "notes": [
-                "The floater in the clean water tank is a movable part; do not apply too much force when cleaning it, to avoid damaging it.",
-                "Before moving or shipping the robot vacuum, empty the clean water tank to avoid damage in transit.",
-            ],
-        },
-        "dock_contacts": {
-            "steps": [
-                "Clean the charging contacts and the signaling area of the omni station with a soft, dry cloth.",
-            ],
-            "notes": [],
-        },
-        "dust_bag": {
-            "steps": [
-                "When the disposable bag is full, pull the cover out from the dust cabinet opening.",
-                "Remove the disposable bag using the handle, and discard it.",
-                "Install a new disposable bag as illustrated and insert the handle of the bag into the slot.",
-                "Put the dust cabinet cover back; it is properly installed when you hear a click.",
-            ],
-            "notes": [
-                "Pulling the handle of the disposable bag will seal the bag to prevent the dust and debris from accidentally falling out.",
-            ],
-        },
-        "filter": {
-            "steps": [
-                "Use a dry cloth to wipe away any dirt from the filter.",
-            ],
-            "notes": [],
-        },
-        "main_brush": {
-            "steps": [
-                "Flip the robot vacuum over and pinch the clips to remove the brush cover.",
-                "Lift the brush out, remove the bearings on both ends, and clean the brush's axle.",
-                "Use scissors to cut any hair tangled around the brush, and remove any debris.",
-                "Reinstall the brush and brush cover, and ensure they are securely in place.",
-            ],
-            "notes": [
-                "If too much hair is tangled in the brush, or if the hair is tightly tangled, do not forcibly pull on it, as this could damage the brush.",
-            ],
-        },
-        "sensor": {
-            "steps": [
-                "Use a soft cloth to clean the cliff sensors on the bottom of the robot vacuum.",
-                "Use a soft cloth to clean the LDS laser sensor on the top of the robot vacuum.",
-                "Use a soft cloth to clean the bumper and the line laser sensor on the front of the robot vacuum.",
-            ],
-            "notes": [],
-        },
-        "side_brush": {
-            "steps": [
-                "Pull out the side brush upwards and clean it.",
-                "Reinstall the side brush, and ensure it is securely in place.",
-            ],
-            "notes": [],
-        },
-        "dirty_water_tank": {
-            "steps": [
-                "Remove the dirty water tank, open its cover, and pour out the water.",
-                "Use clean water to completely wash the tank, then wipe the outside of the tank dry before reinserting it into the omni station.",
-            ],
-            "notes": [
-                "The float ball in the dirty water tank is a movable part; do not apply too much force when cleaning it, to avoid damaging it.",
-                "Before moving or shipping the robot vacuum, empty the dirty water tank to avoid damage in transit.",
-            ],
-        },
-        "washboard": {
-            "steps": [
-                "Select the omni station cleaning function in the app; the robot vacuum will automatically leave the omni station.",
-                "Manually remove the washboard.",
-                "The omni station will automatically inject water into the washboard base.",
-                "Use a cloth or brush to clean any dirt from the base and washboard.",
-                "Wait three minutes for the omni station to automatically drain away the dirty water.",
-                "Use a dry cloth to wipe clean the washboard base and the washboard.",
-                "Reinstall the washboard.",
-                "Once the base has been cleaned, manually place the robot vacuum onto the omni station, or use the app or the robot vacuum's button, to send it back.",
-            ],
-            "notes": [
-                "Do not tilt the omni station during daily use or cleaning.",
-                "If water collects in the washboard base, wipe it dry with a cloth.",
-            ],
-        },
-    },
     # X20 Max
     "x20_max": {
         "auto_empty_vents": {
@@ -14808,6 +14697,117 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "notes": [
                 "Do not tilt the omni station during daily use or cleaning. If water collects in the washboard base, wipe it dry with a cloth.",
                 "Make sure the water pipe is inside the groove of the washboard; otherwise, it may affect normal use.",
+            ],
+        },
+    },
+    # X20+
+    "x20_plus": {
+        "auto_empty_vents": {
+            "steps": [
+                "Clean the auto-empty vents of the omni station with a soft, dry cloth.",
+            ],
+            "notes": [],
+        },
+        "caster_wheel": {
+            "steps": [
+                "Flip the robot vacuum over and pull out the caster wheel.",
+                "Remove hair, dirt, and other debris from the wheel and axle.",
+                "Reinsert the caster wheel and press it firmly back into place.",
+            ],
+            "notes": [
+                "A small screwdriver or other pry tool can be used to gently pop out and remove the wheel.",
+                "The wheel can be cleaned with water and reinstalled after drying.",
+            ],
+        },
+        "charging_contacts": {
+            "steps": [
+                "Use a soft cloth to clean the charging contacts on the back of the robot vacuum.",
+            ],
+            "notes": [],
+        },
+        "clean_water_tank": {
+            "steps": [
+                "Remove the clean water tank, open its cover, and pour out the water.",
+                "Use clean water to completely wash the tank, then wipe the outside of the tank dry before reinserting it into the omni station.",
+            ],
+            "notes": [
+                "The floater in the clean water tank is a movable part; do not apply too much force when cleaning it, to avoid damaging it.",
+                "Before moving or shipping the robot vacuum, empty the clean water tank to avoid damage in transit.",
+            ],
+        },
+        "dock_contacts": {
+            "steps": [
+                "Clean the charging contacts and the signaling area of the omni station with a soft, dry cloth.",
+            ],
+            "notes": [],
+        },
+        "dust_bag": {
+            "steps": [
+                "When the disposable bag is full, pull the cover out from the dust cabinet opening.",
+                "Remove the disposable bag using the handle, and discard it.",
+                "Install a new disposable bag as illustrated and insert the handle of the bag into the slot.",
+                "Put the dust cabinet cover back; it is properly installed when you hear a click.",
+            ],
+            "notes": [
+                "Pulling the handle of the disposable bag will seal the bag to prevent the dust and debris from accidentally falling out.",
+            ],
+        },
+        "filter": {
+            "steps": [
+                "Use a dry cloth to wipe away any dirt from the filter.",
+            ],
+            "notes": [],
+        },
+        "main_brush": {
+            "steps": [
+                "Flip the robot vacuum over and pinch the clips to remove the brush cover.",
+                "Lift the brush out, remove the bearings on both ends, and clean the brush's axle.",
+                "Use scissors to cut any hair tangled around the brush, and remove any debris.",
+                "Reinstall the brush and brush cover, and ensure they are securely in place.",
+            ],
+            "notes": [
+                "If too much hair is tangled in the brush, or if the hair is tightly tangled, do not forcibly pull on it, as this could damage the brush.",
+            ],
+        },
+        "sensor": {
+            "steps": [
+                "Use a soft cloth to clean the cliff sensors on the bottom of the robot vacuum.",
+                "Use a soft cloth to clean the LDS laser sensor on the top of the robot vacuum.",
+                "Use a soft cloth to clean the bumper and the line laser sensor on the front of the robot vacuum.",
+            ],
+            "notes": [],
+        },
+        "side_brush": {
+            "steps": [
+                "Pull out the side brush upwards and clean it.",
+                "Reinstall the side brush, and ensure it is securely in place.",
+            ],
+            "notes": [],
+        },
+        "dirty_water_tank": {
+            "steps": [
+                "Remove the dirty water tank, open its cover, and pour out the water.",
+                "Use clean water to completely wash the tank, then wipe the outside of the tank dry before reinserting it into the omni station.",
+            ],
+            "notes": [
+                "The float ball in the dirty water tank is a movable part; do not apply too much force when cleaning it, to avoid damaging it.",
+                "Before moving or shipping the robot vacuum, empty the dirty water tank to avoid damage in transit.",
+            ],
+        },
+        "washboard": {
+            "steps": [
+                "Select the omni station cleaning function in the app; the robot vacuum will automatically leave the omni station.",
+                "Manually remove the washboard.",
+                "The omni station will automatically inject water into the washboard base.",
+                "Use a cloth or brush to clean any dirt from the base and washboard.",
+                "Wait three minutes for the omni station to automatically drain away the dirty water.",
+                "Use a dry cloth to wipe clean the washboard base and the washboard.",
+                "Reinstall the washboard.",
+                "Once the base has been cleaned, manually place the robot vacuum onto the omni station, or use the app or the robot vacuum's button, to send it back.",
+            ],
+            "notes": [
+                "Do not tilt the omni station during daily use or cleaning.",
+                "If water collects in the washboard base, wipe it dry with a cloth.",
             ],
         },
     },

@@ -4774,6 +4774,105 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             ],
         },
     },
+    # S20
+    "s20": {
+        "auto_empty_vents": {
+            "steps": [
+                "Wipe the dust collection ports of both the robot and the base station clean with a soft, dry cloth.",
+            ],
+            "notes": [],
+        },
+        "caster_wheel": {
+            "steps": [
+                "Use a tool such as a small screwdriver to pry out the axle of the omnidirectional wheel.",
+                "Rinse the wheel with tap water and reinstall it once it has dried.",
+            ],
+            "notes": [
+                "Do not use excessive force when prying out the axle.",
+            ],
+        },
+        "charging_contacts": {
+            "steps": [
+                "Wipe the robot's charging contacts clean with a soft, dry cloth.",
+            ],
+            "notes": [
+                "Use a dry cloth only, never a wet one, to avoid water damage to internal electronics.",
+            ],
+        },
+        "dock_contacts": {
+            "steps": [
+                "Wipe the base station's charging contacts and signal transmission area clean with a soft, dry cloth.",
+            ],
+            "notes": [],
+        },
+        "dust_bag": {
+            "steps": [
+                "Remove the dust compartment cover and discard the used dust bag.",
+                "Wipe the dust collection filter clean with a soft, dry cloth.",
+                "Install the new dust bag.",
+                "Close the dust compartment cover.",
+            ],
+            "notes": [
+                "When you remove the dust bag, its handle automatically seals the bag shut, effectively preventing dust from leaking out.",
+            ],
+        },
+        "dustbin": {
+            "steps": [
+                "Lift open the robot's top cover, press the dust box release button, and lift the dust box out.",
+                "Rinse the dust box with water and let it dry completely before reinstalling.",
+            ],
+            "notes": [
+                "Rinse with clean water only; do not add any detergent.",
+                "Be sure to let it dry completely before use.",
+            ],
+        },
+        "filter": {
+            "steps": [
+                "Remove the filter and tap the filter frame to knock the dirt out.",
+                "Rinse the filter with water and let it dry completely before reinstalling.",
+            ],
+            "notes": [
+                "Rinse with clean water only; do not add any detergent.",
+                "Do not clean the filter with a brush, your fingers, or sharp objects, as this may damage it.",
+            ],
+        },
+        "main_brush": {
+            "steps": [
+                "Press inward on the release buttons on both sides of the main brush guard to remove the guard, then lift the main brush straight out.",
+                "Pull out the end caps at both ends of the main brush, then use the cleaning tool (or another suitable tool) to cut away hair tangled around the main brush and its bearings.",
+            ],
+            "notes": [],
+        },
+        "mop_cloth": {
+            "steps": [
+                "Remove the mop cloth from the mop pad holder to replace it.",
+            ],
+            "notes": [],
+        },
+        "sensor": {
+            "steps": [
+                "Wipe the robot's ultrasonic sensor, cliff sensors, edge sensor, AI Action object recognition sensor, line laser sensor, LDS laser sensor, and collision buffer clean using a soft, dry cloth.",
+            ],
+            "notes": [
+                "The robot and base station contain sensitive electronic components inside; use a dry cloth only, never a wet one, to avoid water damage.",
+            ],
+        },
+        "side_brush": {
+            "steps": [
+                "Remove the side brush and clean it.",
+            ],
+            "notes": [],
+        },
+        "dirty_water_tank": {
+            "steps": [
+                "Remove the dirty water tank, open its top cover, and pour out the dirty water.",
+                "Rinse the dirty water tank with clean water; you can use the included cleaning brush to scrub the inner wall clean.",
+            ],
+            "notes": [
+                "The float inside the dirty water tank is a moving part - do not use excessive force when cleaning it, or it may affect the float's function.",
+            ],
+        },
+    },
     # S20 Plus
     "s20_plus": {
         "auto_empty_vents": {
