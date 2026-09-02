@@ -2050,7 +2050,10 @@
       "dirty_water_tank": "오수톱",
       "rolling_brush": "롤러 브러시",
       "mopping_cloth": "걸레"
-    }
+    },
+    "clean_water_tank_title": "깨끗한 물탱크",
+    "dirty_water_tank_title": "오수 탱크",
+    "tank_status_detail": "기기가 보고한 물탱크 상태"
   },
   "review": {
     "badge_attribution_disagreement": "방 불일치",

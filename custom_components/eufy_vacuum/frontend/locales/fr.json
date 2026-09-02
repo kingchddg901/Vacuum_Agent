@@ -535,7 +535,10 @@
       "dirty_water_tank": "Dirty Water Tank",
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth"
-    }
+    },
+    "clean_water_tank_title": "Réservoir d'eau propre",
+    "dirty_water_tank_title": "Réservoir d'eau sale",
+    "tank_status_detail": "État du réservoir signalé par l'appareil"
   },
   "map": {
     "adjusting": "Ajustement :",

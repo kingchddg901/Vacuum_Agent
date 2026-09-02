@@ -531,7 +531,10 @@
       "dirty_water_tank": "Dirty Water Tank",
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth"
-    }
+    },
+    "clean_water_tank_title": "Serbatoio acqua pulita",
+    "dirty_water_tank_title": "Serbatoio acqua sporca",
+    "tank_status_detail": "Stato del serbatoio segnalato dal dispositivo"
   },
   "map": {
     "adjusting": "Regolazione:",

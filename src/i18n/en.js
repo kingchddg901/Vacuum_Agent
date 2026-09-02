@@ -582,6 +582,9 @@ export const en = {
   "maintenance.stat_total_time": "Total time",  // Lifetime stat label; value is total cleaning TIME in hours over the device's life.
   "maintenance.stat_water": "Water",  // overview stat cell: dock station water status value
   "maintenance.station_water_detail": "Base station water reservoir status",
+  "maintenance.clean_water_tank_title": "Clean Water Tank",
+  "maintenance.dirty_water_tank_title": "Dirty Water Tank",
+  "maintenance.tank_status_detail": "Tank status reported by the device",
   "maintenance.station_water_title": "Station Water",
   // CENSUS-6. Composed CARD-side from upkeep.attention_count. The backend also
   // ships an English `attention_summary` sentence ("3 upkeep item(s) need

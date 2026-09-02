@@ -529,7 +529,10 @@
       "dirty_water_tank": "Dirty Water Tank",
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth"
-    }
+    },
+    "clean_water_tank_title": "Schoonwatertank",
+    "dirty_water_tank_title": "Vuilwatertank",
+    "tank_status_detail": "Tankstatus gemeld door het apparaat"
   },
   "map": {
     "adjusting": "Aanpassen:",

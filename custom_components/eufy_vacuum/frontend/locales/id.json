@@ -1811,7 +1811,10 @@
       "dirty_water_tank": "Dirty Water Tank",
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth"
-    }
+    },
+    "clean_water_tank_title": "Tangki Air Bersih",
+    "dirty_water_tank_title": "Tangki Air Kotor",
+    "tank_status_detail": "Status tangki yang dilaporkan perangkat"
   },
   "setup": {
     "add": "Tambah",

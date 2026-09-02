@@ -1811,7 +1811,10 @@
       "dirty_water_tank": "Dirty Water Tank",
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth"
-    }
+    },
+    "clean_water_tank_title": "Zbiornik czystej wody",
+    "dirty_water_tank_title": "Zbiornik brudnej wody",
+    "tank_status_detail": "Stan zbiornika zgłoszony przez urządzenie"
   },
   "setup": {
     "add": "Dodaj",

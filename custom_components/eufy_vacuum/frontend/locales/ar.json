@@ -2185,7 +2185,10 @@
       "dirty_water_tank": "خزان المياه المتسخة",
       "rolling_brush": "الفرشاة الدوارة",
       "mopping_cloth": "قماشة المسح"
-    }
+    },
+    "clean_water_tank_title": "خزان المياه النظيفة",
+    "dirty_water_tank_title": "خزان المياه المتسخة",
+    "tank_status_detail": "حالة الخزان كما يبلغ عنها الجهاز"
   },
   "review": {
     "badge_attribution_disagreement": "عدم تطابق الغرفة",

@@ -2050,7 +2050,10 @@
       "dirty_water_tank": "污水箱",
       "rolling_brush": "滾刷",
       "mopping_cloth": "拖布"
-    }
+    },
+    "clean_water_tank_title": "清水箱",
+    "dirty_water_tank_title": "污水箱",
+    "tank_status_detail": "裝置回報的水箱狀態"
   },
   "review": {
     "badge_attribution_disagreement": "房間不符",

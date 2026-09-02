@@ -39,6 +39,8 @@ from .entities import (
     SUFFIX_CLEANING_HISTORY,
     SUFFIX_CLEANING_TIME,
     SUFFIX_ACTIVE_CLEANING_TARGET,
+    SUFFIX_CLEAN_WATER_TANK_STATUS,
+    SUFFIX_DIRTY_WATER_TANK_STATUS,
     SUFFIX_DOCK_STATUS,
     SUFFIX_ERROR_MESSAGE,
     SUFFIX_TASK_STATUS,
@@ -46,6 +48,13 @@ from .entities import (
     build_entity_id,
 )
 from .maintenance_components import MAINTENANCE_COMPONENTS
+from .dreame_upkeep_guides import DREAME_UPKEEP_GUIDE_LIBRARY
+from .upkeep_catalog import (
+    DREAME_GUIDE_FAMILY_NAMES,
+    DREAME_MODEL_GUIDE_FAMILIES,
+    DREAME_MODEL_NAMES,
+)
+from .upkeep_guides_i18n import DREAME_UPKEEP_GUIDE_TRANSLATIONS
 from .model_catalog import profile_for_model
 
 _LOGGER = logging.getLogger(__name__)
@@ -158,6 +167,13 @@ def register_dreame_adapter_for_vacuum(
         # timestamp sensor carrying completed/cancelled — the completion discriminator
         # (PHASE 4: confirm cleaning_history.completed semantics on a real run end).
         "last_clean_end": build_entity_id(vid, SUFFIX_CLEANING_HISTORY),
+        # Tank presence/level ENUMS. These satisfy the enum tank-status display, NOT the
+        # numeric `station_water` role (see the capabilities note: Dreame publishes no water
+        # FILL percent on any model). Declaring them is safe on a model that lacks them —
+        # resolve_declared_entities drops a key whose entity does not exist, and the
+        # maintenance snapshot then omits the field, so the card simply shows nothing.
+        "clean_water_tank_status": build_entity_id(vid, SUFFIX_CLEAN_WATER_TANK_STATUS),
+        "dirty_water_tank_status": build_entity_id(vid, SUFFIX_DIRTY_WATER_TANK_STATUS),
     }
     entities, entity_remaps = resolve_declared_entities(
         hass, vid, entities,
@@ -546,6 +562,20 @@ def register_dreame_adapter_for_vacuum(
         },
 
         "maintenance_components": MAINTENANCE_COMPONENTS,
+
+        # Sourced from adapters/dreame/upkeep_catalog.py + dreame_upkeep_guides.py, mirroring
+        # the eufy/roborock declaration. WITHOUT this block the authored guide families are
+        # invisible: maintenance/manager.py resolves guides via _catalog["guide_library"], so
+        # the families + their 17 language packs sat unreachable on disk until it was declared.
+        "upkeep_catalog": {
+            "model_names": DREAME_MODEL_NAMES,
+            "model_guide_families": DREAME_MODEL_GUIDE_FAMILIES,
+            "guide_family_names": DREAME_GUIDE_FAMILY_NAMES,
+            "guide_library": DREAME_UPKEEP_GUIDE_LIBRARY,
+            # Per-language step/note/frequency overlays on the English base, selected by the
+            # HA instance language (see upkeep_guides_i18n/, one <lang>.py each).
+            "guide_translations": DREAME_UPKEEP_GUIDE_TRANSLATIONS,
+        },
 
         # Dock wash/dry cycle observation + the three dock action buttons. dock_status
         # (sensor.<id>_self_wash_base_status) reads idle/washing/drying/... — verified

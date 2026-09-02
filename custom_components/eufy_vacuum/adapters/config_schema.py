@@ -295,6 +295,27 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "no actual tank level tracking."
                 ),
             },
+            "clean_water_tank_status": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Clean-water tank state as an ENUM (installed / not_installed / "
+                    "low_water / not_available), for devices that report tank STATE rather "
+                    "than a numeric fill percent — Dreame publishes no fill level on any "
+                    "model. Surfaced by the maintenance snapshot as tank_status.clean and "
+                    "rendered as its own card. "
+                    "Degradation: no clean-tank card; nothing is inferred."
+                ),
+            },
+            "dirty_water_tank_status": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Dirty/waste-water tank state as an ENUM, the counterpart to "
+                    "clean_water_tank_status. Surfaced as tank_status.dirty. "
+                    "Degradation: no dirty-tank card; nothing is inferred."
+                ),
+            },
             "robot_position_x": {
                 "type": "str",
                 "required": False,

@@ -2131,7 +2131,10 @@
       "dirty_water_tank": "מיכל מים מלוכלכים",
       "rolling_brush": "מברשת מתגלגלת",
       "mopping_cloth": "מטלית"
-    }
+    },
+    "clean_water_tank_title": "מיכל מים נקיים",
+    "dirty_water_tank_title": "מיכל מים מלוכלכים",
+    "tank_status_detail": "מצב המיכל כפי שדווח על ידי המכשיר"
   },
   "review": {
     "badge_attribution_disagreement": "אי-התאמת חדר",

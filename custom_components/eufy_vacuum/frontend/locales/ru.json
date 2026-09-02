@@ -575,7 +575,10 @@
       "dirty_water_tank": "Бак грязной воды",
       "rolling_brush": "Валик",
       "mopping_cloth": "Салфетка"
-    }
+    },
+    "clean_water_tank_title": "Бак чистой воды",
+    "dirty_water_tank_title": "Бак грязной воды",
+    "tank_status_detail": "Состояние бака по данным устройства"
   },
   "map": {
     "adjusting": "Корректировка:",

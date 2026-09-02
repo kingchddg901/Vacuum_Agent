@@ -370,6 +370,7 @@ export function applyMaintenanceRenderers(proto) {
                     ${tabItems.map((item) => this._renderMaintenanceCard(item)).join("")}
                     ${activeTab === "maintenance_items"
                       ? this._renderStationWaterCard(stationWater, availableCleanTankMl, upkeep.station_water_label)
+                        + this._renderTankStatusCards(upkeep.tank_status)
                       : ""}
                    </div>`
                 : `<div class="evcc-maintenance-empty">${activeTab === "replacements" ? this.t("maintenance.items_empty_replacements") : this.t("maintenance.items_empty_maintenance")}</div>`
@@ -515,9 +516,19 @@ export function applyMaintenanceRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderStationWaterCard = function (stationWater, availableCleanTankMl = null, stationWaterLabel = null) {
+    // NOTHING to report -> render NOTHING. A device with no water-level sensor previously
+    // still got a card, and the null coerced its way to "Empty · ~0 ml remaining" — a reading
+    // we never had. Devices that report tank state as an ENUM instead are served by
+    // _renderTankStatusCards; devices with neither simply show no water card at all.
+    if ((stationWater == null || stationWater === "") && !String(stationWaterLabel ?? "").trim()) {
+      return "";
+    }
     const hasValue = stationWater != null && stationWater !== "";
     const numericValue = Number(stationWater);
-    const isNumeric = Number.isFinite(numericValue);
+    // hasValue is LOAD-BEARING here: Number(null) is 0, so without it a device that reports
+    // no water level at all read as a numeric 0 -> status "replace_now" -> the card claimed
+    // "Empty · ~0 ml remaining". That is a fabricated reading, not a missing one.
+    const isNumeric = hasValue && Number.isFinite(numericValue);
     const rawValue = String(stationWaterLabel ?? "").trim() || (hasValue
       ? (isNumeric ? `${Math.round(numericValue)}${this.t("metrics.unit_percent")}` : String(stationWater))
       : this.t("maintenance.value_unknown"));
@@ -578,13 +589,58 @@ export function applyMaintenanceRenderers(proto) {
           ${this.t("maintenance.station_water_detail")}
         </div>
 
-        ${Number.isFinite(Number(availableCleanTankMl)) ? `
+        ${availableCleanTankMl != null && Number.isFinite(Number(availableCleanTankMl)) ? `
           <div class="evcc-maintenance-card-secondary">
             ${this.t("maintenance.ml_remaining", { ml: this.escapeHtml(String(Math.round(Number(availableCleanTankMl)))) })}
           </div>
         ` : ""}
       </article>
     `;
+  };
+
+  /**
+   * Render tank-state cards for devices that report tank presence/level as an ENUM rather
+   * than a numeric fill percent (upkeep.tank_status, set by the maintenance snapshot only
+   * when the adapter declares such an entity).
+   *
+   * This is the honest counterpart to the numeric station-water card: a device with no fill
+   * sensor gets its REAL state ("Installed", "Low water") instead of a synthesised percentage.
+   * Brand-neutral — any adapter declaring clean_water_tank_status / dirty_water_tank_status
+   * gets it; adapters that do not simply render nothing.
+   *
+   * @param {{clean:?{state:string,label:string}, dirty:?{state:string,label:string}}|null} tankStatus
+   * @returns {string} HTML for zero, one, or two cards.
+   */
+  proto._renderTankStatusCards = function (tankStatus) {
+    if (!tankStatus) return "";
+    const STATUS_BY_STATE = {
+      installed: "good",
+      normal: "good",
+      full: "good",
+      low_water: "replace_soon",
+      low: "replace_soon",
+      not_installed: "warning",
+      not_available: "unknown",
+    };
+    return ["clean", "dirty"].map((which) => {
+      const tank = tankStatus[which];
+      if (!tank || !tank.state) return "";
+      const key = String(tank.state).trim().toLowerCase();
+      const statusKey = STATUS_BY_STATE[key] || "unknown";
+      const title = this.t(which === "clean"
+        ? "maintenance.clean_water_tank_title"
+        : "maintenance.dirty_water_tank_title");
+      const label = String(tank.label || tank.state);
+      return `
+      <article class="evcc-maintenance-card evcc-maintenance-card--status-${this.escapeHtml(statusKey)}">
+        <div class="evcc-maintenance-card-header">
+          <div class="evcc-maintenance-card-title">${title}</div>
+          <div class="evcc-maintenance-card-status">${this.escapeHtml(this._formatMaintenanceStatus(statusKey))}</div>
+        </div>
+        <div class="evcc-maintenance-card-value">${this.escapeHtml(label)}</div>
+        <div class="evcc-maintenance-card-detail">${this.t("maintenance.tank_status_detail")}</div>
+      </article>`;
+    }).join("");
   };
 
   /* =========================================================

@@ -2050,7 +2050,10 @@
       "dirty_water_tank": "汚水タンク",
       "rolling_brush": "ロールブラシ",
       "mopping_cloth": "モップ"
-    }
+    },
+    "clean_water_tank_title": "清水タンク",
+    "dirty_water_tank_title": "汚水タンク",
+    "tank_status_detail": "デバイスが報告したタンクの状態"
   },
   "review": {
     "badge_attribution_disagreement": "部屋の不一致",

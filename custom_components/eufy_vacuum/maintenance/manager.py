@@ -662,6 +662,27 @@ class MaintenanceManager:
             if any(v is not None for v in (_area_m2, _time_s, _count))
             else None
         )
+        # Tank presence/level as an ENUM, for devices that report tank STATE rather than a
+        # numeric fill percent. Brand-neutral and declaration-driven, exactly like the totals
+        # above: an adapter that declares the entity gets it surfaced, one that does not
+        # simply omits it (None) and the card shows nothing. This exists because the numeric
+        # `station_water` role above cannot be satisfied by an enum-only device — rendering
+        # a missing percent as "Empty / ~0 ml" states a reading we do not have.
+        def _tank_status(key):
+            eid = _device_entities.get(key)
+            st = self._manager.hass.states.get(eid) if eid else None
+            if st is None or st.state in {None, "", "unknown", "unavailable"}:
+                return None
+            return {"state": st.state, "label": _display_label(st.state), "entity_id": eid}
+
+        _clean_tank = _tank_status("clean_water_tank_status")
+        _dirty_tank = _tank_status("dirty_water_tank_status")
+        tank_status = (
+            {"clean": _clean_tank, "dirty": _dirty_tank}
+            if (_clean_tank or _dirty_tank)
+            else None
+        )
+
         _fw_entity = _device_entities.get("dock_firmware_version")
         _fw_state = self._manager.hass.states.get(_fw_entity) if _fw_entity else None
         dock_firmware = (
@@ -689,6 +710,8 @@ class MaintenanceManager:
                 else _display_label(station_water_state.state if station_water_state is not None else None)
             ),
             "station_water_entity": station_water_entity,
+            # Enum tank state (clean/dirty), None when the device reports no such entity.
+            "tank_status": tank_status,
             "dock_events": {
                 "last_mop_wash": dock_events.get("last_mop_wash"),
                 "last_dust_empty": dock_events.get("last_dust_empty"),

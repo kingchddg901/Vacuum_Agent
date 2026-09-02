@@ -53,6 +53,15 @@ SUFFIX_ERROR_MESSAGE = "_error"                  # sensor — enum error string
 
 # station / dock
 SUFFIX_DOCK_STATUS = "_self_wash_base_status"    # sensor — station wash/dry enum
+# Tank presence/level ENUMS (not_available / not_installed / low_water / installed). Dreame
+# publishes NO numeric water FILL level anywhere — verified against upstream dreame_vacuum's
+# sensor.py, which is model-wide, not just this device: every water signal there is either an
+# enum (these two, WATER_TANK, LOW_WATER_WARNING) or a consumable-life percent
+# (ONBOARD_DIRTY_WATER_TANK_LEFT etc. = how dirty a part is, not how full a tank is). So the
+# numeric `station_water` role can never be satisfied here; these feed the enum tank-status
+# display instead.
+SUFFIX_CLEAN_WATER_TANK_STATUS = "_clean_water_tank_status"    # sensor — clean-tank enum
+SUFFIX_DIRTY_WATER_TANK_STATUS = "_dirty_water_tank_status"    # sensor — dirty-tank enum
                                                  # (idle/washing/drying/paused/returning/...)
 
 # binary_sensor domain
