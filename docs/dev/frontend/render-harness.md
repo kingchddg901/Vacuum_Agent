@@ -29,9 +29,27 @@ Two consequences the design rides on:
 - **One fixture × N bundles = the whole matrix, free.** Author a tab's fixture
   once; feed it default / protanopia / deuteranopia / colorblind-safe bundles and
   the same render re-colors itself. Nothing is ever hand-colored.
-- **No test/prod skew.** The harness renders the identical path that ships,
-  differing only in the token values fed in. A green check is a guarantee about
-  the card that ships, not a proxy for it.
+- **No test/prod skew — in the RENDER.** The harness renders the identical path
+  that ships, differing only in the token values fed in. A green check is a
+  guarantee about the card that ships, not a proxy for it.
+
+    ⚠ **The guarantee covers the render path, not the pipeline that computes the
+    bundle.** "The token values fed in" are themselves *derived* — from a theme
+    envelope's `{tokens, colors, alpha}` — and for a long time the harness derived
+    them with its own second implementation of that step. It concatenated the three
+    buckets where the card composes them, so any key carrying both a colour and an
+    alpha reached the renderers as a bare number instead of a hex. The renderers
+    were identical and the render was faithful; the harness was simply painting a
+    different theme than the card would, and reporting `0 skipped` while doing it.
+    Painted Hills lost twelve of its twenty-seven colours to this, including every
+    text token — and was tuned for small-text contrast against those previews.
+
+    Both sides now call the one helper, `flattenThemeBuckets()`
+    (`src/theme-tokens/flatten.js`), so the derivation is shared rather than
+    duplicated. The general rule the episode leaves behind: **whenever the harness
+    computes an input the card also computes, that computation is a skew surface
+    even when the render path is provably shared** — extract it, do not re-implement
+    it.
 
 The card breaks purity wherever a renderer reads `window.AnimalSVG` directly at
 render time: `src/renderers/map.js` (`_renderMapAnimalControls`, which the Rooms
