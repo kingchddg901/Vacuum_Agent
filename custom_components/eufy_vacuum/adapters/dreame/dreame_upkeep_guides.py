@@ -1145,7 +1145,7 @@ _AQUA10_ULTRA_TRACK = {
     'main_brush': {
         "steps": [
             'Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.',
-            'Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
+            'Pull out the brushes. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
             'With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.',
             'Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.',
         ],
@@ -1277,7 +1277,7 @@ _AQUA10_ULTRA_ROLLER = {
     'main_brush': {
         "steps": [
             'Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.',
-            'Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
+            'Pull out the brushes. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
             'With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.',
             'Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.',
         ],
@@ -1399,7 +1399,7 @@ _MATRIX10 = {
     'main_brush': {
         "steps": [
             'Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.',
-            'Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
+            'Pull out the brushes. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
             'With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.',
             'Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.',
         ],
@@ -1519,7 +1519,7 @@ _L60_ULTRA = {
     'main_brush': {
         "steps": [
             'Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.',
-            'Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
+            'Pull out the brushes. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
             'With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.',
             'Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.',
         ],
@@ -1638,7 +1638,7 @@ _L60_ULTRA_PE = {
     'main_brush': {
         "steps": [
             'Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.',
-            'Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
+            'Pull out the brushes. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
             'With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.',
             'Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.',
         ],
@@ -1758,7 +1758,7 @@ _L40S_ULTRA = {
     'main_brush': {
         "steps": [
             'Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.',
-            'Pull out the brushes as shown in the figure. Use the provided cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
+            'Pull out the brushes. Use the provided cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
             'With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.',
             'Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.',
         ],
@@ -1869,7 +1869,7 @@ _L40S_ULTRA = {
         "steps": [
             'Rotate the auxiliary climbing wheel until the "OUT" arrow is facing upward, and then pull out the wheel.',
             'Use a proper tool to clean the hair tangled in the main wheel and auxiliary climbing wheel.',
-            'After cleaning, rotate the main wheel to align the two arrows (see Figure ①). Then, with the "IN" arrow facing downward, insert the left and right auxiliary climbing wheels accordingly until they click into place. (see Figure ②).',
+            'After cleaning, rotate the main wheel to align the two arrows. Then, with the "IN" arrow facing downward, insert the left and right auxiliary climbing wheels accordingly until they click into place.',
         ],
         "notes": [],
     },
@@ -1880,8 +1880,8 @@ _D30_ULTRA = {
     'main_brush': {
         "steps": [
             'Press the brush guard clips inwards to remove the brush guard, and lift the brush out of the robot.',
-            'Pull out the brush cover at the square end of the brush as shown in the figure. Use a proper tool to remove any foreign object in the brush.',
-            'Pull out and clean the brush strips as shown in the figure. Use a proper tool to clean the comb.',
+            'Pull out the brush cover at the square end of the brush. Use a proper tool to remove any foreign object in the brush.',
+            'Pull out and clean the brush strips. Use a proper tool to clean the comb.',
             'Reinstall the brush strips, brush cover, and brush in turn. Press on the brush guard to lock it in place.',
         ],
         "notes": [
@@ -1899,7 +1899,7 @@ _D30_ULTRA = {
     },
     'filter': {
         "steps": [
-            'Open the dust box cover, remove the filter, and then empty the dust box as shown in the figure.',
+            'Open the dust box cover, remove the filter, and then empty the dust box.',
             'Gently tap the basket of the filter to remove the dirt.',
             'Rinse the dust box and filter with water and dry them completely before reinstalling.',
         ],
@@ -1912,7 +1912,7 @@ _D30_ULTRA = {
     'dustbin': {
         "steps": [
             'Open the robot cover and press the dust box clip to remove the dust box.',
-            'Open the dust box cover, remove the filter, and then empty the dust box as shown in the figure.',
+            'Open the dust box cover, remove the filter, and then empty the dust box.',
             'Gently tap the basket of the filter to remove the dirt.',
             'Rinse the dust box and filter with water and dry them completely before reinstalling.',
         ],
@@ -1998,7 +1998,7 @@ _D20_PRO_PLUS = {
     'main_brush': {
         "steps": [
             'Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.',
-            'Pull out the brushes as shown in the figure. Use the appropriate cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
+            'Pull out the brushes. Use the appropriate cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
             'With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.',
             'Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.',
         ],
@@ -2098,7 +2098,7 @@ _D20_PLUS = {
     'main_brush': {
         "steps": [
             'Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.',
-            'Pull out the brushes as shown in the figure. Use the appropriate cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
+            'Pull out the brushes. Use the appropriate cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.',
             'With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.',
             'Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.',
         ],
@@ -2157,7 +2157,7 @@ _D20_PLUS = {
     },
     'sensor': {
         "steps": [
-            'Wipe the robot sensors by using a soft and dry cloth, as shown in the below figure: the laser distance sensor (LDS), dock sensors, edge sensor and cliff sensors.',
+            'Wipe the robot sensors by using a soft and dry cloth: the laser distance sensor (LDS), dock sensors, edge sensor and cliff sensors.',
         ],
         "notes": [
             'A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning.',
@@ -2206,7 +2206,7 @@ _E30_ULTRA = {
     "main_brush": {
         "steps": [
             "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-            "Pull out the brush covers at both ends of the brush as shown in the figure. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush. Press on the brush guard to lock it in place."
+            "Pull out the brush covers at both ends of the brush. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush. Press on the brush guard to lock it in place."
         ],
         "notes": []
     },
@@ -2219,7 +2219,7 @@ _E30_ULTRA = {
     "filter": {
         "steps": [
             "Open the robot cover and press the dust box clip to remove the dust box.",
-            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+            "Open the dust box cover, remove the filter, and then empty the dust box.",
             "Gently tap the basket of the filter to remove the dirt.",
             "Rinse the dust box and filter with water and dry them completely before reinstalling."
         ],
@@ -2232,7 +2232,7 @@ _E30_ULTRA = {
     "dustbin": {
         "steps": [
             "Open the robot cover and press the dust box clip to remove the dust box.",
-            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+            "Open the dust box cover, remove the filter, and then empty the dust box.",
             "Gently tap the basket of the filter to remove the dirt.",
             "Rinse the dust box and filter with water and dry them completely before reinstalling."
         ],
@@ -2276,7 +2276,7 @@ _E30_ULTRA = {
     },
     "sensor": {
         "steps": [
-            "Wipe robot sensors by using a soft and dry cloth, as shown in the below figure."
+            "Wipe robot sensors by using a soft and dry cloth."
         ],
         "notes": [
             "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
@@ -2321,7 +2321,7 @@ _E50_ULTRA = {
     "main_brush": {
         "steps": [
             "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-            "Pull out the brush covers at both ends of the brush as shown in the figure. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush. Press on the brush guard to lock it in place."
+            "Pull out the brush covers at both ends of the brush. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush. Press on the brush guard to lock it in place."
         ],
         "notes": []
     },
@@ -2334,7 +2334,7 @@ _E50_ULTRA = {
     "filter": {
         "steps": [
             "Open the robot cover and press the dust box clip to remove the dust box.",
-            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the figure.",
+            "Open the dust box cover, remove the filter, and then empty the dust box.",
             "Gently tap the basket of the filter to remove the dirt.",
             "Rinse the dust box and filter with water and dry them completely before reinstalling."
         ],
@@ -2347,7 +2347,7 @@ _E50_ULTRA = {
     "dustbin": {
         "steps": [
             "Open the robot cover and press the dust box clip to remove the dust box.",
-            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the figure.",
+            "Open the dust box cover, remove the filter, and then empty the dust box.",
             "Gently tap the basket of the filter to remove the dirt.",
             "Rinse the dust box and filter with water and dry them completely before reinstalling."
         ],
@@ -2391,7 +2391,7 @@ _E50_ULTRA = {
     },
     "sensor": {
         "steps": [
-            "Wipe the robot sensors by using a soft and dry cloth, as shown in the figure below."
+            "Wipe the robot sensors by using a soft and dry cloth."
         ],
         "notes": [
             "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
@@ -2433,7 +2433,7 @@ _L50_PRO_ULTRA = {
     "main_brush": {
         "steps": [
             "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-            "Pull out the brushes as shown in the figure. Use the provided cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
+            "Pull out the brushes. Use the provided cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
             "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
             "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place."
         ],
@@ -2509,13 +2509,13 @@ _L50_PRO_ULTRA = {
         "steps": [
             "Rotate the auxiliary climbing wheel until the \"OUT\" arrow is facing upward, and then pull out the wheel.",
             "Use a proper tool to clean the hair tangled in the main wheel and auxiliary climbing wheel.",
-            "After cleaning, rotate the main wheel to align the two arrows (see Figure ①). Then, with the \"IN\" arrow facing downward, insert the left and right auxiliary climbing wheels accordingly until they click into place (see Figure ②)."
+            "After cleaning, rotate the main wheel to align the two arrows. Then, with the \"IN\" arrow facing downward, insert the left and right auxiliary climbing wheels accordingly until they click into place."
         ],
         "notes": []
     },
     "sensor": {
         "steps": [
-            "Wipe the robot sensors by using a soft and dry cloth, as shown in the below figure."
+            "Wipe the robot sensors by using a soft and dry cloth."
         ],
         "notes": []
     },
@@ -2557,7 +2557,7 @@ _L50S_ULTRA = {
     "main_brush": {
         "steps": [
             "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-            "Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
+            "Pull out the brushes. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
             "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
             "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place."
         ],
@@ -2631,7 +2631,7 @@ _L50S_ULTRA = {
     },
     "sensor": {
         "steps": [
-            "Wipe the robot sensors by using a soft and dry cloth, as shown in the below figure: Rear ToF Sensor, Bumper Window, Edge Sensor, Bumper, Cliff Sensors, Carpet Sensor."
+            "Wipe the robot sensors by using a soft and dry cloth: Rear ToF Sensor, Bumper Window, Edge Sensor, Bumper, Cliff Sensors, Carpet Sensor."
         ],
         "notes": [
             "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
@@ -2686,7 +2686,7 @@ _D20_ULTRA = {
     "main_brush": {
         "steps": [
             "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-            "Pull out the brush covers at both ends of the brush as shown in the figure. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush.",
+            "Pull out the brush covers at both ends of the brush. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush.",
             "Press on the brush guard to lock it in place."
         ],
         "notes": []
@@ -2700,7 +2700,7 @@ _D20_ULTRA = {
     "filter": {
         "steps": [
             "Open the robot cover and press the dust box clip to remove the dust box.",
-            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+            "Open the dust box cover, remove the filter, and then empty the dust box.",
             "Gently tap the basket of the filter to remove the dirt.",
             "Rinse the dust box and filter with water and dry them completely before reinstalling."
         ],
@@ -2713,7 +2713,7 @@ _D20_ULTRA = {
     "dustbin": {
         "steps": [
             "Open the robot cover and press the dust box clip to remove the dust box.",
-            "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+            "Open the dust box cover, remove the filter, and then empty the dust box.",
             "Gently tap the basket of the filter to remove the dirt.",
             "Rinse the dust box and filter with water and dry them completely before reinstalling."
         ],
@@ -2757,7 +2757,7 @@ _D20_ULTRA = {
     },
     "sensor": {
         "steps": [
-            "Wipe robot sensors by using a soft and dry cloth, as shown in the below figure."
+            "Wipe robot sensors by using a soft and dry cloth."
         ],
         "notes": [
             "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
@@ -2802,7 +2802,7 @@ _L40S_PRO_ULTRA = {
     "main_brush": {
         "steps": [
             "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-            "Pull out the brushes as shown in the figure. Use the provided cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
+            "Pull out the brushes. Use the provided cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
             "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
             "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place."
         ],
@@ -2877,13 +2877,13 @@ _L40S_PRO_ULTRA = {
         "steps": [
             "Rotate the auxiliary climbing wheel until the \"OUT\" arrow is facing upward, and then pull out the wheel.",
             "Use a proper tool to clean the hair tangled in the main wheel and auxiliary climbing wheel.",
-            "After cleaning, rotate the main wheel to align the two arrows (see Figure). Then, with the \"IN\" arrow facing downward, insert the left and right auxiliary climbing wheels accordingly until they click into place. (see Figure)."
+            "After cleaning, rotate the main wheel to align the two arrows. Then, with the \"IN\" arrow facing downward, insert the left and right auxiliary climbing wheels accordingly until they click into place."
         ],
         "notes": []
     },
     "sensor": {
         "steps": [
-            "Wipe the robot sensors by using a soft and dry cloth, as shown in the below figure: sensors: 1. Laser Distance Sensor (LDS) 2. 3D Dual-Line Laser Sensors 3. Bumper Window 4. Edge Sensor 5. Bumper 6. Cliff Sensors 7. Carpet Sensor"
+            "Wipe the robot sensors by using a soft and dry cloth: sensors: 1. Laser Distance Sensor (LDS) 2. 3D Dual-Line Laser Sensors 3. Bumper Window 4. Edge Sensor 5. Bumper 6. Cliff Sensors 7. Carpet Sensor."
         ],
         "notes": [
             "Wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning."
@@ -2921,6 +2921,29 @@ _L40S_PRO_ULTRA = {
 }
 # ==== PILOT-FAMILIES-END ====
 
+# ── P60 FAMILY (three trims on ONE platform, family+delta) ───────────────────────────────────
+# P60 / P60 Pro / MOBIUS 60 are one platform (reg code RLV83LE) in three trims, and the TOP trim
+# is the one that got EXPORTED under the MOBIUS name - which is why the only manual we hold for
+# the family titles itself "MOBIUS 60 Robotic Vacuum Cleaner User Manual". Evidence they are one
+# family: same twin spinning discs, same 82mm-class body, same 80C wash, and the SAME 3.2L dust
+# bag (MOVA's own accessory listing covers E40/P50/Z60/MOBIUS/S70 with one part). Specs ladder
+# rather than diverge - P60 24000Pa/8N/250rpm, P60 Pro 26000Pa/12N/260rpm, MOBIUS 30000Pa/100C.
+#
+# MOBIUS's UNIQUE FEATURE is the AI dual-arm pad SWAP with three stored pairs in the station. The
+# CN trims have fixed discs, so the manual's mop_pad_holder step - "reinstall them into their
+# corresponding docks on the base station hatch" - describes hardware they do not have. That is
+# the ONLY divergence, so this is built family+delta per the module rule rather than by authoring
+# a second flat table: MOBIUS's own family keeps the swap wording, the P60 trims override it.
+# detergent_inlet is added back because the P-series takes MOVA's cleaning solution (accessory
+# listing: E40/E50/P50...), which the Mobius table does not enumerate.
+# ⚠ OPEN: if a P60 Pro station turns out to have pad docks after all, delete the override - one
+# line - and the trims collapse onto mobius_60 exactly.
+_P60 = _profile(
+    GENERATED_FAMILIES['mobius_60'],
+    override={'mop_pad_holder': _STANDARD['mop_pad_holder']},
+    add={'detergent_inlet': _WASH_STATION['detergent_inlet']},
+)
+
 DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
     # --- tier profiles: composed fallback for unauthored models ---
     'standard': _with_cadence(_profile(_STANDARD)),
@@ -2929,6 +2952,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
     'wash_station_track': _with_cadence(_profile(_STANDARD, _AUTO_EMPTY, _WASH_STATION, override=_MOP_TRACK)),
     'wash_station_roller': _with_cadence(_profile(_STANDARD, _AUTO_EMPTY, _WASH_STATION, override=_MOP_ROLLER)),
     'wash_station_baseboard': _with_cadence(_profile(_STANDARD, _AUTO_EMPTY, _WASH_STATION, add=_BASEBOARD)),
+    'p60': _with_cadence(_P60),
     # --- authored families: flat per-manual tables ---
     'x50': _with_cadence(_X50),
     'x50_master': _with_cadence(_X50_MASTER),

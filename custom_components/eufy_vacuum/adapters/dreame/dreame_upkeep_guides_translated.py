@@ -227,7 +227,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dust_bag": {
             "steps": [
                 "Press and hold the dust bin release button, tilt the dust bin cover open, pull out the dust bag handle, then remove and discard the used dust bag.",
-                "Insert the new dust bag as shown and insert the dust bag handle into the slot until it is installed in place.",
+                "Insert the new dust bag and insert the dust bag handle into the slot until it is installed in place.",
                 "Close the dust bin cover until you hear a click, confirming it is fully closed.",
             ],
             "notes": [
@@ -236,7 +236,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dustbin": {
             "steps": [
-                "Take out the dust box as shown, open the dust box lid, and empty out the debris.",
+                "Take out the dust box, open the dust box lid, and empty out the debris.",
                 "Open the dust box lid, pour clean water into the dust box, close the lid, shake the dust box from side to side, then pour out the dirty water.",
                 "Air-dry the dust box and filter completely before reinstalling them for use.",
             ],
@@ -322,7 +322,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot's top cover and press and hold the dust box release button to take out the dust box.",
-                "Open the dust box cover as shown and empty the debris out.",
+                "Open the dust box cover and empty the debris out.",
                 "Clean the dirt out of the dust box, then rinse it with clean water and let it dry completely before reinstalling.",
             ],
             "notes": [
@@ -331,7 +331,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "Take out the filter as shown.",
+                "Take out the filter.",
                 "Clean the dirt off the filter, then rinse it with clean water and let it dry completely before reinstalling.",
             ],
             "notes": [
@@ -388,7 +388,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
     "3": {
         "clean_water_tank": {
             "steps": [
-                "Press and hold both release buttons on the water tank at the same time, and pull the tank out from the bottom of the main unit in the direction shown.",
+                "Press and hold both release buttons on the water tank at the same time, and pull the tank out from the bottom of the main unit in the direction.",
                 "Open the water tank lid and pour out any remaining water.",
             ],
             "notes": [
@@ -400,7 +400,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the top cover of the main unit, press and hold the dust box release button, and take out the dust box.",
-                "As shown in the diagram, open the dust box lid and empty out the debris.",
+                "Open the dust box lid and empty out the debris.",
                 "Use a cleaning tool to clean the dust box.",
                 "Rinse the dust box with clean water and let it dry completely before reinstalling.",
             ],
@@ -411,7 +411,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "As shown in the diagram, take out the filter.",
+                "Take out the filter.",
                 "Use a cleaning tool to clean the filter.",
                 "Rinse the filter with clean water and let it dry completely before reinstalling.",
             ],
@@ -517,7 +517,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Remove the robot's top cover, then press and hold the dust box release button to remove the dust box.",
-                "Open the dust box lid as shown and empty the dust from inside.",
+                "Open the dust box lid and empty the dust from inside.",
                 "Rinse the dust box with clean water and let it dry completely before reinstalling.",
             ],
             "notes": [
@@ -547,7 +547,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush-cover release buttons on both sides inward, remove the brush cover, and lift the roller brush up out of the robot.",
-                "Take out the roller brush as shown in the diagram, use a suitable tool to remove any hair tangled around it, then push it firmly back into the brush holder until it clicks into place.",
+                "Take out the roller brush, use a suitable tool to remove any hair tangled around it, then push it firmly back into the brush holder until it clicks into place.",
                 "With the arrow marking facing up, insert the brush holder into the slot at an angle and press it down.",
                 "Align all the tabs on the brush cover with their matching slots and insert them so the cover sits fully in place with nothing lifted.",
                 "Press down on both sides of the brush cover until it clicks into place.",
@@ -1116,7 +1116,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dustbin": {
             "steps": [
-                "As shown, remove the dustbin, open the dustbin lid, and empty out the debris.",
+                "Remove the dustbin, open the dustbin lid, and empty out the debris.",
                 "Open the dustbin lid, pour clean water into the dustbin, close the lid, and shake it side to side, then pour out the dirty water.",
                 "Air-dry the dustbin and filter completely before reinstalling and using them.",
             ],
@@ -1220,7 +1220,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the cover of the robot vacuum body and, while pressing the clip, remove the dust box.",
-                "Open the dust box cover as shown in the figure and dispose of the debris.",
+                "Open the dust box cover and dispose of the debris.",
                 "Rinse the dust box with clean water and let it dry completely before reattaching.",
             ],
             "notes": [
@@ -1243,7 +1243,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Press the brush guard lock to release the brush guard and remove it.",
                 "Take the main brush out of the robot vacuum body.",
-                "Pull the brush covers off both ends of the brush, as shown in the figure.",
+                "Pull the brush covers off both ends of the brush.",
                 "Use the included cleaning tool to remove any hair tangled around the brush.",
                 "Reattach the brush covers to both ends of the brush and put the brush back in place.",
                 "Press the brush guard back on to secure it.",
@@ -1267,7 +1267,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the sensors with a soft, dry cloth, as shown in the figure below.",
+                "Wipe the sensors with a soft, dry cloth.",
             ],
             "notes": [
                 "The robot vacuum body and the charging dock contain precision electronic components inside, so using a wet cloth may cause a malfunction; use a dry cloth only.",
@@ -1340,7 +1340,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "main_brush": {
             "steps": [
-                "Following the arrow direction shown in the diagram, press and hold the main brush cover release button, remove the main brush cover, then lift the main brush out from above.",
+                "Following the arrow direction, press and hold the main brush cover release button, remove the main brush cover, then lift the main brush out from above.",
                 "Following the diagram, pull the end caps off both ends of the main brush, then use the cleaning brush or another suitable tool to cut away any hair wrapped around the main brush and its bearings.",
                 "Following the diagram, reinstall the main brush and the main brush cover.",
             ],
@@ -1348,7 +1348,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "mop_cloth": {
             "steps": [
-                "Remove the mop cloth from the vibrating mop mount as shown in the diagram.",
+                "Remove the mop cloth from the vibrating mop mount.",
                 "Install the new mop cloth.",
             ],
             "notes": [],
@@ -1395,7 +1395,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Carefully flip the base station over to expose its underside, use a suitable tool to unscrew the air duct cover screws, and remove the air duct cover.",
                 "Check whether the air duct is blocked by any foreign object and clear it out.",
-                "Reinstall the air duct cover as shown.",
+                "Reinstall the air duct cover.",
             ],
             "notes": [
                 "Before performing this maintenance, first remove the water tank and wipe dry any water on the base station's chassis and clean-water port, to avoid leaks.",
@@ -1589,15 +1589,15 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "main_brush": {
             "steps": [
-                "Following the arrow direction shown in the diagram, press and hold the main brush cover release button to remove the main brush cover, then lift out the main brush.",
-                "Pull the end caps off both ends of the main brush as shown, then use the cleaning brush or another suitable tool to cut away hair tangled around the main brush and its bearings.",
-                "Reinstall the main brush and main brush cover as shown.",
+                "Following the arrow direction, press and hold the main brush cover release button to remove the main brush cover, then lift out the main brush.",
+                "Pull the end caps off both ends of the main brush, then use the cleaning brush or another suitable tool to cut away hair tangled around the main brush and its bearings.",
+                "Reinstall the main brush and main brush cover.",
             ],
             "notes": [],
         },
         "mop_cloth": {
             "steps": [
-                "Remove the mop from the vibrating mop mount as shown in the diagram.",
+                "Remove the mop from the vibrating mop mount.",
                 "Install the new mop.",
             ],
             "notes": [],
@@ -1644,7 +1644,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Carefully turn the base station over to expose its underside, then use a suitable tool to unscrew the air duct cover screws and remove the air duct cover.",
                 "Check the air duct for any foreign object causing a blockage and clear it.",
-                "Reinstall the air duct cover as shown in the diagram.",
+                "Reinstall the air duct cover.",
             ],
             "notes": [
                 "Before servicing, remove the water tank first and wipe dry the water inlet beneath the tank, the base station chassis, and the water outlet inside the base station chassis, to prevent leaks.",
@@ -1691,8 +1691,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dust_bag": {
             "steps": [
-                "Remove the used dust bag from the dust collection chamber and discard it, as shown in the diagram.",
-                "Install a new dust bag into the dust collection chamber, as shown in the diagram.",
+                "Remove the used dust bag from the dust collection chamber and discard it.",
+                "Install a new dust bag into the dust collection chamber.",
             ],
             "notes": [
                 "When you take out the dust bag, its carry handle automatically closes to seal the bag, effectively preventing dust from leaking out.",
@@ -1719,7 +1719,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the main brush cover release buttons on both sides to remove the main brush cover, then lift the main brush out and upward.",
-                "Pull out the end caps from both ends of the main brush as shown in the diagram, then use a suitable small tool to cut away hair tangled around the main brush and its bearings.",
+                "Pull out the end caps from both ends of the main brush, then use a suitable small tool to cut away hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -1773,7 +1773,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Carefully turn the base station over to expose its underside, use a suitable tool to unscrew the air duct cover screws, and remove the air duct cover.",
                 "Check whether the air duct is blocked by foreign objects and clean it if so.",
-                "As shown, put the air duct cover back on.",
+                "Put the air duct cover back on.",
             ],
             "notes": [
                 "Before doing this maintenance, first remove the water tank and wipe dry any water on the base station chassis and clean-water port, to avoid leakage.",
@@ -1846,7 +1846,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard release buttons on both sides inward to remove the brush guard, then lift the main brush out.",
-                "As shown, pull off the end caps at both ends of the main brush, then use a suitable small tool to cut away hair tangled around the main brush and its bearings.",
+                "Pull off the end caps at both ends of the main brush, then use a suitable small tool to cut away hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -1899,7 +1899,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 "The robot and base station contain sensitive electronic components inside; use a dry cloth when cleaning them, and do not use a damp cloth, to avoid water damage.",
-                "As shown, do not stand the robot upright on its side — this may cause slight water leakage, which is normal.",
+                "Do not stand the robot upright on its side — this may cause slight water leakage, which is normal.",
             ],
         },
     },
@@ -1941,7 +1941,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dust_bag": {
             "steps": [
                 "Remove the old dust bag: once it is full, open the robot's top cover, press and hold the dust bag release button, and lift the dust bag out and discard it.",
-                "Install the new dust bag: fluff the new dust bag up as shown, align the dust bag's dust inlet with the robot's dust outlet, then insert the dust bag's plastic piece straight down into the slot according to the clip structure until you hear a \"click,\" indicating it is properly installed.",
+                "Install the new dust bag: fluff the new dust bag up, align the dust bag's dust inlet with the robot's dust outlet, then insert the dust bag's plastic piece straight down into the slot according to the clip structure until you hear a \"click,\" indicating it is properly installed.",
             ],
             "notes": [],
         },
@@ -2026,7 +2026,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Unscrew the air duct cover screws and remove the cover.",
                 "Check whether the air duct is blocked by foreign objects and clear any blockage.",
-                "Reinstall the air duct cover as shown.",
+                "Reinstall the air duct cover.",
             ],
             "notes": [
                 "Only needed if the air duct becomes blocked.",
@@ -2086,7 +2086,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward and hold the release buttons on both sides of the main brush cover to remove the cover, then lift the main brush out.",
-                "As shown, pull out the end caps at both ends of the main brush, then use the cleaning tool to cut away any hair wound around the brush and its bearing.",
+                "Pull out the end caps at both ends of the main brush, then use the cleaning tool to cut away any hair wound around the brush and its bearing.",
             ],
             "notes": [
                 "If hair is wound too thick or tight, do not pull it forcefully, as this may damage the main brush.",
@@ -2157,7 +2157,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the release buttons on both sides of the main brush cover to remove the cover, then lift out the main brush.",
-                "Pull off the end caps at both ends of the main brush as shown in the diagram, then use a suitable tool to cut away any hair wrapped around the brush and its bearings.",
+                "Pull off the end caps at both ends of the main brush, then use a suitable tool to cut away any hair wrapped around the brush and its bearings.",
             ],
             "notes": [],
         },
@@ -2264,7 +2264,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Open the robot's cover.",
                 "Press the clip and remove the dust box.",
-                "Open the dust box cover, as shown in the diagram.",
+                "Open the dust box cover.",
                 "Empty the dust box.",
             ],
             "notes": [],
@@ -2286,7 +2286,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Push the brush guard lock inward to release the brush guard.",
                 "Lift the brush out of the robot body.",
-                "Referring to the diagram, pull the brush covers off both ends of the brush.",
+                "Pull the brush covers off both ends of the brush.",
                 "Using a suitable cleaning tool, remove any hair tangled around the brush.",
                 "Reattach the covers to both ends of the brush.",
                 "Reinstall the brush.",
@@ -2365,7 +2365,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Lift the robot's top cover and press and hold the dust box release button to remove the dust box.",
-                "Open the dust box cover, as shown in the illustration.",
+                "Open the dust box cover.",
                 "Empty the dust box.",
                 "Rinse the dust box with clean water and let it dry completely before reinstalling.",
             ],
@@ -2389,7 +2389,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Press the release buttons on both sides of the brush cover inward to release it.",
                 "Remove the brush cover and lift the main brush out of the robot.",
-                "Pull off the end caps at both ends of the main brush, as shown in the illustration.",
+                "Pull off the end caps at both ends of the main brush.",
                 "Use a suitable cleaning brush to remove hair tangled around the main brush and its bearings.",
                 "Reinstall the end caps on both ends of the main brush.",
                 "Reinstall the main brush into the robot.",
@@ -2491,7 +2491,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the main brush cover release button inward to remove the cover, then take the brush out.",
-                "Pull the brush out as shown in the illustration; if hair is tangled around it, remove the hair with a suitable tool. Once finished cleaning, firmly push the brush back into the main brush holder until it clicks into place.",
+                "Pull the brush out; if hair is tangled around it, remove the hair with a suitable tool. Once finished cleaning, firmly push the brush back into the main brush holder until it clicks into place.",
                 "Insert the main brush holder into the slot at a downward angle, with the marked arrow facing upward.",
                 "Align the front edge of the main brush cover with the slot, insert it at a downward angle, and press it into place.",
             ],
@@ -2503,7 +2503,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Rotate the auxiliary wheel until the \"OUT\" arrow points upward, then pull the wheel out.",
                 "Use a suitable tool to clean the hair tangled around the main wheel and the auxiliary wheel.",
-                "After cleaning, rotate the main wheel to align the two arrows (see figure 1). Then, with the \"IN\" arrow facing downward, insert the left and right auxiliary wheels until they click into place (see figure 2).",
+                "After cleaning, rotate the main wheel to align the two arrows. Then, with the \"IN\" arrow facing downward, insert the left and right auxiliary wheels until they click into place.",
             ],
             "notes": [],
         },
@@ -2521,7 +2521,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot's sensors — the laser distance sensor (LDS), camera protective window, bumper, side sensors, anti-drop sensors, and carpet sensor — with a soft, dry cloth, as shown in the illustration.",
+                "Wipe the robot's sensors — the laser distance sensor (LDS), camera protective window, bumper, side sensors, anti-drop sensors, and carpet sensor — with a soft, dry cloth.",
             ],
             "notes": [
                 "A wet cloth can damage sensitive components inside the robot and base station — use a dry cloth when cleaning.",
@@ -2579,7 +2579,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the clips inward on both sides of the main brush to release the guard, then lift the brush straight up to remove it.",
-                "Remove the covers from both ends of the main brush, as shown in the figure.",
+                "Remove the covers from both ends of the main brush.",
                 "Use the cleaning tool to remove tangled hair from the brush and its bearings.",
             ],
             "notes": [
@@ -2657,7 +2657,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "When the bag is full, pull the dust-compartment cover open using its handle, then pull the dust bag's tab to remove the bag and discard it.",
                 "Wipe the dust and dirt off the filter with a dry cloth.",
-                "Fit the new dust bag in place as shown and insert its tab into the slot until it's properly seated.",
+                "Fit the new dust bag in place and insert its tab into the slot until it's properly seated.",
             ],
             "notes": [
                 "Pulling the dust bag's tab up seals the bag, which helps keep dust from spilling out.",
@@ -2725,7 +2725,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "washboard": {
             "steps": [
                 "Take out the washboard and scrub it clean under running tap water using a brush.",
-                "Wipe the water off the washboard with a dry cloth, then place it back into the base station — make sure the base station's drain pipe sits properly in the washboard's groove (as shown) so it doesn't tilt up and cause problems.",
+                "Wipe the water off the washboard with a dry cloth, then place it back into the base station — make sure the base station's drain pipe sits properly in the washboard's groove () so it doesn't tilt up and cause problems.",
             ],
             "notes": [
                 "Do not tilt the base station during daily use and cleaning. If water pools on the base station's chassis, wipe it dry with a cloth.",
@@ -2737,7 +2737,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "base_station_filter": {
             "steps": [
                 "Hold both sides of the base station's extension pad and pull it straight up to remove it.",
-                "Referring to the diagram, pull out the debris box and clean it.",
+                "Pull out the debris box and clean it.",
                 "After cleaning, reinstall the debris box and the base station extension pad; you'll hear a click when the extension pad is properly seated.",
             ],
             "notes": [],
@@ -2761,7 +2761,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dust_bag": {
             "steps": [
                 "When you need to replace the dust bag, open the dust compartment cover and pull the dust bag's handle to take out the dust bag, then discard it.",
-                "Insert the new dust bag as shown in the diagram and fit the dust bag handle into the slot, installing it fully.",
+                "Insert the new dust bag and fit the dust bag handle into the slot, installing it fully.",
                 "Align the top clips of the dust compartment cover first, then press down on the bottom until you hear a click, making sure the dust compartment is fully closed.",
             ],
             "notes": [
@@ -2778,7 +2778,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "Take the filter out of the dust box, as shown in the diagram.",
+                "Take the filter out of the dust box.",
                 "Clean the dirt off the filter; if needed, rinse it with clean water.",
                 "Let it dry completely, then reinstall it.",
             ],
@@ -2883,7 +2883,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Once the dust bag is full, pull the dust tank cover open outward using the handle.",
                 "Pull the dust bag's handle to remove the dust bag, then discard it.",
                 "Wipe the dust and debris off the filter with a dry cloth.",
-                "Insert a new dust bag as shown and fit its handle into the slot until properly seated.",
+                "Insert a new dust bag and fit its handle into the slot until properly seated.",
                 "Reinstall the dust tank cover until you hear a \"click\", confirming it is properly installed.",
             ],
             "notes": [
@@ -3017,7 +3017,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "When the dust bag is full, pull the dust compartment cover open from the handle, then hold the dust bag pull tab to take out the dust bag and discard it.",
                 "Wipe the dust and debris off the filter with a dry cloth.",
-                "Insert a new dust bag as shown, and insert the dust bag pull tab into the slot until it is properly seated.",
+                "Insert a new dust bag, and insert the dust bag pull tab into the slot until it is properly seated.",
                 "Reattach the dust compartment cover until you hear a click, making sure it is securely installed.",
             ],
             "notes": [
@@ -3127,7 +3127,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dust_bag": {
             "steps": [
-                "Press to open the dust tank cover, as shown, and discard the dust bag.",
+                "Press to open the dust tank cover, and discard the dust bag.",
                 "Wipe the dust filter with a soft, dry cloth.",
                 "Install a new dust bag, then close the dust tank cover.",
             ],
@@ -3161,8 +3161,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard release clips on both sides inward to remove the brush guard, then lift the main brush out.",
-                "Pull out the main brush as shown, and use a suitable tool to clean off the tangled hair; once done, push the main brush firmly into the main brush bracket until you hear a click, indicating it is installed.",
-                "At the angle shown, with the arrow side of the main brush bracket facing up, align it with the socket and insert the main brush back in at a downward angle.",
+                "Pull out the main brush, and use a suitable tool to clean off the tangled hair; once done, push the main brush firmly into the main brush bracket until you hear a click, indicating it is installed.",
+                "With the arrow side of the main brush bracket facing up, align it with the socket and insert the main brush back in at a downward angle.",
                 "Align the front edge of the brush guard with the socket and insert it at a downward angle, making sure it is fully seated.",
             ],
             "notes": [
@@ -3173,7 +3173,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "First rotate the auxiliary climbing wheel until the \"OUT\" arrow faces upward, then pull the wheel out.",
                 "Use a suitable small tool to remove hair tangled around the main wheel and the auxiliary climbing wheels.",
-                "After cleaning, rotate the main wheel so the two arrows on its side line up. Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary climbing wheels back into place as shown, until you hear a click indicating they are installed.",
+                "After cleaning, rotate the main wheel so the two arrows on its side line up. Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary climbing wheels back into place, until you hear a click indicating they are installed.",
             ],
             "notes": [],
         },
@@ -3514,7 +3514,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dust_bag": {
             "steps": [
                 "Open the base station's top cover, pull the dust bag handle upward, take out the old dust bag, and discard it.",
-                "Insert the tab into the slot as shown in the diagram, until the new dust bag is properly seated.",
+                "Insert the tab into the slot, until the new dust bag is properly seated.",
                 "Press down on the base station's top cover until it is fully closed.",
             ],
             "notes": [
@@ -3537,7 +3537,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "Remove the filter, as shown in the diagram.",
+                "Remove the filter.",
                 "Rinse the filter repeatedly and gently tap the filter frame to knock the dirt loose, until it is clean.",
                 "Air-dry the filter completely before reinstalling it.",
             ],
@@ -3633,7 +3633,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "Remove the filter from the dust box or the 2-in-1 water tank as shown in the diagram.",
+                "Remove the filter from the dust box or the 2-in-1 water tank.",
                 "Rinse the filter repeatedly and gently tap the filter frame to loosen the dirt, until it is clean.",
             ],
             "notes": [
@@ -3730,7 +3730,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "When the dust bag is full, pull the dust compartment cover open outward from its handle, then pull the dust bag's handle to lift out the old dust bag and discard it.",
                 "Wipe the dust and dirt off the filter with a dry cloth.",
-                "Insert the new dust bag as shown, fitting its handle into the slot until it is properly seated.",
+                "Insert the new dust bag, fitting its handle into the slot until it is properly seated.",
                 "Put the dust compartment cover back on until you hear a click, making sure it is fully installed.",
             ],
             "notes": [
@@ -3739,7 +3739,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dustbin": {
             "steps": [
-                "Take out the dust box as shown, open the dust box cover, and empty out the debris; the dust box can be rinsed with water if needed.",
+                "Take out the dust box, open the dust box cover, and empty out the debris; the dust box can be rinsed with water if needed.",
                 "Make sure the dust box is completely dry before reinstalling it.",
             ],
             "notes": [
@@ -3749,7 +3749,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "Open the filter clip as shown and remove the filter.",
+                "Open the filter clip and remove the filter.",
                 "Gently tap the rim of the filter to knock out dirt, or rinse it clean under tap water.",
                 "Make sure the filter is completely dry before reinstalling it.",
             ],
@@ -3853,7 +3853,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "When the dust bag is full, pull the dust compartment cover open outward using the clip, then pull the dust bag handle to take out the dust bag and discard it.",
                 "Wipe the dust and dirt off the filter with a dry cloth.",
-                "Insert a new dust bag as shown, and fit the dust bag handle into the slot until it is fully seated.",
+                "Insert a new dust bag, and fit the dust bag handle into the slot until it is fully seated.",
                 "Put the dust compartment cover back on until you hear it click into place, and make sure it is fully installed.",
             ],
             "notes": [
@@ -4075,7 +4075,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "After a moment, the base station will automatically drain the dirty water.",
                 "Once draining is complete, wipe the base station chassis clean.",
                 "Flip the washboard over, then remove the roller cover and the roller in turn, and pull off the caps on both ends of the roller.",
-                "After clearing away any hair tangled on the roller, reinstall each part matching the colors, as shown in the diagram.",
+                "After clearing away any hair tangled on the roller, reinstall each part matching the colors.",
                 "Rinse the washboard under a tap and wipe it clean, then reinstall it into the base station at a downward angle.",
                 "Use the app, or briefly press the robot's button, to send the robot back to the base station.",
             ],
@@ -4145,7 +4145,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Remove the roller cover, then remove the roller.",
                 "Pull off the end caps at both ends of the roller.",
                 "Clean off any hair tangled around the roller.",
-                "Reinstall each part, matching them by color, as shown in the diagram.",
+                "Reinstall each part, matching them by color.",
             ],
             "notes": [
                 "If the scraper strips on either side of the washboard are blocking the roller cover, rotate the roller to move them out of the way.",
@@ -4290,8 +4290,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the release buttons on both sides of the main brush cover inward to remove the cover, then lift the main brush out.",
-                "Pull the main brush out as shown, and use a suitable tool to remove hair tangled around it. After cleaning, push the main brush firmly into the main brush bracket until you hear a \"click,\" which means it's properly installed.",
-                "With the arrow side of the main brush bracket facing up, align it with the socket and insert the main brush at a downward angle, as shown.",
+                "Pull the main brush out, and use a suitable tool to remove hair tangled around it. After cleaning, push the main brush firmly into the main brush bracket until you hear a \"click,\" which means it's properly installed.",
+                "With the arrow side of the main brush bracket facing up, align it with the socket and insert the main brush at a downward angle.",
                 "Align the front end of the main brush cover with the socket and insert it at a downward angle, making sure it's fully installed.",
             ],
             "notes": [
@@ -4304,7 +4304,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "First rotate the auxiliary climbing wheel until the \"OUT\" arrow points upward, then pull the auxiliary climbing wheel out.",
                 "Use a suitable small tool to clean the hair tangled around the main wheel and the auxiliary climbing wheel.",
-                "After cleaning, rotate the main wheel so the two arrows on its side line up (see figure ①). Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary climbing wheels back into place as shown (see figure ②) — you'll hear a \"click\" when they're properly installed.",
+                "After cleaning, rotate the main wheel so the two arrows on its side line up. Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary climbing wheels back into place — you'll hear a \"click\" when they're properly installed.",
             ],
             "notes": [],
         },
@@ -4323,7 +4323,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot's sensors and collision buffer clean with a soft, dry cloth — this includes the edge sensor, collision buffer, dynamic LDS lidar, bumper viewing window, ultrasonic sensor, and cliff sensor, as shown in the figure.",
+                "Wipe the robot's sensors and collision buffer clean with a soft, dry cloth — this includes the edge sensor, collision buffer, dynamic LDS lidar, bumper viewing window, ultrasonic sensor, and cliff sensor.",
             ],
             "notes": [
                 "The robot and base station contain sensitive electronic components inside; clean them with a dry cloth. Do not use a wet cloth, as water getting inside can cause damage.",
@@ -4425,7 +4425,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the main brush cover release buttons on both sides to remove the main brush cover, then lift the main brush out.",
-                "Pull the end caps off both ends of the main brush as shown, then use the cleaning brush or another suitable tool to cut away hair tangled around the main brush and its bearings.",
+                "Pull the end caps off both ends of the main brush, then use the cleaning brush or another suitable tool to cut away hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -4522,7 +4522,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard release buttons on both sides inward to remove the brush guard, then lift out the main brush.",
-                "Pull off the caps at both ends of the main brush as shown, then use the cleaning tool or another suitable tool to cut away any hair tangled around the main brush and its bearings.",
+                "Pull off the caps at both ends of the main brush, then use the cleaning tool or another suitable tool to cut away any hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -4631,7 +4631,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press and hold the release buttons on both sides of the main brush cover to remove the cover, then lift the main brush out.",
-                "Pull the caps off both ends of the main brush as shown, then use the cleaning tool to cut away any hair wrapped around the main brush and its bearings.",
+                "Pull the caps off both ends of the main brush, then use the cleaning tool to cut away any hair wrapped around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -4729,7 +4729,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Press the release buttons on both sides of the main brush cover inward and take the cover off.",
                 "Lift the main brush out.",
-                "Pull the end caps off both ends of the main brush as shown.",
+                "Pull the end caps off both ends of the main brush.",
                 "Use the small cleaning tool on the back of the included cleaning brush to cut away hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
@@ -4742,7 +4742,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot's sensors — the edge sensors, AI Action object recognition sensor, line laser sensor, LDS laser sensor, ultrasonic sensor, and cliff sensors — and the collision buffer clean with a soft, dry cloth, as shown in the figure.",
+                "Wipe the robot's sensors — the edge sensors, AI Action object recognition sensor, line laser sensor, LDS laser sensor, ultrasonic sensor, and cliff sensors — and the collision buffer clean with a soft, dry cloth.",
             ],
             "notes": [
                 "The robot and base station contain sensitive electronic components inside; clean them only with a dry cloth. Do not use a wet cloth, as it can cause water damage.",
@@ -4936,7 +4936,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the main brush cover release buttons on both sides to remove the main brush cover, then lift the main brush out.",
-                "As shown, pull the end caps off both ends of the main brush, then use a suitable tool to cut away any hair wrapped around the main brush and its bearings.",
+                "Pull the end caps off both ends of the main brush, then use a suitable tool to cut away any hair wrapped around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -5037,7 +5037,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the main brush cover release buttons on both sides to remove the main brush cover, then lift out the main brush.",
-                "Pull the end caps off both ends of the main brush as shown, then use the cleaning brush or another suitable tool to cut away any hair wrapped around the main brush and its bearings.",
+                "Pull the end caps off both ends of the main brush, then use the cleaning brush or another suitable tool to cut away any hair wrapped around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -5265,7 +5265,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the main brush guard release buttons on both sides inward to remove the brush guard, then lift the main brush out.",
-                "Pull the caps off both ends of the main brush as shown, then use the cleaning brush or another suitable tool to cut away the hair tangled around the main brush and its bearings.",
+                "Pull the caps off both ends of the main brush, then use the cleaning brush or another suitable tool to cut away the hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -5311,7 +5311,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Press the release clips on both sides of the base station's underside, then pull out the base plate.",
                 "Take out the washboard, then rinse the washboard and the base plate under running water using the included cleaning brush.",
                 "Flip the washboard over, then remove the roller cover and the roller in turn, and pull the caps off both ends of the roller.",
-                "After clearing the hair tangled around the roller, reinstall each part in the matching color order, as shown in the diagram.",
+                "After clearing the hair tangled around the roller, reinstall each part in the matching color order.",
                 "Wipe the liquid-level contacts, base plate, and washboard dry with a soft, dry cloth, then reinstall the washboard and base plate.",
                 "Use the app, or press the robot's button briefly, to send the robot back to the base station.",
             ],
@@ -5392,7 +5392,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press and hold the main brush cover release buttons on both sides inward, then remove the main brush cover and lift the main brush out.",
-                "Pull off the end caps at both ends of the main brush, as shown in the diagram.",
+                "Pull off the end caps at both ends of the main brush.",
                 "Use the cleaning brush or another suitable tool to cut away hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
@@ -5444,7 +5444,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Flip the washboard over, then remove the roller cover and the roller in turn.",
                 "Pull off the end caps at both ends of the roller.",
                 "Clean away the hair tangled around the roller.",
-                "Reinstall each part, matching them by color, as shown in the diagram.",
+                "Reinstall each part, matching them by color.",
                 "Rinse the washboard under a tap and wipe it clean.",
                 "Reinstall the washboard into the base station at a downward angle.",
                 "Use the app, or briefly press the button on the robot, to return the robot to the base station.",
@@ -5529,8 +5529,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the brush guard release clips on both sides, remove the brush guard, and lift the main brush out.",
-                "As shown in the diagram, firmly pull out the end cap at the square bearing end, then use the cleaning brush or another suitable tool to remove debris from the main brush.",
-                "As shown in the diagram, pull out the bristle strip for cleaning, and use the small tool to carefully clean the slots between the main brush's comb teeth.",
+                "Firmly pull out the end cap at the square bearing end, then use the cleaning brush or another suitable tool to remove debris from the main brush.",
+                "Pull out the bristle strip for cleaning, and use the small tool to carefully clean the slots between the main brush's comb teeth.",
                 "Reinstall the bristle strip and end cap, then reinstall the main brush and snap the brush guard firmly back into place.",
             ],
             "notes": [
@@ -5555,7 +5555,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot's sensors clean with a soft, dry cloth, including the edge sensors, the anti-collision buffer's bumper viewing window, the dynamic LDS lidar, the ultrasonic sensor, and the cliff sensors, as shown in the diagram.",
+                "Wipe the robot's sensors clean with a soft, dry cloth, including the edge sensors, the anti-collision buffer's bumper viewing window, the dynamic LDS lidar, the ultrasonic sensor, and the cliff sensors.",
             ],
             "notes": [
                 "The robot and base station contain sensitive electronic components inside; use a dry cloth when cleaning, and never a wet cloth, to avoid water damage.",
@@ -5587,7 +5587,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Flip the washboard over, then remove the roller cover and the roller.",
                 "Pull the end caps off both ends of the roller.",
                 "Clean off any hair tangled around the roller.",
-                "Reinstall each part, matching colors, as shown in the diagram.",
+                "Reinstall each part, matching colors.",
                 "Rinse the washboard under a tap and wipe it dry, then reinstall it into the base station at a downward angle.",
                 "Use the app, or briefly press the robot's button, to send the robot back to the base station.",
             ],
@@ -5668,8 +5668,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips on both sides inward to remove the brush guard, then lift the main brush out.",
-                "Pull the main brush out of its bracket as shown, and use the cleaning brush to remove tangled hair. After cleaning, reinstall the main brush onto the bracket - you'll hear a click when it's properly seated.",
-                "At the angle shown, with the arrow side of the brush bracket facing up, align it with the socket and tilt it into place to reinstall the main brush. Then reattach the brush guard - you'll hear a click when it's properly seated.",
+                "Pull the main brush out of its bracket, and use the cleaning brush to remove tangled hair. After cleaning, reinstall the main brush onto the bracket - you'll hear a click when it's properly seated.",
+                "With the arrow side of the brush bracket facing up, align it with the socket and tilt it into place to reinstall the main brush. Then reattach the brush guard - you'll hear a click when it's properly seated.",
             ],
             "notes": [],
         },
@@ -5677,7 +5677,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Rotate the auxiliary wheel until its OUT arrow faces upward, then pull the auxiliary wheel out.",
                 "Use a suitable small tool to clean the hair tangled around the main wheel and auxiliary wheels.",
-                "After cleaning, rotate the main wheel so the arrow on its side lines up with the notch (see figure), then, following the IN arrow pointing downward, insert the left and right auxiliary wheels back into place as shown - you'll hear a click when they're properly installed.",
+                "After cleaning, rotate the main wheel so the arrow on its side lines up with the notch, then, following the IN arrow pointing downward, insert the left and right auxiliary wheels back into place - you'll hear a click when they're properly installed.",
             ],
             "notes": [],
         },
@@ -5796,8 +5796,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the release buttons on both sides of the main brush cover to remove the cover, then lift the main brush out.",
-                "Pull out the main brush as shown, and use the cleaning tool to clear away any tangled hair. After cleaning, reinstall the main brush onto the brush bracket - you'll hear a \"click\" when it's seated.",
-                "As shown, with the arrowed side of the brush bracket facing up, align it with the socket and insert the main brush at a downward angle.",
+                "Pull out the main brush, and use the cleaning tool to clear away any tangled hair. After cleaning, reinstall the main brush onto the brush bracket - you'll hear a \"click\" when it's seated.",
+                "With the arrowed side of the brush bracket facing up, align it with the socket and insert the main brush at a downward angle.",
                 "Align the front end of the main brush cover with the socket and insert it at a downward angle, making sure it is fully seated.",
             ],
             "notes": [],
@@ -5806,7 +5806,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "First rotate the auxiliary wheel until its \"OUT\" arrow faces up, then pull the auxiliary wheel out.",
                 "Use a suitable small tool to remove any hair tangled around the main wheel and the auxiliary wheel.",
-                "After cleaning, rotate the main wheel so the two arrows on its side line up (see figure). Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary wheels back into place as shown - a \"click\" sound means it is properly installed.",
+                "After cleaning, rotate the main wheel so the two arrows on its side line up. Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary wheels back into place - a \"click\" sound means it is properly installed.",
             ],
             "notes": [],
         },
@@ -5825,7 +5825,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot's sensors (edge sensor, ultrasonic sensor, cliff sensor) and the dynamic LDS lidar with a soft, dry cloth, as shown in the diagram.",
+                "Wipe the robot's sensors (edge sensor, ultrasonic sensor, cliff sensor) and the dynamic LDS lidar with a soft, dry cloth.",
             ],
             "notes": [
                 "The robot and base station contain sensitive electronic components inside; clean them with a dry cloth only - a wet cloth risks water damage.",
@@ -5928,8 +5928,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the main-brush cover's release buttons on both sides inward to remove the cover, then lift the main brush out.",
-                "As shown in the manual, firmly pull out the square-bearing end cap, then use the cleaning brush or another suitable tool to clear debris from the main brush.",
-                "As shown in the manual, pull out the bristle strip to clean it, and use a small tool to carefully clean the gaps between the main brush's comb teeth.",
+                "Firmly pull out the square-bearing end cap, then use the cleaning brush or another suitable tool to clear debris from the main brush.",
+                "Pull out the bristle strip to clean it, and use a small tool to carefully clean the gaps between the main brush's comb teeth.",
                 "Reinstall the bristle strip and end cap, then reinstall the main brush and snap the main-brush cover firmly back into place.",
             ],
             "notes": [
@@ -6029,7 +6029,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the release buttons on both sides of the main brush cover to remove the cover, then lift the main brush out.",
-                "Pull off the caps on both ends of the main brush as shown in the diagram, then use the cleaning tool (or another suitable tool) to cut away hair tangled around the main brush and its bearings.",
+                "Pull off the caps on both ends of the main brush, then use the cleaning tool (or another suitable tool) to cut away hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -6067,7 +6067,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "In the app, start the base station's chassis-cleaning function; the robot will automatically leave the base station. Take out the washing tray and wait for the base station to fill with water automatically.",
                 "Use the included cleaning brush to clean the base station's chassis. Wait a moment for the base station to automatically drain the dirty water, then wipe the chassis clean once draining is complete.",
                 "Flip the washing tray over, then remove the roller cover and the roller in turn, and pull off the caps on both ends of the roller.",
-                "Remove any hair wrapped around the roller, then reinstall each part according to the matching colors shown in the diagram.",
+                "Remove any hair wrapped around the roller, then reinstall each part according to the matching colors.",
                 "Rinse the washing tray under a tap and wipe it clean, then reinstall it into the base station at a downward angle.",
             ],
             "notes": [],
@@ -6138,7 +6138,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the release buttons on both sides of the main brush cover to remove the cover, then lift the main brush out from the top.",
-                "Pull the main brush out as shown, and use a suitable tool to clear away any tangled hair.",
+                "Pull the main brush out, and use a suitable tool to clear away any tangled hair.",
                 "With the arrow side of the main brush bracket facing up, align the brush with the socket and press it back in at a downward angle until it seats firmly (you'll hear a \"click\").",
                 "Align the front end of the main brush cover with the socket and insert it at a downward angle, making sure it is fully seated.",
             ],
@@ -6274,8 +6274,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard's release buttons on both sides inward to remove the brush guard, then lift the main brush out of the robot.",
-                "Pull the main brush out as shown and use a suitable tool to remove any hair tangled around it. Once clean, push the main brush firmly back in until it clicks into place.",
-                "With the arrow side of the brush mount facing up, align it with the socket and reinsert it at a downward angle, as shown.",
+                "Pull the main brush out and use a suitable tool to remove any hair tangled around it. Once clean, push the main brush firmly back in until it clicks into place.",
+                "With the arrow side of the brush mount facing up, align it with the socket and reinsert it at a downward angle.",
                 "Align the front edge of the brush guard with the slot and insert it at a downward angle, making sure it is fully seated.",
             ],
             "notes": [
@@ -6286,7 +6286,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Rotate the auxiliary wheel until its \"OUT\" arrow points upward, then pull the auxiliary wheel out.",
                 "Use a suitable small tool to remove any hair tangled around the main wheel and the auxiliary wheel.",
-                "Rotate the main wheel so the two arrows on its side line up, then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary wheels back into place as shown; you'll hear a click when they're seated.",
+                "Rotate the main wheel so the two arrows on its side line up, then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary wheels back into place; you'll hear a click when they're seated.",
             ],
             "notes": [],
         },
@@ -6410,8 +6410,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the release buttons on both sides of the main brush cover inward to remove the cover, then lift the main brush out.",
-                "Pull out the main brush as shown and use the cleaning tool to remove tangled hair. After cleaning, put the main brush back into the main brush bracket until it clicks into place.",
-                "Reinstall the main brush at the angle shown, with the arrow side of the main brush bracket facing up, aligned with the socket, and angled downward.",
+                "Pull out the main brush and use the cleaning tool to remove tangled hair. After cleaning, put the main brush back into the main brush bracket until it clicks into place.",
+                "Reinstall the main brush, with the arrow side of the main brush bracket facing up, aligned with the socket, and angled downward.",
                 "Align the front end of the main brush cover with the socket and insert it at a downward angle, making sure it is fully seated.",
             ],
             "notes": [
@@ -6422,7 +6422,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Rotate the auxiliary wheel until the \"OUT\" arrow faces up, then pull the auxiliary wheel out.",
                 "Use a suitable small tool to remove hair tangled around the main wheel and auxiliary wheel.",
-                "After cleaning, rotate the main wheel so the two arrows on its side line up. Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary wheels back into place as shown. It clicks into place when properly installed.",
+                "After cleaning, rotate the main wheel so the two arrows on its side line up. Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary wheels back into place. It clicks into place when properly installed.",
             ],
             "notes": [],
         },
@@ -6560,7 +6560,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the release buttons on both sides of the main brush cover to remove the cover, then lift the main brush out.",
-                "Pull the end caps off both ends of the main brush as shown in the diagram, then use a suitable tool to cut away any hair tangled around the main brush and its bearings.",
+                "Pull the end caps off both ends of the main brush, then use a suitable tool to cut away any hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -6683,8 +6683,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the release buttons on both sides of the main brush cover inward to remove the cover, then lift the main brush out.",
-                "Pull out the main brush as shown and use a suitable tool to clean off any tangled hair. After cleaning, push the main brush firmly back into the main brush bracket until you hear a \"click,\" confirming it is installed.",
-                "As shown, orient the main brush bracket with its arrow side facing up, align it with the socket, and reinsert the main brush at an angle.",
+                "Pull out the main brush and use a suitable tool to clean off any tangled hair. After cleaning, push the main brush firmly back into the main brush bracket until you hear a \"click,\" confirming it is installed.",
+                "Orient the main brush bracket with its arrow side facing up, align it with the socket, and reinsert the main brush at an angle.",
                 "Align the front end of the main brush cover with the slot at an angle and insert it, making sure it is fully seated.",
             ],
             "notes": [
@@ -6907,7 +6907,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dust_bag": {
             "steps": [
-                "As shown, gently press to open the dust-compartment cover, and discard the dust bag.",
+                "Gently press to open the dust-compartment cover, and discard the dust bag.",
                 "Wipe the dust filter with a soft, dry cloth.",
                 "Install a new dust bag, then close the dust-compartment cover.",
             ],
@@ -6941,8 +6941,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the release buttons on both sides of the main brush cover inward, then lift the main brush out from the top.",
-                "Pull out the main brush as shown and use a suitable tool to remove any tangled hair; once clean, put the main brush back onto its bracket until it clicks into place.",
-                "Align the bracket with its arrow side facing up, then insert it back into the socket at a downward angle, as shown.",
+                "Pull out the main brush and use a suitable tool to remove any tangled hair; once clean, put the main brush back onto its bracket until it clicks into place.",
+                "Align the bracket with its arrow side facing up, then insert it back into the socket at a downward angle.",
                 "Align the front end of the brush cover with the slot and insert it at a downward angle, making sure it is fully seated.",
             ],
             "notes": [
@@ -6953,7 +6953,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "First rotate the auxiliary wheel until its \"OUT\" arrow points upward, then pull the auxiliary wheel out.",
                 "Use a suitable small tool to clean off hair tangled around the main wheel and auxiliary wheel.",
-                "After cleaning, rotate the main wheel so the two arrows on its side line up (see figure 1). Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary wheels back into place as shown (see figure 2) — installation is complete when you hear a \"click\".",
+                "After cleaning, rotate the main wheel so the two arrows on its side line up. Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary wheels back into place — installation is complete when you hear a \"click\".",
             ],
             "notes": [],
         },
@@ -7073,8 +7073,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard release clips on both sides inward, then lift off the brush guard and take the main brush out.",
-                "Pull the main brush out as shown, and use a suitable tool to clean off any tangled hair.",
-                "With the arrow side of the main brush bracket facing up, align it with the socket and reinsert the main brush at a downward angle as shown - a \"click\" means it is seated correctly.",
+                "Pull the main brush out, and use a suitable tool to clean off any tangled hair.",
+                "With the arrow side of the main brush bracket facing up, align it with the socket and reinsert the main brush at a downward angle - a \"click\" means it is seated correctly.",
                 "Align the front edge of the brush guard with the slot and insert it at a downward angle, making sure it is fully seated.",
             ],
             "notes": [
@@ -7085,7 +7085,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Rotate the auxiliary climbing wheel until its \"OUT\" arrow faces upward, then pull the auxiliary wheel out.",
                 "Use a suitable small tool to clean the hair tangled around the main wheel and the auxiliary wheel.",
-                "After cleaning, rotate the main wheel so the two arrows on its side line up, then, following the \"IN\" arrow pointing downward, reinsert the left and right auxiliary wheels as shown - a \"click\" means they are seated correctly.",
+                "After cleaning, rotate the main wheel so the two arrows on its side line up, then, following the \"IN\" arrow pointing downward, reinsert the left and right auxiliary wheels - a \"click\" means they are seated correctly.",
             ],
             "notes": [],
         },
@@ -7374,7 +7374,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Rotate the auxiliary wheel until its \"OUT\" arrow faces upward, then pull the auxiliary wheel out.",
                 "Use a suitable small tool to remove hair tangled around the main wheel and auxiliary wheel.",
-                "After cleaning, rotate the main wheel so the two arrows on its side line up, then, following the \"IN\" arrow, reinsert the left and right auxiliary wheels as shown — a \"click\" means they're seated.",
+                "After cleaning, rotate the main wheel so the two arrows on its side line up, then, following the \"IN\" arrow, reinsert the left and right auxiliary wheels — a \"click\" means they're seated.",
             ],
             "notes": [],
         },
@@ -7500,8 +7500,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the release buttons on both sides of the main brush cover inward to remove the cover, then lift the main brush out.",
-                "Pull the main brush out as shown in the diagram and use a suitable tool to clean off any tangled hair; once clean, put the brush back onto its bracket — a click indicates it is properly installed.",
-                "With the arrow side of the brush bracket facing up, align it with the socket and reinsert the main brush at the angle shown, tilting it down and in.",
+                "Pull the main brush out and use a suitable tool to clean off any tangled hair; once clean, put the brush back onto its bracket — a click indicates it is properly installed.",
+                "With the arrow side of the brush bracket facing up, align it with the socket and reinsert the main brush, tilting it down and in.",
                 "Align the front end of the brush cover with the socket and insert it at a downward angle, making sure it is fully seated.",
             ],
             "notes": [
@@ -7732,7 +7732,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dust_bag": {
             "steps": [
-                "As shown, gently press to open the dust-collection compartment cover, and discard the dust bag.",
+                "Gently press to open the dust-collection compartment cover, and discard the dust bag.",
                 "Wipe the dust-collection filter with a soft, dry cloth.",
                 "Install the new dust bag, then close the dust-collection compartment cover.",
             ],
@@ -7785,7 +7785,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Rotate the auxiliary wheel until its \"OUT\" arrow points upward, then pull the auxiliary wheel out.",
                 "Use a suitable small tool to remove hair tangled around the main wheel and auxiliary wheel.",
-                "After cleaning, rotate the main wheel so the two arrows on its side line up, then insert the left and right auxiliary wheels back in following the \"IN\" arrow (pointing down) as shown, until they click into place.",
+                "After cleaning, rotate the main wheel so the two arrows on its side line up, then insert the left and right auxiliary wheels back in following the \"IN\" arrow (pointing down), until they click into place.",
             ],
             "notes": [],
         },
@@ -7889,7 +7889,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dust_bag": {
             "steps": [
                 "Press and hold the dust compartment release button, tilt the dust compartment cover open downward, pull out the dust bag handle, and remove and discard the old dust bag.",
-                "Insert the new dust bag as shown and insert the dust bag handle into the slot until it is properly seated.",
+                "Insert the new dust bag and insert the dust bag handle into the slot until it is properly seated.",
                 "Close the dust compartment until you hear a beep, confirming it is fully sealed.",
             ],
             "notes": [
@@ -7899,7 +7899,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dustbin": {
             "steps": [
-                "Remove the dust box as shown, open the dust box cover, and empty out the debris.",
+                "Remove the dust box, open the dust box cover, and empty out the debris.",
                 "Pour clean water into the dust box, close the cover, then shake the dust box from side to side and pour out the dirty water.",
                 "Air-dry the dust box completely before reinstalling it.",
             ],
@@ -7990,7 +7990,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "clean_water_tank": {
             "steps": [
                 "Open the top cover of the clean water tank.",
-                "As illustrated, move the water pipe aside to remove the filter sponge.",
+                "Move the water pipe aside to remove the filter sponge.",
                 "Clean the filter sponge.",
             ],
             "notes": [],
@@ -8013,7 +8013,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "As illustrated, remove the filter. Rinse it repeatedly and gently tap the filter frame to knock the dirt out, until it is clean.",
+                "Remove the filter. Rinse it repeatedly and gently tap the filter frame to knock the dirt out, until it is clean.",
             ],
             "notes": [
                 "Do not clean the filter with a brush, fingers, or similar tools.",
@@ -8067,9 +8067,9 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "washboard": {
             "steps": [
                 "Press the clips on both sides of the bottom of the self-cleaning base to remove the washboard.",
-                "Rinse the washboard thoroughly; as illustrated, open the washboard bracket, and use the included cleaning tool to clean off any dirt on the washboard.",
+                "Rinse the washboard thoroughly;, open the washboard bracket, and use the included cleaning tool to clean off any dirt on the washboard.",
                 "Wipe the bottom of the self-cleaning base clean with a dry cloth.",
-                "Reinstall the washboard as illustrated, making sure the clips on both sides click securely into place.",
+                "Reinstall the washboard, making sure the clips on both sides click securely into place.",
             ],
             "notes": [
                 "If you open the washboard bracket for cleaning, be sure to reinstall it properly afterward.",
@@ -8126,7 +8126,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot's front cover, press and hold the dust box release button, and lift the dust box out.",
-                "Point the dust box opening downward into a trash bin and, as shown, press the lid-release button to empty the debris.",
+                "Point the dust box opening downward into a trash bin and, press the lid-release button to empty the debris.",
                 "Rinse the dust box with water, and let it dry completely before reinstalling and using it.",
             ],
             "notes": [
@@ -8147,8 +8147,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the release buttons on both sides of the main brush cover to remove the cover, then take out the main brush.",
-                "If hair is wrapped around the main brush, pull it off by hand from one side. If hair is wrapped around the bearing, unscrew the cap as shown, pull the end cap firmly to remove it, and use the cleaning brush or another suitable tool to clear the hair wrapped around the bearing.",
-                "Align the main brush with the socket at the angle shown and install it, then reattach the main brush cover.",
+                "If hair is wrapped around the main brush, pull it off by hand from one side. If hair is wrapped around the bearing, unscrew the cap, pull the end cap firmly to remove it, and use the cleaning brush or another suitable tool to clear the hair wrapped around the bearing.",
+                "Align the main brush with the socket and install it, then reattach the main brush cover.",
             ],
             "notes": [],
         },
@@ -8194,7 +8194,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Remove the robot, pinch the handles on both sides of the washboard base, and lift it up and out at an angle to remove the washboard base together with the washboard.",
                 "Separate the washboard from the washboard base and rinse each one individually under running water; use the included cleaning brush for a deeper clean, then wipe them dry.",
                 "Flip the washboard over, then remove the roller cover and the roller in turn.",
-                "Remove any hair wrapped around the roller, then reinstall the parts as shown in the diagram.",
+                "Remove any hair wrapped around the roller, then reinstall the parts.",
                 "Reinstall the washboard base and the washboard.",
                 "Use the app, or briefly press the button on the robot, to send it back to the base station, or place it back manually.",
             ],
@@ -8256,7 +8256,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot's front cover, press and hold the dust box release button, and lift the dust box out.",
-                "Point the dust box opening downward into a trash bin and, as shown, press the lid-release button to empty the debris.",
+                "Point the dust box opening downward into a trash bin and, press the lid-release button to empty the debris.",
                 "Rinse the dust box with water, and let it dry completely before reinstalling and using it.",
             ],
             "notes": [
@@ -8277,8 +8277,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the release buttons on both sides of the main brush cover to remove the cover, then take out the main brush.",
-                "If hair is wrapped around the main brush, pull it off by hand from one side. If hair is wrapped around the bearing, unscrew the cap as shown, pull the end cap firmly to remove it, and use the cleaning brush or another suitable tool to clear the hair wrapped around the bearing.",
-                "Align the main brush with the socket at the angle shown and install it, then reattach the main brush cover.",
+                "If hair is wrapped around the main brush, pull it off by hand from one side. If hair is wrapped around the bearing, unscrew the cap, pull the end cap firmly to remove it, and use the cleaning brush or another suitable tool to clear the hair wrapped around the bearing.",
+                "Align the main brush with the socket and install it, then reattach the main brush cover.",
             ],
             "notes": [],
         },
@@ -8324,7 +8324,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Remove the robot, pinch the handles on both sides of the washboard base, and lift it up and out at an angle to remove the washboard base together with the washboard.",
                 "Separate the washboard from the washboard base and rinse each one individually under running water; use the included cleaning brush for a deeper clean, then wipe them dry.",
                 "Flip the washboard over, then remove the roller cover and the roller in turn.",
-                "Remove any hair wrapped around the roller, then reinstall the parts as shown in the diagram.",
+                "Remove any hair wrapped around the roller, then reinstall the parts.",
                 "Reinstall the washboard base and the washboard.",
                 "Use the app, or briefly press the button on the robot, to send it back to the base station, or place it back manually.",
             ],
@@ -8348,7 +8348,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "clean_water_tank": {
             "steps": [
-                "With your hand, simultaneously press the two release buttons on the water tank, and pull it out from the bottom of the robot in the direction shown in the illustration.",
+                "With your hand, simultaneously press the two release buttons on the water tank, and pull it out from the bottom of the robot in the direction.",
             ],
             "notes": [
                 "Tip: After mopping is complete, promptly remove the water tank, pour out any remaining water inside, wash the mop cloth clean, and let it dry, to avoid odor and mold.",
@@ -8357,8 +8357,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover, press and hold the dust box release button, and take out the dust box.",
-                "Open the dust box lid as shown in the illustration, and empty out the debris.",
-                "Take out the filter as shown, clean the dust box and filter with the cleaning tool, then rinse them with clean water and let them dry completely before reinstalling.",
+                "Open the dust box lid, and empty out the debris.",
+                "Take out the filter, clean the dust box and filter with the cleaning tool, then rinse them with clean water and let them dry completely before reinstalling.",
             ],
             "notes": [
                 "Tip: We recommend thoroughly cleaning the dust box at least once a week. Be sure to fully air-dry the dust box and filter before use (at least 24 hours of drying).",
@@ -8409,7 +8409,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "clean_water_tank": {
             "steps": [
-                "Tilt the 2-in-1 water tank upward and remove the components inside it, following the direction shown in the diagram.",
+                "Tilt the 2-in-1 water tank upward and remove the components inside it, following the direction.",
                 "Empty the trash from the 2-in-1 water tank.",
                 "Use the cleaning brush to clean the tank body.",
                 "Open the tank lid and pour out any remaining water.",
@@ -8424,7 +8424,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dustbin": {
             "steps": [
-                "Tilt the dust box upward and remove the components inside it, following the direction shown in the diagram.",
+                "Tilt the dust box upward and remove the components inside it, following the direction.",
                 "Empty the trash from the dust box.",
                 "Use the cleaning brush to clean the dust box body, filter, and filter mesh.",
                 "Rinse them with water.",
@@ -8515,7 +8515,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press and hold the release buttons on both sides of the main brush cover inward to remove the cover, then lift the main brush out from the top.",
-                "Pull the end caps off both ends of the main brush as shown, then use the small cleaning tool to cut away any hair wound around the main brush and its bearings.",
+                "Pull the end caps off both ends of the main brush, then use the small cleaning tool to cut away any hair wound around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -8597,7 +8597,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press and hold the release buttons on both sides of the main brush cover to remove the cover, then lift the main brush out.",
-                "Pull off the end caps from both ends of the main brush as shown, then use a suitable tool to cut away any hair wrapped around the main brush and its bearings.",
+                "Pull off the end caps from both ends of the main brush, then use a suitable tool to cut away any hair wrapped around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -8693,7 +8693,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the release buttons on both sides of the main brush guard inward to remove the guard, then lift the main brush out of the robot.",
-                "Pull out the covers at both ends of the main brush as shown, then use a suitable tool to cut away any hair tangled around the brush and its bearings.",
+                "Pull out the covers at both ends of the main brush, then use a suitable tool to cut away any hair tangled around the brush and its bearings.",
             ],
             "notes": [],
         },
@@ -8785,7 +8785,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the release clips on both sides of the main brush guard inward to remove the guard, then lift the main brush out.",
-                "Pull out the end caps at both ends of the main brush, as shown in the illustration.",
+                "Pull out the end caps at both ends of the main brush.",
                 "Use a suitable cleaning tool to cut away any hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
@@ -8895,7 +8895,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "Remove the filter as illustrated, then rinse it and gently tap its edge to knock off dust and debris.",
+                "Remove the filter, then rinse it and gently tap its edge to knock off dust and debris.",
                 "Open the dust box cover, fill the dust box with clean water, and close the cover. Shake the dust box horizontally, then pour out the dirty water. Dry the dust box and filter thoroughly before reinstalling them.",
             ],
             "notes": [
@@ -9019,7 +9019,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the main brush cover release buttons on both sides inward to remove the main brush cover, then lift the main brush out.",
-                "Pull the end caps off both ends of the main brush as shown, then use the small cleaning tool to cut away any hair wound around the main brush and its bearings.",
+                "Pull the end caps off both ends of the main brush, then use the small cleaning tool to cut away any hair wound around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -9138,7 +9138,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the main brush cover release buttons on both sides to remove the main brush cover, then lift the main brush out.",
-                "Pull off the end caps at both ends of the main brush as shown, and use the small cutting tool on the back of the cleaning brush to cut away hair tangled around the main brush and its bearings.",
+                "Pull off the end caps at both ends of the main brush, and use the small cutting tool on the back of the cleaning brush to cut away hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -9248,7 +9248,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the release buttons on both sides of the main brush cover to remove the cover, then lift out the main brush.",
-                "Pull off the end caps at both ends of the main brush as shown, then use the cleaning brush or another suitable tool to cut away any hair wrapped around the main brush and its bearings.",
+                "Pull off the end caps at both ends of the main brush, then use the cleaning brush or another suitable tool to cut away any hair wrapped around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -9485,7 +9485,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Press the release buttons on both sides of the main brush cover inward and remove the cover.",
                 "Lift the main brush out of the robot.",
-                "Pull off the end caps at both ends of the main brush, as shown in the diagram.",
+                "Pull off the end caps at both ends of the main brush.",
                 "Use the cleaning brush or another suitable tool to cut away any hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
@@ -9506,7 +9506,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot's sensors — including the ultrasonic sensor, cliff sensors, edge-following sensors, bumper viewing window, 3D dual-line laser, collision buffer plate, and dynamic LDS lidar — clean with a soft, dry cloth, as shown in the diagram.",
+                "Wipe the robot's sensors — including the ultrasonic sensor, cliff sensors, edge-following sensors, bumper viewing window, 3D dual-line laser, collision buffer plate, and dynamic LDS lidar — clean with a soft, dry cloth.",
             ],
             "notes": [
                 "The robot and base station contain sensitive electronic components — use a dry cloth when cleaning them.",
@@ -9541,7 +9541,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Wait for the base station to automatically drain the dirty water, then wipe the chassis dry.",
                 "Flip the washboard over and remove the roller cover and the roller.",
                 "Pull off the end caps at both ends of the roller.",
-                "Clean off the hair tangled around the roller, then reinstall each part matching the colors shown in the diagram.",
+                "Clean off the hair tangled around the roller, then reinstall each part matching the colors.",
                 "Rinse the washboard under running water, wipe it clean, and reinstall it into the base station at a downward angle.",
                 "Use the app, or briefly press the button on the robot, to send the robot back to the base station.",
             ],
@@ -9627,7 +9627,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Press inward on the main brush guard release clips on both sides to remove the main brush guard.",
                 "Lift the main brush out from above.",
-                "Pull the caps off both ends of the main brush, as shown in the diagram.",
+                "Pull the caps off both ends of the main brush.",
                 "Use the cleaning brush or another suitable tool to cut away hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
@@ -9747,7 +9747,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Remove the roller cover and then the roller from the washboard, in sequence, then pull off the end caps on both ends of the roller.",
                 "Clean off any hair tangled around the roller.",
-                "Reinstall the parts, matching them by color, as shown in the diagram.",
+                "Reinstall the parts, matching them by color.",
             ],
             "notes": [
                 "If the scraper strips on both sides of the washboard are blocking the roller cover, rotate the roller to move them out of the way.",
@@ -9768,7 +9768,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the main brush cover release buttons on both sides to remove the main brush cover, then lift the main brush out from the top.",
-                "Pull off the end caps on both ends of the main brush as shown in the diagram, then use the cleaning brush or another suitable tool to cut away any hair tangled around the main brush and its bearings.",
+                "Pull off the end caps on both ends of the main brush, then use the cleaning brush or another suitable tool to cut away any hair tangled around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -9860,7 +9860,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dust_bag": {
             "steps": [
-                "As shown, press to open the dust-collection compartment cover, and discard the dust bag.",
+                "Press to open the dust-collection compartment cover, and discard the dust bag.",
                 "Wipe the dust filter with a soft, dry cloth.",
                 "Install a new dust bag, then close the dust-collection compartment cover.",
             ],
@@ -9894,8 +9894,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the release buttons on both sides of the main brush cover to remove the cover, then lift the main brush out from above.",
-                "Pull out the main brush as shown, and use a suitable tool to remove any tangled hair. Once clean, push the main brush firmly back into its bracket until you hear a \"click\", which means it is seated correctly.",
-                "With the arrow-marked side of the main brush bracket facing up, align it with the socket and reinstall the main brush at a downward angle, as shown.",
+                "Pull out the main brush, and use a suitable tool to remove any tangled hair. Once clean, push the main brush firmly back into its bracket until you hear a \"click\", which means it is seated correctly.",
+                "With the arrow-marked side of the main brush bracket facing up, align it with the socket and reinstall the main brush at a downward angle.",
                 "Align the front edge of the main brush cover with the socket and insert it at a downward angle, making sure it seats fully.",
             ],
             "notes": [
@@ -9906,7 +9906,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Rotate the auxiliary wheel until its \"OUT\" arrow points up, then pull the auxiliary wheel out.",
                 "Use a suitable small tool to clear hair tangled around the main wheel and the auxiliary wheel.",
-                "Once clean, rotate the main wheel so the two arrows on its side line up. Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary wheels back into place as shown. A \"click\" means it is installed correctly.",
+                "Once clean, rotate the main wheel so the two arrows on its side line up. Then, following the \"IN\" arrow pointing downward, insert the left and right auxiliary wheels back into place. A \"click\" means it is installed correctly.",
             ],
             "notes": [],
         },
@@ -10034,7 +10034,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inward to remove the brush guard, then lift the brush out of the robot.",
-                "Pull the brush out as shown in the diagram; use a suitable tool to remove hair tangled in the brush. When finished cleaning, push the brush firmly back into the main brush holder until it clicks into place.",
+                "Pull the brush out; use a suitable tool to remove hair tangled in the brush. When finished cleaning, push the brush firmly back into the main brush holder until it clicks into place.",
                 "With the printed arrow facing up, insert the main brush holder into the slot at a downward angle.",
                 "Align the front edge of the brush guard with the slot, insert it at a downward angle, then press it into place.",
             ],
@@ -10056,7 +10056,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot's sensors with a soft, dry cloth, as shown in the diagram.",
+                "Wipe the robot's sensors with a soft, dry cloth.",
             ],
             "notes": [],
         },
@@ -10166,7 +10166,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inward to remove the brush guard, then lift the brush out of the robot.",
-                "Pull the brush out as shown, use a suitable tool to remove any hair tangled around it, and once done, push it firmly back into the main brush holder until it clicks into place.",
+                "Pull the brush out, use a suitable tool to remove any hair tangled around it, and once done, push it firmly back into the main brush holder until it clicks into place.",
                 "With the printed arrow facing up, insert the main brush holder into the slot at a downward angle.",
                 "Align the front end of the brush guard with the slot, insert it at a downward angle, and press it into place.",
             ],
@@ -10188,7 +10188,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot's sensors - carpet sensor, anti-drop (cliff) sensor, edge sensor, bumper window, 3D dual-line laser sensor, bumper, and VersaLift sensor - with a soft, dry cloth, as shown in the illustration.",
+                "Wipe the robot's sensors - carpet sensor, anti-drop (cliff) sensor, edge sensor, bumper window, 3D dual-line laser sensor, bumper, and VersaLift sensor - with a soft, dry cloth.",
             ],
             "notes": [],
         },
@@ -10298,8 +10298,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press and hold the release buttons on both sides of the main brush cover inward, then remove the cover and lift the main brush out.",
-                "Pull the main brush out as shown, and use a suitable tool to clear away any tangled hair; then put the main brush back onto its bracket — you'll hear a click when it's properly seated.",
-                "As shown, with the arrow on the main brush bracket facing up, align it with the socket and insert the main brush back in at a downward angle.",
+                "Pull the main brush out, and use a suitable tool to clear away any tangled hair; then put the main brush back onto its bracket — you'll hear a click when it's properly seated.",
+                "With the arrow on the main brush bracket facing up, align it with the socket and insert the main brush back in at a downward angle.",
                 "Reinstall the main brush cover.",
                 "Align the cover by inserting all of its tabs into their matching slots so that none of them stick out.",
                 "Press both sides of the cover until you hear a click, which means it's properly installed.",
@@ -10400,7 +10400,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "dust_bag": {
             "steps": [
-                "Press to open the dust tank cover as shown, and discard the dust bag.",
+                "Press to open the dust tank cover, and discard the dust bag.",
                 "Wipe the dust filter with a soft, dry cloth.",
                 "Install a new dust bag, then close the dust tank cover.",
             ],
@@ -10432,8 +10432,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips on both sides inward to release the brush guard, then lift the main brush out.",
-                "Pull out the main brush as shown and use a suitable tool to remove any tangled hair; once clean, push the main brush firmly back into the brush frame until you hear a \"click\", confirming it is seated.",
-                "With the brush frame's arrow side facing up, align it with the socket and reinsert the main brush at a downward angle, as shown.",
+                "Pull out the main brush and use a suitable tool to remove any tangled hair; once clean, push the main brush firmly back into the brush frame until you hear a \"click\", confirming it is seated.",
+                "With the brush frame's arrow side facing up, align it with the socket and reinsert the main brush at a downward angle.",
                 "Align the front edge of the brush guard with the slot and insert it at a downward angle, making sure it is fully seated.",
             ],
             "notes": [
@@ -10563,8 +10563,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard release clips on both sides inward to remove the brush guard, then lift the main brush out.",
-                "Pull the main brush out as shown in the diagram, and use a suitable tool to remove any tangled hair from it.",
-                "Align the main brush bracket with the arrow side facing up, then insert the main brush back in at a downward angle into the socket as shown in the diagram — you'll hear a click when it's fully seated.",
+                "Pull the main brush out, and use a suitable tool to remove any tangled hair from it.",
+                "Align the main brush bracket with the arrow side facing up, then insert the main brush back in at a downward angle into the socket — you'll hear a click when it's fully seated.",
                 "Reinstall the brush guard.",
             ],
             "notes": [
@@ -10693,8 +10693,8 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press inward on the release buttons on both sides of the brush cover, remove the brush cover, and lift the main brush out.",
-                "Pull out the main brush as shown in the diagram, and use a suitable tool to clean off any tangled hair.",
-                "With the arrow side of the brush bracket facing up, align the main brush with the socket and insert it back in at an angle, as shown.",
+                "Pull out the main brush, and use a suitable tool to clean off any tangled hair.",
+                "With the arrow side of the brush bracket facing up, align the main brush with the socket and insert it back in at an angle.",
                 "Push the main brush firmly into the bracket until you hear a click, confirming it is installed securely.",
                 "Align all the tabs on the brush cover with their matching slots, making sure none of them are exposed.",
                 "Press both sides of the brush cover until you hear a click, confirming it is properly seated.",
@@ -10721,7 +10721,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "mop_pad_holder": {
             "steps": [
-                "Following the direction shown, flip the release lever and remove the mop assembly from the robot.",
+                "Following the direction, flip the release lever and remove the mop assembly from the robot.",
                 "Use a suitable tool to clean off any hair tangled on the mop pad holder.",
                 "Align the mop assembly with the socket and push it inward back into the robot until you hear a click, confirming it is installed correctly.",
             ],
@@ -10853,7 +10853,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the release clips on both sides of the brush guard inward to remove the brush guard, then lift the main brush up and out of the robot.",
-                "Pull off the end caps at both ends of the main brush as shown, and use the cleaning tool or another suitable tool to cut away the hair wrapped around the main brush and its bearings.",
+                "Pull off the end caps at both ends of the main brush, and use the cleaning tool or another suitable tool to cut away the hair wrapped around the main brush and its bearings.",
             ],
             "notes": [],
         },
@@ -10872,7 +10872,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot's sensors clean with a soft, dry cloth, as shown in the diagram — including the ultrasonic sensor, cliff sensors, edge sensor, bumper viewing window, 3D dual-line laser, collision buffer plate, and dynamic LDS lidar.",
+                "Wipe the robot's sensors clean with a soft, dry cloth — including the ultrasonic sensor, cliff sensors, edge sensor, bumper viewing window, 3D dual-line laser, collision buffer plate, and dynamic LDS lidar.",
             ],
             "notes": [
                 "The robot and base station contain sensitive electronic components inside — use only a dry cloth when cleaning. Do not use a damp cloth, as water getting inside could cause damage.",
@@ -10900,7 +10900,7 @@ TRANSLATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "In the app, start the base station chassis cleaning function; the robot will automatically leave the base station. Take out the washboard and wait for the base station to fill with water automatically.",
                 "Use the included cleaning brush to clean the base station chassis. After a short wait, the base station will automatically drain the dirty water; once draining is complete, wipe the base station chassis dry.",
                 "Flip the washboard over, then remove the roller cover and the roller in sequence, and pull the end caps off both ends of the roller.",
-                "After clearing away the hair wrapped around the roller, reinstall each part in its matching color, as shown in the diagram.",
+                "After clearing away the hair wrapped around the roller, reinstall each part in its matching color.",
                 "Rinse the washboard under a tap and wipe it clean, then reinstall it into the base station at a downward angle.",
                 "Use the app, or briefly press the button on the robot, to send the robot back to the base station.",
             ],

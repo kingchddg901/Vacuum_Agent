@@ -50,7 +50,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Open the dust compartment cover at the positions marked with arrows.",
                 "Add clean water to the dust compartment, and close the dust compartment cover, then shake the compartment back and forth, finally pour out the water. Repeat these steps until the filter is clean.",
-                "Remove the filter as shown in the diagram, forcefully shake it to remove excess water, then place it aside to dry before reinstalling it.",
+                "Remove the filter, forcefully shake it to remove excess water, then place it aside to dry before reinstalling it.",
             ],
             "notes": [
                 "Biweekly cleaning is recommended.",
@@ -213,7 +213,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Open the dust compartment cover at the positions marked with arrows.",
                 "Add clean water to the dust compartment, and close the dust compartment cover, then shake the compartment back and forth, finally pour out the water. Repeat these steps until the filter is clean.",
-                "Remove the filter as shown in the diagram, forcefully shake it to remove excess water, then place it aside to dry before reinstalling it.",
+                "Remove the filter, forcefully shake it to remove excess water, then place it aside to dry before reinstalling it.",
             ],
             "notes": [
                 "Biweekly cleaning is recommended.",
@@ -324,7 +324,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes.",
+                "Pull out the brushes. Use a proper tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
                 "Install the brush guard: insert all tabs on the brush guard into their corresponding slots, ensuring they are fully seated and not protruding.",
@@ -770,7 +770,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use a proper tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -1167,7 +1167,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Clean the dust intake.",
                 "Unscrew mounting screws on the air duct cover and remove the cover plate.",
                 "Check whether the air duct is blocked by foreign objects. If any, clean them.",
-                "Reinstall the air duct cover as shown in the diagram.",
+                "Reinstall the air duct cover.",
             ],
             "notes": [],
         },
@@ -1221,7 +1221,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover, then press the dust bin clip to remove the dust bin.",
-                "Open the bin cover and empty the bin as shown in the diagram.",
+                "Open the bin cover and empty the bin.",
                 "Clean the dust intake.",
             ],
             "notes": [
@@ -1246,7 +1246,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers as shown in the diagram.",
+                "Pull out the brush covers.",
                 "Use the included cleaning tool to remove any hairs tangled in the brush.",
             ],
             "notes": [
@@ -1427,7 +1427,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover, then press the dust bin clip to remove the dust bin.",
-                "Open the bin cover and empty the bin as shown in the diagram.",
+                "Open the bin cover and empty the bin.",
                 "Rinse the dust bin and filter with water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -1449,7 +1449,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush cover as shown in the diagram. Use the included cleaning tool to remove any hairs tangled in the brush.",
+                "Pull out the brush cover. Use the included cleaning tool to remove any hairs tangled in the brush.",
             ],
             "notes": [
                 "Do not pull out the hair tangled in the main brush excessively. Otherwise, the brush may be damaged.",
@@ -1625,7 +1625,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover and press the bin clip to remove the dust bin.",
-                "Open the bin cover and empty the bin as shown in the diagram.",
+                "Open the bin cover and empty the bin.",
                 "Rinse the dust bin and filter with water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -1647,7 +1647,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush cover as shown in the diagram.",
+                "Pull out the brush cover.",
                 "Use the included cleaning tool to remove any hairs tangled in the brush.",
             ],
             "notes": [
@@ -1720,7 +1720,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot's cover and press the clip to remove the dust box.",
-                "Open the dust box cover and empty the dust box as shown in the diagram.",
+                "Open the dust box cover and empty the dust box.",
                 "Rinse the dust box and filter with clean water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -1742,7 +1742,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers at both ends of the brush as shown in the diagram.",
+                "Pull out the brush covers at both ends of the brush.",
                 "Use the provided cleaning tool to remove any hair tangled in the brush.",
                 "Reinstall the brush covers on both ends of the brush, and then reinstall the brush.",
                 "Press on the brush guard to lock it in place.",
@@ -1766,7 +1766,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe robot sensors by using a soft and dry cloth, as shown in the below figure.",
+                "Wipe robot sensors by using a soft and dry cloth in the below figure.",
             ],
             "notes": [
                 "A wet cloth can damage sensitive elements within the robot and the charging dock. Please use a dry cloth for cleaning.",
@@ -2247,7 +2247,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard.",
                 "Lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use the appropriate cleaning tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -2535,7 +2535,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover, then press the dust bin clip to remove the dust bin.",
-                "Open the bin cover and empty the bin as shown in the diagram.",
+                "Open the bin cover and empty the bin.",
                 "Rinse the dust bin with water and dry it completely before reinstalling.",
             ],
             "notes": [
@@ -2558,7 +2558,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard.",
                 "Lift the brush out of the robot.",
-                "Pull out the brush cover as shown in the diagram.",
+                "Pull out the brush cover.",
                 "Use the included cleaning tool to remove any hairs tangled in the brush.",
             ],
             "notes": [
@@ -2856,7 +2856,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush cover as shown in the diagram.",
+                "Pull out the brush cover.",
                 "Use the included cleaning tool to remove any hairs tangled in the brush.",
             ],
             "notes": [
@@ -3777,7 +3777,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Remove and clean the side brush and mop pad holder.",
                 "Lift the brushes from both the left and right sides, and remove any debris or hair tangled in the brushes.",
-                "Reinstall the brushes on the corresponding sides as shown in the figure, and press on the brush guard to lock it in place.",
+                "Reinstall the brushes on the corresponding sides, and press on the brush guard to lock it in place.",
             ],
             "notes": [],
         },
@@ -4251,7 +4251,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot's cover and press the clip to remove the dust box.",
-                "Open the dust box cover and empty the dust box as shown in the diagram.",
+                "Open the dust box cover and empty the dust box.",
                 "Rinse the dust box and filter with clean water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -4273,7 +4273,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers at both ends of the brush as shown in the diagram.",
+                "Pull out the brush covers at both ends of the brush.",
                 "Use the provided cleaning tool to remove any hair tangled in the brush.",
                 "Reinstall the brush covers on both ends of the brush, and then reinstall the brush.",
                 "Press on the brush guard to lock it in place.",
@@ -5053,7 +5053,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "side_brush": {
             "steps": [
-                "Flip the vacuum-mop over, then gently pull out the side brush as shown in the diagram below to clean it.",
+                "Flip the vacuum-mop over, then gently pull out the side brush to clean it.",
             ],
             "notes": [],
         },
@@ -5091,7 +5091,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover, then press the dust box clip to remove the dust box.",
-                "Open the dust box cover and empty the dust box as shown in the diagram.",
+                "Open the dust box cover and empty the dust box.",
                 "Rinse the dust box and filter with water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -5113,7 +5113,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush cover as shown in the diagram. Use the included cleaning tool to remove any hairs tangled in the brush.",
+                "Pull out the brush cover. Use the included cleaning tool to remove any hairs tangled in the brush.",
             ],
             "notes": [
                 "Do not pull out the hair tangled in the main brush excessively. Otherwise, the brush may be damaged.",
@@ -5186,7 +5186,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot's cover and press the clip to remove the dust box.",
-                "Open the dust box cover and empty the dust box as shown in the diagram.",
+                "Open the dust box cover and empty the dust box.",
                 "Rinse the dust box and filter with clean water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -5208,7 +5208,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers at both ends of the brush as shown in the diagram.",
+                "Pull out the brush covers at both ends of the brush.",
                 "Use the provided cleaning tool to remove any hair tangled in the brush.",
                 "Reinstall the brush covers on both ends of the brush, and then reinstall the brush.",
                 "Press on the brush guard to lock it in place.",
@@ -5755,7 +5755,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure. Use the appropriate cleaning tool to remove any hair tangled in the brushes.",
+                "Pull out the brushes. Use the appropriate cleaning tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
                 "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.",
@@ -5870,7 +5870,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use the appropriate cleaning tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -5950,7 +5950,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover and press the dust box clip to remove the dust box.",
-                "Open the dust box cover and empty the dust box as shown in the diagram.",
+                "Open the dust box cover and empty the dust box.",
                 "Rinse the dust box with water and dry it completely before reinstalling.",
             ],
             "notes": [
@@ -6317,7 +6317,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Open the robot cover.",
                 "Press the dust box clip to remove the dust box.",
                 "Open the dust box cover.",
-                "Empty the dust box as shown in the diagram.",
+                "Empty the dust box.",
                 "Rinse the dust box with water and dry it completely before reinstalling.",
             ],
             "notes": [
@@ -6414,7 +6414,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Remove the roller.",
                 "Pull off the end caps of the roller.",
                 "Remove the hair tangled in the roller.",
-                "Reassemble the parts according to corresponding colors, as shown in the figure below.",
+                "Reassemble the parts according to corresponding colors.",
                 "Rinse the washboard with clean water.",
                 "Wipe it clean.",
                 "Put it back into the base station downwards in an inclined way.",
@@ -6631,7 +6631,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use the provided cleaning tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -6735,7 +6735,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers as shown in the diagram.",
+                "Pull out the brush covers.",
                 "Use a proper tool to remove the hair tangled in the brush.",
             ],
             "notes": [],
@@ -7244,7 +7244,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers as shown in the diagram. Use the included cleaning tool to remove any hairs tangled in the brush.",
+                "Pull out the brush covers. Use the included cleaning tool to remove any hairs tangled in the brush.",
             ],
             "notes": [
                 "Do not pull out the hair excessively to avoid damaging the main brush when the hair is tightly tangled in the main brush.",
@@ -7415,7 +7415,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot's cover and press the clip to remove the dust box.",
-                "Open the dust box cover and empty the dust box as shown in the diagram.",
+                "Open the dust box cover and empty the dust box.",
                 "Rinse the dust box and filter with water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -7437,7 +7437,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers at both ends of the brush as shown in the diagram. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush. Press on the brush guard to lock it in place.",
+                "Pull out the brush covers at both ends of the brush. Use a proper cleaning tool to remove any hair tangled in the brush. Reinstall the brush covers on both ends of the brush, and then reinstall the brush. Press on the brush guard to lock it in place.",
             ],
             "notes": [],
         },
@@ -7586,7 +7586,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "charging_contacts": {
             "steps": [
-                "Wipe charging contacts of the robot by using a soft and dry cloth, as shown in the below figure.",
+                "Wipe charging contacts of the robot by using a soft and dry cloth in the below figure.",
             ],
             "notes": [
                 "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning.",
@@ -7633,7 +7633,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers at both ends of the brush as shown in the figure. Use the provided cleaning tool to remove the hair tangled in the brush.",
+                "Pull out the brush covers at both ends of the brush. Use the provided cleaning tool to remove the hair tangled in the brush.",
             ],
             "notes": [],
         },
@@ -7645,7 +7645,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe sensors of the robot by using a soft and dry cloth, as shown in the below figure.",
+                "Wipe sensors of the robot by using a soft and dry cloth in the below figure.",
             ],
             "notes": [
                 "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning.",
@@ -8067,7 +8067,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and lift the brush out of the robot.",
-                "Pull out the brush covers at both ends of the brush as shown in the figure.",
+                "Pull out the brush covers at both ends of the brush.",
                 "Use a proper cleaning tool to remove any hair tangled in the brush.",
                 "Reinstall the brush covers on both ends of the brush, and then reinstall the brush.",
                 "Press on the brush guard to lock it in place.",
@@ -8421,7 +8421,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover and press the dust box clip to remove the dust box.",
-                "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+                "Open the dust box cover, remove the filter, and then empty the dust box.",
                 "Rinse the dust box and filter with water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -8431,7 +8431,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+                "Open the dust box cover, remove the filter, and then empty the dust box.",
                 "Gently tap the basket of the filter to remove the dirt.",
                 "Rinse the dust box and filter with water and dry them completely before reinstalling.",
                 "Remove the dust and debris from the filter with a dry cloth.",
@@ -8709,7 +8709,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot sensors by using a soft and dry cloth, as shown in the figure.",
+                "Wipe the robot sensors by using a soft and dry cloth.",
             ],
             "notes": [
                 "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning.",
@@ -9007,7 +9007,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Open the robot cover.",
                 "Press the dust box clip to remove the dust box.",
                 "Open the dust box cover.",
-                "Empty the dust box as shown in the diagram.",
+                "Empty the dust box.",
                 "Rinse the dust box with water and dry it completely before reinstalling.",
             ],
             "notes": [
@@ -9646,7 +9646,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes.",
+                "Pull out the brushes. Use a proper tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
                 "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.",
@@ -9790,7 +9790,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use a proper tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -9919,7 +9919,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers as shown in the diagram.",
+                "Pull out the brush covers.",
                 "Use the included cleaning tool to remove any hairs tangled in the brush.",
             ],
             "notes": [],
@@ -10163,7 +10163,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use a proper tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -10255,7 +10255,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "charging_contacts": {
             "steps": [
-                "Wipe charging contacts using a soft and dry cloth, as shown in the diagram.",
+                "Wipe charging contacts using a soft and dry cloth.",
             ],
             "notes": [
                 "Wet cloths can damage sensitive elements within the robot and charging dock. Please use dry rags for cleaning.",
@@ -10272,7 +10272,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Press the water tank release clip to remove the 2-in-1 water tank with dust box.",
-                "Open the dust box cover and empty the dust box as shown in the diagram.",
+                "Open the dust box cover and empty the dust box.",
                 "Rinse the dust box with water and dry it completely before reinstalling.",
             ],
             "notes": [
@@ -10315,7 +10315,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe sensors using a soft and dry cloth, as shown in the diagram.",
+                "Wipe sensors using a soft and dry cloth.",
             ],
             "notes": [
                 "Wet cloths can damage sensitive elements within the robot and charging dock. Please use dry rags for cleaning.",
@@ -10390,7 +10390,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard.",
                 "Lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use a proper tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -10699,7 +10699,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "Remove the filter, as illustrated, then rinse it out and lightly tap on the edge of the filter to remove dust and debris.",
+                "Remove the filter, then rinse it out and lightly tap on the edge of the filter to remove dust and debris.",
                 "Place the filter aside to dry before reinstallation.",
             ],
             "notes": [
@@ -10886,7 +10886,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use a proper cleaning tool to remove any hair tangled in the brush.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -11006,7 +11006,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover and press the dust box clip to remove the dust box.",
-                "Open the dust box cover and empty the dust box as shown in the diagram.",
+                "Open the dust box cover and empty the dust box.",
                 "Rinse the dust box with water and dry it completely before reinstalling.",
             ],
             "notes": [
@@ -11388,7 +11388,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover and press the dust box clip to remove the dust box.",
-                "With the dust box cover facing down towards the trash can, press the dust box opening button as shown in the figure to empty the debris.",
+                "With the dust box cover facing down towards the trash can, press the dust box opening button to empty the debris.",
                 "Rinse the dust box and filter with water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -11411,7 +11411,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Remove the hair tangled in the main brush by hand from one side. Unscrew the end cap as shown in the figure below, then pull off the end cover forcefully, and use the cleaning tool or another suitable tool to remove the hair tangled in the bearing.",
+                "Remove the hair tangled in the main brush by hand from one side. Unscrew the end cap, then pull off the end cover forcefully, and use the cleaning tool or another suitable tool to remove the hair tangled in the bearing.",
                 "Align the main brush with the slot and install it according to the illustrated angle, then reinstall the brush guard.",
             ],
             "notes": [],
@@ -11458,7 +11458,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Take out the robot. Pinch the handles on both sides of the washboard holder, and then take out the washboard and washboard holder upwards in an inclined way.",
                 "Separate the washboard from the washboard holder and rinse them with clean water. Use the provided cleaning tool for a thorough clean, and wipe them dry.",
                 "Flip the washboard over, and then remove the roller cover and the roller in turn.",
-                "Remove the hair tangled in the roller, and then reassemble the parts as shown in the figure below.",
+                "Remove the hair tangled in the roller, and then reassemble the parts.",
                 "Reinstall the washboard holder and the washboard.",
                 "Use the app or press the button on the robot to make it return to the base station, or place it back manually.",
             ],
@@ -11511,7 +11511,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover and press the dust box clip to remove the dust box.",
-                "Open the dust box cover, remove the filter, and then empty the dust box as shown in the figure.",
+                "Open the dust box cover, remove the filter, and then empty the dust box.",
                 "Rinse the dust box and filter with water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -11522,7 +11522,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "filter": {
             "steps": [
                 "Remove the dust and debris from the filter with a dry cloth.",
-                "Open the dust box cover, remove the filter, and then empty the dust box as shown in the figure.",
+                "Open the dust box cover, remove the filter, and then empty the dust box.",
                 "Gently tap the basket of the filter to remove the dirt.",
                 "Rinse the dust box and filter with water and dry them completely before reinstalling.",
             ],
@@ -11889,7 +11889,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use the provided cleaning tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -12404,7 +12404,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover and press the bin clip to remove the dust bin.",
-                "Open the bin cover and empty the bin as shown in the diagram.",
+                "Open the bin cover and empty the bin.",
                 "Rinse the dust bin and filter with water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -12427,7 +12427,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers as shown in the diagram.",
+                "Pull out the brush covers.",
                 "Use a proper tool to remove the hair tangled in the brush.",
             ],
             "notes": [],
@@ -12758,7 +12758,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "Remove the filter from the filter clip as illustrated.",
+                "Remove the filter from the filter clip.",
                 "Rinse and gently tap the edges of the filter to remove any dust and debris until it is clean.",
                 "Place the filter aside to dry before reinstallation.",
             ],
@@ -12956,7 +12956,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "clean_water_tank": {
             "steps": [
                 "Dismount the two-in-one water tank and the mop holder while pressing the buckles on left and right sides of the two-in-one water tank.",
-                "Dismount the water tank along the direction in the figure below.",
+                "Dismount the water tank.",
                 "Remove the water inlet soft rubber cover of the water tank and pour out the residual water in the water tank.",
             ],
             "notes": [
@@ -12985,7 +12985,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Dismount the two-in-one water tank and the mop holder while pressing the buckles on left and right sides of the two-in-one water tank.",
-                "Dismount the water tank along the direction in the figure below.",
+                "Dismount the water tank.",
                 "Open the dust box cover of the water tank, pour out the waste in the dust box and clean up the dust box with the cleaning brush.",
             ],
             "notes": [],
@@ -13121,9 +13121,9 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush cover at the square end of the brush as shown in the figure.",
+                "Pull out the brush cover at the square end of the brush.",
                 "Use a proper tool to remove any foreign object in the brush.",
-                "Pull out and clean the brush strips as shown in the figure.",
+                "Pull out and clean the brush strips.",
                 "Use a proper tool to clean the comb.",
                 "Reinstall the brush strips, brush cover, and brush in turn.",
                 "Press on the brush guard to lock it in place.",
@@ -13678,7 +13678,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use a proper cleaning tool to remove any hair tangled in the brush.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -13909,7 +13909,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dust_bag": {
             "steps": [
                 "Remove the base station front cover and take out the dust tank.",
-                "Empty the dust tank as shown in the figure.",
+                "Empty the dust tank.",
                 "Rinse the dust tank with water and dry it completely.",
             ],
             "notes": [],
@@ -13917,7 +13917,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Remove the robot cover and press the dust box clip to remove the dust box.",
-                "Empty the dust box as shown in the figure.",
+                "Empty the dust box.",
                 "Rinse the dust box with water and dry it completely before reinstalling.",
             ],
             "notes": [
@@ -14057,7 +14057,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Remove the robot cover and press the dust box clip to remove the dust box.",
-                "Empty the dust box as shown in the figure.",
+                "Empty the dust box.",
                 "Rinse the dust box with water and dry it completely before reinstalling.",
             ],
             "notes": [
@@ -14086,7 +14086,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the main brush out of the robot.",
-                "Pull out the brushes as shown in the figure. Use a proper cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
+                "Pull out the brushes. Use a proper cleaning tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush into the slots downwards in an inclined way.",
                 "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.",
             ],
@@ -14110,7 +14110,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot sensors and bumper by using a soft and dry cloth, as shown in the figure below.",
+                "Wipe the robot sensors and bumper by using a soft and dry cloth.",
             ],
             "notes": [
                 "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning.",
@@ -14338,9 +14338,9 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "filter": {
             "steps": [
-                "Remove the filter as shown in the figure.",
+                "Remove the filter.",
                 "Align and reinstall the filter.",
-                "To clean the filter in the 2-in-1 dust compartment with water tank, remove the filter as illustrated.",
+                "To clean the filter in the 2-in-1 dust compartment with water tank, remove the filter.",
             ],
             "notes": [
                 "After cleaning the filter and fully drying it, reinstall the filter into the 2-in-1 dust compartment with water tank.",
@@ -14381,7 +14381,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "clean_water_tank": {
             "steps": [
-                "Open the fresh tank cover, move the hose to the side to remove and clean the filter media as shown in the diagram.",
+                "Open the fresh tank cover, move the hose to the side to remove and clean the filter media.",
                 "Put the filter media and hose back.",
             ],
             "notes": [
@@ -14391,7 +14391,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover and press the dust bin clip to remove the dust bin.",
-                "Open the bin cover and empty the bin as shown in the diagram.",
+                "Open the bin cover and empty the bin.",
                 "Rinse the dust bin and filter under running water and dry them completely before re-installing.",
             ],
             "notes": [
@@ -14415,7 +14415,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers as shown in the diagram, then use the provided cleaning tool to remove the hair tangled in the brush.",
+                "Pull out the brush covers, then use the provided cleaning tool to remove the hair tangled in the brush.",
             ],
             "notes": [
                 "Do not pull out the hair tangled in the brush excessively. Otherwise, the main brush may be damaged.",
@@ -14453,7 +14453,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Press the clips on both sides of the bottom of the base to remove the washboard.",
                 "Use the provided cleaning tool to clean the washboard completely.",
                 "Wipe the bottom of the base with a dry cloth.",
-                "Insert the washboard into the base as shown in the diagram, making sure that both clips are in place.",
+                "Insert the washboard into the base, making sure that both clips are in place.",
             ],
             "notes": [
                 "Clean once every 2 weeks.",
@@ -14482,7 +14482,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "clean_water_tank": {
             "steps": [
-                "Open the fresh tank cover, move the hose to the side to remove and clean the filter media as shown in the diagram.",
+                "Open the fresh tank cover, move the hose to the side to remove and clean the filter media.",
                 "Put the filter media and hose back in their original position.",
             ],
             "notes": [
@@ -14500,7 +14500,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover and press the dust bin clip to remove the dust bin.",
-                "Open the bin cover and empty the bin as shown in the diagram.",
+                "Open the bin cover and empty the bin.",
                 "If necessary, rinse the dust bin and the filter under running water and dry them completely before re-installing.",
             ],
             "notes": [
@@ -14525,7 +14525,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers as shown in the diagram, and use the provided cleaning tool to remove any hair tangled in the brush.",
+                "Pull out the brush covers, and use the provided cleaning tool to remove any hair tangled in the brush.",
             ],
             "notes": [
                 "If any hair is thoroughly tangled in the brush, do not pull it too hard. Doing so may damage the main brush.",
@@ -14561,7 +14561,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Press the clips on both sides of the bottom of the base to remove the washboard.",
                 "Use the provided cleaning tool to clean the washboard completely.",
                 "Wipe the bottom of the base with a dry cloth.",
-                "Insert the washboard into the base as shown in the diagram, making sure that both clips are in place.",
+                "Insert the washboard into the base, making sure that both clips are in place.",
             ],
             "notes": [
                 "Clean once every 2 weeks.",
@@ -14613,7 +14613,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "When the disposable bag is full, pull the cover out from the dust cabinet opening.",
                 "Remove the disposable bag using the handle, and discard it.",
-                "Install a new disposable bag as illustrated and insert the handle of the bag into the slot.",
+                "Install a new disposable bag and insert the handle of the bag into the slot.",
                 "Put the dust cabinet cover back; it is properly installed when you hear a \"click\".",
             ],
             "notes": [
@@ -14745,7 +14745,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "When the disposable bag is full, pull the cover out from the dust cabinet opening.",
                 "Remove the disposable bag using the handle, and discard it.",
-                "Install a new disposable bag as illustrated and insert the handle of the bag into the slot.",
+                "Install a new disposable bag and insert the handle of the bag into the slot.",
                 "Put the dust cabinet cover back; it is properly installed when you hear a click.",
             ],
             "notes": [
@@ -14855,7 +14855,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dust_bag": {
             "steps": [
                 "When the disposable bag is full, pull the cover out from the dust cabinet opening. Remove the disposable bag using the handle, and discard it.",
-                "Install a new disposable bag as illustrated and insert the handle of the bag into the slot.",
+                "Install a new disposable bag and insert the handle of the bag into the slot.",
                 "Put the dust cabinet cover back, and it is properly installed when you hear a \"click\".",
             ],
             "notes": [
@@ -15387,7 +15387,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover and press the dust box clip to remove the dust box.",
-                "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+                "Open the dust box cover, remove the filter, and then empty the dust box.",
                 "Rinse the dust box and filter with water and dry them completely before reinstalling.",
             ],
             "notes": [
@@ -15398,7 +15398,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "filter": {
             "steps": [
                 "Remove the dust and debris from the filter with a dry cloth.",
-                "Open the dust box cover, remove the filter, and then empty the dust box as shown in the diagram.",
+                "Open the dust box cover, remove the filter, and then empty the dust box.",
                 "Gently tap the basket of the filter to remove the dirt.",
                 "Rinse the dust box and filter with water and dry them completely before reinstalling.",
             ],
@@ -15411,7 +15411,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "According to the figure, press the brush guard clip to open the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brush covers at both ends of the brushes as shown in the figure. Use the provided cleaning tool to remove any hair tangled in the brushes.",
+                "Pull out the brush covers at both ends of the brushes. Use the provided cleaning tool to remove any hair tangled in the brushes.",
                 "Reinstall the brushes and secure the brush guard.",
             ],
             "notes": [],
@@ -15430,7 +15430,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot sensors by using a soft and dry cloth, as shown in the below figure.",
+                "Wipe the robot sensors by using a soft and dry cloth in the below figure.",
             ],
             "notes": [
                 "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning.",
@@ -15456,7 +15456,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Enable the washboard base cleaning function in the app, and the robot will exit the base station automatically. Take out the washboard and wait for water to fill the washboard base.",
                 "Use the cleaning tool to clean the washboard base. After a moment, the base station will automatically pump out the used water. Then wipe the washboard base with a soft and dry cloth.",
                 "Flip the washboard over, remove the roller cover and the roller in turn, and then pull off the end caps of the roller.",
-                "Remove the hair tangled in the roller, and then reassemble the parts according to corresponding colors, as shown in the figure below.",
+                "Remove the hair tangled in the roller, and then reassemble the parts according to corresponding colors.",
                 "Rinse the washboard with clean water, wipe it clean and then put it back into the base station downwards in an inclined way.",
                 "Use the app or briefly press the button on the robot to make it return to the base station.",
             ],
@@ -15655,7 +15655,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard.",
                 "Lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use a proper tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -15679,7 +15679,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot sensors (carpet sensor, cliff sensors, edge sensor, bumper window, 3D dual-line laser sensors, bumper, VersaLift sensor) by using a soft and dry cloth, as shown in the figure.",
+                "Wipe the robot sensors (carpet sensor, cliff sensors, edge sensor, bumper window, 3D dual-line laser sensors, bumper, VersaLift sensor) by using a soft and dry cloth.",
             ],
             "notes": [
                 "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning.",
@@ -15939,7 +15939,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
+                "Pull out the brushes. Use a proper tool to remove any hair tangled in the brushes. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
                 "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.",
             ],
@@ -16064,7 +16064,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure. Use a proper tool to remove any hair tangled in the brushes.",
+                "Pull out the brushes. Use a proper tool to remove any hair tangled in the brushes.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
                 "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.",
@@ -16348,7 +16348,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
             "steps": [
                 "Unscrew mounting screws on the air duct cover and remove the cover plate.",
                 "Check whether the air duct is blocked by foreign objects. If any, clean them.",
-                "Reinstall the air duct cover as shown in the diagram.",
+                "Reinstall the air duct cover.",
             ],
             "notes": [],
         },
@@ -16395,7 +16395,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "dustbin": {
             "steps": [
                 "Open the robot cover, then press the dust bin clip to remove the dust bin.",
-                "Open the bin cover and empty the bin as shown in the diagram.",
+                "Open the bin cover and empty the bin.",
                 "Clean the dust intake.",
                 "Rinse the dust bin with water until it is clean.",
             ],
@@ -16415,7 +16415,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers as shown in the diagram. Use the included cleaning tool to remove any hairs tangled in the brush.",
+                "Pull out the brush covers. Use the included cleaning tool to remove any hairs tangled in the brush.",
             ],
             "notes": [
                 "When there is hair tightly tangled in the main brush, do not pull out the hair excessively to avoid damaging the main brush.",
@@ -16504,7 +16504,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard and lift the brush out of the robot.",
-                "Pull out the brush covers as shown in the diagram. Use the included cleaning tool to remove any hairs tangled in the brush.",
+                "Pull out the brush covers. Use the included cleaning tool to remove any hairs tangled in the brush.",
             ],
             "notes": [],
         },
@@ -16543,7 +16543,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
                 "Before maintenance, remove the water tank and wipe the water from the washboard base and water outlet to avoid water leakage.",
                 "Turn over the base station carefully and unscrew the screws with a suitable tool to remove the air duct cover.",
                 "Check whether the air duct is blocked by foreign objects and clean it.",
-                "Reinstall the air duct cover as shown in the figure.",
+                "Reinstall the air duct cover.",
             ],
             "notes": [],
         },
@@ -16564,7 +16564,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "charging_contacts": {
             "steps": [
-                "Wipe the robot's charging contacts by using a soft and dry cloth, as shown in the below figure.",
+                "Wipe the robot's charging contacts by using a soft and dry cloth in the below figure.",
                 "Clean the charging contacts of the robot with a soft and dry cloth.",
             ],
             "notes": [
@@ -16625,8 +16625,8 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brush out of the robot.",
-                "Pull out the square bearing end cover as shown in the figure, and then use a cleaning brush or other suitable tools to clean the foreign objects on the main brush.",
-                "Pull out and clean the brush strips as shown in the figure. Use a cleaning tool to clean the comb.",
+                "Pull out the square bearing end cover, and then use a cleaning brush or other suitable tools to clean the foreign objects on the main brush.",
+                "Pull out and clean the brush strips. Use a cleaning tool to clean the comb.",
                 "Reinstall the brush strips, brush cover, and brush in turn. Press on the brush guard to lock it in place.",
             ],
             "notes": [
@@ -16662,7 +16662,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         },
         "sensor": {
             "steps": [
-                "Wipe the robot sensors by using a soft and dry cloth, as shown in the below figure.",
+                "Wipe the robot sensors by using a soft and dry cloth in the below figure.",
             ],
             "notes": [
                 "A wet cloth can damage sensitive elements within the robot and the base station. Please use a dry cloth for cleaning.",
@@ -16942,7 +16942,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure. Use a proper cleaning tool to remove any hair tangled in the brush. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
+                "Pull out the brushes. Use a proper cleaning tool to remove any hair tangled in the brush. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
                 "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.",
             ],
@@ -17091,7 +17091,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure.",
+                "Pull out the brushes.",
                 "Use a proper cleaning tool to remove any hair tangled in the brush.",
                 "After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
@@ -17246,7 +17246,7 @@ GENERATED_FAMILIES: dict[str, dict[str, dict]] = {
         "main_brush": {
             "steps": [
                 "Press the brush guard clips inwards to remove the brush guard, and then lift the brushes out of the robot.",
-                "Pull out the brushes as shown in the figure. Use a proper cleaning tool to remove any hair tangled in the brush. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
+                "Pull out the brushes. Use a proper cleaning tool to remove any hair tangled in the brush. After cleaning, push the brushes firmly into the main brush holder until they click into place.",
                 "With the screen-printed arrows facing upwards, insert the main brush holder into the slots downwards in an inclined way.",
                 "Align the front end of the brush guard with the slot, insert it downwards in an inclined way, and then press it into place.",
             ],

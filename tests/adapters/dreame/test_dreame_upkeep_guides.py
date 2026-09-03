@@ -77,6 +77,12 @@ KNOWN_INTERVALS = {
 
 #: measured off their own manuals — the quality anchors.
 AUTHORED_FAMILIES = (
+    # P60 platform: three trims (P60 / P60 Pro / MOBIUS 60) on reg code RLV83LE, the top one
+    # EXPORTED as MOBIUS - which is why the family's only manual titles itself MOBIUS 60.
+    # Built family+delta from mobius_60: MOBIUS's AI dual-arm pad SWAP (three stored pairs in
+    # the station) is unique to that trim, so its mop_pad_holder step about "docks on the base
+    # station hatch" is overridden for the fixed-disc trims, and detergent_inlet is added back.
+    "p60",
     "x50",
     "x50_master",
     "x60_ultra",

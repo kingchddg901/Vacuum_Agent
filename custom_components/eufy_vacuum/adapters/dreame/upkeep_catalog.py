@@ -326,19 +326,46 @@ DREAME_MODELS: list[tuple[str, str, str]] = [
     ("mova.vacuum.r2430", "Z Series", "z_series"),
     ("mova.vacuum.r2533h", "E30 Pro", "standard"),
     ("mova.vacuum.r2569c", "E20s Pro", "e20s_pro"),
-    ("mova.vacuum.r2570", "N30 Pro", "standard"),
-    ("mova.vacuum.r5730", "P60 (Selected Edition)", "standard"),
-    ("mova.vacuum.r5766", "Z70 Pro", "standard"),
+    # CAPABILITY-CONFIRMED from CN sources, not name-derived. NOTE THE COLLISION: searching
+    # "N30 Pro" in English returns the ECOVACS (kewosi) N30 PRO, a different vendor entirely -
+    # which is why this looked unfindable. The MOVA one is documented in Chinese only, and both
+    # a taobao encyclopedia article and a JD listing state it does auto mop-washing AND dust
+    # collection, so it is a wash station, not the base tier.
+    ("mova.vacuum.r2570", "N30 Pro", "wash_station"),
+    ("mova.vacuum.r5730", "P60 (Selected Edition)", "p60"),
+    # CAPABILITY-CONFIRMED from CN sources, not name-derived: up to 100C hot-water mop wash (Tencent); station water tank +37.5%, dust bag +25%;
+    # extended pressurised ROLLER + AI live-water mopping.
+    ("mova.vacuum.r5766", "Z70 Pro", "wash_station_roller"),
     ("mova.vacuum.r5769", "P70S (Water Tank Version)", "p70s"),
-    ("mova.vacuum.r57695", "P70 (Clean World Edition)", "standard"),
-    ("mova.vacuum.r58715", "P70 (Clean World Edition)", "standard"),
-    ("mova.vacuum.r9427", "P60", "standard"),
-    ("mova.vacuum.r9473", "Z60 Pro", "standard"),
-    ("mova.vacuum.r9474", "P50 Pro", "standard"),
+    # CAPABILITY-CONFIRMED from CN sources, not name-derived: read from the manual it resolves to (r5770a, EN table p13): Roller Mop, Washboard,
+    # Used + Clean water tank, Dust Bag, auto-empty vent, scale inhibitor.
+    ("mova.vacuum.r57695", "P70 (Clean World Edition)", "wash_station_roller"),
+    # CAPABILITY-CONFIRMED from CN sources, not name-derived: same manual as r57695 (r5770a): roller mop + washboard + both water tanks + dust bag.
+    ("mova.vacuum.r58715", "P70 (Clean World Edition)", "wash_station_roller"),
+    # P60 == MOBIUS 60: same certified hardware (RLV83LE), and the manual titles itself
+    # "MOBIUS 60 Robotic Vacuum Cleaner User Manual". Mop is TWIN SPINNING DISCS - confirmed
+    # three ways: the MOVA CN product page, the TW comparison matrix (雙圓盤), and the reg code.
+    # So pad-class care, never the roller tier. The four P60 rows are one machine +/- the
+    # bolt-on plumbing module (sold separately as 上下水模組), and had been split across FOUR
+    # different families by name-derived guessing - standard / wash_station / wash_station_roller.
+    ("mova.vacuum.r9427", "P60", "p60"),
+    # CAPABILITY-CONFIRMED from CN sources, not name-derived: AI roller deep-press live-water wash, hot-water mop wash + dust collection (JD RCP31EE);
+    # resolves to z60-ultra-roller-standalone_RLZ73CE.pdf, a roller manual.
+    ("mova.vacuum.r9473", "Z60 Pro", "wash_station_roller"),
+    # CAPABILITY-CONFIRMED from CN sources, not name-derived: 360 spray scrub self-cleaning base (SMZDM); JD listing: auto-wash + dust collection,
+    # wash-and-dry; MOVA TW video: mop self-washes and self-dries. Pads, not a roller.
+    ("mova.vacuum.r9474", "P50 Pro", "wash_station"),
     ("mova.vacuum.r94745", "P50 (Selected Edition)", "p50"),
     ("mova.vacuum.r9480", "Z Series", "z_series"),
-    ("mova.vacuum.r9482", "P60 Pro", "standard"),
-    ("mova.vacuum.r9503", "Z60 SE", "standard"),
+    # CAPABILITY-CONFIRMED, not name-derived: the dock auto-empties AND washes the mop with
+    # 80C hot water (360 spray + scrape) then dries it with 45C hot air; the mop is twin
+    # 260rpm pressurised DISCS, which take pad-class care, so wash_station and NOT the roller
+    # tier. Its plumbed twin r2535 was already wash_station - same machine, so the name-derived
+    # guess had split one product across two tiers and left this one missing 8 dock cards.
+    ("mova.vacuum.r9482", "P60 Pro", "p60"),
+    # CAPABILITY-CONFIRMED from CN sources, not name-derived: Bilibili review: roller model, hot live-water circulation wash, station auto-washes the mop
+    # with hot water; taobao consumables list roller brush + dust bag.
+    ("mova.vacuum.r9503", "Z60 SE", "wash_station_roller"),
     ("mova.vacuum.r9543", "P70 Pro", "p70_pro"),
     ("szkj.vacuum.fc01eu", "S10T", "s10t"),
     ("trouver.vacuum.r2569r", "E20s Pro", "e20s_pro"),
@@ -582,8 +609,13 @@ DREAME_MODELS: list[tuple[str, str, str]] = [
     ("mova.vacuum.r2525a", "V50 Ultra", "v50_ultra"),
     ("mova.vacuum.r2525e", "V50 Ultra", "v50_ultra"),
     ("mova.vacuum.r2525h", "V50 Ultra", "v50_ultra"),
-    ("mova.vacuum.r2535", "P60 Pro (Automatic Water Supply and Drainage)", "wash_station"),
-    ("mova.vacuum.r2561", "Z60 Pro (Automatic Water Supply and Drainage)", "wash_station"),
+    ("mova.vacuum.r2535", "P60 Pro (Automatic Water Supply and Drainage)", "p60"),
+    # Same machine as Z60 Pro (r9473), just PLUMBED - "(Automatic Water Supply and
+    # Drainage)" is a water-connection variant, not different hardware, so it must carry the
+    # same family. Z60 Pro is a ROLLER (AI roller deep-press live-water wash) and resolves to
+    # z60-ultra-roller-standalone_RLZ73CE.pdf; the name-derived guess had split one product
+    # across two tiers.
+    ("mova.vacuum.r2561", "Z60 Pro (Automatic Water Supply and Drainage)", "wash_station_roller"),
     ("mova.vacuum.r2582a", "V50 Ultra complete", "v50_ultra_complete"),
     ("mova.vacuum.r2582c", "V50 Ultra Complete", "v50_ultra_complete"),
     ("mova.vacuum.r2582h", "V50 Ultra complete", "v50_ultra_complete"),
@@ -591,7 +623,7 @@ DREAME_MODELS: list[tuple[str, str, str]] = [
     ("mova.vacuum.r2587a", "P50 Pro Ultra", "p50_pro_ultra"),
     ("mova.vacuum.r5730c", "P10 Pro Ultra Gen 2", "p10_pro_ultra_gen_2"),
     ("mova.vacuum.r5732a", "E40 Ultra", "e40_ultra"),
-    ("mova.vacuum.r5747", "P60 (Selected Automatic Water Supply and Drainage)", "wash_station"),
+    ("mova.vacuum.r5747", "P60 (Selected Automatic Water Supply and Drainage)", "p60"),
     ("mova.vacuum.r5770", "P70 Pro Ultra", "p70_pro_ultra"),
     ("mova.vacuum.r590q", "P70 Pro Ultra", "p70_pro_ultra"),
     ("mova.vacuum.r5977a", "P70 Pro Ultra", "p70_pro_ultra"),
@@ -676,7 +708,7 @@ DREAME_MODELS: list[tuple[str, str, str]] = [
     ("mova.vacuum.r5770t", "S70 Ultra Roller", "s70_ultra_roller"),
     ("mova.vacuum.r5871", "P70S (Automatic Water Supply and Drainage)", "p70s"),
     ("mova.vacuum.r590qf", "S70 Ultra Roller", "s70_ultra_roller"),
-    ("mova.vacuum.r9427x", "P60 (Automatic Water Supply and Drainage)", "wash_station_roller"),
+    ("mova.vacuum.r9427x", "P60 (Automatic Water Supply and Drainage)", "p60"),
     ("mova.vacuum.r9473e", "Z60 Ultra Roller", "z60_ultra_roller"),
     ("mova.vacuum.r9540a", "Z60 Ultra Roller Complete", "z60_ultra_roller_complete"),
     ("mova.vacuum.r9540h", "Z60 Ultra Roller Complete", "z60_ultra_roller_complete"),
@@ -896,6 +928,9 @@ DREAME_GUIDE_FAMILY_NAMES: dict[str, str] = {
     "mi_robot_vacuum_mop_2_ultra": "Mi Robot Vacuum-Mop 2 Ultra",
     "mi_robot_vacuum_mop_2_ultra_set": "Mi Robot Vacuum-Mop 2 Ultra Set",
     "mobius_60": "MOBIUS 60",
+    # The CN trims of the same platform. MOBIUS 60 is the exported TOP trim, so it keeps its
+    # own name and its own family; these route to p60 (family+delta, pad-swap step overridden).
+    "p60": "P60 / P60 Pro",
     "p10_pro_ultra_gen_2": "P10 Pro Ultra Gen 2",
     "p10_ultra": "P10 Ultra",
     "p10s_pro": "P10s Pro",
