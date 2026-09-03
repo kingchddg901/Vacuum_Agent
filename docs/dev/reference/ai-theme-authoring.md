@@ -16,7 +16,7 @@ renders the import format.
 |---|---|
 | [Theme Token Map](THEME_TOKEN_MAP.md) | **the spec** — every legal `--evcc-*` key, its type and range |
 | [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md) | **the targeting map** — which CSS property each token paints |
-| [The import envelope](../frontend/theme-system.md#authoring-a-theme-json-by-hand) | **the output contract** — `{ name, colors, alpha, tokens }` |
+| [The import envelope](../frontend/theme-system.md#authoring-a-theme-json-by-hand) | **the output contract** — `{ name, colors, alpha, tokens }`; `alpha` composes onto `colors`, it does not replace it |
 
 ## The loop
 
@@ -25,7 +25,14 @@ renders the import format.
    returns always loads — though a full import stores scalar values as-is (no range clamp),
    so a final check against each token's **Range** is worth it.
 2. **It emits the envelope** — `{ name, colors, alpha, tokens }`, which *is* the import
-   payload. No conversion step.
+   payload. No conversion step. The three buckets are **recombined, not concatenated**:
+   `alpha["--evcc-x"]` is a 0–1 multiplier baked onto `colors["--evcc-x"]`, so a key in
+   both buckets is normal and correct (it is what the editor's own opacity rail writes).
+   Either form is fine — `colors` + `alpha`, or the composed 8-char hex in `tokens` — but
+   an alpha on a key with **no** color in the same envelope, or on a non-hex base such as
+   `rgb()` / `color-mix()`, has nothing to bake into and is dropped; the harness lists
+   those keys as `unappliedAlpha` in its ingest report, so check it rather than reading
+   `0 skipped` as an all-clear.
 3. **Render it.** Run the export through the [render harness](../frontend/render-harness.md) (that
    doc covers how) — it recolors the real card and writes preview images. That's the eval,
    and a multimodal model can read the image back.
@@ -45,6 +52,10 @@ regression — and happen to compose into a theme generator.
 
 The gallery's **Painted Hills** theme was authored exactly this way: one landscape photo as
 the prompt, three passes through the harness (mostly sharpening small-text contrast), then
-submitted. The provenance — the source image and the pass notes — is recorded in its
+submitted. Those passes are also the cautionary half of the story: the harness ingest used
+to concatenate the buckets, so all twelve of that theme's `colors` + `alpha` pairs — every
+text token included — rendered as the card's built-in defaults. The small-text contrast
+was being tuned against a preview that was not showing the theme. Trust the loop, but read
+the ingest report's `composed` / `unappliedAlpha` counts before trusting a pass. The provenance — the source image and the pass notes — is recorded in its
 [merge commit](https://github.com/kingchddg901/Vacuum_Agent/commit/4026454b47664f70db955d38fec61d21442622c2),
 and the result is live in the [theme gallery](https://kingchddg901.github.io/Vacuum_Agent/).

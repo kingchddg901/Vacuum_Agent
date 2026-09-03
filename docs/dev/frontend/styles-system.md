@@ -108,7 +108,7 @@ There is **no single default source.** When `applyDynamicTheme` removes/never-se
 - **0. default** — room-fill palette seed (`state/theme.js#CNG4F7SJ`; a sibling floor-texture-material seed follows at `state/theme.js#CNTV53SE`, cross-referenced from [floor-texture-map-view.md](floor-texture-map-view.md) rather than restated here).
 - **1. theme** — active theme's `colors`/`alpha`/`tokens` (`state/theme.js#CNGDCQF4`); `activeTheme = library[effectiveActiveThemeId()]` (`state/theme.js#CNGDHPPD`); `effectiveActiveThemeId()` (`state/theme.js::effectiveActiveThemeId`) resolves per-device override → backend active fallback.
 - **2. draft** — working-draft overlay, highest precedence (`state/theme.js#CNC3TMHJ`).
-- **3. combine** — `_hexWithAlpha()` folds `colorMap`+`alphaMap` into 8-char hex (`state/theme.js#CNGE76CN`).
+- **3. combine** — `flattenThemeBuckets()` folds `colorMap`+`alphaMap` into 8-char hex via `hexWithAlpha()` (`theme-tokens/flatten.js`, called at `state/theme.js#CNGE76CN`).
 - Returns `{tokens, sources}` (`state/theme.js#CNWWDBRT`); `sources` (default|theme|draft) drives editor provenance only. The foundation `:host` default (A) is NOT in `tokens` — it is the implicit floor CSS applies whenever `resolvedTheme` omits a key.
 
 **One-line bridge:** `_render()` → `applyThemeToCard(this)` (`main.js::_render`) → `resolvedTheme()` merges default(seed)→theme→draft into `{tokens}` (`state/theme.js::resolvedTheme`) → `applyDynamicTheme` writes/removes inline `--evcc-*` on card + modal host (`styles/index.js::applyDynamicTheme`) → CSS resolves anything unset via `:host` (A), modal-derived (B), or `var(…,defaultHex)` (C).

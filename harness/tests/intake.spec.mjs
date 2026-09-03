@@ -53,6 +53,41 @@ test.describe("theme intake gate", () => {
     expect(r.bundle["--evcc-sem-warning"]).toBe("#e9a100");
   });
 
+  test("a colors+alpha pair composes into 8-digit hex, and the report says so", async ({ page }) => {
+    // The gallery bug: the ingest concatenated tokens -> colors -> alpha into one
+    // map, so `alpha[k]` OVERWROTE the hex and the token resolved to a bare
+    // `0.9`. `var(--evcc-text-secondary)` still counted as defined, so no CSS
+    // fallback fired and the built-in default painted — under "0 skipped".
+    const r = await ingest(page, {
+      theme: {
+        colors: { "--evcc-text-secondary": "#F4EBD8", "--evcc-accent": "#C04E2C" },
+        alpha: { "--evcc-text-secondary": 0.9 },
+      },
+    });
+    expect(r.report.ok).toBe(true);
+    expect(r.bundle["--evcc-text-secondary"]).toBe("#F4EBD8e6"); // 0.9 -> 0xe6
+    expect(r.bundle["--evcc-accent"]).toBe("#C04E2C");            // unpaired, untouched
+    expect(r.report.composed).toEqual(["--evcc-text-secondary"]);
+    expect(r.report.unappliedAlpha).toEqual([]);
+  });
+
+  test("an alpha that reaches no colour is dropped and NAMED, not reported as clean", async ({ page }) => {
+    // `0 clamped, 0 skipped` used to be the whole story. An alpha with no colour
+    // composes onto nothing; writing the bare number would define the property
+    // as an invalid colour, so it is dropped — and has to be visible.
+    const r = await ingest(page, {
+      theme: {
+        tokens: { "--evcc-accent": "#C04E2C" },
+        alpha: { "--evcc-accent": 0.5 },
+      },
+    });
+    expect(r.report.ok).toBe(true);
+    expect(r.bundle["--evcc-accent"]).toBe("#C04E2C");
+    expect(r.report.skippedKeys).toEqual([]);
+    expect(r.report.unappliedAlpha).toEqual(["--evcc-accent"]);
+    expect(r.report.composed).toEqual([]);
+  });
+
   test("every ingested bounded scalar lands inside its clamp", async ({ page }) => {
     const bounded = await page.evaluate(() => {
       const map = window.__evcc.tokenMap;

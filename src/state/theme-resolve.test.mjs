@@ -3,7 +3,9 @@
 // Coverage targets:
 //   [RT-*]  resolvedTheme — 4-layer merge: (0) ROOM_FILL_PALETTE seed defaults ->
 //           (1) active theme colors/alpha/tokens -> (2) working-draft overlay ->
-//           (3) color+alpha combine via _hexWithAlpha; plus the `sources` provenance map.
+//           (3) color+alpha combine via flattenThemeBuckets/hexWithAlpha
+//           (theme-tokens/flatten.js — the shared rule the harness ingest and the
+//           preset-preview swatch also call); plus the `sources` provenance map.
 //   [FT-*]  filteredThemeTokens — excludeKeys, modifiedOnly, group filter (incl. the
 //           "modified" special case and the "Group — subgroup" prefix), global search.
 //   [GS-*]  tokenMatchesGlobalThemeSearch — label/key/value/aliases/usage/affects, empty query.
@@ -61,7 +63,7 @@ test("[RT-1] resolvedTheme seeds every room-fill token to the default palette wi
   const { tokens, sources } = c.resolvedTheme();
   ROOM_FILL_PALETTE.forEach((hex, i) => {
     const key = `--evcc-room-fill-${i + 1}`;
-    // _hexWithAlpha with null alpha returns the trimmed hex unchanged (6-char stays 6-char).
+    // hexWithAlpha with null alpha returns the trimmed hex unchanged (6-char stays 6-char).
     assert.equal(tokens[key], hex, `${key} seed value`);
     assert.equal(sources[key], "default", `${key} seed source`);
   });
@@ -139,7 +141,7 @@ test("[RT-3] working draft is the top layer — beats both seed and active theme
   assert.equal(sources["--evcc-room-fill-1"], "draft");
 });
 
-test("[RT-4] alpha is baked into the hex via _hexWithAlpha (0..1 -> 8-char)", () => {
+test("[RT-4] alpha is baked into the hex via hexWithAlpha (0..1 -> 8-char)", () => {
   const c = cardWithState({
     activeThemeId: "t1",
     library: { t1: { colors: { "--evcc-accent": "#ff8800" }, alpha: { "--evcc-accent": 0.5 } } },
@@ -176,7 +178,7 @@ test("[RT-6] alpha clamps to [0,1]; out-of-range and NaN handled", () => {
   const { tokens } = c.resolvedTheme();
   assert.equal(tokens["--evcc-a"], "#000000ff"); // clamp high -> 1.0 -> ff
   assert.equal(tokens["--evcc-b"], "#00000000"); // clamp low  -> 0.0 -> 00
-  // NaN alpha -> _hexWithAlpha returns the trimmed input unchanged (the 6-char color).
+  // NaN alpha -> hexWithAlpha returns the trimmed input unchanged (the 6-char color).
   assert.equal(tokens["--evcc-c"], "#000000");
 });
 

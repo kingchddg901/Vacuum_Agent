@@ -184,10 +184,18 @@ for (const file of files) {
   writeThemePage(outDir, envelope.theme?.name || name, scope, report, shots, { tags: themeTags, attr, colorblind, download: downloadFile });
 
   processed.push({ name, themeName: envelope.theme?.name || name, scope, report, tags: themeTags, attr, filterTokens, download: downloadFile });
+  // Alpha accounting is part of the one-line summary on purpose: "0 clamped,
+  // 0 skipped" was a true statement over a theme whose paired colours had been
+  // silently dropped, and it read as an all-clear.
+  const unapplied = report.unappliedAlpha || [];
   console.log(
     `✓ ${name}: ${report.keyCount} keys, scope=[${scope.join(",") || "full"}], ` +
-      `${report.clamped} clamped, ${report.skippedKeys.length} skipped -> harness/out/preview/themes/${name}/`,
+      `${report.clamped} clamped, ${report.skippedKeys.length} skipped, ` +
+      `${(report.composed || []).length} alpha composed -> harness/out/preview/themes/${name}/`,
   );
+  if (unapplied.length) {
+    console.warn(`  ! ${name}: alpha applied to nothing (${unapplied.length}): ${unapplied.join(", ")}`);
+  }
 }
 
 if (processed.length) {

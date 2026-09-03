@@ -15,6 +15,7 @@ import {
   THEME_GROUPS,
 } from "../theme-tokens/index.js";
 import { floorTypeNames } from "../theme-tokens/floor-scope.js";
+import { flattenThemeBuckets } from "../theme-tokens/flatten.js";
 import { FONT_STACK_PRESETS, runtimeFontPresets } from "../styles/fonts.js";
 import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
 import { FACETS, orderTags, facetOf, SUGGESTED_VIBE_TAGS } from "../theme-tags/index.mjs";
@@ -575,11 +576,13 @@ export function applyThemeRenderers(proto) {
             const theme = library[id];
             const isActive = activeId === id;
 
-            const previewStyle = [
-              ...Object.entries(theme.tokens || {}),
-              ...Object.entries(theme.colors || {}),
-              ...Object.entries(theme.alpha || {}),
-            ]
+            // Same flatten rule as the live apply path (state/theme.js) and the
+            // harness ingest — alpha COMPOSES onto its colour. Concatenating the
+            // buckets here let `alpha[k]` overwrite the hex, so every paired key
+            // rendered as a bare number: an invalid colour that still counts as
+            // "defined", so the swatch quietly showed the built-in default and
+            // the preview disagreed with what activating the theme actually paints.
+            const previewStyle = Object.entries(flattenThemeBuckets(theme).bundle)
               .map(([k, v]) => `${k}:${v}`)
               .join(";");
 
