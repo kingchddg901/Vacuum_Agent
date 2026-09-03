@@ -368,8 +368,9 @@ export const shellStyles = `
   }
 
   .evcc-nav-tab.active {
-    background:  color-mix(in srgb, var(--evcc-accent) 18%, transparent);
-    color:       var(--evcc-accent);
+    background:  var(--evcc-tab-active-bg,
+      color-mix(in srgb, var(--evcc-accent) 18%, transparent));
+    color:       var(--evcc-tab-active-text, var(--evcc-accent));
     font-weight: 600;
   }
 

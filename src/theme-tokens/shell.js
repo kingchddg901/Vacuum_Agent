@@ -22,6 +22,9 @@ import { shellToken } from "./helpers.js";
 export const SHELL_TOKENS = [
   shellToken.color("--evcc-accent", "Accent"),
   shellToken.color("--evcc-accent-soft", "Accent Soft"),
+  shellToken.color("--evcc-tab-active-bg", "Tab Active BG"),
+  shellToken.color("--evcc-tab-active-border", "Tab Active Border"),
+  shellToken.color("--evcc-tab-active-text", "Tab Active Text"),
   shellToken.color("--evcc-text-muted", "Text Muted"),
   shellToken.color("--evcc-text-on-accent", "Text On Accent"),
   shellToken.color("--evcc-text-primary", "Text Primary"),

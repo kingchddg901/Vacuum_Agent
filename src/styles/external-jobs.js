@@ -54,9 +54,11 @@ export const externalJobsStyles = `
     cursor: pointer;
   }
   .evcc-review-subtab.is-active {
-    background: color-mix(in srgb, var(--evcc-accent) 18%, transparent);
-    border-color: color-mix(in srgb, var(--evcc-accent) 40%, transparent);
-    color: var(--evcc-accent);
+    background: var(--evcc-tab-active-bg,
+      color-mix(in srgb, var(--evcc-accent) 18%, transparent));
+    border-color: var(--evcc-tab-active-border,
+      color-mix(in srgb, var(--evcc-accent) 40%, transparent));
+    color: var(--evcc-tab-active-text, var(--evcc-accent));
     font-weight: 600;
   }
   .evcc-external-empty { padding: 24px; text-align: center; color: var(--evcc-text-secondary); }

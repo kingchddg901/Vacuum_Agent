@@ -6,18 +6,21 @@
 
 > Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
 
-The themeable control-surface tokens exposed in the theme editor: **408 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; **Default** is the value the card ships (the reverse lookup: scan a group for the colour you need instead of inventing one); bounded scalars list their slider range.
+The themeable control-surface tokens exposed in the theme editor: **411 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; **Default** is the value the card ships (the reverse lookup: scan a group for the colour you need instead of inventing one); bounded scalars list their slider range.
 
 The 5 companion sub-groups share one identical 14-token shape — only **Cat** is listed in full; Dog, Raccoon, Parrot, Snake repeat it with their own `-<animal>-` key segment.
 
 ---
 
-## App Shell & Typography  ·  7
+## App Shell & Typography  ·  10
 
 | Token | Controls | Type | Default | Range |
 |---|---|---|---|---|
 | `--evcc-accent` | Accent | color | `var(--accent-color, #3b82f6)` |  |
 | `--evcc-accent-soft` | Accent Soft | color | `rgba(0,229,255,0.16)` |  |
+| `--evcc-tab-active-bg` | Tab Active BG | color | — |  |
+| `--evcc-tab-active-border` | Tab Active Border | color | — |  |
+| `--evcc-tab-active-text` | Tab Active Text | color | — |  |
 | `--evcc-text-muted` | Text Muted | color | `rgba(240,242,245,0.48)` |  |
 | `--evcc-text-on-accent` | Text On Accent | color | `#ffffff` |  |
 | `--evcc-text-primary` | Text Primary | color | `var(--primary-text-color, #f0f2f5)` |  |
