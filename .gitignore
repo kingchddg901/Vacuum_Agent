@@ -85,3 +85,21 @@ COMMIT_MSG*
 # Docker cold-install harness — persistent HA config from docker-compose.yml.
 # Wipe the folder to test a fresh-from-zero install.
 .test-config/
+
+# Scratch output from encoding / corpus analysis. Throwaway by construction — character
+# frequency dumps, codec-failure traces, byte-range tallies. Named loosely enough that
+# they land in the repo root and read as project files at a glance.
+/out*.txt
+/scratch_*.txt
+
+# Literal-Windows-path filenames. The default cwd for this project is the PRODUCTION
+# config share, so a relative write from a session whose cwd moved creates a file whose
+# NAME is the whole intended path. Ignored so the next one is not committed by reflex;
+# the fix is always an absolute path, never this pattern.
+/C:*
+
+# Per-locale guide JSON emitted by the corpus lift (8.4 MB, ~3.7k files). Intermediate
+# between the manual corpus and the generated Python tables that actually ship; nothing
+# tracked references it, and this repo is installed through HACS, so shipping the
+# intermediates would multiply every user's download for data they never load.
+/scripts/guides/
