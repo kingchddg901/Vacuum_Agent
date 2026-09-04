@@ -634,14 +634,15 @@ Sections 4–5 cover the runtime CSS bridge and the working-draft lifecycle; thi
 
 ### Live preview — `applyThemeToCard` on every mutation
 
-Every editor control, after it writes the working draft, calls `applyThemeToCard(this.card)` **directly** (`bindings/theme.js#CN01YPJS` import; 15 call sites — preset `:252/:289`, mode `:307/:326/:333`, font preset `:650`, token `:687/:734`, color `:710`, alpha `:763/:776`, colormix `:972/:986/:1003`, backend refresh `:1601`). That pushes the merged draft straight to the live `--evcc-*` CSS vars on the card and modal host **without persisting and without a full re-render** — so the card previews the change the instant you touch a control. It is the same [styles-system.md](styles-system.md) `apply-theme` bridge; the editor just calls it out-of-band for immediacy.
+Every editor control, after it writes the working draft, calls `applyThemeToCard(this.card)` **directly** (`bindings/theme.js#CN01YPJS` import; 15 call sites — preset `:252/:289`, mode `:307/:326/:333`, font preset `:650`, token `:687/:734`, color `:710`, alpha `:763/:776`, colormix `:973/:987/:1004`, backend refresh `:1596`). That pushes the merged draft straight to the live `--evcc-*` CSS vars on the card and modal host **without persisting and without a full re-render** — so the card previews the change the instant you touch a control. It is the same [styles-system.md](styles-system.md) `apply-theme` bridge; the editor just calls it out-of-band for immediacy.
 
 ### Live-vs-commit — `input` applies, `change` persists
 
 Each token control binds **both** events (the canonical live-vs-commit split — see [event-binding-and-modal-host.md](event-binding-and-modal-host.md)):
 
-- **`input`** (`:601` `[data-theme-token]` sliders, `:690` alpha, `:901` colormix-ratio) — writes the draft + `applyThemeToCard` for the live preview, but **no persist, no render**. A range slider fires `input` every drag pixel; persisting/rendering there would thrash.
-- **`change`** (`:658` `[data-theme-token]` sliders, `:636` color pickers, `:708` alpha, `:918`/`:934` colormix) — commits to the working draft **and** calls `_scheduleDeferredRender()` (`:655` color / `:681` token / `:719` alpha / `:929` colormix-ratio / `:947` colormix color1-2) — the 600 ms debounce ([render-cycle.md](render-cycle.md)'s `_scheduleDeferredRender`), so the modified-badge / full re-render lands only after the gesture settles.
+- **`input`** (`:655` `[data-theme-token]` sliders, `:748` alpha, `:960` colormix-ratio) — writes the draft + `applyThemeToCard` for the live preview, but **no persist, no render**. A range slider fires `input` every drag pixel; persisting/rendering there would thrash.
+- **`change`** (`:716` `[data-theme-token]` sliders, `:691` color pickers, `:766` alpha, `:977`/`:992` colormix) — commits to the working draft **and** calls `_scheduleDeferredRender()` (`:712` color / `:739` token / `:777` alpha / `:988` colormix-ratio / `:1006` colormix color1-2) — the 600 ms debounce ([render-cycle.md](render-cycle.md)'s `_scheduleDeferredRender`), so the modified-badge / full re-render lands only after the gesture settles.
+- A **sixth** deferred-render site sits outside that pair: `:651`, the `[data-theme-font-preset]` handler. It is a `click`, not a `change` — one tap is already the whole gesture, so there is no `input` phase to split off — but it commits and defers exactly like a `change`. Counting only the `change`-bound controls is what made this list read as complete at five.
 
 Invert this (render on `input`) and you swap the `<input>` node mid-drag and drop the value — the exact trap [event-binding-and-modal-host.md](event-binding-and-modal-host.md) documents.
 

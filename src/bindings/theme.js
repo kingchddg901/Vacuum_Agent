@@ -937,14 +937,15 @@ export function applyThemeBindings(proto) {
     if (!def) return {};
 
     if (def.type === "color") {
+      // No `alpha` key here on purpose. The opacity rail on a color row writes
+      // that bucket directly (`_bindThemeAlphaEdits`), so a color edit must not
+      // clobber the alpha the user already set. There is no alpha-*typed* token
+      // to route: `makeGroupedToken` admits only THEME_TOKEN_TYPES, so a token
+      // is a color that CARRIES an alpha, never an alpha in its own right.
       return {
         tokens: { [token]: value },
         colors: { [token]: value },
       };
-    }
-
-    if (def.type === "alpha") {
-      return { alpha: { [token]: value } };
     }
 
     return { tokens: { [token]: value } };
@@ -1072,15 +1073,12 @@ export function applyThemeBindings(proto) {
 
   proto._buildDraftResetPayload = function (token, tokenDef) {
     if (tokenDef.type === "color") {
+      // Clears all three buckets: a color row owns its own alpha entry.
       return {
         tokens: { [token]: null },
         colors: { [token]: null },
         alpha: { [token]: null },
       };
-    }
-
-    if (tokenDef.type === "alpha") {
-      return { alpha: { [token]: null } };
     }
 
     return { tokens: { [token]: null } };
@@ -1131,9 +1129,6 @@ export function applyThemeBindings(proto) {
       if (tokenDef.type === "color") {
         tokens[tokenDef.key] = null;
         colors[tokenDef.key] = null;
-        alpha[tokenDef.key] = null;
-        hasAny = true;
-      } else if (tokenDef.type === "alpha") {
         alpha[tokenDef.key] = null;
         hasAny = true;
       } else {
