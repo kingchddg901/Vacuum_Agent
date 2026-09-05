@@ -440,10 +440,11 @@ class MaintenanceManager:
             if replacement_state is not None:
                 replacement_value = replacement_state.state
                 replacement_unit = replacement_state.attributes.get("unit_of_measurement")
-                try:
-                    usage_hours = float(replacement_state.attributes.get("usage_hours"))
-                except (TypeError, ValueError):
-                    usage_hours = None
+                # Shape-aware: the attribute on eufy, life-minus-remaining on the
+                # countdown brands. Reading only the attribute is why roborock and
+                # dreame both showed "0 hours used of N hours" beside a correct
+                # percentage — the sibling half of the total_life_hours fix below.
+                usage_hours = self._consumed_hours(replacement_state, meta)
                 try:
                     total_life_hours = float(replacement_state.attributes.get("total_life_hours"))
                 except (TypeError, ValueError):
@@ -741,6 +742,55 @@ class MaintenanceManager:
         self._manager.data.setdefault("maintenance", {})
         return self._manager.data["maintenance"].setdefault(vacuum_entity_id, {})
 
+    @staticmethod
+    def _consumed_hours(state: Any, meta: dict[str, Any] | None) -> float | None:
+        """Hours a consumable has been used, however its brand expresses that.
+
+        THE SECOND HALF OF THE EUFY-ISM ALREADY FIXED FOR ``total_life_hours``.
+        Two counter shapes exist and only one publishes a usage attribute:
+
+        * ACCUMULATOR — ``usage_hours`` rises on the sensor's attributes (eufy,
+          via robovac_mqtt).
+        * COUNTDOWN — the sensor's STATE is the hours REMAINING and there is no
+          usage attribute at all (roborock, dreame). Consumed is the declared
+          service life minus what is left.
+
+        Both forms RISE with use, deliberately: every caller then keeps its
+        ``current - snapshot`` arithmetic unchanged, and no stored value changes
+        meaning. Attribute wins when present, so eufy is untouched.
+
+        Returns None when neither form is readable — which callers must treat as
+        UNKNOWN, never as zero. Defaulting to 0 is what made a countdown brand
+        report "0 hours used" and a permanently full maintenance row.
+        """
+        if state is None:
+            return None
+        try:
+            return float(state.attributes.get("usage_hours"))
+        except (TypeError, ValueError):
+            pass
+        # Declared service life, NOT the user's interval override: the override is
+        # the cadence they want prompting at, while the derivation needs the life
+        # the device actually counts down from.
+        try:
+            life = float((meta or {}).get("default_interval_hours", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return None
+        if life <= 0:
+            return None
+        try:
+            remaining = float(state.state)
+        except (TypeError, ValueError):
+            return None
+        return max(life - remaining, 0.0)
+
+    def _component_meta(self, *, vacuum_entity_id: str, component: str) -> dict[str, Any]:
+        """Adapter-declared metadata for one maintenance component."""
+        from ..adapters.registry import get_adapter_config as _get_adapter_config
+
+        cfg = _get_adapter_config(vacuum_entity_id) or {}
+        return (cfg.get("maintenance_components", {}) or {}).get(component, {}) or {}
+
     def reset_maintenance(
         self,
         *,
@@ -778,9 +828,13 @@ class MaintenanceManager:
                 "source_entity": source_entity,
             }
 
-        try:
-            usage_hours = float(state.attributes.get("usage_hours", 0))
-        except (TypeError, ValueError):
+        usage_hours = self._consumed_hours(
+            state,
+            self._component_meta(vacuum_entity_id=vacuum_entity_id, component=component),
+        )
+        if usage_hours is None:
+            # Unreadable, not zero. Snapshotting 0 here would silently baseline the
+            # component at "never used" and the counter could never move.
             return {
                 "vacuum_entity_id": vacuum_entity_id,
                 "component": component,
@@ -844,11 +898,15 @@ class MaintenanceManager:
         if source_entity:
             state = self._manager.hass.states.get(source_entity)
             if state is not None:
-                try:
-                    current_usage = float(state.attributes.get("usage_hours", 0))
+                _consumed = self._consumed_hours(
+                    state,
+                    self._component_meta(
+                        vacuum_entity_id=vacuum_entity_id, component=component
+                    ),
+                )
+                if _consumed is not None:
+                    current_usage = _consumed
                     source_available = True
-                except (TypeError, ValueError):
-                    pass
 
         maintenance = self.get_maintenance_state(vacuum_entity_id=vacuum_entity_id)
         component_data = maintenance.get(component, {})

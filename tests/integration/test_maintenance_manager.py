@@ -144,6 +144,67 @@ def test_reset_success(mnt, manager, hass, monkeypatch):
     assert stored["reset_at_usage_hours"] == pytest.approx(120.0)
 
 
+def test_countdown_brand_maintenance_counter_moves(mnt, manager, hass, monkeypatch):
+    """[MNT-7c] the maintenance COUNTER on a countdown brand, end to end.
+
+    Roborock and Dreame publish hours REMAINING as the sensor state and no
+    `usage_hours` attribute at all. Reading only the attribute defaulted current
+    usage to 0, so `used_since_reset` was always 0 and `remaining` was always the
+    full interval -- every part on both brands reported "300 hours left of 300
+    hours", permanently, however much the robot had cleaned.
+
+    It has to be an END-TO-END pair (reset, then advance) rather than one read:
+    the snapshot and the comparison are two separate call sites reading the same
+    value, and a fix to either alone still produces nonsense.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {
+            "main_brush": {"label": "Main Brush", "default_interval_hours": 300.0},
+        },
+    })
+    _caps(manager, monkeypatch, {"main_brush": _SRC})
+
+    # 293 h remaining of a 300 h life -> 7 h consumed. No attributes, as the
+    # countdown brands send.
+    hass.states.async_set(_SRC, "293")
+    assert mnt.reset_maintenance(
+        vacuum_entity_id=_VAC, component="main_brush")["reset_at_usage_hours"] == pytest.approx(7.0)
+
+    # Ten more cleaning hours: the device counts DOWN, consumed rises to 17.
+    hass.states.async_set(_SRC, "283")
+    got = mnt.get_maintenance_remaining(
+        vacuum_entity_id=_VAC, component="main_brush", interval_hours=30.0)
+    assert got["used_since_reset_hours"] == pytest.approx(10.0)
+    assert got["remaining_hours"] == pytest.approx(20.0)   # the user's 30 h cadence, not the device's
+    assert got["source_available"] is True
+
+
+def test_countdown_brand_unreadable_source_is_not_zero(mnt, manager, hass, monkeypatch):
+    """[MNT-7d] an unreadable countdown must be UNKNOWN, never "never used".
+
+    The old `float(attributes.get("usage_hours", 0))` turned every unreadable
+    source into a confident zero. A reset then baselined the part at "fresh" and
+    the counter could never move again -- the failure mode that hides itself.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {
+            "main_brush": {"label": "Main Brush", "default_interval_hours": 300.0},
+        },
+    })
+    _caps(manager, monkeypatch, {"main_brush": _SRC})
+    hass.states.async_set(_SRC, "unavailable")
+
+    assert mnt.reset_maintenance(
+        vacuum_entity_id=_VAC, component="main_brush")["reason"] == "invalid_usage_hours"
+    assert mnt.get_maintenance_remaining(
+        vacuum_entity_id=_VAC, component="main_brush",
+        interval_hours=30.0)["source_available"] is False
+
+
 def test_reset_preserves_interval_override(mnt, manager, hass, monkeypatch):
     """[MNT-7b] CS-1: a reset re-snapshots the usage baseline but must NOT wipe a
     user's interval_hours override — the entry used to be replaced wholesale."""
@@ -254,6 +315,13 @@ def test_replacement_life_falls_back_to_the_declared_interval(mnt, manager, hass
     assert items["main_brush"]["total_life_hours"] == 300.0
     assert items["main_brush"]["remaining_percent"] == 77.43
     assert items["main_brush"]["status"] == "good"
+    # THE OTHER HALF OF THE SAME EUFY-ISM, and it shipped broken for a year because
+    # this test asserted the denominator and not the numerator. `usage_hours` is a
+    # robovac_mqtt attribute too; reading only the attribute left it None on every
+    # countdown brand, and the card rendered that as "0 hours used of 300 hours"
+    # beside a perfectly correct 77%. The reporter's own figure is in the docstring
+    # above -- 67.67 h used -- and nothing here ever checked it.
+    assert items["main_brush"]["usage_hours"] == pytest.approx(67.7, abs=0.05)
 
 
 def test_replacement_life_prefers_the_attribute_over_the_declaration(
