@@ -93,3 +93,45 @@ Measured with them: **X50s Pro Ultra** clean=12 dirty=13 plumb=2 (both tanks); *
 clean=4 dirty=2 plumb=13 (plumbed). Those two are already separate families
 (`x50s_pro_master` = r2501p), so the split there is correct. Fold these into `SIGNALS` before the
 next walk.
+
+
+## ⛔ RETRACTION — "families hold multiple products" is NOT a defect
+
+Chris: *"i have 123 manuals that match a naive search on windows in the corpus for the X50."*
+Chasing that, I measured 19 families holding more than one base product name and was about to
+file it as a structural defect, with `x50` (50 models, incl. **GoVac 800**), `l50` (L10s Ultra
+Gen 3, L40 Ultra Gen 2) and `aqua10_ultra_track` (Aqua 10 Pro Track) as the worst offenders.
+
+**All three are named in `upkeep_catalog.py`'s own docstring as PROVEN-CORRECT examples:**
+
+> family is either one of the 16 AUTHORED families or a generic name-derived TIER for the long
+> tail. An authored family is assigned on an exact authored-line name match, OR on a reg-code
+> (PLATFORM) match proving the same certified machine as an authored line — verify_rebadge_claims.py's
+> rule "two names sharing an r-code are the same hardware, proof not inference" (e.g. **GoVac 800
+> == X50 on RLX85CE**, **L10s Ultra Gen 3 / L40 Ultra Gen 2 == the L50 machine on RLH41CE**,
+> **Aqua 10 Pro Track == Aqua10 Ultra Track on RLR81CE**). Either way measured prose never lands
+> on a differently-mopped variant.
+
+And `wash_station`, `wash_station_roller`, `standard` are **deliberate generic TIERS** for the
+long tail, explicitly provisional and flagged there for refinement from the DEVICE_INFO
+capability table. Not buckets that leaked; buckets by design.
+
+So multiple product NAMES in one family is the system working — reg-code proof collapsing
+rebadges. I re-derived a documented design from the corpus and read it as a fault, which is
+exactly what the standing rule about scanning the docs before scoping exists to stop. The answer
+was in the first 12 lines of the file I had been querying all day.
+
+## ✅ What survives the retraction
+
+The **DOCK-variant** finding above is untouched and is a different axis:
+
+* reg-code matching proves *the same certified machine*. It does **not** say which DOCK that
+  machine shipped with, and the water cards depend entirely on the dock.
+* `x50_pro` is the demonstration: one robot, one family, and four of its manuals read
+  `clean=11 dirty=21 plumb=0` (Tracked, Exclusive) against `clean=0 dirty=0 plumb=11`
+  (two Ultra-Thin embedded). Same machine, different plumbing, opposite card needs.
+* 34 of 277 families pair a plumbed-named model with a plain one.
+
+So the correct statement is narrow: **a family is a machine, and that is proven; but a family is
+not a DOCK, and the water components are dock-level.** The retraction removes the sweeping claim
+and leaves the specific one, which is the one that actually bit.
