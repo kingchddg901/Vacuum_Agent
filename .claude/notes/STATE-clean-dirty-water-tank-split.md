@@ -216,6 +216,19 @@ The 5 master/plumbed families — `clean_master_x60_pro_steam`, `g20_master`, `m
 `master_pro`, `x40_master`. Chris: *"they are possibly a variant of themselves, but we're
 not looking at them right now."*
 
+## ⏸ PENDING CHECK — run when the station-tank work is done, not before
+
+**Do the robot-side tanks have their access instructions?** Chris believes they do
+(2026-09-07) and deliberately deferred verifying it: *"Do not divert right now."*
+
+21 families use `tank.remove` / `tank.refit` ("out of the ROBOT"). The station-side gap —
+no key opens the compartment the tanks sit in — was missed by both of us for a long time,
+so the robot side deserves the same question rather than an assumption.
+
+**Check:** does every robot-tank block start with a real access step (top cover, clip,
+release button), or do any begin at `tank.remove` with no way in? Same shape as the station
+finding: 152 of 158 dirty cards began at the tank with no way into the compartment.
+
 ## Next action when this resumes
 
 Build **the split** (99 blocks): refill leads, cleaning gated behind the `air_hole`-style
