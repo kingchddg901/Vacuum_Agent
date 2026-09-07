@@ -271,6 +271,45 @@ fact as `dustbin` folding into `filter`: you cannot service the filter without h
 dust box, you cannot reach the detergent compartment without lifting the dust tank cover.
 Namespace reasoning cannot see a shared access path, so it reports one as a defect.
 
+### Three kinds of claim, and which ones need a human
+
+The anti-splice control — don't author beyond the source, don't connect things that are
+not connected, don't keep searching for a justification — **is correct and stays as it
+is.** Chris, 2026-09-06:
+
+> "this is not a failing[,] is a proper control that fails in this case. dont search
+> forever[,] dont connect unrelated things[,] 99% good but in this case it bites[,] not
+> something to overwrite. its why i am still in the loop"
+
+So this section is **not** a licence to author more freely. It is a map of where the
+control's known narrow failure sits, so the escalation is aimed rather than constant.
+
+| the claim | inferable without a source? | why |
+|---|---|---|
+| **WHAT to do** — clean the part that gets dirty | usually **yes** | follows from what the part *is* and what it touches |
+| **HOW to do it** — wash / vacuum / tap / keep dry | **no** | material and design fact, invisible from outside |
+| **WHAT the part is, how it comes apart** | **no** | mechanism. This is what the anti-splice rule exists for |
+
+Worked against the day's ground truth, all of it supplied by Chris:
+
+- *caster axle separates from the wheel* — row 3. I concluded press-fit from a labels-only
+  diagram; 11 of 11 sources say it separates.
+- *E30 Aqua has TWO main brushes* — row 3. No amount of reading our corpus produces that.
+- *e5's HEPA must stay dry; its foam should be vacuumed, not washed* — row 2. I had
+  proposed a single filter with a tapping step. Both halves wrong, and the failure mode is
+  a user destroying a filter.
+- *"remove the mop plate, clean it, refit it"* — row 1. The holder is in permanent contact
+  with a wet pad holding dirty water; it gets dirty because of what it is. **No manual
+  needed, and precedent from sibling families is not the reason it is sound.**
+
+Every intervention that changed an outcome today was row 2 or row 3. None was row 1,
+because row 1 does not need one.
+
+**The defects the composed architecture was built to stop are MECHANISM splices** — steps
+asserting end caps, clips or hatches a given model may not have. A generic "clean the
+thing that gets dirty" borrows no mechanism and was never the hazard. Suppressing row 1
+is the control being slightly too broad, which is the right direction for it to err.
+
 ### ⚠ RETRACTION — `x30_pro` was NOT a finding
 
 Reported above as the one real defect of the seven. It was not, and Chris's two questions
