@@ -242,3 +242,76 @@ needs per-model evidence.
 That converts the dock problem from "read 3,111 manuals" into "cut out the embedded models, then
 resolve the remainder", and it is the concrete form of the cut-out Chris has had in mind
 throughout.
+
+
+## "Master" as a second cut-out flag — Chris: *"master was the flag for some plumbed editions"*
+
+Right, but narrower than the word. Tested the same way as the embedded rule:
+
+```
+MASTER-named models with manual evidence: 14
+   have a clean tank            10
+   plumbed, no clean tank        4
+```
+
+Of the 4 plumbed, **two are already explained by "embedded"** (`Clean Master X60 Pro Steam
+(Ultra-Thin embedded)`, `X60 Master (Ultimate Ultra-Thin embedded)`). The two that Master
+genuinely flags are **`Master Pro` (r2310)** and **`Master One` (r2310a)** — where Master is the
+PRODUCT NAME, not a suffix.
+
+Every `<Model> Master` — X30/X40/X50/X60 Master, X50 Pro Master, X50s Pro Master — **has a clean
+tank**. So the flag is not the word.
+
+### What it actually is: the r2310 series
+
+```
+r2310   Master Pro                          c=0 d=0 p=2
+r2310a  Master One                          c=0 d=0 p=2
+r2310b  S10 Pro Ultra (Ultra-Thin embedded) c=0 d=0 p=2
+r2310d  S30 Pro Ultra (Ultra-Thin embedded) c=0 d=0 p=3
+r2310e  X40 Pro (Ultra-Thin embedded)       c=0 d=0 p=3
+r2310f  S20 Pro (Ultra-Thin embedded)       c=0 d=0 p=3
+r2310g  X30 Pro (Ultra-Thin embedded)       c=0 d=0 p=3
+
+7 of 7 have manual evidence; 7 of 7 have clean_tank == 0
+```
+
+**The r2310 series IS the plumbed / ultra-thin platform.** Five of its members say so in their
+name; `Master Pro` and `Master One` are the two flagship names where the marketing name replaced
+the descriptor. That is precisely Chris's point, and it makes them cut-outs the name rule alone
+would miss.
+
+The contrast set confirms it is the platform and not the name: outside r2310, the same products
+(`S30 Pro Ultra`, `X40 Pro`, `X30 Pro`) show `p=0` unless they carry "Ultra-Thin embedded".
+
+### Cut-out flags, consolidated
+
+```
+name contains "Ultra-Thin"/"embedded"   -> PLUMBED   40/41, 0 counterexamples
+model id in the r2310 series            -> PLUMBED   7/7   (catches Master Pro / Master One)
+name is "<Model> Master"                -> NOT a flag; 10 of them have clean tanks
+plain name                              -> nothing;  17 plain-named models are plumbed
+```
+
+## ⚠ Two cautions on the index itself
+
+**1. It reads 10 pages, not the whole document.** `build_content_index.py` takes HEAD 5 + TAIL 5 —
+enough for cover, parts list and spec table, which is where identity and plumbing markers live.
+Its signal counts are therefore MUCH lower than `walk_manuals.py`'s full-document counts and the
+two are **not comparable**. The index finds the right DOCUMENTS; the walk counts the signals.
+
+**2. Junk from the mass API pulls.** Chris: *"some junk from mass api strips."* The corpus carries
+other Dreame product lines — espresso machines, pool cleaners, shavers, hair tools, dishwashers,
+a dehumidifier. 77 files, now excluded. They mattered because the PRODUCT-NAME join pulled them
+into real families: six `MISFILED-dreame-ecceluxe-ESPRESSO-MACHINE-not-vacuum__s20-pro_*` files
+extract "S20 Pro", a genuine catalog product, and landed in `wash_station`; pool cleaners did the
+same to `x10` (14 files).
+
+⚠ The model-id join was **never** exposed — 0 junk files token-match a catalog id, because ids
+match on a token boundary. The same fix that stopped `r2228` matching the `r2228d` manual also
+stopped the shaver `pr2501a` matching `r2501`.
+
+⚠ And my first exclusion attempt SILENTLY DID NOTHING: it purged the cache in memory, then hit
+`if not todo: return` and exited before writing, while printing "purged 77 junk rows". 20 MISFILED
+rows were still on disk. Always persist before an early return — and check the artefact, not the
+log line.
