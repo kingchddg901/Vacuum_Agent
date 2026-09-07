@@ -16754,20 +16754,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'dirty_water_tank': {
-            "clean_frequency": 'After each use',
-            "replace_frequency": None,
-            "steps": [
-                'Access the used-water tank in the base station.',
-                'Take the used-water tank out and open its cover.',
-                'Pour the used water away.',
-                'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
-                "Close the used-water tank's cover and slide the tank back into the base station.",
-            ],
-            "notes": [
-                'The float in the used-water tank moves. Do not force it while cleaning.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
