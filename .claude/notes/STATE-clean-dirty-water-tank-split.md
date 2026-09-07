@@ -216,6 +216,87 @@ The 5 master/plumbed families — `clean_master_x60_pro_steam`, `g20_master`, `m
 `master_pro`, `x40_master`. Chris: *"they are possibly a variant of themselves, but we're
 not looking at them right now."*
 
+## 📍 WHERE WE ARE — 2026-09-07, paused mid-split
+
+Chris paused here to investigate the 58 robot-tank families. **Nothing from the split is
+applied.** This section is the resume point.
+
+### Landed already (both prep passes, both audited)
+
+```
+lid → cover        3 keys · 39 placements · 2 self-contradicting cards fixed   a93f9c9a
+station access   190 blocks · access.station_tank · audited BOTH directions    07711971
+```
+
+`access.station_tank` = "Access the {tank} in the base station." — nonspecific by design,
+asserts no mechanism, because the compartment differs per model and the manuals omit the
+step entirely. Took four passes to scope; see that commit for why.
+
+### The split — designed, dry-run clean of blockers, NOT applied
+
+Scope is **82 of the 99** clean-tank blocks. The 17 two-in-one are excluded permanently:
+there the tank physically IS the dust box.
+
+And the 82 divide by **whether the machine has anything to fill the tank for you**:
+
+| | n | who fills it | verdict |
+|---|---|---|---|
+| ROBOT tank, **no** mop-washing station | **57** | the user, by hand | a fill card is right; the emptying/rinsing/drying is what's wrong |
+| ROBOT tank, **has** washing station | **1** — `s30` | the station refills the robot | probably should have no clean-tank card at all |
+| STATION tank | **24** | the user fills the station tank | already correct as a station tank |
+
+**⚠ THE OPEN QUESTION, and the reason this is paused.** Chris: *"we are doing maintenance
+on the tanks of the robots. We shouldn't be."* Does that mean the 57 keep an operational
+**fill** card with the maintenance stripped, or does it mean they get **no clean-water card
+at all**? That is the difference between **81 cards reshaped** and **58 cards deleted**, so
+it was not assumed. He is investigating the 58.
+
+### Two bugs in my fixer, to fix regardless of the answer
+
+1. **`mop.pad_wash` and `mop.pad_dry_refit` landed in the drop list**, 8 blocks each. The
+   `MAINT` regex matched "rinse"/"dry" without checking *what* is being rinsed — that is the
+   mop pad, not the tank. Would have silently deleted pad maintenance from 8 cards.
+2. **The lid pair collapses.** `1s` came out as
+   `station_tank > clean_out > lid_open > lid_close > fill > clean_refit` — it opens the
+   cover, closes it, then fills a sealed tank. The old maintenance sat between the lid pair;
+   removing it left an empty pair, and the fill-placement rule put the fill before the refit
+   rather than where the tank is open. **The fill must land between cover-open and
+   cover-close.**
+
+### The welded refit — needs a call
+
+`tank.air_dry_refit` — *"Let the water tank air-dry completely before you put it back"* —
+is maintenance AND the refit in one sentence, and it is in **48 of the 74** blocks the dry
+run would change. Dropping it loses the only refit those blocks have; keeping it tells 48
+users to air-dry a tank they just filled with water.
+
+Proposed: substitute a plain refit (`tank.refit` or `tank.clean_refit` by side) and move the
+drying into the gated note, where it belongs — it only applies if you rinsed. Same
+decomposition as `bin.rinse` → `filter.rinse_only`. Also welded, smaller:
+`tank.clean_filter_rinse_refit` (3), `tank.wipe_or_air_dry` (1).
+
+### What the split drops, corpus-wide (dry run)
+
+```
+water.tank_rinse       54      tank.pour_out        34
+water.tank_empty       32      tank.outside_wipe_dry 10
+dirty.rinse_plain       4      tank.plug_pour_out     1
+mop.pad_wash            8  ← BUG, must not drop
+mop.pad_dry_refit       8  ← BUG, must not drop
+```
+
+### The gated-clean note, drafted not applied
+
+`note.clean_tank_rinse_if_needed` — "The clean-water tank should not get dirty in normal
+use, but scale or cleaning-solution residue can build up. Rinse it with clean water if it
+needs it, and let it dry completely before you put it back." Carries Chris's two named
+causes (scale, solution residue) and absorbs the drying under the same condition.
+
+### Then the gap
+
+137 families with a dock dirty tank and no clean card. Unblocked by the split's outcome —
+if the 57 lose their cards, the gap's shape changes too, so **do the split first**.
+
 ## ⏸ PENDING CHECK — run when the station-tank work is done, not before
 
 **Do the robot-side tanks have their access instructions?** Chris believes they do
