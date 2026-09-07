@@ -103,3 +103,10 @@ COMMIT_MSG*
 # tracked references it, and this repo is installed through HACS, so shipping the
 # intermediates would multiply every user's download for data they never load.
 /scripts/guides/
+
+# Debug build of the composed guide library. Carries step_keys/note_keys provenance
+# (which key produced each sentence, and the donor family for a borrowed block) for
+# translation QA and English-side debugging. ~2.3 MB against the release build's 1.5 MB,
+# and it must never ship: EMIT_MODE=debug writes it to a SEPARATE file precisely so a
+# debug build cannot reach users. Regenerate with EMIT_MODE=debug APPLY=1 emit_composed.py
+/custom_components/eufy_vacuum/adapters/dreame/dreame_upkeep_guides_composed_debug.py

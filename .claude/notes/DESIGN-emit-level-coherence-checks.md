@@ -1,0 +1,157 @@
+# Emit-level coherence checks — per step in a block, not per key globally
+
+**Status:** designed, not built. Chris's framing, 2026-09-06.
+**Depends on:** step-key provenance in the debug artifact (built 2026-09-06, see below).
+
+## The level
+
+Checks run **at emit, over the steps of one block**. Not over the phrase table, and not
+over key pairs across the corpus.
+
+```
+removed  → must be refitted later in THIS block
+opened   → must be closed later in THIS block
+wetted   → must be dried before it is refitted in THIS block
+acted on → must come after its own removal in THIS block
+unplugged → must be plugged back in later in THIS block
+```
+
+Every rule is block-local. None needs to know whether key A outranks key B anywhere else.
+
+## Why not a global canonical order
+
+The obvious idea — the card renders a list in order, so predetermine that order — was
+measured and **does not work**. On the emitted artifact:
+
+```
+distinct co-occurring key pairs        3,280
+  always the same relative order       3,204   97.7%
+  appear both ways                        76    2.3%
+ordering instances                    45,467
+  following the dominant direction    45,258   99.54%
+
+CYCLES in the dominant relation:          20
+```
+
+97.7% pairwise consistency looks like a canonical order is almost there. It is not:
+**20 cycles** mean no total order can exist, e.g.
+
+```
+tank_refit → off_dock → tank_rinse → outside_wipe_dry → tank_refit
+rinse_only → tip_out → filter_tap → rinse_only
+```
+
+The cycles are not corpus incoherence. They are keys playing **different roles in
+different blocks**. `access.off_dock` is the clearest case: it is not a fixed-rank step,
+it is a **phase boundary**. In a single-phase block it is step 1; in
+`x50_ultra/dirty_water_tank` it is step 6, because steps 1-5 service the *station's*
+used-water tank and steps 6-10 service the *robot's* used-water box. Both are correct.
+
+I initially read those six blocks as defective (`rinse_plain` before `off_dock`, 6 vs 6,
+"off_dock should be absolute"). **That was wrong** — they are two-phase procedures. The
+error is instructive: a global per-key rule cannot express "phase boundary", so it
+reports legitimate structure as conflict.
+
+## Track record — this is why the level matters
+
+| check | level | outcome |
+|---|---|---|
+| caster coherence (dry-without-wet, wet-without-removal) | block-local | RED 8 → GREEN 0, no false positives |
+| blocks-the-user audit | block-local | RED 9 → GREEN 0 |
+| invented phase taxonomy | global | called a normal vendor order an inversion **95 times** |
+| paired-action linter (regex over 592 phrases) | global | 1401 → 1050 → 968 findings vs a review that found 68; abandoned |
+
+Both global attempts failed the same way: they needed a corpus-wide notion of "correct
+position", and no such thing exists.
+
+## Division of labour that has actually been working
+
+- **The corpus proposes.** "217 of 224 blocks put the close immediately before the
+  refit" is how `bin.cover_close` was placed across 66 blocks. Pairwise dominance is a
+  *rule generator*.
+- **A human ratifies.** The proposed rule is shown with its support before it is applied.
+- **The block-local check enforces**, and must be able to go RED on current data before
+  it is trusted. A fix whose check cannot fail first has not been shown to do anything.
+
+The 97.7% figure earns its keep at step 1 and nowhere else. Do not turn it into a gate.
+
+## What it plugs into
+
+`compose()` returns `step_keys` / `note_keys`, paired with each sentence in the same
+comprehension that renders it. `emit_composed.py` forks on `EMIT_MODE`:
+
+```
+release (default) → dreame_upkeep_guides_composed.py         1.53 MB, ships
+debug             → dreame_upkeep_guides_composed_debug.py   2.24 MB, gitignored
+```
+
+The debug artifact carries `step_keys`, `note_keys` and `shares_with`, positionally
+aligned (verified: 1,880 blocks, 0 mismatches). So the checker runs against **what
+ships**, not against the fixture — which matters, because the artifact was found to be
+**stale** by 228 blocks on 2026-09-06 and nothing warned about it.
+
+## What this does NOT replace
+
+**The canary.** Provenance is self-reported by the composer. If the share chain resolves
+to the wrong `src`, provenance reports that source's keys faithfully and looks perfectly
+consistent while being wrong — and that failure has happened here (see `_own`'s
+docstring: 196 blocks declared a share, 191 held `see`, so `shares_with` never fired).
+`fill()` guards the slot seam by raising; **nothing but a cycle check guards the share
+seam.** That seam is the canary's job, and the canary is an input-substitution test,
+which is independent of the composer in a way provenance cannot be.
+
+## The remedy step: re-read the source page, word-level, column-aware
+
+When a rule fires, the next question is always "is the source wrong, or did we mangle
+it?" There is now a cheap answer, and it is **not OCR**.
+
+**Exposure is near-total; realised damage is tiny.**
+
+```
+1,033 source pages sampled across 6 manuals
+  926 two-column                                   (90%)
+  924 where naive extraction order != column order (89%)
+
+detectable damage in the COMPOSED output              6 blocks of 1,880 (0.3%)
+```
+
+Those two numbers are not in conflict. 89% is **exposure** — pages whose extraction
+order cannot be trusted. 0.3% is **realised damage** — because on many pages the naive
+order lands correctly anyway, and where it did not, whoever authored the guide was
+reading prose and often reconstructed the sequence by hand.
+
+**What the scrambling looks like.** X20 Max p14 (`xiaomi.vacuum.d109gl`, PDF p15) is the
+worked example: "Cleaning the Dust Compartment and Filter" starts bottom-left and
+finishes top-right. Naive `get_text()` emits all six headings first, then the bodies in
+a different order, so the filter section arrives as **step 2, step 3, … then step 1**,
+separated by three other sections. Our `x20_max/filter` block had `clip_open_out` before
+`release_button_out` — exactly what you build if step 1's clauses land last.
+
+**What works, in order of preference:**
+
+| approach | verdict |
+|---|---|
+| `get_text()` | scrambles multi-column pages |
+| `get_text(sort=True)` | **worse** — sorts by y across the whole page, interleaving columns line by line |
+| block geometry, column-then-y | close, but **3 of 18 blocks on that page straddle the midline** — the PDF's own segmentation merges columns |
+| **word geometry, column-then-y** | **works.** Recovers "take out the dust compartment, remove the filter from the filter clip, and empty" in correct clause order |
+| render + OCR | unnecessary here, and lossy. Only for pages with no text layer — measured destroying every procedure line on the 96 dpi raster edition |
+
+**Detection is content-blind**, which is what breaks the chicken-and-egg. You do not need
+to know a block is wrong; you need to know its page is two-column, and that is pure
+geometry. Extract twice — naive and column-aware — and compare. Disagreement flags the
+page before anyone reads a word of it.
+
+**Do not bulk re-extract.** At 0.3% realised damage it is not worth it, and three things
+that *looked* like interleave damage were legitimate two-part procedures
+(`omni_m30s/main_brush`, `x20_max/main_brush`, `x50_ultra/dirty_water_tank`). This is a
+per-block remedy invoked when a rule fires, not a migration.
+
+## Known inputs for the first build
+
+- 40 live findings from review #2 cluster into: missing REFIT (9), missing CLOSE (4),
+  missing REMOVAL (3), missing DRY gate (2), missing PLUG-BACK (1). Those five classes
+  are precisely the rules above, so the checker should reproduce them.
+- Guard against the recurring **record-shape trap**: compute the audit from
+  `famload.keys_of` (handles bare list / `{"see"}` / `{"phrase_keys"}`), never from a
+  bespoke walk. A fixer that walked only dicts reported "150 of 153" and exited zero.
