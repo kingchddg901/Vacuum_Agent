@@ -681,26 +681,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
         },
     },
     '3c': {
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the 2-in-1 water tank out of the robot.',
-                'Open the water tank cover.',
-                'Open the dust box cover.',
-                'Take the filter out of the dust box.',
-                'Pour the water out of the clean-water tank.',
-                'Tip the debris out of the dust box.',
-                'Clean the 2-in-1 water tank with a suitable tool.',
-                'Put the filter back into the dust box.',
-                'Close the water tank cover and the dust box cover. Put the 2-in-1 water tank back into the robot.',
-            ],
-            "notes": [
-                'Do not rinse or soak the 2-in-1 water tank.',
-                'Clean the 2-in-1 water tank regularly. Dirt left inside the tank stops the robot cleaning properly.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -2147,20 +2127,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Wipe the water marks off the outside of the tank with a soft, dry cloth.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-                'Do not rinse or soak the 2-in-1 water tank.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -3214,19 +3180,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-                'Do not rinse any part of the 2-in-1 water tank other than the HEPA filter.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -3300,18 +3253,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take the robot off the base station.',
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-            ],
-            "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
             ],
             "notes": [
             ],
@@ -4466,19 +4407,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-                'Water left standing in the water tank turns smelly, and a mop pad left wet grows mildew.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -4537,22 +4465,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
         },
     },
     'e10c': {
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the 2-in-1 water tank out of the robot.',
-                'Open the cover on the 2-in-1 water tank.',
-                'Tip the debris out of the dust box.',
-                'Clean the 2-in-1 water tank with a suitable tool.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-                'Do not rinse or soak the 2-in-1 water tank.',
-                'Clean the 2-in-1 water tank regularly. Dirt left inside the tank stops the robot cleaning properly.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -4619,22 +4531,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
         },
     },
     'e12': {
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the 2-in-1 water tank out of the robot.',
-                'Open the dust box cover.',
-                'Clean the 2-in-1 water tank with a suitable tool.',
-                'Close the dust box cover.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-                'Do not rinse or soak the 2-in-1 water tank.',
-                'Clean the 2-in-1 water tank regularly. Dirt left inside the tank stops the robot cleaning properly.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -4717,28 +4613,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Open the dust box cover.',
-                'Take the HEPA filter and the primary filter out of the dust box.',
-                'Tap the HEPA filter gently to knock the dust loose.',
-                'Rinse the primary filter with clean water.',
-                'Let the filter dry completely before putting it back.',
-                'Put the HEPA filter and the primary filter back into the dust box.',
-                'Close the dust box cover.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-                'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Rinse with clean water only. Do not add detergent.',
-                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -4815,28 +4689,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Open the dust box cover.',
-                'Take the HEPA filter and the primary filter out of the dust box.',
-                'Tap the HEPA filter gently to knock the dust loose.',
-                'Rinse the primary filter with clean water.',
-                'Let the primary filter dry completely before you put it back.',
-                'Put the HEPA filter and the primary filter back into the dust box.',
-                'Close the dust box cover.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
-                'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Rinse with clean water only. Do not add detergent.',
             ],
         },
         'filter': {
@@ -4918,18 +4770,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -5004,19 +4844,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-                'Do not rinse or soak the 2-in-1 water tank.',
             ],
         },
         'filter': {
@@ -5098,19 +4925,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-                'Do not rinse or soak the 2-in-1 water tank.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -5186,18 +5000,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
-            ],
-            "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
             ],
             "notes": [
             ],
@@ -6151,28 +5953,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Open the dust box cover.',
-                'Open the filter holder in the dust box. Lift the HEPA filter out of the filter holder.',
-                'Tap the HEPA filter gently to knock the dust loose.',
-                'Rinse the filter with clean water.',
-                'Let the filter dry completely before putting it back.',
-                'Put the filter back into the filter holder. Close the filter holder.',
-                'Close the dust box cover.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-                'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
-                'Rinse with clean water only. Do not add detergent.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -6250,18 +6030,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -6335,18 +6103,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take the robot off the base station.',
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-            ],
-            "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
             ],
             "notes": [
             ],
@@ -6505,18 +6261,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
-            ],
-            "notes": [
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -6586,18 +6330,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take the robot off the base station.',
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-            ],
-            "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the 2-in-1 water tank and its dust box back into the robot.',
             ],
             "notes": [
             ],
@@ -7759,19 +7491,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take the robot off the base station.',
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-            ],
-            "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press the release clip and lift the 2-in-1 water tank and its dust box out of the robot.',
-                'Open the water tank cover.',
-                'Pour any water left in the water tank away.',
-                'Close the water tank cover and the dust box cover. Put the 2-in-1 water tank back into the robot.',
             ],
             "notes": [
             ],
@@ -15340,26 +15059,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press and hold the 2-in-1 water tank release button and pull the mopping module out of the robot.',
-                'Press and hold the mop pad holder release button and take the mop pad holder off the mopping module.',
-                'Take the mop pad off its holder.',
-                'Rinse the mop pad with clean water.',
-                'Let the mop pad air-dry completely before fitting it back on its holder.',
-                'Open the water tank cover.',
-                'Pour any water left in the water tank away.',
-                'Close the water tank cover.',
-                'Push the mop pad holder back onto the mopping module.',
-                'Push the mopping module back into the robot.',
-                'Let the mop pad air-dry completely before fitting it back on its holder.',
-            ],
-            "notes": [
             ],
         },
         'filter': {
@@ -23210,28 +22909,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Press the wheel firmly back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the 2-in-1 water tank out of the robot.',
-                'Tilt the 2-in-1 water tank upward and lift the filter and the filter mesh out of the tank.',
-                'Tip the debris out of the dust box.',
-                'Clean the 2-in-1 water tank with a suitable tool.',
-                'Open the water tank cover.',
-                'Pour any water left in the water tank away.',
-                'Clean the filter with a suitable tool.',
-                'Rinse the filter with clean water.',
-                'Clean the filter mesh with a suitable tool. Rinse the filter mesh with clean water.',
-                'Let the filter dry completely before putting it back.',
-                'Close the water tank cover and the dust box cover. Put the 2-in-1 water tank back into the robot.',
-            ],
-            "notes": [
-                'Let each part you have cleaned air-dry for at least 24 hours before you put it back into the robot.',
-                'Clean the 2-in-1 water tank regularly. Dirt left inside the tank stops the robot cleaning properly.',
             ],
         },
         'filter': {
