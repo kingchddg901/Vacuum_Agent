@@ -295,7 +295,41 @@ station"* — the split's target shape, already right.
    you washed is dry"* — the STATION procedure's closing step, on 2 cards. Now only
    `access.off_dock` is removed, and only when everything after it is a safety closer.
 
-### ⛔ s60_pro — still open, deliberately
+### ✅ s60_pro RESOLVED — it is a DEFECT, not a special case
+
+⚠ My held-out reasoning was wrong, and Chris's memory of a platform match is what broke it:
+*"i matched the S60 to the Z60 ... and the S60 roller to the mobious 60."* The recorded lineage
+names a different parent, but the method was right and the cluster is real.
+
+`STATE-dreame-manual-corpus.md` records two things I had not applied:
+
+* **Every Dreame model ships in THREE DOCK CONFIGURATIONS** — 基础水箱版 (basic water tank),
+  上下水版 (plumbed), 超薄上下水版 (ultra-thin embedded). *"The parenthesised descriptors are
+  DOCK configurations, not robots."* So s60_pro's five models are ONE robot in three docks, not
+  two hardware states. The onboard box is a property of the ROBOT and is on all five.
+* **S60 Pro Roller is handed down from X60 Pro 滚筒版** (33000Pa vs 36000Pa). Not Z60 — and
+  separately, **S60 Pro Disc = S50 Pro**, a DIFFERENT ROBOT under the same marketing name, which
+  the catalog already separates as `s60_pro_disc`.
+
+The corpus then settles it outright. Every sibling on that platform carries the SAME station card:
+
+```
+x60_pro  x60_pro_roller  s60_pro_roller  s60_premium_roller
+mobius_60  v60_mobius  z60_ultra_roller_complete
+      station_tank > remove > pour > rinse_plain > wall_tool_suitable > tank_refit
+
+s60_pro    off_dock > robot_box_out > robot_box_pour > ...      <- SOLE OUTLIER
+```
+
+`s60_pro_roller` (r500b1, "S60 Pro Roller") and `s60_pro` (r500b, "S60 Pro (Roller)") are the
+same machine, and the twin has the correct card. So **s60_pro's dirty card is missing its station
+phase** — the same defect class as the s10 splice, with the fix sitting in its own twin.
+
+DISPOSITION: strip the robot box like the other 34, and author the station phase from the
+cluster-standard shape. Not a special case; a gap. **Still unapplied — the strip would leave it
+empty until the station phase lands, so the two go together.**
+
+### ⛔ superseded reasoning below (kept so the wrong turn is visible)
 
 Chris: *"s60 is an exception with a special case."* Its five models are not one hardware state:
 

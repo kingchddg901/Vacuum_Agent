@@ -19815,14 +19815,16 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
+                'Access the used-water tank in the base station.',
+                'Take the used-water tank out and open its cover.',
+                'Pour the used water away.',
+                'Rinse the tank with clean water.',
+                'Clean the inner wall of the used-water tank with a suitable tool.',
+                "Close the used-water tank's cover and slide the tank back into the base station.",
             ],
             "notes": [
+                'The float in the used-water tank moves. Do not force it while cleaning.',
+                'Empty the used-water tank after every wash cycle. Water left in the tank starts to smell.',
             ],
         },
         'filter': {
