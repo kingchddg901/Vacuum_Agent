@@ -262,7 +262,7 @@ other**, and the borrowed key is the access step:
 | `matrix10` | `dock_contacts` ← `vent.*` | legit | "Auto-Empty Vents, Charging Contacts and Signaling Area" |
 | `3c` | `clean_water_tank` ← `bin.*` | legit | the part IS 二合一水箱（水箱+尘盒） — tank *and* dust box, one moulding |
 | `x50_master` | `detergent_inlet` ← `bag.*` | legit | "Remove the dust tank cover and pull out the auto-detergent compartment" |
-| `x40_pro` | `base_station_filter` ← `bag.*` | **consistent, not proven** — parts diagram puts cover, filter, bag slot and bin in one compartment; no sentence states the access |
+| `x40_pro` | `base_station_filter` ← `bag.*` | legit — the station-filter wipe IS **step 3 of 更换尘袋, the dust-bag replacement**: open the station door, discard the bag, wipe the dust-collection filter, fit a new bag, close the door |
 | `x30_pro` | `side_brush` ← `mop.*` | **REAL FINDING** — maintenance section is 主刷和边刷, "Main Brush and Side Brush". The mop assembly appears only under installation, and the mop holder is absent from the cadence table entirely. |
 | `vacuum_mop_pro` | — | unreachable, zero text layer on all 20 pages |
 
@@ -273,6 +273,37 @@ Namespace reasoning cannot see a shared access path, so it reports one as a defe
 
 `x30_pro` is the exception that makes the detector worth running: one family of five in
 its class where the pairing has no vendor support.
+
+### "Dust compartment" names TWO different parts — Chris, 2026-09-06
+
+> "dust compartment sounds like where the dust bag goes — we have encountered this
+> semantic issue before"
+
+Correct, and it is already recorded once, in `scope.json`'s m30_pro reversal: the manuals
+name **尘盒** (the dust box, on the ROBOT) and **集尘仓** (the bin the dust BAG sits in, in
+the STATION) as different parts. English collapses both onto "dust box / dust tank / dust
+compartment / dust bin".
+
+**This corrects the vocabulary-churn figure measured earlier the same day.** That table
+reported "dust box: 4 distinct terms, Dreame alone uses all 4" as intra-vendor
+inconsistency. It is not purely that — some of those four name a *different part*. Churn
+and ambiguity were counted together, so the churn number overstates.
+
+Our own table is nearly clean on this, measured:
+
+```
+phrases using a dust-container word
+  name the BASE STATION explicitly    9 keys   unambiguous (all bag.*, station filter.*)
+  name the ROBOT explicitly          10 keys   unambiguous (all bin.*, access.*)
+  name neither                       55 keys   bin. 30, filter. 15, note. 9, bag. 1
+```
+
+54 of the 55 unqualified keys are robot-side and sit on robot cards, so the card
+disambiguates. **The single exposure is `bag.fit_close_permissive`** — "Fit a new dust bag
+into the dust compartment. Close the dust compartment." — a STATION part named with an
+unqualified robot-sounding word. Used by `wash_station/dust_bag` only, and `dust_bag` is
+out of scope on the fault surface, so it does not ship. It is a landmine for the day
+`dust_bag` returns: qualify it then.
 
 ### ⚠ ABLATE THE PROBE TERM BEFORE REPORTING AN ABSENCE
 
