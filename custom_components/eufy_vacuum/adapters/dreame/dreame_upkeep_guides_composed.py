@@ -233,7 +233,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -257,7 +256,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -438,7 +436,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Close the robot's top cover.",
             ],
             "notes": [
-                'Clean the dust box thoroughly at least once a week.',
                 'Let each part you have cleaned air-dry for at least 24 hours before you put it back into the robot.',
             ],
         },
@@ -459,7 +456,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -486,7 +482,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush and do the screw back up.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -536,8 +531,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Close the robot's top cover.",
             ],
             "notes": [
-                'Rinse the filter with water only if needed, about once every two weeks at most. Frequent water washing is not recommended.',
-                'Clean the dust box thoroughly at least once a week.',
+                'Rinse the filter with water only if needed. Frequent water washing is not recommended.',
                 'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
@@ -583,7 +577,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Clean the side brush about once every two weeks to keep the cleaning performance up. Reinstall it promptly once you have cleaned it.',
+                'Clean the side brush regularly to keep the cleaning performance up. Reinstall it promptly once you have cleaned it.',
             ],
         },
         'washboard': {
@@ -633,11 +627,9 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Close the robot's top cover.",
             ],
             "notes": [
-                'Clean the filter every two weeks.',
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Let the filter dry for at least 24 hours before you put it back.',
-                'Clean the dust box thoroughly at least once a week.',
             ],
         },
         'main_brush': {
@@ -653,8 +645,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Clean the main brush once a week.',
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -680,8 +670,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Clean the side brush once a month.',
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -721,9 +709,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Close the robot's top cover.",
             ],
             "notes": [
-                'Wash the filter with water only when it needs it, and no more than once every two weeks.',
+                'Wash the filter with water only when it needs it. Washing it too often damages the filter.',
                 'Clean the dust box regularly. Dirt left in the dust box reduces cleaning performance.',
-                'Clean the dust box thoroughly at least once a week.',
                 'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
@@ -2653,11 +2640,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Do not wash the filter.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Clean the filter every two weeks.',
-                'Replace the filter every three months.',
                 'Rinse with clean water only. Do not add detergent.',
                 'Do not refit the dust box or filter until both are completely dry.',
-                'Clean the dust box after each use.',
             ],
         },
         'main_brush': {
@@ -4294,8 +4278,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
-                'Clean the main brush every two weeks.',
             ],
         },
         'sensor': {
@@ -4322,8 +4304,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
-                'Clean the side brush once a month.',
             ],
         },
     },
@@ -4568,8 +4548,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Do not wash the filter.',
-                'Clean the filter every two weeks.',
-                'Replace the filter every three months.',
                 'Rinse with clean water only. Do not add detergent.',
                 'Do not refit the dust box or filter until both are completely dry.',
             ],
@@ -4869,7 +4847,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Wipe the robot's sensors and charging contacts with a soft, dry cloth.",
             ],
             "notes": [
-                'Wipe the sensors every three months.',
             ],
         },
         'side_brush': {
@@ -6000,7 +5977,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Wipe the robot's sensors and charging contacts with a soft, dry cloth.",
             ],
             "notes": [
-                'Wipe the sensors every three months.',
             ],
         },
         'side_brush': {
@@ -8793,7 +8769,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'If the main brush tangles badly, check the dust box. A full dust box can no longer draw hair in, so empty it.',
                 'Take care pulling the brushes out — the edges can catch.',
                 'Keep the main brush out of the reach of children and pets.',
-                'The main brush and the brush strips wear out with use. Replace the main brush and the brush strips every six months. Buy replacement parts through official channels.',
             ],
         },
         'sensor': {
@@ -9317,7 +9292,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse with clean water only. Do not add detergent.',
                 'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Replace the filter every three to six months.',
             ],
         },
         'main_brush': {
@@ -9335,7 +9309,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -14097,7 +14070,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Press the wheel back into the robot.',
             ],
             "notes": [
-                'Clean the side brush and the caster wheel every two weeks for the best cleaning performance. Refit each one again right after you clean it.',
+                'Clean the side brush and the caster wheel regularly for the best cleaning performance. Refit each one again right after you clean it.',
             ],
         },
         'clean_water_tank': {
@@ -14191,7 +14164,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush, lining it up with the mounting slot.',
             ],
             "notes": [
-                'Clean the side brush and the caster wheel every two weeks for the best cleaning performance. Refit each one again right after you clean it.',
+                'Clean the side brush and the caster wheel regularly for the best cleaning performance. Refit each one again right after you clean it.',
             ],
         },
         'washboard': {
@@ -15072,8 +15045,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Clean the filter every two weeks.',
-                'Clean the dust box thoroughly at least once a week.',
                 'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
@@ -15091,8 +15062,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Clean the main brush once a week.',
-                'Replace the main brush every six to twelve months.',
                 'If needed, rinse the main brush with tap water, then refit it once it has fully air-dried.',
             ],
         },
@@ -15119,8 +15088,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Clean the side brush once a month.',
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -15177,8 +15144,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Clean the main brush once a week.',
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -15203,8 +15168,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Clean the side brush once a month.',
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -15242,11 +15205,9 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Close the robot's top cover.",
             ],
             "notes": [
-                'Clean the filter every two weeks.',
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Let the filter dry for at least 24 hours before you put it back.',
-                'Clean the dust box thoroughly at least once a week.',
                 'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
             ],
         },
@@ -15263,8 +15224,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Clean the main brush once a week.',
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -15290,8 +15249,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Clean the side brush once a month.',
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -15334,9 +15291,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Clean the filter every two weeks.',
                 'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
-                'Clean the dust box thoroughly at least once a week.',
             ],
         },
         'main_brush': {
@@ -15352,8 +15307,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Clean the main brush once a week.',
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -15379,8 +15332,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Clean the side brush once a month.',
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -15406,7 +15357,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Clean the filter every two weeks.',
                 'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
             ],
         },
@@ -15576,7 +15526,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Replace the filter every three to six months.',
                 'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
@@ -15595,7 +15544,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the main brush back into the robot. Fit the main brush cover back on and press it until it clicks into place.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -15621,7 +15569,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -17801,7 +17748,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -17814,7 +17760,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'A damp cloth can damage the electronics inside the robot and the station. Use a soft, dry cloth only.',
-                "Wipe the robot's sensors once a month.",
             ],
         },
         'side_brush': {
@@ -17829,7 +17774,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Clean the side brush once a month.',
             ],
         },
     },
@@ -18302,7 +18246,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -18314,7 +18257,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Wipe the robot's sensors and charging contacts with a soft, dry cloth.",
             ],
             "notes": [
-                'Wipe the sensors every three months.',
                 'Do not clean the sensors with detergent, spray or any other chemical cleaner.',
             ],
         },
@@ -18330,7 +18272,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush and do the screws back up.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -18381,7 +18322,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Wipe the robot's sensors and charging contacts with a soft, dry cloth.",
             ],
             "notes": [
-                'Wipe the sensors every three months.',
             ],
         },
         'side_brush': {
@@ -21699,7 +21639,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -21725,7 +21664,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
         'washboard': {
@@ -21802,7 +21740,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Clean the filter every two weeks.',
                 'Empty the dust box promptly. A dust box left full clogs the filter.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
@@ -21821,7 +21758,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the main brush back into the robot. Fit the main brush cover back on and press it until it clicks into place.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -21847,7 +21783,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
         'washboard': {
@@ -21986,7 +21921,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Wipe the robot's sensors and charging contacts with a soft, dry cloth.",
             ],
             "notes": [
-                'Wipe the sensors every three months.',
             ],
         },
         'side_brush': {
@@ -22741,7 +22675,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Put the robot's cover back on.",
             ],
             "notes": [
-                'Check the routine maintenance table for how often to replace the HEPA filter.',
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
@@ -22855,7 +22788,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Close the robot's cover.",
             ],
             "notes": [
-                'Clean the dust box thoroughly at least once a week.',
                 'Let each part you have cleaned air-dry for at least 24 hours before you put it back into the robot.',
             ],
         },
@@ -22875,7 +22807,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -22902,7 +22833,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush and do the screw back up.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -22935,7 +22865,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Close the robot's cover.",
             ],
             "notes": [
-                'Clean the dust box thoroughly at least once a week.',
                 'Let each part you have cleaned air-dry for at least 24 hours before you put it back into the robot.',
             ],
         },
@@ -22956,7 +22885,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Fit the brush guard back onto the robot.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'side_brush': {
@@ -22971,7 +22899,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush and do the screw back up.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -23023,7 +22950,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
     },
@@ -23058,7 +22984,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Close the robot's top cover.",
             ],
             "notes": [
-                'Clean the dust box thoroughly at least once a week.',
                 'Do not refit the dust box or filter until both are completely dry.',
                 'Let each part you have cleaned air-dry for at least 24 hours before you put it back into the robot.',
             ],
@@ -23079,7 +23004,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'side_brush': {
@@ -23094,7 +23018,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush and do the screw back up.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -23129,7 +23052,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -23140,7 +23062,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Wipe the robot's sensors and charging contacts with a soft, dry cloth.",
             ],
             "notes": [
-                'Wipe the sensors every three months.',
             ],
         },
         'side_brush': {
@@ -23154,7 +23075,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -23211,7 +23131,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Let each part you have cleaned air-dry for at least 24 hours before you put it back into the robot.',
-                'Clean the dust box thoroughly at least once a week.',
             ],
         },
         'main_brush': {
@@ -23227,7 +23146,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the brush back in, then press the guard down until it locks.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -23239,7 +23157,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Do not clean the sensors with detergent, spray or any other chemical cleaner.',
-                'Wipe the sensors every three months.',
             ],
         },
         'side_brush': {
@@ -23254,7 +23171,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush and do the screw back up.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -23283,7 +23199,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
-                'Clean the filter media once every 3 months.',
             ],
         },
         'dirty_water_tank': {
@@ -23372,7 +23287,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Fit the wash tray back into the base station. Check that the clips on both sides have engaged.',
             ],
             "notes": [
-                'Clean the wash tray every two weeks.',
                 'Check that the wash tray sits properly in the base station before you start the robot.',
             ],
         },
@@ -23438,7 +23352,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Replace the filter every three to six months.',
             ],
         },
         'main_brush': {
@@ -23929,7 +23842,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 "Brush releases differ between models. Check your robot's manual rather than forcing the brush out.",
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -23955,7 +23867,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
         'washboard': {
@@ -24395,7 +24306,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Check that every clip on the brush guard has engaged and that no tab is sticking out.',
             ],
             "notes": [
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'sensor': {
@@ -24421,7 +24331,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Refit the side brush.',
             ],
             "notes": [
-                'Replace the side brush every three to six months.',
             ],
         },
     },
@@ -26996,7 +26905,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-                'Clean the wheel once a month.',
             ],
         },
         'dirty_water_tank': {
@@ -27035,7 +26943,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Replace the filter every three to six months.',
                 'Rinse with clean water only. Do not add detergent.',
                 'Do not refit the dust box or filter until both are completely dry.',
             ],
@@ -27057,8 +26964,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Take care pulling the brushes out — the edges can catch.',
-                'Clean the main brush every two weeks.',
-                'Replace the main brush every six to twelve months.',
             ],
         },
         'mop_compartment': {
@@ -27082,7 +26987,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'A damp cloth can damage the electronics inside the robot and the station. Use a soft, dry cloth only.',
-                'Wipe the sensors and the charging contacts once a month.',
             ],
         },
         'side_brush': {
@@ -28144,7 +28048,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Press the wheel back into the robot.',
             ],
             "notes": [
-                'Clean the wheel every two weeks.',
             ],
         },
         'clean_water_tank': {
@@ -28237,7 +28140,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Line the side brush up with its clip before you fit it.',
-                'Clean the side brush every two weeks.',
             ],
         },
         'washboard': {
