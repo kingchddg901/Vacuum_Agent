@@ -221,6 +221,21 @@ not looking at them right now."*
 Chris paused here to investigate the 58 robot-tank families. **Nothing from the split is
 applied.** This section is the resume point.
 
+### ✅ THE BLOCKER IS CLEARED — the 58 were walked, 2026-09-07
+
+Their manuals say **51 of 52 readable families have no station-side water tank**: 36 have no
+dock at all, 15 have an auto-empty-only dock (dust bag, filter, vents — zero water hardware).
+Their clean-water card is robot-side because the hardware is robot-side, so **the split
+proceeds as specified**. Full method, the five tooling faults it took to get a trustworthy
+answer, and the 6 families still unreadable:
+[`FINDING-the-58-robot-tank-families-walked.md`](FINDING-the-58-robot-tank-families-walked.md).
+
+**One change to the scope below: `s30` comes OUT.** Its real manual (`dreame.vacuum.r2485`)
+is a full washing station — station 81, clean tank 10, used tank 15, washboard 10. The card
+we filed under its `clean_water_tank` is the **robot's mopping-module tank**, and the
+station's own clean-water tank was never authored. So `s30` is THE GAP wearing a clean-card
+label, not a split case. **The split is 81 blocks, not 82.**
+
 ### Landed already (both prep passes, both audited)
 
 ```
@@ -234,7 +249,7 @@ step entirely. Took four passes to scope; see that commit for why.
 
 ### The split — designed, dry-run clean of blockers, NOT applied
 
-Scope is **82 of the 99** clean-tank blocks. The 17 two-in-one are excluded permanently:
+Scope is **81 of the 99** clean-tank blocks (was 82; `s30` removed after the manual walk). The 17 two-in-one are excluded permanently:
 there the tank physically IS the dust box.
 
 And the 82 divide by **whether the machine has anything to fill the tank for you**:
@@ -242,7 +257,7 @@ And the 82 divide by **whether the machine has anything to fill the tank for you
 | | n | who fills it | verdict |
 |---|---|---|---|
 | ROBOT tank, **no** mop-washing station | **57** | the user, by hand | a fill card is right; the emptying/rinsing/drying is what's wrong |
-| ROBOT tank, **has** washing station | **1** — `s30` | the station refills the robot | probably should have no clean-tank card at all |
+| ROBOT tank, **has** washing station | **1** — `s30` | the station refills the robot | ✅ RESOLVED — **out of scope.** r2485 confirms a full washing station; this card is the robot's module tank and belongs to THE GAP |
 | STATION tank | **24** | the user fills the station tank | already correct as a station tank |
 
 ### Those are FAMILIES — here is the model count
