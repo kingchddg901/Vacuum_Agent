@@ -328,9 +328,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -532,7 +530,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse the filter with water only if needed. Frequent water washing is not recommended.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -710,8 +707,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Wash the filter with water only when it needs it. Washing it too often damages the filter.',
-                'Clean the dust box regularly. Dirt left in the dust box reduces cleaning performance.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
     },
@@ -853,7 +848,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -996,7 +990,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -1115,7 +1108,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -1483,7 +1475,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -1601,7 +1592,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -1722,7 +1712,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not refit the filter until it is completely dry.',
             ],
         },
         'main_brush': {
@@ -1986,7 +1976,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -2086,7 +2075,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -2532,7 +2520,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
         },
@@ -2641,7 +2628,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Do not wash the filter.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not refit the filter until it is completely dry.',
             ],
         },
         'main_brush': {
@@ -2739,7 +2726,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -2823,7 +2809,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -2922,7 +2907,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -3111,7 +3095,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -3209,7 +3192,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -3372,7 +3354,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the 2-in-1 water tank and its dust box back into the robot.',
             ],
             "notes": [
-                'Do not rinse any part of the 2-in-1 water tank other than the dust box and the HEPA filter.',
+                'Do not rinse any part of the 2-in-1 water tank other than the HEPA filter.',
             ],
         },
         'filter': {
@@ -3393,7 +3375,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the 2-in-1 water tank and its dust box back into the robot.',
             ],
             "notes": [
-                'Do not rinse any part of the 2-in-1 water tank other than the dust box and the HEPA filter.',
+                'Do not rinse any part of the 2-in-1 water tank other than the HEPA filter.',
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
@@ -3483,9 +3465,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -4259,7 +4240,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -4453,7 +4433,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -4549,7 +4528,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Do not wash the filter.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not refit the filter until it is completely dry.',
             ],
         },
         'main_brush': {
@@ -4982,8 +4961,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
             ],
         },
         'filter': {
@@ -5005,8 +4983,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
             ],
         },
         'main_brush': {
@@ -5082,7 +5059,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the 2-in-1 water tank and its dust box back into the robot.',
             ],
             "notes": [
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
@@ -5104,7 +5081,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Put the 2-in-1 water tank and its dust box back into the robot.',
             ],
             "notes": [
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
@@ -5193,8 +5170,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -5377,7 +5353,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Rinse only the dust box and the filter holder. Wipe the water marks off any other part before you put it back.',
+                'Rinse only the filter and the filter holder. Wipe the water marks off any other part before you put it back.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
         },
@@ -5469,7 +5445,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
         },
@@ -5559,7 +5535,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -5673,7 +5648,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -6147,7 +6121,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -6427,9 +6400,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'filter': {
@@ -6450,9 +6422,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -6541,7 +6512,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
             ],
         },
         'main_brush': {
@@ -6629,9 +6600,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -6718,9 +6688,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -6805,9 +6774,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -6893,9 +6861,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not rinse any part outside the dust box. Wipe any water marks dry before you put the part back.',
+                'Do not rinse any part other than the filter. Wipe any water marks dry before you put the part back.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -7173,7 +7140,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -7736,7 +7702,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -7932,7 +7897,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -8030,7 +7994,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -8213,7 +8176,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -8313,7 +8275,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -8409,7 +8370,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -8519,7 +8479,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -9208,7 +9167,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not refit the filter until it is completely dry.',
             ],
         },
         'main_brush': {
@@ -9290,7 +9249,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -9571,7 +9529,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -9687,7 +9644,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -9783,7 +9739,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -9877,7 +9832,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -10041,7 +9995,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -10137,7 +10090,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -10236,7 +10188,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -10328,7 +10279,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -10433,7 +10383,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -10543,7 +10492,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -10640,7 +10588,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -10750,7 +10697,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -11054,7 +11000,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -11151,7 +11096,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -11366,7 +11310,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -11598,7 +11541,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -11901,7 +11843,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -12133,7 +12074,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -12239,7 +12179,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -12566,7 +12505,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -12983,7 +12921,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -13090,7 +13027,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -13197,7 +13133,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -13507,7 +13442,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -13616,7 +13550,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -13723,7 +13656,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -13895,7 +13827,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -14120,7 +14051,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'The filter can be rinsed with water, but frequent rinsing is not recommended.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -14481,7 +14411,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -14603,7 +14532,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -14725,7 +14653,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -15045,7 +14972,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
         },
@@ -15125,7 +15051,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Close the robot's top cover.",
             ],
             "notes": [
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Let the filter dry for at least 24 hours before you put it back.',
@@ -15208,7 +15133,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Let the filter dry for at least 24 hours before you put it back.',
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
             ],
         },
         'main_brush': {
@@ -15291,7 +15215,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
             ],
         },
         'main_brush': {
@@ -15357,7 +15280,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
             ],
         },
     },
@@ -15407,7 +15329,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -15526,7 +15447,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
         },
@@ -15637,7 +15557,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse the filter only when tapping the filter does not get it clean. Washing the filter often damages the filter.',
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
         },
@@ -16230,7 +16149,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -16340,7 +16258,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -16786,7 +16703,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -16893,7 +16809,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not refit the filter until it is completely dry.',
             ],
         },
         'main_brush': {
@@ -17101,7 +17017,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -17403,7 +17318,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -17824,7 +17738,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Let the filter dry for at least 24 hours before you put it back.',
             ],
@@ -17921,7 +17834,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -18025,7 +17937,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -18121,7 +18032,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -18475,7 +18385,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -18666,7 +18575,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -18935,7 +18843,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -19059,7 +18966,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -19292,7 +19198,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -19486,7 +19391,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -19595,7 +19499,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Let the filter dry for at least 24 hours before you put it back.',
                 'Let each part you have cleaned air-dry for at least 24 hours before you put it back into the robot.',
             ],
@@ -20505,7 +20408,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -20975,7 +20877,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -21228,7 +21129,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -21483,7 +21383,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -21621,8 +21520,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
         },
@@ -21740,7 +21637,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Empty the dust box promptly. A dust box left full clogs the filter.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
         },
@@ -21830,7 +21726,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -21994,7 +21889,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not refit the filter until it is completely dry.',
             ],
         },
         'main_brush': {
@@ -22117,7 +22012,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -22337,7 +22231,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -22445,7 +22338,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -22556,7 +22448,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -22984,7 +22875,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Close the robot's top cover.",
             ],
             "notes": [
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Let each part you have cleaned air-dry for at least 24 hours before you put it back into the robot.',
             ],
         },
@@ -23461,7 +23351,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -23826,7 +23715,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -23943,7 +23831,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Rinse with clean water only. Do not add detergent.',
             ],
         },
@@ -24055,7 +23942,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -24172,7 +24058,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -24289,7 +24174,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Tap the dust box gently while you tip the debris out, so that the filter does not clog.',
             ],
         },
         'main_brush': {
@@ -25013,7 +24897,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -25234,7 +25117,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -25351,7 +25233,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -25472,7 +25353,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -25841,7 +25721,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -26085,7 +25964,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -26829,7 +26707,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -26944,7 +26821,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not refit the filter until it is completely dry.',
             ],
         },
         'main_brush': {
@@ -27053,7 +26930,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -27163,7 +27039,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not refit the filter until it is completely dry.',
             ],
         },
         'main_brush': {
@@ -27256,7 +27132,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -27376,7 +27251,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -27486,7 +27360,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -27832,7 +27705,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -27972,7 +27844,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -28204,7 +28075,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Let the filter dry for at least 24 hours before you put it back.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
+                'Do not refit the filter until it is completely dry.',
             ],
         },
         'main_brush': {
@@ -28672,7 +28543,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'fluffing_roller': {
@@ -28959,7 +28829,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -29096,7 +28965,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
-                'Do not refit the dust box or filter until both are completely dry.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
             ],
         },
@@ -29224,7 +29092,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'main_brush': {
@@ -29468,7 +29335,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Never clean the filter with a brush, your fingers, or anything sharp — it damages the media.',
-                'Do not refit the dust box or filter until both are completely dry.',
             ],
         },
         'fluffing_roller': {
