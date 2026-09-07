@@ -473,6 +473,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -767,6 +778,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -903,6 +925,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -1020,6 +1053,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -1130,6 +1174,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -1265,6 +1320,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -1372,6 +1438,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -1491,6 +1568,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -1601,6 +1689,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -1747,6 +1846,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -2209,6 +2319,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -3507,6 +3628,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -3611,6 +3743,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -3720,6 +3863,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -5126,6 +5280,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -5316,6 +5481,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -5412,6 +5588,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -5577,6 +5764,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -5678,6 +5876,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -6627,6 +6836,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -6747,6 +6967,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -6850,6 +7081,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -6975,6 +7217,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -7074,6 +7327,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -7748,6 +8012,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -7854,6 +8129,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -7970,6 +8256,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -8081,6 +8378,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -8210,6 +8518,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -8311,6 +8630,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -8620,6 +8950,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -8793,6 +9134,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -8882,6 +9234,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -9152,6 +9515,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -9557,6 +9931,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -9660,6 +10045,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -9771,6 +10167,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -9862,6 +10269,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -9977,6 +10395,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -10069,6 +10498,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -10343,6 +10783,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -10457,6 +10908,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -10557,6 +11019,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -10684,6 +11157,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -10790,6 +11274,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -11066,6 +11561,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -11179,6 +11685,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -11298,6 +11815,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -11404,6 +11932,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -11516,6 +12055,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -11616,6 +12166,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -11734,6 +12295,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -11843,6 +12415,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
             ],
         },
         'dirty_water_tank': {
@@ -11957,6 +12540,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -12157,6 +12751,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -12259,6 +12864,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -12367,6 +12983,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -12557,6 +13184,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -12660,6 +13298,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -12876,6 +13525,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -13970,6 +14630,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -14073,6 +14744,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -14533,6 +15215,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -15027,6 +15720,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -15145,6 +15849,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -15251,6 +15966,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -15363,6 +16089,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -15469,6 +16206,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -15586,6 +16334,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -15807,6 +16566,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -15920,6 +16690,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -16026,6 +16807,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -16232,6 +17024,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -16909,6 +17712,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -17001,6 +17815,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -17106,6 +17931,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -17458,6 +18294,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -17544,6 +18391,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -17643,6 +18501,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -17735,6 +18604,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -17863,6 +18743,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -17989,6 +18880,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
                 'If you took the axle out, fit it back into the wheel.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -18237,6 +19139,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -18347,6 +19260,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -19059,6 +19983,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -19174,6 +20109,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -19568,6 +20514,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -19671,6 +20628,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -19793,6 +20761,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -20027,6 +21006,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -20148,6 +21138,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -20396,6 +21397,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -20516,6 +21528,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
             ],
         },
         'dirty_water_tank': {
@@ -21033,6 +22056,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -21156,6 +22190,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -21272,6 +22317,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -21375,6 +22431,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -21483,6 +22550,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -21597,6 +22675,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -21703,6 +22792,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -22452,6 +23552,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -22543,6 +23654,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -23374,6 +24496,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -23902,6 +25035,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -24012,6 +25156,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -24350,6 +25505,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -24471,6 +25637,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -24587,6 +25764,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -24971,6 +26159,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -25083,6 +26282,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -25203,6 +26413,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -25726,6 +26947,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -25832,6 +27064,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -26372,6 +27615,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -26591,6 +27845,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -26712,6 +27977,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -26815,6 +28091,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -26957,6 +28244,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -27189,6 +28487,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -27468,6 +28777,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
@@ -28161,6 +29481,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
+            ],
+            "notes": [
+            ],
+        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -28268,6 +29599,17 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Rinse the wheel under running water.',
                 'Let the wheel dry completely, then press the wheel back into place.',
+            ],
+            "notes": [
+            ],
+        },
+        'clean_water_tank': {
+            "clean_frequency": 'Every 2 weeks or as needed',
+            "replace_frequency": None,
+            "steps": [
+                'Access the clean-water tank in the base station.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
+                'Put the clean-water tank back into the base station.',
             ],
             "notes": [
             ],
