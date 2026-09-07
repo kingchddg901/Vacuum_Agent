@@ -134,8 +134,79 @@ separated by three other sections. Our `x20_max/filter` block had `clip_open_out
 | `get_text()` | scrambles multi-column pages |
 | `get_text(sort=True)` | **worse** — sorts by y across the whole page, interleaving columns line by line |
 | block geometry, column-then-y | close, but **3 of 18 blocks on that page straddle the midline** — the PDF's own segmentation merges columns |
-| **word geometry, column-then-y** | **works.** Recovers "take out the dust compartment, remove the filter from the filter clip, and empty" in correct clause order |
+| word geometry split at the **midline** | **fails on this corpus** — see the correction below |
+| **word geometry split at detected GUTTERS** | **works.** Generic N-column; reproduces the e30_aqua misfile mechanically |
 | render + OCR | unnecessary here, and lossy. Only for pages with no text layer — measured destroying every procedure line on the 96 dpi raster edition |
+
+### CORRECTION 2026-09-06 — "two-column" is wrong for this corpus
+
+The midline assumption above was inherited from the X20 Max, and it is **not
+general**. Dreame ships landscape spreads: the E30 Aqua page carrying the
+un-merged main-brush steps is **1191 × 397 with FIVE columns**, gutters at
+x≈290 / 580 / 870. A midline split lands *inside* a column, so the detector
+reported that page as single-column and the whole sweep came back clean.
+
+The calibration case is the guard. **Run any column detector against E30 Aqua
+p20 (page index 12 of `trouver.vacuum.r2461r__c4d67be8.pdf`) first** — it must
+report multi-column AND naive ≠ column order, because that page's damage is
+already confirmed. A sweep whose known-true case comes back clean is measuring
+nothing; this one did, twice, before the detector was fixed.
+
+Working detector: occupancy-histogram the word x-extents in ~2pt bins, take
+maximal empty runs wider than ~1.2% of page width and not touching the text
+bounds as gutters, split columns at gutter midpoints, sort each column by
+(y, x), concatenate left to right. Implementation: `scratchpad/gutter.py`.
+
+### EXPOSURE IS NOT DAMAGE — the heading-shift test
+
+A page whose reading order is untrustworthy is exposure. Damage happens only
+when the wrong order changes **which section heading precedes the sentence**,
+because that heading is what the lift files it by. E30 Aqua p20:
+
+```
+naive : [Side Brush and Mop Pad Holder] … 2. Lift the brushes from both the left and right sides …
+column: [Routine Maintenance]           … 2. Lift the brushes from both the left and right sides …
+```
+
+Scoped sweep 2026-09-06, 17 structurally-flagged families:
+
+```
+checkable (packet + PDF present)                    10
+  of those, with >=1 page where naive != column      9   (9 of 9 — exposure is total)
+raw heading-shift candidates                        51
+  after dropping page-title-level headings           7
+  CONFIRMED new misfiles                             0   (all 7 already filed correctly)
+NOT CHECKED (no packet, or no PDF matched)           7   — unknown, NOT clean
+```
+
+So e30_aqua remains the only confirmed case beyond the documented six, and the
+0.3% realised-damage figure survives a targeted attempt to beat it.
+
+### Aiming the sweep: rare (component, namespace) pairs
+
+Content-blind and cheap — no PDF needed. Flag a component whose keys borrow a
+namespace belonging to a different physical part. It fires on the known case
+(`mop.*` inside `side_brush`, 5 families of 1,692 placements = 0.30%). Most rare
+pairs are just naming, not merges (`fluffing_roller` keys live in `mop.`,
+`charging_contacts` legitimately uses `sensor.wipe`), so the output is a
+candidate list for reading, never a fix list.
+
+### Why probing with our own wording does not work
+
+The first run searched each PDF for the phrase table's **normalised** sentence
+and reached zero pages in 14 of 16 families — then reported that as zero
+problems. Vendor vocabulary churn is the cause and it is worse *within* a vendor
+than between vendors:
+
+| part | distinct terms | worst single vendor |
+|---|---|---|
+| mop holder | 7 | Dreame alone uses 5 — mop assembly · mop pad holder · mop pad holders · mopping assembly · mopping module |
+| dust box | 4 | Dreame alone uses all 4 — dust bin · dust box · dust compartment · dust tank |
+| caster | 3 | Dreame alone uses all 3 — omnidirectional · universal · caster wheel |
+| dirty tank | 3 | Dreame alone uses all 3 — used water tank · used water box · dirty water tank |
+
+Probe with the **packet's** lifted sentences (the vendor's own English), never
+with the phrase table's.
 
 **Detection is content-blind**, which is what breaks the chicken-and-egg. You do not need
 to know a block is wrong; you need to know its page is two-column, and that is pure
