@@ -245,6 +245,27 @@ And the 82 divide by **whether the machine has anything to fill the tank for you
 | ROBOT tank, **has** washing station | **1** — `s30` | the station refills the robot | probably should have no clean-tank card at all |
 | STATION tank | **24** | the user fills the station tank | already correct as a station tank |
 
+### Those are FAMILIES — here is the model count
+
+```
+ROBOT-tank     58 families  ->  102 model ids
+STATION-tank   24 families  ->   43 model ids
+split total    82 families  ->  145 model ids
+
+for scale:    741 model ids across 277 catalog families
+```
+
+So the open question below decides the shape of **102 of 741 models, about 14% of the
+supported fleet**. Every one of the 58 has a catalog entry — no hidden tail.
+
+Heaviest families, 4–5 models each: `d20`, `d20_pro`, `f10`, `s10`, then `d20_pro_plus`,
+`f10_plus`, `f20_plus`, `s10_plus` — those eight alone are 36 models, so "delete" rather
+than "reshape" lands hardest on the D20 / F10 / S10 lines.
+
+⭐ `l10s_pro_gen_2` (3 models) is in the ROBOT-tank set while Robin (`l10s_gen2`) is on the
+STATION side — the L10s line straddles the split, so it is the natural same-line comparison
+if you want one machine of each kind side by side.
+
 **⚠ THE OPEN QUESTION, and the reason this is paused.** Chris: *"we are doing maintenance
 on the tanks of the robots. We shouldn't be."* Does that mean the 57 keep an operational
 **fill** card with the maintenance stripped, or does it mean they get **no clean-water card
