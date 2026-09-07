@@ -373,3 +373,63 @@ The content index reads **10 pages**; the walk reads the **whole document**. I w
 into this note myself and then treated an index count as a hardware fact in the very next
 analysis. **Index counts locate documents. Only a full read counts a part** — and even then the
 sentence decides, because a safety caution names the part without the machine having it.
+
+
+## The Master rule is MARKET-conditioned — Chris: *"the ZH set use (embedded)"*
+
+He spotted that the three exceptions to "Master => plumbed" are all Chinese documents, and that
+the ZH set marks plumbing with the embedded descriptor instead. Cross-tabbing Master-tagged
+models by the manual's dominant script against a full-document, boilerplate-filtered clean-tank
+count:
+
+```
+script     HAS tank   no tank
+CJK            4          4
+Hangul         1          1
+Latin          1          9
+```
+
+**Within CJK the DESCRIPTOR does the work.** All four CJK "no tank" models carry it explicitly:
+
+```
+r6112  Clean Master X60 Pro Steam (Ultra-Thin embedded)   plumb=11
+r512g  X60 Master (Ultimate Ultra-Thin embedded)          plumb=11
+r2310  Master Pro          r2310 series                   plumb=9
+r2310a Master One          r2310 series                   plumb=9
+```
+
+so a plain `Master` name in a Chinese manual means the TANK version — which is why the three
+strong station tanks (`r6012` clean=10, `r2212` clean=10, `r501w` clean=11) are all CJK.
+
+**Within Latin the NAME does the work.** 9 of 10 have no tank, and the one exception (`r2501l`,
+real=1) is the station auto-filling the ROBOT's tank, not a station tank. Export documents folded
+the plumbed configuration into the Master name.
+
+### The tell
+
+`X60 Master` sits on both sides:
+
+```
+r5189u  X60 Master   CJK     real=1   plumb=2    tank version
+r5104h  X60 Master   Latin   real=0   plumb=5    plumbed
+r5189j  X60 Master   Latin   real=0   plumb=5    plumbed
+```
+
+Same product name, different model ids, opposite docks. **The dock tracks the MARKET, and the
+manual's language is a proxy for it** — domestic Chinese listings keep the basic water-tank dock;
+export listings ship the plumbed one under the same Master name.
+
+### Consequence for cut-outs
+
+A cut-out decision cannot be made from the name alone once Master is involved — it needs the name
+AND the document's market. Concretely:
+
+```
+embedded / r2310 in the name            -> PLUMBED, any market      (still 47/48, no counterexamples)
+Master + Latin/Hangul manual            -> PLUMBED                  (9 of 10, the 10th is a robot tank)
+Master + CJK manual, no descriptor      -> HAS a station tank       (3 of 4 strong; the 4th is real=1)
+```
+
+The embedded rule is market-independent and stays the primary cut-out signal. Master is a
+secondary one that must be qualified by market, and this is exactly the noise Chris meant when he
+said the names break down.
