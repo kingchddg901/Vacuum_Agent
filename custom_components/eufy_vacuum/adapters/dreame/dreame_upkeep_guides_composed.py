@@ -214,14 +214,10 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Access the clean-water tank in the base station.',
-                'Take the clean-water tank out of the base station.',
-                'Open the water tank cover.',
-                'Rinse the water tank with clean water.',
-                'Close the water tank cover.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
-                'The float in the clean-water tank moves. Do not force the float while cleaning the tank.',
             ],
         },
         'dirty_water_tank': {
@@ -2105,14 +2101,10 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Access the clean-water tank in the base station.',
-                'Take the clean-water tank out of the base station.',
-                'Open the water tank cover.',
-                'Rinse the water tank with clean water.',
-                'Close the water tank cover.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
-                'The float in the clean-water tank moves. Do not force the float while cleaning the tank.',
             ],
         },
         'dirty_water_tank': {
@@ -12846,16 +12838,10 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Access the clean-water tank in the base station.',
-                'Take the clean-water tank out of the base station.',
-                'Open the water tank cover.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Close the water tank cover.',
-                'Wipe the water marks off the outside of the tank with a soft, dry cloth.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
-                'The float in the clean-water tank moves. Do not force the float while cleaning the tank.',
             ],
         },
         'dirty_water_tank': {
@@ -14117,16 +14103,10 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Access the clean-water tank in the base station.',
-                'Take the clean-water tank out of the base station.',
-                'Open the water tank cover.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Close the water tank cover.',
-                'Wipe the water marks off the outside of the tank with a soft, dry cloth.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
-                'The float in the clean-water tank moves. Do not force the float while cleaning the tank.',
             ],
         },
         'dirty_water_tank': {
@@ -14244,16 +14224,10 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Access the clean-water tank in the base station.',
-                'Take the clean-water tank out of the base station.',
-                'Open the water tank cover.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Close the water tank cover.',
-                'Wipe the water marks off the outside of the tank with a soft, dry cloth.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
-                'The float in the clean-water tank moves. Do not force the float while cleaning the tank.',
             ],
         },
         'dirty_water_tank': {
@@ -14261,16 +14235,10 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Access the clean-water tank in the base station.',
-                'Take the clean-water tank out of the base station.',
-                'Open the water tank cover.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Close the water tank cover.',
-                'Wipe the water marks off the outside of the tank with a soft, dry cloth.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
-                'The float in the clean-water tank moves. Do not force the float while cleaning the tank.',
             ],
         },
         'filter': {
@@ -20207,14 +20175,10 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Access the clean-water tank in the base station.',
-                'Take the clean-water tank out of the base station.',
-                'Open the water tank cover.',
-                'Rinse the water tank with clean water.',
-                'Close the cover on the clean-water tank.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
-                'The float in the clean-water tank moves. Do not force the float while cleaning the tank.',
             ],
         },
         'dirty_water_tank': {
@@ -22507,16 +22471,10 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Access the clean-water tank in the base station.',
-                'Take the clean-water tank out of the base station.',
-                'Open the water tank cover.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Wipe the water marks off the outside of the tank with a soft, dry cloth.',
-                'Close the water tank cover.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
-                'The float in the clean-water tank moves. Do not force the float while cleaning the tank.',
                 'Empty the clean-water tank before you move or ship the robot and the base station. Water left in the tank causes damage in transit.',
             ],
         },
@@ -22635,16 +22593,10 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Access the clean-water tank in the base station.',
-                'Take the clean-water tank out of the base station.',
-                'Open the water tank cover.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Wipe the water marks off the outside of the tank with a soft, dry cloth.',
-                'Close the water tank cover.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
-                'The float in the clean-water tank moves. Do not force the float while cleaning the tank.',
                 'Empty the clean-water tank before you move or ship the robot and the base station. Water left in the tank causes damage in transit.',
             ],
         },
@@ -27354,8 +27306,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Access the clean-water tank in the base station.',
-                'Take the clean-water tank out of the base station.',
-                'Fill the clean-water tank with clean water up to the MAX line.',
+                'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
             "notes": [
