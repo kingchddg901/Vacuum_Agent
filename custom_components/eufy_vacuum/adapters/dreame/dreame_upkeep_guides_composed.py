@@ -34,6 +34,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
@@ -289,6 +290,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Rinse the water tank with clean water.',
@@ -303,6 +305,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -502,6 +505,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -812,6 +816,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -953,6 +958,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -1074,6 +1080,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -1194,6 +1201,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Unplug the base station before cleaning any part of it with water.',
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -1326,6 +1334,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -1440,6 +1449,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -1560,6 +1570,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -1678,6 +1689,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -1828,6 +1840,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -2041,6 +2054,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Pour the water out of the clean-water tank.',
@@ -2232,6 +2246,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -2334,6 +2349,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -2481,6 +2497,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Rinse the water tank with clean water.',
@@ -2495,6 +2512,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -2598,6 +2616,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour any water left in the water tank away.',
                 'Rinse the water tank with clean water.',
@@ -2695,6 +2714,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
@@ -3162,6 +3182,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
@@ -3795,6 +3816,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -3902,6 +3924,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -4010,6 +4033,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -4307,6 +4331,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -5509,6 +5534,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -5714,6 +5740,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -5813,6 +5840,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -5987,6 +6015,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -6091,6 +6120,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -6292,6 +6322,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -7111,6 +7142,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -7230,6 +7262,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -7339,6 +7372,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -7459,6 +7493,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -7564,6 +7599,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -7768,6 +7804,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
@@ -7863,6 +7900,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -7962,6 +8000,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -8341,6 +8380,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -8450,6 +8490,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -8561,6 +8602,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -8675,6 +8717,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -8799,6 +8842,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -8903,6 +8947,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -9008,6 +9053,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -9025,6 +9071,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -9137,6 +9184,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour any water left in the water tank away.',
                 'Rinse the water tank with clean water.',
@@ -9221,6 +9269,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -9316,6 +9365,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
@@ -9409,6 +9459,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -9501,6 +9552,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -9803,6 +9855,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -10252,6 +10305,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -10358,6 +10412,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -10464,6 +10519,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -10558,6 +10614,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -10668,6 +10725,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -10763,6 +10821,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -11065,6 +11124,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -11178,6 +11238,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -11281,6 +11342,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -11403,6 +11465,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -11512,6 +11575,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -11814,6 +11878,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -11930,6 +11995,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -12044,6 +12110,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -12153,6 +12220,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -12260,6 +12328,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -12363,6 +12432,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -12476,6 +12546,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -12586,6 +12657,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -12701,6 +12773,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -12896,6 +12969,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -13001,6 +13075,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -13108,6 +13183,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -13216,6 +13292,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
@@ -13310,6 +13387,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -13416,6 +13494,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -13524,6 +13603,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -13630,6 +13710,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -13890,6 +13971,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -13904,6 +13986,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
@@ -14008,6 +14091,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -14024,6 +14108,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -14138,6 +14223,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -14154,6 +14240,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -14274,6 +14361,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -14290,6 +14378,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -14505,6 +14594,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Lift the used-water filter out of the used-water tank.',
@@ -14627,6 +14717,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Open the sealing cover on the used-water tank.',
                 'Pour the used water away.',
                 'Lift the used-water filter out of the used-water tank.',
@@ -14737,6 +14828,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -14843,6 +14935,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -15302,6 +15395,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -15513,6 +15607,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -15529,6 +15624,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -15638,6 +15734,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -15654,6 +15751,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -15787,6 +15885,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -15904,6 +16003,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -16013,6 +16113,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -16120,6 +16221,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -16229,6 +16331,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -16345,6 +16448,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -16561,6 +16665,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -16673,6 +16778,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -16782,6 +16888,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -16890,6 +16997,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -16986,6 +17094,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -17117,6 +17226,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
@@ -17129,6 +17239,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Unplug the base station before cleaning any part of it with water.',
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -17274,6 +17385,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
@@ -17287,6 +17399,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -17525,6 +17638,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -17710,6 +17824,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -17805,6 +17920,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -17909,6 +18025,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -18003,6 +18120,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Open the sealing cover on the used-water tank.',
                 'Pour the used water away.',
                 'Lift the used-water filter out of the used-water tank.',
@@ -18268,6 +18386,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -18357,6 +18476,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -18451,6 +18571,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -18546,6 +18667,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -18670,6 +18792,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 "Pull the soft rubber cover off the water tank's inlet.",
                 'Pour the water out of the clean-water tank.',
@@ -18686,6 +18809,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Unplug the base station before cleaning any part of it with water.',
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -18814,6 +18938,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -18935,6 +19060,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Lift the used-water filter out of the used-water tank.',
@@ -19056,6 +19182,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -19169,6 +19296,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -19575,6 +19703,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -19875,6 +20004,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -19993,6 +20123,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -20382,6 +20513,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -20488,6 +20620,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -20616,6 +20749,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the used-water tank in the base station.',
                 "Press and hold the release buttons on the robot's used-water box and pull the box out.",
                 "Open the cover on the robot's used-water box and pour the used water away.",
                 "Rinse the robot's used-water box with clean water.",
@@ -20843,6 +20977,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -20973,6 +21108,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -21101,6 +21237,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out of the base station.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -21222,6 +21359,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -21347,6 +21485,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -21481,6 +21620,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Rinse the water tank with clean water.',
@@ -21495,6 +21635,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -21599,6 +21740,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station and open its cover. Move the hose to one side. Lift the filter media out of the clean-water tank.',
                 'Rinse the filter media with clean water. Put the filter media and the hose back in their original positions.',
                 'Close the cover on the clean-water tank.',
@@ -21611,6 +21753,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -21861,6 +22004,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -21983,6 +22127,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -22098,6 +22243,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -22204,6 +22350,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -22311,6 +22458,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -22420,6 +22568,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -22529,6 +22678,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -23083,6 +23233,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station and open its cover. Move the hose to one side. Lift the filter media out of the clean-water tank.',
                 'Rinse the filter media with clean water. Put the filter media and the hose back in their original positions.',
                 'Close the cover on the clean-water tank.',
@@ -23095,6 +23246,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -23202,6 +23354,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station and open its cover. Move the hose to one side. Lift the filter media out of the clean-water tank.',
                 'Rinse the filter media with clean water. Put the filter media and the hose back in their original positions.',
                 'Put the clean-water tank back into the base station.',
@@ -23213,6 +23366,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -23323,6 +23477,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -23417,6 +23572,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -23510,6 +23666,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
@@ -23598,6 +23755,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
@@ -23688,6 +23846,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out of the base station.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -23806,6 +23965,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out of the base station.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -23916,6 +24076,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out of the base station.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -24032,6 +24193,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out of the base station.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -24237,6 +24399,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -24346,6 +24509,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -24362,6 +24526,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -24490,6 +24655,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -24507,6 +24673,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -24616,6 +24783,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -24633,6 +24801,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -24758,6 +24927,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -24871,6 +25041,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -25087,6 +25258,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Lift the used-water filter out of the used-water tank.',
@@ -25203,6 +25375,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -25323,6 +25496,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -25442,6 +25616,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -25558,6 +25733,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Lift the used-water filter out of the used-water tank.',
@@ -25690,6 +25866,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -25819,6 +25996,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -25934,6 +26112,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -26054,6 +26233,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Unplug the base station before cleaning any part of it with water.',
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -26355,6 +26535,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
@@ -26570,6 +26751,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -26679,6 +26861,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -26788,6 +26971,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -27012,6 +27196,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -27218,6 +27403,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -27443,6 +27629,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -27567,6 +27754,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -27673,6 +27861,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -27818,6 +28007,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -27925,6 +28115,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Open the water tank cover.',
                 'Pour the water out of the clean-water tank.',
@@ -27941,6 +28132,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -28047,6 +28239,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -28261,6 +28454,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
+                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -28360,6 +28554,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -28500,6 +28695,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
@@ -28512,6 +28708,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out of the base station.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -28643,6 +28840,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
@@ -28654,6 +28852,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -28786,6 +28985,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
@@ -28798,6 +28998,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -28923,6 +29124,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station and fill it with clean water.',
                 'Put the clean-water tank back into the base station.',
             ],
@@ -28935,6 +29137,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
@@ -29061,6 +29264,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -29175,6 +29379,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
@@ -29289,6 +29494,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
             "steps": [
+                'Access the clean-water tank in the base station.',
                 'Take the clean-water tank out of the base station.',
                 'Fill the clean-water tank with clean water up to the MAX line.',
                 'Put the clean-water tank back into the base station.',
@@ -29303,6 +29509,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
             "steps": [
+                'Access the used-water tank in the base station.',
                 'Take the used-water tank out and open its cover.',
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
