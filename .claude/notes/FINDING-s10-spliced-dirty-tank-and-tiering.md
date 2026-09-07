@@ -51,8 +51,9 @@ is real but it is not about tanks.
    [`FINDING-plumbed-variants-have-no-clean-tank.md`](FINDING-plumbed-variants-have-no-clean-tank.md);
    r2310b is in the same r2310 series as the Master line
 
-The tier boundary is exactly between **"S10"** and **"S10 Pro"**, and every Pro variant has
-the station tank the S10's card wrongly describes.
+The tier boundary sits between the **base S10 and everything else** — not between S10 and
+S10 Pro, because the **Plus** is already above it. Six variants carry the station tank the
+base S10's card wrongly describes, so the splice source cannot be narrowed to one sibling.
 
 Also: r2421 and r2360w have **identical** counts, so S10 Pro and S10 Pro Max ship the same
 manual content under different SKUs.
