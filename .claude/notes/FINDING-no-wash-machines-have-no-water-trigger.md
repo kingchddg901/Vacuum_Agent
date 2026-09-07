@@ -341,3 +341,57 @@ S60 Pro (Roller) / (Roller Drainage)           x3   roller, carries the onboard 
 Its `dirty_water_tank` card is *entirely* robot-box, so a blanket strip would leave the roller
 variants with no used-water guidance while the plumbed pair should have none at all. Needs a
 per-variant decision. **Untouched by this pass.**
+
+
+## 7. The skipped gap families, worked (2026-09-07)
+
+Chris: *"ok back to the skipped."* The 21 dirty-without-clean families were 10 "manual
+unreadable" plus 11 plumbed/low-count. The 10 were skipped because the FILENAME walker could not
+reach a document — before the content index existed.
+
+```
+2 RECOVERED and authored   l60_ultra_ae   clean=7  dirty=12  plumb=5
+                           x50s_pro_ultra clean=11 dirty=13  plumb=2  (Chris's Korean manual)
+4 NOT A MANUAL             10, w20_pro, w20_pro_ultra, wash_station_roller
+4 UNRESOLVABLE             p60, s70_pro_roller, wash_station_baseboard, wash_station_track
+```
+
+`clean_water_tank` 146 -> **148**.
+
+### ⚠ The relevance floor, left out and paid for immediately
+
+The four "NOT A MANUAL" families first came back as **"no station water at all"** — the `s10`
+splice signature. They were not. Three are PDFs whose embedded CJK font extracts as **mojibake**
+(`劥霹僈⛼㕃爙`), which passes a script check because the bytes land in CJK ranges; the fourth is a
+**Lithuanian manual for a cordless stick vacuum** (*"Belaidis dulkių siurblys"*). All four scored
+0 on every hardware term.
+
+`walk_manuals.py` has had a relevance floor since its first run — a document must name ≥2
+maintenance parts. **I built the new resolver and carried the script, alpha and page-count guards
+but not that one.** One guard catches both faults; the controls score 5 and 2.
+
+> Rebuilding a selector without re-reading the guards on the old one is how a fixed fault comes
+> back. The fault list at the top of `walk_manuals.py` exists precisely so this does not happen,
+> and I did not read it.
+
+### `p60` — genuinely no manual, and a prefix trap in the wild
+
+The P60 is a MOVA robot vacuum with a mop-washing station (6 models, 3 plumbed; its
+`dirty_water_tank` is `station_tank > remove > pour > rinse_plain > wall_tool > tank_refit` and it
+has a heated `washboard_filter`). **The corpus holds no manual for it.**
+
+The only document naming "P60" is `dreame-j1-pool-skimmer_IT.pdf` — Dreame's POOL-robot line uses
+the same P-numbering (`P20, P01, P21, P40, P41, P60`). One pool document exists in the corpus and
+P60 is the only name it collides with; `skimmer` is now in the junk filter.
+
+Chris then searched `r5730` and found `R5730C.pdf`. That is **not** the P60:
+
+```
+mova.vacuum.r5730   P60 (Selected Edition)
+mova.vacuum.r5730c  P10 Pro Ultra Gen 2        <- R5730C.pdf, 91p, names itself in its text
+token test: "r5730" in R5730C.pdf -> False     (tokens are {r5730c, pdf})
+```
+
+Windows matches substrings; the token-boundary matcher refuses it. This is the same collision that
+scored `s10` on the `r2228d` manual before the fix — caught here by the guard rather than by a
+contradiction.
