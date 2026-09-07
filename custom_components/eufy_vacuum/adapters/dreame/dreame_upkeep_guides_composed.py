@@ -25682,10 +25682,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'As needed',
             "replace_frequency": None,
             "steps": [
-                'Take the dust tank cover off the base station.',
-                'Lift the used dust bag out of the base station and throw the dust bag away.',
                 "Wipe the base station's dust-collection filter with a soft, dry cloth.",
-                'Fit a new dust bag into the base station, then close the dust tank cover by hand.',
             ],
             "notes": [
                 'Pull the dust bag out by its handle. The handle seals the bag so that dust and debris cannot fall out.',
