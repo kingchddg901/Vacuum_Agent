@@ -5707,7 +5707,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Lift the side brush up off its spindle.',
                 'Remove hair and debris tangled around the side brush and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
                 'Refit the side brush.',
-                'Take the mop pad holder off the robot. Clean the mop pad holder, then fit it back on the robot.',
+                'Take the mop pad holders off the robot. Clean the mop pad holders, then fit them back on the robot.',
             ],
             "notes": [
             ],
