@@ -263,7 +263,7 @@ other**, and the borrowed key is the access step:
 | `3c` | `clean_water_tank` ← `bin.*` | legit | the part IS 二合一水箱（水箱+尘盒） — tank *and* dust box, one moulding |
 | `x50_master` | `detergent_inlet` ← `bag.*` | legit | "Remove the dust tank cover and pull out the auto-detergent compartment" |
 | `x40_pro` | `base_station_filter` ← `bag.*` | legit — the station-filter wipe IS **step 3 of 更换尘袋, the dust-bag replacement**: open the station door, discard the bag, wipe the dust-collection filter, fit a new bag, close the door |
-| `x30_pro` | `side_brush` ← `mop.*` | **REAL FINDING** — maintenance section is 主刷和边刷, "Main Brush and Side Brush". The mop assembly appears only under installation, and the mop holder is absent from the cadence table entirely. |
+| `x30_pro` | `side_brush` ← `mop.*` | **NOT a finding — see the retraction below.** It HAS a mop holder (拖布盘 x2); its manual just documents no cleaning procedure for it. |
 | `vacuum_mop_pro` | — | unreachable, zero text layer on all 20 pages |
 
 **So read a namespace borrow as an access path first and a merge second.** It is the same
@@ -271,8 +271,34 @@ fact as `dustbin` folding into `filter`: you cannot service the filter without h
 dust box, you cannot reach the detergent compartment without lifting the dust tank cover.
 Namespace reasoning cannot see a shared access path, so it reports one as a defect.
 
-`x30_pro` is the exception that makes the detector worth running: one family of five in
-its class where the pairing has no vendor support.
+### ⚠ RETRACTION — `x30_pro` was NOT a finding
+
+Reported above as the one real defect of the seven. It was not, and Chris's two questions
+are what broke it:
+
+> "does the x30 pro even have a mop holder. the fact the steps are paired means nothing
+> to doing them alone"
+
+**The reasoning error.** I treated a manual's section grouping as evidence about hardware.
+It is a layout choice. That 主刷和边刷 puts the main and side brush under one heading says
+nothing about whether either can be done alone, and nothing about what else the machine
+has.
+
+**The factual error, which is worse.** The line I reasoned from — 取下拖布盘并清理，清理完后
+装回主机, "remove the mop plate, clean it, refit it" — is on **x40_pro's** page 22, not
+x30_pro's. Two Chinese manuals read in one session and a sentence carried across. Always
+re-read the page in the document you are about to make a claim about.
+
+**What is actually true.** x30_pro HAS a mop holder — 拖布盘 x2, in the box and on the
+parts diagram. Its manual documents no cleaning procedure for it: every mention is the
+parts list, the diagram, "take the mop off the plate to replace it" (that is the mop, not
+the holder), and a troubleshooting step. Same shape as e5's filter — the part is real, the
+vendor is silent.
+
+So `mop.holder_off_clean` on `x30_pro/side_brush` describes a part the machine has, with
+a generic and safe action that four sibling families document verbatim. **Kept.** All
+seven families are now explained; the detector produced zero real defects, which is a
+result about the corpus, not a failure of the detector.
 
 ### "Dust compartment" names TWO different parts — Chris, 2026-09-06
 
