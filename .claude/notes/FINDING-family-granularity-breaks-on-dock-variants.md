@@ -433,3 +433,68 @@ Master + CJK manual, no descriptor      -> HAS a station tank       (3 of 4 stro
 The embedded rule is market-independent and stays the primary cut-out signal. Master is a
 secondary one that must be qualified by market, and this is exactly the noise Chris meant when he
 said the names break down.
+
+
+## ✅ FULL-DEPTH RESOLUTION — the eight, settled
+
+Chris: *"read the other 7 i want to be done with this in one shot if possible."*
+`tools/resolve_dock_splits.py` — every model in all eight families, whole document, boilerplate
+filtered, 12 cores. Result cached to `tools/dock_resolution.json`.
+
+```
+CONFIRMED SPLIT at full depth   6   s40, x40, x50, x50_pro, x50_ultra, x60_master
+NOT split                       2   m50_ultra, wash_station
+```
+
+`m50_ultra` and `wash_station` drop out: the 10-page index had over-read them, and at full depth
+neither has models on both sides (`wash_station` has just 2 models with a manual at all, 5 without).
+
+### Per-family, at depth
+
+```
+s40          TANKS 5   PLUMBED-both 4
+x40          TANKS 14  PLUMBED-supply 1
+x50          TANKS 41  PLUMBED-both 2
+x50_pro      TANKS 8   PLUMBED-both 4
+x50_ultra    TANKS 1   PLUMBED-both 1   no-station-water 1
+x60_master   TANKS 1   PLUMBED-both 3   REVIEW 1
+```
+
+`PLUMBED-both` = neither station tank. `PLUMBED-supply` = mains in, used-water tank still present.
+The distinction matters: a supply-plumbed machine still needs its dirty-tank card.
+
+### ⚠ A THIRD EVIDENCE-FITNESS RULE: a line manual cannot resolve a SKU
+
+The pass produced exactly ONE name-rule disagreement:
+
+```
+r25857  X50 Pro (Enhanced Ultra-Thin embedded)   rule=PLUMBED   manual=TANKS
+```
+
+Its manual is **305 pages**, and 19 model files share its byte-identical signature
+(`c=7 b=2 d=13 p=5`) — one multi-language export manual reissued per model id. A line manual
+describes every variant in the line, so it reads TANKS whenever ANY variant has them.
+
+```
+models resolved ONLY by a >=150-page manual   37   of which TANKS 35
+embedded models on a SKU-scale manual (<150p) 14   PLUMBED 13, REVIEW 1, TANKS 0
+```
+
+**Excluding mega-manuals as unfit, the embedded rule has ZERO counterexamples.** The
+disagreement was an evidence-fitness problem, not a rule problem — and it means those 35 "TANKS"
+readings identify a product line, not a dock.
+
+The three fitness rules now stand together, and all three were learned the same way — by a
+shallow instrument confidently returning a wrong answer:
+
+```
+10-page index count   -> LOCATES a document. Counted the safety caution as a part.
+line manual (>=150p)  -> IDENTIFIES a product. Cannot resolve a dock variant.
+one manual per family -> SAMPLES one SKU. Read a plumbed variant as the whole family.
+```
+
+### What is safe to cut out
+
+An **embedded-named model whose evidence is a SKU-scale manual** is plumbed, with no
+counterexamples in 14. That is the cut-out set. Models resting only on a line manual are NOT
+resolved and must not be cut on that evidence.
