@@ -28,19 +28,26 @@ station".
 
 Chris: *"the tiering if the s10 is real and annoying."* Counted across five manuals:
 
-| family (model) | product | base station | used tank | washboard | clean tank |
+| family / variant | base station | used tank | clean tank | wash tray | dust bag |
 |---|---|---|---|---|---|
-| `s10` (r2382k) | S10 | **0** | **0** | **0** | **0** |
-| `s10_pro` (r2421) | S10 Pro Hot Water | 75 | 14 | 7 | 6 |
-| `s10_pro_max` (r2360w) | S10 Pro Max Hot Water | 75 | 14 | 7 | 6 |
-| `s10_pro_ultra` (r9312) | S10 Pro Ultra 2-roller | 83 | 15 | 10 | 7 |
-| `s10_pro_ultra` (r2310b) | S10 Pro Ultra Ultra-Thin | 117 | 7 | 13 | **0** |
+| `s10` base (r2382k) | **0** | **0** | **0** | **0** | **0** |
+| `s10_plus` (r2246) | 73 | 14 | 6 | 6 | 12 |
+| `s10_pro` PLAIN (r2233) | 82 | 16 | 6 | 6 | 13 |
+| `s10_pro` Hot Water (r2421) | 75 | 14 | 6 | 7 | 12 |
+| `s10_pro` Mop Swing (r9311) | 76 | 15 | 7 | 7 | 12 |
+| `s10_pro_ultra` (r9312) | 83 | 15 | 7 | 10 | 12 |
+| `s10_pro_ultra` Ultra-Thin (r2310b) | 117 | 7 | **0** | 13 | 12 |
 
-**One product name, three hardware configurations:**
+⚠ **There is NO dust-empty-only tier in this line.** The expected industry shape — base bare,
+Pro auto-empty, Ultra washing — does not hold here. Even the **Plus** has both tanks and a
+wash tray, and the plain Pro is the same dock class as the Ultra. The Pro/Ultra distinction
+is real but it is not about tanks.
 
-1. **no station at all** — the base S10 alone
-2. **station with clean + dirty tanks** — S10 Pro, Pro Max, Pro Ultra (r9312)
-3. **station, PLUMBED, no clean tank** — S10 Pro Ultra Ultra-Thin (r2310b), consistent with
+**One product name, three hardware states:**
+
+1. **no station at all** — the base S10, alone
+2. **full washing station with both tanks** — Plus, all three Pro variants, Pro Ultra
+3. **that station, PLUMBED, no clean tank** — Ultra-Thin (r2310b), consistent with
    [`FINDING-plumbed-variants-have-no-clean-tank.md`](FINDING-plumbed-variants-have-no-clean-tank.md);
    r2310b is in the same r2310 series as the Master line
 
@@ -60,10 +67,11 @@ s10          station=0     ← real
 l10s_ultra   station=70, used tank=14, washboard=6   ← plainly a station machine
 ```
 
-`l10s_ultra` was a false positive: it is a station machine whose washboard card we simply
-have not composed. The heuristic measures **our backlog**, not the hardware — the same
-circular reasoning Chris caught in the plumbed-variant note. Of the 15, only `s10` is
-confirmed; the other 14 are unknown and each needs its own manual.
+`l10s_ultra` was a false positive: a station machine whose washboard card we simply have
+not composed. **`s10_pro` is a second false positive** — proven a full washing station with
+both tanks (r2233: station 82, used tank 16, clean tank 6, wash tray 6). The heuristic measures **our backlog**, not the hardware — the same
+circular reasoning Chris caught in the plumbed-variant note. Of the 15, **two are now disproven and only `s10` was ever real**; the other 12 are
+unknown and each needs its own manual.
 
 The reliable test is per-manual: count `base station` / `used water tank` / `washboard`
 in the family's own document.
