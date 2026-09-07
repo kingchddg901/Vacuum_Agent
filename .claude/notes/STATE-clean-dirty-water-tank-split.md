@@ -92,6 +92,50 @@ That also explains the shape of the 99: where a vendor wrote a combined section 
 lifted (merged, into the clean card); where the vendor split the sections, only the dirty
 half was picked up and the clean half was lost entirely.
 
+## WHY the lift missed it — and the narrow scope of that (Chris, 2026-09-07)
+
+The refill instruction is not missing because the lift failed at reading. It is in the
+manual, in a **different chapter**:
+
+```
+l20        p8  fill the clean tank    → Use / Setup chapter
+           p10 clean the dirty tank   → Routine Maintenance chapter
+matrix10   p7  fill the clean tank    → Use / Setup chapter
+           p8  clean the dirty tank   → Routine Maintenance chapter
+```
+
+The lift harvested **Routine Maintenance**. That is why refill is 8%, and why 137 families
+have no clean-tank card.
+
+The dirty side only *looks* correct by luck: emptying is documented **inside** the cleaning
+procedure, so the operational action came along free with the routine one.
+
+### ⚠ Do NOT generalise this into a corpus-wide defect
+
+I did, and Chris corrected it:
+
+> "The issue is for ninety nine percent of what we do, routine is the same as use. A dirty
+> filter gets cleaned because it's dirty or because the schedule says to. A brush gets
+> maintained because it got jammed or because the sensor says to."
+
+The trigger differs everywhere; the **action** almost never does. One card serves both.
+
+**The distinction only bites where the two triggers call for DIFFERENT ACTIONS**, and that
+is the water tanks and essentially only the water tanks:
+
+| | flag trigger | schedule trigger | same action? |
+|---|---|---|---|
+| clean water tank | low → **fill** | → wash | **no** |
+| dirty water tank | full → **empty** | → clean | no, but fused in one vendor section |
+| filter, brushes, sensors, everything else | → clean it | → clean it | **yes** — one card |
+
+### The dust bin is settled, and today's strip stands
+
+Chris: no sensor, so there is no operational trigger to serve; its access already lives on
+the filter card; on auto-empty machines it is near-never needed; and a user who fills a
+dust bin knows to empty it. The 2026-09-06 removal of `bin.empty` from filter cards is
+**not** reopened by any of this.
+
 ## ⛔ DEAD ENDS — walked today, do not walk again
 
 1. **Searching `dirty_water_tank` blocks for clean-tank content.** Result: **0 of 168**,
