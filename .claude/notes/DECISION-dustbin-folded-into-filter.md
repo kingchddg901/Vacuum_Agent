@@ -30,37 +30,68 @@ filter guide**. They ship the full procedure. Verified 2026-09-06 by loading the
 artifact: c9 emits 11 steps, d10s 12, e30_aqua 10 — all sourced from their dustbin block.
 I made exactly this wrong call before checking, and reported it to Chris as a defect.
 
-## How much dust-box work is really in the filter card
+## What the card contains — RULED 2026-09-06, and applied
 
-Not just "take the dust box out". Of 3,282 key placements across the 279 shipped filter
-cards:
+Chris's rule, with his worked example:
 
-| what the step does | placements | share |
-|---|---|---|
-| filter work | 1,222 | 37% |
-| other | 800 | 24% |
-| reach / refit access | 733 | 22% |
-| **dust-box cleaning** | **527** | **16%** |
+> The parts are a module. The steps to get to both are the same. **But we can ignore the
+> bin except where access is needed.**
+>
+> ```
+> open top / remove dust bin / remove filter from dust bin /
+> wash filter with clean water / allow to completely dry /
+> reinstall filter to dust bin / reinstall dust bin / close top cover
+> ```
 
-14 distinct dust-box-cleaning keys, touching **274 of 280 families** — `bin.empty` (198),
-`bin.tip_out` (53), `bin.rinse_box_only` (42), `bin.intake_clean`, the fill-and-shake
-routine, and others.
+So the test per step is not which part it **names**, it is what it **does**:
 
-The clincher for the module framing is the biggest key of all:
+| step does | verdict |
+|---|---|
+| on the path to the filter (open the box, take the filter out, refit, close) | **KEEP**, even though it says "dust box" |
+| services the box itself (empty, rinse the box, dry the box, clean the intake) | **DROP** |
+| both in one sentence | **REWORD** down to the filter half |
 
-```
-bin.rinse   209 users   "Rinse the dust box and filter with clean water."
-```
+Note his example has no "tip the debris out" step: emptying the bin is use, not filter
+maintenance, so the button-press-to-empty keys go too even though they read like access.
 
-One welded sentence doing both parts. The vocabulary itself refuses to separate them, so
-splitting the component would mean splitting 209 sentences that the vendors wrote as one.
+**Applied 2026-09-06 across 463 blocks** — 645 placements dropped over 14 keys
+(`bin.empty` 333, `bin.tip_out` 94, `bin.box_dry_fully` 88, `bin.rinse_box_only` 80, …)
+and 666 reworded over 8 (`bin.rinse` 332 → `filter.rinse_only`, `bin.dry_fully` 317 →
+`filter.dry_fully`, …). Only two new phrases were needed — `filter.holder_rinse_only` and
+`filter.holder_dry_gate` — because the reword targets already existed and were already
+translated.
+
+### ⚠ I argued this could NOT be split. That was wrong.
+
+I wrote that `bin.rinse` ("Rinse the dust box **and** filter with clean water", 209 users)
+was the clincher for keeping the two together — *"the vocabulary itself refuses to
+separate them"*. Chris: **"the hell we cant split it. bin.rinse dies becomes filter rinse
+with the dustbin section gone."** He is right. A welded sentence is not evidence that two
+facts are inseparable; it is an **undecomposed key**, which is the whole point of
+[`DESIGN-key-decomposition.md`](DESIGN-key-decomposition.md). `bin.rinse` maps straight
+onto `filter.rinse_only`, which already existed with 52 users. The reword cost zero new
+keys and zero translation for the two biggest cases.
+
+The lesson generalises: **"these keys are welded" is a statement about the phrase table,
+never about the hardware.** Do not use it as an argument for a scope or modelling
+decision.
+
+### One family the rule cannot cover: `e5` — EXEMPT
+
+`e5`'s packet has **no filter component at all** (dustbin, clean_water_tank, mop_cloth,
+side_brush, sensor, charging_contacts). Its "filter" card was built entirely from
+dust-box steps, so the strip leaves nothing. It is the **only** family of 279 in that
+state, and it is exempt and untouched pending a decision: either e5 gets no filter card,
+or its dust-box procedure stands in for one. 56 other blocks also went empty under the
+strip, but all 56 are shadow `dustbin` blocks whose family has its own filter block — they
+do not ship, so they do not matter.
 
 ## Open question this raises (not a defect, a labelling call)
 
-The card is keyed `filter` and will be titled accordingly, while 16% of its body is
-dust-box work and its largest single step names both parts. Whether the user-visible
-heading should say something like "Dust box and filter" is a **labelling** decision, and
-it lands on the same surface as
+The card is keyed `filter` and titled accordingly. After the strip its body is filter work
+plus the shared access path, so the mismatch is much smaller than it was — but the card
+still opens by taking the dust box out. Whether the heading should say so is a
+**labelling** decision, and it lands on the same surface as
 [`FINDING-maintenance-heading-not-localized.md`](FINDING-maintenance-heading-not-localized.md)
 and [`DECISION-canonical-component-vocab.md`](DECISION-canonical-component-vocab.md).
 Not decided here.
