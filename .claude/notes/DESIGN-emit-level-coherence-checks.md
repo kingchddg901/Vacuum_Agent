@@ -90,6 +90,37 @@ aligned (verified: 1,880 blocks, 0 mismatches). So the checker runs against **wh
 ships**, not against the fixture — which matters, because the artifact was found to be
 **stale** by 228 blocks on 2026-09-06 and nothing warned about it.
 
+## The lint reached 0 findings on 2026-09-06 — what it took
+
+`TIER OVERREACH` sat at 23 for a long time and every one of them was the same false
+positive. The mechanism scan read whole sentences, so `access.turn_over`'s reason clause
+— "so that you do not scratch its top **cover**" — read as a claim that the robot has a
+removable cover. One phrase, 6 archetypes x 4 components, 23 findings of noise that would
+have hidden a real one.
+
+Fixed at the class, not the symptom: the scan now runs over `claim_of(text)`, which drops
+reason clauses (`so that`, `to avoid`, `to prevent`, `otherwise`, `because`) and keeps the
+asserting clause. **Deliberately not an allowlist entry** for `access.turn_over` — an
+allowlist with no floor is an off switch.
+
+Ablated before trusting it:
+
+```
+"Press the brush guard clips inwards and lift the guard off."   -> guard, clips, guard
+"Open the dust box cover."                                      -> cover
+"Unscrew the end caps so that the brush comes free."            -> Unscrew, end caps
+```
+
+The third is the one that matters: the claim still fires while its reason is ignored. It
+strips reasons, not claims.
+
+⚠ **A heredoc corrupted the fix on the first two attempts.** `` written inside a
+`python - <<'PYEOF'` block became a literal **backspace byte (0x08)** in the regex, so
+`REASON` searched for a control character and silently never matched — the lint kept
+reporting 23 and looked unchanged. `cat -A` is what exposed it. Every other file written
+that way the same day was scanned for control bytes and is clean, but prefer the Write
+tool for anything containing regex escapes.
+
 ## Where the emitter actually lives (fixed 2026-09-06)
 
 `emit_composed.py` and `famload.py` existed **only in a session scratchpad** while being,

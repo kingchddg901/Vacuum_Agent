@@ -5987,6 +5987,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Do not wash the HEPA filter.',
                 'You can wash the foam filter with clean water, but it tears easily and a replacement is inexpensive.',
                 'If you wash the foam filter, let it dry completely before you put it back.',
+                'Keep the dust box out of direct sunlight.',
+                'Check the label on the water tank and dust box for how often to clean each one.',
             ],
         },
         'sensor': {
@@ -18312,7 +18314,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Wipe the robot's sensors and charging contacts with a soft, dry cloth.",
             ],
             "notes": [
-                'Wipe the cliff sensors every three months.',
+                'Wipe the sensors every three months.',
                 'Do not clean the sensors with detergent, spray or any other chemical cleaner.',
             ],
         },
@@ -18379,7 +18381,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Wipe the robot's sensors and charging contacts with a soft, dry cloth.",
             ],
             "notes": [
-                'Wipe the cliff sensor and the IR receiver sensor every three months.',
+                'Wipe the sensors every three months.',
             ],
         },
         'side_brush': {
@@ -21984,7 +21986,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Wipe the robot's sensors and charging contacts with a soft, dry cloth.",
             ],
             "notes": [
-                'Wipe the cliff sensor and the IR receiver sensor every three months.',
+                'Wipe the sensors every three months.',
             ],
         },
         'side_brush': {
@@ -23138,7 +23140,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Wipe the robot's sensors and charging contacts with a soft, dry cloth.",
             ],
             "notes": [
-                'Wipe the cliff sensors every three months.',
+                'Wipe the sensors every three months.',
             ],
         },
         'side_brush': {
@@ -23237,7 +23239,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Do not clean the sensors with detergent, spray or any other chemical cleaner.',
-                'Wipe the cliff sensors every three months.',
+                'Wipe the sensors every three months.',
             ],
         },
         'side_brush': {
