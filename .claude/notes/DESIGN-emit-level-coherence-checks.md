@@ -249,6 +249,47 @@ separate a damaged page from a healthy one and must never be quoted as exposure.
 to 7 after dropping page-title-level headings to 0 confirmed. Use that, and report the
 denominator (pages the probe actually reached) alongside it.
 
+### What the rare-namespace detector actually finds: SHARED ACCESS, not merges
+
+All 7 unreachable families were worked on 2026-09-06 once Chris supplied manuals. The
+detector flags a component whose steps borrow a key from a different physical part. In
+**5 of 6 readable cases the reason was that the vendor reaches one part THROUGH the
+other**, and the borrowed key is the access step:
+
+| family | flagged | verdict | vendor's own words |
+|---|---|---|---|
+| `l20` | `side_brush` ← `mop.*` | legit | section headed "Side Brush & Mop Pad Holder" |
+| `matrix10` | `dock_contacts` ← `vent.*` | legit | "Auto-Empty Vents, Charging Contacts and Signaling Area" |
+| `3c` | `clean_water_tank` ← `bin.*` | legit | the part IS 二合一水箱（水箱+尘盒） — tank *and* dust box, one moulding |
+| `x50_master` | `detergent_inlet` ← `bag.*` | legit | "Remove the dust tank cover and pull out the auto-detergent compartment" |
+| `x40_pro` | `base_station_filter` ← `bag.*` | **consistent, not proven** — parts diagram puts cover, filter, bag slot and bin in one compartment; no sentence states the access |
+| `x30_pro` | `side_brush` ← `mop.*` | **REAL FINDING** — maintenance section is 主刷和边刷, "Main Brush and Side Brush". The mop assembly appears only under installation, and the mop holder is absent from the cadence table entirely. |
+| `vacuum_mop_pro` | — | unreachable, zero text layer on all 20 pages |
+
+**So read a namespace borrow as an access path first and a merge second.** It is the same
+fact as `dustbin` folding into `filter`: you cannot service the filter without holding the
+dust box, you cannot reach the detergent compartment without lifting the dust tank cover.
+Namespace reasoning cannot see a shared access path, so it reports one as a defect.
+
+`x30_pro` is the exception that makes the detector worth running: one family of five in
+its class where the pairing has no vendor support.
+
+### ⚠ ABLATE THE PROBE TERM BEFORE REPORTING AN ABSENCE
+
+Three separate false "clean" results on 2026-09-06, all the same cause — probing with
+**our** vocabulary instead of the document's:
+
+1. searching vendor PDFs for the phrase table's normalised English — 14 of 16 families
+   reached zero pages, reported as zero problems;
+2. searching a Hebrew manual with English part names;
+3. searching `x30_pro` for 拖布支架 when that manual only ever says 拖布组件 — `拖布支架`
+   occurs **zero** times, so "the two parts never co-occur" was a non-look. Re-probed with
+   the right term, the real finding appeared.
+
+The fix is mechanical and cheap: **assert the probe term occurs in the document at all
+before concluding it found nothing.** Report the denominator — pages the probe reached —
+next to every result.
+
 ### Manuals are DUAL-PAGE SPREADS
 
 Chris, 2026-09-06. A "page" in these PDFs is frequently **two logical pages side by
