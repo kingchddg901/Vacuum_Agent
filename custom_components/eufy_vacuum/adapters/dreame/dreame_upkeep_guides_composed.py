@@ -538,7 +538,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Open the dust box cover.',
                 'Tip the debris out of the dust box.',
                 'Take the filter out of the dust box.',
-                'Rinse the dust box and filter with clean water.',
+                'Rinse the dust box with clean water.',
+                'Rinse the filter with clean water only if it is dirty.',
                 'Let the dust box and the filter dry completely before putting them back.',
                 'Put the filter back into the dust box.',
                 'Close the dust box cover.',
@@ -726,7 +727,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take the filter out of the dust box.',
                 'Clean the dust box with a suitable tool.',
                 'Clean the filter with a suitable tool.',
-                'Rinse the dust box and filter with clean water.',
+                'Rinse the dust box with clean water.',
+                'Rinse the filter with clean water only if it is dirty.',
                 'Let the dust box and the filter dry completely before putting them back.',
                 'Put the filter back into the dust box.',
                 'Close the dust box cover.',
@@ -2277,7 +2279,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-                'Fit the axle back into the wheel. Press the wheel back into the robot.',
+                'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
             ],
@@ -2765,13 +2767,13 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
+                'Take the mop pad off its holder.',
                 'Let the water tank air-dry completely before you put it back.',
                 "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
             ],
             "notes": [
                 'Rinse with clean water only. Do not add detergent.',
                 'Keep the water tank out of direct sunlight.',
-                'Take the mop pad off its holder.',
                 'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
             ],
         },
@@ -2937,7 +2939,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-                'Fit the axle back into the wheel. Press the wheel back into the robot.',
+                'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
             ],
@@ -4198,7 +4200,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-                'Fit the axle back into the wheel. Press the wheel back into the robot.',
+                'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
             ],
@@ -4293,7 +4295,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-                'Fit the axle back into the wheel. Press the wheel back into the robot.',
+                'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
             ],
@@ -4589,7 +4591,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-                'Fit the axle back into the wheel. Press the wheel back into the robot.',
+                'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
             ],
@@ -4689,7 +4691,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-                'Fit the axle back into the wheel. Press the wheel back into the robot.',
+                'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
@@ -7068,10 +7070,11 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Pull the omnidirectional wheel straight up out of the robot.',
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-                'Fit the axle back into the wheel. Press the wheel back into the robot.',
+                'If you took the axle out, fit it back into the wheel.',
+                'Press the wheel back into the robot.',
             ],
             "notes": [
-                'Use a suitable tool to separate the axle from the tire.',
+                'Use a suitable tool to separate the axle from the wheel.',
             ],
         },
         'clean_water_tank': {
@@ -8924,6 +8927,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
             "steps": [
+                'Turn the robot off before working on a part that moves.',
                 'Take the robot off the base station.',
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Undo the screw holding the side brush with a suitable tool and lift the brush off.',
@@ -9491,7 +9495,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-                'Fit the axle back into the wheel. Press the wheel back into the robot.',
+                'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
             ],
@@ -11032,6 +11036,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "steps": [
                 'Turn the robot off before working on a part that moves.',
                 'Take the robot off the base station.',
+                'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Take the side brush off. Depending on your model it either unscrews or pulls straight off.',
                 'Remove hair and debris tangled around the side brush and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
                 'Refit the side brush.',
@@ -11347,6 +11352,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
             "steps": [
+                'Turn the robot off before working on a part that moves.',
                 'Take the robot off the base station.',
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Take the side brush off the robot.',
@@ -12896,6 +12902,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
             "steps": [
+                'Turn the robot off before working on a part that moves.',
                 'Take the robot off the base station.',
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Undo the screw holding the side brush with a suitable tool and lift the brush off.',
@@ -13466,12 +13473,12 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
+                'Pull the mop pad off the water tank.',
                 'Let the water tank air-dry completely before you put it back.',
                 "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
             ],
             "notes": [
                 'Keep the water tank out of direct sunlight.',
-                'Pull the mop pad off the water tank.',
                 'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
             ],
         },
@@ -14050,7 +14057,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-                'Fit the axle back into the wheel. Press the wheel back into the robot.',
+                'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
             ],
@@ -14242,11 +14249,11 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Lift the wash tray out of the base station and scrub it clean under running water with a suitable tool.',
+                'Wipe the base of the station clean with a soft, dry cloth.',
                 'Wipe the wash tray dry with a soft cloth. Slide the wash tray back into the base station.',
             ],
             "notes": [
                 'Do not tilt the base station while you use it or clean it.',
-                'Wipe the base of the station clean with a soft, dry cloth.',
                 "Make sure the base station's drain pipe sits in the wash tray's groove. A drain pipe that sits up out of the groove stops the station working properly.",
             ],
         },
@@ -14306,7 +14313,8 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 "Open the robot's top cover.",
                 'Press and hold the dust box release button and lift the dust box out.',
                 'Take the filter out of the dust box.',
-                'Rinse the dust box and filter with clean water.',
+                'Rinse the dust box with clean water.',
+                'Rinse the filter with clean water only if it is dirty.',
                 'Let the dust box and the filter dry completely before putting them back.',
                 'Put the filter back into the dust box.',
                 'Put the dust box back into the robot.',
@@ -14326,6 +14334,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Press the brush guard clips inwards and lift the guard off.',
                 'Lift the main brush out of the robot.',
+                'Remove hair and debris tangled around the main brush and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
                 'Pull the shaft sleeve off the main brush. Clean the dirt off the shaft sleeve.',
                 'Fit the shaft sleeve back onto the main brush.',
                 'Put the brush back in, then press the guard down until it locks.',
@@ -14841,6 +14850,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
             "steps": [
+                'Turn the robot off before working on a part that moves.',
                 'Take the robot off the base station.',
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Lift the side brush up off its spindle.',
@@ -14900,6 +14910,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Open the sealing cover on the used-water tank.',
+                'Pour the used water away.',
                 'Lift the used-water filter out of the used-water tank.',
                 'Rinse the used-water filter with clean water. Put the used-water filter back into the used-water tank.',
                 'Close the sealing cover on the used-water tank.',
@@ -14978,7 +14989,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Press the clips on the wash-tray base plate. Pull the base plate out of the base station.',
                 'Take the wash tray off the base plate.',
                 'Rinse the base plate with clean water. Clean the wash tray and the base plate with a suitable tool.',
-                'Dry the connector unit, the base plate and the wash tray with a soft, dry cloth. Fit the wash tray back onto the base plate, then put the base plate back into the base station.',
+                'Dry the liquid-level contacts on the base plate, the base plate and the wash tray with a soft, dry cloth. Fit the wash tray back onto the base plate, then put the base plate back into the base station.',
                 'Send the robot back to the station from the app, or press the button on the robot.',
             ],
             "notes": [
@@ -15873,7 +15884,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Open the dust box cover.',
                 'Tip the debris out of the dust box.',
                 'Tap the filter frame gently to knock the dust loose.',
-                'Rinse the filter with clean water.',
+                'Rinse the filter with clean water only if it is dirty.',
                 'Let the filter dry completely before putting it back.',
                 'Rinse the dust box with clean water.',
                 'Let the dust box dry completely before you put it back.',
@@ -18369,6 +18380,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Open the sealing cover on the used-water tank.',
+                'Pour the used water away.',
                 'Lift the used-water filter out of the used-water tank.',
                 'Rinse the used-water filter with clean water. Put the used-water filter back into the used-water tank.',
                 'Close the sealing cover on the used-water tank.',
@@ -19184,7 +19196,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 "If needed, you can lever the omnidirectional wheel's axle out with a suitable tool to clean it. Do not force it.",
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
-                'Fit the axle back into the wheel. Press the wheel back into the robot.',
+                'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
             ],
@@ -21850,6 +21862,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
             "steps": [
+                'Turn the robot off before working on a part that moves.',
                 'Take the robot off the base station.',
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Undo the screw holding the side brush with a suitable tool and lift the brush off.',
@@ -24898,7 +24911,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Tip the debris out of the dust box.',
                 'Wipe the dust and debris off the filter with a soft, dry cloth.',
                 'Tap the filter frame gently to knock the dust loose.',
-                'Rinse the filter with clean water.',
+                'Rinse the filter with clean water only if it is dirty.',
                 'Let the filter dry completely before putting it back.',
                 'Rinse the dust box with clean water.',
                 'Let the dust box dry completely before you put it back.',
@@ -25232,12 +25245,12 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "steps": [
                 'Press the clips on both sides at the bottom of the base station. Lift the wash tray out of the base station.',
                 'Clean the wash tray with a suitable tool under running water.',
+                'Wipe the base of the station clean with a soft, dry cloth.',
                 'Wipe the wash tray dry with a soft cloth. Slide the wash tray back into the base station.',
             ],
             "notes": [
                 'Make sure the water pipe sits inside the groove in the wash tray. If it does not, the station may not work properly.',
                 'Do not tilt the base station while you use it or clean it.',
-                'Wipe the base of the station clean with a soft, dry cloth.',
             ],
         },
         'washboard_filter': {
@@ -26420,6 +26433,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
             "steps": [
+                'Turn the robot off before working on a part that moves.',
                 'Take the robot off the base station.',
                 'Turn the robot upside down onto a soft surface so that you do not scratch its top cover.',
                 'Undo the screw holding the side brush with a suitable tool and lift the brush off.',
