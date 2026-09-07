@@ -225,12 +225,42 @@ Scoped sweep 2026-09-06, 17 structurally-flagged families:
 
 ```
 checkable (packet + PDF present)                    10
-  of those, with >=1 page where naive != column      9   (9 of 9 — exposure is total)
 raw heading-shift candidates                        51
   after dropping page-title-level headings           7
   CONFIRMED new misfiles                             0   (all 7 already filed correctly)
 NOT CHECKED (no packet, or no PDF matched)           7   — unknown, NOT clean
 ```
+
+### ⚠ CORRECTION — "naive != column order" is a BASE RATE, not a finding
+
+This note previously reported "9 of 9 families have a disagreeing page — exposure is
+total" as if it measured something. **It does not.** Ablated against the known-good
+control on 2026-09-06:
+
+```
+E30 Aqua (the calibration manual)   42 of 42 multi-column pages disagree   = 100%
+```
+
+Any header, footer, page number or figure caption reorders under column sorting, so
+whole-page string equality is always false on a multi-column page. The metric cannot
+separate a damaged page from a healthy one and must never be quoted as exposure.
+
+**The heading-shift test is the only one that ever discriminated** — 51 raw candidates
+to 7 after dropping page-title-level headings to 0 confirmed. Use that, and report the
+denominator (pages the probe actually reached) alongside it.
+
+### Manuals are DUAL-PAGE SPREADS
+
+Chris, 2026-09-06. A "page" in these PDFs is frequently **two logical pages side by
+side**, page number centred at the bottom — which is why the E30 Aqua page carrying the
+un-merged main-brush steps is 1191x397 with FIVE columns. It is two pages of 2-3 columns
+each.
+
+Consequence for any reading-order work: the centre break is a **page boundary, not a
+gutter**. Content does not flow across it, and a section on the left page is not
+continued by the first column of the right page. The gutter detector currently treats
+both alike, which happens to give the right order (left page, then right page) but would
+mis-join two sections that meet at the boundary.
 
 So e30_aqua remains the only confirmed case beyond the documented six, and the
 0.3% realised-damage figure survives a targeted attempt to beat it.
