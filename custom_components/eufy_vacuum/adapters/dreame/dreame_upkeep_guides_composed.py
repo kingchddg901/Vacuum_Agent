@@ -2054,7 +2054,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Pour the water out of the clean-water tank.',
@@ -2246,7 +2245,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -2616,7 +2614,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour any water left in the water tank away.',
                 'Rinse the water tank with clean water.',
@@ -2714,7 +2711,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
@@ -3182,7 +3178,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
@@ -4331,7 +4326,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -6322,7 +6316,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -7804,7 +7797,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
@@ -7900,7 +7892,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -8000,7 +7991,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
@@ -9184,7 +9174,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour any water left in the water tank away.',
                 'Rinse the water tank with clean water.',
@@ -9365,7 +9354,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
@@ -13292,7 +13280,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Pour the water out of the clean-water tank.',
                 'Rinse the water tank with clean water.',
@@ -18792,7 +18779,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 "Pull the soft rubber cover off the water tank's inlet.",
                 'Pour the water out of the clean-water tank.',
@@ -20749,7 +20735,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the used-water tank in the base station.',
                 "Press and hold the release buttons on the robot's used-water box and pull the box out.",
                 "Open the cover on the robot's used-water box and pour the used water away.",
                 "Rinse the robot's used-water box with clean water.",
@@ -28454,7 +28439,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "replace_frequency": None,
             "steps": [
                 'Take the robot off the base station.',
-                'Access the clean-water tank in the base station.',
                 'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
                 'Take the mop pad off its holder.',
                 'Rinse the mop pad with clean water.',
