@@ -90,6 +90,28 @@ aligned (verified: 1,880 blocks, 0 mismatches). So the checker runs against **wh
 ships**, not against the fixture — which matters, because the artifact was found to be
 **stale** by 228 blocks on 2026-09-06 and nothing warned about it.
 
+## Where the emitter actually lives (fixed 2026-09-06)
+
+`emit_composed.py` and `famload.py` existed **only in a session scratchpad** while being,
+respectively, the emitter for the 1.6 MB shipped artifact and the only safe reader for the
+three record shapes. The fixture had `emit.py` and `emit_nonen.py` but neither of these.
+Scratchpads are session-scoped, so the toolchain for the shipped guide library was one
+cleanup away from gone while a full day of content was being fed through it.
+
+Both now live in `dreame-port-fixture/authoring/compose/` alongside `compose.py` and
+`lint_compose.py`, together with `gutter.py`. **Verified, not assumed:** re-emitting from
+the durable copy reproduces the committed artifact byte-for-byte.
+
+Run it from there, not from a scratchpad.
+
+## Cadence: no per-family override — RULED, do not re-propose
+
+E5's own maintenance table says `Filter = Weekly`; the `CADENCE` map in `emit_composed.py`
+is per-component and global and says "Every 2 weeks or as needed". Chris, 2026-09-06:
+*"the or as needed covers it and its a niggle for a lot of work."* The trailing condition
+is what absorbs a family that documents a tighter interval. The ruling is also written
+into the map itself, where someone would go to change it.
+
 ## What this does NOT replace
 
 **The canary.** Provenance is self-reported by the composer. If the share chain resolves
