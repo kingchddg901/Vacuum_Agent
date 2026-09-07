@@ -135,3 +135,56 @@ The **DOCK-variant** finding above is untouched and is a different axis:
 So the correct statement is narrow: **a family is a machine, and that is proven; but a family is
 not a DOCK, and the water components are dock-level.** The retraction removes the sweeping claim
 and leaves the specific one, which is the one that actually bit.
+
+
+## ✅ RESOLVED with a content index — 8 families, not 34
+
+Chris: *"i have 123 manuals that match a naive search on windows in the corpus for the X50"* and
+then *"can you even search this way?"* — pointing at Explorer results containing `kr_2.pdf`,
+`kr_3.pdf`, `kr_5.pdf`, `kr_6.pdf`. No model id, no "x50" in the name. **Windows indexes PDF
+TEXT; every walk I had run matched FILENAMES.** That is the root cause of the sampling failures
+in this note, not a detail.
+
+`tools/build_content_index.py` now indexes all 3,111 PDFs by what the DOCUMENT says it is —
+product names, reg codes, CCC numbers, script, and the water/dock signals. **58 seconds on 12
+cores** (Chris: *"i have 12 cores use them"*), against two earlier whole-corpus attempts that
+timed out at 600s single-threaded.
+
+```
+indexed 3111, unreadable 0
+scripts   Latin 2236 · CJK 262 · none 186 (image-only) · Cyrillic 146 · Kana 95
+          other 63 · Hangul 45 · Arabic 41 · Hebrew 37
+join keys product name 1955 rows · reg code 882 · model id 0
+```
+
+⚠ **`model_ids` = 0. No manual prints its `dreame.vacuum.*` id** — those are MIoT identifiers,
+not document text. The joins are PRODUCT NAME and REG CODE. Any future "find this model's manual"
+must use those.
+
+**Reach, measured honestly.** For X50 the content index finds 115 manuals against 43 by a naive
+filename string, but my model-id matcher already reached 87 of them, so the true X50 blind spot is
+only **5** — four of which are the Korean files Chris supplied by hand. Corpus-wide it is much
+worse: **1,400 of 1,955 identifiable manuals (72%) carry no catalog model id in their filename.**
+
+### The per-variant answer
+
+Pulling every manual that NAMES each product, rather than one filename-matched sample:
+
+```
+family        manuals   w/ tanks   plumbed   ambiguous
+x50_ultra          24          6         1           0    <- I had ruled on the ONE plumbed manual
+x50_pro             7          2         3           2    <- matches Chris's five manuals exactly
+x50                80         28         4           0
+x40                41         24         1           2
+s40                12          7         1           0
+wash_station       10          1         1           0
+x60_master          8          1         1           3
+m50_ultra           7          1         2           0
+```
+
+**8 families of the 34 name-based candidates have manuals on BOTH sides.** Those are the ones
+where one card cannot be right. The other 26 have evidence on one side only, or too few manuals to
+say — they are not confirmed splits and should not be treated as such.
+
+That is the actionable set, and it is a quarter the size of the number I gave before the index
+existed.
