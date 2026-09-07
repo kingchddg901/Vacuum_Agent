@@ -108,21 +108,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
         },
     },
     '10_robot_vacuum_and_mop': {
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -406,19 +391,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press and hold both release buttons on the water tank at the same time, then slide the tank out from the bottom of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the clean-water tank back into the robot.',
-            ],
-            "notes": [
-                'Water left standing in the water tank turns smelly, and a mop pad left wet grows mildew.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -675,23 +647,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
         },
     },
     '3': {
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press and hold both release buttons on the water tank at the same time, then slide the tank out from the bottom of the robot.',
-                'Open the water tank cover.',
-                'Pour any water left in the water tank away.',
-                'Close the water tank cover.',
-                'Put the clean-water tank back into the robot.',
-            ],
-            "notes": [
-                'Water left standing in the water tank turns smelly, and a mop pad left wet grows mildew.',
-                'Do not rinse or soak the water tank, and do not clean it with detergent, disinfectant, a solid cleaner, or any other cleaning agent — these can corrode or damage the tank.',
-                'Do not put hot water in the clean-water tank. Hot water warps the tank.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -822,12 +777,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press the release clip on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -966,11 +915,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 'Push the deodoriser module back into the used-water tank.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press the release clip on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -1085,12 +1029,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press the release clip on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -1208,9 +1146,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pull the deodoriser module out of the used-water tank at an upward angle. Rinse the module with clean water.',
                 'Push the deodoriser module back into the used-water tank.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
                 'Plug the base station back in once everything you washed is dry and back in place.',
             ],
             "notes": [
@@ -1342,10 +1277,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Clean the inner wall with a suitable tool.',
                 'Push the deodoriser module back into the used-water tank.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -1455,12 +1386,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press the release clip on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -1576,11 +1501,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press the release clip on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -1695,11 +1615,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press the release clip on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'Empty the used-water tank after every wash cycle. Water left in the tank starts to smell.',
@@ -1845,12 +1760,7 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
-                "Let the robot's used-water box dry completely before you put it back into the robot.",
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press the release clip on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
             ],
             "notes": [
                 'Empty the used-water tank after every wash cycle. Water left in the tank starts to smell.',
@@ -2049,26 +1959,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Take the mop pad off its holder.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Rinse the mop pad with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                'Let the mop pad air-dry completely before fitting it back on its holder.',
-                'Push the mopping module back into the robot.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -2240,26 +2130,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Take the mop pad off its holder.',
-                'Rinse the mop pad with clean water.',
-                'Let the mop pad air-dry completely before fitting it back on its holder.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Rinse with clean water only. Do not add detergent.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -2352,12 +2222,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -2609,23 +2473,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-                'Push the mopping module back into the robot.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -2706,24 +2553,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Take the mop pad off its holder.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -2790,23 +2619,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
         },
     },
     'd10s': {
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -2885,22 +2697,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -2984,21 +2780,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -3075,22 +2856,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -3173,22 +2938,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -3267,22 +3016,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the water tank and the mop pad holder out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Put the water tank and the mop pad holder back into the robot.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -3619,23 +3352,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the water tank and the mop pad holder out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                'If water runs out slowly or spreads unevenly, clean the air hole in the water inlet lid.',
-                'Put the water tank and the mop pad holder back into the robot.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -3712,22 +3428,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the water tank and the mop pad holder out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                'If water runs out slowly or spreads unevenly, clean the air hole in the water inlet lid.',
-                'Put the water tank and the mop pad holder back into the robot.',
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -4131,21 +3831,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -4224,21 +3909,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -4321,26 +3991,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Take the mop pad off its holder.',
-                'Rinse the mop pad with clean water.',
-                'Let the mop pad air-dry completely before fitting it back on its holder.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Rinse with clean water only. Do not add detergent.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -4416,22 +4066,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -4513,22 +4147,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -4608,22 +4226,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -5635,22 +5237,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'If water runs out slowly or spreads unevenly, clean the air hole in the water inlet lid.',
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -5926,20 +5512,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
         },
     },
     'e5': {
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Fill the clean-water tank with clean water.',
-                'Put the clean-water tank back into the robot.',
-            ],
-            "notes": [
-                'Check the label on the water tank and dust box for how often to clean each one.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
@@ -6218,22 +5790,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -6309,26 +5865,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Take the mop pad off its holder.',
-                'Rinse the mop pad with clean water.',
-                'Let the mop pad air-dry completely before fitting it back on its holder.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
             ],
         },
         'filter': {
@@ -6683,17 +6219,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the clean-water tank back into the robot.',
-            ],
-            "notes": [
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -6948,19 +6473,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Use a suitable tool to separate the axle from the wheel.',
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -7037,22 +6549,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Take the mop pad off its holder after every run. A mop pad left in place lets dirty water run back into the water tank and block the water inlet.',
             ],
         },
         'filter': {
@@ -7260,9 +6756,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
             ],
@@ -7491,9 +6984,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -7597,9 +7087,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
             ],
@@ -7696,22 +7183,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -7790,22 +7261,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
             ],
         },
         'filter': {
@@ -7887,26 +7342,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Take the mop pad off its holder.',
-                'Rinse the mop pad with clean water.',
-                'Let the mop pad air-dry completely before fitting it back on its holder.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
-                'Rinse with clean water only. Do not add detergent.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -7984,25 +7419,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Take the mop pad off its holder.',
-                'Rinse the mop pad with clean water.',
-                'Let the mop pad air-dry completely before fitting it back on its holder.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -8171,23 +7587,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the water tank and the mop pad holder out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                'If water runs out slowly or spreads unevenly, clean the air hole in the water inlet lid.',
-                'Put the water tank and the mop pad holder back into the robot.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -8267,23 +7666,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the water tank and the mop pad holder out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'If water runs out slowly or spreads unevenly, clean the air hole in the water inlet lid.',
-                'Let the water tank air-dry completely before you put it back.',
-                'Put the water tank and the mop pad holder back into the robot.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -9169,22 +8551,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Wipe the water tank dry, or let it air-dry completely, before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Push the mopping module back into the robot.',
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -9347,22 +8713,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
             ],
         },
         'filter': {
@@ -9648,23 +8998,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's top cover, press the water tank clip and lift the water tank out.",
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-                "Close the robot's top cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -9742,22 +9075,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's top cover, press the water tank clip and lift the water tank out.",
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-                "Close the robot's top cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -10001,22 +9318,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's top cover, press the water tank clip and lift the water tank out.",
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                "Close the robot's top cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -10094,23 +9395,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's top cover, press the water tank clip and lift the water tank out.",
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-                "Close the robot's top cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -10192,22 +9476,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's top cover, press the water tank clip and lift the water tank out.",
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                "Close the robot's top cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -10916,23 +10184,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's cover.",
-                'Press the clip and lift the water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                "Close the robot's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -11010,22 +10261,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's top cover, press the water tank clip and lift the water tank out.",
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -11676,22 +10911,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's top cover, press the water tank clip and lift the water tank out.",
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "Close the robot's top cover.",
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -11767,21 +10986,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's top cover, press the water tank clip and lift the water tank out.",
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -13275,23 +12479,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Pour the water out of the clean-water tank.',
-                'Rinse the water tank with clean water.',
-                'Pull the mop pad off the water tank.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -13802,21 +12989,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'main_brush': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 6-12 months',
@@ -13862,19 +13034,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'If you took the axle out, fit it back into the wheel.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -17087,9 +16246,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -17231,10 +16387,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
                 'Plug the base station back in once everything you washed is dry and back in place.',
             ],
             "notes": [
@@ -17392,9 +16544,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -17605,22 +16754,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's top cover, press the water tank clip and lift the water tank out.",
-                'Pour any water left in the water tank away.',
-                'Rinse the tank with clean water.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-                'Let the water tank air-dry completely before you put it back.',
-            ],
-            "notes": [
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
-            ],
-        },
         'dirty_water_tank': {
             "clean_frequency": 'After each use',
             "replace_frequency": None,
@@ -17710,23 +16843,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Open the robot's top cover, press the water tank clip and lift the water tank out.",
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "Close the robot's top cover.",
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Rinse with clean water only. Do not add detergent.',
             ],
         },
         'filter': {
@@ -18212,19 +17328,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pry the caster wheel up with a suitable tool and lift it out of the robot.',
                 'Remove hair and debris tangled around the omnidirectional wheel and its shaft. If the hair is tightly wound and cannot be removed easily, cut it carefully first.',
                 'Press the wheel back into the robot.',
-            ],
-            "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                "Press the water tank's release button and take the water tank out of the robot.",
-                'Remove the plug from the water tank and pour out any water left inside.',
-                'Push the plug back into the water tank.',
-                'Put the clean-water tank back into the robot.',
             ],
             "notes": [
             ],
@@ -18772,22 +17875,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             ],
             "notes": [
                 'Take care while you lever the wheel out - the tool can slip and cut you.',
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                "Pull the soft rubber cover off the water tank's inlet.",
-                'Pour the water out of the clean-water tank.',
-                "Push the soft rubber cover back onto the water tank's inlet.",
-                'Let the water tank air-dry completely before you put it back.',
-                'Fit the mopping module back onto the water tank.',
-            ],
-            "notes": [
-                'Water left standing in the water tank turns smelly, and a mop pad left wet grows mildew.',
             ],
         },
         'dirty_water_tank': {
@@ -20612,12 +19699,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -20968,11 +20049,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -21099,11 +20175,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -21228,9 +20299,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 'Slide the used-water tank back into the base station.',
-                "Take the robot's used-water box out. Depending on your model, either press and hold the release buttons or press the release clip.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -21349,10 +20417,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -21475,10 +20539,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -22780,22 +21840,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press and hold both release buttons on the water tank at the same time, then slide the tank out from the bottom of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the mop pad with clean water.',
-                'Let the mop pad air-dry completely before fitting it back on its holder.',
-                'Put the clean-water tank back into the robot.',
-            ],
-            "notes": [
-                'Take the water tank off the robot promptly once mopping finishes.',
-                'Water left standing in the water tank turns smelly, and a mop pad left wet grows mildew.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": None,
@@ -22863,18 +21907,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
         },
     },
     'vacuum_mop_2_lite': {
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press and hold both release buttons on the water tank at the same time, then slide the tank out from the bottom of the robot.',
-                'Put the clean-water tank back into the robot.',
-            ],
-            "notes": [
-                'Empty the clean-water tank as soon as you finish mopping. Water left standing in the tank turns smelly and grows mildew.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -22929,19 +21961,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
         },
     },
     'vacuum_mop_2_pro': {
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press and hold both release buttons on the water tank at the same time, then slide the tank out from the bottom of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the clean-water tank back into the robot.',
-            ],
-            "notes": [
-                'Water left standing in the water tank turns smelly, and a mop pad left wet grows mildew.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -22980,19 +21999,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
         },
     },
     'vacuum_mop_2i': {
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Press and hold both release buttons on the water tank at the same time, then slide the tank out from the bottom of the robot.',
-                'Pour any water left in the water tank away.',
-                'Put the clean-water tank back into the robot.',
-            ],
-            "notes": [
-                'Water left standing in the water tank turns smelly, and a mop pad left wet grows mildew.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -26962,12 +25968,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press the release clip on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -27394,12 +26394,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -27620,11 +26614,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -27851,10 +26840,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -28337,22 +27322,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
             "notes": [
             ],
         },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Take the clean-water tank out of the robot.',
-                'Pour any water left in the water tank away.',
-                'Rinse the water tank with clean water.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Keep the water tank out of direct sunlight.',
-                'Rinse with clean water only. Do not add detergent.',
-            ],
-        },
         'filter': {
             "clean_frequency": 'Every 2 weeks or as needed',
             "replace_frequency": 'every 3-6 months',
@@ -28432,25 +27401,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Let the wheel dry completely, then press the wheel back into place.',
             ],
             "notes": [
-            ],
-        },
-        'clean_water_tank': {
-            "clean_frequency": 'Every 2 weeks or as needed',
-            "replace_frequency": None,
-            "steps": [
-                'Take the robot off the base station.',
-                'Slide the two release clips on the sides of the water tank and lift the mopping module off.',
-                'Take the mop pad off its holder.',
-                'Rinse the mop pad with clean water.',
-                'Let the mop pad air-dry completely before fitting it back on its holder.',
-                'Pour any water left in the water tank away.',
-                'Let the water tank air-dry completely before you put it back.',
-                "If water runs out slowly or spreads unevenly, clean the air hole in the water tank's cover.",
-            ],
-            "notes": [
-                'Wash the mop pad only once it is off the mopping module, and keep dirty water out of the water outlet while you clean the module. Dirty water that runs back into the water outlet clogs the outlet.',
-                'Rinse with clean water only. Do not add detergent.',
-                'Keep the water tank out of direct sunlight.',
             ],
         },
         'filter': {
@@ -28543,11 +27493,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -28698,11 +27643,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 'Slide the used-water tank back into the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Open the cover on the robot's used-water box and pour the used water away.",
-                "Rinse the robot's used-water box with clean water.",
-                "Close the cover on the robot's used-water box.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -28841,10 +27781,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -28987,10 +27923,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -29127,9 +28059,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Rinse the tank with clean water.',
                 'Clean the inner wall of the used-water tank with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -29253,10 +28182,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                'Take the robot off the base station.',
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -29368,9 +28293,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
@@ -29498,9 +28420,6 @@ DREAME_UPKEEP_GUIDE_LIBRARY_COMPOSED: dict[str, dict[str, dict]] = {
                 'Pour the used water away.',
                 'Rinse the tank with clean water and clean the inner wall with a suitable tool.',
                 "Close the used-water tank's cover and slide the tank back into the base station.",
-                "Press and hold the release buttons on the robot's used-water box and pull the box out.",
-                "Rinse the robot's used-water box with clean water.",
-                "Wipe the robot's used-water box dry, then push the box back into the robot.",
             ],
             "notes": [
                 'The float in the used-water tank moves. Do not force it while cleaning.',
