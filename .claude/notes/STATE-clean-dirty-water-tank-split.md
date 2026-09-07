@@ -80,10 +80,40 @@ The gate on tank cleaning stands on the rows that are actually about the tank bo
 `note.float_gentle_clean` (presupposes cleaning), `note.mildew_if_left_wet`,
 `note.no_vinegar_in_tank`, `note.cleaner_manual_recommended`.
 
-**What `tank.air_hole` IS:** a real, distinct maintenance item that belongs on the
-clean-water card in its own right, and arguably an OPERATIONAL one — "water runs out slowly"
-is a symptom the user notices while mopping, not a schedule. Keep it as a step; do not use
-it as a model for anything else.
+**What `tank.air_hole` IS — and it is not a station part.** Measured:
+
+```
+                          users   station   robot-only
+tank.air_hole              41        1          40
+tank.air_hole_inlet_lid     6        0           6
+```
+
+It belongs to the **robot-mounted tank** population — the machines without a self-washing
+dock. So it has no place in the station clean-tank card at all. Chris spotted this from the
+wording alone: *"that reads as robot based internal tank, one of the ones without self
+wash."*
+
+It is still a real, distinct item for the families that DO have a robot tank, and arguably
+an operational one, since "water runs out slowly" is noticed while mopping rather than
+fired by a schedule.
+
+⚠ I also misquoted it as "the water tank's **cap**". It says **cover**. My earlier read was
+truncated mid-word and I completed it from the robot-tank picture already in my head.
+
+## The two hardware populations are already clean in the corpus
+
+```
+tank.remove       21 users   0 station   21 robot    "Take the clean-water tank out of the ROBOT."
+tank.refit        10 users   0 station   10 robot
+tank.clean_out    15 users  15 station    0 robot    "…out of the BASE STATION."
+tank.clean_refit  24 users  24 station    0 robot
+tank.clean_fill    6 users   6 station    0 robot
+```
+
+**Zero cross-contamination.** Picking the right pair per family is mechanical — station
+families take the `clean_*` keys, robot-tank families take `tank.remove` / `tank.refit`.
+Do not blanket-apply either set.
+
 
 ## Vocabulary that already exists (no authoring needed for the split)
 
