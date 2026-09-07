@@ -58,7 +58,32 @@ Evidence the gate is right, all from our own table:
 | `note.mildew_if_left_wet` | 7 | standing water turns smelly |
 | `note.no_vinegar_in_tank` | 1 | never descale it — so scale is known and NOT user-treatable |
 | `note.cleaner_manual_recommended` | 2 | residue from non-approved solution |
-| `tank.air_hole` | **42** | "**If** water runs out slowly or spreads unevenly, clean the air hole" — the gated idiom already ships |
+| ~~`tank.air_hole`~~ | 42 | **REMOVED from this table — see below.** It is a vent-unblocking step, not evidence about cleaning the tank body |
+
+### ⚠ `tank.air_hole` is NOT evidence for gating the tank clean
+
+I originally listed it above as "the gated idiom already ships". Chris flagged it:
+
+> "You mentioned clean air hole as an idiom that seems overly precise for needing to clean
+> the tank. That is a specific mechanism."
+
+Correct. *"If water runs out slowly or spreads unevenly, clean the air hole in the water
+tank's cap"* is a **vent unblock**: specific symptom (flow is wrong), specific part (the
+hole in the cap), specific cause (airlock — a blocked vent stops the tank gravity-feeding).
+It says nothing about washing the tank body.
+
+Using it as support was borrowing the *form* of a sentence as evidence for an unrelated
+decision — the same error as "these keys are welded, therefore the parts are inseparable".
+**Form is not evidence.**
+
+The gate on tank cleaning stands on the rows that are actually about the tank body:
+`note.float_gentle_clean` (presupposes cleaning), `note.mildew_if_left_wet`,
+`note.no_vinegar_in_tank`, `note.cleaner_manual_recommended`.
+
+**What `tank.air_hole` IS:** a real, distinct maintenance item that belongs on the
+clean-water card in its own right, and arguably an OPERATIONAL one — "water runs out slowly"
+is a symptom the user notices while mopping, not a schedule. Keep it as a step; do not use
+it as a model for anything else.
 
 ## Vocabulary that already exists (no authoring needed for the split)
 
