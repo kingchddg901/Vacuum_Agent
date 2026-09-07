@@ -188,3 +188,57 @@ say — they are not confirmed splits and should not be treated as such.
 
 That is the actionable set, and it is a quarter the size of the number I gave before the index
 existed.
+
+
+## ✅ THE CUT-OUT RULE — Chris: *"that is why i always had model cut outs in mind"*
+
+His instinct was right and the mechanism already exists: the catalog maps
+`model_id -> (name, family)`, so a cut-out is just a different family value on a row.
+`s60_pro_disc` and `x50s_pro_master` are cut-outs that were already made. What was missing was
+evidence for WHICH models to cut. The content index supplies it.
+
+### First, a methodological correction
+
+Joining manuals by PRODUCT NAME does not resolve dock variants: **every parenthesised variant has
+zero manuals.** Documents print the base name on the cover — "X50 Pro" — never
+"(Enhanced Ultra-Thin embedded)". So:
+
+> **Product name identifies the ROBOT. Only the model id identifies the SKU (robot x dock).**
+
+That is why the r2580 / r9455 / r9513 / r2502 comparison worked — those were model-id filenames.
+Any dock question must join on model id or reg code.
+
+### The rule, tested against every model with manual evidence
+
+```
+EMBEDDED name -> PLUMBED    40
+EMBEDDED name -> BOTH        1
+EMBEDDED name -> TANKS       0     <- ZERO counterexamples
+plain name    -> TANKS     122
+plain name    -> PLUMBED    17     <- e.g. r9490 "S40", no descriptor, plumbed
+plain name    -> BOTH       16
+```
+
+**A name carrying "Ultra-Thin" / "embedded" implies PLUMBED — 40 of 41, no counterexamples.**
+The converse is FALSE: a plain name implies nothing, since 17 plain-named models are plumbed.
+One-directional, and that is exactly how it must be used.
+
+`s40` is the natural experiment — every embedded variant plumbed, every non-embedded one with
+tanks, and one plain-named model (`r9490`) plumbed anyway:
+
+```
+r2553 S40                                TANKS     r2574 S40 (Platinum Ultra-thin embedded) PLUMBED
+r2573 S40 (Platinum Edition)             TANKS     r2576 S40 (Premium Ultra-Thin embedded)  PLUMBED
+r2575 S40 (Premium Edition)              TANKS     r9426 S40 (Enhanced Ultra-Thin embedded) PLUMBED
+r9430 S40 (Enhanced Edition)             TANKS     r9490 S40                                PLUMBED
+```
+
+### What this makes possible
+
+An embedded-named model can be cut out on the NAME alone, with no manual needed — it is plumbed,
+so it wants no clean-water tank card and no station used-water tank card. Everything else still
+needs per-model evidence.
+
+That converts the dock problem from "read 3,111 manuals" into "cut out the embedded models, then
+resolve the remainder", and it is the concrete form of the cut-out Chris has had in mind
+throughout.
