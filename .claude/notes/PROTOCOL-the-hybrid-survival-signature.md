@@ -85,3 +85,58 @@ shipping under a name that is still allowed.
 to `station_dust_wipe` like the other 25, or deciding dust-bag replacement is worth scoping in on
 its own merits. `govac_300` also carries a pre-existing `filter -> dustbin -> filter` cycle; it
 resolves and `dustbin` does not emit, so it is inert.
+
+
+## Corollary: REACHABILITY IS NOT SCOPE MEMBERSHIP
+
+Chris: *"the out of scope keys go away they are causing issues but we cant break the output
+doing this."*
+
+They cause issues because they are the hiding places — `dust_bag`'s own keys are why `x40_pro`
+shipped bag replacement under a filter label, and 44 of the 171 one-use keys sat in components
+that can never emit: bespoke vocabulary carrying no coverage.
+
+**But an out-of-scope component can still reach output.** `filter <- dustbin` is the documented
+dust-box fold and covers 81 families, so dustbin's keys emit. The naive test —
+*is this component in `scope.json`'s keep list?* — said **108 keys removable**. Share-resolved it
+is **103**, and the difference is five dustbin keys that in-scope filter cards borrow. Deleting
+them would have broken 81 real cards.
+
+```
+A key is removable only if EVERY component referencing it is, in its own family,
+neither in scope NOR lent to an in-scope component.
+```
+
+Removed: 103 reachable only through a dead component, plus 76 defined and referenced nowhere at
+all. **Phrase table 612 -> 433 keys, 298 records stripped.**
+
+### The gate that made it safe
+
+The claim being made is *"these keys cannot reach a card."* So the test is not a review, it is a
+hash:
+
+```
+emitted library BEFORE  2278229eaecfff0a
+emitted library AFTER   2278229eaecfff0a      BYTE-IDENTICAL
+```
+
+If one byte had differed, the premise was false by definition and the script says so rather than
+reporting success. `git status` on the emitted library shows no diff at all — the cleanup is
+invisible downstream, which is exactly what "unreachable" has to mean.
+
+**Generalise it:** any cleanup justified by "this is dead" should be gated on the output being
+byte-identical, not on the reviewer agreeing it looks dead.
+
+### Tally: the share shape broke five measurements in one session
+
+1. the robot-tank deletion — missed 4 share-shaped 2-in-1 cards
+2. the 2-in-1 deletion — same 4, again
+3. the gap fill — same 4, again (harmless: it did not overwrite them)
+4. `clean vs dirty` counts — reported `omni_m30s` as clean-without-dirty; its dirty card *shares
+   from* clean, so `keys_of()[0]` read it as absent
+5. this pass — the naive split would have deleted five live dustbin keys
+
+Every one came from `famload.keys_of(...)[0]`, which returns an EMPTY step list for a
+share-shaped record. 100 records corpus-wide are share-shaped. **Any corpus question — a sweep, a
+count, a reachability test — must resolve shares first, or it is answering about a different
+corpus than the one that ships.**
