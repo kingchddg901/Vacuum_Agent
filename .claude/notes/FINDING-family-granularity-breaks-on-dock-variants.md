@@ -315,3 +315,61 @@ stopped the shaver `pr2501a` matching `r2501`.
 `if not todo: return` and exited before writing, while printing "purged 77 junk rows". 20 MISFILED
 rows were still on disk. Always persist before an early return — and check the artefact, not the
 log line.
+
+
+## ⛔ CORRECTION — "10 Master models have a clean tank" was the boilerplate
+
+Chris: *"do they have clean tanks in the manual where they are tagged master"*. He asked because
+the claim smelled wrong, and it was. I had scored MASTER-tagged models from the CONTENT INDEX,
+which reads 10 pages, and counted `clean_tank >= 1` as "has a clean tank". Full-document reads
+show what those hits actually are:
+
+> Only clean water and the officially-approved cleaning solution can be added to the clean water
+> tank. Do not add any other liquid such as alcohol or disinfectant.
+
+**A safety caution about what may be ADDED — the exact trap
+[`FINDING-plumbed-variants-have-no-clean-tank.md`](FINDING-plumbed-variants-have-no-clean-tank.md)
+records for the X50 Master:** *"presence of the phrase is not presence of the part."* That note is
+where the warning lives, I cited it in this same session, and then re-made the error one section
+later with a shallower instrument.
+
+### Re-counted, boilerplate excluded
+
+```
+MASTER-tagged models with a manual                20
+   only the safety boilerplate                    10   <- previously counted as "has a tank"
+   no clean-water phrase at all                    4
+   genuinely document a clean-water tank           6
+```
+
+**So 14 of 20 have NO clean-water tank.** Chris's "master was the flag for some plumbed editions"
+is right, and much broader than the two I had allowed (`Master Pro`, `Master One`).
+
+The 6 divide again, and only 3 are station tanks:
+
+```
+REAL STATION TANK, in the parts list, plumbing absent or minimal
+   r6012  Clean Master X60 Pro Steam      clean=10  plumb=0
+   r501w  X60 Master (Ultimate edition)   clean=11  plumb=0
+   r2212  G20 Master                      clean=10  plumb=3   (has a fill procedure)
+
+ONE real mention each, and it is the station AUTO-FILLING THE ROBOT's tank
+   r2501l X50 Pro Master   r2501p X50s Pro Master   r5189u X60 Master
+      "클린 스테이션은 로봇 청소기의 정수 탱크를 자동으로 채우고"
+      "主機清水箱將透過基座進行自動補水"
+```
+
+Those three are robot tanks refilled by a plumbed station — not a station clean tank, and under
+the robot-tank ruling not ours anyway.
+
+### The usable rule
+
+**Master + plumbing markers (plumb >= 5) => no station clean-water tank.** All three genuine
+station tanks sit at plumb 0-3; every model at plumb >= 5 has none.
+
+### The methodological lesson, which is the more valuable half
+
+The content index reads **10 pages**; the walk reads the **whole document**. I wrote that caution
+into this note myself and then treated an index count as a hardware fact in the very next
+analysis. **Index counts locate documents. Only a full read counts a part** — and even then the
+sentence decides, because a safety caution names the part without the machine having it.
