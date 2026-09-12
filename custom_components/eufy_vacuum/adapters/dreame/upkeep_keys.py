@@ -141,10 +141,18 @@ FILTER_STEPS = ["access.dust_bin", "filter.remove_and_tap", "bin.empty",
 FILTER_NOTES = ["note.filter_no_brush_finger_sharp", NO_DET]
 
 
-def _filter(tanks: str):
-    """The dust-bin-and-filter panel; gains one clause on a 2-in-1 bin."""
+def _filter(mop: str, tanks: str):
+    """The dust-bin-and-filter panel; gains one clause on a 2-in-1 bin.
+
+    ⛔ BOTH HALVES OF THE RULE. Chris stated it as "if not auto wash BUT MOP YES it has a tank of
+    some kind onboard" — a machine that does not mop has no water ANYWHERE, so `tanks == "no"`
+    alone is not the condition. I dropped the mop half here while writing it correctly into
+    DUK-6, and Dreame cannot expose the mistake: all 700 of its models mop, so no regime
+    exercises the branch. PORTING EUFY FOUND IT — its X8, L60 and L60 SES are vacuum-only, and
+    they were being told to empty water out of a dust bin that has never held any.
+    """
     steps = list(FILTER_STEPS)
-    if tanks == "no":
+    if tanks == "no" and mop in MOP:
         # ORDER: straight after the dust is out, while the unit is still over the bin and before
         # the rinse — pouring water through a compartment you have not emptied makes slurry.
         steps.insert(steps.index("bin.empty") + 1, BIN_IS_2IN1)
@@ -244,7 +252,7 @@ def emit(mop_type: str, dock_tier: str, tanks: str):
     earlier. The seven jobs plus the Matrix10 swap are the whole surface.
     """
     mop = MOP_ALIAS.get(mop_type, mop_type)
-    out = [_filter(tanks)] + list(ROBOT)
+    out = [_filter(mop, tanks)] + list(ROBOT)
     if mop in MOP:
         # ONE `mop` COMPONENT, NOT FOUR. The branches are step-sets, not cards: exactly one fires
         # per model and they are never co-present, so `mop_pad`/`mop_cloth`/`mop_roller`/

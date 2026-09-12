@@ -239,6 +239,43 @@ def test_every_emitted_key_is_in_the_shipped_english_pack():
     )
 
 
+def test_a_vacuum_only_machine_is_never_told_to_empty_water():
+    """[DUK-6b] the 2-in-1 clause needs BOTH halves of the rule, and Dreame cannot prove it.
+
+    Chris's rule is "if not auto wash BUT MOP YES it has a tank of some kind onboard". A machine
+    that does not mop has no water ANYWHERE, so `tanks == "no"` alone is the wrong condition.
+
+    ⛔ THIS TEST CALLS `emit()` DIRECTLY INSTEAD OF WALKING THE SHIPPED REGIMES, AND THAT IS THE
+    WHOLE POINT. All 700 Dreame models mop, so no shipped regime has `mop_type="none"` and DUK-6
+    — which iterates DREAME_UPKEEP_KEY_GUIDES — can never exercise the branch. The emitter shipped
+    with the mop half missing and every Dreame test stayed green. PORTING EUFY FOUND IT: its X8,
+    L60 and L60 SES are vacuum-only and were being told to pour water out of a dust bin that has
+    never held any.
+
+    A GUARD WITH NO DATA TO BITE ON IS NOT A GUARD. The `none` value entered the catalog with
+    Eufy; this test carries the case Dreame's own rows cannot.
+    """
+    from custom_components.eufy_vacuum.adapters.dreame.upkeep_keys import BIN_IS_2IN1, emit
+
+    for dock in ("charge_only", "auto_empty"):
+        steps = {c: s for c, s, _n in emit("none", dock, "no")}["filter"]
+        assert BIN_IS_2IN1 not in steps, (
+            f"none|{dock}|no does not mop, so it carries no water at all — but its bin card "
+            f"says to empty some"
+        )
+        assert not any(c.startswith("mop") for c, _s, _n in emit("none", dock, "no")), (
+            f"none|{dock}|no documents a mop panel on a machine that does not mop"
+        )
+
+    # ...and the clause MUST still fire where the machine does mop with no station.
+    for mop in ("cloth", "pad", "SimuMop"):
+        steps = {c: s for c, s, _n in emit(mop, "charge_only", "no")}["filter"]
+        assert BIN_IS_2IN1 in steps, (
+            f"{mop}|charge_only|no mops with no station tanks, so its water is on board in the "
+            f"bin unit — the clause must fire"
+        )
+
+
 def test_the_collapse_holds():
     """[DUK-8] 700 models, 15 regimes, 7 cards — the argument for the whole system."""
     bodies = {
