@@ -16,7 +16,7 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { maintenanceDueInBucket, applyMaintenanceRenderers } from "./maintenance.js";
-import { loadGuideCatalog } from "../i18n/guide-loader.js";
+import { loadGuideCatalog, loadGuideKeyPack } from "../i18n/guide-loader.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -503,4 +503,90 @@ test("[MIN-4] nothing to fall back on -> final i18n fallback (translated or the 
     "maintenance.unnamed_item": "Unnamed item",
   });
   assert.equal(inst._maintenanceItemName(null), "Unnamed item");
+});
+
+/* ============================================================
+   [LGK-*] _localizedGuide — the KEY routing (Dreame)
+   ============================================================ */
+
+// A key-routed adapter sends i18n KEYS and no words: the backend cannot know which
+// language the reader chose, so the card IS the guide's language layer. These run
+// against the REAL served key packs and the REAL emitter output, not a stub, because
+// the defect these guard is a broken JOIN between three tables that are each fine on
+// their own — a stub authored here would simply agree with itself.
+//
+// [LGK-1] a key resolves to the reader's language
+// [LGK-2] a regional tag falls back to its base language, not to English
+// [LGK-3] an unknown language falls to bundled English — never null, never a raise
+// [LGK-4] an unauthored key renders AS ITSELF, loudly, rather than vanishing
+// [LGK-5] the prose routing is untouched by the key branch (eufy/roborock regression)
+
+const _KEYS_DIR = join(_GUIDES_DIR, "keys");
+const _keyFetch = (lang) => async () => ({
+  ok: true,
+  json: async () => JSON.parse(readFileSync(join(_KEYS_DIR, `${lang}.json`), "utf8")),
+});
+before(async () => {
+  for (const lang of ["de", "ja", "pt"]) {
+    await loadGuideKeyPack(`served:${lang}`, lang, { fetchImpl: _keyFetch(lang) });
+  }
+});
+
+// Shaped exactly as maintenance/manager.py now emits a key guide: steps/notes present
+// and EMPTY, the keys alongside them, no frequency.
+const _KEY_ITEM = (steps, notes = []) => ({
+  kind: "maintenance",
+  component: "filter",
+  guide: {
+    source_guide_regime: "pad|wash+empty|yes",
+    display: {
+      frequency: null, steps: [], notes: [],
+      steps_keys: steps, notes_keys: notes, available: true,
+    },
+  },
+});
+
+test("[LGK-1] a key resolves to the reader's own language", () => {
+  const g = guideHost("de")._localizedGuide(_KEY_ITEM(["rinse.clean_water_only"]));
+  // Assert the step EXISTS before asserting what it says: with the key branch removed
+  // this item falls through to the prose path, which finds no family, returns `display`
+  // untouched, and leaves steps EMPTY — on which every "is not X" assertion passes
+  // vacuously. An emptiness check first is what makes the rest of this test able to bite.
+  assert.equal(g?.steps?.length, 1, "the step did not survive resolution at all");
+  const step0 = String(g.steps[0]);
+  assert.ok(step0.length > 0, "resolved to an empty string");
+  assert.notEqual(step0, "rinse.clean_water_only", `key did not resolve: ${JSON.stringify(step0)}`);
+  const en = String(guideHost("en")._localizedGuide(_KEY_ITEM(["rinse.clean_water_only"])).steps[0]);
+  assert.notEqual(step0, en, "German resolved to the English sentence — the pack lookup missed");
+});
+
+test("[LGK-2] a regional tag falls back to its BASE language, not to English", () => {
+  const g = guideHost("de-AT")._localizedGuide(_KEY_ITEM(["rinse.clean_water_only"]));
+  const base = guideHost("de")._localizedGuide(_KEY_ITEM(["rinse.clean_water_only"]));
+  assert.equal(g.steps.length, 1, "the step did not survive resolution");  // see [LGK-1]
+  assert.notEqual(g.steps[0], "rinse.clean_water_only", "de-AT fell through to the bare key");
+  assert.equal(g.steps[0], base.steps[0], "de-AT did not reach the de pack");
+});
+
+test("[LGK-3] an unknown language falls to bundled English, never null", () => {
+  const g = guideHost("xx-ZZ")._localizedGuide(_KEY_ITEM(["rinse.clean_water_only"]));
+  assert.ok(g && g.steps.length === 1, "unknown language lost the guide entirely");
+  assert.notEqual(g.steps[0], "rinse.clean_water_only", "fell through to the bare key");
+});
+
+test("[LGK-4] an unauthored key renders AS ITSELF — loud, not silent", () => {
+  // The one fallback that must never be silent. A dropped step reads as a shorter,
+  // plausible procedure; a bare key reads as a bug and can be grepped.
+  const g = guideHost("de")._localizedGuide(_KEY_ITEM(["rinse.clean_water_only", "not.a.real.key"]));
+  assert.equal(g.steps.length, 2, "the unresolvable step was DROPPED instead of shown");
+  assert.equal(g.steps[1], "not.a.real.key");
+});
+
+test("[LGK-5] notes resolve too, and the key branch leaves prose routing alone", () => {
+  const g = guideHost("de")._localizedGuide(_KEY_ITEM(["rinse.clean_water_only"], ["note.no_detergent"]));
+  assert.equal(g.notes.length, 1);
+  assert.notEqual(g.notes[0], "note.no_detergent", "note key did not resolve");
+  // the prose item from the [LG-*] block must be unaffected by the branch above it
+  const prose = guideHost("zh-Hans")._localizedGuide(_ITEM);
+  assert.ok(HAN.test(String(prose.steps?.[0] ?? "")), "the key branch broke prose routing");
 });

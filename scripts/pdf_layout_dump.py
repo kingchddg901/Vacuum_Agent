@@ -19,7 +19,10 @@ be untangled by eye.
 
     python scripts/pdf_layout_dump.py MANUAL.pdf 22-30
 
-Used for authoring adapters/dreame/dreame_upkeep_guides.py. Not imported by the
+Used for reading vendor manual layout while authoring guide content. It fed
+adapters/dreame/dreame_upkeep_guides.py until that library was retired 2026-09-11;
+the Dreame guide is now i18n keys routed by regime and authored in the fixture
+(durable/dreame-port-fixture). Still useful for any manual. Not imported by the
 integration and not part of any gate.
 """
 import sys

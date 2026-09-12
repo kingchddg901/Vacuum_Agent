@@ -191,45 +191,79 @@ added 2026-08-07) pins what happens when a brand DECLARES — or fails to.
 | `DC-4` | — | the same validator that rejects the bad ACCEPTS every shipped brand |
 | `DC-5` | — | end to end: the REGISTERED config is what resolution actually reads |
 
-### `dreame/test_dreame_upkeep_guides.py` — the only gate on an UNWIRED adapter
+### `dreame/test_dreame_upkeep_keys.py` — the only gate on an UNWIRED adapter
 
-37 tests, added 2026-08-25. Every other suite on this page reaches an adapter through
-its `BRAND_REGISTRARS` row. The Dreame adapter has no such row — deliberately, since
-that row *is* the release — so none of them touch it, and until this file landed a
-Dreame family could be emptied, two families silently collapsed into one, or the
-release switch thrown, with the suite staying green throughout.
+9 test functions / 48 collected cases (DUK-3, DUK-6 and DUK-9 fan out over the 15
+regimes), added 2026-09-11 with the key system. Every other suite on this page reaches an
+adapter through its `BRAND_REGISTRARS` row. The Dreame adapter has no such row —
+deliberately, since that row *is* the release — so none of them touch it, and without
+this file the whole guide system could be emptied, renamed, or quietly disconnected from
+the card with the suite staying green throughout.
+
+It replaces `test_dreame_upkeep_guides.py` (below), which tested the retired family
+system and was deleted with it.
 
 | id | what it holds |
 |---|---|
-| `DUG-1` | there is NO `BRAND_REGISTRARS` row for Dreame — the release switch, still off |
-| `DUG-2` | the four families exist and every component in them has a non-empty step |
-| `DUG-3` | `x60_pro_ultra_complete` is `x60_ultra` **plus exactly** `baseboard_brush` |
-| `DUG-4` | the seven measured X50-vs-X60 divergences still diverge |
-| `DUG-5` | absent hardware gets no guide — no heating module on the X50, no detergent inlet outside the L20 |
-| `DUG-6` | the L50 and the X50 stay two families, and stay 11-of-13 identical |
+| `DUK-1` | there is NO `BRAND_REGISTRARS` row for Dreame — the release switch, still off (inherited from `DUG-1`) |
+| `DUK-2` | every model routes to a regime the key library actually holds — an unrouted regime is a KeyError waiting for the switch (`DUG-8` re-expressed) |
+| `DUK-3` | every component in every regime has a step, and no step or note is an empty string |
+| `DUK-4` | every component the key library emits has a `maintenance_components` row |
+| `DUK-5` | every declared component is reachable — in some regime, or sensor-backed |
+| `DUK-6` | the regime gates hardware: no washboard on a dockless robot, no track mop on a pad robot, exactly one mop panel per model (`DUG-5` re-expressed, now derived) |
+| `DUK-7` | every key the backend can emit is in the shipped English pack, and nothing ships that nothing emits |
+| `DUK-8` | the collapse holds — 700 models, 15 regimes, 7 distinct cards, 51 keys |
+| `DUK-9` | every panel's steps END on a closer, exactly one |
 
-`DUG-4` is a regression guard for a defect this data already shipped once: a shared
-`_BASE` was factored out of several families because their component NAMES lined up,
-which put X60 prose on five other platforms. Presence of a part and sameness of its
-PROCEDURE are different claims, and only the second one was ever checked. `DUG-3`
-encodes the opposite case — two families that genuinely DO share a body, because their
-manuals were diffed first and came out 48 of 49 sentences identical.
+**`DUK-4`, `DUK-5` and `DUK-7` are the reason this file exists, and they guard a failure
+mode the old system did not have.** Prose travelled with its own routing key, so a family
+guide was either present or absent. A key guide is a JOIN across three tables — regimes,
+key lists, and the `maintenance_components` rows that give a guide somewhere to render —
+and any two of them can drift while each stays internally valid and fully populated.
+`DUK-4` is written from a real miss: the emitter named a panel `dust_bin_and_filter` while
+the card's component was `filter`, so a correct, translated guide resolved to nothing on a
+card that looked entirely healthy. Nothing in the guide library could see it, because
+nothing in the guide library was wrong.
 
-`DUG-6` is the harder case and pins BOTH halves. The L50 and X50 share 33 care
-sentences and 11 of 13 components outright — the closest pair in the library — yet the
-whole of their difference sits INSIDE two shared components rather than in an extra one:
-the L50 *opens* the robot cover where the X50 *removes* it, and the L50 carries a laser
-distance sensor with no VersaLift where the X50 carries a VersaLift with no LDS. So the
-guard asserts the 2 that must differ AND the 11 that must stay the same, because a
-difference-guard alone goes green on a library that has simply lost content.
+`DUK-6` replaces thirteen per-family assertions with one derived rule, which is the whole
+argument for the regime system in miniature: the old `DUG-5` had to name each absent part
+on each family by hand, so it only ever covered the families someone thought to list.
 
-25 mutations were ablated and all 25 went red. `DUG-1` was ablated separately, both by
-adding a Dreame row and by emptying the registrar table entirely, so it cannot pass
-vacuously on a table that happens to be empty.
+`DUK-8` is a tripwire, not a law. If a regime change legitimately splits or merges a card,
+the number is meant to be updated deliberately — the point is that it cannot drift
+silently, because the 700-to-7 collapse is the entire justification for replacing ~280
+authored families with 51 keys.
 
-Provenance is checked outside the suite by `scripts/verify_dreame_guide_provenance.py`,
-which cannot be a gate here because the manuals are vendor copyright and stay out of
-the repo.
+### `dreame/test_dreame_upkeep_guides.py` + `_i18n.py` — ⛔ DELETED 2026-09-11
+
+Both are gone, with the ~280-family Dreame guide library and its 17 language packs that they
+guarded. Retrievable from git history; nothing in the tree routes through that system.
+
+They held `DUG-1`..`DUG-13` and `DI18N-1`..`DI18N-5`. Three of those questions were real
+independently of the family model and were carried over rather than dropped: the release
+switch (`DUG-1` → `DUK-1`), routing that resolves (`DUG-8` → `DUK-2`), and absent hardware
+getting no guide (`DUG-5` → `DUK-6`, now derived from the regime instead of asserted per
+family). The other ten were assertions ABOUT families — which two share a body, which
+eleven of thirteen components match — and have no referent once families are gone.
+
+Two lessons from them are worth keeping, because both are about testing, not about Dreame:
+
+* **`DUG-4` guarded a defect the data had already shipped**: a shared `_BASE` was factored
+  out of several families because their component NAMES lined up, which put X60 prose on
+  five other platforms. Presence of a part and sameness of its PROCEDURE are different
+  claims, and only the second was ever checked.
+* **`DI18N-1..5` were rewritten once when the premise under them changed.** They asserted
+  strict structural equality with English, which was correct while the packs were translated
+  FROM English and became wrong the moment they were lifted from Dreame's own per-language
+  manuals — vendors localize structure, not only words, and only 8.6% of lifted vendor cells
+  matched the English shape. "Fixing" the failures would have meant overwriting real manual
+  content with an English skeleton. A test can be correct and still be resting on a premise
+  that has expired underneath it.
+
+Provenance scoring lived outside the suite in `scripts/verify_dreame_guide_provenance.py`
+(bigram overlap against the source manual — it could catch an invented step at ~8% and a
+swapped part at ~47%, but never a single swapped word at ~93%). Deleted with the library it
+scored. The key system's equivalent is authored and checked in the fixture, outside git.
 
 ### `dreame/test_dreame_adapter_config.py` — the native current-room wires
 

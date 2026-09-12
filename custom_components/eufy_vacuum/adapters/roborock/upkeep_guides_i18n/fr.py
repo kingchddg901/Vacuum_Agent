@@ -1,492 +1,160 @@
-"""GENERATED — do not hand-edit. fr upkeep-guide translations from the lifted TM.
-Regenerate: scripts/build_guides.py then scripts/emit_libs.py --emit."""
+"""Upkeep-guide translations — Français (fr).
 
+Transcribed from Roborock's official French manual (S8 MaxV Ultra CE FR).
+Frequencies match our English base; steps/notes are the official wording.
+Overlaid PER FIELD on the English guide — anything omitted falls back to English.
+"""
+
+_STANDARD = {
+    "main_brush": {
+        "clean_frequency": "Hebdomadaire",
+        "replace_frequency": "Tous les 6-12 mois",
+        "steps": [
+            "Retournez le robot, appuyez sur le loquet et retirez le cache de la brosse principale.",
+            "Sortez la brosse principale, retirez les capuchons et les anneaux anti-cheveux, puis ôtez les cheveux et saletés emmêlés à chaque extrémité.",
+            "Réinstallez les anneaux, capuchons et roulements, puis la brosse principale.",
+            "Réinstallez le cache : insérez entièrement les quatre dents dans les fentes et appuyez jusqu’à entendre un déclic.",
+        ],
+        "notes": [
+            "Nettoyez la brosse principale avec un chiffon humide ; si elle est mouillée, laissez-la sécher à l’air libre, à l’abri du soleil direct.",
+            "N’utilisez pas de liquide de nettoyage corrosif ni de désinfectant.",
+        ],
+    },
+    "side_brush": {
+        "clean_frequency": "Mensuel",
+        "replace_frequency": "Tous les 3-6 mois",
+        "steps": [
+            "Retirez la vis de la brosse latérale.",
+            "Retirez et nettoyez la brosse latérale.",
+            "Réinstallez la brosse et resserrez la vis.",
+        ],
+        "notes": [],
+    },
+    "filter": {
+        "clean_frequency": "Toutes les 2 semaines",
+        "replace_frequency": "Tous les 6-12 mois",
+        "steps": [
+            "Retirez le filtre lavable.",
+            "Rincez-le plusieurs fois et tapotez-le pour retirer le plus de saleté possible.",
+            "Laissez le filtre sécher au moins 24 heures avant de le remettre en place.",
+        ],
+        "notes": [
+            "Ne touchez pas la surface du filtre avec les mains, une brosse ou des objets durs.",
+            "Il est conseillé de garder un second filtre pour l’alterner si nécessaire.",
+        ],
+    },
+    "sensor": {
+        "clean_frequency": "Mensuel",
+        "replace_frequency": None,
+        "steps": [
+            "Essuyez tous les capteurs avec un chiffon doux et sec : capteur d’obstacles Reactive AI, localisateur de station, capteur de tapis, capteur de murs, capteur de communication et capteurs de vide.",
+            "Essuyez également les contacts de rechargement du robot et de la station.",
+        ],
+        "notes": [],
+    },
+    "dustbin": {
+        "clean_frequency": "Hebdomadaire",
+        "replace_frequency": None,
+        "steps": [
+            "Retirez le cache magnétique supérieur, appuyez sur le loquet du bac à poussière et retirez-le.",
+            "Retirez le filtre lavable et videz le bac à poussière.",
+            "Si nécessaire, remplissez le bac d’eau propre, remettez le filtre, agitez doucement et évacuez l’eau sale.",
+            "Laissez sécher le bac et le filtre avant de les remettre en place.",
+        ],
+        "notes": [
+            "Pour éviter les obstructions, utilisez uniquement de l’eau propre, sans liquide de nettoyage.",
+        ],
+    },
+    "mop_cloth": {
+        "clean_frequency": "Après chaque utilisation",
+        "replace_frequency": "Tous les 3-6 mois",
+        "steps": [
+            "Retirez la serpillière de son support (sur certains modèles, via une vis centrale).",
+            "Lavez la serpillière et laissez-la sécher à l’air libre.",
+            "Remettez la serpillière à plat dans son support.",
+        ],
+        "notes": [
+            "Une serpillière sale nuit au lavage — nettoyez-la avant utilisation.",
+        ],
+    },
+    "caster_wheel": {
+        "clean_frequency": "Mensuel",
+        "replace_frequency": None,
+        "steps": [
+            "À l’aide d’un outil, tel qu’un petit tournevis, dégagez l’axe et extrayez la roulette.",
+            "Rincez la roulette et son axe à l’eau pour retirer poils et saletés.",
+            "Laissez sécher à l’air libre, réinstallez et appuyez pour remettre en place.",
+        ],
+        "notes": [
+            "Le support de la roulette omnidirectionnelle ne peut pas être retiré.",
+        ],
+    },
+    "main_wheel": {
+        "clean_frequency": "Hebdomadaire",
+        "replace_frequency": None,
+        "steps": [
+            "Vérifiez chaque semaine les deux roulettes principales et retirez les cheveux ou fils enroulés autour des axes.",
+            "Nettoyez les roulettes principales avec un chiffon doux et sec.",
+        ],
+        "notes": [],
+    },
+}
+
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "Si nécessaire",
+    "replace_frequency": None,
+    "steps": [
+        "Ouvrez le couvercle du réservoir d’eau sale et évacuez l’eau sale.",
+        "Remplissez d’eau propre, refermez et verrouillez le couvercle, agitez, puis évacuez à nouveau pour rincer.",
+        "Refermez le couvercle et réinstallez le réservoir.",
+    ],
+    "notes": [
+        "N’utilisez que de l’eau froide afin d’éviter toute déformation ; essuyez l’extérieur avant de réinstaller.",
+    ],
+}
+
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "Tous les 1-3 mois",
+    "steps": [
+        "Retirez les filtres à eau du réservoir.",
+        "Installez des filtres neufs et remettez-les en place.",
+    ],
+    "notes": [
+        "À remplacer tous les 1-3 mois selon la qualité de l’eau et l’utilisation.",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "Lorsqu’il est plein (env. toutes les 7 semaines)",
+    "steps": [
+        "Ouvrez le couvercle du compartiment à poussière de la station.",
+        "Retirez le sac à poussière plein en tirant tout droit ; la poignée le referme lors du retrait.",
+        "Insérez un sac neuf et refermez le couvercle.",
+    ],
+    "notes": [
+        "Placez toujours un sac avant de refermer le couvercle.",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "Si nécessaire",
+    "replace_frequency": None,
+    "steps": [
+        "Retirez le réservoir d’eau propre et ouvrez le couvercle supérieur.",
+        "Remplissez-le d’eau froide du robinet.",
+        "Refermez le couvercle et remettez le réservoir dans la station.",
+    ],
+    "notes": [
+        "N’utilisez que de l’eau froide pour éviter toute déformation.",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
- "auto_empty": {
-  "main_brush": {
-   "clean_frequency": "Hebdomadaire",
-   "replace_frequency": "Tous les 6-12 mois",
-   "steps": [
-    "retournez le robot et appuyez sur les loquets pour retirer le cache de la brosse principale.",
-    "retirez les brosses principales et tirez sur leur roulement pour le sortir.",
-    "tirez sur les capuchons de la brosse principale pour les sortir.",
-    "après avoir retiré les poils et saletés entremêlés aux deux extrémités des brosses principales, réinstallez-les.",
-    "appuyez sur le cache de la brosse principale jusqu’à ce que vous entendiez un déclic indiquant que la brosse est verrouillée en place."
-   ],
-   "notes": [
-    "Nettoyer toutes les 2 semaines et remplacer tous les 6 à 12 mois.",
-    "Vous devez nettoyer les brosses principales à l’aide d’un chiffon humide et les laisser sécher à l’écart de la lumière directe du soleil.",
-    "N’utilisez pas de liquides nettoyants corrosifs ou de désinfectants pour nettoyer les brosses principales.",
-    "C1-1 brosses principales, C1-2 cache de la brosse principale, C1-3 loquets, C1-4 roulement de la brosse principale, C1-5 capuchons de la brosse principale."
-   ]
-  },
-  "side_brush": {
-   "clean_frequency": "Mensuel",
-   "replace_frequency": "Tous les 3-6 mois",
-   "steps": [
-    "Retirez la vis de la brosse latérale.",
-    "Retirez et nettoyez la brosse latérale. Réinstallez la brosse latérale et serrez la vis."
-   ],
-   "notes": [
-    "Nettoyer tous les mois et remplacer tous les 3 à 6 mois."
-   ]
-  },
-  "filter": {
-   "clean_frequency": "Toutes les 2 semaines",
-   "replace_frequency": "Tous les 6-12 mois",
-   "steps": [
-    "ouvrez le cache du filtre et retirez le filtre.",
-    "rincez le filtre à plusieurs reprises et tapotez-le pour éliminer autant de saletés que possible.",
-    "laissez le filtre sécher complètement pendant 24 heures, puis réinstallez-le."
-   ],
-   "notes": [
-    "Nettoyer toutes les 2 semaines et remplacer tous les 6 à 12 mois.",
-    "Remarque : Ne touchez pas la surface du filtre avec vos mains, une brosse ou des objets durs pour éviter tout risque de l’endommager.",
-    "Achetez un filtre supplémentaire et alternez si nécessaire."
-   ]
-  },
-  "sensor": {
-   "clean_frequency": "Mensuel",
-   "replace_frequency": None,
-   "steps": [
-    "Utilisez un chiffon doux sec pour essuyer et nettoyer tous les capteurs, notamment les suivants :",
-    "capteur d’évitement d’obstacles Reactive 3D",
-    "capteur de lavage de la serpillière",
-    "capteur de murs",
-    "Capteur de moquette",
-    "capteurs de vide"
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Les cinq capteurs sont étiquetés C8-1 à C8-5 autour du schéma du robot ; tous se nettoient avec un chiffon doux et sec."
-   ]
-  },
-  "dustbin": {
-   "clean_frequency": "Hebdomadaire",
-   "replace_frequency": None,
-   "steps": [
-    "ouvrez le capot supérieur du robot et appuyez sur le loquet du bac à poussière pour retirer le bac à poussière.",
-    "appuyez sur le loquet du cache du bac à poussière pour l’ouvrir, retirez le filtre lavable, puis videz le bac à poussière.",
-    "remplissez le bac à poussière d’eau propre et fermez le couvercle. Secouez délicatement le bac à poussière puis évacuez l’eau sale.",
-    "laissez sécher le bac à poussière et le filtre lavable."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Remarque : Pour éviter toute obstruction, n’utilisez que de l’eau propre sans liquide de nettoyage."
-   ]
-  },
-  "mop_cloth": {
-   "clean_frequency": "Après chaque utilisation",
-   "replace_frequency": "Tous les 3-6 mois",
-   "steps": [
-    "retirez la serpillière VibraRise du support de serpillière VibraRise. Nettoyez la serpillière VibraRise et laissez-la sécher à l’air libre."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire et remplacer tous les 3 à 6 mois.",
-    "Remarque : Une serpillière VibraRise sale nuira aux performances de nettoyage. Nettoyez-la avant utilisation."
-   ]
-  },
-  "water_filter": {
-   "clean_frequency": None,
-   "replace_frequency": "Tous les 1-3 mois",
-   "steps": [
-    "Déverrouillez le filtre à eau et retirez-le de la station. Déverrouillez le loquet du filtre et rincez le filtre afin qu’il soit propre. Utilisez un chiffon doux sec pour essuyer le réservoir de nettoyage, puis réinstallez le filtre. Appuyez sur le filtre jusqu’à ce que vous entendiez un déclic indiquant qu’il s’est verrouillé en place."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "This is the dock's water filter (part A10-14)."
-   ]
-  },
-  "caster_wheel": {
-   "clean_frequency": "Mensuel",
-   "replace_frequency": None,
-   "steps": [
-    "utilisez un outil, tel qu’un petit tournevis, pour déloger l’axe et extraire la roulette.",
-    "rincez la roulette et son axe à l’eau pour retirer tout cheveu et toute saleté. Laissez sécher et réinstallez la roulette en appuyant fermement dessus pour qu’elle se mette en place."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Remarque : Le support de la roulette omnidirectionnelle ne peut pas être retiré."
-   ]
-  },
-  "main_wheel": {
-   "clean_frequency": "Hebdomadaire",
-   "replace_frequency": None,
-   "steps": [
-    "Nettoyez les roulettes principales à l’aide d’un chiffon doux sec."
-   ],
-   "notes": [
-    "Nettoyer tous les mois."
-   ]
-  },
-  "dust_bag": {
-   "clean_frequency": None,
-   "replace_frequency": "Lorsqu’il est plein (env. toutes les 7 semaines)",
-   "steps": [
-    "Ouvrez le couvercle du compartiment à poussière de la station.",
-    "Retirez le sac à poussière plein en tirant tout droit ; la poignée le referme lors du retrait.",
-    "Insérez un sac neuf et refermez le couvercle."
-   ],
-   "notes": [
-    "Placez toujours un sac avant de refermer le couvercle."
-   ]
-  },
-  "air_duct": {
-   "clean_frequency": None,
-   "replace_frequency": None,
-   "steps": [
-    "retirez le réservoir d’eau propre, le réservoir d’eau sale et le bac à poussière.",
-    "retirez le filtre à eau et essuyez toute trace d’eau avec un chiffon.",
-    "saisissez les côtés de la base de la station vers le haut pour démonter et vérifier s’il y a des obstructions. Si l’entrée d’air est obstruée, nettoyez-la avec un coton-tige, puis essuyez-la avec un chiffon sec.",
-    "retournez soigneusement la station sur un sol dur recouvert d’une serviette douce.",
-    "retirez les trois vis et retirez le cache.",
-    "essuyez le tuyau d’air et le cache du tuyau d’air à l’aide d’un chiffon sec.",
-    "réinstallez le cache et revissez-le en place."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Suivez les étapes ci-dessous pour nettoyer le tuyau d’air et éviter toute obstruction."
-   ]
-  },
-  "maintenance_brush": {
-   "clean_frequency": None,
-   "replace_frequency": None,
-   "steps": [
-    "Levez le loquet de la brosse d’entretien à haute vitesse et retirez la brosse comme illustré ci-dessous. Retirez tout objet enchevêtré dans la brosse d’entretien à haute vitesse et rincez-la pour qu’elle soit propre. Réinstallez la brosse et verrouillez-la en place à l’aide du loquet."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire et remplacer tous les 6 à 12 mois.",
-    "This is the dock's washing roller (part A10-8, with maintenance brush latch A10-9)."
-   ]
-  }
- },
- "standard": {
-  "main_brush": {
-   "clean_frequency": "Hebdomadaire",
-   "replace_frequency": "Tous les 6-12 mois",
-   "steps": [
-    "retournez le robot et appuyez sur les loquets pour retirer le cache de la brosse principale.",
-    "retirez les brosses principales et tirez sur leur roulement pour le sortir.",
-    "tirez sur les capuchons de la brosse principale pour les sortir.",
-    "après avoir retiré les poils et saletés entremêlés aux deux extrémités des brosses principales, réinstallez-les.",
-    "appuyez sur le cache de la brosse principale jusqu’à ce que vous entendiez un déclic indiquant que la brosse est verrouillée en place."
-   ],
-   "notes": [
-    "Nettoyer toutes les 2 semaines et remplacer tous les 6 à 12 mois.",
-    "Vous devez nettoyer les brosses principales à l’aide d’un chiffon humide et les laisser sécher à l’écart de la lumière directe du soleil.",
-    "N’utilisez pas de liquides nettoyants corrosifs ou de désinfectants pour nettoyer les brosses principales.",
-    "C1-1 brosses principales, C1-2 cache de la brosse principale, C1-3 loquets, C1-4 roulement de la brosse principale, C1-5 capuchons de la brosse principale."
-   ]
-  },
-  "side_brush": {
-   "clean_frequency": "Mensuel",
-   "replace_frequency": "Tous les 3-6 mois",
-   "steps": [
-    "Retirez la vis de la brosse latérale.",
-    "Retirez et nettoyez la brosse latérale. Réinstallez la brosse latérale et serrez la vis."
-   ],
-   "notes": [
-    "Nettoyer tous les mois et remplacer tous les 3 à 6 mois."
-   ]
-  },
-  "filter": {
-   "clean_frequency": "Toutes les 2 semaines",
-   "replace_frequency": "Tous les 6-12 mois",
-   "steps": [
-    "ouvrez le cache du filtre et retirez le filtre.",
-    "rincez le filtre à plusieurs reprises et tapotez-le pour éliminer autant de saletés que possible.",
-    "laissez le filtre sécher complètement pendant 24 heures, puis réinstallez-le."
-   ],
-   "notes": [
-    "Nettoyer toutes les 2 semaines et remplacer tous les 6 à 12 mois.",
-    "Remarque : Ne touchez pas la surface du filtre avec vos mains, une brosse ou des objets durs pour éviter tout risque de l’endommager.",
-    "Achetez un filtre supplémentaire et alternez si nécessaire."
-   ]
-  },
-  "sensor": {
-   "clean_frequency": "Mensuel",
-   "replace_frequency": None,
-   "steps": [
-    "Utilisez un chiffon doux sec pour essuyer et nettoyer tous les capteurs, notamment les suivants :",
-    "capteur d’évitement d’obstacles Reactive 3D",
-    "capteur de lavage de la serpillière",
-    "capteur de murs",
-    "Capteur de moquette",
-    "capteurs de vide"
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Les cinq capteurs sont étiquetés C8-1 à C8-5 autour du schéma du robot ; tous se nettoient avec un chiffon doux et sec."
-   ]
-  },
-  "dustbin": {
-   "clean_frequency": "Hebdomadaire",
-   "replace_frequency": None,
-   "steps": [
-    "ouvrez le capot supérieur du robot et appuyez sur le loquet du bac à poussière pour retirer le bac à poussière.",
-    "appuyez sur le loquet du cache du bac à poussière pour l’ouvrir, retirez le filtre lavable, puis videz le bac à poussière.",
-    "remplissez le bac à poussière d’eau propre et fermez le couvercle. Secouez délicatement le bac à poussière puis évacuez l’eau sale.",
-    "laissez sécher le bac à poussière et le filtre lavable."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Remarque : Pour éviter toute obstruction, n’utilisez que de l’eau propre sans liquide de nettoyage."
-   ]
-  },
-  "mop_cloth": {
-   "clean_frequency": "Après chaque utilisation",
-   "replace_frequency": "Tous les 3-6 mois",
-   "steps": [
-    "retirez la serpillière VibraRise du support de serpillière VibraRise. Nettoyez la serpillière VibraRise et laissez-la sécher à l’air libre."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire et remplacer tous les 3 à 6 mois.",
-    "Remarque : Une serpillière VibraRise sale nuira aux performances de nettoyage. Nettoyez-la avant utilisation."
-   ]
-  },
-  "water_filter": {
-   "clean_frequency": None,
-   "replace_frequency": "Tous les 1-3 mois",
-   "steps": [
-    "Déverrouillez le filtre à eau et retirez-le de la station. Déverrouillez le loquet du filtre et rincez le filtre afin qu’il soit propre. Utilisez un chiffon doux sec pour essuyer le réservoir de nettoyage, puis réinstallez le filtre. Appuyez sur le filtre jusqu’à ce que vous entendiez un déclic indiquant qu’il s’est verrouillé en place."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "This is the dock's water filter (part A10-14)."
-   ]
-  },
-  "caster_wheel": {
-   "clean_frequency": "Mensuel",
-   "replace_frequency": None,
-   "steps": [
-    "utilisez un outil, tel qu’un petit tournevis, pour déloger l’axe et extraire la roulette.",
-    "rincez la roulette et son axe à l’eau pour retirer tout cheveu et toute saleté. Laissez sécher et réinstallez la roulette en appuyant fermement dessus pour qu’elle se mette en place."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Remarque : Le support de la roulette omnidirectionnelle ne peut pas être retiré."
-   ]
-  },
-  "main_wheel": {
-   "clean_frequency": "Hebdomadaire",
-   "replace_frequency": None,
-   "steps": [
-    "Nettoyez les roulettes principales à l’aide d’un chiffon doux sec."
-   ],
-   "notes": [
-    "Nettoyer tous les mois."
-   ]
-  },
-  "air_duct": {
-   "clean_frequency": None,
-   "replace_frequency": None,
-   "steps": [
-    "retirez le réservoir d’eau propre, le réservoir d’eau sale et le bac à poussière.",
-    "retirez le filtre à eau et essuyez toute trace d’eau avec un chiffon.",
-    "saisissez les côtés de la base de la station vers le haut pour démonter et vérifier s’il y a des obstructions. Si l’entrée d’air est obstruée, nettoyez-la avec un coton-tige, puis essuyez-la avec un chiffon sec.",
-    "retournez soigneusement la station sur un sol dur recouvert d’une serviette douce.",
-    "retirez les trois vis et retirez le cache.",
-    "essuyez le tuyau d’air et le cache du tuyau d’air à l’aide d’un chiffon sec.",
-    "réinstallez le cache et revissez-le en place."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Suivez les étapes ci-dessous pour nettoyer le tuyau d’air et éviter toute obstruction."
-   ]
-  },
-  "maintenance_brush": {
-   "clean_frequency": None,
-   "replace_frequency": None,
-   "steps": [
-    "Levez le loquet de la brosse d’entretien à haute vitesse et retirez la brosse comme illustré ci-dessous. Retirez tout objet enchevêtré dans la brosse d’entretien à haute vitesse et rincez-la pour qu’elle soit propre. Réinstallez la brosse et verrouillez-la en place à l’aide du loquet."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire et remplacer tous les 6 à 12 mois.",
-    "This is the dock's washing roller (part A10-8, with maintenance brush latch A10-9)."
-   ]
-  }
- },
- "wash_station": {
-  "main_brush": {
-   "clean_frequency": "Hebdomadaire",
-   "replace_frequency": "Tous les 6-12 mois",
-   "steps": [
-    "retournez le robot et appuyez sur les loquets pour retirer le cache de la brosse principale.",
-    "retirez les brosses principales et tirez sur leur roulement pour le sortir.",
-    "tirez sur les capuchons de la brosse principale pour les sortir.",
-    "après avoir retiré les poils et saletés entremêlés aux deux extrémités des brosses principales, réinstallez-les.",
-    "appuyez sur le cache de la brosse principale jusqu’à ce que vous entendiez un déclic indiquant que la brosse est verrouillée en place."
-   ],
-   "notes": [
-    "Nettoyer toutes les 2 semaines et remplacer tous les 6 à 12 mois.",
-    "Vous devez nettoyer les brosses principales à l’aide d’un chiffon humide et les laisser sécher à l’écart de la lumière directe du soleil.",
-    "N’utilisez pas de liquides nettoyants corrosifs ou de désinfectants pour nettoyer les brosses principales.",
-    "C1-1 brosses principales, C1-2 cache de la brosse principale, C1-3 loquets, C1-4 roulement de la brosse principale, C1-5 capuchons de la brosse principale."
-   ]
-  },
-  "side_brush": {
-   "clean_frequency": "Mensuel",
-   "replace_frequency": "Tous les 3-6 mois",
-   "steps": [
-    "Retirez la vis de la brosse latérale.",
-    "Retirez et nettoyez la brosse latérale. Réinstallez la brosse latérale et serrez la vis."
-   ],
-   "notes": [
-    "Nettoyer tous les mois et remplacer tous les 3 à 6 mois."
-   ]
-  },
-  "filter": {
-   "clean_frequency": "Toutes les 2 semaines",
-   "replace_frequency": "Tous les 6-12 mois",
-   "steps": [
-    "ouvrez le cache du filtre et retirez le filtre.",
-    "rincez le filtre à plusieurs reprises et tapotez-le pour éliminer autant de saletés que possible.",
-    "laissez le filtre sécher complètement pendant 24 heures, puis réinstallez-le."
-   ],
-   "notes": [
-    "Nettoyer toutes les 2 semaines et remplacer tous les 6 à 12 mois.",
-    "Remarque : Ne touchez pas la surface du filtre avec vos mains, une brosse ou des objets durs pour éviter tout risque de l’endommager.",
-    "Achetez un filtre supplémentaire et alternez si nécessaire."
-   ]
-  },
-  "sensor": {
-   "clean_frequency": "Mensuel",
-   "replace_frequency": None,
-   "steps": [
-    "Utilisez un chiffon doux sec pour essuyer et nettoyer tous les capteurs, notamment les suivants :",
-    "capteur d’évitement d’obstacles Reactive 3D",
-    "capteur de lavage de la serpillière",
-    "capteur de murs",
-    "Capteur de moquette",
-    "capteurs de vide"
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Les cinq capteurs sont étiquetés C8-1 à C8-5 autour du schéma du robot ; tous se nettoient avec un chiffon doux et sec."
-   ]
-  },
-  "dustbin": {
-   "clean_frequency": "Hebdomadaire",
-   "replace_frequency": None,
-   "steps": [
-    "ouvrez le capot supérieur du robot et appuyez sur le loquet du bac à poussière pour retirer le bac à poussière.",
-    "appuyez sur le loquet du cache du bac à poussière pour l’ouvrir, retirez le filtre lavable, puis videz le bac à poussière.",
-    "remplissez le bac à poussière d’eau propre et fermez le couvercle. Secouez délicatement le bac à poussière puis évacuez l’eau sale.",
-    "laissez sécher le bac à poussière et le filtre lavable."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Remarque : Pour éviter toute obstruction, n’utilisez que de l’eau propre sans liquide de nettoyage."
-   ]
-  },
-  "mop_cloth": {
-   "clean_frequency": "Après chaque utilisation",
-   "replace_frequency": "Tous les 3-6 mois",
-   "steps": [
-    "retirez la serpillière VibraRise du support de serpillière VibraRise. Nettoyez la serpillière VibraRise et laissez-la sécher à l’air libre."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire et remplacer tous les 3 à 6 mois.",
-    "Remarque : Une serpillière VibraRise sale nuira aux performances de nettoyage. Nettoyez-la avant utilisation."
-   ]
-  },
-  "water_filter": {
-   "clean_frequency": None,
-   "replace_frequency": "Tous les 1-3 mois",
-   "steps": [
-    "Déverrouillez le filtre à eau et retirez-le de la station. Déverrouillez le loquet du filtre et rincez le filtre afin qu’il soit propre. Utilisez un chiffon doux sec pour essuyer le réservoir de nettoyage, puis réinstallez le filtre. Appuyez sur le filtre jusqu’à ce que vous entendiez un déclic indiquant qu’il s’est verrouillé en place."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "This is the dock's water filter (part A10-14)."
-   ]
-  },
-  "caster_wheel": {
-   "clean_frequency": "Mensuel",
-   "replace_frequency": None,
-   "steps": [
-    "utilisez un outil, tel qu’un petit tournevis, pour déloger l’axe et extraire la roulette.",
-    "rincez la roulette et son axe à l’eau pour retirer tout cheveu et toute saleté. Laissez sécher et réinstallez la roulette en appuyant fermement dessus pour qu’elle se mette en place."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Remarque : Le support de la roulette omnidirectionnelle ne peut pas être retiré."
-   ]
-  },
-  "main_wheel": {
-   "clean_frequency": "Hebdomadaire",
-   "replace_frequency": None,
-   "steps": [
-    "Nettoyez les roulettes principales à l’aide d’un chiffon doux sec."
-   ],
-   "notes": [
-    "Nettoyer tous les mois."
-   ]
-  },
-  "dust_bag": {
-   "clean_frequency": None,
-   "replace_frequency": "Lorsqu’il est plein (env. toutes les 7 semaines)",
-   "steps": [
-    "soulevez le bac à poussière et retirez le sac à la verticale comme illustré.",
-    "mettez le sac à poussière au rebut et nettoyez le pourtour du filtre avec un chiffon sec.",
-    "insérez un nouveau sac à poussière jetable dans la fente comme illustré. Faites-le glisser jusqu’à ce qu’il atteigne le bas de la fente et réinstallez fermement le bac à poussière."
-   ],
-   "notes": [
-    "Remplacer le sac à poussière jetable lorsqu’il est plein.",
-    "Remarque : Le fait de tirer la poignée du sac à poussière pour le retirer le fermera pour éviter toute perte de poussière.",
-    "Remarque : Installez toujours un sac à poussière avant de remettre en place le couvercle supérieur du bac à poussière pour éviter tout vidage automatique sans sac. Vous pouvez également désactiver le vidage automatique dans l'application."
-   ]
-  },
-  "clean_water_tank": {
-   "clean_frequency": "Si nécessaire",
-   "replace_frequency": None,
-   "steps": [
-    "Ouvrez le réservoir d’eau propre et remplissez-le d’eau. Refermez le couvercle, verrouillez le loquet et réinstallez le réservoir en place."
-   ],
-   "notes": [
-    "Ceci figure sous « Instructions » (page 9), et non sous « Entretien courant » ; le manuel ne fournit aucune procédure distincte de nettoyage du réservoir d'eau propre.",
-    "Pour éviter toute corrosion ou tout dommage, n’utilisez que du nettoyant pour sols de marque Roborock dans le réservoir d’eau.",
-    "Pour éviter toute déformation du réservoir d’eau, n’y placez pas d’eau chaude.",
-    "Si des traces d’eau subsistent sur le réservoir d’eau, essuyez-les avant de le réinstaller."
-   ]
-  },
-  "dirty_water_tank": {
-   "clean_frequency": "Si nécessaire",
-   "replace_frequency": None,
-   "steps": [
-    "Nettoyez le réservoir d’eau sale si nécessaire. Ouvrez le couvercle du réservoir d’eau sale et évacuez l’eau sale. Remplissez le réservoir avec de l’eau propre, refermez le couvercle, verrouillez-le et agitez. Évacuez ensuite l’eau sale. Refermez le couvercle puis réinstallez le réservoir."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire."
-   ]
-  },
-  "air_duct": {
-   "clean_frequency": None,
-   "replace_frequency": None,
-   "steps": [
-    "retirez le réservoir d’eau propre, le réservoir d’eau sale et le bac à poussière.",
-    "retirez le filtre à eau et essuyez toute trace d’eau avec un chiffon.",
-    "saisissez les côtés de la base de la station vers le haut pour démonter et vérifier s’il y a des obstructions. Si l’entrée d’air est obstruée, nettoyez-la avec un coton-tige, puis essuyez-la avec un chiffon sec.",
-    "retournez soigneusement la station sur un sol dur recouvert d’une serviette douce.",
-    "retirez les trois vis et retirez le cache.",
-    "essuyez le tuyau d’air et le cache du tuyau d’air à l’aide d’un chiffon sec.",
-    "réinstallez le cache et revissez-le en place."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire.",
-    "Suivez les étapes ci-dessous pour nettoyer le tuyau d’air et éviter toute obstruction."
-   ]
-  },
-  "maintenance_brush": {
-   "clean_frequency": None,
-   "replace_frequency": None,
-   "steps": [
-    "Levez le loquet de la brosse d’entretien à haute vitesse et retirez la brosse comme illustré ci-dessous. Retirez tout objet enchevêtré dans la brosse d’entretien à haute vitesse et rincez-la pour qu’elle soit propre. Réinstallez la brosse et verrouillez-la en place à l’aide du loquet."
-   ],
-   "notes": [
-    "Nettoyer si nécessaire et remplacer tous les 6 à 12 mois.",
-    "This is the dock's washing roller (part A10-8, with maintenance brush latch A10-9)."
-   ]
-  }
- }
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

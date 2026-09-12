@@ -18,26 +18,21 @@ this map is complete by construction. **Do not hand-edit** — edit the registry
 | output(s) | gate | generated&nbsp;by | edit instead (sources) | downstream |
 |---|---|---|---|---|
 | `custom_components/eufy_vacuum/frontend/animal-svg/animals/*.js` (6) | map-only | `animal-modules` (node scripts/build-animal.mjs <descriptor.json> --first-party) | `custom_components/eufy_vacuum/frontend/animal-svg/src/` | — |
-| `custom_components/eufy_vacuum/adapters/eufy/eufy_upkeep_guides.py` · `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/*.py` (17) | map-only | `eufy-guides` (python scripts/build_guides.py && python scripts/emit_libs.py --emit) | `durable/eufy-port-fixture/care_tm_full.json` _(external)_ · `durable/eufy-port-fixture/eufy_care_corpus.json` _(external)_ | `guide-translations` |
+| `src/i18n/guide-keys.js` | map-only | `dreame-guide-keys` (python scripts/sync-dreame-guide-keys.py) | `durable/dreame-port-fixture/resources/key-authoring/` _(external)_ | — |
 | `docs/dev/reference/EVENTS.md` | gated | `events` (python scripts/gen_event_docs.py) | `custom_components/eufy_vacuum/` | — |
 | `docs/dev/reference/GENERATION_MAP.md` | gated | `generation-map` (python scripts/gen_generation_map.py) | `scripts/check_generated_docs.py` | — |
-| `src/i18n/guide-translations.js` | map-only | `guide-translations` (python scripts/sync-guide-translations.py) | `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/` · `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/` · `custom_components/eufy_vacuum/adapters/dreame/upkeep_guides_i18n/` · `scripts/data/guide-frequency-translations.json` | — |
+| `src/i18n/guide-translations.js` | map-only | `guide-translations` (python scripts/sync-guide-translations.py) | `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/` · `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/` · `scripts/data/guide-frequency-translations.json` | — |
 | `custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc` | map-only | `locale-reference` (npm run build:locale-reference) | `src/i18n/en.js` | — |
 | `docs/testing/subsystems/*.md` (19) | gated · region | `mock-column` (python scripts/mock_docs.py) | `tests/` | — |
-| `custom_components/eufy_vacuum/adapters/roborock/roborock_upkeep_guides.py` · `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/*.py` (17) | map-only | `roborock-guides` (python scripts/build_guides.py && python scripts/emit_libs.py --emit) | `durable/roborock-port-fixture/care_tm_full.json` _(external)_ · `durable/roborock-port-fixture/roborock_care_corpus.json` _(external)_ | `guide-translations` |
 | `docs/dev/reference/THEME_TOKEN_MAP.md`, `docs/dev/reference/THEME_TOKEN_USAGE.md` | gated | `theme-tokens` (node scripts/gen-theme-token-docs.mjs) | `src/theme-tokens/` · `src/styles/` | — |
 
 ## Reverse index — “I need to change …”
 
 - **`custom_components/eufy_vacuum/`** → regenerates `docs/dev/reference/EVENTS.md` · run `python scripts/gen_event_docs.py`
-- **`custom_components/eufy_vacuum/adapters/dreame/upkeep_guides_i18n/`** → regenerates `src/i18n/guide-translations.js` · run `python scripts/sync-guide-translations.py`
-- **`custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/`** → regenerates `src/i18n/guide-translations.js` · run `python scripts/sync-guide-translations.py` — **but `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/` is itself generated; edit ITS source above**
-- **`custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/`** → regenerates `src/i18n/guide-translations.js` · run `python scripts/sync-guide-translations.py` — **but `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/` is itself generated; edit ITS source above**
+- **`custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/`** → regenerates `src/i18n/guide-translations.js` · run `python scripts/sync-guide-translations.py`
+- **`custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/`** → regenerates `src/i18n/guide-translations.js` · run `python scripts/sync-guide-translations.py`
 - **`custom_components/eufy_vacuum/frontend/animal-svg/src/`** → regenerates `custom_components/eufy_vacuum/frontend/animal-svg/animals/*.js` (6) · run `node scripts/build-animal.mjs <descriptor.json> --first-party`
-- **`durable/eufy-port-fixture/care_tm_full.json`** _(external, provenance only)_ → regenerates `custom_components/eufy_vacuum/adapters/eufy/eufy_upkeep_guides.py` · `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/*.py` (17) · run `python scripts/build_guides.py && python scripts/emit_libs.py --emit`
-- **`durable/eufy-port-fixture/eufy_care_corpus.json`** _(external, provenance only)_ → regenerates `custom_components/eufy_vacuum/adapters/eufy/eufy_upkeep_guides.py` · `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/*.py` (17) · run `python scripts/build_guides.py && python scripts/emit_libs.py --emit`
-- **`durable/roborock-port-fixture/care_tm_full.json`** _(external, provenance only)_ → regenerates `custom_components/eufy_vacuum/adapters/roborock/roborock_upkeep_guides.py` · `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/*.py` (17) · run `python scripts/build_guides.py && python scripts/emit_libs.py --emit`
-- **`durable/roborock-port-fixture/roborock_care_corpus.json`** _(external, provenance only)_ → regenerates `custom_components/eufy_vacuum/adapters/roborock/roborock_upkeep_guides.py` · `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/*.py` (17) · run `python scripts/build_guides.py && python scripts/emit_libs.py --emit`
+- **`durable/dreame-port-fixture/resources/key-authoring/`** _(external, provenance only)_ → regenerates `src/i18n/guide-keys.js` · run `python scripts/sync-dreame-guide-keys.py`
 - **`scripts/check_generated_docs.py`** → regenerates `docs/dev/reference/GENERATION_MAP.md` · run `python scripts/gen_generation_map.py`
 - **`scripts/data/guide-frequency-translations.json`** → regenerates `src/i18n/guide-translations.js` · run `python scripts/sync-guide-translations.py`
 - **`src/i18n/en.js`** → regenerates `custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc` · run `npm run build:locale-reference`
@@ -53,11 +48,11 @@ _per-animal codegen from a sanitised descriptor; own gate is check-animal-pr_
 - **DO NOT EDIT:** `custom_components/eufy_vacuum/frontend/animal-svg/animals/*.js` (6)
 - **REGEN:** `node scripts/build-animal.mjs <descriptor.json> --first-party`
 
-### `eufy-guides`  ·  map-only
-_lifted manufacturer TM (real manual wording) -> per-family guide lib + i18n_
-- **EDIT HERE:** `durable/eufy-port-fixture/care_tm_full.json` (external), `durable/eufy-port-fixture/eufy_care_corpus.json` (external)
-- **DO NOT EDIT:** `custom_components/eufy_vacuum/adapters/eufy/eufy_upkeep_guides.py` · `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/*.py` (17)
-- **REGEN:** `python scripts/build_guides.py && python scripts/emit_libs.py --emit`
+### `dreame-guide-keys`  ·  map-only
+_the 18 Dreame key packs -> bundled EN + served per-lang key JSON_
+- **EDIT HERE:** `durable/dreame-port-fixture/resources/key-authoring/` (external)
+- **DO NOT EDIT:** `src/i18n/guide-keys.js`
+- **REGEN:** `python scripts/sync-dreame-guide-keys.py`
 
 ### `events`
 _every hass.bus.async_fire call site_
@@ -73,7 +68,7 @@ _this registry, rendered as the who-generates-what navigation graph_
 
 ### `guide-translations`  ·  map-only
 _merges the brand i18n packs -> card's EN base + served per-lang guide JSON_
-- **EDIT HERE:** `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/`, `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/`, `custom_components/eufy_vacuum/adapters/dreame/upkeep_guides_i18n/`, `scripts/data/guide-frequency-translations.json`
+- **EDIT HERE:** `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/`, `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/`, `scripts/data/guide-frequency-translations.json`
 - **DO NOT EDIT:** `src/i18n/guide-translations.js`
 - **REGEN:** `python scripts/sync-guide-translations.py`
 
@@ -88,12 +83,6 @@ _the generated Mocking column, from the mock census_
 - **EDIT HERE:** `tests/`
 - **DO NOT EDIT:** `docs/testing/subsystems/*.md` (19)
 - **REGEN:** `python scripts/mock_docs.py`
-
-### `roborock-guides`  ·  map-only
-_lifted manufacturer TM (real manual wording) -> per-family guide lib + i18n_
-- **EDIT HERE:** `durable/roborock-port-fixture/care_tm_full.json` (external), `durable/roborock-port-fixture/roborock_care_corpus.json` (external)
-- **DO NOT EDIT:** `custom_components/eufy_vacuum/adapters/roborock/roborock_upkeep_guides.py` · `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/*.py` (17)
-- **REGEN:** `python scripts/build_guides.py && python scripts/emit_libs.py --emit`
 
 ### `theme-tokens`
 _theme editor registry + card CSS_

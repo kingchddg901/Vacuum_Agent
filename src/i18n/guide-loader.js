@@ -24,6 +24,7 @@
  */
 
 import { GUIDE_TRANSLATIONS } from "./guide-translations.js";
+import { GUIDE_KEYS } from "./guide-keys.js";
 
 /**
  * lang -> { family -> { component -> { steps[], notes[], clean_frequency, replace_frequency } } }.
@@ -121,6 +122,106 @@ export function ensureGuideLanguage(lang, onLoaded, opts = {}) {
   const bust = ver ? `?v=${encodeURIComponent(ver)}` : "";
   return Promise.all(
     wanted.map((code) => loadGuideCatalog(`${baseUrl}/${code}.json${bust}`, code, opts)),
+  ).then((results) => {
+    if (results.some(Boolean) && typeof onLoaded === "function") onLoaded();
+    return wanted.filter((_, i) => results[i]);
+  });
+}
+
+/* ============================================================
+   GUIDE KEYS — the same split, for the KEY-routed guides
+   ============================================================
+
+   A key-routed adapter (Dreame) ships no guide words at all: the payload carries i18n
+   KEYS and the card supplies the sentence in the reader's own language. So this is the
+   same bundle-en / serve-the-rest shape as above, over a much smaller and much flatter
+   object — `{key: "complete sentence"}` rather than family → component → entry. 51 keys
+   cover every Dreame model, so a served pack is ~6 KB against ~200 KB for a prose
+   catalog, and it is fetched alongside it.
+
+   ONE DIFFERENCE THAT MATTERS: a missing prose catalog falls back to English text, which
+   reads fine. A missing KEY falls back to the key itself — `rinse.clean_water_only` on
+   a card. That is the designed fallback and it is deliberately loud, because it cannot
+   be allowed to pass silently; scripts/sync-dreame-guide-keys.py refuses to write a pack
+   that does not cover every key the backend can emit, which is what keeps it from ever
+   being seen. */
+
+/** lang -> { key -> sentence }. Seeded with the bundled English base. */
+const KEY_PACKS = { en: GUIDE_KEYS || {} };
+
+/** Languages already fetched (or in flight) for KEY packs. */
+const _requestedKeyLangs = new Set(["en"]);
+
+/**
+ * The key pack registered for a language, or undefined. English is always present.
+ *
+ * @param {string} lang
+ * @returns {object|undefined}
+ */
+export function guideKeyPack(lang) {
+  return KEY_PACKS[lang];
+}
+
+/**
+ * Register a runtime-loaded key pack. English is NOT overridable — it is the bundled
+ * base and the universal fallback. Rejects a non-object payload.
+ *
+ * @param {string} lang
+ * @param {object} pack
+ * @returns {boolean} whether it registered.
+ */
+export function registerGuideKeyPack(lang, pack) {
+  if (!lang || lang === "en") return false;
+  if (!pack || typeof pack !== "object" || Array.isArray(pack)) return false;
+  KEY_PACKS[lang] = pack;
+  return true;
+}
+
+/**
+ * Fetch + register one served key pack. JSON-only, same-origin, fails soft.
+ *
+ * @param {string} url
+ * @param {string} lang
+ * @param {{ fetchImpl?: typeof fetch }} [opts]
+ * @returns {Promise<boolean>}
+ */
+export async function loadGuideKeyPack(url, lang, opts = {}) {
+  const doFetch = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
+  if (!doFetch || !lang || lang === "en") return false;
+  try {
+    const resp = await doFetch(url, { credentials: "same-origin" });
+    if (!resp || !resp.ok) return false;
+    const data = await resp.json();
+    return registerGuideKeyPack(lang, data);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Load ONLY the key pack(s) a card language needs — the language and, for a regional
+ * tag, its base — once each, on demand. Same contract as `ensureGuideLanguage`:
+ * English renders until the pack lands, `onLoaded` re-renders when it does, a code is
+ * marked requested BEFORE the fetch so a 404 cannot retry every render, fails soft.
+ *
+ * @param {string} lang - the card's resolved language.
+ * @param {() => void} [onLoaded]
+ * @param {{ fetchImpl?: typeof fetch, baseUrl?: string, ver?: string }} [opts]
+ */
+export function ensureGuideKeyLanguage(lang, onLoaded, opts = {}) {
+  const full = String(lang || "en");
+  const base = full.split("-")[0];
+  const wanted = [];
+  for (const code of [full, base]) {
+    if (code && code !== "en" && !_requestedKeyLangs.has(code) && !wanted.includes(code)) wanted.push(code);
+  }
+  if (!wanted.length) return Promise.resolve([]);
+  for (const code of wanted) _requestedKeyLangs.add(code);
+  const baseUrl = opts.baseUrl || "/eufy_vacuum/frontend/guides/keys";
+  const ver = opts.ver ?? SHIPPED_GUIDE_VER;
+  const bust = ver ? `?v=${encodeURIComponent(ver)}` : "";
+  return Promise.all(
+    wanted.map((code) => loadGuideKeyPack(`${baseUrl}/${code}.json${bust}`, code, opts)),
   ).then((results) => {
     if (results.some(Boolean) && typeof onLoaded === "function") onLoaded();
     return wanted.filter((_, i) => results[i]);

@@ -5,8 +5,18 @@ Regenerate src/i18n/guide-translations.js from the integration's guide data.
 The maintenance guide (steps / notes / clean & replace frequency) is rendered
 on the CARD in the user's per-user language (the globe), not the HA instance
 language. To do that the card needs the guide content client-side, so we port
-it here from the same Python source of truth (BOTH brands — families are
-namespaced by key, so Eufy's x10_pro_omni… and Roborock's s6/s7/s8 coexist):
+it here from the same Python source of truth (Eufy + Roborock — families are
+namespaced by key, so Eufy's x10_pro_omni… and Roborock's s6/s7/s8 coexist).
+
+DREAME IS NOT HERE, and its absence is the design. Dreame guides are i18n KEYS routed by
+regime (adapters/dreame/upkeep_keys.py); the backend ships no Dreame words in any
+language, so there is nothing for this script to port. Its packs are built by
+scripts/sync-dreame-guide-keys.py into src/i18n/guide-keys.js + frontend/guides/keys/.
+⭐ That also RETIRED the cross-brand family-key collision this script used to work around:
+Dreame's generic tiers shared bare keys (standard / auto_empty / wash_station…) with
+Roborock's while holding different prose, and the card looks a family up with no brand
+qualifier. The workaround was to skip Dreame on collision, which left those models
+English-only. There is no collision left to skip.
 
   - English base:           adapters/eufy/eufy_upkeep_guides.py       (UPKEEP_GUIDE_LIBRARY)
                             adapters/roborock/roborock_upkeep_guides.py (ROBOROCK_UPKEEP_GUIDE_LIBRARY)
@@ -34,11 +44,17 @@ ADAPTERS = os.path.join(ROOT, "custom_components", "eufy_vacuum", "adapters")
 # is pure data (no cross-adapter imports) — bare imports are safe.
 sys.path.insert(0, os.path.join(ADAPTERS, "eufy"))
 sys.path.insert(0, os.path.join(ADAPTERS, "roborock"))
-sys.path.insert(0, os.path.join(ADAPTERS, "dreame"))
 
 import eufy_upkeep_guides as base          # noqa: E402
 import roborock_upkeep_guides as rr_base   # noqa: E402
-import dreame_upkeep_guides as dr_base     # noqa: E402
+# ⚠ THE LESSON FROM THE DREAME HALF, KEPT because it is about THIS script, not about Dreame.
+# Loading that adapter's guides needed two import tricks (a synthetic parent package for its
+# relative imports, and a subpackage for an i18n __init__ that reached UP one level). Neither
+# was in place, so this regenerator RAISED before writing anything — and a stale
+# src/i18n/guide-translations.js full of families whose Python source had been deleted kept
+# shipping for weeks. A tool that cannot start fails silently in exactly this shape: nothing
+# is wrong with the output, because there is no output. If this script grows a third brand,
+# run it and read the byte counts; do not assume it ran.
 
 
 def _load_pkg(pkg_dir, modname):
@@ -56,7 +72,6 @@ def _load_pkg(pkg_dir, modname):
 
 i18n = _load_pkg(os.path.join(ADAPTERS, "eufy", "upkeep_guides_i18n"), "eufy_upkeep_guides_i18n")
 rr_i18n = _load_pkg(os.path.join(ADAPTERS, "roborock", "upkeep_guides_i18n"), "roborock_upkeep_guides_i18n")
-dr_i18n = _load_pkg(os.path.join(ADAPTERS, "dreame", "upkeep_guides_i18n"), "dreame_upkeep_guides_i18n")
 
 FIELDS = ("steps", "notes", "clean_frequency", "replace_frequency")
 LANGS = ("de", "fr", "es", "it", "nl", "pt", "ru", "ar", "he", "ja", "zh-Hans", "zh-Hant", "ko")
@@ -71,34 +86,12 @@ for library in (base.UPKEEP_GUIDE_LIBRARY, rr_base.ROBOROCK_UPKEEP_GUIDE_LIBRARY
             comp: {k: g[k] for k in FIELDS if k in g} for comp, g in comps.items()
         }
 
-# Dreame is added AFTER, COLLISION-SAFE. Its generic tier families (standard / auto_empty
-# / wash_station / wash_station_track / _roller / _baseboard) share KEYS with Roborock's
-# but hold DIFFERENT prose (measured off different manuals), and the card looks a family
-# up by its bare key with no brand qualifier (renderers/maintenance.js). Overwriting would
-# silently swap Roborock's tier guide for Dreame's. So Dreame only CLAIMS keys no earlier
-# brand used: its uniquely-named authored families (matrix10, l60_ultra, x50, l10s_gen2,
-# aqua10_ultra_*, …) localize on the card, while its bare-tier-family models fall back to
-# English until the keys are brand-namespaced (the proper fix — a cross-brand card change,
-# deferred). Skipped keys are reported below.
-_claimed = set(merged["en"])
-dreame_skipped = sorted(set(dr_base.DREAME_UPKEEP_GUIDE_LIBRARY) & _claimed)
-for family, comps in dr_base.DREAME_UPKEEP_GUIDE_LIBRARY.items():
-    if family in _claimed:
-        continue
-    merged["en"][family] = {
-        comp: {k: g[k] for k in FIELDS if k in g} for comp, g in comps.items()
-    }
-
-# Official manual translations on top. Eufy + Roborock first (disjoint keys), then Dreame
-# with the same collision-skip so it never overwrites a family an earlier brand claimed.
+# Official manual translations on top. Eufy + Roborock keys are disjoint, so a plain
+# update is safe — there is no brand qualifier in the family key and nothing to collide with
+# now that Dreame no longer routes by family.
 for src in (i18n.UPKEEP_GUIDE_TRANSLATIONS, rr_i18n.ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS):
     for lang, fams in src.items():
         merged.setdefault(lang, {}).update(json.loads(json.dumps(fams)))  # deep copy
-for lang, fams in dr_i18n.DREAME_UPKEEP_GUIDE_TRANSLATIONS.items():
-    dest = merged.setdefault(lang, {})
-    for family, comps in json.loads(json.dumps(fams)).items():
-        if family not in _claimed:
-            dest[family] = comps
 
 # Back-fill frequency gaps from the machine-translated unique phrases.
 with open(os.path.join(ROOT, "scripts", "data", "guide-frequency-translations.json"), encoding="utf-8") as fh:
@@ -192,6 +185,3 @@ print(f"  languages served: {', '.join(langs)}")
 print(f"  no-op self-check: en + served reconstructs merged  OK")
 print(f"  bundle: {full_bytes} -> {en_bytes} bytes "
       f"({100 * (1 - en_bytes / full_bytes):.0f}% smaller); {served_bytes} bytes now lazy-loaded")
-if dreame_skipped:
-    print(f"Dreame families NOT localized on the card (key shared with an earlier brand; "
-          f"fall back to English until brand-namespaced): {dreame_skipped}")

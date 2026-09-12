@@ -48,13 +48,8 @@ from .entities import (
     build_entity_id,
 )
 from .maintenance_components import MAINTENANCE_COMPONENTS
-from .dreame_upkeep_guides import DREAME_UPKEEP_GUIDE_LIBRARY
-from .upkeep_catalog import (
-    DREAME_GUIDE_FAMILY_NAMES,
-    DREAME_MODEL_GUIDE_FAMILIES,
-    DREAME_MODEL_NAMES,
-)
-from .upkeep_guides_i18n import DREAME_UPKEEP_GUIDE_TRANSLATIONS
+from .upkeep_catalog import DREAME_MODEL_NAMES
+from .upkeep_keys import DREAME_MODEL_KEY_REGIMES, DREAME_UPKEEP_KEY_GUIDES
 from .model_catalog import profile_for_model
 
 _LOGGER = logging.getLogger(__name__)
@@ -561,20 +556,50 @@ def register_dreame_adapter_for_vacuum(
             "steps": ["add_vacuum", "import_active_map", "save_rooms"],
         },
 
-        "maintenance_components": MAINTENANCE_COMPONENTS,
+        # Sourced from maintenance_components.py, PROJECTED the way Roborock projects its
+        # own: the schema requires sensor_suffix + both interval fields on every entry, and
+        # a guide-only cleanable has none of them. Passing the table through raw worked
+        # only while all four Dreame components were sensor-backed; the guide-only rows
+        # added 2026-09-11 made it a schema violation. Intervals default to 0.0 (nothing
+        # counts down), reset_button is omitted entirely rather than sent as None
+        # (schema: dict-or-absent, "Absent = no reset button").
+        "maintenance_components": {
+            component_id: {
+                "sensor_suffix": component.get("sensor_suffix"),
+                "maintenance_only": component.get("maintenance_only", False),
+                "default_interval_hours": component.get("default_interval_hours", 0.0),
+                "max_interval_hours": component.get("max_interval_hours", 0.0),
+                "label": component["label"],
+                "icon": component["icon"],
+                **(
+                    {"reset_button": component["reset_button"]}
+                    if component.get("reset_button")
+                    else {}
+                ),
+            }
+            for component_id, component in MAINTENANCE_COMPONENTS.items()
+        },
 
-        # Sourced from adapters/dreame/upkeep_catalog.py + dreame_upkeep_guides.py, mirroring
-        # the eufy/roborock declaration. WITHOUT this block the authored guide families are
-        # invisible: maintenance/manager.py resolves guides via _catalog["guide_library"], so
-        # the families + their 17 language packs sat unreachable on disk until it was declared.
+        # KEY GUIDES, NOT FAMILIES. Dreame is the one adapter that ships i18n KEYS and lets
+        # the card supply the words. Eufy and Roborock still declare `model_guide_families` +
+        # `guide_library` + `guide_translations`; both routings live in maintenance/manager.py
+        # and an adapter picks one.
+        #
+        # WHY THE FAMILIES WENT. The card's content depends on three measured fields — mop
+        # type, dock tier, on-board tanks (upkeep_regimes.py) — and all 700 models collapse to
+        # SEVEN distinct cards. The family system spent 280 hand-authored prose tables and 17
+        # language packs saying that, and a new model meant authoring another one. Here a new
+        # model is one row in the regime table and renders a card that already exists in 18
+        # languages.
+        #
+        # The backend holds NO WORDS for Dreame. It emits key lists; the card resolves them in
+        # the reader's own language (src/i18n/guide-keys.js + frontend/guides/keys/<lang>.json),
+        # which the backend cannot see — it only ever knew the HA instance language. That is
+        # also why there is no `guide_translations` entry here: nothing left to overlay.
         "upkeep_catalog": {
             "model_names": DREAME_MODEL_NAMES,
-            "model_guide_families": DREAME_MODEL_GUIDE_FAMILIES,
-            "guide_family_names": DREAME_GUIDE_FAMILY_NAMES,
-            "guide_library": DREAME_UPKEEP_GUIDE_LIBRARY,
-            # Per-language step/note/frequency overlays on the English base, selected by the
-            # HA instance language (see upkeep_guides_i18n/, one <lang>.py each).
-            "guide_translations": DREAME_UPKEEP_GUIDE_TRANSLATIONS,
+            "model_key_regimes": DREAME_MODEL_KEY_REGIMES,
+            "key_guides": DREAME_UPKEEP_KEY_GUIDES,
         },
 
         # Dock wash/dry cycle observation + the three dock action buttons. dock_status

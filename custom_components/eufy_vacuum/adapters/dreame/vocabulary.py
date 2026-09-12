@@ -1,6 +1,6 @@
 """Dreame vocabulary — DATA ONLY, deliberately not wired.
 
-Sibling of ``dreame_upkeep_guides.py`` and gated the same way: see the package
+Sibling of ``upkeep_keys.py`` and gated the same way: see the package
 docstring in ``__init__.py``. There is no ``BRAND_REGISTRARS`` row for Dreame and
 no ``adapter.py``; nothing here is reachable at runtime. It ships inert.
 

@@ -210,14 +210,20 @@ class MaintenanceManager:
         model_code = self._manager._get_registry_model_code(vacuum_entity_id=vacuum_entity_id)
         guide_family = model_guide_families.get(model_code or "")
         guide_map = guide_library.get(guide_family or "", {})
+        # A KEY-GUIDE adapter routes by REGIME instead of family and ships i18n keys rather
+        # than prose (Dreame). Both routings are read here so `supported_guide_components`
+        # answers the same question either way; an adapter declares one or the other.
+        guide_regime = _catalog.get("model_key_regimes", {}).get(model_code or "")
+        key_map = _catalog.get("key_guides", {}).get(guide_regime or "", {})
         return {
             "code": model_code,
             "name": model_names.get(model_code or "", model_code),
             "source": "device_registry" if model_code else None,
             "guide_family": guide_family,
             "guide_family_name": guide_family_names.get(guide_family or "", guide_family),
-            "guide_available": bool(guide_map),
-            "supported_guide_components": sorted(guide_map.keys()),
+            "guide_regime": guide_regime,
+            "guide_available": bool(guide_map or key_map),
+            "supported_guide_components": sorted(key_map.keys() or guide_map.keys()),
         }
 
     def _guide_language(self) -> str:
@@ -244,6 +250,51 @@ class MaintenanceManager:
         guide_family_names = _catalog.get("guide_family_names", {})
         guide_library = _catalog.get("guide_library", {})
         guide_translations = _catalog.get("guide_translations", {})
+
+        # ── KEY GUIDES ──────────────────────────────────────────────────────────────
+        # An adapter may ship i18n KEYS instead of prose, routed by REGIME rather than by
+        # guide family (Dreame). The backend then carries no words at all: it emits the key
+        # lists and the CARD resolves them in the reader's own language, which is the only
+        # language the backend cannot see — it knows the HA instance language and nothing
+        # about the per-user globe. So the whole guide_translations overlay below, which
+        # exists to pick prose by INSTANCE language, has nothing to do here and is skipped.
+        #
+        # ADDITIVE ON THE WIRE: `steps_keys`/`notes_keys` are new fields beside the existing
+        # `steps`/`notes`, which stay present and empty. A card that has not been rebuilt
+        # renders an empty guide rather than raising, and nothing that reads the old fields
+        # has to learn the difference between a key and a sentence.
+        key_regime = _catalog.get("model_key_regimes", {}).get(model_code or "")
+        key_guide = _catalog.get("key_guides", {}).get(key_regime or "", {}).get(component)
+        if key_guide:
+            steps_keys = list(key_guide.get("steps", []))
+            notes_keys = list(key_guide.get("notes", []))
+            # No frequency. A key guide has none by design: the cadence a card can state
+            # honestly is the device's own countdown, which the sensor-backed rows already
+            # show in hours. The card renders the frequency line only when it has one.
+            body = {
+                "frequency": None,
+                "steps": [],
+                "notes": [],
+                "steps_keys": steps_keys,
+                "notes_keys": notes_keys,
+                "available": bool(steps_keys or notes_keys),
+            }
+            return {
+                "source_model_code": model_code,
+                "source_model_name": model_names.get(model_code or "", model_code),
+                "source_guide_regime": key_regime,
+                "available": True,
+                "steps": [],
+                "notes": [],
+                "steps_keys": steps_keys,
+                "notes_keys": notes_keys,
+                "maintenance": dict(body),
+                # A key guide draws no line between cleaning a part and replacing it: the
+                # steps are what a person does with their hands either way.
+                "replacement": dict(body),
+                "display_kind": item_kind,
+                "display": dict(body),
+            }
 
         guide_family = model_guide_families.get(model_code or "")
         guide = dict(guide_library.get(guide_family or "", {}).get(component, {}))
@@ -393,11 +444,29 @@ class MaintenanceManager:
 
         _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
         _maintenance_components = _adapter_cfg.get("maintenance_components", {})
-        # Guide components the resolved model's family documents — the family-gate for
-        # guide-only cleanables below.
+        # Guide components the resolved model documents — the gate for guide-only
+        # cleanables below. A key-guide adapter routes by REGIME, which is derived from the
+        # model's measured hardware, so the gate it produces is sharper than the family one:
+        # a pad robot with a wash dock lists mop_pad and washboard and neither mop_track nor
+        # the used-water box.
         _upkeep = _adapter_cfg.get("upkeep_catalog", {})
+        _key_routing = bool(_upkeep.get("key_guides"))
         _guide_family = _upkeep.get("model_guide_families", {}).get(model_code or "")
-        _family_guide_components = set(_upkeep.get("guide_library", {}).get(_guide_family or "", {}))
+        _guide_regime = _upkeep.get("model_key_regimes", {}).get(model_code or "")
+        _model_guide_components = set(
+            _upkeep.get("key_guides", {}).get(_guide_regime or "", {})
+            if _key_routing
+            else _upkeep.get("guide_library", {}).get(_guide_family or "", {})
+        )
+        # An UNRESOLVED model under key routing gates CLOSED, and that is the one place the
+        # two routings deliberately differ. Prose routing has a `standard` family, so an
+        # unknown model still lands on real content and "show everything" is safe. A regime
+        # is measured per model and has no generic member: no regime means the hardware is
+        # genuinely unknown, and the honest card is the sensor-backed rows alone — the same
+        # four an unknown Dreame showed before the guide-only cleanables were declared.
+        # Without this an unrecognised model code renders every cleanable ever listed,
+        # washboard included, on a robot that may have no dock at all.
+        _guide_routed = _key_routing or bool(_guide_family)
         for component, meta in _maintenance_components.items():
             label = meta.get("label", component.replace("_", " ").title())
             # Per-brand DISPLAY key: the component key is canonical (`main_brush`),
@@ -409,18 +478,18 @@ class MaintenanceManager:
             # not a service-life wear part) is not surfaced as a Replacement row;
             # only its integration-tracked Maintenance row shows (issue #38).
             maintenance_only = bool(meta.get("maintenance_only"))
-            # FAMILY GATE for guide-only cleanables: a maintenance_only component with
-            # no upstream sensor is shown only when the model's guide family documents
-            # it — so dock/station components (dust bag, water tanks) appear on station
-            # models but stay hidden on a dockless base robot. Applied only when a
-            # family resolved (unknown model → show everything, unchanged); sensor-
-            # backed components are never gated (so Eufy, whose cleanables all carry a
-            # sensor, is unaffected).
+            # MODEL GATE for guide-only cleanables: a maintenance_only component with
+            # no upstream sensor is shown only when the model's guide family — or its
+            # REGIME, for a key-guide adapter — documents it, so dock/station components
+            # (dust bag, water tanks) appear on station models but stay hidden on a
+            # dockless base robot. Applied only when a family or regime resolved (unknown
+            # model → show everything, unchanged); sensor-backed components are never
+            # gated (so Eufy, whose cleanables all carry a sensor, is unaffected).
             if (
-                _guide_family
+                _guide_routed
                 and maintenance_only
                 and not meta.get("sensor_suffix")
-                and component not in _family_guide_components
+                and component not in _model_guide_components
             ):
                 continue
             source_entity = sources.get(component)

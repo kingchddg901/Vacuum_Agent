@@ -26,17 +26,23 @@ add an equality test against ``DREAME_MODEL_NAMES`` so the two tables cannot dri
 
 from __future__ import annotations
 
-from .upkeep_catalog import DREAME_MODEL_GUIDE_FAMILIES, DREAME_MODEL_NAMES
+from .upkeep_catalog import DREAME_MODEL_NAMES
+from .upkeep_regimes import DREAME_MODEL_REGIMES
 
-# guide/maintenance tier -> station capability set. Only ``standard`` (no station) and
-# ``auto_empty`` (collect only) REDUCE the station; every wash-station-class family
-# (wash_station[/_track/_roller/_baseboard] and the authored families x50/l20/... that
-# are all wash-station robots) falls through to DEFAULT_PROFILE's full-station flags.
-# Over-claiming a station only turns on a card control that fails safe at dock/manager
-# (``missing_action_entity`` when no button resolves); ``standard`` fails CLOSED.
+# DOCK TIER -> station capability set. Only ``charge_only`` (no station) and
+# ``auto_empty`` (collect only) REDUCE the station; every wash tier falls through to
+# DEFAULT_PROFILE's full-station flags. Over-claiming a station only turns on a card
+# control that fails safe at dock/manager (``missing_action_entity`` when no button
+# resolves); ``charge_only`` fails CLOSED.
+#
+# SOURCED FROM THE REGIME TABLE, NOT THE GUIDE FAMILY. It read the guide family until
+# 2026-09-11, which answered this question only by accident: the family key was a TIER
+# name for the generic models and a MODEL name ("x50", "l20_ultra") for every authored
+# one, so ~200 authored models matched neither branch and took the default. dock_tier is
+# a measured field that exists for all 700 and says exactly this.
 _TIER_STATION: dict[str, dict] = {
-    "standard": dict(has_station=False, station_collectable=False,
-                     station_washable=False, station_dryable=False),
+    "charge_only": dict(has_station=False, station_collectable=False,
+                        station_washable=False, station_dryable=False),
     "auto_empty": dict(has_station=True, station_collectable=True,
                        station_washable=False, station_dryable=False),
 }
@@ -92,9 +98,9 @@ DEFAULT_PROFILE: dict = {
 
 #: Every model with a hardware-verified override MUST also be in the tier table, so the
 #: capability source and the guide/name source cannot drift (the two-table lesson).
-assert set(MODEL_PROFILES) <= set(DREAME_MODEL_GUIDE_FAMILIES), (
-    "MODEL_PROFILES has models absent from DREAME_MODEL_GUIDE_FAMILIES: "
-    f"{sorted(set(MODEL_PROFILES) - set(DREAME_MODEL_GUIDE_FAMILIES))}"
+assert set(MODEL_PROFILES) <= set(DREAME_MODEL_REGIMES), (
+    "MODEL_PROFILES has models absent from DREAME_MODEL_REGIMES: "
+    f"{sorted(set(MODEL_PROFILES) - set(DREAME_MODEL_REGIMES))}"
 )
 
 
@@ -102,19 +108,28 @@ def profile_for_model(model: str | None) -> dict:
     """Return the capability profile for a device-registry model string.
 
     Resolution order: (1) a hardware-verified override in ``MODEL_PROFILES``; else
-    (2) derive ``family`` + station flags from the model's guide/maintenance TIER
-    (``DREAME_MODEL_GUIDE_FAMILIES``) so every catalogued model gets its real family
-    instead of falling to a flat ``generic`` with all-station-on; else (3) the
-    conservative ``DEFAULT_PROFILE`` for a truly uncatalogued model. ``display_name`` is
+    (2) derive ``family`` + station flags from the model's REGIME
+    (``DREAME_MODEL_REGIMES``) so every catalogued model gets real station flags instead
+    of falling to a flat ``generic`` with all-station-on; else (3) the conservative
+    ``DEFAULT_PROFILE`` for a truly uncatalogued model. ``display_name`` is
     single-sourced from ``DREAME_MODEL_NAMES`` (never stored per-profile).
+
+    ``family`` is a LABEL — core stores and reports it, only the Eufy adapter branches on
+    its own values — so for a regime-derived profile it is the regime id, which reads back
+    to the three measured fields that produced it.
     """
     key = model or ""
     if key in MODEL_PROFILES:
         base = MODEL_PROFILES[key]
     else:
-        tier = DREAME_MODEL_GUIDE_FAMILIES.get(key)
-        if tier:
-            base = {**DEFAULT_PROFILE, "family": tier, **_TIER_STATION.get(tier, {})}
+        regime = DREAME_MODEL_REGIMES.get(key)
+        if regime:
+            mop_type, dock_tier, tanks = regime
+            base = {
+                **DEFAULT_PROFILE,
+                "family": "%s|%s|%s" % (mop_type, dock_tier, tanks),
+                **_TIER_STATION.get(dock_tier, {}),
+            }
         else:
             base = DEFAULT_PROFILE
     return {**base, "display_name": DREAME_MODEL_NAMES.get(key, "Dreame")}

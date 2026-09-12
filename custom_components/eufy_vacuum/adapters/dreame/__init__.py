@@ -6,27 +6,29 @@ That row is the switch. The adapter is gated on a RELEASED upstream build of the
 as a duplicate and reads green, which it is not. Until that lands, everything here is
 inert reference data that ships without changing behaviour for anyone.
 
-What lives here is the half that does not depend on the gate: the upkeep guides and
-the model/family metadata (the catalog that routes each model to a guide family). The
-driving logic (`adapter.py`) does.
+What lives here is the half that does not depend on the gate: the upkeep guides and the
+model metadata. The driving logic (`adapter.py`) does.
+
+The guides are i18n KEY LISTS routed by REGIME (`upkeep_keys.py` over
+`upkeep_regimes.py`), not prose routed by guide family. The backend holds no guide words
+at all — the card supplies them in the reader's own language.
 """
 
 from __future__ import annotations
 
-from .dreame_upkeep_guides import DREAME_UPKEEP_GUIDE_LIBRARY
-from .upkeep_catalog import (
-    DREAME_GUIDE_FAMILY_NAMES,
-    DREAME_MODEL_GUIDE_FAMILIES,
-    DREAME_MODEL_NAMES,
-    DREAME_MODELS,
+from .upkeep_catalog import DREAME_MODEL_NAMES, DREAME_MODELS
+from .upkeep_keys import (
+    DREAME_MODEL_KEY_REGIMES,
+    DREAME_UPKEEP_KEY_GUIDES,
+    DREAME_UPKEEP_KEYS,
 )
-from .upkeep_guides_i18n import DREAME_UPKEEP_GUIDE_TRANSLATIONS
+from .upkeep_regimes import DREAME_MODEL_REGIMES
 
 __all__ = [
-    "DREAME_UPKEEP_GUIDE_LIBRARY",
-    "DREAME_UPKEEP_GUIDE_TRANSLATIONS",
     "DREAME_MODELS",
     "DREAME_MODEL_NAMES",
-    "DREAME_MODEL_GUIDE_FAMILIES",
-    "DREAME_GUIDE_FAMILY_NAMES",
+    "DREAME_MODEL_REGIMES",
+    "DREAME_MODEL_KEY_REGIMES",
+    "DREAME_UPKEEP_KEY_GUIDES",
+    "DREAME_UPKEEP_KEYS",
 ]

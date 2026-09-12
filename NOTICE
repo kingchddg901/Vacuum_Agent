@@ -104,6 +104,29 @@ dreame_vacuum — Copyright (c) 2022 Tasshack
   the change is marked at the point of use.
 
 
+eufy / eufy Clean product manuals — Copyright (c) Anker Innovations Co., Ltd.
+  https://support.eufy.com  (official product user manuals / support downloads)
+  Proprietary material — NOT open-source; the copyright holder grants no license.
+
+  What Vacuum Agent uses: per-language maintenance instructions — component names,
+  upkeep steps, and cleaning/replacement frequencies — were lifted from the official
+  eufy user manuals into this project's maintenance-guide translations, so the card
+  can present a device's care guide in the user's own language. These are short,
+  functional, factual servicing instructions surfaced for interoperability; the
+  wording remains the property of Anker Innovations and is attributed here. Where a
+  string is re-worded, the change is marked at the point of use.
+
+
+Roborock product manuals — Copyright (c) Beijing Roborock Technology Co., Ltd.
+  https://support.roborock.com  (official product user manuals / support downloads)
+  Proprietary material — NOT open-source; the copyright holder grants no license.
+
+  What Vacuum Agent uses: the same as above — per-language maintenance instructions
+  (component names, upkeep steps, and cleaning/replacement frequencies) lifted from
+  the official Roborock user manuals into the maintenance-guide translations. The
+  wording remains the property of Beijing Roborock Technology and is attributed here.
+
+
 Bundled fonts
 -------------
 Listed separately from the attributions above because the relationship is a

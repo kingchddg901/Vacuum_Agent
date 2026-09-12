@@ -1948,9 +1948,16 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "description": (
             "Per-model upkeep guide catalog. Display data only — pure strings, "
             "no logic. The framework reads model_names to label the maintenance "
-            "view, looks up the device's model code in model_guide_families to "
-            "resolve which guide family to show, then renders the guide entries "
-            "from guide_library for each component. "
+            "view, then resolves the guide by ONE of two routings. "
+            "PROSE ROUTING (eufy, roborock): the model code resolves a family via "
+            "model_guide_families and the entries come from guide_library, overlaid "
+            "per HA instance language from guide_translations. "
+            "KEY ROUTING (dreame): the model code resolves a REGIME via "
+            "model_key_regimes and key_guides supplies i18n KEYS, which the CARD "
+            "resolves in the reader's own language — the backend carries no words and "
+            "needs no guide_translations. "
+            "Declare one routing, not both: the key routing is checked first, so a "
+            "model present in both would never reach its family. "
             "Absent = upkeep view falls back to component labels only with no "
             "step-by-step instructions."
         ),
@@ -2007,6 +2014,33 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "→ caster_wheel, mopping_cloth → mop_cloth) and dock_dust_bag → "
                     "dust_bag were canonicalized 2026-09; a custom guide config using "
                     "a legacy key should be updated to the canonical one."
+                ),
+            },
+            "model_key_regimes": {
+                "type": "dict[str, str]",
+                "required": False,
+                "description": (
+                    "KEY ROUTING. Maps device model code to a REGIME id — the guide "
+                    "equivalent of model_guide_families, but derived from measured "
+                    "hardware rather than authored per model. Dreame's id is readable "
+                    "back to the three fields that produced it. "
+                    "Example: {'dreame.vacuum.r2469a': 'pad|wash+empty|yes'}."
+                ),
+            },
+            "key_guides": {
+                "type": "dict[str, dict[str, dict]]",
+                "required": False,
+                "description": (
+                    "KEY ROUTING. Two-level dict: regime_id → component_key → "
+                    "{'steps': list[str], 'notes': list[str]}, where every list item is "
+                    "an i18n KEY, not text. Component keys must match the CANONICAL "
+                    "maintenance_components keys, exactly as guide_library's do — a key "
+                    "guide under a component with no maintenance_components row never "
+                    "reaches a screen, and one under a name the brand does not use "
+                    "produces a second card for an object that already has one. "
+                    "The regime also GATES guide-only cleanables: a maintenance_only "
+                    "component with no sensor is shown only when the model's regime "
+                    "lists it. No frequency field — a key guide states none."
                 ),
             },
         },

@@ -72,7 +72,8 @@ MIN_LINES = 80
 #: from the denominator, because a line of translated guide prose does not need a document and
 #: including it makes the campaign look further from done than it is.
 #:
-#: `upkeep_guides_i18n` is 6,324 lines across 36 files — one per locale, both brands. It inflated
+#: `upkeep_guides_i18n` is one module per locale for Eufy and Roborock (Dreame's were deleted
+#: 2026-09-11 with the family system — it ships i18n keys now, not per-family prose). It inflated
 #: `adapters/` from a real logic surface of 11,144 to a reported 17,468, which is 57% overstatement
 #: on the largest single subsystem. Chris's ruling 2026-08-23: the guides need the PATTERN
 #: explained — translation keys feeding the card, identical for any brand — and nothing more.

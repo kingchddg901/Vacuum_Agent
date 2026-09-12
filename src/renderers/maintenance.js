@@ -9,7 +9,12 @@
  * ============================================================
  */
 
-import { guideCatalog, ensureGuideLanguage } from "../i18n/guide-loader.js";
+import {
+  guideCatalog,
+  ensureGuideLanguage,
+  guideKeyPack,
+  ensureGuideKeyLanguage,
+} from "../i18n/guide-loader.js";
 
 /**
  * Pure "due in N days" projection for a maintenance item.
@@ -104,12 +109,19 @@ export function applyMaintenanceRenderers(proto) {
 
 
   /**
-   * Localize the upkeep guide for the CARD's per-user language (the globe),
-   * not the HA instance language. The backend ships guide.display in the
-   * instance language; we overlay steps/notes/frequency from the bundled
-   * GUIDE_TRANSLATIONS (ported from the same source data), per-field, falling
-   * back to English and then to the backend's value. So a card set to Russian
-   * shows Russian guide text even on an English HA instance — one switch.
+   * Localize the upkeep guide for the CARD's per-user language (the globe), not the
+   * HA instance language. So a card set to Russian shows Russian guide text even on
+   * an English HA instance — one switch.
+   *
+   * TWO ROUTINGS, and the payload says which:
+   *
+   *   KEY-ROUTED (`steps_keys` / `notes_keys` present — Dreame). The backend ships i18n
+   *   keys and no words; every sentence is resolved here against the per-language key
+   *   pack. Handled first, below.
+   *
+   *   PROSE-ROUTED (eufy, roborock). The backend ships guide.display already worded in
+   *   the INSTANCE language; we overlay steps/notes/frequency from GUIDE_TRANSLATIONS
+   *   per-field, falling back to English and then to the backend's own value.
    *
    * @param {object} item - maintenance/replacement item (has guide, component, kind).
    * @returns {object|null} a display-shaped guide ({frequency, steps, notes, …}).
@@ -117,6 +129,40 @@ export function applyMaintenanceRenderers(proto) {
   proto._localizedGuide = function (item) {
     const display = item?.guide?.display ?? null;
     if (!display) return display;
+
+    // ── KEY-ROUTED GUIDE ────────────────────────────────────────────────────────────
+    // A key-routed adapter (Dreame) sends `steps_keys` / `notes_keys` instead of prose:
+    // the backend holds no guide words, because the only language it can see is the HA
+    // instance's, and this card answers to the globe. So the card IS the guide's
+    // language layer here, not an overlay on top of one.
+    //
+    // Chain is per-KEY, not per-list: the reader's language, then its base for a
+    // regional tag, then bundled English, then the key itself. Per-key matters because
+    // a pack that is present but incomplete would otherwise drop a whole procedure to
+    // English when one sentence is missing.
+    //
+    // The bare key is the last resort and it is meant to be conspicuous — a step
+    // reading `rinse.clean_water_only` is an authoring gap you can see and grep, where a
+    // silently dropped step is one you cannot. sync-dreame-guide-keys.py refuses to
+    // publish a pack missing any emitted key, so it should never reach a screen.
+    const stepKeys = display.steps_keys;
+    const noteKeys = display.notes_keys;
+    if (Array.isArray(stepKeys) || Array.isArray(noteKeys)) {
+      const full = String(this._i18nLanguage() || "en");
+      const packs = [guideKeyPack(full), guideKeyPack(full.split("-")[0]), guideKeyPack("en")];
+      const resolve = (k) => {
+        for (const p of packs) {
+          const v = p?.[k];
+          if (typeof v === "string" && v) return v;
+        }
+        return k;
+      };
+      return {
+        ...display,
+        steps: (Array.isArray(stepKeys) ? stepKeys : []).map(resolve),
+        notes: (Array.isArray(noteKeys) ? noteKeys : []).map(resolve),
+      };
+    }
     // ⚠ TRY FULL LANG FIRST, THEN BASE. `split("-")[0]` alone silently misses every
     // locale whose GUIDE_TRANSLATIONS key is a script/region variant — `zh-Hans` and
     // `zh-Hant` both keyed as such, so the pre-2026-08-24 code was `lang = "zh"` and
@@ -162,6 +208,9 @@ export function applyMaintenanceRenderers(proto) {
     // English (bundled) renders until the catalog arrives, so a globe switch is
     // English → translated, never blank. Idempotent per language.
     ensureGuideLanguage(this._i18nLanguage?.() ?? "en", () => this._scheduleRender?.());
+    // The KEY packs, same contract, separate files: a key-routed brand's guide text is
+    // 51 sentences (~6 KB a language) and does not live in the prose catalogs.
+    ensureGuideKeyLanguage(this._i18nLanguage?.() ?? "en", () => this._scheduleRender?.());
 
     const upkeep = state.dashboardUpkeep?.() ?? {};
     // CENSUS-6: composed CARD-side from the count. The backend ships this as an

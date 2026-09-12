@@ -333,31 +333,32 @@ GENERATORS: tuple[Generator, ...] = (
     # Re-runnable only from inputs OUTSIDE the tree (durable/ TM fixtures) or by hand,
     # so the gate does not run them — but the generation map shows them and UNGATED
     # still demands they own their banner-bearing outputs.
+    # ⛔ `eufy-guides` / `roborock-guides` REMOVED 2026-09-11. They registered
+    # scripts/build_guides.py + emit_libs.py, the LIFT pipeline that rewrote both brands'
+    # guide libraries with the vendors' own manual wording. That content was reverted to its
+    # pre-lift state (the libraries are hand-authored again), so there is no generator to
+    # gate and a registered generator whose output is no longer generated reads as drift.
+    # The replacement is the KEY system (adapters/dreame/upkeep_keys.py), which authors
+    # sentences rather than merging lifted cells — nothing in emit_libs.py's shape carries
+    # over. Chris's call: "emit_libs.py can be removed from check_generated_docs.py unless
+    # we are going to use its shape."
     Generator(
-        id="eufy-guides",
-        cmd=(sys.executable, "scripts/emit_libs.py", "--emit"),
+        id="dreame-guide-keys",
+        cmd=(sys.executable, "scripts/sync-dreame-guide-keys.py"),
+        # NOT gated: the SOURCE is the authoring fixture, which lives OUTSIDE git
+        # (durable/dreame-port-fixture/). CI cannot re-run this, so a drift check here would
+        # fail on every machine that is not Chris's. The gate that matters instead is inside
+        # the script — it REFUSES to write unless every key the backend can emit is present in
+        # all 18 packs — plus [DUK-7], which asserts the shipped English pack covers the
+        # emitted key set from inside the test suite.
         gated=False,
         files=(
-            "custom_components/eufy_vacuum/adapters/eufy/eufy_upkeep_guides.py",
-            "custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/*.py",
+            "src/i18n/guide-keys.js",
+            "custom_components/eufy_vacuum/frontend/guides/keys/*.json",
         ),
-        sources=("durable/eufy-port-fixture/care_tm_full.json",
-                 "durable/eufy-port-fixture/eufy_care_corpus.json"),
-        regen="python scripts/build_guides.py && python scripts/emit_libs.py --emit",
-        note="lifted manufacturer TM (real manual wording) -> per-family guide lib + i18n",
-    ),
-    Generator(
-        id="roborock-guides",
-        cmd=(sys.executable, "scripts/emit_libs.py", "--emit"),
-        gated=False,
-        files=(
-            "custom_components/eufy_vacuum/adapters/roborock/roborock_upkeep_guides.py",
-            "custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/*.py",
-        ),
-        sources=("durable/roborock-port-fixture/care_tm_full.json",
-                 "durable/roborock-port-fixture/roborock_care_corpus.json"),
-        regen="python scripts/build_guides.py && python scripts/emit_libs.py --emit",
-        note="lifted manufacturer TM (real manual wording) -> per-family guide lib + i18n",
+        sources=("durable/dreame-port-fixture/resources/key-authoring/",),
+        regen="python scripts/sync-dreame-guide-keys.py",
+        note="the 18 Dreame key packs -> bundled EN + served per-lang key JSON",
     ),
     Generator(
         id="guide-translations",
@@ -367,7 +368,9 @@ GENERATORS: tuple[Generator, ...] = (
         sources=(
             "custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/",
             "custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/",
-            "custom_components/eufy_vacuum/adapters/dreame/upkeep_guides_i18n/",
+            # Dreame is NOT a source here: it ships i18n KEYS, not prose, built by
+            # scripts/sync-dreame-guide-keys.py from the fixture. Its family packs were
+            # deleted 2026-09-11 and a path that no longer exists reads as "no drift".
             "scripts/data/guide-frequency-translations.json",
         ),
         regen="python scripts/sync-guide-translations.py",
