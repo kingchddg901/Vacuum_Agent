@@ -748,7 +748,9 @@
     "switch_map": "Actieve kaart wisselen",
     "frame_gate_notice": "Kaart gewisseld — het tekenen van zones pauzeert totdat de robot zich opnieuw lokaliseert (verplaats hem of start een schoonmaak). Opgeslagen zones en kamerschoonmaak uitvoeren werkt nog steeds.",
     "frame_gate_override": "Tekenen toch inschakelen",
-    "frame_gate_override_hint": "Alleen als je zeker weet dat de positie van de robot juist is — een zone die wordt getekend voordat de robot zich opnieuw lokaliseert, kan het verkeerde gebied schoonmaken."
+    "frame_gate_override_hint": "Alleen als je zeker weet dat de positie van de robot juist is — een zone die wordt getekend voordat de robot zich opnieuw lokaliseert, kan het verkeerde gebied schoonmaken.",
+    "goto_hint": "Tik op de kaart om de robot daarheen te sturen.",
+    "goto_point": "Stuur de robot naar een punt"
   },
   "metrics": {
     "battery_all_jobs": "Alle taken (gemengd + enkel)",
@@ -2610,6 +2612,11 @@
       "furniture_crossbar": "meubel met dwarsbalk",
       "pet": "huisdier",
       "fabric_paper_balls": "proppen stof of papier"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Max"
+      }
     }
   },
   "order_modal": {

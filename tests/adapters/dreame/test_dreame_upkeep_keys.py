@@ -276,6 +276,33 @@ def test_a_vacuum_only_machine_is_never_told_to_empty_water():
         )
 
 
+@pytest.mark.parametrize("regime", sorted(DREAME_UPKEEP_KEY_GUIDES))
+def test_every_panel_points_at_the_manual(regime):
+    """[DUK-6c] the universal note is on EVERY panel, and it is the LAST note.
+
+    These cards are seven jobs distilled from vendor procedures — deliberately not the manual.
+    The note bounds what the card claims to be, so a panel without it is a panel implying it is
+    exhaustive. It is appended in `emit()` rather than written into each component precisely so
+    a NEW component cannot quietly ship without it; this test is what makes that claim bite.
+
+    LAST, not first: the other notes name a consequence the reader cannot see coming. The
+    pointer is the least urgent thing on the card and must not displace them.
+    """
+    from custom_components.eufy_vacuum.adapters.dreame.upkeep_keys import MANUAL
+
+    for component, body in DREAME_UPKEEP_KEY_GUIDES[regime].items():
+        notes = body["notes"]
+        assert MANUAL in notes, (
+            f"{regime}/{component} does not point at the manual — the panel reads as the whole "
+            f"procedure when it is one distilled job"
+        )
+        assert notes[-1] == MANUAL, (
+            f"{regime}/{component} has {notes[-1]!r} after the manual pointer; the pointer is "
+            f"the least urgent note and goes last"
+        )
+        assert notes.count(MANUAL) == 1, f"{regime}/{component} points at the manual twice"
+
+
 def test_the_collapse_holds():
     """[DUK-8] 700 models, 15 regimes, 7 cards — the argument for the whole system."""
     bodies = {
@@ -298,8 +325,8 @@ def test_the_collapse_holds():
         "A RISE can be two regimes correctly separating; a FALL can be a real merge OR a panel "
         "being retired on purpose. Change it deliberately and say which it was."
     )
-    assert len(DREAME_UPKEEP_KEYS) == 43, (
-        f"{len(DREAME_UPKEEP_KEYS)} keys, expected 43 — a new key needs authoring in all "
+    assert len(DREAME_UPKEEP_KEYS) == 42, (
+        f"{len(DREAME_UPKEEP_KEYS)} keys, expected 42 — a new key needs authoring in all "
         "18 packs before it can ship"
     )
 

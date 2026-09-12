@@ -745,6 +745,11 @@
       "furniture_crossbar": "أثاث بعارضة",
       "pet": "حيوان أليف",
       "fabric_paper_balls": "كرات قماش أو ورق"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "أقصى"
+      }
     }
   },
   "map": {
@@ -965,7 +970,9 @@
     "zoom_fit_aria": "الملاءمة للشاشة",
     "zoom_in": "تكبير",
     "zoom_level_aria": "مستوى التكبير الحالي",
-    "zoom_out": "تصغير"
+    "zoom_out": "تصغير",
+    "goto_hint": "اضغط على الخريطة لإرسال الروبوت إلى هناك.",
+    "goto_point": "إرسال الروبوت إلى نقطة"
   },
   "metrics": {
     "battery_all_jobs": "كل المهام (مختلطة + مفردة)",

@@ -745,6 +745,11 @@
       "furniture_crossbar": "nábytek s příčkou",
       "pet": "domácí zvíře",
       "fabric_paper_balls": "kuličky z látky nebo papíru"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Max"
+      }
     }
   },
   "map": {
@@ -961,7 +966,9 @@
     "zoom_fit_aria": "Přizpůsobit obrazovce",
     "zoom_in": "Přiblížit",
     "zoom_level_aria": "Aktuální úroveň přiblížení",
-    "zoom_out": "Oddálit"
+    "zoom_out": "Oddálit",
+    "goto_hint": "Klepnutím na mapu tam pošlete robota.",
+    "goto_point": "Poslat robota na místo"
   },
   "theme_preview": {
     "animal": {

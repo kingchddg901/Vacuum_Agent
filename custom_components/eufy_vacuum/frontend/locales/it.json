@@ -750,7 +750,9 @@
     "switch_map": "Cambia la mappa attiva",
     "frame_gate_notice": "Mappa cambiata — il disegno delle zone è in pausa finché il robot non ritrova la sua posizione (spostalo o avvia una pulizia). L'esecuzione delle zone salvate e delle pulizie delle stanze funziona ancora.",
     "frame_gate_override": "Abilita comunque il disegno",
-    "frame_gate_override_hint": "Solo se sai che la posizione del robot è corretta — una zona disegnata prima che il robot ritrovi la sua posizione può pulire l'area sbagliata."
+    "frame_gate_override_hint": "Solo se sai che la posizione del robot è corretta — una zona disegnata prima che il robot ritrovi la sua posizione può pulire l'area sbagliata.",
+    "goto_hint": "Tocca la mappa per inviare il robot in quel punto.",
+    "goto_point": "Invia il robot in un punto"
   },
   "metrics": {
     "battery_all_jobs": "Tutti i lavori (misti + singoli)",
@@ -2613,6 +2615,11 @@
       "furniture_crossbar": "mobile con traversa",
       "pet": "animale domestico",
       "fabric_paper_balls": "palline di tessuto o carta"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Max"
+      }
     }
   },
   "order_modal": {

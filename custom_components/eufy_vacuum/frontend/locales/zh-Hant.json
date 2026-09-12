@@ -745,6 +745,11 @@
       "furniture_crossbar": "帶橫桿的家具",
       "pet": "寵物",
       "fabric_paper_balls": "織物或紙團"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "最大"
+      }
     }
   },
   "map": {
@@ -960,7 +965,9 @@
     "zoom_fit_aria": "符合螢幕",
     "zoom_in": "放大",
     "zoom_level_aria": "目前縮放層級",
-    "zoom_out": "縮小"
+    "zoom_out": "縮小",
+    "goto_hint": "點擊地圖將機器人派往該處。",
+    "goto_point": "派機器人前往指定點"
   },
   "metrics": {
     "battery_all_jobs": "所有作業（混合＋單一）",

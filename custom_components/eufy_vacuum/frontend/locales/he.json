@@ -745,6 +745,11 @@
       "furniture_crossbar": "רהיט עם קורה",
       "pet": "חיית מחמד",
       "fabric_paper_balls": "כדורי בד או נייר"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "מקסימום"
+      }
     }
   },
   "map": {
@@ -963,7 +968,9 @@
     "zoom_fit_aria": "התאמה למסך",
     "zoom_in": "הגדלת תצוגה",
     "zoom_level_aria": "רמת זום נוכחית",
-    "zoom_out": "הקטנת תצוגה"
+    "zoom_out": "הקטנת תצוגה",
+    "goto_hint": "הקישו על המפה כדי לשלוח לשם את הרובוט.",
+    "goto_point": "שליחת הרובוט לנקודה"
   },
   "metrics": {
     "battery_all_jobs": "כל המשימות (מעורב + בודד)",

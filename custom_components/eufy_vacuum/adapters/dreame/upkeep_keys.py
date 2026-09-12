@@ -55,6 +55,25 @@ CAVITY = "wipe.compartment_soft_dry_cloth"
 HAIR = "tool.remove_tangled_hair"
 NO_DET = "note.no_detergent"
 
+# ── THE UNIVERSAL NOTE — on every card, added by Chris 2026-09-12 ────────────────────────────
+# It is the ONE note that does not name a consequence, which is the bar the other four meet
+# (torn filter mesh, bent bristles, fogged sensor windows, detergent). It earns its place
+# differently: IT BOUNDS WHAT THE CARD CLAIMS TO BE. These panels are seven jobs distilled from
+# vendor procedures — deliberately not the manual — and saying so is honest rather than
+# decorative.
+#
+# ⭐ THE NOUN IS THE VENDOR'S, NOT A TRANSLATION. It sends the reader to go and FIND a document,
+# so calling it something the cover does not say would send them looking for the wrong thing.
+# The 18 strings take their term from the multi-language X50 manual's Contents page — one vendor
+# naming the document in 40 languages in a single table. SEVEN of my drafted terms were
+# defensible translations and wrong against the artefact (de Bedienungsanleitung ->
+# Benutzerhandbuch, ru Руководство пользователя -> Инструкция по эксплуатации, tr Kullanım ->
+# Kullanıcı Kılavuzu, ar دليل المستخدم -> دليل الاستخدام, id, zh-Hans, zh-Hant).
+#
+# NOT A SHARED-KEY VIOLATION: rule 2 bans naming the CARD'S OBJECT, so one key can serve every
+# panel. "User Manual" is the same noun everywhere and is never the thing being serviced.
+MANUAL = "note.see_user_manual"
+
 # ── THE TWO CLOSERS ──────────────────────────────────────────────────────────────────────────
 # Not a step like the others. Every other line acts on a part; this one tells the reader the task
 # is CLOSED and nothing is left dangling — "I'm done, I didn't leave it turned off". It is on
@@ -177,8 +196,15 @@ MOP = {
     "track": ["mop.track_release_assembly", "mop.track_detach_from_bracket",
               "mop.track_hair_in_bracket", "mop.compartment_and_filter", RINSE, DRY, DOCK_IT],
 }
-MOP_NOTE = {"cloth": ["note.cloth_air_hole_if_slow_flow"],
-            "track": ["note.track_slot_rotates_normally"]}
+# ⛔ THE MOP CARRIES NO NOTES. It held two and Chris dropped both 2026-09-12:
+#   note.cloth_air_hole_if_slow_flow  "…clean the small air hole in the tank cover"  — a
+#       DIAGNOSTIC, not a consequence. It sends the reader to a cause; it does not name damage
+#       they cannot undo.
+#   note.track_slot_rotates_normally  "The slot turns by itself… That is normal, not a fault."
+#       — REASSURANCE about a non-event.
+# The four surviving notes all name a consequence the user cannot see coming and cannot reverse
+# (torn filter mesh, bent side-brush bristles, fogged sensor windows, detergent). That is the bar.
+MOP_NOTE: dict[str, list[str]] = {}
 MOP_ALIAS = {"SimuMop": "cloth"}
 
 # ── THE DOCK — self-wash is the only gate left. ──────────────────────────────────────────────
@@ -264,7 +290,10 @@ def emit(mop_type: str, dock_tier: str, tanks: str):
         out.append(MOP_SWAP)            # ADDITIONAL to the robot's own pads, not a replacement
     if dock_tier in SELF_WASH:
         out.append(WASHBOARD)
-    return out
+    # THE UNIVERSAL NOTE GOES LAST ON EVERY PANEL. Appended here rather than written into each
+    # component so it cannot drift: a new component gets it automatically, and DUK-6c proves
+    # every emitted panel carries it.
+    return [(c, s, list(n) + [MANUAL]) for c, s, n in out]
 
 
 def regime_id(mop_type: str, dock_tier: str, tanks: str) -> str:

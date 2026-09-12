@@ -745,6 +745,11 @@
       "furniture_crossbar": "横木のある家具",
       "pet": "ペット",
       "fabric_paper_balls": "布や紙の玉"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Max"
+      }
     }
   },
   "map": {
@@ -960,7 +965,9 @@
     "zoom_fit_aria": "画面に合わせる",
     "zoom_in": "ズームイン",
     "zoom_level_aria": "現在のズームレベル",
-    "zoom_out": "ズームアウト"
+    "zoom_out": "ズームアウト",
+    "goto_hint": "マップをタップしてロボットをそこへ送ります。",
+    "goto_point": "ロボットを指定地点へ送る"
   },
   "metrics": {
     "battery_all_jobs": "全ジョブ（混在＋単一）",

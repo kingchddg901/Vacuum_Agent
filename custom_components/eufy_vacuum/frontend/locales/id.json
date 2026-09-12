@@ -745,6 +745,11 @@
       "furniture_crossbar": "furnitur dengan palang",
       "pet": "hewan peliharaan",
       "fabric_paper_balls": "gumpalan kain atau kertas"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Maks"
+      }
     }
   },
   "map": {
@@ -961,7 +966,9 @@
     "zoom_fit_aria": "Sesuaikan ke layar",
     "zoom_in": "Perbesar",
     "zoom_level_aria": "Tingkat perbesaran saat ini",
-    "zoom_out": "Perkecil"
+    "zoom_out": "Perkecil",
+    "goto_hint": "Ketuk peta untuk mengirim robot ke sana.",
+    "goto_point": "Kirim robot ke suatu titik"
   },
   "theme_preview": {
     "animal": {

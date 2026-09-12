@@ -745,6 +745,11 @@
       "furniture_crossbar": "alt çubuklu mobilya",
       "pet": "evcil hayvan",
       "fabric_paper_balls": "kumaş veya kağıt topları"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Maksimum"
+      }
     }
   },
   "map": {
@@ -961,7 +966,9 @@
     "zoom_fit_aria": "Ekrana sığdır",
     "zoom_in": "Yakınlaştır",
     "zoom_level_aria": "Geçerli yakınlaştırma düzeyi",
-    "zoom_out": "Uzaklaştır"
+    "zoom_out": "Uzaklaştır",
+    "goto_hint": "Robotu oraya göndermek için haritaya dokunun.",
+    "goto_point": "Robotu bir noktaya gönder"
   },
   "theme_preview": {
     "animal": {

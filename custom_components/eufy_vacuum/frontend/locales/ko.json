@@ -745,6 +745,11 @@
       "furniture_crossbar": "가로대가 있는 가구",
       "pet": "반려동물",
       "fabric_paper_balls": "천이나 종이 뭉치"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "최대"
+      }
     }
   },
   "map": {
@@ -960,7 +965,9 @@
     "zoom_fit_aria": "화면에 맞추기",
     "zoom_in": "확대",
     "zoom_level_aria": "현재 확대/축소 수준",
-    "zoom_out": "축소"
+    "zoom_out": "축소",
+    "goto_hint": "지도를 탭하여 로봇을 그곳으로 보내세요.",
+    "goto_point": "로봇을 지점으로 보내기"
   },
   "metrics": {
     "battery_all_jobs": "전체 작업 (혼합 + 단일)",

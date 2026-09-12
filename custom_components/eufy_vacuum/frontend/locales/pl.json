@@ -745,6 +745,11 @@
       "furniture_crossbar": "mebel z poprzeczką",
       "pet": "zwierzę domowe",
       "fabric_paper_balls": "kulki z tkaniny lub papieru"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Maks."
+      }
     }
   },
   "map": {
@@ -961,7 +966,9 @@
     "zoom_fit_aria": "Dopasuj do ekranu",
     "zoom_in": "Powiększ",
     "zoom_level_aria": "Bieżący poziom powiększenia",
-    "zoom_out": "Pomniejsz"
+    "zoom_out": "Pomniejsz",
+    "goto_hint": "Dotknij mapy, aby wysłać tam robota.",
+    "goto_point": "Wyślij robota w wybrane miejsce"
   },
   "theme_preview": {
     "animal": {

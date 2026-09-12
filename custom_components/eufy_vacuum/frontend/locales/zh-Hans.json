@@ -745,6 +745,11 @@
       "furniture_crossbar": "带横杆的家具",
       "pet": "宠物",
       "fabric_paper_balls": "织物或纸团"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "最大"
+      }
     }
   },
   "map": {
@@ -960,7 +965,9 @@
     "zoom_fit_aria": "适应屏幕",
     "zoom_in": "放大",
     "zoom_level_aria": "当前缩放级别",
-    "zoom_out": "缩小"
+    "zoom_out": "缩小",
+    "goto_hint": "点击地图将机器人派往该处。",
+    "goto_point": "派机器人前往指定点"
   },
   "metrics": {
     "battery_all_jobs": "所有任务（混合 + 单一）",

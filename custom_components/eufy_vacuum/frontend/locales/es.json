@@ -754,7 +754,9 @@
     "switch_map": "Cambiar el mapa activo",
     "frame_gate_notice": "Mapa cambiado — el dibujo de zonas se pausa hasta que el robot se vuelva a localizar (muévelo o inicia una limpieza). Ejecutar zonas guardadas y limpiezas de habitación sigue funcionando.",
     "frame_gate_override": "Habilitar el dibujo igualmente",
-    "frame_gate_override_hint": "Solo si sabes que la posición del robot es correcta — una zona dibujada antes de que el robot se vuelva a localizar puede limpiar el área equivocada."
+    "frame_gate_override_hint": "Solo si sabes que la posición del robot es correcta — una zona dibujada antes de que el robot se vuelva a localizar puede limpiar el área equivocada.",
+    "goto_hint": "Toca el mapa para enviar el robot allí.",
+    "goto_point": "Enviar el robot a un punto"
   },
   "metrics": {
     "battery_all_jobs": "Todos los trabajos (mixtos + únicos)",
@@ -2626,6 +2628,11 @@
       "furniture_crossbar": "mueble con travesaño",
       "pet": "mascota",
       "fabric_paper_balls": "bolas de tela o papel"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Máx."
+      }
     }
   },
   "order_modal": {

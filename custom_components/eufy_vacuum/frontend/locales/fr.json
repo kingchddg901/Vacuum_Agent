@@ -754,7 +754,9 @@
     "switch_map": "Changer la carte active",
     "frame_gate_notice": "Carte changée — le dessin de zone est suspendu jusqu'à ce que le robot retrouve sa position (déplacez-le ou lancez un nettoyage). Le lancement des zones enregistrées et des nettoyages de pièce fonctionne toujours.",
     "frame_gate_override": "Activer le dessin quand même",
-    "frame_gate_override_hint": "Uniquement si vous savez que la position du robot est correcte — une zone dessinée avant que le robot ne retrouve sa position peut nettoyer au mauvais endroit."
+    "frame_gate_override_hint": "Uniquement si vous savez que la position du robot est correcte — une zone dessinée avant que le robot ne retrouve sa position peut nettoyer au mauvais endroit.",
+    "goto_hint": "Appuyez sur la carte pour y envoyer le robot.",
+    "goto_point": "Envoyer le robot à un point"
   },
   "metrics": {
     "battery_all_jobs": "Toutes les tâches (mixtes + simples)",
@@ -2626,6 +2628,11 @@
       "furniture_crossbar": "meuble avec traverse",
       "pet": "animal de compagnie",
       "fabric_paper_balls": "boules de tissu ou de papier"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Max"
+      }
     }
   },
   "order_modal": {

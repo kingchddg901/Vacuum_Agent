@@ -748,7 +748,9 @@
     "switch_map": "Aktive Karte wechseln",
     "frame_gate_notice": "Karte gewechselt — das Zeichnen von Zonen pausiert, bis sich der Roboter neu lokalisiert (bewege ihn oder starte eine Reinigung). Gespeicherte Zonen und Raumreinigungen funktionieren weiterhin.",
     "frame_gate_override": "Zeichnen trotzdem aktivieren",
-    "frame_gate_override_hint": "Nur wenn du weißt, dass die Roboterposition korrekt ist — eine Zone, die gezeichnet wird, bevor sich der Roboter neu lokalisiert, kann den falschen Bereich reinigen."
+    "frame_gate_override_hint": "Nur wenn du weißt, dass die Roboterposition korrekt ist — eine Zone, die gezeichnet wird, bevor sich der Roboter neu lokalisiert, kann den falschen Bereich reinigen.",
+    "goto_hint": "Tippe auf die Karte, um den Roboter dorthin zu schicken.",
+    "goto_point": "Den Roboter zu einem Punkt schicken"
   },
   "metrics": {
     "battery_all_jobs": "Alle Aufträge (gemischt + einzeln)",
@@ -2610,6 +2612,11 @@
       "furniture_crossbar": "Möbel mit Querstrebe",
       "pet": "Haustier",
       "fabric_paper_balls": "Stoff- oder Papierknäuel"
+    },
+    "dreame": {
+      "fan_speed": {
+        "turbo": "Max"
+      }
     }
   },
   "order_modal": {
