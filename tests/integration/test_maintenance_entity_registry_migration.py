@@ -169,7 +169,7 @@ def test_second_run_is_a_no_op(hass):
     assert data["migrations"][REGISTRY_MIGRATION_KEY] is True
 
     second = migrate_maintenance_entity_registry(hass, data=data)
-    assert second == {"ran": False, "renamed": [], "pruned": []}
+    assert second == {"ran": False, "renamed": [], "pruned": [], "failed": []}
 
 
 def test_latch_is_independent_of_the_interval_migration(hass):

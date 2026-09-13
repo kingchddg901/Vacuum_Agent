@@ -170,7 +170,7 @@ def migrate_maintenance_entity_registry(
     """
     migrations = data.setdefault("migrations", {})
     if migrations.get(REGISTRY_MIGRATION_KEY) and not force:
-        return {"ran": False, "renamed": [], "pruned": []}
+        return {"ran": False, "renamed": [], "pruned": [], "failed": []}
 
     from homeassistant.helpers import entity_registry as er
 
@@ -178,6 +178,12 @@ def migrate_maintenance_entity_registry(
     moves = plan_entity_registry_renames(hass, data=data)
     renamed: list[dict[str, Any]] = []
     pruned: list[dict[str, Any]] = []
+    failed: list[dict[str, Any]] = []
+    if moves:
+        _LOGGER.info(
+            "maintenance_entity_registry: %d registry row(s) to carry across a component rename",
+            len(moves),
+        )
 
     for move in moves:
         try:
@@ -196,16 +202,36 @@ def migrate_maintenance_entity_registry(
             else:
                 registry.async_remove(move["entity_id"])
                 pruned.append(move)
-        except Exception:  # pragma: no cover - one bad row must not abort the rest
-            _LOGGER.debug(
-                "maintenance_entity_registry: %s %s -> %s failed; left as-is",
+        except Exception:  # one bad row must not abort the rest
+            # ⚠ THIS WAS `debug` AND THAT HID A REAL FAILURE. On the first live upgrade test
+            # the pass planned nine renames, applied zero, and set its own completion flag —
+            # and said NOTHING at any level a user or maintainer would ever see. The failure
+            # was indistinguishable from "there was nothing to do", which is the worst possible
+            # way for a one-shot migration to fail: the latch means it never tries again.
+            # A migration that cannot do its job must say so loudly enough to be reported.
+            failed.append(move)
+            _LOGGER.warning(
+                "maintenance_entity_registry: could not carry %s (%s -> %s); it will stay "
+                "under its old id and show as unavailable",
                 move["entity_id"],
                 move["old_unique_id"],
                 move["new_unique_id"],
                 exc_info=True,
             )
 
+    # ⚠ THE LATCH IS SET EVEN ON FAILURE, DELIBERATELY -- retrying every startup would hammer
+    # a registry that is refusing us, and the honest state is "we tried once and could not".
+    # That is only defensible because the failure is now LOUD; it was not, and a silent
+    # never-ran was indistinguishable from a silent nothing-to-do.
     migrations[REGISTRY_MIGRATION_KEY] = True
+
+    if failed:
+        _LOGGER.error(
+            "maintenance_entity_registry: %d of %d row(s) could not be carried. Those entities "
+            "keep their old ids and will read `unavailable`; the new ones are created alongside "
+            "them. This is reportable -- please open an issue with the warnings above.",
+            len(failed), len(moves),
+        )
 
     if renamed:
         _LOGGER.info(
@@ -236,4 +262,4 @@ def migrate_maintenance_entity_registry(
             "y" if len(retired) == 1 else "ies",
             ", ".join("%s (%s)" % (m["entity_id"], m["from"]) for m in retired),
         )
-    return {"ran": True, "renamed": renamed, "pruned": pruned}
+    return {"ran": True, "renamed": renamed, "pruned": pruned, "failed": failed}

@@ -67,6 +67,7 @@ from .core.vacuum_identity import sweep_orphaned_vacuums
 from .core.battery_aggregates_migration import migrate_battery_aggregates
 from .core.maintenance_component_rename_migration import (
     migrate_maintenance_component_renames,
+    migrate_maintenance_source_keys,
 )
 from .core.maintenance_entity_registry_migration import (
     migrate_maintenance_entity_registry,
@@ -808,8 +809,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Deliberately NOT on the `async_at_started` hook the interval migration uses: that
         # fires AFTER platform setup on a cold boot, which is the failing order.
         try:
+            # ⏱ SAME WINDOW, SAME REASON, AND THIS ONE WAS MISSED FIRST TIME. The platforms read
+            # `capabilities.maintenance_sources` with refresh=False, so a snapshot still keyed by
+            # the OLD component ids makes them look up `main_brush` in a dict keyed
+            # `rolling_brush`, get None, and create no entity at all. Measured on a clone
+            # upgraded from v2.1.0: three components had no entities until a SECOND restart
+            # happened to refresh the snapshot. Runs before the registry pass because both must
+            # precede the forward, and this one is pure data.
+            _source_keys = migrate_maintenance_source_keys(data=manager.data)
             _registry_migration = migrate_maintenance_entity_registry(hass, data=manager.data)
-            if _registry_migration["renamed"] or _registry_migration["pruned"]:
+            if (_registry_migration["renamed"] or _registry_migration["pruned"]
+                    or _source_keys["moved"]):
                 await manager.async_save()
         except Exception:  # pragma: no cover - never block setup on a registry tidy-up
             _LOGGER.exception(

@@ -1871,7 +1871,10 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 ),
             },
             "proxy_for": {
-                "type": "str",
+                # `str | null` like `sensor_suffix` and `label_key`: the projection emits this
+                # key for EVERY component (an explicit field list cannot conditionally omit
+                # one), so a component that declares no proxy arrives as None.
+                "type": "str | null",
                 "required": False,
                 "description": (
                     "Component id whose sensor THIS component borrows when it has no "

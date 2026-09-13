@@ -1016,6 +1016,15 @@ def register_eufy_adapter_for_vacuum(
             # display metadata, and interval configuration.
             component_id: {
                 "sensor_suffix": component.get("sensor_suffix"),
+                # ⚠ THIS PROJECTION IS AN EXPLICIT FIELD LIST, SO A CATALOG FIELD THAT IS NOT
+                # NAMED HERE NEVER REACHES CORE. Restoring `proxy_for` to the catalog and the
+                # schema (02a229ca) was not enough: core read `meta.get("proxy_for")` as None,
+                # the borrow never happened, and `omnidirectional_wheel` ended up with NO source
+                # at all — it was the one component of seven still `unavailable` after a live
+                # upgrade test. The suite could not see it, because `test_core_capabilities`
+                # hands `_detect_maintenance_sources` synthetic dicts that already carry
+                # `proxy_for` and never travel through this projection.
+                "proxy_for": component.get("proxy_for"),
                 # Reset-button resolution sourced from buttons.py (single source
                 # for all button discovery). None when the component has no
                 # reset button.

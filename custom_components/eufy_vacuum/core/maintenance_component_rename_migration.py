@@ -206,3 +206,66 @@ def migrate_maintenance_component_renames(
             ),
         )
     return {"ran": True, "changes": changes}
+
+
+#: Where the capability snapshot files a component's resolved source entity.
+_SOURCES = "maintenance_sources"
+
+
+def migrate_maintenance_source_keys(*, data: dict[str, Any]) -> dict[str, Any]:
+    """Carry the CAPABILITY SNAPSHOT's component keys across a rename. Idempotent.
+
+    ⚠ A THIRD STORE KEYED BY COMPONENT ID, and the one that was missed. The interval lives in
+    ``data["maintenance"][vacuum][component]``; the entity lives in HA's registry; and the
+    RESOLVED SOURCE lives in ``data["capabilities"][vacuum]["maintenance_sources"][component]``.
+    Rename a component and all three go stale, but only this one is read by the platforms at
+    setup — with ``refresh=False``, so nothing recomputes it first.
+
+    FOUND ON A CLONE, NOT IN THE SUITE (2026-09-14). After upgrading a real box from v2.1.0 the
+    three renamed components had NO entities at all: the platforms looked up `main_brush`, `mop`
+    and `omnidirectional_wheel` in a dict still keyed `rolling_brush`, `mopping_cloth` and
+    `swivel_wheel`, got None, and skipped. The registry rename had worked and the intervals had
+    carried — this alone made the upgrade look broken, and it took a SECOND restart to heal,
+    because only then did a refresh rewrite the snapshot with canonical keys.
+
+    ⏱ MUST RUN BEFORE ``async_forward_entry_setups`` for the same reason the registry pass does:
+    afterwards is after the platforms have already read it and decided.
+
+    NO MIGRATION KEY, DELIBERATELY. This is a pure key-rename over a DERIVED cache — running it
+    on every setup costs one dict walk and cannot corrupt anything, whereas a latch would make
+    it un-runnable on exactly the boxes that later need it (the lesson `MIGRATION_KEY` above
+    already carries). A destination that already exists always wins, so a re-run is a no-op.
+    """
+    moved: list[str] = []
+    caps = data.get("capabilities")
+    if not isinstance(caps, dict):
+        return {"moved": moved}
+
+    for vacuum_entity_id, snapshot in caps.items():
+        if not isinstance(snapshot, dict):
+            continue
+        sources = snapshot.get(_SOURCES)
+        if not isinstance(sources, dict):
+            continue
+        for legacy, canonical in COMPONENT_RENAMES.items():
+            if legacy not in sources:
+                continue
+            # THE DESTINATION WINS, as everywhere else in this file: a canonical key already
+            # present was written by a NEWER detection pass and must not be overwritten by a
+            # stale legacy one.
+            if canonical not in sources:
+                sources[canonical] = sources[legacy]
+                moved.append(f"{vacuum_entity_id}:{legacy}->{canonical}")
+            del sources[legacy]
+        # A retired component has no destination; its cached source is simply dead weight that
+        # would otherwise be handed to a platform that no longer declares it.
+        for retired in RETIRED_COMPONENTS:
+            sources.pop(retired, None)
+
+    if moved:
+        _LOGGER.info(
+            "maintenance_source_keys: re-keyed %d cached maintenance source(s) after a "
+            "component rename: %s",
+            len(moved), ", ".join(moved),
+        )
+    return {"moved": moved}

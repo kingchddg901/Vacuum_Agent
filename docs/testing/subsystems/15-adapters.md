@@ -240,6 +240,25 @@ a preference, nothing prompts its restoration, and the old value lives only in `
 | MCR-8 | malformed storage is survived, not raised — this runs during setup on every install. |
 | MCR-9 | **the table holds only 1:1 renames.** An absorption has no single destination (two sources, one panel), so those drop to default by design. A future edit adding one is what this catches. |
 
+**[MSK] — the THIRD store, found on a clone and not by the suite (2026-09-14).** A component id
+keys three things: the interval in `data["maintenance"]`, the entity in HA's registry, and the
+RESOLVED SOURCE in `data["capabilities"][vacuum]["maintenance_sources"]`. The platforms read the
+third with `refresh=False`, so after a rename they look up `main_brush` in a dict still keyed
+`rolling_brush`, get None, and create **no entity at all**. Measured on a real upgrade from
+v2.1.0: three components had no entities until a SECOND restart happened to refresh the snapshot,
+while the registry rename and the interval carry had both worked perfectly.
+`migrate_maintenance_source_keys` runs before `async_forward_entry_setups` for the same reason
+the registry pass does, and deliberately carries NO latch — it is a pure key-rename over a
+derived cache, and a latch would make it un-runnable on exactly the boxes that later need it.
+
+| id | what it holds |
+| --- | --- |
+| MSK-1 | cached source keys are re-keyed. Red if only storage is migrated — which is what shipped. |
+| MSK-2 | a canonical key already present wins; the legacy key still goes. |
+| MSK-3 | retired components are dropped from the cache. |
+| MSK-4 | idempotent WITHOUT a latch — a second pass must plan nothing, not merely be harmless. |
+| MSK-5 | malformed snapshots are survived; this runs during setup on every install. |
+
 ⚠ **`MIGRATION_KEY` must be bumped whenever a row is added** (now `_v2`, 2026-09-14). It is a
 one-shot latch, so a row added under a key already `True` can never run on a box that has
 migrated — the author's included, which is where it would be verified. That is not theoretical:
@@ -286,6 +305,26 @@ fifteen-for-fifteen.
 Ablation, recorded: removing the collision guard reddens MER-2 and MER-3; reusing MCR's latch key
 reddens MER-6; migrating only the number platform reddens MER-4; ignoring `RETIRED_COMPONENTS`
 reddens MER-9; re-declaring `dustbin` in the Roborock catalog reddens MER-10.
+
+### `test_adapter_contract.py::test_the_projection_drops_no_catalog_field`
+
+**A brand's projection is an EXPLICIT FIELD LIST, so a catalog key it does not name is silently
+dropped between the adapter and core.** The declaration stays valid, the schema keeps accepting
+it, and the consumer simply never sees it.
+
+THIS SHIPPED. `proxy_for` was restored to Eufy's catalog and to `ADAPTER_CONFIG_SCHEMA`
+(02a229ca) but not to `eufy/adapter.py`'s projection, so `_detect_maintenance_sources` read
+`meta.get("proxy_for")` as None, the borrow never happened, and `omnidirectional_wheel` had NO
+source — the one component of seven still `unavailable` after a live upgrade on a clean box.
+
+Why 4903 green tests could not see it: `test_core_capabilities` hands
+`_detect_maintenance_sources` synthetic component dicts that already carry `proxy_for`, so they
+never travel through the projection. The fixture agreed with the CALLER rather than with what the
+system produces (`f/test_discipline`). This test runs the other way round — it derives its
+expectation from the real catalog and checks the real config, once per shipped brand.
+
+Ablation: deleting the `proxy_for` line from the projection reddens it with
+`['omnidirectional_wheel.proxy_for']`, which is the exact shipped defect.
 
 ### `test_model_gate.py` — does THIS MODEL have this component?
 

@@ -142,3 +142,87 @@ def test_the_table_holds_only_one_to_one_renames():
     assert not (set(COMPONENT_RENAMES) & absorbed), (
         "an ABSORBED component is in the rename table — it has no single destination"
     )
+
+
+# --- [MSK] the CAPABILITY SNAPSHOT's copy of the component keys -------------------------
+
+
+def _caps(sources):
+    return {"capabilities": {"vacuum.alfred": {"maintenance_sources": dict(sources)}}}
+
+
+def test_msk_the_cached_source_keys_are_re_keyed():
+    """[MSK-1] THE THIRD STORE, and the one that was missed.
+
+    The interval lives in `data["maintenance"]`, the entity in HA's registry, and the RESOLVED
+    SOURCE in `data["capabilities"][vacuum]["maintenance_sources"]` — all three keyed by
+    component id. The platforms read the third with `refresh=False`, so a stale snapshot makes
+    them look up `main_brush` in a dict still keyed `rolling_brush`, get None, and create NO
+    ENTITY AT ALL.
+
+    MEASURED, NOT IMAGINED: on a clone upgraded from v2.1.0, three components had no entities
+    until a second restart happened to refresh the snapshot. The registry rename had worked and
+    the intervals had carried; this alone made the upgrade look broken.
+
+    THE INPUT THAT MAKES THIS RED: skip the capability snapshot and migrate only storage — which
+    is exactly what shipped.
+    """
+    from custom_components.eufy_vacuum.core.maintenance_component_rename_migration import (
+        migrate_maintenance_source_keys,
+    )
+    data = _caps({"rolling_brush": "sensor.a", "mopping_cloth": "sensor.b",
+                  "swivel_wheel": "sensor.c", "filter": "sensor.d"})
+    out = migrate_maintenance_source_keys(data=data)
+    src = data["capabilities"]["vacuum.alfred"]["maintenance_sources"]
+
+    assert src == {"main_brush": "sensor.a", "mop": "sensor.b",
+                   "omnidirectional_wheel": "sensor.c", "filter": "sensor.d"}
+    assert len(out["moved"]) == 3
+
+
+def test_msk_a_canonical_key_already_present_wins():
+    """[MSK-2] Destination-wins, the same rule the interval half uses. A canonical key was
+    written by a NEWER detection pass; a stale legacy value must not overwrite it — but the
+    legacy key still goes, or it lingers as a dead entry forever."""
+    from custom_components.eufy_vacuum.core.maintenance_component_rename_migration import (
+        migrate_maintenance_source_keys,
+    )
+    data = _caps({"rolling_brush": "sensor.stale", "main_brush": "sensor.fresh"})
+    migrate_maintenance_source_keys(data=data)
+    src = data["capabilities"]["vacuum.alfred"]["maintenance_sources"]
+    assert src == {"main_brush": "sensor.fresh"}
+
+
+def test_msk_retired_components_are_dropped_from_the_cache():
+    """[MSK-3] A retired component has no destination, so its cached source is dead weight
+    handed to a platform that no longer declares it."""
+    from custom_components.eufy_vacuum.core.maintenance_component_rename_migration import (
+        migrate_maintenance_source_keys,
+    )
+    data = _caps({"cleaning_brush": "sensor.x", "strainer": "sensor.y", "filter": "sensor.d"})
+    migrate_maintenance_source_keys(data=data)
+    assert data["capabilities"]["vacuum.alfred"]["maintenance_sources"] == {"filter": "sensor.d"}
+
+
+def test_msk_is_idempotent_without_a_latch():
+    """[MSK-4] It runs on EVERY setup by design — a latch would make it un-runnable on exactly
+    the boxes that later need it, which is the lesson `MIGRATION_KEY` already carries. So a
+    second pass must plan nothing rather than merely be harmless."""
+    from custom_components.eufy_vacuum.core.maintenance_component_rename_migration import (
+        migrate_maintenance_source_keys,
+    )
+    data = _caps({"rolling_brush": "sensor.a"})
+    first = migrate_maintenance_source_keys(data=data)
+    second = migrate_maintenance_source_keys(data=data)
+    assert first["moved"] and second["moved"] == []
+    assert data["capabilities"]["vacuum.alfred"]["maintenance_sources"] == {"main_brush": "sensor.a"}
+
+
+def test_msk_malformed_data_is_survived():
+    """[MSK-5] This runs during setup on every install; a weird snapshot must not abort it."""
+    from custom_components.eufy_vacuum.core.maintenance_component_rename_migration import (
+        migrate_maintenance_source_keys,
+    )
+    for bad in ({}, {"capabilities": None}, {"capabilities": {"vacuum.a": None}},
+                {"capabilities": {"vacuum.a": {"maintenance_sources": "nope"}}}):
+        assert migrate_maintenance_source_keys(data=bad) == {"moved": []}

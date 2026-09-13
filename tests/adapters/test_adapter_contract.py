@@ -806,3 +806,53 @@ def test_a_borrowed_counter_never_drives_a_replacement_row():
         + ", ".join(offenders)
         + ". Add \"maintenance_only\": True, or give the component a real counter."
     )
+
+
+def test_the_projection_drops_no_catalog_field(adapter):
+    """Every field a brand DECLARES must survive into the config core actually reads.
+
+    THE PROJECTION IS AN EXPLICIT FIELD LIST, so a catalog key that is not named in it is
+    silently dropped between the adapter and core — the declaration stays perfectly valid, the
+    schema keeps accepting it, and the consumer just never sees it.
+
+    THIS SHIPPED. `proxy_for` was restored to Eufy's catalog and to `ADAPTER_CONFIG_SCHEMA`
+    (02a229ca) but not to `eufy/adapter.py`'s projection, so `_detect_maintenance_sources` read
+    `meta.get("proxy_for")` as None, the borrow never happened, and `omnidirectional_wheel` had
+    NO source at all. It was the one component of seven still `unavailable` after a live upgrade
+    on a clean box.
+
+    WHY 4903 GREEN TESTS COULD NOT SEE IT: `test_core_capabilities` hands
+    `_detect_maintenance_sources` synthetic component dicts that already carry `proxy_for`, so
+    they never travel through this projection. The fixture agreed with the CALLER rather than
+    with what the system produces (`f/test_discipline`). This test is deliberately the other
+    way round — it derives its expectation from the real catalog and checks the real config.
+
+    THE INPUT THAT MAKES THIS RED: delete any line from a brand's `maintenance_components`
+    projection dict while the catalog still declares that field.
+    """
+    name, config = adapter
+    projected = config.get("maintenance_components") or {}
+    if not projected:
+        return  # a brand declaring no maintenance components has nothing to drop
+
+    raw = __import__(
+        f"custom_components.eufy_vacuum.adapters.{name}.maintenance_components",
+        fromlist=["MAINTENANCE_COMPONENTS"],
+    ).MAINTENANCE_COMPONENTS
+
+    dropped: list[str] = []
+    for component_id, declared in raw.items():
+        out = projected.get(component_id)
+        if out is None:
+            dropped.append(f"{component_id} (whole component missing)")
+            continue
+        for field in declared:
+            if field not in out:
+                dropped.append(f"{component_id}.{field}")
+
+    assert not dropped, (
+        f"{name}: these declared fields never reach core because the adapter's "
+        f"`maintenance_components` projection does not name them: {sorted(dropped)}. "
+        "The declaration and the schema both stay valid, so nothing else fails — add the "
+        "field to the projection."
+    )
