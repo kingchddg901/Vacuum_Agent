@@ -472,15 +472,34 @@ same shape as any other triplicate, minus the distance.
 
 ---
 
-### `RNARRS0S` — the `dual_pad` tier RESERVATION · **2 files**
+#### RNARRS0S — DEREGISTERED 2026-09-12 (kept as a tombstone, deliberately not an entry)
 
-`roborock_upkeep_guides.py`'s tier docstring (**primary**) and `upkeep_catalog.py`'s model
-table both state that twin-mount flat cloths are `wash_station`, and that `dual_pad` is held
-for a true **rotating roller mop** (Qrevo Curv 2 Flow) once its manual exists.
+Reserved a `dual_pad` tier for a true ROTATING roller mop while twin-mount flat cloths stayed
+`wash_station`, stated in `roborock_upkeep_guides.py`'s tier docstring (primary) and
+`upkeep_catalog.py`'s model table. Roborock's port to REGIME → KEY routing deleted the guide
+library and removed the tier column, leaving ONE site.
 
-**A reservation is a decision with no code.** Nothing fails if only one is updated — the
-tier table and the guide library simply describe different products, and the disagreement
-surfaces as a user reading care instructions for a mop they do not own.
+**An RN token is a replica set by definition** — one primary plus at least one `REPLICA` marker
+— so a one-site RN is malformed, and `test_replica_sets_are_well_formed` says so. The fix is not
+to prop the token up with a second mention; a mention invented to satisfy a gate is exactly the
+"declaration defended by a comment" this registry exists to catch.
+
+**The rule was good, the shape was not.** As a reservation it was *a decision with no code* and
+unfalsifiable by construction. The distinction it protected is now a MEASURED field — twin flat
+cloths are the same job as one cloth and measure `cloth`/`pad`; `roller` means an assembly
+lifted from a compartment, which emits different steps. So it moved to:
+
+- **`adapters/upkeep_keys.py`**, the `MOP` branch table, where the distinction is code;
+- **RUK-6**, `tests/adapters/roborock/test_roborock_upkeep_keys.py::test_twin_flat_cloths_are_not_a_roller`,
+  which names the five affected models and fails if one is typed `roller`.
+
+The heading above is deliberately H4 and unbacktick'd so the registry parser does not read this
+tombstone as a live entry. Kept because a token that simply vanishes reads, on the next audit,
+exactly like one that was never registered.
+
+**Pattern worth reusing:** when a replica's sites collapse to one, ask whether the duplicated
+*statement* has become a measurable *fact*. If it has, a test beats an anchor — an anchor only
+asks two prose copies to agree, a test asks the data to agree with reality.
 
 ---
 

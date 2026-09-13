@@ -50,13 +50,8 @@ from .entities import (
 from .dock import dock_profile
 from .maintenance_components import MAINTENANCE_COMPONENTS
 from .model_catalog import profile_for_model
-from .upkeep_catalog import (
-    ROBOROCK_GUIDE_FAMILY_NAMES,
-    ROBOROCK_MODEL_GUIDE_FAMILIES,
-    ROBOROCK_MODEL_NAMES,
-)
-from .roborock_upkeep_guides import ROBOROCK_UPKEEP_GUIDE_LIBRARY
-from .upkeep_guides_i18n import ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS
+from .upkeep_catalog import ROBOROCK_MODEL_NAMES
+from .upkeep_keys import ROBOROCK_MODEL_KEY_REGIMES, ROBOROCK_UPKEEP_KEY_GUIDES
 from .vocabulary import (
     ACTIVE_RUN_TASK_STATES,
     NOT_ERROR_SENTINELS,
@@ -985,18 +980,20 @@ def register_roborock_adapter_for_vacuum(
             # frequencies, mirroring the Eufy adapter's upkeep_catalog. The manager
             # picks guide_library[model_guide_families[device.model]][component] and
             # overlays a localized copy per field (guide_translations). Those are
-            # POPULATED: adapters/roborock/upkeep_guides_i18n/ holds 17 language
-            # modules (ar cs de es fr he id it ja ko nl pl pt ru tr zh_hans zh_hant),
-            # transcribed from the vendor's own manuals. This said "Phase 2 — empty
-            # today, so guides render in English" until 2026-08-23, at the exact site
-            # someone checks to decide whether localization work is outstanding.
-            # See adapters/roborock/
-            # roborock_upkeep_guides.py + upkeep_catalog.py.
+            # KEY GUIDES, NOT FAMILIES — the routing Dreame and Eufy already ship. The
+            # backend holds NO WORDS for Roborock now: it emits i18n KEY LISTS and the card
+            # resolves them in the READER's language (the globe), which the backend cannot
+            # see. Hence no `guide_translations` — nothing is left to overlay.
+            #
+            # WHAT WENT. Three authored families keyed off a hand-assigned maintenance TIER,
+            # 19 files of translated prose, and the tier column itself. That column was WRONG
+            # ON 8 OF 41 MODELS in both directions (four China-market machines shipped as
+            # `standard` when they carry a dock; four Q-series shipped as `auto_empty` when
+            # the base SKU has none) — and none of the 8 are corrected here, because the
+            # column is deleted. `dock_tier` is measured per model in the manifest instead.
             "model_names": ROBOROCK_MODEL_NAMES,
-            "model_guide_families": ROBOROCK_MODEL_GUIDE_FAMILIES,
-            "guide_family_names": ROBOROCK_GUIDE_FAMILY_NAMES,
-            "guide_library": ROBOROCK_UPKEEP_GUIDE_LIBRARY,
-            "guide_translations": ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS,
+            "model_key_regimes": ROBOROCK_MODEL_KEY_REGIMES,
+            "key_guides": ROBOROCK_UPKEEP_KEY_GUIDES,
         },
 
         # Wave 2a: "discovery" (get_maps service source + active_map) + identity

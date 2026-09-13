@@ -360,22 +360,14 @@ GENERATORS: tuple[Generator, ...] = (
         regen="python scripts/sync-dreame-guide-keys.py",
         note="the 18 Dreame key packs -> bundled EN + served per-lang key JSON",
     ),
-    Generator(
-        id="guide-translations",
-        cmd=(sys.executable, "scripts/sync-guide-translations.py"),
-        gated=False,
-        files=("src/i18n/guide-translations.js",),
-        sources=(
-            "custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/",
-            "custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/",
-            # Dreame is NOT a source here: it ships i18n KEYS, not prose, built by
-            # scripts/sync-dreame-guide-keys.py from the fixture. Its family packs were
-            # deleted 2026-09-11 and a path that no longer exists reads as "no drift".
-            "scripts/data/guide-frequency-translations.json",
-        ),
-        regen="python scripts/sync-guide-translations.py",
-        note="merges the brand i18n packs -> card's EN base + served per-lang guide JSON",
-    ),
+    # REMOVED 2026-09-12 — the "guide-translations" generator. All three brands ship i18n
+    # KEYS now, so the family-prose channel has no producer and no source: eufy's packs went
+    # with its port, roborock's with this one, and scripts/sync-guide-translations.py was the
+    # last consumer of either. `src/i18n/guide-translations.js` is still on disk and is inert
+    # (the card returns on the key-routed branch before it is ever consulted); it and the
+    # card's family branch come out in their own commit, where a frontend change can be
+    # reviewed as one. Listing a generator whose script does not exist would fail this gate
+    # for a reason that has nothing to do with drift.
     Generator(
         id="locale-reference",
         cmd=("node", "scripts/build-locale-reference.mjs"),

@@ -35,6 +35,18 @@ BRANDS = {
             'content actually depends on — nothing else in a row reaches the guide.',
         ],
     ),
+    'roborock': dict(
+        platform='roborock', pkg='roborock', const='ROBOROCK_MODEL_REGIMES',
+        title='Roborock upkeep REGIMES — the three measured fields the guide is derived from.',
+        why=[
+            'This replaces a MAINTENANCE TIER column (standard / auto_empty / wash_station) that was hand',
+            'assigned per model and wrong on 8 of 41. The measurement is in the manifest: the four G10 and',
+            'T7S Plus rows shipped as `standard` (no dock at all) actually carry one, and the four Q-series',
+            "rows shipped as `auto_empty` were given the '+' variant's dock when the base SKU has none.",
+            'Those 8 are not corrected here — the column is DELETED. dock_tier is measured per model now,',
+            'and Roborock adds ZERO new keys and ZERO new card sets to the shared set.',
+        ],
+    ),
     'eufy': dict(
         platform='robovac_mqtt', pkg='eufy', const='EUFY_MODEL_REGIMES',
         title='Eufy upkeep REGIMES — the three measured fields the guide is derived from.',

@@ -1,4 +1,29 @@
-"""Roborock S6 maintenance component catalog.
+"""Roborock maintenance component catalog — SEVEN components.
+
+IT WAS FOURTEEN, and that was a PARTS INVENTORY read as a card list. A vendor enumerates
+objects because that is how spares are sold and wear is tracked; a card is a JOB — one trip,
+one set of hands — and a job touches several parts. Dreame came down the same way (14 -> 8)
+six weeks after Roborock drifted up to 14 independently, which is what makes it drift rather
+than a decision.
+
+WHAT WENT, and why, per Chris's rulings 2026-09-12:
+  cleaning_brush, strainer   "should never have been gained" — DOCK parts, and both fold into
+                             the one washing-station trip.
+  dustbin                    "it only was ever in there because the filter is attached to it";
+                             the filter card already covers that trip. Same ruling Dreame
+                             already had (DECISION-dustbin-folded-into-filter.md).
+  water_filter               "not an item either".
+  dust_bag                   install-and-forget: no procedure, and a vendor cadence that swings
+                             tenfold.
+  clean_water_tank,          parts of the washing-station job, now one `cleaning_tray` card.
+  dirty_water_tank
+  main_wheel                 never had a job of its own — it is a "wipe these too" line inside
+                             the wheel card, which is exactly where it still is.
+
+Chris: **"it really is 7, just 7 that covers the full daily use case of maintiance."** The
+emitter, from the three measured fields, independently produces exactly those seven.
+
+
 
 Each consumable is a remaining-HOURS countdown sensor owned by the HA
 ``roborock`` integration (``sensor.{object_id}_{sensor_suffix}``) plus a reset
@@ -79,123 +104,31 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
         "label": "Sensor",
         "icon": "mdi:eye-outline",
     },
-    # ---- Dock consumables (wash-dock tiers only) ---------------------------
-    # MEASURED, not guessed — see .claude/notes/REFERENCE-roborock-dock-detection.md.
-    # These two live on the DOCK device, which is a second device in the same config
-    # entry, so they are only reachable through the CONFIG-ENTRY scope of the sibling
-    # sweep; a device-scoped sweep alone will never see them.
+    # ---- Guide-only cleanables -------------------------------------------
+    # Physical parts the user cleans on a schedule but that Roborock does NOT life-track (no
+    # ``*_time_left`` sensor, no reset button). ``maintenance_only`` renders them as a guide
+    # card with no replacement countdown. Their steps come from the SHARED emitter now, keyed
+    # by the canonical component id — there is no per-brand guide library to look them up in.
     #
-    # They are SELF-GATING and need no capability check. `_resolve` yields None when
-    # the sensor is absent, `button.py` skips any component whose source is None, and
-    # the manager renders no row — so on a charger-only S6 these two entries are inert.
-    # HA creates them exactly when `wash_towel_mode is not None`, i.e. when the vendor's
-    # `RoborockDockFeatures.is_washable` is true: every dock type EXCEPT
-    # {unknown(-9999), o0(0), o1(1), oc(5)}.
-    #
-    # ⚠ THE SUFFIX IS THE TRANSLATION KEY, AND THAT IS DELIBERATE. HA derives an
-    # entity id from the DISPLAY NAME, not the translation key, and the two diverge
-    # here — the real ids measured against HA 2026.8.1 are
-    # `..._dock_maintenance_brush_time_left` and `..._dock_strainer_time_left`. So:
-    #   * `strainer` resolves on the SUFFIX rung   (`endswith("_strainer_time_left")`)
-    #   * `cleaning_brush` CANNOT — "cleaning_brush" never appears in its id at all,
-    #     and it resolves only on the TRANSLATION_KEY rung (live:ENT-9), because
-    #     `_rescue_maintenance_source` passes the declared suffix through as the wanted
-    #     translation key.
-    # Declaring the vendor's translation key is therefore the only value that works for
-    # BOTH rungs, and it is the only one that survives a localized install — a display
-    # name is translated, a translation_key never is.
-    "cleaning_brush": {
-        "sensor_suffix": "cleaning_brush_time_left",
-        "reset_button": {
-            # Registry-DISABLED by default upstream (`entity_registry_enabled_default
-            # =False`), which is fine: `_replacement_reset_entity` falls through to
-            # `registry.async_get` after `states.get` misses, so a disabled button
-            # still resolves. It just cannot be pressed until the user enables it.
-            "entity_suffixes": ["dock_reset_cleaning_brush_consumable"],
-            "token_sets": [["reset", "cleaning", "brush"]],
-        },
-        # CLEANING_BRUSH_REPLACE_TIME, already in HOURS (see the unit note below).
-        "default_interval_hours": 300.0,
-        "max_interval_hours": 450.0,
-        "label": "Dock Cleaning Brush",
-        "icon": "mdi:brush",
-    },
-    "strainer": {
-        "sensor_suffix": "strainer_time_left",
-        "reset_button": {
-            "entity_suffixes": ["dock_reset_strainer_consumable"],
-            "token_sets": [["reset", "strainer"]],
-        },
-        # STRAINER_REPLACE_TIME, already in HOURS.
-        "default_interval_hours": 150.0,
-        "max_interval_hours": 200.0,
-        "label": "Dock Strainer",
-        "icon": "mdi:filter-variant",
-    },
-    # ⚠ UNIT DISCONTINUITY WITHIN THE BRAND. The four robot consumables above are
-    # `native_unit_of_measurement=SECONDS` with `suggested=HOURS`; these two dock
-    # sensors are `native=HOURS` with NO suggestion. The displayed state is hours
-    # either way — but only because HA converts on one side and not the other. Do not
-    # "simplify" by assuming one native unit across the brand, and note that a user who
-    # overrides the display unit on one of the four changes what our reader sees while
-    # these two cannot be overridden the same way.
-    #
-    # NOT DECLARED — `dust_collection`. The vendor tracks it
-    # (`DUST_COLLECTION_REPLACE_TIME`) but HA publishes no `dust_collection_time_left`
-    # sensor for it, so a component here would have nothing to resolve against. It is
-    # absent because there is no source, not because it was overlooked.
-
-    # ---- Guide-only cleanables --------------------------------------------
-    # Physical parts the user cleans on a schedule but that Roborock does NOT
-    # life-track (no ``*_time_left`` sensor, no reset button). Marked
-    # ``maintenance_only`` so they render as a guide card WITHOUT a replacement
-    # countdown (the manager suppresses the Replacement row for these — same as
-    # Eufy's cleaning_tray). Their how-to lives in roborock_upkeep_guides.py under the
-    # matching component key; the ``clean_frequency`` there is the real guidance.
-    "dustbin": {
+    # CANONICAL IDS. `mop_cloth` and `caster_wheel` were Roborock's own spellings; the shared
+    # emitter names these panels `mop` and `omnidirectional_wheel`. Roborock declares no
+    # `label_key`, so the card shows the canonical label, translated in all 18 languages.
+    "mop": {
         "maintenance_only": True,
-        "label": "Dustbin",
-        "icon": "mdi:delete-outline",
-    },
-    "mop_cloth": {
-        "maintenance_only": True,
-        "label": "Mop Cloth",
+        "label": "Mop",
         "icon": "mdi:water",
     },
-    "water_filter": {
+    "omnidirectional_wheel": {
         "maintenance_only": True,
-        "label": "Water Filter",
-        "icon": "mdi:filter-outline",
-    },
-    "caster_wheel": {
-        "maintenance_only": True,
-        "label": "Caster Wheel",
+        "label": "Omnidirectional Wheel",
         "icon": "mdi:tire",
     },
-    "main_wheel": {
+    # NEW HERE. Roborock had no tray component at all — it declared `clean_water_tank` and
+    # `dirty_water_tank` instead, which are PARTS of the job, not the job. The washing station
+    # is one trip: lift the board out, rinse it, wipe the tray under it.
+    "cleaning_tray": {
         "maintenance_only": True,
-        "label": "Main Wheel",
-        "icon": "mdi:tire",
-    },
-    # ---- Dock / station cleanables (station tiers only) -------------------
-    # Present in maintenance_components for ALL Roborocks, but the manager shows a
-    # guide-only component (maintenance_only + no sensor) ONLY when the model's guide
-    # family documents it — so these appear on dock/station models and stay hidden on
-    # a dockless base robot. Guides live in roborock_upkeep_guides.py under the
-    # auto_empty / wash_station families.
-    "dust_bag": {
-        "maintenance_only": True,
-        "label": "Dock Dust Bag",
-        "icon": "mdi:sack",
-    },
-    "clean_water_tank": {
-        "maintenance_only": True,
-        "label": "Clean Water Tank",
-        "icon": "mdi:water-outline",
-    },
-    "dirty_water_tank": {
-        "maintenance_only": True,
-        "label": "Dirty Water Tank",
-        "icon": "mdi:water-alert-outline",
+        "label": "Cleaning Tray",
+        "icon": "mdi:tray",
     },
 }

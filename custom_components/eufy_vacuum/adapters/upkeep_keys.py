@@ -195,6 +195,21 @@ def _filter(mop: str, tanks: str):
 # ── THE MOP — one branch fires. Each earns its place by carrying an INVISIBLE job. ───────────
 # SimuMop folds into cloth: same pad, same holder, same wash, same dry. Its difference is HOW IT
 # MOPS (powered oscillation vs passive drag) = cleaning performance, not maintenance.
+# TWIN FLAT CLOTHS ARE NOT A ROLLER, and this table is why it matters.
+# Each branch below is a different set of hands. `cloth` and `pad` come OFF the machine and are
+# washed; `roller` and `track` are ASSEMBLIES lifted out of a compartment, with a filter behind
+# them. So two flat cloths on twin mounts are `cloth`/`pad` -- the same job as one cloth, done
+# twice -- and never `roller`, which would send their owners looking for a compartment their
+# machine does not have.
+#
+# HISTORY, because the rule outlived its enforcement. It was a `dual_pad` TIER RESERVATION
+# carried as a REPLICA anchor across two Roborock files, and the regime port deleted both. A
+# replica anchor needs two sites stating one thing; with one site left it is not a replica and
+# the ratchet is right to refuse it. Chris: "its a good rule but cant survive as is."
+#
+# So the anchor was retired and the invariant moved HERE, where the distinction is code rather
+# than a reserved name, and into RUK-6 (tests/adapters/roborock/test_roborock_upkeep_keys.py),
+# which names the five twin-cloth models and can go red. A reservation could not.
 MOP = {
     # The assembly comes apart at TWO joints and there are FOUR objects. Neither is guessable.
     "pad": ["mop.pad_carriages_off", "mop.pad_off_carriage", "mop.pad_clean_all_four",

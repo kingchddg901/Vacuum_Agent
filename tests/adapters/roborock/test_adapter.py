@@ -262,133 +262,73 @@ def test_no_dock(s6_config):
 
 
 def test_maintenance_components(s6_config):
+    """SEVEN components. It was fourteen, and that was a parts inventory read as a card list.
+
+    Four life-tracked robot consumables + three guide-only cleanables. Every removal below is
+    Chris's ruling, not a tidy-up: cleaning_brush and strainer "should never have been gained"
+    (dock parts, both inside the one washing-station trip); dustbin "only was ever in there
+    because the filter is attached to it"; water_filter "not an item either"; dust_bag is
+    install-and-forget; the two water tanks are parts of the tray job; main_wheel never had a
+    job of its own and is still a "wipe these too" line inside the wheel card.
+    """
     mc = s6_config["maintenance_components"]
-    # 4 robot life-tracked consumables + 2 DOCK life-tracked consumables
-    # + 5 base guide-only cleanables + 3 dock/station guide-only cleanables
-    # (the guide-only station ones are family-gated at render time by the manager).
     assert set(mc) == {
         "main_brush", "side_brush", "filter", "sensor",
-        "cleaning_brush", "strainer",
-        "dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
-        "dust_bag", "clean_water_tank", "dirty_water_tank",
+        "mop", "omnidirectional_wheel", "cleaning_tray",
     }
     assert mc["main_brush"]["sensor_suffix"] == "main_brush_time_left"
     assert mc["main_brush"]["maintenance_only"] is False
-    # `remaining_is_state` is PRUNED, not renamed. It was declared on four components,
-    # projected onto all twelve with a False default, and read by absolutely nothing —
-    # its documented consumer ("core seam — Wave 1b") never shipped. This assertion used
-    # to check the flag was True, which proved the declaration existed rather than that
-    # it did anything; asserting its absence is the honest version.
+    # `remaining_is_state` is PRUNED, not renamed — it was read by absolutely nothing.
     assert "remaining_is_state" not in mc["main_brush"]
     # Filter reset button is "air_filter", not "filter".
     assert mc["filter"]["reset_button"]["entity_suffixes"] == ["reset_air_filter_consumable"]
-    # Guide-only cleanables: maintenance_only, no upstream sensor, zero intervals.
-    for comp in ("dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
-                 "dust_bag", "clean_water_tank", "dirty_water_tank"):
-        assert mc[comp]["maintenance_only"] is True
-        assert mc[comp]["sensor_suffix"] is None
-        assert mc[comp]["default_interval_hours"] == 0.0
-    for comp in mc.values():
-        # label + icon are bare-deref'd by the platform consumers.
-        assert comp["label"] and comp["icon"]
+    # Guide-only cleanables: maintenance_only, no upstream sensor, no interval.
+    for comp in ("mop", "omnidirectional_wheel", "cleaning_tray"):
+        assert mc[comp]["maintenance_only"] is True, comp
+        assert not mc[comp].get("sensor_suffix"), comp
 
 
-def test_dock_consumables_declare_the_translation_key_not_the_id_suffix(s6_config):
-    """The dock two are keyed by TRANSLATION KEY, and that is load-bearing.
-
-    HA derives a dock entity id from the DISPLAY NAME, not the translation key, and for
-    these two the names diverge — measured against HA 2026.8.1 the real ids end
-    `_dock_maintenance_brush_time_left` and `_dock_strainer_time_left`. So:
-
-      * `strainer` also happens to resolve on the SUFFIX rung, since its id really does
-        end `_strainer_time_left`;
-      * `cleaning_brush` CANNOT — the string "cleaning_brush" appears nowhere in its
-        entity id — and resolves only on the TRANSLATION_KEY rung.
-
-    Declaring the vendor's translation key is the one value that serves both rungs and
-    survives a localized install, because a display name is translated and a
-    translation_key never is. Anyone "correcting" these to the observed id suffix
-    silently breaks cleaning_brush on every install and both of them on every
-    non-English one, so the check is spelled out rather than implied.
-    """
-    mc = s6_config["maintenance_components"]
-
-    assert mc["cleaning_brush"]["sensor_suffix"] == "cleaning_brush_time_left"
-    assert mc["strainer"]["sensor_suffix"] == "strainer_time_left"
-
-    # The measured ids, and the asymmetry between them.
-    measured_brush = "sensor.ivy_dock_maintenance_brush_time_left"
-    measured_strainer = "sensor.ivy_dock_strainer_time_left"
-    assert measured_strainer.endswith("_" + mc["strainer"]["sensor_suffix"]), (
-        "strainer should still be reachable by plain suffix match"
-    )
-    assert not measured_brush.endswith("_" + mc["cleaning_brush"]["sensor_suffix"]), (
-        "if this ever passes, cleaning_brush became suffix-reachable and the comment "
-        "above is stale — re-measure before trusting it"
-    )
-    assert "cleaning_brush" not in measured_brush
-
-    # Both are real life-tracked components, not guide-only, and carry a reset button.
-    for comp in ("cleaning_brush", "strainer"):
-        assert mc[comp].get("maintenance_only") is not True
-        assert mc[comp]["default_interval_hours"] > 0
-        suffixes = mc[comp]["reset_button"]["entity_suffixes"]
-        # The reset buttons live on the DOCK device, so the suffix must carry the
-        # `dock_` infix — `_replacement_reset_entity` builds `button.{vacuum}_{suffix}`
-        # from the VACUUM's object_id and would otherwise never reach them.
-        assert all(s.startswith("dock_") for s in suffixes), suffixes
+# REMOVED 2026-09-12 — test_dock_consumables_declare_the_translation_key_not_the_id_suffix.
+# Its subjects were `cleaning_brush` and `strainer`, the two dock components this port deleted,
+# so it has nothing left to assert. THE LESSON IT CARRIED IS NOT LOST: the translation-key rung
+# it guarded lives in adapters/entity_resolve.py (live:ENT-9) and is documented there, where it
+# still fires for any adapter whose entity id diverges from its translation key. Deleting the
+# test with its subject is right; deleting the reasoning with it would not have been.
 
 
 def test_upkeep_catalog(s6_config):
-    """The guide half: model->family->guide wiring + the `standard` library shape."""
+    """The guide half, now KEY-routed: model -> regime -> card, and no families anywhere.
+
+    The tier column this used to assert is DELETED rather than corrected. It was hand-assigned
+    and wrong on 8 of 41 in both directions — four China-market machines shipped as `standard`
+    when they carry a dock, four Q-series as `auto_empty` when the base SKU has none. Two of
+    the old assertions here pinned exactly those wrong values (a38 Q7 Max as `auto_empty`), so
+    this test was holding the defect in place.
+    """
     cat = s6_config["upkeep_catalog"]
-    # Guide families are maintenance PROFILES, not per-model. The S6 (and the whole
-    # no-dock base lineup) resolves to `standard`.
-    assert cat["model_guide_families"]["roborock.vacuum.s6"] == "standard"
+    assert set(cat) == {"model_names", "model_key_regimes", "key_guides"}, (
+        "family routing must be gone: no model_guide_families, guide_family_names, "
+        "guide_library or guide_translations"
+    )
     assert cat["model_names"]["roborock.vacuum.s6"] == "S6"
-    assert cat["guide_family_names"]["standard"] == "Roborock"
-    # Broad coverage: many models map to a family (not just the 3 capability models).
-    assert len(cat["model_guide_families"]) >= 30
-    # Station models resolve to their authored tier.
-    assert cat["model_guide_families"]["roborock.vacuum.a70"] == "wash_station"   # S8 Pro Ultra
-    assert cat["model_guide_families"]["roborock.vacuum.a38"] == "auto_empty"     # Q7 Max
-    assert cat["model_guide_families"]["roborock.vacuum.a97"] == "wash_station"   # S8 MaxV Ultra (dual flat cloths)
+    # The S6 is a charge-only cloth machine — its regime says so, in readable form.
+    assert cat["model_key_regimes"]["roborock.vacuum.s6"] == "cloth|charge_only|no"
+    assert len(cat["model_key_regimes"]) == 41
 
-    lib = cat["guide_library"]
-    std = lib["standard"]
-    # Every maintenance component the base profile exposes has a guide (4 tracked + 5 cleanables).
-    for comp in (
-        "main_brush", "side_brush", "filter", "sensor",
-        "dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
-    ):
-        guide = std[comp]
-        assert isinstance(guide["steps"], list) and guide["steps"], comp
-        assert isinstance(guide["notes"], list), comp
-        assert "clean_frequency" in guide and "replace_frequency" in guide, comp
+    # THE 8 THE OLD TIER COLUMN GOT WRONG, now measured per model. This is the walk-back.
+    assert cat["model_key_regimes"]["roborock.vacuum.a29"] == "cloth|wash_only|yes"      # G10
+    assert cat["model_key_regimes"]["roborock.vacuum.a46"] == "cloth|wash+empty|yes"     # G10S
+    assert cat["model_key_regimes"]["roborock.vacuum.a26"] == "cloth|wash+empty|yes"     # G10S Pro
+    assert cat["model_key_regimes"]["roborock.vacuum.a23"] == "cloth|auto_empty|no"      # T7S Plus
+    for base_sku in ("a38", "a72", "a73", "ss07"):   # Q7 Max, Q5 Pro, Q8 Max, Q10
+        assert cat["model_key_regimes"]["roborock.vacuum.%s" % base_sku].endswith(
+            "|charge_only|no"
+        ), "%s has no dock at base SKU — the tier column gave it the '+' variant's" % base_sku
 
-    # Composed step-up tiers: base 9 inherited + dock deltas; base robot has none of them.
-    assert "dust_bag" not in std
-    assert set(lib["auto_empty"]) == set(std) | {"dust_bag"}
-    assert set(lib["wash_station"]) == set(std) | {"dust_bag", "clean_water_tank", "dirty_water_tank"}
-    for comp in ("dust_bag", "clean_water_tank", "dirty_water_tank"):
-        assert lib["wash_station"][comp]["steps"], comp
-    # Station mop_cloth is overridden (dock auto-washes) — differs from the base.
-    assert lib["wash_station"]["mop_cloth"] != std["mop_cloth"]
-
-    # Guide translations wired for all 17 languages (ar/he/ko/pl/cs/tr/id AI-draft, rest official).
-    gt = cat["guide_translations"]
-    assert set(gt) == {"de", "es", "fr", "it", "nl", "pt", "ru", "ja", "ko",
-                       "zh-Hans", "zh-Hant", "ar", "he", "pl", "cs", "tr", "id"}
-    # Every language covers the full standard set (9 comps) + the station dock deltas.
-    _STD = {"main_brush", "side_brush", "filter", "sensor", "dustbin",
-            "mop_cloth", "water_filter", "caster_wheel", "main_wheel"}
-    _DOCK = {"dust_bag", "clean_water_tank", "dirty_water_tank"}
-    for lang in gt:
-        assert _STD <= set(gt[lang]["standard"]), f"{lang} std missing {_STD - set(gt[lang]['standard'])}"
-        assert _DOCK <= set(gt[lang]["wash_station"]), f"{lang} station missing {_DOCK - set(gt[lang]['wash_station'])}"
-        for comp in _STD:
-            assert gt[lang]["standard"][comp]["steps"], f"{lang}/{comp}"
-
+    guide = cat["key_guides"][cat["model_key_regimes"]["roborock.vacuum.s6"]]
+    for comp in ("main_brush", "side_brush", "filter", "sensor", "omnidirectional_wheel", "mop"):
+        assert guide[comp]["steps"], comp
+    assert "cleaning_tray" not in guide, "the S6 has no washing station"
 
 def test_vocabulary(s6_config):
     vocab = s6_config["vocabulary"]

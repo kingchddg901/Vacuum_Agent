@@ -191,6 +191,21 @@ added 2026-08-07) pins what happens when a brand DECLARES — or fails to.
 | `DC-4` | — | the same validator that rejects the bad ACCEPTS every shipped brand |
 | `DC-5` | — | end to end: the REGISTERED config is what resolution actually reads |
 
+### `roborock/test_roborock_upkeep_keys.py` — Roborock on the shared regime → key guide
+
+7 test functions, added 2026-09-12 with the Roborock port. Replaces the three authored guide
+families and the hand-assigned maintenance TIER that chose between them.
+
+| id | what it holds |
+| --- | --- |
+| RUK-1 | 41 models, not one new authored key — its whole washing-cloth line emits Dreame's SimuMop card sets, because `SimuMop` normalises to `cloth` at generation. |
+| RUK-2 | declared ↔ emitted components, both directions. |
+| RUK-3 | **seven components, not fourteen** — and the eight that went are Chris's rulings, named. |
+| RUK-4 | every model is both named and routed; 41 either way. |
+| RUK-5 | **the walk-back, pinned.** The old tier was wrong on 8 of 41 in BOTH directions, and two of the assertions this replaced were holding the defect in place. |
+| RUK-6 | **`RNARRS0S` rehoused.** Twin flat cloths are `cloth`/`pad`, never `roller`. Was a replica anchor across two files the port deleted; it is a measurement now, and one that can go red. See `docs/dev/00c-replicas.md`. |
+| RUK-7 | 41 models → 6 regimes → 4 card sets. |
+
 ### `eufy/test_eufy_upkeep_keys.py` — Eufy on the shared regime → key guide
 
 6 test functions, added 2026-09-12 with the Eufy port. It **replaces**
