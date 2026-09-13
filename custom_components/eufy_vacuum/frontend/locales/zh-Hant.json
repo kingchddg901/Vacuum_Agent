@@ -2058,12 +2058,17 @@
       "rolling_brush": "滾刷",
       "mopping_cloth": "拖布",
       "mop": "拖布",
-      "mop_pad_holders": "拖布盤",
-      "omnidirectional_wheel": "萬向輪"
+      "omnidirectional_wheel": "萬向輪",
+      "mop_pad_holders_dock": "拖布盤"
     },
     "clean_water_tank_title": "清水箱",
     "dirty_water_tank_title": "污水箱",
-    "tank_status_detail": "裝置回報的水箱狀態"
+    "tank_status_detail": "裝置回報的水箱狀態",
+    "clock_candidate": {
+      "saturates_at_zero": "僅統計單一部件 — 在該部件重設前停留在 0"
+    },
+    "clock_set": "計數器：{name}",
+    "clock_unset": "未選擇維護計數器"
   },
   "review": {
     "badge_attribution_disagreement": "房間不符",

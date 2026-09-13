@@ -1289,6 +1289,9 @@
     "attention_title": "Needs Attention",
     "begin_reset_title_device": "Send the reset command to the device for this replacement item.",
     "begin_reset_title_integration": "Reset this tracked maintenance interval and refresh the dashboard snapshot.",
+    "clock_candidate": {
+      "saturates_at_zero": "Counts a single part — stops at 0 until that part is reset"  // caveat on a maintenance-clock candidate that is already a component's own counter: upstream clamps it at zero, so an overdue part freezes the clock for every component
+    },
     "category_maintenance": "Maintenance",  // item-category label prefix in attention list: integration-tracked interval item
     "category_replacement": "Replacement",  // item-category label prefix: upstream consumable/replacement part
     "confirm_reset": "Confirm Reset",
@@ -1297,6 +1300,8 @@
     "due_in_months": {"other":"Due in ~{count} months"},  // plural
     "due_in_weeks": {"other":"Due in ~{count} weeks"},  // plural
     "due_overdue": "Overdue",
+    "clock_set": "Counter: {name}",  // faded link in the Maintenance Items header; {name} is the friendly name of the entity currently backing every component the device does not count itself. Shown so a wrong pick (a per-job timer instead of the lifetime one) is noticeable.
+    "clock_unset": "No maintenance counter selected",  // warning-coloured link in the Maintenance Items header, shown when some component needs a counter and none is picked. Those rows render a full bar that never moves, so this is what makes the gap visible.
     "component_label": {
       "main_brush": "Main Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
       "side_brush": "Side Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
@@ -1315,7 +1320,7 @@
       "rolling_brush": "Rolling Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
       "mopping_cloth": "Mopping Cloth",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
       "mop": "Mop",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
-      "mop_pad_holders": "Mop Pad Holders",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "mop_pad_holders_dock": "Mop Pad Holders",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
       "omnidirectional_wheel": "Omnidirectional Wheel"  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
     },
     "due_today": "Due today",

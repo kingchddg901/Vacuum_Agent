@@ -287,7 +287,7 @@ CLEANING_TRAY = ("cleaning_tray",
 # ADDITIONAL to the robot's own mop panel, not a replacement: the holders MOUNT TO THE ROBOT (its
 # parts list carries "Mop Pad Holder Mounting Holes") and the dock only STORES them, so a set is
 # on the robot at any moment and replacing the branch left those pads with no panel at all.
-MOP_SWAP = ("mop_pad_holders",
+MOP_SWAP = ("mop_pad_holders_dock",
             ["access.station_door", "mop.holders_remove", "mop.pads_off_holders_and_clean",
              DRY,
              # THE ONLY REASSEMBLY STEP IN THE DESIGN. It earns its place because it fails

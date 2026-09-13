@@ -530,12 +530,17 @@
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth",
       "mop": "Wischmopp",
-      "mop_pad_holders": "Wischpadhalter",
-      "omnidirectional_wheel": "Omnidirektionales Rad"
+      "omnidirectional_wheel": "Omnidirektionales Rad",
+      "mop_pad_holders_dock": "Wischpadhalter"
     },
     "clean_water_tank_title": "Frischwassertank",
     "dirty_water_tank_title": "Schmutzwassertank",
-    "tank_status_detail": "Vom Gerät gemeldeter Tankstatus"
+    "tank_status_detail": "Vom Gerät gemeldeter Tankstatus",
+    "clock_candidate": {
+      "saturates_at_zero": "Zählt nur ein Teil – bleibt bei 0 stehen, bis dieses Teil zurückgesetzt wird"
+    },
+    "clock_set": "Zähler: {name}",
+    "clock_unset": "Kein Wartungszähler ausgewählt"
   },
   "map": {
     "adjusting": "Wird angepasst:",

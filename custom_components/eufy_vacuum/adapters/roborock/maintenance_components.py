@@ -114,11 +114,31 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     # emitter names these panels `mop` and `omnidirectional_wheel`. Roborock declares no
     # `label_key`, so the card shows the canonical label, translated in all 18 languages.
     "mop": {
+        # ⭐ CADENCE RULED BY CHRIS 2026-09-14, not a vendor figure. Neither Roborock nor
+        # Dreame publishes a recommendation for the guide-only cleanables, which is why
+        # these sat preset-less and rendered as "0 hours left of 0 hours" on a fresh
+        # install (SEEN on ivy, cold). `max` is the CEILING a user may set, ruled at 10x
+        # the cadence -- it bounds the control, it does not assert a life. Both are needed:
+        # a default alone still leaves `max_interval_hours` at the projected 0.0, which is
+        # what makes the number entity `min 1.0 > max 0.0` and therefore unsettable.
+        # a cloth you rinse when you notice it is dirty, not a part that wears to a schedule
+        "default_interval_hours": 20.0,
+        "max_interval_hours": 200.0,
         "maintenance_only": True,
         "label": "Mop",
         "icon": "mdi:water",
     },
     "omnidirectional_wheel": {
+        # ⭐ CADENCE RULED BY CHRIS 2026-09-14, not a vendor figure. Neither Roborock nor
+        # Dreame publishes a recommendation for the guide-only cleanables, which is why
+        # these sat preset-less and rendered as "0 hours left of 0 hours" on a fresh
+        # install (SEEN on ivy, cold). `max` is the CEILING a user may set, ruled at 10x
+        # the cadence -- it bounds the control, it does not assert a life. Both are needed:
+        # a default alone still leaves `max_interval_hours` at the projected 0.0, which is
+        # what makes the number entity `min 1.0 > max 0.0` and therefore unsettable.
+        # hair round the caster; a slow job nobody does weekly
+        "default_interval_hours": 60.0,
+        "max_interval_hours": 600.0,
         "maintenance_only": True,
         "label": "Omnidirectional Wheel",
         "icon": "mdi:tire",
@@ -127,6 +147,16 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     # `dirty_water_tank` instead, which are PARTS of the job, not the job. The washing station
     # is one trip: lift the board out, rinse it, wipe the tray under it.
     "cleaning_tray": {
+        # ⭐ CADENCE RULED BY CHRIS 2026-09-14, not a vendor figure. Neither Roborock nor
+        # Dreame publishes a recommendation for the guide-only cleanables, which is why
+        # these sat preset-less and rendered as "0 hours left of 0 hours" on a fresh
+        # install (SEEN on ivy, cold). `max` is the CEILING a user may set, ruled at 10x
+        # the cadence -- it bounds the control, it does not assert a life. Both are needed:
+        # a default alone still leaves `max_interval_hours` at the projected 0.0, which is
+        # what makes the number entity `min 1.0 > max 0.0` and therefore unsettable.
+        # the washing-station trip -- board out, rinse, wipe the tray under it
+        "default_interval_hours": 20.0,
+        "max_interval_hours": 200.0,
         "maintenance_only": True,
         "label": "Cleaning Tray",
         "icon": "mdi:tray",

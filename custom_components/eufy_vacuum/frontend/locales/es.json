@@ -536,12 +536,17 @@
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth",
       "mop": "Mopa",
-      "mop_pad_holders": "Soportes de mopa",
-      "omnidirectional_wheel": "Rueda omnidireccional"
+      "omnidirectional_wheel": "Rueda omnidireccional",
+      "mop_pad_holders_dock": "Soportes de mopa"
     },
     "clean_water_tank_title": "Depósito de agua limpia",
     "dirty_water_tank_title": "Depósito de agua sucia",
-    "tank_status_detail": "Estado del depósito informado por el dispositivo"
+    "tank_status_detail": "Estado del depósito informado por el dispositivo",
+    "clock_candidate": {
+      "saturates_at_zero": "Cuenta una sola pieza: se detiene en 0 hasta que se restablezca esa pieza"
+    },
+    "clock_set": "Contador: {name}",
+    "clock_unset": "Ningún contador de mantenimiento seleccionado"
   },
   "map": {
     "adjusting": "Ajustando:",

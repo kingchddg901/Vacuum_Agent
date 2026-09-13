@@ -79,7 +79,7 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     # WHICH OF THESE APPEAR IS NOT DECIDED HERE. Every one is listed for every Dreame; the
     # manager shows a guide-only component only when the model's REGIME documents it
     # (upkeep_keys.py), so a dockless robot gets `mop` and no `washboard`, and only a Matrix10
-    # gets `mop_pad_holders`. Listing is declaration; the regime is the gate.
+    # gets `mop_pad_holders_dock`. Listing is declaration; the regime is the gate.
     #
     # LABELS ARE THE ENGLISH FALLBACK, not the shipped heading vocabulary. The card titles a
     # panel from ``vocab.maintenance_component.<component>`` and falls back to this label when
@@ -88,6 +88,16 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     # name the same object. No vendor part name is invented here: roller and track mops are both
     # "the mop assembly" in their own procedures, and they are never co-present on one model.
     "omnidirectional_wheel": {
+        # ⭐ CADENCE RULED BY CHRIS 2026-09-14, not a vendor figure. Neither Roborock nor
+        # Dreame publishes a recommendation for the guide-only cleanables, which is why
+        # these sat preset-less and rendered as "0 hours left of 0 hours" on a fresh
+        # install (SEEN on ivy, cold). `max` is the CEILING a user may set, ruled at 10x
+        # the cadence -- it bounds the control, it does not assert a life. Both are needed:
+        # a default alone still leaves `max_interval_hours` at the projected 0.0, which is
+        # what makes the number entity `min 1.0 > max 0.0` and therefore unsettable.
+        # hair round the caster; a slow job nobody does weekly
+        "default_interval_hours": 60.0,
+        "max_interval_hours": 600.0,
         "maintenance_only": True,
         # Dreame's own procedure heading. NOT the caster: the old family library called this
         # `caster_wheel`, which named a different part (see upkeep_keys.py).
@@ -100,6 +110,16 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     # which assembly it is, the steps say. Dreame's own procedures call roller and track alike
     # "the mop assembly".
     "mop": {
+        # ⭐ CADENCE RULED BY CHRIS 2026-09-14, not a vendor figure. Neither Roborock nor
+        # Dreame publishes a recommendation for the guide-only cleanables, which is why
+        # these sat preset-less and rendered as "0 hours left of 0 hours" on a fresh
+        # install (SEEN on ivy, cold). `max` is the CEILING a user may set, ruled at 10x
+        # the cadence -- it bounds the control, it does not assert a life. Both are needed:
+        # a default alone still leaves `max_interval_hours` at the projected 0.0, which is
+        # what makes the number entity `min 1.0 > max 0.0` and therefore unsettable.
+        # a cloth you rinse when you notice it is dirty, not a part that wears to a schedule
+        "default_interval_hours": 20.0,
+        "max_interval_hours": 200.0,
         "maintenance_only": True,
         "label": "Mop",
         "icon": "mdi:water",
@@ -108,7 +128,17 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     # them by room type; the holders MOUNT TO THE ROBOT and the dock only STORES them, so an owner
     # has a set on the robot AND spares in the station. Two sets to clean, two trips — which is
     # what makes this a job and not a part. 15 models.
-    "mop_pad_holders": {
+    "mop_pad_holders_dock": {
+        # ⭐ CADENCE RULED BY CHRIS 2026-09-14, not a vendor figure. Neither Roborock nor
+        # Dreame publishes a recommendation for the guide-only cleanables, which is why
+        # these sat preset-less and rendered as "0 hours left of 0 hours" on a fresh
+        # install (SEEN on ivy, cold). `max` is the CEILING a user may set, ruled at 10x
+        # the cadence -- it bounds the control, it does not assert a life. Both are needed:
+        # a default alone still leaves `max_interval_hours` at the projected 0.0, which is
+        # what makes the number entity `min 1.0 > max 0.0` and therefore unsettable.
+        # Matrix10 only. LONGER than the pad it holds (40h vs the mop's 20h) because the holder is the swap MECHANISM, not the wearing surface -- Chris: "maybe they are special because of what they are"
+        "default_interval_hours": 40.0,
+        "max_interval_hours": 400.0,
         "maintenance_only": True,
         # Dreame's own parts-list term ("Mop Pad Holder Mounting Holes").
         "label": "Mop Pad Holders",
@@ -128,6 +158,16 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     # ships it translated in 17/17 packs, so no brand needs a `label_key` for this one. The
     # STEP keys remain `washboard.*`; see the note in upkeep_keys.py.
     "cleaning_tray": {
+        # ⭐ CADENCE RULED BY CHRIS 2026-09-14, not a vendor figure. Neither Roborock nor
+        # Dreame publishes a recommendation for the guide-only cleanables, which is why
+        # these sat preset-less and rendered as "0 hours left of 0 hours" on a fresh
+        # install (SEEN on ivy, cold). `max` is the CEILING a user may set, ruled at 10x
+        # the cadence -- it bounds the control, it does not assert a life. Both are needed:
+        # a default alone still leaves `max_interval_hours` at the projected 0.0, which is
+        # what makes the number entity `min 1.0 > max 0.0` and therefore unsettable.
+        # the washing-station trip -- board out, rinse, wipe the tray under it
+        "default_interval_hours": 20.0,
+        "max_interval_hours": 200.0,
         "maintenance_only": True,
         "label": "Cleaning Tray",
         "icon": "mdi:tray",

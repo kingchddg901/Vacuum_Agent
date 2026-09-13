@@ -339,7 +339,7 @@ call. Contract written up as [doc 41 §1b](../../dev/41-maintenance-and-the-dock
 | MGT-3 | routed but THIS model unresolved → guide-only drops, own-counter stands. Red if unresolved returns an empty set, which would also take the filter and brushes. |
 | MGT-4 | **an adapter with no regime table keeps everything — THE THIRD STATE.** Not a defensive case: collapsing it into "unresolved" reddened six `test_maintenance_manager` cases on this gate's first run. |
 | MGT-5 | no model falls below the core five, per brand, per model. |
-| MGT-6 | the two live phantoms pinned by model id — `roborock.vacuum.s6` (a tray it has no station for) and the 685 non-Matrix10 Dreames (`mop_pad_holders`). |
+| MGT-6 | the two live phantoms pinned by model id — `roborock.vacuum.s6` (a tray it has no station for) and the 685 non-Matrix10 Dreames (`mop_pad_holders_dock`). |
 
 Ablation, recorded: restoring the `sensor_suffix` exemption reddens MGT-2; collapsing
 `NOT_REGIME_ROUTED` into `REGIME_UNRESOLVED` reddens 7 cases across MGT-4 and

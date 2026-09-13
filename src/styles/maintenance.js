@@ -181,6 +181,57 @@ export const maintenanceStyles = `
     line-height: 1;
   }
 
+  /* The maintenance-counter link in the Items header. ONE per vacuum, not per row: the clock
+     is a per-vacuum pick, and the card itself is a <button> so a control inside it would nest.
+     Two states, ruled by Chris: warning colour when nothing is picked, faded when something is.
+     It stays visible in BOTH states on purpose -- the faded form names the current counter, and
+     naming it is how a wrong pick gets noticed (the per-JOB timer and the LIFETIME one are one
+     word apart). Carries [data-view] so the existing nav delegation switches tabs; no new
+     binding. */
+  .evcc-maintenance-clock-link {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--evcc-chip-height, 24px);
+    padding: var(--evcc-chip-padding, 5px 14px);
+    border-radius: var(--evcc-chip-radius, 999px);
+    border: 1px solid var(--evcc-border-default);
+    background: transparent;
+    color: var(--evcc-text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  /* NOTHING PICKED. Since every guide-only component now ships a real default interval, an
+     unclocked row renders a full bar that never moves -- plausible, and therefore invisible.
+     This is what keeps that state noticeable. */
+  .evcc-maintenance-clock-link--needed {
+    border-color: color-mix(in srgb, var(--evcc-sem-warning) 55%, transparent);
+    background: color-mix(in srgb, var(--evcc-sem-warning) 12%, transparent);
+    color: var(--evcc-sem-warning);
+  }
+
+  /* PICKED. Present but quiet -- a way back, not a nag. */
+  .evcc-maintenance-clock-link--set {
+    opacity: 0.62;
+    color: var(--evcc-text-muted);
+  }
+
+  .evcc-maintenance-clock-link:hover {
+    border-color: color-mix(in srgb, var(--evcc-text-primary) 30%, transparent);
+  }
+
+  .evcc-maintenance-clock-link--set:hover {
+    opacity: 1;
+  }
+
+  .evcc-maintenance-clock-link:focus-visible {
+    outline: 2px solid var(--evcc-accent);
+    outline-offset: 2px;
+  }
+
   .evcc-maintenance-model-line {
     font-size: 0.82rem;
     color: var(--evcc-text-secondary);

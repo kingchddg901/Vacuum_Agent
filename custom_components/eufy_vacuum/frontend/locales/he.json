@@ -2139,12 +2139,17 @@
       "rolling_brush": "מברשת מתגלגלת",
       "mopping_cloth": "מטלית",
       "mop": "מגב",
-      "mop_pad_holders": "מחזיקי רפידת המגב",
-      "omnidirectional_wheel": "גלגל כל-כיווני"
+      "omnidirectional_wheel": "גלגל כל-כיווני",
+      "mop_pad_holders_dock": "מחזיקי רפידת המגב"
     },
     "clean_water_tank_title": "מיכל מים נקיים",
     "dirty_water_tank_title": "מיכל מים מלוכלכים",
-    "tank_status_detail": "מצב המיכל כפי שדווח על ידי המכשיר"
+    "tank_status_detail": "מצב המיכל כפי שדווח על ידי המכשיר",
+    "clock_candidate": {
+      "saturates_at_zero": "סופר חלק אחד בלבד — נעצר ב-0 עד לאיפוס אותו חלק"
+    },
+    "clock_set": "מונה: {name}",
+    "clock_unset": "לא נבחר מונה תחזוקה"
   },
   "review": {
     "badge_attribution_disagreement": "אי-התאמת חדר",

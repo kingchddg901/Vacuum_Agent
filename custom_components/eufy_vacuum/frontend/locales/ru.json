@@ -576,12 +576,17 @@
       "rolling_brush": "Валик",
       "mopping_cloth": "Салфетка",
       "mop": "Швабра",
-      "mop_pad_holders": "Держатели насадок для швабры",
-      "omnidirectional_wheel": "Всенаправленное колесо"
+      "omnidirectional_wheel": "Всенаправленное колесо",
+      "mop_pad_holders_dock": "Держатели насадок для швабры"
     },
     "clean_water_tank_title": "Бак чистой воды",
     "dirty_water_tank_title": "Бак грязной воды",
-    "tank_status_detail": "Состояние бака по данным устройства"
+    "tank_status_detail": "Состояние бака по данным устройства",
+    "clock_candidate": {
+      "saturates_at_zero": "Считает только одну деталь — останавливается на 0 до её сброса"
+    },
+    "clock_set": "Счётчик: {name}",
+    "clock_unset": "Счётчик обслуживания не выбран"
   },
   "map": {
     "adjusting": "Корректировка:",

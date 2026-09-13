@@ -530,12 +530,17 @@
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth",
       "mop": "Dweil",
-      "mop_pad_holders": "Dweilpadhouders",
-      "omnidirectional_wheel": "Rondomlopend wiel"
+      "omnidirectional_wheel": "Rondomlopend wiel",
+      "mop_pad_holders_dock": "Dweilpadhouders"
     },
     "clean_water_tank_title": "Schoonwatertank",
     "dirty_water_tank_title": "Vuilwatertank",
-    "tank_status_detail": "Tankstatus gemeld door het apparaat"
+    "tank_status_detail": "Tankstatus gemeld door het apparaat",
+    "clock_candidate": {
+      "saturates_at_zero": "Telt één onderdeel — stopt op 0 totdat dat onderdeel is gereset"
+    },
+    "clock_set": "Teller: {name}",
+    "clock_unset": "Geen onderhoudsteller geselecteerd"
   },
   "map": {
     "adjusting": "Aanpassen:",

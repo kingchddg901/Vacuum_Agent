@@ -895,3 +895,84 @@ def test_upkeep_snapshot_overdue_consumable_does_not_raise(hass, manager, mnt, m
     # the row still reports, so the card renders an overdue part rather than
     # losing the entire snapshot
     assert item["remaining_hours"] == -12.0
+
+
+def _clock_candidates(manager, hass, vac="vacuum.alfred"):
+    return manager.maintenance.get_maintenance_source_candidates(vacuum_entity_id=vac)
+
+
+def test_the_current_clock_is_not_labelled_a_part_counter(hass, manager, mock_config_entry):
+    """[MNT-CLK-1] THE BUG REAL DATA CAUGHT, and reasoning did not.
+
+    A part counter SATURATES — upstream clamps it at zero (`max(0, max_life - usage)`), so an
+    overdue part that has not been reset freezes the clock for every component at once. Those
+    entities stay selectable (Chris ruled so) but carry a caveat.
+
+    The naive test for "is this a part counter" is "is it some component's source" — and the
+    LIFETIME CLOCK IS, for every uncounted component, because that is its whole job. So that
+    test hangs the saturation caveat on the one candidate that cannot saturate. Listing real
+    candidates across three machines showed `sensor.ivy_total_cleaning_time` labelled
+    "part counter for cleaning_tray"; nothing in the unit tests could see it, because they
+    never had a clock set.
+
+    THE INPUT THAT MAKES THIS RED: drop the `_src != _current_clock` guard.
+    """
+    from custom_components.eufy_vacuum.const import ENTITY_OVERRIDES_KEY
+    from custom_components.eufy_vacuum.core.capabilities import MAINTENANCE_CLOCK_ROLE
+
+    clock = "sensor.alfred_total_cleaning_time"
+    part = "sensor.alfred_filter_remaining"
+
+    # The candidate sweep is scoped to the vacuum's OWN device / config entry (live:ENT-5), so
+    # the siblings have to be REGISTERED, not merely given states. Without the vacuum's own
+    # entry there are no siblings to search and the list comes back empty — which is exactly how
+    # the first draft of this test passed its own ablation.
+    from homeassistant.helpers import entity_registry as er
+
+    mock_config_entry.add_to_hass(hass)
+    reg = er.async_get(hass)
+    reg.async_get_or_create(
+        "vacuum", "eufy", "uid_vac_clk",
+        suggested_object_id="alfred", config_entry=mock_config_entry,
+    )
+    reg.async_get_or_create(
+        "sensor", "eufy", "uid_total_cleaning_time",
+        suggested_object_id="alfred_total_cleaning_time", config_entry=mock_config_entry,
+    )
+    reg.async_get_or_create(
+        "sensor", "eufy", "uid_filter_remaining",
+        suggested_object_id="alfred_filter_remaining", config_entry=mock_config_entry,
+    )
+    hass.states.async_set(clock, "41.8", {"device_class": "duration", "unit_of_measurement": "h"})
+    hass.states.async_set(part, "360", {"device_class": "duration", "unit_of_measurement": "h"})
+
+    manager.data.setdefault(ENTITY_OVERRIDES_KEY, {})["vacuum.alfred"] = {
+        MAINTENANCE_CLOCK_ROLE: clock
+    }
+    manager.data.setdefault("capabilities", {}).setdefault("vacuum.alfred", {})[
+        "maintenance_sources"
+    ] = {"filter": part, "cleaning_tray": clock, "mop": clock}
+
+    by_id = {c["entity_id"]: c for c in _clock_candidates(manager, hass)}
+
+    # ⚠ ASSERT PRESENCE FIRST. An earlier draft wrapped everything in `if clock in by_id:` and
+    # PASSED THE ABLATION — with the guard removed the candidate list was simply empty, so every
+    # assertion was skipped and the test proved nothing. `f/claim_must_be_able_to_bite`: a test
+    # that cannot name the input that reddens it is a preference.
+    assert clock in by_id, (
+        f"the clock is not even a candidate, so this test cannot bite: {sorted(by_id)}"
+    )
+    assert part in by_id, (
+        f"the part counter is not even a candidate, so this test cannot bite: {sorted(by_id)}"
+    )
+
+    assert by_id[clock]["caveat_key"] is None, (
+        "the CURRENT clock must not be labelled a part counter — it is the source for every "
+        "uncounted component by design, which is not the same as counting one part"
+    )
+    assert by_id[clock]["is_current"] is True
+    assert by_id[clock]["bound_components"] == []
+
+    assert by_id[part]["caveat_key"] == "maintenance.clock_candidate.saturates_at_zero"
+    assert by_id[part]["bound_components"] == ["filter"]
+    assert by_id[part]["is_current"] is False

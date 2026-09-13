@@ -169,7 +169,7 @@ def test_the_two_live_phantoms_are_gated():
 
     ivy is a Roborock S6 — charge-only dock, `supports_mop_wash: false`, and it had
     `button/number/sensor.ivy_cleaning_tray_maintenance_*` for a station it does not have.
-    robin is a Dreame L10s Ultra Gen2, not a Matrix10, and it had `mop_pad_holders` entities
+    robin is a Dreame L10s Ultra Gen2, not a Matrix10, and it had `mop_pad_holders_dock` entities
     accumulating hours against no interval.
     """
     rb = _config("roborock")
@@ -180,11 +180,11 @@ def test_the_two_live_phantoms_are_gated():
 
     dm = _config("dreame")
     _, regimes, guides = _brand("dreame")
-    holders = {m for m, r in regimes.items() if "mop_pad_holders" in guides[r]}
-    assert len(holders) == 15, f"{len(holders)} models emit mop_pad_holders, expected 15"
+    holders = {m for m, r in regimes.items() if "mop_pad_holders_dock" in guides[r]}
+    assert len(holders) == 15, f"{len(holders)} models emit mop_pad_holders_dock, expected 15"
     not_holders = set(regimes) - holders
     assert len(not_holders) == 685
     sample = sorted(not_holders)[0]
     assert not model_has_component(
-        components_for_model(dm, sample), "mop_pad_holders", has_own_counter=False
+        components_for_model(dm, sample), "mop_pad_holders_dock", has_own_counter=False
     )

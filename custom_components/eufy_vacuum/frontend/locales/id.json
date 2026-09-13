@@ -1819,12 +1819,17 @@
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth",
       "mop": "Pel",
-      "mop_pad_holders": "Penjepit kain pel",
-      "omnidirectional_wheel": "Roda segala arah"
+      "omnidirectional_wheel": "Roda segala arah",
+      "mop_pad_holders_dock": "Penjepit kain pel"
     },
     "clean_water_tank_title": "Tangki Air Bersih",
     "dirty_water_tank_title": "Tangki Air Kotor",
-    "tank_status_detail": "Status tangki yang dilaporkan perangkat"
+    "tank_status_detail": "Status tangki yang dilaporkan perangkat",
+    "clock_candidate": {
+      "saturates_at_zero": "Menghitung satu komponen — berhenti di 0 sampai komponen itu direset"
+    },
+    "clock_set": "Penghitung: {name}",
+    "clock_unset": "Belum ada penghitung perawatan yang dipilih"
   },
   "setup": {
     "add": "Tambah",

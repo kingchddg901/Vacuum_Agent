@@ -1819,12 +1819,17 @@
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth",
       "mop": "Paspas",
-      "mop_pad_holders": "Paspas pedi tutucuları",
-      "omnidirectional_wheel": "Çok yönlü tekerlek"
+      "omnidirectional_wheel": "Çok yönlü tekerlek",
+      "mop_pad_holders_dock": "Paspas pedi tutucuları"
     },
     "clean_water_tank_title": "Temiz Su Deposu",
     "dirty_water_tank_title": "Kirli Su Deposu",
-    "tank_status_detail": "Cihazın bildirdiği depo durumu"
+    "tank_status_detail": "Cihazın bildirdiği depo durumu",
+    "clock_candidate": {
+      "saturates_at_zero": "Tek bir parçayı sayar — o parça sıfırlanana kadar 0'da durur"
+    },
+    "clock_set": "Sayaç: {name}",
+    "clock_unset": "Bakım sayacı seçilmedi"
   },
   "setup": {
     "add": "Ekle",

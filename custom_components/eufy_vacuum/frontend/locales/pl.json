@@ -1819,12 +1819,17 @@
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth",
       "mop": "Mop",
-      "mop_pad_holders": "Uchwyty podkładki mopa",
-      "omnidirectional_wheel": "Kółko wielokierunkowe"
+      "omnidirectional_wheel": "Kółko wielokierunkowe",
+      "mop_pad_holders_dock": "Uchwyty podkładki mopa"
     },
     "clean_water_tank_title": "Zbiornik czystej wody",
     "dirty_water_tank_title": "Zbiornik brudnej wody",
-    "tank_status_detail": "Stan zbiornika zgłoszony przez urządzenie"
+    "tank_status_detail": "Stan zbiornika zgłoszony przez urządzenie",
+    "clock_candidate": {
+      "saturates_at_zero": "Liczy jedną część — zatrzymuje się na 0, dopóki jej nie zresetujesz"
+    },
+    "clock_set": "Licznik: {name}",
+    "clock_unset": "Nie wybrano licznika konserwacji"
   },
   "setup": {
     "add": "Dodaj",

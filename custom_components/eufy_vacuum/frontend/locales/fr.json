@@ -536,12 +536,17 @@
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth",
       "mop": "Serpillière",
-      "mop_pad_holders": "Supports de serpillière",
-      "omnidirectional_wheel": "Roue omnidirectionnelle"
+      "omnidirectional_wheel": "Roue omnidirectionnelle",
+      "mop_pad_holders_dock": "Supports de serpillière"
     },
     "clean_water_tank_title": "Réservoir d'eau propre",
     "dirty_water_tank_title": "Réservoir d'eau sale",
-    "tank_status_detail": "État du réservoir signalé par l'appareil"
+    "tank_status_detail": "État du réservoir signalé par l'appareil",
+    "clock_candidate": {
+      "saturates_at_zero": "Ne compte qu'une pièce — s'arrête à 0 jusqu'à la réinitialisation de cette pièce"
+    },
+    "clock_set": "Compteur : {name}",
+    "clock_unset": "Aucun compteur d'entretien sélectionné"
   },
   "map": {
     "adjusting": "Ajustement :",

@@ -2193,12 +2193,17 @@
       "rolling_brush": "الفرشاة الدوارة",
       "mopping_cloth": "قماشة المسح",
       "mop": "الممسحة",
-      "mop_pad_holders": "حوامل وسادة الممسحة",
-      "omnidirectional_wheel": "العجلة متعددة الاتجاهات"
+      "omnidirectional_wheel": "العجلة متعددة الاتجاهات",
+      "mop_pad_holders_dock": "حوامل وسادة الممسحة"
     },
     "clean_water_tank_title": "خزان المياه النظيفة",
     "dirty_water_tank_title": "خزان المياه المتسخة",
-    "tank_status_detail": "حالة الخزان كما يبلغ عنها الجهاز"
+    "tank_status_detail": "حالة الخزان كما يبلغ عنها الجهاز",
+    "clock_candidate": {
+      "saturates_at_zero": "يحسب قطعة واحدة — يتوقف عند 0 حتى تتم إعادة تعيين تلك القطعة"
+    },
+    "clock_set": "العداد: {name}",
+    "clock_unset": "لم يتم تحديد عداد للصيانة"
   },
   "review": {
     "badge_attribution_disagreement": "عدم تطابق الغرفة",

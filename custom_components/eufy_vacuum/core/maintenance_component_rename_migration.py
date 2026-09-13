@@ -43,7 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 #: so the miss sat undetected behind a latched `_v1`.
 #: RE-RUNNING IS SAFE BY CONSTRUCTION: the planner skips any destination that already holds a
 #: value, so a second pass over already-carried data plans nothing.
-MIGRATION_KEY = "maintenance_component_renames_v2"
+MIGRATION_KEY = "maintenance_component_renames_v3"
 
 #: ``legacy component id -> canonical component id``. ONE-TO-ONE ONLY; see the module docstring
 #: for why absorptions are excluded. Add a row here whenever a component id is renamed.
@@ -65,6 +65,13 @@ COMPONENT_RENAMES: dict[str, str] = {
     # already latched, so nothing would have run even if the row had been added. Found by the
     # 2026-09-14 audit; the key bump above is what lets it actually execute.
     "washboard": "cleaning_tray",
+    # Dreame, 2026-09-14 — the key now says WHERE they are. "Holders" alone does not
+    # distinguish pads held on the robot from the swap cassette in the dock, and only the
+    # Matrix10 has the latter. Chris: *"those mop pad holders are only on the matrix 10 for now
+    # and they live in the dock — the rename would explain that in the key."*
+    # FREE TO DO NOW AND NOT LATER: Dreame is unreleased, so no user holds the old key; the only
+    # box carrying it is the author's own robin, which this row migrates.
+    "mop_pad_holders": "mop_pad_holders_dock",
 }
 
 #: Component ids that were RETIRED OUTRIGHT — absorbed into another panel or ruled out of scope

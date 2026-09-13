@@ -81,7 +81,7 @@ _BUNDLED_EN = os.path.join(
 #: Panels that exist only when the machine has a base station that washes.
 #: `water_tanks` was here until 2026-09-12; the station-tank panel was removed by ruling
 #: (Dreame's tank sensors are enums — "just installed or low" — which cannot back a card).
-_STATION_ONLY = {"cleaning_tray", "mop_pad_holders"}
+_STATION_ONLY = {"cleaning_tray", "mop_pad_holders_dock"}
 #: THE MOP IS ONE PANEL. It was four (mop_pad/mop_cloth/mop_roller/mop_track) — a parts
 #: inventory read as a card list. Exactly one branch fires, so four names described one job.
 _MOP_PANEL = "mop"
@@ -191,13 +191,13 @@ def test_the_regime_gates_hardware(regime):
             f"{regime} washes at the station but documents no tray"
         )
 
-    assert "mop_pad_holders" in components or dock_tier != "wash+empty+swap", (
+    assert "mop_pad_holders_dock" in components or dock_tier != "wash+empty+swap", (
         f"{regime} swaps mop pads at the dock but has no holder panel"
     )
 
     # EVERY machine that mops gets exactly ONE mop panel, whatever the assembly.
     assert _MOP_PANEL in components, f"{regime} is a {mop_type} machine with no mop panel"
-    assert not any(c.startswith("mop_") and c != "mop_pad_holders" for c in components), (
+    assert not any(c.startswith("mop_") and c != "mop_pad_holders_dock" for c in components), (
         f"{regime} has a per-assembly mop panel: {sorted(c for c in components if c.startswith('mop_'))}. "
         "The mop is ONE job; which assembly it is belongs in the steps, not in a second card."
     )

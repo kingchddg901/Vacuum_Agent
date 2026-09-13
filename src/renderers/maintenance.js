@@ -522,6 +522,54 @@ export function applyMaintenanceRenderers(proto) {
     `;
   };
 
+
+  /**
+   * The maintenance-counter link, ONE per vacuum, in the Items panel header.
+   *
+   * WHY IT EXISTS. Components the device does not count itself (a cloth, a tray, the caster)
+   * are backed by one entity the user picks — the vacuum's "clock". Until they pick one those
+   * rows cannot count, and since every such component now ships a real default interval they
+   * render a FULL BAR THAT NEVER MOVES rather than an obviously-broken "0 of 0". Plausible and
+   * therefore invisible, which is what this makes visible again.
+   *
+   * WHY IN THE HEADER AND NOT ON EACH CARD. The clock is per-vacuum, so per-row would repeat one
+   * prompt on two-to-four cards; and each card is itself a <button>, so a control inside one
+   * would be a nested interactive element. The affected rows already carry
+   * `--unavailable`, so the grey cards and this link read together.
+   *
+   * TWO STATES (Chris, 2026-09-14): warning colour when nothing is picked, faded when something
+   * is. It stays in both because the faded form NAMES the current counter — the per-job timer
+   * and the lifetime one differ by a single word, and naming it is how a wrong pick is caught.
+   *
+   * ⚠ NOT RENDERED YET. The trigger lands with the picker modal it opens — a link to a screen
+ * that has no picker on it is worse than no link. `data-action="open-clock-picker"` is bound
+ * in `bindModalHostEvents` (raw addEventListener against the body portal; `_onAll` queries the
+ * shadow root and can NEVER match it — see docs/dev/frontend/event-binding-and-modal-host.md §3).
+   *
+   * @param {Array<object>} items - maintenance items from the upkeep snapshot.
+   * @returns {string} HTML, or "" when no component on this vacuum depends on a clock.
+   */
+  proto._renderMaintenanceClockLink = function (items) {
+    const list = Array.isArray(items) ? items : [];
+    const dependent = list.filter((it) => it?.needs_clock === true);
+    if (!dependent.length) return "";
+
+    const picked = dependent.find((it) => it?.clock_entity)?.clock_entity ?? null;
+    const label = dependent.find((it) => it?.clock_label)?.clock_label ?? null;
+    const text = picked
+      ? this.tRaw("maintenance.clock_set", { name: this.escapeHtml(String(label ?? picked)) })
+      : this.t("maintenance.clock_unset");
+
+    return `
+      <button
+        type="button"
+        class="evcc-maintenance-clock-link ${picked ? "evcc-maintenance-clock-link--set" : "evcc-maintenance-clock-link--needed"}"
+        data-action="open-clock-picker"
+        title="${this.escapeHtml(this.t("maintenance.clock_unset"))}"
+      >${text}</button>
+    `;
+  };
+
   /**
    * Render the station water reservoir card with derived status and fill percentage.
    *

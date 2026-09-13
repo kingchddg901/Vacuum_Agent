@@ -521,6 +521,7 @@ export const en = {
   "maintenance.attention_title": "Needs Attention",
   "maintenance.begin_reset_title_device": "Send the reset command to the device for this replacement item.",
   "maintenance.begin_reset_title_integration": "Reset this tracked maintenance interval and refresh the dashboard snapshot.",
+  "maintenance.clock_candidate.saturates_at_zero": "Counts a single part — stops at 0 until that part is reset",  // caveat on a maintenance-clock candidate that is already a component's own counter: upstream clamps it at zero, so an overdue part freezes the clock for every component
   "maintenance.category_maintenance": "Maintenance",  // item-category label prefix in attention list: integration-tracked interval item
   "maintenance.category_replacement": "Replacement",  // item-category label prefix: upstream consumable/replacement part
   "maintenance.confirm_reset": "Confirm Reset",
@@ -529,6 +530,8 @@ export const en = {
   "maintenance.due_in_months": { other: "Due in ~{count} months" },  // plural
   "maintenance.due_in_weeks": { other: "Due in ~{count} weeks" },  // plural
   "maintenance.due_overdue": "Overdue",
+  "maintenance.clock_set": "Counter: {name}",  // faded link in the Maintenance Items header; {name} is the friendly name of the entity currently backing every component the device does not count itself. Shown so a wrong pick (a per-job timer instead of the lifetime one) is noticeable.
+  "maintenance.clock_unset": "No maintenance counter selected",  // warning-coloured link in the Maintenance Items header, shown when some component needs a counter and none is picked. Those rows render a full bar that never moves, so this is what makes the gap visible.
   "maintenance.component_label.main_brush": "Main Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.component_label.side_brush": "Side Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.component_label.filter": "Filter",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
@@ -546,7 +549,7 @@ export const en = {
   "maintenance.component_label.rolling_brush": "Rolling Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.component_label.mopping_cloth": "Mopping Cloth",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.component_label.mop": "Mop",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
-  "maintenance.component_label.mop_pad_holders": "Mop Pad Holders",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.mop_pad_holders_dock": "Mop Pad Holders",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.component_label.omnidirectional_wheel": "Omnidirectional Wheel",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.due_today": "Due today",
   "maintenance.due_tomorrow": "Due tomorrow",

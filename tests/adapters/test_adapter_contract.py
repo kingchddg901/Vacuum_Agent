@@ -856,3 +856,46 @@ def test_the_projection_drops_no_catalog_field(adapter):
         "The declaration and the schema both stay valid, so nothing else fails — add the "
         "field to the projection."
     )
+
+
+def test_every_component_ships_a_settable_interval_range(adapter):
+    """A declared component must arrive with an interval a user can actually set.
+
+    TWO DEFECTS, ONE CAUSE. Seven components across Roborock and Dreame shipped with neither
+    `default_interval_hours` nor `max_interval_hours`, because nobody publishes a cadence for a
+    cloth you rinse or a tray you wipe. Both adapters substitute `0.0` for a missing value, and
+    that single `0.0` caused both:
+
+      * THE CARD rendered "Unknown remaining life -- 0 hours left of 0 hours" for a real job.
+        Seen on a cold install, not deduced.
+      * THE NUMBER ENTITY got `native_min 1.0` and `native_max 0.0`, so `number.set_value` could
+        never validate -- HA raises out_of_range. SEVEN live entities were unsettable, and two
+        of them published a state ABOVE their own declared max.
+
+    The suite could not see it: `ADAPTER_CONFIG_SCHEMA` marks both keys `required: True`, but
+    validation runs POST-projection, where `0.0` has already been substituted and satisfies it.
+    A required field defended by a default is not required.
+
+    Cadences ruled by Chris 2026-09-14 (mop 20, omnidirectional_wheel 60, cleaning_tray 20,
+    mop_pad_holders_dock 40) with ceilings at 10x. Eufy keeps its own manufacturer figures.
+
+    THE INPUT THAT MAKES THIS RED: drop either key from any component's catalog entry.
+    """
+    name, config = adapter
+    projected = config.get("maintenance_components") or {}
+    bad: list[str] = []
+    for component_id, meta in projected.items():
+        default = meta.get("default_interval_hours")
+        ceiling = meta.get("max_interval_hours")
+        if not default or float(default) <= 0:
+            bad.append(f"{component_id}: default_interval_hours={default!r}")
+            continue
+        if not ceiling or float(ceiling) <= float(default):
+            bad.append(
+                f"{component_id}: max_interval_hours={ceiling!r} must exceed "
+                f"default {default!r}, or the number entity is unsettable"
+            )
+    assert not bad, (
+        f"{name}: these components ship an interval a user cannot set -- the card shows "
+        f"'0 hours left of 0 hours' and number.set_value refuses every value: {sorted(bad)}"
+    )

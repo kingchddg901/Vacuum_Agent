@@ -532,12 +532,17 @@
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth",
       "mop": "Mocio",
-      "mop_pad_holders": "Supporti del tampone del mocio",
-      "omnidirectional_wheel": "Ruota omnidirezionale"
+      "omnidirectional_wheel": "Ruota omnidirezionale",
+      "mop_pad_holders_dock": "Supporti del tampone del mocio"
     },
     "clean_water_tank_title": "Serbatoio acqua pulita",
     "dirty_water_tank_title": "Serbatoio acqua sporca",
-    "tank_status_detail": "Stato del serbatoio segnalato dal dispositivo"
+    "tank_status_detail": "Stato del serbatoio segnalato dal dispositivo",
+    "clock_candidate": {
+      "saturates_at_zero": "Conta un solo componente: si ferma a 0 finché non viene reimpostato"
+    },
+    "clock_set": "Contatore: {name}",
+    "clock_unset": "Nessun contatore di manutenzione selezionato"
   },
   "map": {
     "adjusting": "Regolazione:",

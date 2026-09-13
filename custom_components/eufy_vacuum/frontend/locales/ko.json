@@ -2058,12 +2058,17 @@
       "rolling_brush": "롤러 브러시",
       "mopping_cloth": "걸레",
       "mop": "물걸레",
-      "mop_pad_holders": "물걸레 패드 홀더",
-      "omnidirectional_wheel": "전방향 바퀴"
+      "omnidirectional_wheel": "전방향 바퀴",
+      "mop_pad_holders_dock": "물걸레 패드 홀더"
     },
     "clean_water_tank_title": "깨끗한 물탱크",
     "dirty_water_tank_title": "오수 탱크",
-    "tank_status_detail": "기기가 보고한 물탱크 상태"
+    "tank_status_detail": "기기가 보고한 물탱크 상태",
+    "clock_candidate": {
+      "saturates_at_zero": "부품 하나만 계산 — 해당 부품을 재설정할 때까지 0에서 멈춤"
+    },
+    "clock_set": "카운터: {name}",
+    "clock_unset": "유지 관리 카운터가 선택되지 않음"
   },
   "review": {
     "badge_attribution_disagreement": "방 불일치",

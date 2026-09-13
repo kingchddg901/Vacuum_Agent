@@ -80,7 +80,7 @@ tidy-up: it went red across six `test_maintenance_manager` cases on this gate's 
 
 **The floor is five.** `filter`, `main_brush`, `side_brush`, `sensor` and
 `omnidirectional_wheel` are emitted by all 754 models, so the gate can never take a brush or a
-filter card off a model it recognises. `mop`, `cleaning_tray` and `mop_pad_holders` are the
+filter card off a model it recognises. `mop`, `cleaning_tray` and `mop_pad_holders_dock` are the
 regime-varying rows.
 
 ---

@@ -23,7 +23,9 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.helpers import entity_registry as er
 
 from ..adapters.entity_resolve import resolve_action_entity, sweep_siblings
+from ..const import ENTITY_OVERRIDES_KEY
 from ..core import usage_accumulator
+from ..core.capabilities import MAINTENANCE_CLOCK_ROLE
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..adapters.upkeep_keys import components_for_model, model_has_component
 from ..timestamp_utils import utc_now_iso
@@ -403,7 +405,20 @@ class MaintenanceManager:
 
         Excluded: anything WE created. Our own `*_maintenance_remaining` sensors are outputs of
         this very calculation, so offering one would let a user point the counter at its own
-        result.
+        result — a genuine feedback loop, and the ONLY exclusion.
+
+        INCLUDED WITH A CAVEAT: a sibling already bound as some component's own counter. Those
+        are part counters rather than clocks, and we know it without guessing because we are
+        already using them as such. They work — the accumulator survives their resets — but they
+        SATURATE: upstream clamps them at zero, so an overdue part that has not been reset
+        freezes the clock for every component at once. Each candidate therefore carries
+        `bound_components` and a `caveat_key`; the decision to list them anyway is Chris's.
+
+        ⚠ WHAT CANNOT BE DONE, measured rather than assumed: rank them. A lifetime clock is not
+        reliably the largest duration a device publishes — on a Roborock S6,
+        `main_brush_time_left` reads 293 h against a 206 h `total_cleaning_time`. Magnitude,
+        `device_class` and `state_class` all fail to separate the two, which is why this returns
+        a LIST and a caveat instead of a default.
         """
         from ..const import DOMAIN
 
@@ -419,6 +434,33 @@ class MaintenanceManager:
             return []
 
         siblings, _device_count = sweep_siblings(registry, entry)
+        # WHICH SIBLINGS ARE ALREADY A COMPONENT'S OWN COUNTER. This is the one thing we KNOW
+        # rather than guess: an entity already bound as a component's source is a PART counter,
+        # not a lifetime clock. They stay on the list — Chris ruled to include them, and the
+        # accumulator handles their resets correctly since `observe` re-baselines on a move
+        # against expectation — but they carry a caveat, because they SATURATE.
+        _bound: dict[str, list[str]] = {}
+        _current_clock: str | None = None
+        try:
+            _caps = self._manager.get_vacuum_capabilities_snapshot(
+                vacuum_entity_id=vacuum_entity_id
+            )
+            # ⚠ THE CURRENT CLOCK IS ALSO "SOME COMPONENT'S SOURCE" — that is literally its job,
+            # so a naive is-this-bound test labels the lifetime clock a part counter and hangs
+            # the saturation caveat on the one candidate that cannot saturate. Caught by listing
+            # real candidates across three machines, not by reasoning. The user's own stored pick
+            # is the fact that separates them, so it is read FIRST and excluded from the caveat.
+            _overrides = (
+                (self._manager.data.get(ENTITY_OVERRIDES_KEY) or {}).get(vacuum_entity_id) or {}
+            )
+            _clock_raw = _overrides.get(MAINTENANCE_CLOCK_ROLE)
+            if isinstance(_clock_raw, str) and "." in _clock_raw:
+                _current_clock = _clock_raw
+            for _component, _src in (_caps.get("maintenance_sources") or {}).items():
+                if isinstance(_src, str) and _src != _current_clock:
+                    _bound.setdefault(_src, []).append(_component)
+        except Exception:  # pragma: no cover - a missing snapshot must not hide the list
+            _bound, _current_clock = {}, None
         out: list[dict[str, Any]] = []
         for entity_id in siblings:
             if not entity_id.startswith("sensor."):
@@ -444,6 +486,27 @@ class MaintenanceManager:
                 # the counter learns from the source itself in that case.
                 "direction_hint": usage_accumulator.declared_direction(
                     attributes.get("state_class"), attributes, self.USAGE_ATTRIBUTE
+                ),
+                # The components this entity already counts for, if any. Empty for a genuine
+                # lifetime clock.
+                "bound_components": sorted(_bound.get(entity_id, [])),
+                # Whether this is the pick currently in force. The UI marks it; more importantly
+                # it is what keeps the clock out of the part-counter branch above.
+                "is_current": entity_id == _current_clock,
+                # ⚠ A PART COUNTER SATURATES AND A LIFETIME CLOCK DOES NOT. Upstream clamps
+                # these at zero (`max(0, max_life - usage)` in robovac_mqtt), so a part that is
+                # overdue and not yet reset reads 0 FOREVER — and a clock pointed at it stops
+                # accruing hours for EVERY component on the machine until that one part is
+                # reset. The accumulator cannot detect it: a frozen counter and a docked vacuum
+                # are the same reading. Chris ruled these stay selectable ("if you dont do the
+                # replace reset maybe you deserve to have your other counter freeze") with the
+                # caveat SHOWN, so the choice is informed rather than discovered later.
+                # A KEY, NEVER PROSE — the card resolves it in the reader's language
+                # (`f/no_string_without_i18n`).
+                "caveat_key": (
+                    "maintenance.clock_candidate.saturates_at_zero"
+                    if _bound.get(entity_id)
+                    else None
                 ),
             })
         out.sort(key=lambda c: c["name"])
@@ -479,6 +542,26 @@ class MaintenanceManager:
         # this call site keys on the same `model_code` the platforms do, which is what makes
         # "the card shows X" and "X has entities" the same statement instead of two.
         _emitted = components_for_model(_adapter_cfg, model_code)
+        # The per-vacuum clock, so each row can say whether IT depends on one. A component with
+        # its own counter never does; a guide-only one always does, whether or not a clock has
+        # been picked yet. The card needs both facts to choose its treatment: prompt loudly when
+        # a row needs a clock and has none, quietly when it needs one and has it.
+        _clock_pick = (
+            (self._manager.data.get(ENTITY_OVERRIDES_KEY) or {}).get(vacuum_entity_id) or {}
+        ).get(MAINTENANCE_CLOCK_ROLE)
+        if not (isinstance(_clock_pick, str) and "." in _clock_pick):
+            _clock_pick = None
+        # The NAME, resolved here rather than in the card: the card would otherwise have to
+        # reach into the HA state machine for a friendly_name, which no other maintenance field
+        # makes it do. A faded link that says "Counter: Total cleaning time" is what lets someone
+        # notice they picked the per-JOB timer by mistake -- the two are one word apart.
+        _clock_label = None
+        if _clock_pick:
+            _clock_state = self._manager.hass.states.get(_clock_pick)
+            _clock_label = (
+                (getattr(_clock_state, "attributes", None) or {}).get("friendly_name")
+                if _clock_state is not None else None
+            ) or _clock_pick
         for component, meta in _maintenance_components.items():
             label = meta.get("label", component.replace("_", " ").title())
             # Per-brand DISPLAY key: the component key is canonical (`main_brush`),
@@ -680,6 +763,16 @@ class MaintenanceManager:
                 "status": maintenance_status_val,
                 "status_label": _display_label(maintenance_status_val),
                 "available": bool(maint.get("source_available")),
+                # ⚠ NOT THE SAME QUESTION AS `available`. That says "is anything counting this
+                # right now"; this says "would picking a clock be the fix". A component with its
+                # own resolved counter is never clock-dependent, so prompting on it would send
+                # the user to a setting that cannot help. Since the interval ruling gave every
+                # guide-only component a real default, an unclocked row now renders a PLAUSIBLE
+                # static bar ("20 hours left of 20 hours, Good") where it used to render an
+                # obviously-broken "0 of 0" — so the prompt is what keeps the state visible.
+                "needs_clock": source_entity is None or source_entity == _clock_pick,
+                "clock_entity": _clock_pick,
+                "clock_label": _clock_label,
                 "can_reset": True,
                 "reset_kind": "integration",
                 "reset_kind_label": "Integration",

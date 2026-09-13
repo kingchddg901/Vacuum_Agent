@@ -1819,12 +1819,17 @@
       "rolling_brush": "Rolling Brush",
       "mopping_cloth": "Mopping Cloth",
       "mop": "Mop",
-      "mop_pad_holders": "Držáky mopovací podložky",
-      "omnidirectional_wheel": "Všesměrové kolo"
+      "omnidirectional_wheel": "Všesměrové kolo",
+      "mop_pad_holders_dock": "Držáky mopovací podložky"
     },
     "clean_water_tank_title": "Nádrž na čistou vodu",
     "dirty_water_tank_title": "Nádrž na špinavou vodu",
-    "tank_status_detail": "Stav nádrže hlášený zařízením"
+    "tank_status_detail": "Stav nádrže hlášený zařízením",
+    "clock_candidate": {
+      "saturates_at_zero": "Počítá jedinou součást – zastaví se na 0, dokud ji neresetujete"
+    },
+    "clock_set": "Počítadlo: {name}",
+    "clock_unset": "Není vybráno žádné počítadlo údržby"
   },
   "setup": {
     "add": "Přidat",

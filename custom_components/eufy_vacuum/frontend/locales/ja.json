@@ -2058,12 +2058,17 @@
       "rolling_brush": "ロールブラシ",
       "mopping_cloth": "モップ",
       "mop": "モップ",
-      "mop_pad_holders": "モップパッドホルダー",
-      "omnidirectional_wheel": "補助輪"
+      "omnidirectional_wheel": "補助輪",
+      "mop_pad_holders_dock": "モップパッドホルダー"
     },
     "clean_water_tank_title": "清水タンク",
     "dirty_water_tank_title": "汚水タンク",
-    "tank_status_detail": "デバイスが報告したタンクの状態"
+    "tank_status_detail": "デバイスが報告したタンクの状態",
+    "clock_candidate": {
+      "saturates_at_zero": "1つの部品だけを計測 — その部品をリセットするまで0で止まります"
+    },
+    "clock_set": "カウンター: {name}",
+    "clock_unset": "メンテナンスカウンターが未選択です"
   },
   "review": {
     "badge_attribution_disagreement": "部屋の不一致",
