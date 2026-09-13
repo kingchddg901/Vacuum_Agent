@@ -124,9 +124,12 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     #   robot_water_tank (20)      folded into ONE clause on the filter card; clean tap water
     #                              down a sink does not earn its own trip.
     # Their nine `tank.*` keys retired with them, across all 18 language packs.
-    "washboard": {
+    # `cleaning_tray`, not `washboard` -- the generic word is the canonical id and Eufy already
+    # ships it translated in 17/17 packs, so no brand needs a `label_key` for this one. The
+    # STEP keys remain `washboard.*`; see the note in upkeep_keys.py.
+    "cleaning_tray": {
         "maintenance_only": True,
-        "label": "Washboard",
+        "label": "Cleaning Tray",
         "icon": "mdi:tray",
     },
 }

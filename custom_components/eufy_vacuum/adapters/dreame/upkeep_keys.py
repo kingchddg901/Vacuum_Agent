@@ -237,9 +237,19 @@ MOP_ALIAS = {"SimuMop": "cloth"}
 # burn caution TO the descale step, so fetching the warning meant arriving holding the procedure.
 # It was also the only step that had the user apply a SUBSTANCE they must go and obtain, on a
 # part a minority of these stations have.
-WASHBOARD = ("washboard",
-             ["washboard.allow_cooling_before_service", "washboard.remove", RINSE,
-              "washboard.wipe_base", "washboard.filter_if_fitted", BACK_IN], [])
+# THE COMPONENT ID IS `cleaning_tray`, THE STEP KEYS STAY `washboard.*`. Chris 2026-09-12:
+# "washboard = cleaning tray" and "cleaning tray is pretty dang generic". `washboard` is the
+# metaphor Dreame's manuals reach for; the generic word is the better CANONICAL id, and Eufy
+# already ships `cleaning_tray` translated in all 17 packs, so every brand reads its own
+# language with no label_key and no new string.
+#
+# The step keys do NOT follow, and that is not an oversight: prefixes here are by ACTION or
+# OBJECT and have never matched panel ids -- `side_brush` renders `side.*`, `sensor` renders
+# `wipe.*` + `contacts.*`, `main_brush` renders `access.*`. Renaming four already-translated
+# keys to chase a panel name would cost 4 x 18 strings and buy nothing.
+CLEANING_TRAY = ("cleaning_tray",
+                 ["washboard.allow_cooling_before_service", "washboard.remove", RINSE,
+                  "washboard.wipe_base", "washboard.filter_if_fitted", BACK_IN], [])
 
 # ⛔ `robot_water_tank` WAS A PANEL ON 20 MODELS AND IS NOW ONE CLAUSE ON THE FILTER CARD.
 # Settled 2026-09-10, landed 2026-09-12: clean tap water poured down a sink does not earn a trip
@@ -289,7 +299,7 @@ def emit(mop_type: str, dock_tier: str, tanks: str):
     if dock_tier == "wash+empty+swap":
         out.append(MOP_SWAP)            # ADDITIONAL to the robot's own pads, not a replacement
     if dock_tier in SELF_WASH:
-        out.append(WASHBOARD)
+        out.append(CLEANING_TRAY)
     # THE UNIVERSAL NOTE GOES LAST ON EVERY PANEL. Appended here rather than written into each
     # component so it cannot drift: a new component gets it automatically, and DUK-6c proves
     # every emitted panel carries it.
