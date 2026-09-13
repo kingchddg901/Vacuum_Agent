@@ -8,6 +8,45 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [Unreleased]
+
+### Changed
+
+- **Maintenance panels now follow your actual machine, not your brand.** Each model is typed by
+  three measured facts — what kind of mop it takes, what its dock does, how many tanks it has —
+  and only the parts that follow from those appear. A robot with no washing station stops being
+  offered a Cleaning Tray; a vacuum-only model stops being offered a mop. Roborock owners will
+  see fewer panels than before: fourteen became seven, because the old list enumerated *parts*
+  the way a spares catalogue does, and a maintenance card is a *job* — one trip, one set of
+  hands, often several parts.
+- **We count the hours now, not the device.** Maintenance wear is accumulated from the change
+  between readings instead of read off the device as a point value. The practical difference:
+  when a part's own counter resets — because you replaced it, or the robot decided to — the
+  reset is recognised as a reset and no longer silently makes the item read brand new. On
+  Roborock and Dreame this means hours-used starts from zero at this release, because the
+  running total is now ours and there was no earlier one to carry. Eufy is unaffected; it
+  already published its own usage figure and we still adopt it.
+
+### Fixed
+
+- **A renamed maintenance item keeps your interval *and* its entity.** Three Eufy items changed
+  their internal ids (the display names you see are unchanged except *Mopping Cloth*, now
+  *Mop*). Previously the rename orphaned the underlying entities: they stayed in Home Assistant
+  as permanently unavailable, their history stopped, and automations pointing at them kept
+  resolving something that would never update again. They are now carried across, keeping the
+  same entity id — so dashboards, automations and long-term statistics continue uninterrupted,
+  and there is nothing for you to fix.
+- **Retired Roborock items no longer linger as dead entities.** Eight parts left the list (the
+  dust bin, water filter, main wheel, cleaning brush, strainer, dust bag and both water tanks).
+  Where those published entities, the entities are removed rather than left permanently
+  unavailable. Their jobs did not disappear — they are covered by the panels that remain, and
+  the whole washing-station trip is now the one Cleaning Tray card.
+
+> **If you had set a custom interval on one of the eight retired Roborock items**, that value is
+> gone and there is nowhere to restore it, because the item itself no longer exists. Set the
+> interval you want on the panel that now covers that job. Every other custom interval is
+> carried across untouched.
+
 ## [2.1.0] - 2026-08-24
 
 ### Added

@@ -188,10 +188,16 @@ def migrate_maintenance_component_renames(
 
     migrations[MIGRATION_KEY] = True
     if changes:
+        # ⚠ THE TRAILING SENTENCE USED TO BE WRONG AND UNACTIONABLE. It read "components that
+        # MERGED rather than moved keep the default interval — set it again on the merged card",
+        # which names a card that does not exist: a merged component was absorbed, and on a
+        # machine whose regime never emitted the absorbing panel (a charge-only Roborock has no
+        # Cleaning Tray) there is no destination to open at all. Telling a user to go somewhere
+        # that is not there is worse than saying nothing. What happened to a MERGED component
+        # belongs in the release notes, per brand, not in a log line about renames.
         _LOGGER.info(
             "maintenance_component_renames: carried %d custom maintenance interval(s) across a "
-            "component rename: %s. Components that MERGED rather than moved keep the default "
-            "interval — set it again on the merged card if you had customised one.",
+            "component rename: %s",
             len(changes),
             ", ".join(
                 "%s %s->%s (%gh)"
