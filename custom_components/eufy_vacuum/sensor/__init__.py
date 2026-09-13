@@ -52,6 +52,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 
 from ..adapters.registry import get_adapter_config
+from ..adapters.upkeep_keys import components_for_model, model_has_component
 from ..battery.sensors import build_battery_sensors
 from ..const import DATA_BATTERY, DATA_ERROR_TRACKER, DOMAIN, EVENT_JOB_FINISHED
 from ..core.error_tracker import ErrorTracker
@@ -127,6 +128,14 @@ async def async_setup_entry(
         # Maintenance components are now adapter-declared per vacuum.
         _adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
         maintenance_components = _adapter_cfg.get("maintenance_components") or {}
+        # THE MODEL GATE. Shared with the card's snapshot and the other two platforms so all
+        # four agree by construction rather than by three copies staying in step; the rule and
+        # the reasoning live in `adapters/upkeep_keys.model_has_component`. Before 2026-09-14
+        # this loop walked the flat BRAND catalog, so a component the model does not have still
+        # minted an entity here -- 876 (model, component) pairs across three brands.
+        _emitted = components_for_model(
+            _adapter_cfg, manager._get_registry_model_code(vacuum_entity_id=vacuum_entity_id)
+        )
 
         built.append(
             EufyVacuumProfileSensor(
@@ -138,6 +147,10 @@ async def async_setup_entry(
 
         for component, meta in maintenance_components.items():
             if sources.get(component) is None:
+                continue
+            if not model_has_component(
+                _emitted, component, has_own_counter=bool(meta.get("sensor_suffix"))
+            ):
                 continue
             built.append(
                 EufyVacuumMaintenanceRemainingSensor(

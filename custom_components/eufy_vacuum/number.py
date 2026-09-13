@@ -17,6 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
 
 from .adapters.registry import get_adapter_config
+from .adapters.upkeep_keys import components_for_model, model_has_component
 from .const import DOMAIN
 from .entity_helpers import build_vacuum_device_info, entity_belongs_to, sort_room_items
 from .room_entities import EufyVacuumRoomEntity
@@ -47,9 +48,21 @@ async def async_setup_entry(
         # Maintenance components are now adapter-declared per vacuum.
         _adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
         maintenance_components = _adapter_cfg.get("maintenance_components") or {}
+        # THE MODEL GATE. Shared with the card's snapshot and the other two platforms so all
+        # four agree by construction rather than by three copies staying in step; the rule and
+        # the reasoning live in `adapters/upkeep_keys.model_has_component`. Before 2026-09-14
+        # this loop walked the flat BRAND catalog, so a component the model does not have still
+        # minted an entity here -- 876 (model, component) pairs across three brands.
+        _emitted = components_for_model(
+            _adapter_cfg, manager._get_registry_model_code(vacuum_entity_id=vacuum_entity_id)
+        )
 
         for component, meta in maintenance_components.items():
             if sources.get(component) is None:
+                continue
+            if not model_has_component(
+                _emitted, component, has_own_counter=bool(meta.get("sensor_suffix"))
+            ):
                 continue
 
             entity = EufyVacuumMaintenanceIntervalNumber(

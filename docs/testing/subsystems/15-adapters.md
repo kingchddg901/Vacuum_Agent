@@ -287,6 +287,26 @@ Ablation, recorded: removing the collision guard reddens MER-2 and MER-3; reusin
 reddens MER-6; migrating only the number platform reddens MER-4; ignoring `RETIRED_COMPONENTS`
 reddens MER-9; re-declaring `dustbin` in the Roborock catalog reddens MER-10.
 
+### `test_model_gate.py` — does THIS MODEL have this component?
+
+8 test functions / 10 collected cases, added 2026-09-14. Covers the shared predicate in
+`adapters/upkeep_keys.py` that the three entity platforms and the card's upkeep snapshot all
+call. Contract written up as [doc 41 §1b](../../dev/41-maintenance-and-the-dock.md).
+
+| id | what it holds |
+| --- | --- |
+| MGT-1 | **the core five are universal** — measured as the intersection of all 754 models' emitted sets, not read off a catalog. Red if any regime omits one, which would mean the gate could strip a filter card off a model we recognise. |
+| MGT-2 | **a resolved regime gates a SENSOR-BACKED component.** The contract change. The old gate exempted anything declaring a `sensor_suffix` and defended that as keeping Eufy unaffected — but Eufy's tray declares one, so the gate could never reach it, and the exemption rested on a premise measured false (`robovac_mqtt` gates on protocol, not hardware). Pins all 8 tray-less Eufy models. |
+| MGT-3 | routed but THIS model unresolved → guide-only drops, own-counter stands. Red if unresolved returns an empty set, which would also take the filter and brushes. |
+| MGT-4 | **an adapter with no regime table keeps everything — THE THIRD STATE.** Not a defensive case: collapsing it into "unresolved" reddened six `test_maintenance_manager` cases on this gate's first run. |
+| MGT-5 | no model falls below the core five, per brand, per model. |
+| MGT-6 | the two live phantoms pinned by model id — `roborock.vacuum.s6` (a tray it has no station for) and the 685 non-Matrix10 Dreames (`mop_pad_holders`). |
+
+Ablation, recorded: restoring the `sensor_suffix` exemption reddens MGT-2; collapsing
+`NOT_REGIME_ROUTED` into `REGIME_UNRESOLVED` reddens 7 cases across MGT-4 and
+`test_maintenance_manager`; returning an empty frozenset for an unresolved model reddens MGT-3
+and `test_an_unresolved_model_gates_the_cleanables_closed`.
+
 ### `dreame/test_dreame_upkeep_keys.py` — the only gate on an UNWIRED adapter
 
 9 test functions / 48 collected cases (DUK-3, DUK-6 and DUK-9 fan out over the 15

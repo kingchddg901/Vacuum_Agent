@@ -371,3 +371,121 @@ def build_key_guides(model_regimes):
         for k in (comp["steps"] + comp["notes"])
     )
     return key_guides, model_key_regimes, keys
+
+
+# ----------------------------------------------------------------------
+# THE MODEL GATE — one question, asked in four places
+# ----------------------------------------------------------------------
+# "Does THIS MODEL have this component?" Four consumers need the answer: the three entity
+# platforms (button / number / sensor) and the card's upkeep snapshot. Until 2026-09-14 only the
+# card asked it; the platforms iterated the flat BRAND catalog, so a component the model does not
+# have still minted three entities — a reset button, an interval number and a remaining sensor.
+# Measured: 876 (model, component) pairs across the three brands, and confirmed on hardware
+# (a Roborock S6 with a Cleaning Tray, an L10s Ultra with Mop Pad Holders).
+#
+# ⭐ WHY THE REGIME AND NOT THE SENSOR. Because a sensor's existence is not evidence of hardware,
+# and that is measured, not assumed. `robovac_mqtt` gates its consumables on
+# `supported_api_types` — a PROTOCOL family — so any novel-protocol Eufy publishes a "Cleaning
+# Tray Remaining" sensor whether or not it owns a tray, and its `water_level` entity is CREATED
+# on every such device and merely goes `unavailable` without a station. Dreame, by contrast,
+# gates on real capability flags. Two of three brands cannot answer the hardware question at all,
+# so the only consistent source of truth is the per-model regime, which is ours: three MEASURED
+# facts (mop type, dock tier, tanks) from which the component set follows.
+#
+# ⭐ AND NOT THE RESOLVED SOURCE. `capabilities._rescue_maintenance_source` exists precisely
+# because a declaration cannot predict what a device publishes (Dreame builds entities at
+# runtime). That cuts both ways: if a declaration cannot tell you what WILL resolve, what DID
+# resolve cannot tell you what the hardware is. `PARKED-dreame-consumable-declaration.md` §4
+# proposed keying this on `sources.get(component)` and parked it for exactly the hazard that
+# implies — a sensor briefly missing would newly hide a panel. Regime membership is static
+# hardware knowledge and cannot blink.
+#
+# ⭐ BRAND-NEUTRAL BY CONSTRUCTION: reads `upkeep_catalog` out of the adapter config. No brand
+# name appears here or at any call site (`f/drop_brand_names_in_core`).
+
+#: Returned by `components_for_model` when the model resolves no regime. NOT an empty set:
+#: "this model has nothing" and "we do not know what this model has" need different handling,
+#: and conflating them is what would strip a filter card off an unrecognised machine.
+REGIME_UNRESOLVED = None
+
+
+class _NotRegimeRouted:
+    """Sentinel: this adapter declares no key guides, so it has NO opinion to enforce.
+
+    ⚠ A THIRD STATE, AND COLLAPSING IT INTO `REGIME_UNRESOLVED` IS A REAL BUG -- caught by
+    `test_maintenance_manager` on the first run of this gate, not reasoned out in advance. The
+    two look alike and are not: an adapter with no regime table has said nothing about hardware,
+    so every component it declares stands (this is the shipped behaviour, and the old gate's
+    `_guide_routed` flag is exactly what expressed it). A REGIME-ROUTED adapter that cannot
+    place THIS model has tried and failed, which is a statement -- the hardware is unknown, so
+    nothing guide-only is invented. Treat the first as the second and a test adapter, or any
+    brand that never adopts regimes, silently loses every guide-only card.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - diagnostics only
+        return "<not regime routed>"
+
+
+NOT_REGIME_ROUTED = _NotRegimeRouted()
+
+
+def components_for_model(
+    adapter_config: dict | None,
+    model_code: str | None,
+) -> frozenset[str] | _NotRegimeRouted | None:
+    """The components this MODEL's regime emits, or ``None`` when no regime resolved.
+
+    ``model_code`` must be the id the card already keys on
+    (``MaintenanceManager._get_registry_model_code``), NOT a ``detected_model`` argument:
+    ``core/manager.py`` resolves the effective model as
+    ``detected_model or record["detected_model"] or registry_model``, so a persisted record can
+    outrank a changed registry string and two consumers keying differently would disagree about
+    the same machine. One shared function keying one way removes that possibility.
+    """
+    upkeep = (adapter_config or {}).get("upkeep_catalog") or {}
+    guides = upkeep.get("key_guides") or {}
+    if not guides:
+        # An adapter with no key guides is not regime-routed at all; it has no opinion to
+        # enforce, so every declared component stands. DISTINCT from REGIME_UNRESOLVED -- see
+        # the sentinel's docstring for why collapsing the two drops real cards.
+        return NOT_REGIME_ROUTED
+    regime = (upkeep.get("model_key_regimes") or {}).get(model_code or "")
+    if not regime:
+        return REGIME_UNRESOLVED
+    return frozenset(guides.get(regime) or ())
+
+
+def model_has_component(
+    emitted: frozenset[str] | _NotRegimeRouted | None,
+    component: str,
+    *,
+    has_own_counter: bool,
+) -> bool:
+    """Should this vacuum carry this component at all — card row and entities alike?
+
+    ``emitted`` comes from `components_for_model`; ``has_own_counter`` says the component
+    declares a ``sensor_suffix`` that actually resolved, i.e. the DEVICE is reporting on this
+    part.
+
+    TWO BRANCHES, AND THE SECOND IS THE RULING:
+
+    * regime RESOLVED -> the regime is authoritative, full stop. A sensor-backed component is
+      gated too, which is the change from the previous gate and the reason Eufy's Cleaning Tray
+      stops rendering on the 8 models whose regime omits it. Chris: *"for eufy Gate them."* The
+      old gate exempted anything declaring a ``sensor_suffix``, and since Eufy's tray declares
+      one it could never be reached — the hole was structural, not an oversight.
+    * regime UNRESOLVED -> we know nothing about the hardware, so nothing is invented. A
+      component the DEVICE is reporting on survives, because that reading is real whatever the
+      model turns out to be; a guide-only component does not. Chris: *"if regime is unresolved
+      it will lose its maintenance cards."* This is why `components_for_model` returns None
+      rather than an empty set: an unrecognised machine keeps its filter and its brushes, and
+      loses only the rows that were never backed by anything.
+    """
+    if emitted is NOT_REGIME_ROUTED:
+        # The adapter never claimed to route by regime. Nothing to enforce.
+        return True
+    if emitted is None:
+        return has_own_counter
+    return component in emitted

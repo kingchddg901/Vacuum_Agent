@@ -32,6 +32,59 @@ ownership models, and the framework holds both without a brand check.
 
 ---
 
+## 1b. DECLARATION is not EMISSION — which components a vacuum actually has
+
+⭐ **No live doc stated this before 2026-09-14**, and the gap was load-bearing rather than
+cosmetic: `maintenance_sources` appears nowhere in `docs/dev/`, doc 41 §1 said only that "the
+interval comes from the adapter's component **catalog**", and
+`docs/dev/37-the-entity-surface.md` — which owns the entity contract — carried no maintenance
+content at all. It *was* documented once, at `docs/retired/dev/13-maintenance-manager.md`, and
+retired without the successor picking it up. In the gap, the card moved to per-model routing and
+the three entity platforms did not, so 876 (model, component) pairs minted entities for hardware
+the model does not have.
+
+Three different things, and they are not interchangeable:
+
+| | what it is | where it lives |
+|---|---|---|
+| **DECLARATION** | every component a BRAND can ever have | `adapters/<brand>/maintenance_components.py` |
+| **EMISSION** | the components THIS MODEL has, from its measured regime | `adapters/<brand>/upkeep_keys.py` → `<BRAND>_UPKEEP_KEY_GUIDES[regime]` |
+| **STORAGE KEY** | the component id a user's interval is filed under | `data["maintenance"][vacuum][component]` |
+
+**Every consumer reads the EMISSION.** The card's rows, the reset buttons, the interval numbers
+and the remaining sensors all ask one shared predicate,
+`adapters/upkeep_keys.model_has_component`, so "the card shows X" and "X has entities" are the
+same statement rather than two that can drift.
+
+**Why the regime and not the sensor.** A sensor's existence is not evidence of hardware, and
+that is measured: `robovac_mqtt` gates its consumables on `supported_api_types` — a *protocol*
+family — so any novel-protocol Eufy publishes a "Cleaning Tray Remaining" counter whether or not
+it owns a tray, and its `water_level` entity is created on every such device and merely reads
+`unavailable` without a station. Dreame gates on real capability flags; Roborock offers neither.
+Two of three brands cannot answer the hardware question at all, so the only consistent source of
+truth is the per-model regime — three measured facts, and ours.
+
+**Why not the resolved source either.** `capabilities._rescue_maintenance_source` exists because
+a declaration cannot predict what a device publishes (Dreame builds entities at runtime). That
+cuts both ways: if a declaration cannot say what *will* resolve, what *did* resolve cannot say
+what the hardware is. Keying the gate on `sources.get(component)` was proposed and parked for
+exactly the hazard that implies — a sensor briefly missing would hide a panel. Regime membership
+is static and cannot blink.
+
+**Three states, not two.** `components_for_model` returns a frozenset, `REGIME_UNRESOLVED`
+(`None`), or `NOT_REGIME_ROUTED`. An adapter with no regime table has said nothing about
+hardware, so everything it declares stands. A regime-routed adapter that cannot place *this*
+model has tried and failed — the hardware is unknown, so nothing guide-only is invented while
+anything the device is actively reporting survives. Collapsing those two is a real defect, not a
+tidy-up: it went red across six `test_maintenance_manager` cases on this gate's first run.
+
+**The floor is five.** `filter`, `main_brush`, `side_brush`, `sensor` and
+`omnidirectional_wheel` are emitted by all 754 models, so the gate can never take a brush or a
+filter card off a model it recognises. `mop`, `cleaning_tray` and `mop_pad_holders` are the
+regime-varying rows.
+
+---
+
 ## 2. The two clamps guard opposite ends, and different causes
 
 The arithmetic is two lines and both are clamped:

@@ -25,6 +25,7 @@ from homeassistant.helpers import entity_registry as er
 from ..adapters.entity_resolve import resolve_action_entity, sweep_siblings
 from ..core import usage_accumulator
 from ..adapters.registry import get_adapter_config as _get_adapter_config
+from ..adapters.upkeep_keys import components_for_model, model_has_component
 from ..timestamp_utils import utc_now_iso
 
 if TYPE_CHECKING:
@@ -473,24 +474,11 @@ class MaintenanceManager:
 
         _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
         _maintenance_components = _adapter_cfg.get("maintenance_components", {})
-        # Guide components the resolved model documents — the gate for guide-only
-        # cleanables below. A key-guide adapter routes by REGIME, which is derived from the
-        # model's measured hardware, so the gate it produces is sharper than the family one:
-        # a pad robot with a wash dock lists mop_pad and washboard and neither mop_track nor
-        # the used-water box.
-        _upkeep = _adapter_cfg.get("upkeep_catalog", {})
-        _key_routing = bool(_upkeep.get("key_guides"))
-        _guide_regime = _upkeep.get("model_key_regimes", {}).get(model_code or "")
-        _model_guide_components = set(
-            _upkeep.get("key_guides", {}).get(_guide_regime or "", {})
-        )
-        # AN UNRESOLVED MODEL GATES CLOSED. A regime is measured per model and has no generic
-        # member, so no regime means the hardware is genuinely unknown and the honest card is
-        # the sensor-backed rows alone. (The retired prose routing had a `standard` family, so
-        # an unknown model there still landed on real content and "show everything" was safe —
-        # that difference is gone with it.) Without this an unrecognised model code renders
-        # every cleanable ever listed, cleaning tray included, on a robot with no dock at all.
-        _guide_routed = _key_routing
+        # THE MODEL GATE, now SHARED with the three entity platforms rather than living only
+        # here. The rule and the reasoning are in `adapters/upkeep_keys.model_has_component`;
+        # this call site keys on the same `model_code` the platforms do, which is what makes
+        # "the card shows X" and "X has entities" the same statement instead of two.
+        _emitted = components_for_model(_adapter_cfg, model_code)
         for component, meta in _maintenance_components.items():
             label = meta.get("label", component.replace("_", " ").title())
             # Per-brand DISPLAY key: the component key is canonical (`main_brush`),
@@ -502,18 +490,19 @@ class MaintenanceManager:
             # not a service-life wear part) is not surfaced as a Replacement row;
             # only its integration-tracked Maintenance row shows (issue #38).
             maintenance_only = bool(meta.get("maintenance_only"))
-            # MODEL GATE for guide-only cleanables: a maintenance_only component with
-            # no upstream sensor is shown only when the model's guide family — or its
-            # REGIME, for a key-guide adapter — documents it, so dock/station components
-            # (dust bag, water tanks) appear on station models but stay hidden on a
-            # dockless base robot. Applied only when a family or regime resolved (unknown
-            # model → show everything, unchanged); sensor-backed components are never
-            # gated (so Eufy, whose cleanables all carry a sensor, is unaffected).
-            if (
-                _guide_routed
-                and maintenance_only
-                and not meta.get("sensor_suffix")
-                and component not in _model_guide_components
+            # ⚠ THIS REPLACES A FOUR-CLAUSE GATE WHOSE LAST TWO CLAUSES COULD NOT BOTH HOLD
+            # FOR EUFY. It read `maintenance_only and not meta.get("sensor_suffix") and
+            # component not in <regime set>`, and its own comment asserted "sensor-backed
+            # components are never gated (so Eufy ... is unaffected)" as a virtue. Eufy's
+            # `cleaning_tray` declares a `sensor_suffix`, so the gate could never reach it —
+            # the exemption was structural, not an oversight, and 11 Eufy (model, component)
+            # pairs rendered a panel their regime omits. Worse, that exemption assumed a
+            # sensor's existence implies the hardware: MEASURED FALSE, because `robovac_mqtt`
+            # gates its consumables on `supported_api_types`, a PROTOCOL family, so a
+            # novel-protocol Eufy publishes a tray counter whether or not it owns a tray.
+            # Chris: *"for eufy Gate them."* One question now, asked of the regime.
+            if not model_has_component(
+                _emitted, component, has_own_counter=bool(meta.get("sensor_suffix"))
             ):
                 continue
             source_entity = sources.get(component)
