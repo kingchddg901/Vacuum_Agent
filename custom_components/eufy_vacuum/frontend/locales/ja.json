@@ -2056,7 +2056,10 @@
       "clean_water_tank": "清浄水タンク",
       "dirty_water_tank": "汚水タンク",
       "rolling_brush": "ロールブラシ",
-      "mopping_cloth": "モップ"
+      "mopping_cloth": "モップ",
+      "mop": "モップ",
+      "mop_pad_holders": "モップパッドホルダー",
+      "omnidirectional_wheel": "補助輪"
     },
     "clean_water_tank_title": "清水タンク",
     "dirty_water_tank_title": "汚水タンク",

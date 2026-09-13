@@ -1802,10 +1802,10 @@
     },
     "attention_summary_none": "Żaden element konserwacji nie wymaga uwagi.",
     "component_label": {
-      "main_brush": "Main Brush",
-      "side_brush": "Side Brush",
-      "filter": "Filter",
-      "sensor": "Sensor",
+      "main_brush": "Szczotka główna",
+      "side_brush": "Szczotka boczna",
+      "filter": "Filtr",
+      "sensor": "Czujnik",
       "dustbin": "Dustbin",
       "mop_cloth": "Mop Cloth",
       "water_filter": "Water Filter",
@@ -1817,7 +1817,10 @@
       "clean_water_tank": "Clean Water Tank",
       "dirty_water_tank": "Dirty Water Tank",
       "rolling_brush": "Rolling Brush",
-      "mopping_cloth": "Mopping Cloth"
+      "mopping_cloth": "Mopping Cloth",
+      "mop": "Mop",
+      "mop_pad_holders": "Uchwyty podkładki mopa",
+      "omnidirectional_wheel": "Kółko wielokierunkowe"
     },
     "clean_water_tank_title": "Zbiornik czystej wody",
     "dirty_water_tank_title": "Zbiornik brudnej wody",

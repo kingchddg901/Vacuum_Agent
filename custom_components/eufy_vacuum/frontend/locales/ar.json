@@ -2191,7 +2191,10 @@
       "clean_water_tank": "خزان المياه النظيفة",
       "dirty_water_tank": "خزان المياه المتسخة",
       "rolling_brush": "الفرشاة الدوارة",
-      "mopping_cloth": "قماشة المسح"
+      "mopping_cloth": "قماشة المسح",
+      "mop": "الممسحة",
+      "mop_pad_holders": "حوامل وسادة الممسحة",
+      "omnidirectional_wheel": "العجلة متعددة الاتجاهات"
     },
     "clean_water_tank_title": "خزان المياه النظيفة",
     "dirty_water_tank_title": "خزان المياه المتسخة",

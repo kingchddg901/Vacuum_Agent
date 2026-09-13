@@ -2056,7 +2056,10 @@
       "clean_water_tank": "깨끗한 물톱",
       "dirty_water_tank": "오수톱",
       "rolling_brush": "롤러 브러시",
-      "mopping_cloth": "걸레"
+      "mopping_cloth": "걸레",
+      "mop": "물걸레",
+      "mop_pad_holders": "물걸레 패드 홀더",
+      "omnidirectional_wheel": "전방향 휠"
     },
     "clean_water_tank_title": "깨끗한 물탱크",
     "dirty_water_tank_title": "오수 탱크",

@@ -519,9 +519,9 @@
     },
     "attention_summary_none": "Nenhum item de manutenção precisa de atenção.",
     "component_label": {
-      "main_brush": "Main Brush",
-      "side_brush": "Side Brush",
-      "filter": "Filter",
+      "main_brush": "Escova principal",
+      "side_brush": "Escova lateral",
+      "filter": "Filtro",
       "sensor": "Sensor",
       "dustbin": "Dustbin",
       "mop_cloth": "Mop Cloth",
@@ -534,7 +534,10 @@
       "clean_water_tank": "Clean Water Tank",
       "dirty_water_tank": "Dirty Water Tank",
       "rolling_brush": "Rolling Brush",
-      "mopping_cloth": "Mopping Cloth"
+      "mopping_cloth": "Mopping Cloth",
+      "mop": "Esfregona",
+      "mop_pad_holders": "Suportes da almofada da esfregona",
+      "omnidirectional_wheel": "Roda omnidirecional"
     },
     "clean_water_tank_title": "Depósito de água limpa",
     "dirty_water_tank_title": "Depósito de água suja",

@@ -2137,7 +2137,10 @@
       "clean_water_tank": "מיכל מים נקיים",
       "dirty_water_tank": "מיכל מים מלוכלכים",
       "rolling_brush": "מברשת מתגלגלת",
-      "mopping_cloth": "מטלית"
+      "mopping_cloth": "מטלית",
+      "mop": "מגב",
+      "mop_pad_holders": "מחזיקי רפידת המגב",
+      "omnidirectional_wheel": "גלגל כל-כיווני"
     },
     "clean_water_tank_title": "מיכל מים נקיים",
     "dirty_water_tank_title": "מיכל מים מלוכלכים",

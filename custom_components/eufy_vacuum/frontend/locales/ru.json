@@ -574,7 +574,10 @@
       "clean_water_tank": "Бак чистой воды",
       "dirty_water_tank": "Бак грязной воды",
       "rolling_brush": "Валик",
-      "mopping_cloth": "Салфетка"
+      "mopping_cloth": "Салфетка",
+      "mop": "Швабра",
+      "mop_pad_holders": "Держатели насадок для швабры",
+      "omnidirectional_wheel": "Всенаправленное колесо"
     },
     "clean_water_tank_title": "Бак чистой воды",
     "dirty_water_tank_title": "Бак грязной воды",

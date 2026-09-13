@@ -1802,10 +1802,10 @@
     },
     "attention_summary_none": "Žádná položka údržby nevyžaduje pozornost.",
     "component_label": {
-      "main_brush": "Main Brush",
-      "side_brush": "Side Brush",
-      "filter": "Filter",
-      "sensor": "Sensor",
+      "main_brush": "Hlavní kartáč",
+      "side_brush": "Boční kartáč",
+      "filter": "Filtr",
+      "sensor": "Senzor",
       "dustbin": "Dustbin",
       "mop_cloth": "Mop Cloth",
       "water_filter": "Water Filter",
@@ -1817,7 +1817,10 @@
       "clean_water_tank": "Clean Water Tank",
       "dirty_water_tank": "Dirty Water Tank",
       "rolling_brush": "Rolling Brush",
-      "mopping_cloth": "Mopping Cloth"
+      "mopping_cloth": "Mopping Cloth",
+      "mop": "Mop",
+      "mop_pad_holders": "Držáky mopovací podložky",
+      "omnidirectional_wheel": "Všesměrové kolo"
     },
     "clean_water_tank_title": "Nádrž na čistou vodu",
     "dirty_water_tank_title": "Nádrž na špinavou vodu",

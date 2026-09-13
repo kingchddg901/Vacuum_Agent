@@ -545,6 +545,9 @@ export const en = {
   "maintenance.component_label.dirty_water_tank": "Dirty Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.component_label.rolling_brush": "Rolling Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.component_label.mopping_cloth": "Mopping Cloth",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.mop": "Mop",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.mop_pad_holders": "Mop Pad Holders",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+  "maintenance.component_label.omnidirectional_wheel": "Omnidirectional Wheel",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
   "maintenance.due_today": "Due today",
   "maintenance.due_tomorrow": "Due tomorrow",
   "maintenance.hours": { one: "{value} hour", other: "{value} hours" },  // plural; run-hours label; {value} is preformatted, count drives one/other

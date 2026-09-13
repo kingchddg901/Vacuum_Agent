@@ -290,28 +290,9 @@
       "tr"
     ],
     "maintenance.component_label.filter": [
-      "cs",
       "de",
-      "es",
-      "fr",
       "id",
-      "it",
-      "nl",
-      "pl",
-      "pt",
-      "tr"
-    ],
-    "maintenance.component_label.main_brush": [
-      "cs",
-      "de",
-      "es",
-      "fr",
-      "id",
-      "it",
-      "nl",
-      "pl",
-      "pt",
-      "tr"
+      "nl"
     ],
     "maintenance.component_label.main_wheel": [
       "cs",
@@ -324,6 +305,10 @@
       "pl",
       "pt",
       "tr"
+    ],
+    "maintenance.component_label.mop": [
+      "cs",
+      "pl"
     ],
     "maintenance.component_label.mop_cloth": [
       "cs",
@@ -362,28 +347,11 @@
       "tr"
     ],
     "maintenance.component_label.sensor": [
-      "cs",
       "de",
       "es",
-      "fr",
       "id",
-      "it",
       "nl",
-      "pl",
-      "pt",
-      "tr"
-    ],
-    "maintenance.component_label.side_brush": [
-      "cs",
-      "de",
-      "es",
-      "fr",
-      "id",
-      "it",
-      "nl",
-      "pl",
-      "pt",
-      "tr"
+      "pt"
     ],
     "maintenance.component_label.water_filter": [
       "cs",

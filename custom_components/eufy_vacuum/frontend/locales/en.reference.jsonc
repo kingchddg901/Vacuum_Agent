@@ -1313,7 +1313,10 @@
       "clean_water_tank": "Clean Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
       "dirty_water_tank": "Dirty Water Tank",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
       "rolling_brush": "Rolling Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
-      "mopping_cloth": "Mopping Cloth"  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "mopping_cloth": "Mopping Cloth",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "mop": "Mop",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "mop_pad_holders": "Mop Pad Holders",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
+      "omnidirectional_wheel": "Omnidirectional Wheel"  // Maintenance component NAME shown as the card title / row header. LOCALIZE.
     },
     "due_today": "Due today",
     "due_tomorrow": "Due tomorrow",

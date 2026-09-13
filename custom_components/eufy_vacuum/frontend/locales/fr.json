@@ -519,10 +519,10 @@
     },
     "attention_summary_none": "Aucun élément d'entretien ne nécessite votre attention.",
     "component_label": {
-      "main_brush": "Main Brush",
-      "side_brush": "Side Brush",
-      "filter": "Filter",
-      "sensor": "Sensor",
+      "main_brush": "Brosse principale",
+      "side_brush": "Brosse latérale",
+      "filter": "Filtre",
+      "sensor": "Capteur",
       "dustbin": "Dustbin",
       "mop_cloth": "Mop Cloth",
       "water_filter": "Water Filter",
@@ -534,7 +534,10 @@
       "clean_water_tank": "Clean Water Tank",
       "dirty_water_tank": "Dirty Water Tank",
       "rolling_brush": "Rolling Brush",
-      "mopping_cloth": "Mopping Cloth"
+      "mopping_cloth": "Mopping Cloth",
+      "mop": "Serpillière",
+      "mop_pad_holders": "Supports de serpillière",
+      "omnidirectional_wheel": "Roue omnidirectionnelle"
     },
     "clean_water_tank_title": "Réservoir d'eau propre",
     "dirty_water_tank_title": "Réservoir d'eau sale",

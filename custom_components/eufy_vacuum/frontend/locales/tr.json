@@ -1802,10 +1802,10 @@
     },
     "attention_summary_none": "İlgi bekleyen bakım öğesi yok.",
     "component_label": {
-      "main_brush": "Main Brush",
-      "side_brush": "Side Brush",
-      "filter": "Filter",
-      "sensor": "Sensor",
+      "main_brush": "Ana fırça",
+      "side_brush": "Yan fırça",
+      "filter": "Filtre",
+      "sensor": "Sensör",
       "dustbin": "Dustbin",
       "mop_cloth": "Mop Cloth",
       "water_filter": "Water Filter",
@@ -1817,7 +1817,10 @@
       "clean_water_tank": "Clean Water Tank",
       "dirty_water_tank": "Dirty Water Tank",
       "rolling_brush": "Rolling Brush",
-      "mopping_cloth": "Mopping Cloth"
+      "mopping_cloth": "Mopping Cloth",
+      "mop": "Paspas",
+      "mop_pad_holders": "Paspas pedi tutucuları",
+      "omnidirectional_wheel": "Çok yönlü tekerlek"
     },
     "clean_water_tank_title": "Temiz Su Deposu",
     "dirty_water_tank_title": "Kirli Su Deposu",
