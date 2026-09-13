@@ -9,12 +9,7 @@
  * ============================================================
  */
 
-import {
-  guideCatalog,
-  ensureGuideLanguage,
-  guideKeyPack,
-  ensureGuideKeyLanguage,
-} from "../i18n/guide-loader.js";
+import { guideKeyPack, ensureGuideKeyLanguage } from "../i18n/guide-loader.js";
 
 /**
  * Pure "due in N days" projection for a maintenance item.
@@ -163,31 +158,12 @@ export function applyMaintenanceRenderers(proto) {
         notes: (Array.isArray(noteKeys) ? noteKeys : []).map(resolve),
       };
     }
-    // ⚠ TRY FULL LANG FIRST, THEN BASE. `split("-")[0]` alone silently misses every
-    // locale whose GUIDE_TRANSLATIONS key is a script/region variant — `zh-Hans` and
-    // `zh-Hant` both keyed as such, so the pre-2026-08-24 code was `lang = "zh"` and
-    // the map lookup missed on every render for both Chinese variants. The steps,
-    // notes and frequency all fell back to English silently, even though the
-    // roborock/eufy `upkeep_guides_i18n/zh_hans.py` translations existed and shipped.
-    // Same pattern `src/i18n/index.js:277` already uses for CATALOGS lookup.
-    const fullLang = String(this._i18nLanguage() || "en");
-    const baseLang = fullLang.split("-")[0];
-    const family = item?.guide?.source_guide_family ?? item?.guide?.guide_family ?? item?.guide_family;
-    const component = item?.component;
-    const kind = String(item?.kind ?? "maintenance");
-    const byLang = guideCatalog(fullLang)?.[family]?.[component]
-                ?? guideCatalog(baseLang)?.[family]?.[component];
-    const byEn = guideCatalog("en")?.[family]?.[component];
-    if (!byLang && !byEn) return display; // unknown family/component → backend value
-    const pick = (field) => byLang?.[field] ?? byEn?.[field];
-    const freq = kind === "replacement" ? pick("replace_frequency") : pick("clean_frequency");
-    const steps = (Array.isArray(byLang?.steps) && byLang.steps.length) ? byLang.steps
-                : (Array.isArray(byEn?.steps) && byEn.steps.length) ? byEn.steps
-                : display.steps;
-    const notes = (Array.isArray(byLang?.notes) && byLang.notes.length) ? byLang.notes
-                : (Array.isArray(byEn?.notes) && byEn.notes.length) ? byEn.notes
-                : display.notes;
-    return { ...display, frequency: freq ?? display.frequency, steps, notes };
+    // NO FAMILY FALLBACK ANY MORE. Every adapter is key-routed, so the branch above always
+    // returns; this used to drop through to a per-FAMILY translated-prose catalog, which was
+    // deleted 2026-09-12 with its last producer. An adapter that somehow sends neither
+    // `steps_keys` nor `notes_keys` gets the backend's own value back, unchanged — which is
+    // the honest degradation, and is what the old family path did for an unknown family too.
+    return display;
   };
 
   /* =========================================================
@@ -203,13 +179,9 @@ export function applyMaintenanceRenderers(proto) {
   proto.renderMaintenanceView = function (ctx) {
     const { state } = ctx;
 
-    // The translated guide catalogs are served + lazy-loaded ON DEMAND: fetch only
-    // the card's active language (+ its base for a regional tag), not all ~17.
-    // English (bundled) renders until the catalog arrives, so a globe switch is
-    // English → translated, never blank. Idempotent per language.
-    ensureGuideLanguage(this._i18nLanguage?.() ?? "en", () => this._scheduleRender?.());
-    // The KEY packs, same contract, separate files: a key-routed brand's guide text is
-    // 51 sentences (~6 KB a language) and does not live in the prose catalogs.
+    // The KEY packs are served + lazy-loaded ON DEMAND: fetch only the card's active
+    // language (+ its base for a regional tag), not all 17. English (bundled) renders until
+    // the pack arrives, so a globe switch is English → translated, never blank. Idempotent.
     ensureGuideKeyLanguage(this._i18nLanguage?.() ?? "en", () => this._scheduleRender?.());
 
     const upkeep = state.dashboardUpkeep?.() ?? {};
@@ -277,7 +249,7 @@ export function applyMaintenanceRenderers(proto) {
     const availableCleanTankMl = plannedWaterEstimate?.available_clean_tank_ml ?? null;
 
     const modelName = modelMeta.name ?? null;
-    const guideFamilyName = modelMeta.guide_family_name ?? null;
+    // `guide_family_name` is not sent any more — no adapter routes by family.
     const dockFirmware = upkeep.dock_firmware ?? null;
 
     // Lifetime device totals (robovac_mqtt v1.11.0+ sensors). Absent → no tiles.
@@ -310,11 +282,9 @@ export function applyMaintenanceRenderers(proto) {
                   ${attentionSummary || statusSummary ? (attentionSummary || statusSummary) : this.t("maintenance.overview_subtitle")}
                 </div>
               </div>
-              ${guideFamilyName ? `
-                <div class="evcc-maintenance-meta-badge">
-                  ${this.escapeHtml(guideFamilyName)}
-                </div>
-              ` : ""}
+              <!-- The guide-family badge is gone with family routing: it named which authored
+                   family a model resolved to ("X10 Pro Omni", "Roborock (wash & dry station)"),
+                   and no model resolves to one any more. The model NAME below still shows. -->
             </div>
 
             ${modelName || updatedAt || dockFirmware ? `

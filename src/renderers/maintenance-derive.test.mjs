@@ -16,24 +16,29 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { maintenanceDueInBucket, applyMaintenanceRenderers } from "./maintenance.js";
-import { loadGuideCatalog, loadGuideKeyPack } from "../i18n/guide-loader.js";
+import { loadGuideKeyPack } from "../i18n/guide-loader.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-// The translated guide catalogs are now SERVED + lazy-loaded (bundle-en / serve-
-// the-rest, like the UI locales). Register the languages the [LG-*] tests need from
-// the REAL generated frontend/guides/<lang>.json files, exactly as the runtime
-// loader does — a Node fetchImpl reads them off disk. Keeps these tests on real
-// guide data, not a stub, and would still catch the zh-Hans/zh-Hant collapse bug.
-const _GUIDES_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "custom_components", "eufy_vacuum", "frontend", "guides");
-const _guideFetch = (lang) => async () => ({
+// The guide KEY packs are SERVED + lazy-loaded (bundle-en / serve-the-rest, like the UI
+// locales). Register the languages the [LG-*] tests need from the REAL generated
+// frontend/guides/keys/<lang>.json files, exactly as the runtime loader does — a Node
+// fetchImpl reads them off disk. Keeps these tests on real guide data, not a stub.
+//
+// ⚠ WAS the per-FAMILY prose catalogs until 2026-09-12. Those were deleted with the last
+// adapter that routed by family; the LOCALE bug they guarded is identical here, because
+// `_localizedGuide` resolves a key through `guideKeyPack(full)` then `guideKeyPack(base)`.
+const _KEYS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "custom_components", "eufy_vacuum", "frontend", "guides", "keys");
+const _keyFetch = (lang) => async () => ({
   ok: true,
-  json: async () => JSON.parse(readFileSync(join(_GUIDES_DIR, `${lang}.json`), "utf8")),
+  json: async () => JSON.parse(readFileSync(join(_KEYS_DIR, `${lang}.json`), "utf8")),
 });
 before(async () => {
-  for (const lang of ["zh-Hans", "zh-Hant", "pt"]) {
-    await loadGuideCatalog(`served:${lang}`, lang, { fetchImpl: _guideFetch(lang) });
+  // Every language either block needs, loaded once: zh-Hans/zh-Hant/pt for [LG-*] (the
+  // script-variant collapse bug) and de/ja for [LGK-*].
+  for (const lang of ["zh-Hans", "zh-Hant", "pt", "de", "ja"]) {
+    await loadGuideKeyPack(`served:${lang}`, lang, { fetchImpl: _keyFetch(lang) });
   }
 });
 
@@ -389,14 +394,13 @@ test("[FREQ-6] Turkish raises dotless i correctly", () => {
    [LG-*] _localizedGuide — script/region locales (zh-Hans, zh-Hant)
    ============================================================ */
 
-// Task 15: the pre-fix code did `String(this._i18nLanguage() || "en").split("-")[0]`,
-// so `zh-Hans` collapsed to `zh` and the GUIDE_TRANSLATIONS lookup missed for both
-// Chinese variants — a whole-locale regression silently falling back to English
-// steps/notes/frequency. These tests would have caught it.
+// Task 15: the pre-fix code did `String(this._i18nLanguage() || "en").split("-")[0]`, so
+// `zh-Hans` collapsed to `zh` and the lookup missed for both Chinese variants — a whole-locale
+// regression silently falling back to English. These tests would have caught it, and the same
+// shape is live in the KEY resolver: `guideKeyPack(full)` then `guideKeyPack(full.split("-")[0])`.
 //
-// Uses the REAL GUIDE_TRANSLATIONS bundle rather than a stub, because that is where
-// the shape lives (roborock.upkeep_guides_i18n.zh_hans keys the map by "zh-Hans").
-// A stub might have hidden the collapse.
+// Uses the REAL generated packs rather than a stub, because that is where the shape lives — the
+// files really are keyed "zh-Hans" / "zh-Hant". A stub might have hidden the collapse.
 
 function guideHost(lang) {
   const proto = {};
@@ -410,19 +414,23 @@ const _ITEM = {
   kind: "maintenance",
   component: "main_brush",
   guide: {
-    display: { steps: ["EN step 1"], notes: [], frequency: "weekly" },
-    source_guide_family: "standard",
+    display: {
+      steps: ["EN step 1"],
+      notes: [],
+      frequency: "weekly",
+      steps_keys: ["access.brush_guard", "tool.remove_tangled_hair"],
+      notes_keys: [],
+    },
   },
 };
 
-// A cheap language-identity check that beats "not equal to my English fixture":
-// the previous version of this test only checked step0 !== "EN step 1", which is
-// satisfied by the English translation from the bundle when the split-bug is back
-// and the lookup falls all the way through to `byEn`. Han-script detection is
-// robust to future edits of the translation strings themselves.
+// A cheap language-identity check that beats "not equal to my English fixture": the previous
+// version only checked step0 !== "EN step 1", which the English bundle satisfies when the
+// split-bug is back and the chain falls through to `en`. Han-script detection is robust to
+// future edits of the translation strings themselves.
 const HAN = /\p{Script=Han}/u;
 
-test("[LG-1] zh-Hans picks up the zh_hans upkeep guide (roborock 'standard' family)", () => {
+test("[LG-1] zh-Hans resolves keys from the zh-Hans pack", () => {
   const inst = guideHost("zh-Hans");
   const g = inst._localizedGuide(_ITEM);
   assert.ok(g, "guide should resolve");
@@ -431,28 +439,27 @@ test("[LG-1] zh-Hans picks up the zh_hans upkeep guide (roborock 'standard' fami
     `zh-Hans steps did not contain Han script -- the split("-")[0] bug is back: ${JSON.stringify(step0)}`);
 });
 
-test("[LG-2] zh-Hant picks up the zh_hant upkeep guide", () => {
+test("[LG-2] zh-Hant resolves keys from the zh-Hant pack", () => {
   const inst = guideHost("zh-Hant");
-  const g = inst._localizedGuide(_ITEM);
-  const step0 = String(g?.steps?.[0] ?? "");
-  assert.ok(HAN.test(step0),
-    `zh-Hant steps did not contain Han script: ${JSON.stringify(step0)}`);
+  const step0 = String(inst._localizedGuide(_ITEM)?.steps?.[0] ?? "");
+  assert.ok(HAN.test(step0), `zh-Hant steps did not contain Han script: ${JSON.stringify(step0)}`);
 });
 
 test("[LG-3] a region-only variant still resolves via the base language", () => {
-  // pt-BR should still find pt-branch guide translations via the base fallback.
-  // (pt has translations shipped for the standard family.)
+  // pt-BR must find the `pt` pack through the base fallback.
   const inst = guideHost("pt-BR");
   const g = inst._localizedGuide(_ITEM);
   assert.ok(g, "guide should resolve via base fallback");
-  // We don't compare to English here — pt may or may not translate 'main_brush' —
-  // but the lookup MUST have run without raising or returning null.
+  assert.notEqual(g.steps?.[0], "access.brush_guard",
+    "a bare key reached the card — the base-language fallback did not run");
 });
 
-test("[LG-4] an unknown language falls all the way to English (never null, never raise)", () => {
+test("[LG-4] an unknown language falls all the way to English, never null and never raises", () => {
   const inst = guideHost("xx-ZZ");
   const g = inst._localizedGuide(_ITEM);
   assert.ok(g, "unknown language should still get an English-fallback guide, not null");
+  assert.equal(typeof g.steps?.[0], "string");
+  assert.notEqual(g.steps?.[0], "access.brush_guard", "English is bundled; the key must resolve");
 });
 
 /* ============================================================
@@ -521,16 +528,7 @@ test("[MIN-4] nothing to fall back on -> final i18n fallback (translated or the 
 // [LGK-4] an unauthored key renders AS ITSELF, loudly, rather than vanishing
 // [LGK-5] the prose routing is untouched by the key branch (eufy/roborock regression)
 
-const _KEYS_DIR = join(_GUIDES_DIR, "keys");
-const _keyFetch = (lang) => async () => ({
-  ok: true,
-  json: async () => JSON.parse(readFileSync(join(_KEYS_DIR, `${lang}.json`), "utf8")),
-});
-before(async () => {
-  for (const lang of ["de", "ja", "pt"]) {
-    await loadGuideKeyPack(`served:${lang}`, lang, { fetchImpl: _keyFetch(lang) });
-  }
-});
+// _KEYS_DIR / _keyFetch / before() are declared once at the top of this file.
 
 // Shaped exactly as maintenance/manager.py now emits a key guide: steps/notes present
 // and EMPTY, the keys alongside them, no frequency.
@@ -582,11 +580,18 @@ test("[LGK-4] an unauthored key renders AS ITSELF — loud, not silent", () => {
   assert.equal(g.steps[1], "not.a.real.key");
 });
 
-test("[LGK-5] notes resolve too, and the key branch leaves prose routing alone", () => {
+test("[LGK-5] notes resolve too, and an item with no keys at all degrades honestly", () => {
   const g = guideHost("de")._localizedGuide(_KEY_ITEM(["rinse.clean_water_only"], ["note.no_detergent"]));
   assert.equal(g.notes.length, 1);
   assert.notEqual(g.notes[0], "note.no_detergent", "note key did not resolve");
-  // the prose item from the [LG-*] block must be unaffected by the branch above it
-  const prose = guideHost("zh-Hans")._localizedGuide(_ITEM);
-  assert.ok(HAN.test(String(prose.steps?.[0] ?? "")), "the key branch broke prose routing");
+
+  // ⚠ THIS HALF USED TO ASSERT "the key branch leaves PROSE routing alone". There is no prose
+  // routing left — the per-family catalogs went with the last adapter that used them — so the
+  // surviving question is what happens to an item carrying NEITHER steps_keys nor notes_keys.
+  // It must come back unchanged rather than null or thrown: that is the same degradation the
+  // old family path gave an unknown family, and an adapter mid-port can produce it.
+  const keyless = { kind: "maintenance", component: "filter",
+                    guide: { display: { steps: ["backend step"], notes: [], frequency: "weekly" } } };
+  const out = guideHost("de")._localizedGuide(keyless);
+  assert.deepEqual(out, keyless.guide.display, "a keyless item must return the backend value as-is");
 });

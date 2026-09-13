@@ -21,7 +21,6 @@ this map is complete by construction. **Do not hand-edit** — edit the registry
 | `src/i18n/guide-keys.js` | map-only | `dreame-guide-keys` (python scripts/sync-dreame-guide-keys.py) | `durable/dreame-port-fixture/resources/key-authoring/` _(external)_ | — |
 | `docs/dev/reference/EVENTS.md` | gated | `events` (python scripts/gen_event_docs.py) | `custom_components/eufy_vacuum/` | — |
 | `docs/dev/reference/GENERATION_MAP.md` | gated | `generation-map` (python scripts/gen_generation_map.py) | `scripts/check_generated_docs.py` | — |
-| `src/i18n/guide-translations.js` | map-only | `guide-translations` (python scripts/sync-guide-translations.py) | `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/` · `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/` · `scripts/data/guide-frequency-translations.json` | — |
 | `custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc` | map-only | `locale-reference` (npm run build:locale-reference) | `src/i18n/en.js` | — |
 | `docs/testing/subsystems/*.md` (19) | gated · region | `mock-column` (python scripts/mock_docs.py) | `tests/` | — |
 | `docs/dev/reference/THEME_TOKEN_MAP.md`, `docs/dev/reference/THEME_TOKEN_USAGE.md` | gated | `theme-tokens` (node scripts/gen-theme-token-docs.mjs) | `src/theme-tokens/` · `src/styles/` | — |
@@ -29,12 +28,9 @@ this map is complete by construction. **Do not hand-edit** — edit the registry
 ## Reverse index — “I need to change …”
 
 - **`custom_components/eufy_vacuum/`** → regenerates `docs/dev/reference/EVENTS.md` · run `python scripts/gen_event_docs.py`
-- **`custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/`** → regenerates `src/i18n/guide-translations.js` · run `python scripts/sync-guide-translations.py`
-- **`custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/`** → regenerates `src/i18n/guide-translations.js` · run `python scripts/sync-guide-translations.py`
 - **`custom_components/eufy_vacuum/frontend/animal-svg/src/`** → regenerates `custom_components/eufy_vacuum/frontend/animal-svg/animals/*.js` (6) · run `node scripts/build-animal.mjs <descriptor.json> --first-party`
 - **`durable/dreame-port-fixture/resources/key-authoring/`** _(external, provenance only)_ → regenerates `src/i18n/guide-keys.js` · run `python scripts/sync-dreame-guide-keys.py`
 - **`scripts/check_generated_docs.py`** → regenerates `docs/dev/reference/GENERATION_MAP.md` · run `python scripts/gen_generation_map.py`
-- **`scripts/data/guide-frequency-translations.json`** → regenerates `src/i18n/guide-translations.js` · run `python scripts/sync-guide-translations.py`
 - **`src/i18n/en.js`** → regenerates `custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc` · run `npm run build:locale-reference`
 - **`src/styles/`** → regenerates `docs/dev/reference/THEME_TOKEN_MAP.md`, `docs/dev/reference/THEME_TOKEN_USAGE.md` · run `node scripts/gen-theme-token-docs.mjs`
 - **`src/theme-tokens/`** → regenerates `docs/dev/reference/THEME_TOKEN_MAP.md`, `docs/dev/reference/THEME_TOKEN_USAGE.md` · run `node scripts/gen-theme-token-docs.mjs`
@@ -65,12 +61,6 @@ _this registry, rendered as the who-generates-what navigation graph_
 - **EDIT HERE:** `scripts/check_generated_docs.py`
 - **DO NOT EDIT:** `docs/dev/reference/GENERATION_MAP.md`
 - **REGEN:** `python scripts/gen_generation_map.py`
-
-### `guide-translations`  ·  map-only
-_merges the brand i18n packs -> card's EN base + served per-lang guide JSON_
-- **EDIT HERE:** `custom_components/eufy_vacuum/adapters/eufy/upkeep_guides_i18n/`, `custom_components/eufy_vacuum/adapters/roborock/upkeep_guides_i18n/`, `scripts/data/guide-frequency-translations.json`
-- **DO NOT EDIT:** `src/i18n/guide-translations.js`
-- **REGEN:** `python scripts/sync-guide-translations.py`
 
 ### `locale-reference`  ·  map-only
 _translator reference: full nested key structure + context comments of en.js_

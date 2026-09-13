@@ -7,7 +7,7 @@ adapters/dreame/upkeep_keys.py). The card resolves those keys in the USER's lang
 not the HA instance language — so the packs have to live client-side, exactly like the existing
 family-based guide catalogs.
 
-Same bundle-en / serve-the-rest split as `sync-guide-translations.py` and the UI locales:
+Same bundle-en / serve-the-rest split the UI locales use:
 
     src/i18n/guide-keys.js                          ENGLISH, bundled — the universal fallback.
                                                     `_localizedGuide` needs a sync English value
