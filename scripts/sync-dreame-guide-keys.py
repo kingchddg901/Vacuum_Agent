@@ -48,21 +48,32 @@ SERVED_NAME = {"zh_hans": "zh-Hans", "zh_hant": "zh-Hant"}
 
 
 def _load_keys_module():
-    """upkeep_keys.py uses relative imports; load it under a synthetic package so they resolve
-    without executing the whole adapter __init__."""
-    d = os.path.join(ADAPTERS, "dreame")
-    pkg = types.ModuleType("_dreame_keys_pkg")
-    pkg.__path__ = [d]
-    sys.modules["_dreame_keys_pkg"] = pkg
-    out = None
-    for name in ("upkeep_regimes", "upkeep_keys"):
-        full = "_dreame_keys_pkg.%s" % name
-        spec = importlib.util.spec_from_file_location(full, os.path.join(d, name + ".py"))
+    """Load the Dreame key surface without executing the whole adapter __init__.
+
+    TWO SYNTHETIC PACKAGE LEVELS, NOT ONE. The emitter moved to `adapters/upkeep_keys.py`
+    (it is every brand's, not Dreame's), so `dreame/upkeep_keys.py` reaches it with
+    `from ..upkeep_keys import ...`. A single synthetic package rooted at `dreame/` makes that
+    relative import walk off the top -- "attempted relative import beyond top-level package".
+    So we mint a parent for `adapters` and a child for `dreame`, and the `..` resolves.
+    """
+    parent = types.ModuleType("_va_adapters")
+    parent.__path__ = [ADAPTERS]
+    sys.modules["_va_adapters"] = parent
+    child = types.ModuleType("_va_adapters.dreame")
+    child.__path__ = [os.path.join(ADAPTERS, "dreame")]
+    sys.modules["_va_adapters.dreame"] = child
+
+    def _load(full, path):
+        spec = importlib.util.spec_from_file_location(full, path)
         mod = importlib.util.module_from_spec(spec)
         sys.modules[full] = mod
         spec.loader.exec_module(mod)
-        out = mod
-    return out
+        return mod
+
+    d = os.path.join(ADAPTERS, "dreame")
+    _load("_va_adapters.upkeep_keys", os.path.join(ADAPTERS, "upkeep_keys.py"))
+    _load("_va_adapters.dreame.upkeep_regimes", os.path.join(d, "upkeep_regimes.py"))
+    return _load("_va_adapters.dreame.upkeep_keys", os.path.join(d, "upkeep_keys.py"))
 
 
 def main():
