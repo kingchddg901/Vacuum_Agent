@@ -53,10 +53,18 @@ def test_label_key_survives_config_build(hass):
     SAME class as #38: a new field silently dropped by the fixed whitelist. Without it
     the canonical component key (main_brush) title-cases to "Main Brush" on the card
     instead of Eufy's translated "Rolling Brush" (caught live, not by the green suite).
-    The three canonicalized Eufy components each carry their legacy display key; an
-    unchanged component carries none (the card then uses the component key directly)."""
+    A canonicalized Eufy component carries its legacy display key; an unchanged one carries
+    none (the card then uses the component key directly).
+
+    IDS UPDATED 2026-09-12 with the regime/key port: `caster_wheel` -> `omnidirectional_wheel`
+    and `mop_cloth` -> `mop`, which are the ids the shared emitter produces. The label_key
+    CONTRACT is unchanged and is still what this test guards.
+
+    `mop` deliberately carries NO label_key now. Eufy's word was "Mopping Cloth", which is
+    wrong on five of its ten mop-bearing models (S1, S1 Pro and E28 are rollers; C20 and X10
+    Pro Omni are pads). `mop` is correct for all four shapes."""
     mc = _maintenance_components(hass)
     assert mc["main_brush"]["label_key"] == "rolling_brush"
-    assert mc["caster_wheel"]["label_key"] == "swivel_wheel"
-    assert mc["mop_cloth"]["label_key"] == "mopping_cloth"
+    assert mc["omnidirectional_wheel"]["label_key"] == "swivel_wheel"
+    assert mc["mop"].get("label_key") is None
     assert mc["filter"].get("label_key") is None

@@ -19,7 +19,7 @@ card that already exists and is already translated into all 18 languages.
 
 GENERATED from durable/dreame-port-fixture/derived/manifest_table.csv (outside git — it carries
 the full provenance: per-model doc ties, measurement basis per field, and the hand-walk record).
-Regenerate with scripts/sync-dreame-regimes.py.
+Regenerate with scripts/sync-upkeep-regimes.py.
 """
 
 from __future__ import annotations

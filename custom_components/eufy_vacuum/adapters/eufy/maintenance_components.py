@@ -73,12 +73,16 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
         "label_key": "rolling_brush",
         "icon": "mdi:broom",
     },
-    "mop_cloth": {
+    # CANONICAL `mop`, AND NO label_key. Eufy called this "Mopping Cloth", which is wrong on
+    # FIVE of its ten mop-bearing models: S1, S1 Pro and E28 carry rollers, C20 and X10 Pro Omni
+    # carry pads. `mop` is correct for all four mop shapes -- which is the whole point of the
+    # split: the STEPS branch by shape, the PANEL NAME does not. So this is the one Eufy word
+    # that does not survive as a label_key; the other two do, because their manual uses them.
+    "mop": {
         "sensor_suffix": "mopping_cloth_remaining",
         "default_interval_hours": 20.0,
         "max_interval_hours": 120,
-        "label": "Mopping Cloth",
-        "label_key": "mopping_cloth",
+        "label": "Mop",
         "icon": "mdi:water",
     },
     "cleaning_tray": {
@@ -90,7 +94,13 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
         # A cleanable, not a service-life wear part — Maintenance row only.
         "maintenance_only": True,
     },
-    "caster_wheel": {
+    # CANONICAL `omnidirectional_wheel` -- the id the shared emitter produces -- with Eufy's own
+    # word kept via label_key. They are the same job and one panel serves both: Chris confirmed
+    # the X10's wheel does come out ("it says use a screwdriver to lever it out but i can remove
+    # it by hand"), and the step text was made object-free so the HEADING names the part. It is
+    # NOT renamed the other way: `caster_wheel` and `omnidirectional_wheel` are distinct in the
+    # packs (ru: Ролик vs Всенаправленное колесо), and merging them would be wrong in 17 languages.
+    "omnidirectional_wheel": {
         "sensor_suffix": "swivel_wheel_remaining",
         "proxy_for": "filter",
         "default_interval_hours": 60.0,

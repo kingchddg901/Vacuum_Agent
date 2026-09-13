@@ -18,11 +18,13 @@ Roborock's while holding different prose, and the card looks a family up with no
 qualifier. The workaround was to skip Dreame on collision, which left those models
 English-only. There is no collision left to skip.
 
-  - English base:           adapters/eufy/eufy_upkeep_guides.py       (UPKEEP_GUIDE_LIBRARY)
-                            adapters/roborock/roborock_upkeep_guides.py (ROBOROCK_UPKEEP_GUIDE_LIBRARY)
-  - translations:           adapters/eufy/upkeep_guides_i18n/    (one <lang>.py per
-                            language; __init__.py assembles UPKEEP_GUIDE_TRANSLATIONS)
-                            (Roborock translations are Phase 2 — English base for now)
+⚠ ROBOROCK-ONLY NOW, AND ON ITS WAY OUT. Eufy ported to REGIME->KEY routing 2026-09-12 and its
+authored library and 17 language packs were deleted with it; Dreame went first. This script and
+everything it feeds disappear when Roborock ports too — it is the last consumer of the family
+system.
+
+  - English base:           adapters/roborock/roborock_upkeep_guides.py (ROBOROCK_UPKEEP_GUIDE_LIBRARY)
+  - translations:           adapters/roborock/upkeep_guides_i18n/ (Phase 2 — English base for now)
   - frequency gap-fills:    scripts/data/guide-frequency-translations.json
                             (the unique frequency phrases, machine-translated; the
                             official manuals only stated some frequencies)
@@ -42,10 +44,8 @@ ADAPTERS = os.path.join(ROOT, "custom_components", "eufy_vacuum", "adapters")
 # Both adapter dirs on the path. The guide libraries are BRAND-PREFIXED
 # (eufy_upkeep_guides / roborock_upkeep_guides), so they never collide, and each
 # is pure data (no cross-adapter imports) — bare imports are safe.
-sys.path.insert(0, os.path.join(ADAPTERS, "eufy"))
 sys.path.insert(0, os.path.join(ADAPTERS, "roborock"))
 
-import eufy_upkeep_guides as base          # noqa: E402
 import roborock_upkeep_guides as rr_base   # noqa: E402
 # ⚠ THE LESSON FROM THE DREAME HALF, KEPT because it is about THIS script, not about Dreame.
 # Loading that adapter's guides needed two import tricks (a synthetic parent package for its
@@ -70,7 +70,6 @@ def _load_pkg(pkg_dir, modname):
     return mod
 
 
-i18n = _load_pkg(os.path.join(ADAPTERS, "eufy", "upkeep_guides_i18n"), "eufy_upkeep_guides_i18n")
 rr_i18n = _load_pkg(os.path.join(ADAPTERS, "roborock", "upkeep_guides_i18n"), "roborock_upkeep_guides_i18n")
 
 FIELDS = ("steps", "notes", "clean_frequency", "replace_frequency")
@@ -80,7 +79,7 @@ LANGS = ("de", "fr", "es", "it", "nl", "pt", "ru", "ar", "he", "ja", "zh-Hans", 
 # (standard/auto_empty/wash_station) use disjoint family keys, so they coexist in one
 # `en` map — the card picks the family for the active vacuum.
 merged = {"en": {}}
-for library in (base.UPKEEP_GUIDE_LIBRARY, rr_base.ROBOROCK_UPKEEP_GUIDE_LIBRARY):
+for library in (rr_base.ROBOROCK_UPKEEP_GUIDE_LIBRARY,):
     for family, comps in library.items():
         merged["en"][family] = {
             comp: {k: g[k] for k in FIELDS if k in g} for comp, g in comps.items()
@@ -89,7 +88,7 @@ for library in (base.UPKEEP_GUIDE_LIBRARY, rr_base.ROBOROCK_UPKEEP_GUIDE_LIBRARY
 # Official manual translations on top. Eufy + Roborock keys are disjoint, so a plain
 # update is safe — there is no brand qualifier in the family key and nothing to collide with
 # now that Dreame no longer routes by family.
-for src in (i18n.UPKEEP_GUIDE_TRANSLATIONS, rr_i18n.ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS):
+for src in (rr_i18n.ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS,):
     for lang, fams in src.items():
         merged.setdefault(lang, {}).update(json.loads(json.dumps(fams)))  # deep copy
 

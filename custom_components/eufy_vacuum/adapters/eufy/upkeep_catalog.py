@@ -50,27 +50,7 @@ UPKEEP_MODEL_NAMES: dict[str, str] = {
     "T2278": "Robovac L60 Hybrid SES",
 }
 
-
-UPKEEP_MODEL_GUIDE_FAMILIES: dict[str, str] = {
-    "T2351": "x10_pro_omni",
-    "T2080": "s1_pro",
-    "T2071": "s1_pro",
-    "T2280": "omni_c20",
-    "T2261": "x8_series",
-    "T2262": "x8_series",
-    "T2266": "x8_series",
-    "T2276": "x8_series",
-    "T2267": "l60_series",
-    "T2268": "l60_series",
-    "T2277": "l60_series",
-    "T2278": "l60_series",
-}
-
-
-UPKEEP_GUIDE_FAMILY_NAMES: dict[str, str] = {
-    "x10_pro_omni": "X10 Pro Omni",
-    "s1_pro": "S1 Pro / S1",
-    "omni_c20": "Omni C20",
-    "x8_series": "X8 / X8 Pro Series",
-    "l60_series": "L60 / L60 Hybrid / L60 SES Series",
-}
+# REMOVED 2026-09-12 — UPKEEP_MODEL_GUIDE_FAMILIES and UPKEEP_GUIDE_FAMILY_NAMES.
+# Guide routing is by REGIME now (upkeep_regimes.py -> adapters/upkeep_keys.py), so a model
+# no longer resolves to a per-product-line family. UPKEEP_MODEL_NAMES stays: it is the
+# device.model -> display name map, which the card still shows and the regime does not carry.

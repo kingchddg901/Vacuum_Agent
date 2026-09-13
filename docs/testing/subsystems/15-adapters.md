@@ -191,6 +191,40 @@ added 2026-08-07) pins what happens when a brand DECLARES — or fails to.
 | `DC-4` | — | the same validator that rejects the bad ACCEPTS every shipped brand |
 | `DC-5` | — | end to end: the REGISTERED config is what resolution actually reads |
 
+### `eufy/test_eufy_upkeep_keys.py` — Eufy on the shared regime → key guide
+
+6 test functions, added 2026-09-12 with the Eufy port. It **replaces**
+`eufy/test_upkeep_guides_i18n.py`, which checked five authored families across seventeen
+language packs; there are no families and no Eufy-authored prose any more, so what is worth
+asserting changed with them.
+
+| id | what it holds |
+| --- | --- |
+| EUK-1 | **Eufy adds no key Dreame has not authored.** The claim the whole port rests on, and the one that can go quietly wrong: an unauthored key renders as its own name, and every count in EUK-5 would still be green. |
+| EUK-2 | declared components ↔ emitted components, both directions. An emitted-but-undeclared panel gets no entity binding; a declared-but-unemitted one can never render. Neither raises. |
+| EUK-3 | the canonical ids are used (`mop`, `omnidirectional_wheel`), with Eufy's word kept as `label_key` — and `mop` deliberately carries none, because "Mopping Cloth" is wrong on its five roller and pad models. |
+| EUK-4 | the family system is *gone* — no `UPKEEP_GUIDE_LIBRARY`, no `UPKEEP_GUIDE_TRANSLATIONS`, no family maps. A leftover import would keep it alive unnoticed. |
+| EUK-5 | 13 models → 6 regimes → 4 card sets. |
+| EUK-6 | the vacuum-only machines carry no mop panel, no tray and no 2-in-1 water clause. **Eufy is the only brand whose data can hold this case** — Dreame ships no mop-less model. |
+
+### `core/test_maintenance_component_rename_migration.py` — the interval carry-over
+
+9 test functions, added 2026-09-12. Maintenance state is keyed by component id, so renaming one
+orphans what it held. `reset_at` self-heals on the next reset; `interval_hours` does not — it is
+a preference, nothing prompts its restoration, and the old value lives only in `.storage`.
+
+| id | what it holds |
+| --- | --- |
+| MCR-1 | a custom interval moves to the new key; the legacy row is left in place, inert. |
+| MCR-2 | reset timestamps are **not** carried — faking them forward claims a service under a name that did not exist. |
+| MCR-3 | a value already on the new key is never overwritten; it is the user's later choice. |
+| MCR-4 | **a rename CHAIN takes the most recently reset row.** Pinned from a real defect: `swivel_wheel` → `caster_wheel` → `omnidirectional_wheel` left two dead rows aimed at one destination, and applying both in order let a 65h value dead since May overwrite a 30h one set an hour earlier. |
+| MCR-5 | the tie-break from the other side — a row with no `reset_at` is the weaker claim. |
+| MCR-6 | a reset-only legacy row carries no preference, so there is nothing to rescue. |
+| MCR-7 | idempotent; the second call is a no-op, not a re-apply. |
+| MCR-8 | malformed storage is survived, not raised — this runs during setup on every install. |
+| MCR-9 | **the table holds only 1:1 renames.** An absorption has no single destination (two sources, one panel), so those drop to default by design. A future edit adding one is what this catches. |
+
 ### `dreame/test_dreame_upkeep_keys.py` — the only gate on an UNWIRED adapter
 
 9 test functions / 48 collected cases (DUK-3, DUK-6 and DUK-9 fan out over the 15

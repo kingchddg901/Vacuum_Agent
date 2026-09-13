@@ -82,13 +82,8 @@ from .buttons import (
 )
 from .maintenance_components import MAINTENANCE_COMPONENTS
 from .model_catalog import detect_model_family as _detect_model_family
-from .upkeep_catalog import (
-    UPKEEP_GUIDE_FAMILY_NAMES,
-    UPKEEP_MODEL_GUIDE_FAMILIES,
-    UPKEEP_MODEL_NAMES,
-)
-from .eufy_upkeep_guides import UPKEEP_GUIDE_LIBRARY
-from .upkeep_guides_i18n import UPKEEP_GUIDE_TRANSLATIONS
+from .upkeep_catalog import UPKEEP_MODEL_NAMES
+from .upkeep_keys import EUFY_MODEL_KEY_REGIMES, EUFY_UPKEEP_KEY_GUIDES
 from .water_config import WATER_MODEL_CONFIGS
 from .room_profiles import (
     BUILT_IN_ROOM_PROFILES,
@@ -1045,19 +1040,21 @@ def register_eufy_adapter_for_vacuum(
             for component_id, component in MAINTENANCE_COMPONENTS.items()
         },
 
+        # KEY GUIDES, NOT FAMILIES -- the same routing Dreame ships. The backend holds NO
+        # WORDS for Eufy any more: it emits i18n KEY LISTS and the card resolves them in the
+        # READER's language (the globe), which the backend cannot see -- it only ever knew the
+        # HA instance language. That is why there is no `guide_translations` entry here:
+        # nothing is left to overlay.
+        #
+        # WHAT WENT. Five per-product-line families (x8_series, l60_series, s1_pro,
+        # x10_pro_omni, omni_c20) and seventeen language packs of prose. A new model meant
+        # authoring a sixth family and translating it before it could ship. Now it is ONE ROW
+        # in upkeep_regimes.py, and Eufy adds ZERO new keys -- all 13 models render cards that
+        # already existed for Dreame, already translated into all 18 languages.
         "upkeep_catalog": {
-            # Sourced from adapters/eufy/upkeep_catalog.py and eufy_upkeep_guides.py.
-            # model_names, model_guide_families, and guide_family_names map
-            # device registry model codes to guide family keys and display names.
-            # guide_library maps guide family keys to per-component upkeep data.
             "model_names": UPKEEP_MODEL_NAMES,
-            "model_guide_families": UPKEEP_MODEL_GUIDE_FAMILIES,
-            "guide_family_names": UPKEEP_GUIDE_FAMILY_NAMES,
-            "guide_library": UPKEEP_GUIDE_LIBRARY,
-            # Official localized guide steps/notes/frequencies (+ ru cross-checked),
-            # overlaid on the English base per field by the maintenance manager
-            # (selected by HA instance language). See upkeep_guides_i18n/ (one <lang>.py each).
-            "guide_translations": UPKEEP_GUIDE_TRANSLATIONS,
+            "model_key_regimes": EUFY_MODEL_KEY_REGIMES,
+            "key_guides": EUFY_UPKEEP_KEY_GUIDES,
         },
 
         "water_model_configs": WATER_MODEL_CONFIGS,

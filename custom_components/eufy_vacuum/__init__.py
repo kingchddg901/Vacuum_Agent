@@ -65,6 +65,9 @@ from .adapters.config_loader import load_stored_adapter_configs
 from .adapters.registry import get_adapter_config
 from .core.vacuum_identity import sweep_orphaned_vacuums
 from .core.battery_aggregates_migration import migrate_battery_aggregates
+from .core.maintenance_component_rename_migration import (
+    migrate_maintenance_component_renames,
+)
 from .core.pause_timeout_migration import migrate_pause_timeout_defaults
 from .rooms.vocabulary_migration import migrate_room_vocabulary
 from .battery.manager import BatteryHealthManager
@@ -567,7 +570,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     # deferred by a provider that has not finished setting up, and a
                     # failure above must not skip it.
                     _pause_migration = migrate_pause_timeout_defaults(data=manager.data)
-                    if _migration["changes"] or _pause_migration["changes"]:
+                    # Carries a user's custom maintenance INTERVAL across a component-key
+                    # rename. Only the interval: reset timestamps self-heal on the next reset,
+                    # a preference does not, and the old value lives only in .storage which the
+                    # user is told never to open.
+                    _rename_migration = migrate_maintenance_component_renames(data=manager.data)
+                    if (_migration["changes"] or _pause_migration["changes"]
+                            or _rename_migration["changes"]):
                         await manager.async_save()
                 except Exception:  # pragma: no cover
                     _LOGGER.exception(

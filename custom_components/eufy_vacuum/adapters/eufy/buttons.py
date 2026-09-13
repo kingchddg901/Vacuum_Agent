@@ -87,14 +87,15 @@ RESET_CANDIDATES: dict[str, list[str]] = {
     "main_brush": [
         "_reset_rolling_brush",
     ],
-    "mop_cloth": [
+    # key = our canonical component id; values = Eufy's own entity suffixes, unchanged
+    "mop": [
         "_reset_mopping_cloth",
         "_reset_mop_cloth",
     ],
     "cleaning_tray": [
         "_reset_cleaning_tray",
     ],
-    "caster_wheel": [
+    "omnidirectional_wheel": [
         "_reset_swivel_replacement",
         "_reset_swivel_wheel",
     ],
@@ -117,14 +118,14 @@ RESET_TOKENS: dict[str, list[list[str]]] = {
     "main_brush": [
         ["reset", "rolling", "brush"],
     ],
-    "mop_cloth": [
+    "mop": [
         ["reset", "mopping", "cloth"],
         ["reset", "mop", "cloth"],
     ],
     "cleaning_tray": [
         ["reset", "cleaning", "tray"],
     ],
-    "caster_wheel": [
+    "omnidirectional_wheel": [
         ["reset", "swivel", "replacement"],
         ["reset", "swivel"],
     ],
