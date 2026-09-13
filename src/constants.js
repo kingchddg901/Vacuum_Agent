@@ -80,6 +80,7 @@ export const SERVICE_START_SELECTED_ROOMS   = "start_selected_rooms";
 export const SERVICE_START_ZONE_CLEAN       = "start_zone_clean";
 export const SERVICE_GOTO                   = "goto";
 export const SERVICE_GET_DASHBOARD_SNAPSHOT = "get_dashboard_snapshot";
+export const SERVICE_GET_MAINTENANCE_SOURCE_CANDIDATES = "get_maintenance_source_candidates";
 export const SERVICE_GET_PAUSE_TIMEOUT_SETTINGS = "get_pause_timeout_settings";
 export const SERVICE_SET_PAUSE_TIMEOUT_SETTINGS = "set_pause_timeout_settings";
 

@@ -2203,7 +2203,12 @@
       "saturates_at_zero": "يحسب قطعة واحدة — يتوقف عند 0 حتى تتم إعادة تعيين تلك القطعة"
     },
     "clock_set": "العداد: {name}",
-    "clock_unset": "لم يتم تحديد عداد للصيانة"
+    "clock_unset": "لم يتم تحديد عداد للصيانة",
+    "clock_picker_title": "عداد الصيانة",
+    "clock_picker_intro": "اختر العداد الذي يتتبع مدة تشغيل هذه المكنسة. تُقاس الأجزاء التي لا تتتبعها المكنسة بنفسها مقابله.",
+    "clock_picker_loading": "جارٍ البحث عن عدادات…",
+    "clock_picker_empty": "لم يتم العثور على عداد مناسب على هذه المكنسة",
+    "clock_picker_current": "قيد الاستخدام"
   },
   "review": {
     "badge_attribution_disagreement": "عدم تطابق الغرفة",

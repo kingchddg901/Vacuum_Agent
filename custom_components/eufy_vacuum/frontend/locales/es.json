@@ -546,7 +546,12 @@
       "saturates_at_zero": "Cuenta una sola pieza: se detiene en 0 hasta que se restablezca esa pieza"
     },
     "clock_set": "Contador: {name}",
-    "clock_unset": "Ningún contador de mantenimiento seleccionado"
+    "clock_unset": "Ningún contador de mantenimiento seleccionado",
+    "clock_picker_title": "Contador de mantenimiento",
+    "clock_picker_intro": "Elige el contador que registra el tiempo de funcionamiento de este robot. Las piezas que el robot no controla por sí mismo se miden con él.",
+    "clock_picker_loading": "Buscando contadores…",
+    "clock_picker_empty": "No se encontró un contador adecuado en este robot",
+    "clock_picker_current": "En uso"
   },
   "map": {
     "adjusting": "Ajustando:",

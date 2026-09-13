@@ -2068,7 +2068,12 @@
       "saturates_at_zero": "仅统计单个部件 — 在该部件重置前停留在 0"
     },
     "clock_set": "计数器：{name}",
-    "clock_unset": "未选择维护计数器"
+    "clock_unset": "未选择维护计数器",
+    "clock_picker_title": "维护计数器",
+    "clock_picker_intro": "选择记录本机运行时长的计数器。扫地机自身不统计的部件将以它为基准计量。",
+    "clock_picker_loading": "正在查找计数器…",
+    "clock_picker_empty": "在此扫地机上未找到合适的计数器",
+    "clock_picker_current": "使用中"
   },
   "review": {
     "badge_attribution_disagreement": "房间不匹配",

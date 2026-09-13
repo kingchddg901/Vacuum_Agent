@@ -117,3 +117,66 @@ async def test_get_upkeep_snapshot_service_returns_dict(hass, manager_with_servi
     )
     assert isinstance(result, dict)
     assert "vacuum_entity_id" in result
+
+
+# ---------------------------------------------------------------------------
+# [SNP-5] get_maintenance_source_candidates
+# ---------------------------------------------------------------------------
+
+async def test_get_maintenance_source_candidates_service_is_reachable(
+    hass, manager_with_services
+):
+    """[SNP-5] THE POINT OF THIS TEST IS THE CALL SITE, not the payload.
+
+    `get_maintenance_source_candidates` existed on the manager for a day with ZERO callers — no
+    service, not on a snapshot, nothing. It was written as "the picker's read half" and the
+    picker could not have read it. That is `f/audit_callsite_reachability` exactly: a correct
+    function with no call site passes every audit, and the suite was green the whole time.
+
+    So this asserts the SERVICE answers, which is the half that was missing. The response is
+    wrapped in a dict because a HA service response must be a mapping, and `candidates` is a
+    list even when empty — the card distinguishes "fetch has not landed" (null) from "nothing to
+    offer" ([]), and returning the wrong one shows an empty-state to someone still loading.
+
+    THE INPUT THAT MAKES THIS RED: drop the `hass.services.async_register` call, or the
+    `services.yaml` entry, or rename the constant on one side only.
+    """
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+
+    assert hass.services.has_service(DOMAIN, "get_maintenance_source_candidates"), (
+        "the service is not registered — the manager method is unreachable again"
+    )
+
+    result = await hass.services.async_call(
+        DOMAIN,
+        "get_maintenance_source_candidates",
+        {"vacuum_entity_id": _VAC},
+        blocking=True,
+        return_response=True,
+    )
+    assert isinstance(result, dict)
+    assert isinstance(result.get("candidates"), list), (
+        f"candidates must be a list even when empty, got {result.get('candidates')!r}"
+    )
+
+
+async def test_get_maintenance_source_candidates_refuses_an_unmanaged_vacuum(
+    hass, manager_with_services
+):
+    """[SNP-5b] INKV8ZQD — a read answers empty-with-a-reason rather than inventing a record.
+
+    Every other read service in this module carries the same guard; without it, asking about a
+    vacuum this install does not have would reach the manager and could MINT a record for it
+    (the shape that bit `get_pause_timeout_settings` in August).
+    """
+    result = await hass.services.async_call(
+        DOMAIN,
+        "get_maintenance_source_candidates",
+        {"vacuum_entity_id": "vacuum.not_ours"},
+        blocking=True,
+        return_response=True,
+    )
+    assert isinstance(result, dict)
+    assert "vacuum.not_ours" not in (manager_with_services.data.get("vacuums") or {}), (
+        "a read must not create the vacuum record it was asked about"
+    )

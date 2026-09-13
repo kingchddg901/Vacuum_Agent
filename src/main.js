@@ -1933,6 +1933,11 @@ class EufyVacuumCommandCenter extends HTMLElement {
         ? this._renderers.renderMaintenanceItemModal(ctx)
         : "";
 
+    const clockPickerHtml =
+      typeof this._renderers.renderMaintenanceClockModal === "function"
+        ? this._renderers.renderMaintenanceClockModal(ctx)
+        : "";
+
     const externalWizardHtml =
       typeof this._renderers.renderExternalWizardModal === "function"
         ? this._renderers.renderExternalWizardModal(ctx)
@@ -1957,7 +1962,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
         : "";
 
     // anchor: CNP39QF9
-    const html = `${roomEditorHtml}${roomAccessHtml}${roomEstimateHtml}${orderModalHtml}${maintenanceModalHtml}${externalWizardHtml}${themeJsonHtml}${jobSummaryHtml}${dialogHtml}`;
+    const html = `${roomEditorHtml}${roomAccessHtml}${roomEstimateHtml}${orderModalHtml}${maintenanceModalHtml}${clockPickerHtml}${externalWizardHtml}${themeJsonHtml}${jobSummaryHtml}${dialogHtml}`;
 
     // anchor: CNRBAADE
     if (!html) {
@@ -2059,6 +2064,10 @@ class EufyVacuumCommandCenter extends HTMLElement {
       // modal EXCEPT this one. Listed first because it is a leaf surface launched
       // from a job row — if it is open at all, it is the top of the stack.
       ["job-summary",   "isJobSummaryOpen",           "closeJobSummary"],
+      // Listed ABOVE the maintenance item modal: the picker is launched from the Items
+      // header, so if both were somehow open the picker is the newer surface. R2-BUG-3 is
+      // what this list exists for — a modal absent from it is the one Escape cannot close.
+      ["clock-picker",  "isMaintenanceClockPickerOpen", "closeMaintenanceClockPicker"],
       ["maintenance",   "activeMaintenanceModalItem", "closeMaintenanceModal"],
       ["room-estimate", "isRoomEstimateModalOpen",    "closeRoomEstimateModal"],
       ["room-access",   "isRoomAccessOpen",           "closeRoomAccess"],

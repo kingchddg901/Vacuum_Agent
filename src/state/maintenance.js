@@ -9,6 +9,9 @@
  *
  * This file owns:
  * - maintenance subtab selection
+ * - the maintenance-item modal
+ * - the maintenance-COUNTER picker modal (which entity backs the components the
+ *   device does not count itself)
  *
  * ============================================================
  */
@@ -30,6 +33,17 @@ export function applyMaintenanceState(proto) {
           pending: false,
           success: "",
           error: "",
+        },
+        /* The counter picker. `candidates` is null until the open-time fetch lands, which is
+           what the renderer distinguishes from an empty LIST — "still asking" and "nothing to
+           offer" are different screens, and collapsing them shows an empty-state to someone
+           whose data is still in flight. */
+        clockPicker: {
+          open: false,
+          loading: false,
+          candidates: null,
+          error: "",
+          pending: "",
         },
       };
     }
@@ -88,6 +102,61 @@ export function applyMaintenanceState(proto) {
 
   proto.isMaintenanceModalOpen = function () {
     return Boolean(this.activeMaintenanceModalItem());
+  };
+
+  /* ---- the maintenance-counter picker -------------------------------------------------
+     WHY A MODAL AND NOT A SETUP SCREEN (Chris, 2026-09-14): the fix belongs where the problem
+     is noticed. The trigger sits in the Maintenance Items header, warning-coloured when nothing
+     is picked and faded when something is.
+
+     WHY THE LIST IS FETCHED, NOT RENDERED FROM THE SNAPSHOT: the backend sweep walks the entity
+     registry and reads a state per sibling -- 300 entities on one live machine -- for a list
+     wanted twice in a vacuum's life. It is a service call on OPEN, and again on save/close so
+     the trigger's own state re-reads from fresh data rather than waiting for the next snapshot.
+  */
+
+  proto.openMaintenanceClockPicker = function () {
+    const picker = this._ensureMaintenanceState().clockPicker;
+    picker.open = true;
+    picker.loading = true;
+    picker.error = "";
+    picker.pending = "";
+    // candidates deliberately NOT cleared: on a re-open the previous list is a better first
+    // paint than an empty one, and the fetch replaces it a moment later.
+  };
+
+  proto.closeMaintenanceClockPicker = function () {
+    const picker = this._ensureMaintenanceState().clockPicker;
+    picker.open = false;
+    picker.loading = false;
+    picker.error = "";
+    picker.pending = "";
+  };
+
+  proto.isMaintenanceClockPickerOpen = function () {
+    return Boolean(this._ensureMaintenanceState().clockPicker.open);
+  };
+
+  proto.maintenanceClockPicker = function () {
+    return this._ensureMaintenanceState().clockPicker;
+  };
+
+  proto.setMaintenanceClockCandidates = function (list) {
+    const picker = this.maintenanceClockPicker();
+    picker.candidates = Array.isArray(list) ? list : [];
+    picker.loading = false;
+    picker.error = "";
+  };
+
+  proto.setMaintenanceClockPickerError = function (message) {
+    const picker = this.maintenanceClockPicker();
+    picker.error = String(message ?? "");
+    picker.loading = false;
+    picker.pending = "";
+  };
+
+  proto.setMaintenanceClockPending = function (entityId) {
+    this.maintenanceClockPicker().pending = String(entityId ?? "");
   };
 
   proto.maintenanceResetUi = function () {

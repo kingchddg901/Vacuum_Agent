@@ -65,6 +65,21 @@ Covered by `tests/unit/test_services_repair_renamed_vacuum.py`. Two targets carr
 
 ## What's tested
 
+- **A service exists because something CALLS it (`SNP-5`)** — `test_services_snapshots.py`.
+  `get_maintenance_source_candidates` sat on the manager for a day with **zero callers**: no
+  service, no snapshot field, nothing. It was written as "the picker's read half" and the picker
+  could not have read it, while the suite stayed green throughout — `f/audit_callsite_reachability`
+  exactly, a correct function whose absence of a call site no test could see. `SNP-5` therefore
+  asserts the **service answers**, not the payload shape: `has_service(...)` first, then a real
+  call. `SNP-5b` carries the `INKV8ZQD` read guard so asking about an unmanaged vacuum cannot mint
+  a record for it. **Ablated:** deleting the `async_register` block reddens both, which is
+  precisely the state the function shipped in.
+
+  *Why the response is a dict wrapping a list:* a HA service response must be a mapping, and
+  `candidates` stays a list even when empty — the card distinguishes "the fetch has not landed"
+  (`null`) from "there is nothing to offer" (`[]`), and returning the wrong one shows an
+  empty-state to somebody whose request is still in flight.
+
 - **Unmanaged vacuums (`INKV8ZQD`)** — `test_services_unmanaged_vacuum.py`.
   `cv.entity_id` validates the SHAPE `domain.object_id` and nothing more, so every
   per-vacuum store keyed off an unchecked id used to mint a durable bucket for

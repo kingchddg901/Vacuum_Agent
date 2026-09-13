@@ -5650,6 +5650,10 @@ class EufyVacuumManager:
         """Delegate to MaintenanceManager."""
         return self.maintenance.get_upkeep_snapshot(**kwargs)
 
+    def get_maintenance_source_candidates(self, **kwargs) -> list:
+        """Delegate to MaintenanceManager."""
+        return self.maintenance.get_maintenance_source_candidates(**kwargs)
+
     def _entity_bindings(self, vacuum_entity_id: str) -> list[dict[str, Any]]:
         """One row per role: what we read, and HOW we chose it (live:ENT-11).
 

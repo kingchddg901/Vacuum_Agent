@@ -546,7 +546,12 @@
       "saturates_at_zero": "Conta apenas uma peça — para em 0 até essa peça ser reposta"
     },
     "clock_set": "Contador: {name}",
-    "clock_unset": "Nenhum contador de manutenção selecionado"
+    "clock_unset": "Nenhum contador de manutenção selecionado",
+    "clock_picker_title": "Contador de manutenção",
+    "clock_picker_intro": "Escolha o contador que regista há quanto tempo este aspirador funciona. As peças que ele não regista sozinho são medidas em relação a ele.",
+    "clock_picker_loading": "A procurar contadores…",
+    "clock_picker_empty": "Nenhum contador adequado encontrado neste aspirador",
+    "clock_picker_current": "Em uso"
   },
   "map": {
     "adjusting": "A ajustar:",

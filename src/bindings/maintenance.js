@@ -49,6 +49,39 @@ export function applyMaintenanceBindings(proto) {
       this.card._state.openMaintenanceModal?.(item);
       this.card._scheduleRender();
     });
+
+    // THE TRIGGER IS IN THE SHADOW ROOT (Maintenance Items header), so `_onAll` is right for it
+    // — unlike the modal's own controls below, which live in the body portal where `_onAll` can
+    // never match. Same feature, two binding paths, for that one reason.
+    this.card._onAll("[data-action='open-clock-picker']", "click", async () => {
+      this.card._state.openMaintenanceClockPicker?.();
+      this.card._scheduleRender();
+      await this._fetchMaintenanceClockCandidates();
+    });
+  };
+
+  /**
+   * Fetch the counter candidates. A SERVICE CALL, not a snapshot field: the backend sweep walks
+   * the entity registry and reads a state per sibling (300 entities on one live machine) for a
+   * list wanted twice in a vacuum's life — and computing it now means the user sees what is true
+   * NOW, since candidates come and go as integrations reload.
+   */
+  proto._fetchMaintenanceClockCandidates = async function () {
+    const vacuumEntityId = this.card._state.vacuumEntityId?.();
+    if (!vacuumEntityId) return;
+    const result = await this.card._actions.callNamedService?.(
+      "eufy_vacuum.get_maintenance_source_candidates",
+      { vacuum_entity_id: vacuumEntityId },
+      true
+    );
+    if (result === null || result === undefined) {
+      this.card._state.setMaintenanceClockPickerError?.(
+        this.t("common.service_failed", { service: "get_maintenance_source_candidates" })
+      );
+    } else {
+      this.card._state.setMaintenanceClockCandidates?.(result?.candidates ?? []);
+    }
+    this.card._scheduleRender();
   };
 
   /**
@@ -58,6 +91,50 @@ export function applyMaintenanceBindings(proto) {
    */
   proto._bindMaintenanceModalHost = function (host) {
     if (!host) return;
+
+    host.querySelectorAll("[data-action='close-maintenance-clock-picker']").forEach((el) => {
+      this.card._on(el, "click", async () => {
+        this.card._state.closeMaintenanceClockPicker?.();
+        this.card._scheduleRender();
+        // Re-read on close so the trigger's own state (warning vs faded, and the name it shows)
+        // comes from fresh data rather than waiting for the next snapshot. Chris: "call on open,
+        // call on save or close, then it reads the new set version and can drive the dimming."
+        await this.card.refreshDashboardSnapshot?.();
+        this.card._scheduleRender();
+      });
+    });
+
+    host.querySelectorAll("[data-action='select-maintenance-clock']").forEach((el) => {
+      this.card._on(el, "click", async () => {
+        const entityId = el?.dataset?.entityId;
+        const vacuumEntityId = this.card._state.vacuumEntityId?.();
+        if (!entityId || !vacuumEntityId) return;
+
+        this.card._state.setMaintenanceClockPending?.(entityId);
+        this.card._scheduleRender();
+
+        const result = await this.card._actions.callNamedService?.(
+          "eufy_vacuum.set_entity_override",
+          { vacuum_entity_id: vacuumEntityId, role: "maintenance_clock", entity_id: entityId },
+          true
+        );
+        this.card._state.setMaintenanceClockPending?.("");
+
+        if (result === null) {
+          this.card._state.setMaintenanceClockPickerError?.(
+            this.t("common.service_failed", { service: "set_entity_override" })
+          );
+          this.card._scheduleRender();
+          return;
+        }
+
+        // Refresh BOTH: the candidate list so the current-selection marker moves, and the
+        // dashboard so every maintenance row picks up its new source. The modal stays open —
+        // seeing the marker move is the confirmation that the pick took.
+        await this.card.refreshDashboardSnapshot?.();
+        await this._fetchMaintenanceClockCandidates();
+      });
+    });
 
     host.querySelectorAll("[data-action='close-maintenance-modal']").forEach((el) => {
       this.card._on(el, "click", () => {

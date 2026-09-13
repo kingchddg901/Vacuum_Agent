@@ -2068,7 +2068,12 @@
       "saturates_at_zero": "부품 하나만 계산 — 해당 부품을 재설정할 때까지 0에서 멈춤"
     },
     "clock_set": "카운터: {name}",
-    "clock_unset": "유지 관리 카운터가 선택되지 않음"
+    "clock_unset": "유지 관리 카운터가 선택되지 않음",
+    "clock_picker_title": "유지 관리 카운터",
+    "clock_picker_intro": "이 청소기의 작동 시간을 기록하는 카운터를 선택하세요. 청소기가 자체적으로 추적하지 않는 부품은 이를 기준으로 측정됩니다.",
+    "clock_picker_loading": "카운터 찾는 중…",
+    "clock_picker_empty": "이 청소기에서 적합한 카운터를 찾을 수 없습니다",
+    "clock_picker_current": "사용 중"
   },
   "review": {
     "badge_attribution_disagreement": "방 불일치",

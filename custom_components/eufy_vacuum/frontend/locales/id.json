@@ -1829,7 +1829,12 @@
       "saturates_at_zero": "Menghitung satu komponen — berhenti di 0 sampai komponen itu direset"
     },
     "clock_set": "Penghitung: {name}",
-    "clock_unset": "Belum ada penghitung perawatan yang dipilih"
+    "clock_unset": "Belum ada penghitung perawatan yang dipilih",
+    "clock_picker_title": "Penghitung perawatan",
+    "clock_picker_intro": "Pilih penghitung yang melacak berapa lama vacuum ini berjalan. Komponen yang tidak dilacak sendiri diukur terhadapnya.",
+    "clock_picker_loading": "Mencari penghitung…",
+    "clock_picker_empty": "Tidak ada penghitung yang cocok pada vacuum ini",
+    "clock_picker_current": "Digunakan"
   },
   "setup": {
     "add": "Tambah",

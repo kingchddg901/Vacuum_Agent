@@ -1829,7 +1829,12 @@
       "saturates_at_zero": "Liczy jedną część — zatrzymuje się na 0, dopóki jej nie zresetujesz"
     },
     "clock_set": "Licznik: {name}",
-    "clock_unset": "Nie wybrano licznika konserwacji"
+    "clock_unset": "Nie wybrano licznika konserwacji",
+    "clock_picker_title": "Licznik konserwacji",
+    "clock_picker_intro": "Wybierz licznik, który śledzi czas pracy tego odkurzacza. Części, których nie śledzi sam, są mierzone względem niego.",
+    "clock_picker_loading": "Szukanie liczników…",
+    "clock_picker_empty": "Nie znaleziono odpowiedniego licznika w tym odkurzaczu",
+    "clock_picker_current": "W użyciu"
   },
   "setup": {
     "add": "Dodaj",

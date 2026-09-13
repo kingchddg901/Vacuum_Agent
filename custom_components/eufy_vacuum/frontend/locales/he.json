@@ -2149,7 +2149,12 @@
       "saturates_at_zero": "סופר חלק אחד בלבד — נעצר ב-0 עד לאיפוס אותו חלק"
     },
     "clock_set": "מונה: {name}",
-    "clock_unset": "לא נבחר מונה תחזוקה"
+    "clock_unset": "לא נבחר מונה תחזוקה",
+    "clock_picker_title": "מונה תחזוקה",
+    "clock_picker_intro": "בחר את המונה שעוקב אחר משך הפעולה של שואב זה. חלקים שהשואב אינו עוקב אחריהם בעצמו נמדדים מולו.",
+    "clock_picker_loading": "מחפש מונים…",
+    "clock_picker_empty": "לא נמצא מונה מתאים בשואב זה",
+    "clock_picker_current": "בשימוש"
   },
   "review": {
     "badge_attribution_disagreement": "אי-התאמת חדר",

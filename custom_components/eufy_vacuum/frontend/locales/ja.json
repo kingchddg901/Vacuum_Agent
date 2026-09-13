@@ -2068,7 +2068,12 @@
       "saturates_at_zero": "1つの部品だけを計測 — その部品をリセットするまで0で止まります"
     },
     "clock_set": "カウンター: {name}",
-    "clock_unset": "メンテナンスカウンターが未選択です"
+    "clock_unset": "メンテナンスカウンターが未選択です",
+    "clock_picker_title": "メンテナンスカウンター",
+    "clock_picker_intro": "この掃除機の稼働時間を記録するカウンターを選んでください。掃除機自身が記録しない部品はこれを基準に測定されます。",
+    "clock_picker_loading": "カウンターを検索中…",
+    "clock_picker_empty": "この掃除機に適したカウンターが見つかりません",
+    "clock_picker_current": "使用中"
   },
   "review": {
     "badge_attribution_disagreement": "部屋の不一致",

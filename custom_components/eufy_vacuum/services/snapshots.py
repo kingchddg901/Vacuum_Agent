@@ -1,8 +1,9 @@
 """Card-facing snapshot services + pause-timeout settings.
 
-Four services, all supports_response=True:
+Five services, all supports_response=True:
 - get_dashboard_snapshot: unified card snapshot
 - get_upkeep_snapshot: maintenance/dock-event aggregate
+- get_maintenance_source_candidates: entities that could back the maintenance counter
 - get_pause_timeout_settings: read persisted default
 - set_pause_timeout_settings: write persisted default
 """
@@ -20,6 +21,7 @@ from ..const import (
     DOMAIN,
     SERVICE_GET_DASHBOARD_SNAPSHOT,
     SERVICE_GET_PAUSE_TIMEOUT_SETTINGS,
+    SERVICE_GET_MAINTENANCE_SOURCE_CANDIDATES,
     SERVICE_GET_UPKEEP_SNAPSHOT,
     SERVICE_SET_PAUSE_TIMEOUT_SETTINGS,
 )
@@ -39,6 +41,7 @@ _LOGGER = logging.getLogger(__name__)
 SERVICES = (
     SERVICE_GET_DASHBOARD_SNAPSHOT,
     SERVICE_GET_UPKEEP_SNAPSHOT,
+    SERVICE_GET_MAINTENANCE_SOURCE_CANDIDATES,
     SERVICE_GET_PAUSE_TIMEOUT_SETTINGS,
     SERVICE_SET_PAUSE_TIMEOUT_SETTINGS,
 )
@@ -84,6 +87,29 @@ async def _handle_get_upkeep_snapshot(hass: HomeAssistant, call: ServiceCall) ->
     return payload
 
 
+async def _handle_get_maintenance_source_candidates(
+    hass: HomeAssistant, call: ServiceCall
+) -> dict:
+    """Return the entities that could back this vacuum's maintenance counter.
+
+    READ-ONLY, and deliberately NOT a field on the upkeep snapshot. The underlying sweep walks
+    the entity registry and reads a state per sibling -- 300 entities on one live machine -- for
+    a list that is wanted twice in a vacuum's life. Computing it when the picker opens also means
+    the user sees what is true NOW; candidates appear and disappear as integrations reload.
+
+    Wrapped in a dict rather than returned bare because a HA service response must be a mapping.
+    """
+    # INKV8ZQD: a read answers empty-with-a-reason.
+    if not is_managed_vacuum(hass, call.data["vacuum_entity_id"]):
+        return unmanaged_vacuum_read_result(call.data["vacuum_entity_id"])
+    candidates = get_manager(hass).get_maintenance_source_candidates(**call.data)
+    _LOGGER.debug(
+        "get_maintenance_source_candidates: %d candidate(s) for %s",
+        len(candidates), call.data["vacuum_entity_id"],
+    )
+    return {"candidates": candidates}
+
+
 async def _handle_get_pause_timeout_settings(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return persisted default pause-timeout settings for one vacuum."""
     # INKV8ZQD: a read answers empty-with-a-reason. Defence in depth here --
@@ -115,6 +141,9 @@ def register(hass: HomeAssistant) -> None:
     async def get_upkeep_snapshot(call: ServiceCall) -> dict:
         return await _handle_get_upkeep_snapshot(hass, call)
 
+    async def get_maintenance_source_candidates(call: ServiceCall) -> dict:
+        return await _handle_get_maintenance_source_candidates(hass, call)
+
     async def get_pause_timeout_settings(call: ServiceCall) -> dict:
         return await _handle_get_pause_timeout_settings(hass, call)
 
@@ -127,6 +156,10 @@ def register(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_GET_UPKEEP_SNAPSHOT, get_upkeep_snapshot,
+        schema=VACUUM_ONLY_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_MAINTENANCE_SOURCE_CANDIDATES, get_maintenance_source_candidates,
         schema=VACUUM_ONLY_SCHEMA, supports_response=True,
     )
     hass.services.async_register(

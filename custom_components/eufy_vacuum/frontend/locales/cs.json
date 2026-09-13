@@ -1829,7 +1829,12 @@
       "saturates_at_zero": "Počítá jedinou součást – zastaví se na 0, dokud ji neresetujete"
     },
     "clock_set": "Počítadlo: {name}",
-    "clock_unset": "Není vybráno žádné počítadlo údržby"
+    "clock_unset": "Není vybráno žádné počítadlo údržby",
+    "clock_picker_title": "Počítadlo údržby",
+    "clock_picker_intro": "Vyberte počítadlo, které sleduje dobu chodu tohoto vysavače. Díly, které si vysavač nesleduje sám, se měří podle něj.",
+    "clock_picker_loading": "Hledání počítadel…",
+    "clock_picker_empty": "Na tomto vysavači nebylo nalezeno vhodné počítadlo",
+    "clock_picker_current": "Používá se"
   },
   "setup": {
     "add": "Přidat",

@@ -120,6 +120,12 @@ SERVICE_GET_RECENT_ERRORS = "get_recent_errors"
 SERVICE_GET_JOB_PROGRESS_SNAPSHOT = "get_job_progress_snapshot"
 SERVICE_GET_JOB_CONTROL_STATE = "get_job_control_state"
 SERVICE_GET_UPKEEP_SNAPSHOT = "get_upkeep_snapshot"
+#: Lists the entities that could back this vacuum's maintenance counter, for the picker.
+#: A SERVICE rather than a snapshot field on purpose: it sweeps the entity registry and
+#: reads a state per sibling (300 entities on one live machine), and the list is wanted
+#: twice in a vacuum's life. Computing it at open-time also means the user sees what is
+#: true NOW -- candidates come and go as integrations reload.
+SERVICE_GET_MAINTENANCE_SOURCE_CANDIDATES = "get_maintenance_source_candidates"
 SERVICE_GET_DASHBOARD_SNAPSHOT = "get_dashboard_snapshot"
 SERVICE_GET_DOCK_ACTION_STATUS = "get_dock_action_status"
 SERVICE_GET_PAUSE_TIMEOUT_SETTINGS = "get_pause_timeout_settings"

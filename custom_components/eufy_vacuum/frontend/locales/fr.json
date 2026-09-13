@@ -546,7 +546,12 @@
       "saturates_at_zero": "Ne compte qu'une pièce — s'arrête à 0 jusqu'à la réinitialisation de cette pièce"
     },
     "clock_set": "Compteur : {name}",
-    "clock_unset": "Aucun compteur d'entretien sélectionné"
+    "clock_unset": "Aucun compteur d'entretien sélectionné",
+    "clock_picker_title": "Compteur d'entretien",
+    "clock_picker_intro": "Choisissez le compteur qui suit la durée de fonctionnement de cet aspirateur. Les pièces qu'il ne suit pas lui-même sont mesurées par rapport à lui.",
+    "clock_picker_loading": "Recherche de compteurs…",
+    "clock_picker_empty": "Aucun compteur approprié trouvé sur cet aspirateur",
+    "clock_picker_current": "Utilisé"
   },
   "map": {
     "adjusting": "Ajustement :",

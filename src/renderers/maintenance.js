@@ -354,6 +354,7 @@ export function applyMaintenanceRenderers(proto) {
                   ${this.t("maintenance.items_subtitle")}
                 </div>
               </div>
+              ${this._renderMaintenanceClockLink(maintenanceItems)}
             </div>
 
             <div class="evcc-maintenance-tabs" role="tablist" aria-label="${this.t("maintenance.tabs_aria")}">
@@ -541,10 +542,9 @@ export function applyMaintenanceRenderers(proto) {
    * is. It stays in both because the faded form NAMES the current counter — the per-job timer
    * and the lifetime one differ by a single word, and naming it is how a wrong pick is caught.
    *
-   * ⚠ NOT RENDERED YET. The trigger lands with the picker modal it opens — a link to a screen
- * that has no picker on it is worse than no link. `data-action="open-clock-picker"` is bound
- * in `bindModalHostEvents` (raw addEventListener against the body portal; `_onAll` queries the
- * shadow root and can NEVER match it — see docs/dev/frontend/event-binding-and-modal-host.md §3).
+   * `data-action="open-clock-picker"` is bound with `_onAll` because THIS element is in the
+ * shadow root; the modal it opens lives in the body portal and binds separately, where
+ * `_onAll` could never match it (docs/dev/frontend/event-binding-and-modal-host.md §3).
    *
    * @param {Array<object>} items - maintenance items from the upkeep snapshot.
    * @returns {string} HTML, or "" when no component on this vacuum depends on a clock.
@@ -567,6 +567,100 @@ export function applyMaintenanceRenderers(proto) {
         data-action="open-clock-picker"
         title="${this.escapeHtml(this.t("maintenance.clock_unset"))}"
       >${text}</button>
+    `;
+  };
+
+  /**
+   * The maintenance-COUNTER picker.
+   *
+   * Components the device does not count itself (a mop cloth, a cleaning tray, the caster wheel)
+   * are all backed by ONE entity the owner picks. There is no way to derive which: a suffix rule
+   * breaks on a real install (one machine's clock is `sensor.dining_room_alfred_total_cleaning_time`),
+   * `state_class` would filter it but Roborock declares none on any sensor, and magnitude fails
+   * too — an S6's `main_brush_time_left` reads 293 h against a 206 h lifetime clock. So this
+   * LISTS and the owner decides.
+   *
+   * THREE STATES, AND THE FIRST TWO ARE DIFFERENT. `candidates === null` means the open-time
+   * fetch has not landed; `[]` means it landed and found nothing. Collapsing them shows
+   * "no counters found" to someone whose request is still in flight.
+   *
+   * A CANDIDATE ALREADY COUNTING A SINGLE PART carries a caveat rather than being hidden — Chris
+   * ruled they stay selectable. Upstream clamps those at zero, so an overdue part that has not
+   * been reset freezes the clock for EVERY component at once, and the accumulator cannot see it:
+   * a frozen counter and a docked vacuum are the same reading.
+   *
+   * @param {object} ctx - render context ({ state, renderers }).
+   * @returns {string} modal HTML, or "" when closed.
+   */
+  proto.renderMaintenanceClockModal = function (ctx) {
+    const state = ctx?.state;
+    if (!state?.isMaintenanceClockPickerOpen?.()) return "";
+    const picker = state.maintenanceClockPicker?.() ?? {};
+    const candidates = Array.isArray(picker.candidates) ? picker.candidates : null;
+    const pending = String(picker.pending ?? "");
+    const error = String(picker.error ?? "");
+
+    const body = (() => {
+      if (picker.loading && candidates === null) {
+        return `<div class="evcc-maintenance-empty">${this.t("maintenance.clock_picker_loading")}</div>`;
+      }
+      if (candidates === null || !candidates.length) {
+        return `<div class="evcc-maintenance-empty">${this.t("maintenance.clock_picker_empty")}</div>`;
+      }
+      return `
+        <div class="evcc-clock-candidate-list">
+          ${candidates.map((c) => {
+            const id = String(c?.entity_id ?? "");
+            const current = c?.is_current === true;
+            const caveatKey = c?.caveat_key ? String(c.caveat_key) : "";
+            const unit = c?.unit ? String(c.unit) : "";
+            const value = c?.state == null ? "" : String(c.state);
+            return `
+              <button
+                type="button"
+                class="evcc-clock-candidate ${current ? "evcc-clock-candidate--current" : ""}"
+                data-action="select-maintenance-clock"
+                data-entity-id="${this.escapeHtml(id)}"
+                ${pending ? "disabled" : ""}
+              >
+                <div class="evcc-clock-candidate-main">
+                  <div class="evcc-clock-candidate-name">${this.escapeHtml(String(c?.name ?? id))}</div>
+                  <div class="evcc-clock-candidate-id">${this.escapeHtml(id)}</div>
+                </div>
+                <div class="evcc-clock-candidate-side">
+                  <div class="evcc-clock-candidate-value">${this.escapeHtml([value, unit].filter(Boolean).join(" "))}</div>
+                  ${current ? `<div class="evcc-clock-candidate-current">${this.t("maintenance.clock_picker_current")}</div>` : ""}
+                  ${pending === id ? `<div class="evcc-clock-candidate-current">${this.t("common.saving")}</div>` : ""}
+                </div>
+                ${caveatKey ? `
+                  <div class="evcc-clock-candidate-caveat">${this.escapeHtml(this.t(caveatKey))}</div>
+                ` : ""}
+              </button>
+            `;
+          }).join("")}
+        </div>
+      `;
+    })();
+
+    return `
+      <div class="evcc-modal-backdrop" data-action="close-maintenance-clock-picker">
+        <div class="evcc-modal evcc-maintenance-modal" data-stop-propagation>
+          <div class="evcc-modal-header">
+            <div class="evcc-modal-title">${this.t("maintenance.clock_picker_title")}</div>
+            <button
+              type="button"
+              class="evcc-chip evcc-chip--icon"
+              data-action="close-maintenance-clock-picker"
+              title="${this.t("common.close")}"
+            >X</button>
+          </div>
+          <div class="evcc-modal-body">
+            <div class="evcc-maintenance-panel-subtitle">${this.t("maintenance.clock_picker_intro")}</div>
+            ${error ? `<div class="evcc-maintenance-empty">${this.escapeHtml(error)}</div>` : ""}
+            ${body}
+          </div>
+        </div>
+      </div>
     `;
   };
 

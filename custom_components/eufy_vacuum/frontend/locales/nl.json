@@ -540,7 +540,12 @@
       "saturates_at_zero": "Telt één onderdeel — stopt op 0 totdat dat onderdeel is gereset"
     },
     "clock_set": "Teller: {name}",
-    "clock_unset": "Geen onderhoudsteller geselecteerd"
+    "clock_unset": "Geen onderhoudsteller geselecteerd",
+    "clock_picker_title": "Onderhoudsteller",
+    "clock_picker_intro": "Kies de teller die bijhoudt hoe lang deze stofzuiger heeft gelopen. Onderdelen die hij niet zelf bijhoudt, worden daaraan gemeten.",
+    "clock_picker_loading": "Tellers zoeken…",
+    "clock_picker_empty": "Geen geschikte teller gevonden op deze stofzuiger",
+    "clock_picker_current": "In gebruik"
   },
   "map": {
     "adjusting": "Aanpassen:",

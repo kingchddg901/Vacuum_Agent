@@ -844,6 +844,23 @@ get_upkeep_snapshot:
         entity:
           domain: vacuum
 
+get_maintenance_source_candidates:
+  name: Get maintenance source candidates
+  description: >
+    Return the entities that could back this vacuum's maintenance counter, for
+    the picker to list. A component the device does not count itself (a mop
+    cloth, a cleaning tray, the caster wheel) is backed by one entity you
+    choose; this lists the plausible ones with their current value, unit, and a
+    caveat where the candidate counts only a single part and therefore stops at
+    zero until that part is reset.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
 get_metrics_snapshot:
   name: Get metrics snapshot
   description: >

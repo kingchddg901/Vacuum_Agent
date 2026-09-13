@@ -530,6 +530,11 @@ export const en = {
   "maintenance.due_in_months": { other: "Due in ~{count} months" },  // plural
   "maintenance.due_in_weeks": { other: "Due in ~{count} weeks" },  // plural
   "maintenance.due_overdue": "Overdue",
+  "maintenance.clock_picker_current": "In use",  // marks the candidate currently backing the maintenance counter, in the picker list
+  "maintenance.clock_picker_empty": "No suitable counter found on this vacuum",  // picker body when the fetch returned no candidates — distinct from the loading state, which is a different screen
+  "maintenance.clock_picker_intro": "Pick the counter that tracks how long this vacuum has run. Parts the vacuum does not track itself are measured against it.",  // explains what the picker is choosing; shown above the candidate list
+  "maintenance.clock_picker_loading": "Looking for counters…",  // picker body while the open-time fetch is in flight
+  "maintenance.clock_picker_title": "Maintenance counter",  // title of the counter-picker modal
   "maintenance.clock_set": "Counter: {name}",  // faded link in the Maintenance Items header; {name} is the friendly name of the entity currently backing every component the device does not count itself. Shown so a wrong pick (a per-job timer instead of the lifetime one) is noticeable.
   "maintenance.clock_unset": "No maintenance counter selected",  // warning-coloured link in the Maintenance Items header, shown when some component needs a counter and none is picked. Those rows render a full bar that never moves, so this is what makes the gap visible.
   "maintenance.component_label.main_brush": "Main Brush",  // Maintenance component NAME shown as the card title / row header. LOCALIZE.

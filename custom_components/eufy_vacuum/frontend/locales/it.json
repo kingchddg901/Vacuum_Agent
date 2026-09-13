@@ -542,7 +542,12 @@
       "saturates_at_zero": "Conta un solo componente: si ferma a 0 finché non viene reimpostato"
     },
     "clock_set": "Contatore: {name}",
-    "clock_unset": "Nessun contatore di manutenzione selezionato"
+    "clock_unset": "Nessun contatore di manutenzione selezionato",
+    "clock_picker_title": "Contatore di manutenzione",
+    "clock_picker_intro": "Scegli il contatore che registra da quanto tempo funziona questo aspirapolvere. I componenti che non traccia da solo vengono misurati su di esso.",
+    "clock_picker_loading": "Ricerca contatori…",
+    "clock_picker_empty": "Nessun contatore adatto trovato su questo aspirapolvere",
+    "clock_picker_current": "In uso"
   },
   "map": {
     "adjusting": "Regolazione:",
