@@ -240,6 +240,53 @@ a preference, nothing prompts its restoration, and the old value lives only in `
 | MCR-8 | malformed storage is survived, not raised — this runs during setup on every install. |
 | MCR-9 | **the table holds only 1:1 renames.** An absorption has no single destination (two sources, one panel), so those drop to default by design. A future edit adding one is what this catches. |
 
+⚠ **`MIGRATION_KEY` must be bumped whenever a row is added** (now `_v2`, 2026-09-14). It is a
+one-shot latch, so a row added under a key already `True` can never run on a box that has
+migrated — the author's included, which is where it would be verified. That is not theoretical:
+`washboard` → `cleaning_tray` was renamed on 2026-09-12 (f9cfed39) and no row was ever added, so
+the miss sat undetected behind a latched `_v1`. Re-running is safe by construction — the planner
+skips any destination that already holds a value. The same commit added `RETIRED_COMPONENTS`,
+the outright-removals list that has no destination and so cannot live in this table; MER-10
+guards it.
+
+### `integration/test_maintenance_entity_registry_migration.py` — the entity half of the same rename
+
+10 test functions, added 2026-09-14. The sibling above carries the user's INTERVAL; this carries
+the ENTITY. A component id is half of a `unique_id`
+(`vacuum_alfred_swivel_wheel_maintenance_interval`), so the same rename that orphans a storage
+row also orphans three registry rows — a reset button, an interval number and a remaining
+sensor.
+
+**Why nine green tests next door could not see it.** MCR imports nothing from `homeassistant`:
+it builds a dict and asserts on a dict. That purity is why it is fast, and exactly why it was
+blind here — there was no registry in the room to be wrong. Measured cost on a real box: 15
+orphan rows sitting permanently `unavailable`, 3 frozen long-term-statistics series, and three
+`_2` entity ids, because Eufy keeps its own display word via `label_key` so the friendly names
+collide exactly. These tests drive a real registry; nothing is mocked.
+
+**The ordering is the fix.** The pass runs before `async_forward_entry_setups`, because the
+platforms are what mint the canonical rows. First, and the legacy row is still the only holder
+of that `unique_id`, so the rename keeps the entity id, the history and every automation bound
+to it. After, and every component collides — which is precisely how the author's box reached
+fifteen-for-fifteen.
+
+| id | what it holds |
+| --- | --- |
+| MER-1 | a free destination is **renamed in place** — same entity id, so history and automations survive. Red if the registry is left untouched. |
+| MER-2 | a taken destination does not raise. `async_update_entity` raises `ValueError` on a used `unique_id`, and mid-loop that leaves a box half-migrated — worse than either end state. |
+| MER-3 | two legacy ids naming one destination: exactly one wins (table order), the other is pruned. The wheel really did go `swivel_wheel` → `caster_wheel` → canonical. |
+| MER-4 | all three platforms move together. A number-only pass leaves two thirds of the orphans behind while looking like it worked. |
+| MER-5 | idempotent via its own latch. |
+| MER-6 | **that latch is independent of MCR's.** Every box that has run this version already has `maintenance_component_renames_*` set, so a pass sharing it could never run there — including the author's, the one place it would be verified. |
+| MER-7 | an unrenamed component is untouched — red if matching goes substring or prefix. |
+| MER-8 | the planner writes nothing, so a release's effect on real users is reviewable first. |
+| MER-9 | **a RETIRED component is pruned.** Of the eight the Roborock 14→7 cut removed, only `cleaning_brush` and `strainer` ever minted entities — both declared a suffix a wash-dock machine publishes. Absorptions have no destination, so the rename table excludes them and they would otherwise stay `unavailable` forever. No machine in this house can show it. |
+| MER-10 | **the safety guard, and the only way this pass could destroy a live entity.** `RETIRED_COMPONENTS` drives an unconditional delete; if an id on it reappears in a brand catalog, the migration would delete entities the platforms recreate every startup. Also refuses an id that is both renamed and retired, where loop order alone would decide. |
+
+Ablation, recorded: removing the collision guard reddens MER-2 and MER-3; reusing MCR's latch key
+reddens MER-6; migrating only the number platform reddens MER-4; ignoring `RETIRED_COMPONENTS`
+reddens MER-9; re-declaring `dustbin` in the Roborock catalog reddens MER-10.
+
 ### `dreame/test_dreame_upkeep_keys.py` — the only gate on an UNWIRED adapter
 
 9 test functions / 48 collected cases (DUK-3, DUK-6 and DUK-9 fan out over the 15

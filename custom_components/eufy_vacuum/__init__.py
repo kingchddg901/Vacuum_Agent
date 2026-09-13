@@ -68,6 +68,9 @@ from .core.battery_aggregates_migration import migrate_battery_aggregates
 from .core.maintenance_component_rename_migration import (
     migrate_maintenance_component_renames,
 )
+from .core.maintenance_entity_registry_migration import (
+    migrate_maintenance_entity_registry,
+)
 from .core.pause_timeout_migration import migrate_pause_timeout_defaults
 from .rooms.vocabulary_migration import migrate_room_vocabulary
 from .battery.manager import BatteryHealthManager
@@ -794,6 +797,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # loss is stated rather than silent; the repair lands separately.
         entity_rename.register(hass)
         _unwind_stack.append(lambda: entity_rename.remove(hass))
+
+        # ⏱ MUST RUN BEFORE THE FORWARD BELOW, and that ordering is the whole fix. A component
+        # rename orphans the entity-registry row that carries the old id, and the PLATFORMS are
+        # what mint the replacement. Going first means the legacy row is still the only holder
+        # of that unique_id, so the rename is an in-place update that keeps the entity_id, its
+        # history and every automation bound to it — an upgrading user sees nothing happen.
+        # Going second means every single component collides with a row that already exists,
+        # which is exactly how a real box reached 15 orphans and three `_2` entity ids.
+        # Deliberately NOT on the `async_at_started` hook the interval migration uses: that
+        # fires AFTER platform setup on a cold boot, which is the failing order.
+        try:
+            _registry_migration = migrate_maintenance_entity_registry(hass, data=manager.data)
+            if _registry_migration["renamed"] or _registry_migration["pruned"]:
+                await manager.async_save()
+        except Exception:  # pragma: no cover - never block setup on a registry tidy-up
+            _LOGGER.exception(
+                "eufy_vacuum: maintenance entity-registry migration failed; "
+                "entities left under their old unique ids"
+            )
 
         # STOP-CONDITION check (RP-039): verified against the installed HA source
         # (ConfigEntries.async_forward_entry_setups / async_unload_platforms,

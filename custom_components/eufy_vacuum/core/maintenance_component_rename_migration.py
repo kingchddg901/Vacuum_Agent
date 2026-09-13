@@ -36,7 +36,14 @@ from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
-MIGRATION_KEY = "maintenance_component_renames_v1"
+#: ⚠ BUMP THIS WHENEVER YOU ADD A ROW BELOW. It is a one-shot latch, so a row added under a key
+#: that is already ``True`` can NEVER run on a box that has already migrated — including the
+#: author's, which makes the new row live-unverifiable exactly where it would be verified. That
+#: is not hypothetical: `washboard` below was renamed on 2026-09-12 and no row was ever added,
+#: so the miss sat undetected behind a latched `_v1`.
+#: RE-RUNNING IS SAFE BY CONSTRUCTION: the planner skips any destination that already holds a
+#: value, so a second pass over already-carried data plans nothing.
+MIGRATION_KEY = "maintenance_component_renames_v2"
 
 #: ``legacy component id -> canonical component id``. ONE-TO-ONE ONLY; see the module docstring
 #: for why absorptions are excluded. Add a row here whenever a component id is renamed.
@@ -53,7 +60,47 @@ COMPONENT_RENAMES: dict[str, str] = {
     "rolling_brush": "main_brush",
     "swivel_wheel": "omnidirectional_wheel",
     "mopping_cloth": "mop",
+    # Dreame, 2026-09-12 (f9cfed39) — the washboard panel became `cleaning_tray`. The rename
+    # shipped WITHOUT a row here and the omission survived because the migration key was
+    # already latched, so nothing would have run even if the row had been added. Found by the
+    # 2026-09-14 audit; the key bump above is what lets it actually execute.
+    "washboard": "cleaning_tray",
 }
+
+#: Component ids that were RETIRED OUTRIGHT — absorbed into another panel or ruled out of scope
+#: — and so have no destination to be renamed to. They are NOT in ``COMPONENT_RENAMES`` on
+#: purpose: an absorption has two sources and one destination, so there is no one-to-one move to
+#: make and no honest way to choose whose interval survives.
+#:
+#: ONLY TWO OF THESE EVER MINTED AN ENTITY. Measured against the v2.1.0 tree: ``cleaning_brush``
+#: and ``strainer`` each declared a ``sensor_suffix`` that the Roborock integration publishes on
+#: a WASH-DOCK machine, so an owner of one has six real registry rows (2 x 3 platforms) that no
+#: longer correspond to anything this integration declares. The other six declared no suffix, so
+#: they never resolved a source and never became entities — they are listed anyway because
+#: costing nothing is not the same as being absent, and a dev build that added a suffix later
+#: would otherwise strand them silently.
+#:
+#: ⚠ THE ONE WAY THIS COULD DELETE A LIVE ENTITY is a component id reappearing in a brand's
+#: catalog while still listed here. ``MER-10`` asserts the intersection is empty, so that
+#: mistake is red before it can reach a user's registry.
+#:
+#: Chris ruled prune (2026-09-14): "cleaning_brush / strainer ... prune them". Leaving them
+#: means a permanently `unavailable` row per part, forever, for a part the integration no longer
+#: has an opinion about.
+RETIRED_COMPONENTS: frozenset[str] = frozenset({
+    # Roborock 14 -> 7, 2026-09-12. The two that shipped real entities:
+    "cleaning_brush",
+    "strainer",
+    # ...and the six that never did (no sensor_suffix at v2.1.0):
+    "dustbin",
+    "water_filter",
+    "main_wheel",
+    "clean_water_tank",
+    "dirty_water_tank",
+    "dock_dust_bag",
+    # The earlier spelling of dock_dust_bag, declared 2026-09-01 -> 09-12.
+    "dust_bag",
+})
 
 
 def plan_component_rename_migration(*, data: dict[str, Any]) -> list[dict[str, Any]]:
