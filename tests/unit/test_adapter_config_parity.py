@@ -13,9 +13,9 @@ truth:
      registry's own docstring says it must not ("fails here rather than at the
      first clean"). Code adapters never noticed: they bypass the schema walk.
 
-  2. Code READS keys the schema never declares, while doc 22 documents them.
+  2. Code READS keys the schema never declares, while the generated config doc lists them.
      ``low_clean_water_margin_ml`` is read at ``planning/run_plan.py:539`` and
-     documented in doc 22 with a worked example -- and was absent from
+     documented with a worked example -- and was absent from
      ``water_model_configs.entry_fields``. ``entry_fields`` IS enforced
      (``validate_against_schema`` recurses into it, unknown-key rejection
      included), so a porter following the doc wrote that key, hit save, and got
@@ -51,7 +51,14 @@ REGISTRY_PY = COMPONENT / "adapters" / "registry.py"
 # GENERATED from ADAPTER_CONFIG_SCHEMA itself. Same row shape, so this check keeps
 # running — and what it now catches is a GENERATOR bug: a field emitted into the
 # porter-facing table that the schema does not actually declare.
-DOC_22 = (
+#
+# ⚠ THE NAME BELOW IS A TRAP AND THE FAILURE MESSAGES USED TO REPEAT IT. "doc 22" was the
+# hand-written `docs/retired/dev/22-adapter-config-reference.md`, and this constant has not
+# pointed there since the retirement. A failure saying "doc 22 documents these" sent someone
+# to EDIT THE RETIRED DOC — a real detour, 2026-09-12 — because the message named a document
+# instead of the path it actually reads. Messages now say GENERATED DOC and print the path.
+# Regenerate with: python .claude/generated-docs/adapter-config/gen_adapter_config_docs.py
+GENERATED_CONFIG_DOC = (
     REPO_ROOT / ".claude" / "generated-docs" / "adapter-config"
     / "ADAPTER-CONFIG.generated.md"
 )
@@ -63,7 +70,7 @@ _META = {
 }
 
 # ---------------------------------------------------------------------------
-# SCHEMA_ABSENT_BY_DESIGN -- doc 22 documents these, the schema deliberately does
+# SCHEMA_ABSENT_BY_DESIGN -- the generated config doc lists these, the schema deliberately does
 # not declare them. Each needs the REASON, not just the name: an allowlist whose
 # entries say only "known" cannot be re-reviewed by the next reader.
 # ---------------------------------------------------------------------------
@@ -169,7 +176,7 @@ _DOC_ROW = re.compile(
 
 
 def _documented_field_keys() -> set[str]:
-    return set(_DOC_ROW.findall(DOC_22.read_text(encoding="utf-8")))
+    return set(_DOC_ROW.findall(GENERATED_CONFIG_DOC.read_text(encoding="utf-8")))
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +220,7 @@ def test_documented_config_fields_exist_in_the_schema():
     declared = _all_schema_keys()
 
     assert len(documented) >= 20, (
-        f"parsed only {len(documented)} field rows out of doc 22 — the table regex "
+        f"parsed only {len(documented)} field rows out of the generated config doc — the table regex "
         "has drifted from the document's format, so this assertion is checking "
         "almost nothing (it parsed 28 on 2026-08-15)"
     )

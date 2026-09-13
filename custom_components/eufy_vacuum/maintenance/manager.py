@@ -203,37 +203,28 @@ class MaintenanceManager:
         """Return upkeep model metadata derived from the upstream device registry."""
         _catalog = (_get_adapter_config(vacuum_entity_id) or {}).get("upkeep_catalog", {})
         model_names = _catalog.get("model_names", {})
-        model_guide_families = _catalog.get("model_guide_families", {})
-        guide_family_names = _catalog.get("guide_family_names", {})
-        guide_library = _catalog.get("guide_library", {})
 
+        # ONE ROUTING. Every adapter ships i18n KEYS routed by REGIME; the per-FAMILY prose
+        # routing was removed 2026-09-12 with its last user. `guide_family` and
+        # `guide_family_name` are no longer in this payload -- the card's badge that showed
+        # them went at the same time, because a model does not resolve to a family any more.
         model_code = self._manager._get_registry_model_code(vacuum_entity_id=vacuum_entity_id)
-        guide_family = model_guide_families.get(model_code or "")
-        guide_map = guide_library.get(guide_family or "", {})
-        # A KEY-GUIDE adapter routes by REGIME instead of family and ships i18n keys rather
-        # than prose (Dreame). Both routings are read here so `supported_guide_components`
-        # answers the same question either way; an adapter declares one or the other.
         guide_regime = _catalog.get("model_key_regimes", {}).get(model_code or "")
         key_map = _catalog.get("key_guides", {}).get(guide_regime or "", {})
         return {
             "code": model_code,
             "name": model_names.get(model_code or "", model_code),
             "source": "device_registry" if model_code else None,
-            "guide_family": guide_family,
-            "guide_family_name": guide_family_names.get(guide_family or "", guide_family),
             "guide_regime": guide_regime,
-            "guide_available": bool(guide_map or key_map),
-            "supported_guide_components": sorted(key_map.keys() or guide_map.keys()),
+            "guide_available": bool(key_map),
+            "supported_guide_components": sorted(key_map),
         }
 
-    def _guide_language(self) -> str:
-        """Base HA instance language (e.g. 'de' from 'de-DE') for localized upkeep
-        guides, or '' when unavailable. NOTE: guides follow the HA INSTANCE language
-        (hass.config.language) — not a per-user frontend locale or the card's
-        per-dashboard i18n override (the backend can't see those)."""
-        hass = getattr(self._manager, "hass", None)
-        lang = getattr(getattr(hass, "config", None), "language", None) or ""
-        return str(lang).split("-")[0].lower()
+    # REMOVED 2026-09-12 — `_guide_language`. It read the HA INSTANCE language to pick which
+    # translated prose to overlay, and the prose overlay is gone. The instance language was
+    # always the wrong axis for this: the guide follows the CARD's globe, which is per user and
+    # which the backend cannot see. That mismatch is the whole reason the key system exists —
+    # the backend ships keys and holds no words, so there is no language for it to choose.
 
     def _get_upkeep_item_guide(
         self,
@@ -246,18 +237,17 @@ class MaintenanceManager:
         """Return model-specific upkeep guide metadata for one component."""
         _catalog = (_get_adapter_config(vacuum_entity_id) or {}).get("upkeep_catalog", {})
         model_names = _catalog.get("model_names", {})
-        model_guide_families = _catalog.get("model_guide_families", {})
-        guide_family_names = _catalog.get("guide_family_names", {})
-        guide_library = _catalog.get("guide_library", {})
-        guide_translations = _catalog.get("guide_translations", {})
 
-        # ── KEY GUIDES ──────────────────────────────────────────────────────────────
-        # An adapter may ship i18n KEYS instead of prose, routed by REGIME rather than by
-        # guide family (Dreame). The backend then carries no words at all: it emits the key
-        # lists and the CARD resolves them in the reader's own language, which is the only
-        # language the backend cannot see — it knows the HA instance language and nothing
-        # about the per-user globe. So the whole guide_translations overlay below, which
-        # exists to pick prose by INSTANCE language, has nothing to do here and is skipped.
+        # ── KEY GUIDES — the only routing there is ──────────────────────────────────
+        # Every adapter ships i18n KEYS, routed by REGIME. The backend carries no words at
+        # all: it emits the key lists and the CARD resolves them in the READER's language,
+        # which is the one language the backend cannot see — it knows the HA instance
+        # language and nothing about the per-user globe.
+        #
+        # THAT MISMATCH IS WHY THE PROSE ROUTING HAD TO GO, not merely why it was unused. It
+        # picked translated text by INSTANCE language, so two people reading the same card in
+        # different languages got the same words. No amount of translation fixed that; only
+        # moving the choice to the card did.
         #
         # ADDITIVE ON THE WIRE: `steps_keys`/`notes_keys` are new fields beside the existing
         # `steps`/`notes`, which stay present and empty. A card that has not been rebuilt
@@ -296,52 +286,12 @@ class MaintenanceManager:
                 "display": dict(body),
             }
 
-        guide_family = model_guide_families.get(model_code or "")
-        guide = dict(guide_library.get(guide_family or "", {}).get(component, {}))
-        if not guide:
-            return None
-
-        # Overlay official localized steps/notes/frequencies on the English base
-        # PER FIELD, selected by the HA instance language. Anything the localized
-        # entry lacks (an unharvested component/language, or a frequency the manual
-        # didn't state) falls back to English. See adapters/eufy/upkeep_guides_i18n.
-        lang = self._guide_language()
-        translated = (
-            guide_translations.get(lang, {}).get(guide_family or "", {}).get(component)
-            if lang else None
-        )
-        if translated:
-            if translated.get("steps"):
-                guide["steps"] = list(translated["steps"])
-            if translated.get("notes"):
-                guide["notes"] = list(translated["notes"])
-            if translated.get("clean_frequency"):
-                guide["clean_frequency"] = translated["clean_frequency"]
-            if translated.get("replace_frequency"):
-                guide["replace_frequency"] = translated["replace_frequency"]
-
-        guide["source_model_code"] = model_code
-        guide["source_model_name"] = model_names.get(model_code or "", model_code)
-        guide["source_guide_family"] = guide_family
-        guide["source_guide_family_name"] = guide_family_names.get(guide_family or "", guide_family)
-        guide["available"] = True
-        guide["maintenance"] = {
-            "frequency": guide.get("clean_frequency"),
-            "steps": list(guide.get("steps", [])),
-            "notes": list(guide.get("notes", [])),
-            "available": bool(guide.get("clean_frequency") or guide.get("steps") or guide.get("notes")),
-        }
-        guide["replacement"] = {
-            "frequency": guide.get("replace_frequency"),
-            "steps": list(guide.get("steps", [])),
-            "notes": list(guide.get("notes", [])),
-            "available": bool(guide.get("replace_frequency")),
-        }
-        guide["display_kind"] = item_kind
-        guide["display"] = dict(
-            guide["replacement"] if item_kind == "replacement" else guide["maintenance"]
-        )
-        return guide
+        # NO PROSE FALLBACK. Everything below this point used to build a guide from the
+        # per-family library and overlay translated fields by HA instance language. Both are
+        # deleted. An adapter that declares no `key_guides` for this model has no guide, and
+        # None is what every caller already handles -- the same answer the prose path gave for
+        # an unknown family.
+        return None
 
     def _get_replacement_reset_entity(
         self,
@@ -451,22 +401,17 @@ class MaintenanceManager:
         # the used-water box.
         _upkeep = _adapter_cfg.get("upkeep_catalog", {})
         _key_routing = bool(_upkeep.get("key_guides"))
-        _guide_family = _upkeep.get("model_guide_families", {}).get(model_code or "")
         _guide_regime = _upkeep.get("model_key_regimes", {}).get(model_code or "")
         _model_guide_components = set(
             _upkeep.get("key_guides", {}).get(_guide_regime or "", {})
-            if _key_routing
-            else _upkeep.get("guide_library", {}).get(_guide_family or "", {})
         )
-        # An UNRESOLVED model under key routing gates CLOSED, and that is the one place the
-        # two routings deliberately differ. Prose routing has a `standard` family, so an
-        # unknown model still lands on real content and "show everything" is safe. A regime
-        # is measured per model and has no generic member: no regime means the hardware is
-        # genuinely unknown, and the honest card is the sensor-backed rows alone — the same
-        # four an unknown Dreame showed before the guide-only cleanables were declared.
-        # Without this an unrecognised model code renders every cleanable ever listed,
-        # washboard included, on a robot that may have no dock at all.
-        _guide_routed = _key_routing or bool(_guide_family)
+        # AN UNRESOLVED MODEL GATES CLOSED. A regime is measured per model and has no generic
+        # member, so no regime means the hardware is genuinely unknown and the honest card is
+        # the sensor-backed rows alone. (The retired prose routing had a `standard` family, so
+        # an unknown model there still landed on real content and "show everything" was safe —
+        # that difference is gone with it.) Without this an unrecognised model code renders
+        # every cleanable ever listed, cleaning tray included, on a robot with no dock at all.
+        _guide_routed = _key_routing
         for component, meta in _maintenance_components.items():
             label = meta.get("label", component.replace("_", " ").title())
             # Per-brand DISPLAY key: the component key is canonical (`main_brush`),

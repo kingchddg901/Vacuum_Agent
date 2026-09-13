@@ -1948,29 +1948,20 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "description": (
             "Per-model upkeep guide catalog. Display data only — pure strings, "
             "no logic. The framework reads model_names to label the maintenance "
-            "view, then resolves the guide by ONE of two routings. "
-            "PROSE ROUTING (eufy, roborock): the model code resolves a family via "
-            "model_guide_families and the entries come from guide_library, overlaid "
-            "per HA instance language from guide_translations. "
-            "KEY ROUTING (dreame): the model code resolves a REGIME via "
-            "model_key_regimes and key_guides supplies i18n KEYS, which the CARD "
-            "resolves in the reader's own language — the backend carries no words and "
-            "needs no guide_translations. "
-            "Declare one routing, not both: the key routing is checked first, so a "
-            "model present in both would never reach its family. "
+            "view, then resolves the guide by REGIME: the model code resolves a "
+            "regime via model_key_regimes and key_guides supplies i18n KEYS, which "
+            "the CARD resolves in the READER's own language. The backend carries no "
+            "guide words at all. "
+            "ONE ROUTING. There was a second — per-FAMILY prose (model_guide_families "
+            "+ guide_library + guide_translations), removed 2026-09-12 once every "
+            "adapter had moved off it. It chose translated text by HA INSTANCE "
+            "language, which is the wrong axis: two people reading one card in "
+            "different languages got the same words. Moving the choice to the card is "
+            "the fix, and it is why the backend holds keys instead of sentences. "
             "Absent = upkeep view falls back to component labels only with no "
             "step-by-step instructions."
         ),
         "fields": {
-            "guide_translations": {
-                "type": "dict",
-                "required": False,
-                "description": (
-                    "Per-language upkeep guide bundles, keyed by language code. Both "
-                    "brands ship one; the set of languages is asserted by the adapter "
-                    "guide tests."
-                ),
-            },
             "model_names": {
                 "type": "dict[str, str]",
                 "required": False,
@@ -1980,42 +1971,10 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Example: {'T2351': 'Robovac X10 Pro Omni'}."
                 ),
             },
-            "model_guide_families": {
-                "type": "dict[str, str]",
-                "required": False,
-                "description": (
-                    "Maps device model code to a guide family key. Multiple "
-                    "models can share one family when their upkeep instructions "
-                    "are identical, keeping guide_library compact. "
-                    "Example: {'T2351': 'x10_pro_omni', 'T2261': 'x8_series'}."
-                ),
-            },
-            "guide_family_names": {
-                "type": "dict[str, str]",
-                "required": False,
-                "description": (
-                    "Maps guide family key to display name shown in the "
-                    "upkeep guide header. "
-                    "Example: {'x10_pro_omni': 'X10 Pro Omni'}."
-                ),
-            },
-            "guide_library": {
-                "type": "dict[str, dict[str, dict]]",
-                "required": False,
-                "description": (
-                    "Two-level dict: family_key → component_key → guide entry. "
-                    "Component keys must match the CANONICAL maintenance_components "
-                    "keys (filter, side_brush, main_brush, mop_cloth, dust_bag, "
-                    "caster_wheel, sensor, etc.). Each guide entry has fields: "
-                    "clean_frequency (str), replace_frequency (str | null), "
-                    "steps (list[str]), notes (list[str]). "
-                    "Absent component keys produce no card in the upkeep view. "
-                    "The legacy Eufy keys (rolling_brush → main_brush, swivel_wheel "
-                    "→ caster_wheel, mopping_cloth → mop_cloth) and dock_dust_bag → "
-                    "dust_bag were canonicalized 2026-09; a custom guide config using "
-                    "a legacy key should be updated to the canonical one."
-                ),
-            },
+            # REMOVED 2026-09-12 — guide_translations, model_guide_families,
+            # guide_family_names and guide_library. The per-FAMILY prose routing they
+            # described had no adapter left once all three ported to keys. A declared field
+            # nothing supplies and nothing reads is configuration that looks supported.
             "model_key_regimes": {
                 "type": "dict[str, str]",
                 "required": False,

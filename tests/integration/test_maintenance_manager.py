@@ -393,31 +393,64 @@ def test_maintenance_only_component_excluded_from_replacements(mnt, manager, has
     assert snap["attention_count"] == 0
 
 
-def test_guide_only_component_family_gated(mnt, manager, monkeypatch):
-    """[MNT-12c] a guide-only cleanable (maintenance_only + no sensor) is surfaced ONLY
-    when the model's guide family documents it — so dock/station components show on a
-    station model but stay hidden on a base robot. Sensor-backed ones always show."""
+def test_guide_only_component_regime_gated(mnt, manager, monkeypatch):
+    """[MNT-12c] a guide-only cleanable (maintenance_only + no sensor) is surfaced ONLY when
+    the model's REGIME documents it — so a station component shows on a station model and
+    stays hidden on a base robot. Sensor-backed ones always show.
+
+    WAS family-gated until 2026-09-12. The gate is the same idea against a sharper key: a
+    regime is MEASURED from the model's hardware, where a family was a name someone assigned.
+    """
     from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
-    # Resolve to a model whose family ("base") documents dustbin + main_brush, NOT the dock bag.
     monkeypatch.setattr(mnt, "_get_upkeep_model_meta", lambda **kw: {"code": "test.model"})
     register_adapter_config(_VAC, {
         "adapter_id": "test", "source": "test",
         "maintenance_components": {
-            "main_brush": {"label": "Main Brush", "sensor_suffix": "x"},          # sensor-backed
-            "dustbin": {"label": "Dustbin", "maintenance_only": True},            # guide-only, in family
-            "dust_bag": {"label": "Dock Dust Bag", "maintenance_only": True},  # guide-only, NOT in family
+            "main_brush": {"label": "Main Brush", "sensor_suffix": "x"},        # sensor-backed
+            "mop": {"label": "Mop", "maintenance_only": True},                  # guide-only, in regime
+            "cleaning_tray": {"label": "Cleaning Tray", "maintenance_only": True},  # NOT in regime
         },
         "upkeep_catalog": {
-            "model_guide_families": {"test.model": "base"},
-            "guide_library": {"base": {"dustbin": {"steps": ["s"]}, "main_brush": {"steps": ["s"]}}},
+            "model_key_regimes": {"test.model": "cloth|charge_only|no"},
+            "key_guides": {"cloth|charge_only|no": {
+                "mop": {"steps": ["mop.cloth_module_off"], "notes": []},
+                "main_brush": {"steps": ["access.brush_guard"], "notes": []},
+            }},
         },
     })
     _caps(manager, monkeypatch, {})
 
     comps = {i["component"] for i in mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)["maintenance_items"]}
-    assert "main_brush" in comps        # sensor-backed → always shown
-    assert "dustbin" in comps           # guide-only + in family → shown
-    assert "dust_bag" not in comps  # guide-only + NOT in family → gated out
+    assert "main_brush" in comps          # sensor-backed -> always shown
+    assert "mop" in comps                 # guide-only + in regime -> shown
+    assert "cleaning_tray" not in comps   # guide-only + NOT in regime -> gated out
+
+
+def test_an_unresolved_model_gates_the_cleanables_closed(mnt, manager, monkeypatch):
+    """[MNT-12d] no regime means the hardware is UNKNOWN, and unknown must not mean "show
+    everything". The retired prose routing had a `standard` family to fall back on, so an
+    unrecognised model still landed on real content; a regime has no generic member. Without
+    this gate an unknown model renders every cleanable ever declared — a cleaning tray on a
+    robot that may have no dock at all.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    monkeypatch.setattr(mnt, "_get_upkeep_model_meta", lambda **kw: {"code": "who.knows"})
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {
+            "main_brush": {"label": "Main Brush", "sensor_suffix": "x"},
+            "cleaning_tray": {"label": "Cleaning Tray", "maintenance_only": True},
+        },
+        "upkeep_catalog": {
+            "model_key_regimes": {"test.model": "cloth|charge_only|no"},
+            "key_guides": {"cloth|charge_only|no": {"main_brush": {"steps": ["s"], "notes": []}}},
+        },
+    })
+    _caps(manager, monkeypatch, {})
+
+    comps = {i["component"] for i in mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)["maintenance_items"]}
+    assert "main_brush" in comps, "sensor-backed rows are honest for any model"
+    assert "cleaning_tray" not in comps, "an unresolved model must not be shown a dock part"
 
 
 def _caps_with_entities(manager, monkeypatch, entities):
@@ -471,20 +504,22 @@ def test_upkeep_snapshot_device_totals_partial(mnt, manager, hass, monkeypatch):
 
 
 def test_upkeep_item_guide_builds_sub_dicts(mnt):
-    """[MNT-13] _get_upkeep_item_guide enriches a library entry with source model
-    info + maintenance/replacement sub-dicts; display picks by item_kind."""
+    """[MNT-13] _get_upkeep_item_guide enriches a KEY guide with source model info +
+    maintenance/replacement sub-dicts; display picks by item_kind.
+
+    A key guide draws no line between cleaning a part and replacing it — the steps are what a
+    person does with their hands either way — so both sub-dicts carry the same body. The prose
+    routing this replaced had separate clean/replace frequencies; nothing emits those now.
+    """
     from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
     register_adapter_config(_VAC, {
         "adapter_id": "test", "source": "test",
         "upkeep_catalog": {
             "model_names": {"X8": "X8 Pro"},
-            "model_guide_families": {"X8": "x_series"},
-            "guide_family_names": {"x_series": "X Series"},
-            "guide_library": {"x_series": {"main_brush": {
-                "clean_frequency": "monthly",
-                "replace_frequency": "yearly",
-                "steps": ["pop the cover", "pull the brush"],
-                "notes": ["watch for hair"],
+            "model_key_regimes": {"X8": "cloth|charge_only|no"},
+            "key_guides": {"cloth|charge_only|no": {"main_brush": {
+                "steps": ["access.brush_guard", "tool.remove_tangled_hair"],
+                "notes": ["note.side_brush_do_not_yank"],
             }}},
         },
     })
@@ -493,16 +528,20 @@ def test_upkeep_item_guide_builds_sub_dicts(mnt):
         component="main_brush", item_kind="replacement")
     assert guide["available"] is True
     assert guide["source_model_name"] == "X8 Pro"
-    assert guide["source_guide_family_name"] == "X Series"
-    assert guide["maintenance"]["frequency"] == "monthly"
-    assert guide["maintenance"]["available"] is True
-    assert guide["replacement"]["frequency"] == "yearly"
-    # item_kind=replacement → display mirrors the replacement sub-dict
+    assert guide["steps_keys"] == ["access.brush_guard", "tool.remove_tangled_hair"]
+    assert guide["notes_keys"] == ["note.side_brush_do_not_yank"]
+    # ADDITIVE ON THE WIRE: the prose fields stay present and EMPTY, so a card that has not
+    # been rebuilt renders an empty guide rather than raising.
+    assert guide["maintenance"]["steps"] == []
     assert guide["display"] == guide["replacement"]
-    # an unknown component has no library entry → None
+    # a component the regime does not document has no guide -> None
     assert mnt._get_upkeep_item_guide(
         vacuum_entity_id=_VAC, model_code="X8",
-        component="ghost", item_kind="maintenance") is None
+        component="nope", item_kind="maintenance") is None
+    # and an unknown MODEL has no regime -> None
+    assert mnt._get_upkeep_item_guide(
+        vacuum_entity_id=_VAC, model_code="ZZ",
+        component="main_brush", item_kind="maintenance") is None
 
 
 def test_reset_entity_suffix_states_hit(mnt, hass):
