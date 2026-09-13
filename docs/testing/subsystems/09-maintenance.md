@@ -75,3 +75,31 @@ exercises the live-state hit and MNT-14d the registry-only hit in
 `test_maintenance_manager.py`. The older reset-entity tests that set
 `entity_suffixes` to an absent value still additionally exercise the
 `token_sets` fallback.
+
+---
+
+## `core/test_usage_accumulator.py` — the reset-detecting counter
+
+12 test functions / 18 collected cases, added 2026-09-12. Covers `core/usage_accumulator.py`,
+the pure fold that turns a device's reading into hours we own.
+
+**Why it is pure and tested alone.** Doc 41 §1 states the rule the framework lives by — *the
+device owns the state and we own a reference to it* — and the countdown half was never actually
+built: `_consumed_hours` read a countdown as a POINT value (`default_interval_hours - state`),
+so a device self-reset made the card read brand new while clamp 1 absorbed the difference.
+Absorbing a reset is not counting it.
+
+| id | what it holds |
+| --- | --- |
+| UAC-1 | the ordinary case — a decrease is hours. |
+| UAC-2 | **a week of downtime books the whole drop in one reading.** The delta is against the last STORED value, not a live stream, so nothing is lost — and the cap must not mistake it for a glitch. |
+| UAC-3 | a reset counts nothing **and** moves the baseline. |
+| UAC-4 | **the freeze.** Skip the re-baseline and `baseline` stays at the old value forever, every later reading reads as another increase, and the counter never books another hour. "Ignore increases" is a plausible-sounding rule that silently dies without the re-baseline. |
+| UAC-5 | the same branch from the other side — count the increase and the reset itself books as runtime. |
+| UAC-6 / 6b | **`unavailable` / `unknown` touch nothing.** The failure most likely to happen first: a countdown goes unavailable on every HA restart. Coerced to 0 it books the whole countdown; treated as "no value" that writes a baseline it destroys the reference. |
+| UAC-7 | the first reading establishes the baseline only — a fresh install must not book hours already on the part. |
+| UAC-8 | an impossible delta is **rejected and reported**, never absorbed, and still re-baselines so the next reading recovers. |
+| UAC-9 | the cap is **360 h — the longest device-declared part life**, not the longest declared interval (720 h, a user's reminder ceiling, which bounds nothing about runtime). |
+| UAC-10 | **count-up is the same rule mirrored.** Eufy's `usage_hours` rises where Roborock's `time_left` falls; applied as written the spec would count nothing on Eufy. |
+| UAC-11 | direction is inferred per **entity**, not per brand — keeping doc 41's "holds both without a brand check". A per-adapter declaration would be strictly weaker. |
+| UAC-12 | **the one direction it drifts**, pinned as a decision: a reset inside an unobserved gap loses that gap (or books only the net). It fails LOW and SILENT, bounded by how long we can go unobserved. |
