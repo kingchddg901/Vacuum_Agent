@@ -925,10 +925,17 @@ class MaintenanceManager:
         has_usage_attr = usage_accumulator._number(
             attributes.get(self.USAGE_ATTRIBUTE)
         ) is not None
+        # NORMALISE THE STATE TO HOURS; the attribute is already hours by its own name.
+        # Measured live: robin's lifetime clock reads 409 with unit `min` while alfred's and
+        # ivy's read hours, so folding the raw number booked 5 MINUTES of cleaning as 5 HOURS.
+        # Every interval in this system is in hours, so the source has to be too.
         reading = (
             attributes.get(self.USAGE_ATTRIBUTE)
             if has_usage_attr
-            else getattr(state, "state", None)
+            else usage_accumulator.to_hours(
+                getattr(state, "state", None),
+                attributes.get("unit_of_measurement"),
+            )
         )
         declared = usage_accumulator.declared_direction(
             attributes.get("state_class"), attributes, self.USAGE_ATTRIBUTE

@@ -12,6 +12,7 @@ import pytest
 
 from custom_components.eufy_vacuum.core.usage_accumulator import (
     DOWN,
+    to_hours,
     MAX_SINGLE_DELTA_HOURS,
     UP,
     declared_direction,
@@ -285,3 +286,46 @@ def test_a_declaration_short_circuits_the_learning():
     # declared -> counted from the very first movement, no learning tick spent
     out = _learn([300, 299, 297], declared=DOWN)
     assert out["total"] == 3.0
+
+
+# ---------------------------------------------------------------------------
+# [UAC-18..19] the source's own unit
+# ---------------------------------------------------------------------------
+
+
+def test_a_reading_is_normalised_to_hours():
+    """[UAC-18] MEASURED LIVE, not hypothesised.
+
+    robin's lifetime clock reads 409 with `unit_of_measurement: min` while alfred's and ivy's
+    read hours. On the first real run it moved 409 -> 414 and the counter booked 5.0 — five
+    MINUTES of cleaning recorded as five HOURS, a 60x overcount. Every interval in this system
+    is stated in hours, so the source has to be too.
+
+    Unknown or absent unit means HOURS: it is the only default that leaves a correct source
+    correct, and a wrong guess is 60x, which is not subtle.
+    """
+    assert to_hours(414, "min") - to_hours(409, "min") == pytest.approx(5.0 / 60.0)
+    assert to_hours(143, "h") == 143.0
+    assert to_hours(143, None) == 143.0
+    assert to_hours(3600, "s") == 1.0
+    assert to_hours(2, "d") == 48.0
+    assert to_hours("unavailable", "min") is None
+
+
+def test_changing_a_sources_unit_needs_no_migration():
+    """[UAC-19] the reset branch absorbs it — one reading spent, correct from the next.
+
+    An old baseline stored in MINUTES (414) against a new reading in HOURS (6.9) is a move
+    against expectation, so `observe` re-baselines and books nothing rather than recording a
+    407-hour delta. The same branch that absorbs a device reset absorbs a unit change, which is
+    why the fix ships without touching stored data.
+    """
+    changed = observe(to_hours(414, "min"), baseline=414.0, total=5.0, direction=UP)
+    assert changed["counted"] == 0.0, "the unit change must not book a delta"
+    assert changed["total"] == 5.0
+    assert changed["baseline"] == pytest.approx(6.9)
+
+    # and the very next reading counts normally, in hours
+    after = observe(to_hours(420, "min"), baseline=changed["baseline"], total=changed["total"],
+                    direction=UP)
+    assert after["counted"] == pytest.approx(0.1)

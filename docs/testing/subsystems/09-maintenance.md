@@ -111,3 +111,6 @@ Absorbing a reset is not counting it.
 
 **The learning cost, as a number:** one movement per source, once. MNT-7c and MNT-8b both show
 the tick explicitly rather than hiding it behind a fixture that declares `state_class`.
+
+| UAC-18 | **a reading is normalised to HOURS from its own unit.** Measured live, not hypothesised: robin's lifetime clock reads  where alfred's and ivy's read hours, and the first real run booked 5 MINUTES of cleaning as 5 HOURS. Unknown unit means hours — the only default that leaves a correct source correct, and a wrong guess is 60x, which is not subtle. |
+| UAC-19 | **changing a source's unit needs no migration** — an old minutes baseline against a new hours reading is a move against expectation, so the reset branch re-baselines and books nothing. One reading spent, correct from the next. |

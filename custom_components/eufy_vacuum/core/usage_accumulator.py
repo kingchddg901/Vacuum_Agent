@@ -85,6 +85,45 @@ def _number(value: Any) -> float | None:
     return number
 
 
+#: Duration units a source may publish, as a multiplier INTO HOURS.
+#:
+#: MEASURED, not assumed: robin's lifetime clock reads 409 with `unit_of_measurement: min`
+#: while alfred's and ivy's read hours. Folding the raw number booked 5 MINUTES of cleaning as
+#: 5 HOURS -- a 60x overcount, seen live on the first real run. Same family as the ft2/m2 split
+#: already in the notes: the number is right and the unit is the thing that differs.
+#:
+#: An unknown or absent unit is treated as HOURS, because every maintenance interval in this
+#: system is stated in hours and that is the only assumption that leaves a correct source
+#: correct. A wrong guess here is visible immediately (60x is not subtle), which is the kind of
+#: wrongness worth defaulting into.
+UNIT_TO_HOURS: dict[str, float] = {
+    "h": 1.0, "hr": 1.0, "hrs": 1.0, "hour": 1.0, "hours": 1.0,
+    "min": 1.0 / 60.0, "mins": 1.0 / 60.0, "minute": 1.0 / 60.0, "minutes": 1.0 / 60.0,
+    "s": 1.0 / 3600.0, "sec": 1.0 / 3600.0, "secs": 1.0 / 3600.0,
+    "second": 1.0 / 3600.0, "seconds": 1.0 / 3600.0,
+    "d": 24.0, "day": 24.0, "days": 24.0,
+}
+
+
+def to_hours(value: Any, unit: Any) -> float | None:
+    """A reading in the source's own unit -> the same reading in HOURS.
+
+    ⚠ APPLY THIS TO A STATE, NEVER TO THE USAGE ATTRIBUTE. `unit_of_measurement` describes the
+    entity's STATE; the accumulator attribute is `usage_hours` and is hours by its own name. On
+    alfred the two happen to agree, so a bug here would not have shown up there -- which is
+    exactly why it is written down rather than left to coincidence.
+
+    CHANGING A SOURCE'S UNIT NEEDS NO MIGRATION. An old baseline stored in minutes (414) against
+    a new reading in hours (6.9) is a move AGAINST expectation, so `observe` re-baselines and
+    books nothing. One reading is spent and the counter is correct from the next one -- the same
+    branch that absorbs a device reset absorbs this.
+    """
+    number = _number(value)
+    if number is None:
+        return None
+    return number * UNIT_TO_HOURS.get(str(unit or "").strip().lower(), 1.0)
+
+
 def learned_direction(
     declared: str | None, moves_up: int, moves_down: int
 ) -> str | None:
