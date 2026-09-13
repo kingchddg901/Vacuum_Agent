@@ -166,13 +166,19 @@ def test_countdown_brand_maintenance_counter_moves(mnt, manager, hass, monkeypat
     })
     _caps(manager, monkeypatch, {"main_brush": _SRC})
 
-    # 293 h remaining of a 300 h life -> 7 h consumed. No attributes, as the
-    # countdown brands send.
+    # ⚠ THE SNAPSHOT IS 0, NOT 7, SINCE 2026-09-12 — and that is the accumulator, not a
+    # regression. This used to read `300 - 293 = 7`, which was never a count: it was arithmetic
+    # against a life WE declared, and on a brand whose declared number is a cleaning cadence
+    # rather than a service life it is simply wrong. A countdown device keeps no total, so we
+    # start counting from now and say so. Chris, accepting it: "yes the reset because of the
+    # math change i understand... this makes it cleaner for less brand in the core."
+    #
+    # What this test actually asserts is unchanged and is the point: THE COUNTER MOVES.
     hass.states.async_set(_SRC, "293")
     assert mnt.reset_maintenance(
-        vacuum_entity_id=_VAC, component="main_brush")["reset_at_usage_hours"] == pytest.approx(7.0)
+        vacuum_entity_id=_VAC, component="main_brush")["reset_at_usage_hours"] == pytest.approx(0.0)
 
-    # Ten more cleaning hours: the device counts DOWN, consumed rises to 17.
+    # Ten more cleaning hours: the device counts DOWN, our total rises by 10.
     hass.states.async_set(_SRC, "283")
     got = mnt.get_maintenance_remaining(
         vacuum_entity_id=_VAC, component="main_brush", interval_hours=30.0)
@@ -220,6 +226,56 @@ def test_reset_preserves_interval_override(mnt, manager, hass, monkeypatch):
     assert stored["interval_hours"] == pytest.approx(250.0)          # override preserved
 
 
+def test_a_reset_moves_the_bookmark_without_wiping_the_counter(mnt, manager, hass, monkeypatch):
+    """[MNT-8b] a reset must not restart the accumulator. Found by MNT-7c going red.
+
+    `reset_maintenance` REPLACES the component entry, and the file already carried a note about
+    that eating `interval_hours`. Fixing one field made the guard READ as complete while the
+    wholesale replace went on eating anything added later — so the accumulator's baseline was
+    wiped on every reset, the next reading became a FIRST reading, and the counter restarted
+    from zero forever. Silent: every number still looked plausible.
+
+    A reset moves the BOOKMARK (`reset_at_usage_hours`). It must not touch the thing being
+    bookmarked.
+
+    THE INPUT THAT MAKES THIS RED: drop `usage_baseline` from the carried list and the second
+    leg books 0 instead of 5.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {
+            "main_brush": {"label": "Main Brush", "default_interval_hours": 300.0},
+        },
+    })
+    _caps(manager, monkeypatch, {"main_brush": _SRC})
+
+    hass.states.async_set(_SRC, "300")
+    mnt.get_maintenance_remaining(
+        vacuum_entity_id=_VAC, component="main_brush", interval_hours=300.0)
+    hass.states.async_set(_SRC, "290")          # 10 h of real use, counted
+    mnt.get_maintenance_remaining(
+        vacuum_entity_id=_VAC, component="main_brush", interval_hours=300.0)
+
+    bucket = mnt.get_maintenance_state(vacuum_entity_id=_VAC)["main_brush"]
+    assert bucket["usage_total"] == pytest.approx(10.0)
+    assert bucket["usage_baseline"] == pytest.approx(290.0)
+
+    mnt.reset_maintenance(vacuum_entity_id=_VAC, component="main_brush")
+    bucket = mnt.get_maintenance_state(vacuum_entity_id=_VAC)["main_brush"]
+    assert bucket["usage_total"] == pytest.approx(10.0), "the reset wiped our counter"
+    assert bucket["usage_baseline"] == pytest.approx(290.0), "the reset wiped our baseline"
+    assert bucket["reset_at_usage_hours"] == pytest.approx(10.0), "the bookmark is the total"
+
+    # and the counter keeps going from where it was, rather than starting over
+    hass.states.async_set(_SRC, "285")
+    got = mnt.get_maintenance_remaining(
+        vacuum_entity_id=_VAC, component="main_brush", interval_hours=300.0)
+    assert got["used_since_reset_hours"] == pytest.approx(5.0)
+    assert mnt.get_maintenance_state(
+        vacuum_entity_id=_VAC)["main_brush"]["usage_total"] == pytest.approx(15.0)
+
+
 def test_reset_failure_modes(mnt, manager, hass, monkeypatch):
     """[MNT-8]"""
     _caps(manager, monkeypatch, {})  # no source mapping
@@ -230,9 +286,19 @@ def test_reset_failure_modes(mnt, manager, hass, monkeypatch):
     assert mnt.reset_maintenance(
         vacuum_entity_id=_VAC, component="main_brush")["reason"] == "source_unavailable"
 
-    hass.states.async_set(_SRC, "100", {"usage_hours": "abc"})  # invalid
+    # Nothing readable anywhere: no usable attribute AND a non-numeric state.
+    hass.states.async_set(_SRC, "abc", {"usage_hours": "abc"})
     assert mnt.reset_maintenance(
         vacuum_entity_id=_VAC, component="main_brush")["reason"] == "invalid_usage_hours"
+
+    # ⚠ CHANGED 2026-09-12, and it is a degradation rather than a failure. A GARBAGE ATTRIBUTE
+    # beside a NUMERIC STATE used to be refused outright. The accumulator reads direction from
+    # the entity, so an unusable `usage_hours` simply means "not a count-up entity" and the
+    # state is counted as a countdown instead — which is right, because a Eufy state IS hours
+    # remaining. A sensor whose attribute breaks keeps working rather than going dead.
+    hass.states.async_set(_SRC, "100", {"usage_hours": "abc"})
+    assert mnt.reset_maintenance(
+        vacuum_entity_id=_VAC, component="main_brush")["reset"] is True
 
 
 def test_remaining_computes(mnt, manager, hass, monkeypatch):

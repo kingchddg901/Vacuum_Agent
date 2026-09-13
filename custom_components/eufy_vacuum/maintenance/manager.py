@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.helpers import entity_registry as er
 
 from ..adapters.entity_resolve import resolve_action_entity
+from ..core import usage_accumulator
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..timestamp_utils import utc_now_iso
 
@@ -458,7 +459,13 @@ class MaintenanceManager:
                 # countdown brands. Reading only the attribute is why roborock and
                 # dreame both showed "0 hours used of N hours" beside a correct
                 # percentage — the sibling half of the total_life_hours fix below.
-                usage_hours = self._consumed_hours(replacement_state, meta)
+                # THE DEVICE'S OWN VIEW, deliberately not our accumulator. A REPLACEMENT row
+                # answers "how much life is left in this part", which the device knows and we
+                # do not: it ships the life and the remaining figure together. Our counter
+                # answers a different question -- "how long since YOU last serviced it" -- and
+                # starts at zero on a countdown brand, which would read as 0 h used beside a
+                # perfectly correct 77%. Doc 41: the interval is ours and the usage is theirs.
+                usage_hours = self._device_consumed_hours(replacement_state, meta)
                 try:
                     total_life_hours = float(replacement_state.attributes.get("total_life_hours"))
                 except (TypeError, ValueError):
@@ -757,25 +764,22 @@ class MaintenanceManager:
         return self._manager.data["maintenance"].setdefault(vacuum_entity_id, {})
 
     @staticmethod
-    def _consumed_hours(state: Any, meta: dict[str, Any] | None) -> float | None:
-        """Hours a consumable has been used, however its brand expresses that.
+    def _device_consumed_hours(state: Any, meta: dict[str, Any] | None) -> float | None:
+        """The DEVICE's view of how much of this part is gone. Used by the REPLACEMENT row.
 
-        THE SECOND HALF OF THE EUFY-ISM ALREADY FIXED FOR ``total_life_hours``.
-        Two counter shapes exist and only one publishes a usage attribute:
+        Two counter shapes, and only one publishes a usage attribute:
 
-        * ACCUMULATOR — ``usage_hours`` rises on the sensor's attributes (eufy,
-          via robovac_mqtt).
-        * COUNTDOWN — the sensor's STATE is the hours REMAINING and there is no
-          usage attribute at all (roborock, dreame). Consumed is the declared
-          service life minus what is left.
+        * ACCUMULATOR — ``usage_hours`` rises on the attributes (eufy, via robovac_mqtt).
+        * COUNTDOWN — the STATE is the hours remaining and there is no usage attribute
+          (roborock, dreame). Consumed is the declared service life minus what is left.
 
-        Both forms RISE with use, deliberately: every caller then keeps its
-        ``current - snapshot`` arithmetic unchanged, and no stored value changes
-        meaning. Attribute wins when present, so eufy is untouched.
+        Returns None when neither form is readable — callers must treat that as UNKNOWN, never
+        as zero. Defaulting to 0 is what made a countdown brand report "0 hours used" beside a
+        permanently full maintenance row.
 
-        Returns None when neither form is readable — which callers must treat as
-        UNKNOWN, never as zero. Defaulting to 0 is what made a countdown brand
-        report "0 hours used" and a permanently full maintenance row.
+        ⚠ NOT THE MAINTENANCE FIGURE. `_consumed_hours` below is our own accumulated total and
+        answers a different question. This one is a POINT reading and is correct for replacement
+        precisely because it is: it asks the device what it knows about its own part.
         """
         if state is None:
             return None
@@ -783,9 +787,8 @@ class MaintenanceManager:
             return float(state.attributes.get("usage_hours"))
         except (TypeError, ValueError):
             pass
-        # Declared service life, NOT the user's interval override: the override is
-        # the cadence they want prompting at, while the derivation needs the life
-        # the device actually counts down from.
+        # Declared service life, NOT the user's interval override: the override is the cadence
+        # they want prompting at, while this derivation needs the life the device counts from.
         try:
             life = float((meta or {}).get("default_interval_hours", 0.0) or 0.0)
         except (TypeError, ValueError):
@@ -797,6 +800,102 @@ class MaintenanceManager:
         except (TypeError, ValueError):
             return None
         return max(life - remaining, 0.0)
+
+    #: Attribute a count-up integration publishes its accumulated hours on.
+    USAGE_ATTRIBUTE = "usage_hours"
+
+    def _consumed_hours(
+        self,
+        state: Any,
+        meta: dict[str, Any] | None,
+        *,
+        vacuum_entity_id: str | None = None,
+        component: str | None = None,
+    ) -> float | None:
+        """Hours a consumable has been used — OUR accumulated figure, not a point reading.
+
+        THE DEVICE OWNS THE READING, WE OWN THE TOTAL. That is doc 41 §1's rule, and the
+        countdown half of it was never actually built: this used to return
+        ``default_interval_hours - state``, which is an estimate rather than a count. When a
+        device reset its own consumable the countdown jumped back to full, consumed dropped
+        toward zero, the stored snapshot exceeded it, and clamp 1 absorbed the difference —
+        the card read BRAND NEW. Now the reset is a baseline move and our total keeps climbing.
+
+        Folding happens HERE, on read, and that is safe because the fold is IDEMPOTENT: a second
+        fold of the same value sees a zero delta, takes the against-expectation branch, and books
+        nothing. So repeated renders cannot double-count and no state-change listener is needed.
+
+        SEEDING, and it is the one place the two shapes genuinely differ:
+
+        * COUNT-UP — the device already keeps the total, so the first fold ADOPTS it
+          (``total = reading``). Eufy's numbers are unchanged by this commit.
+        * COUNTDOWN — the device keeps no total and never did. We start at zero and count from
+          now. The old ``life - state`` looked like history but was arithmetic on a number WE
+          chose, and on Eufy that number is the cleaning cadence rather than the part's life —
+          20 h against a device-declared 360 h. Inventing a past from it is worse than saying
+          we began counting today.
+
+        Returns None when THIS reading is unusable, which keeps `source_available` meaning what
+        it says. The accumulated total is not lost — it is persisted and returns on the next
+        good reading.
+        """
+        if state is None:
+            return None
+
+        attributes = getattr(state, "attributes", None) or {}
+        direction = usage_accumulator.direction_for(
+            getattr(state, "state", None), attributes, self.USAGE_ATTRIBUTE
+        )
+        reading = (
+            attributes.get(self.USAGE_ATTRIBUTE)
+            if direction == usage_accumulator.UP
+            else getattr(state, "state", None)
+        )
+
+        # A caller with no component identity cannot persist; fold nothing and answer from the
+        # reading alone. Nothing does this today — the parameter keeps the seam honest rather
+        # than pretending the method is still static.
+        if vacuum_entity_id is None or component is None:
+            value = usage_accumulator._number(reading)
+            return value if direction == usage_accumulator.UP else None
+
+        bucket = self.get_maintenance_state(
+            vacuum_entity_id=vacuum_entity_id
+        ).setdefault(component, {})
+        had_baseline = bucket.get("usage_baseline") is not None
+        before_total = float(bucket.get("usage_total") or 0.0)
+
+        result = usage_accumulator.observe(
+            reading,
+            baseline=bucket.get("usage_baseline"),
+            total=before_total,
+            direction=direction,
+        )
+
+        if result["rejected"] is not None:
+            # REPORTED, NEVER ABSORBED. A glitch that books a whole service life and
+            # re-baselines leaves a permanent overcount with nothing to show it happened.
+            _LOGGER.warning(
+                "maintenance: %s %s reported a %.1f h jump in one reading, which is longer "
+                "than any part's service life — ignoring it as a glitch. If the figure looks "
+                "wrong afterwards, reset the component.",
+                vacuum_entity_id, component, result["rejected"],
+            )
+
+        if not had_baseline and result["baseline"] is not None:
+            if direction == usage_accumulator.UP:
+                # Adopt the device's own total; it has been counting all along.
+                result = {**result, "total": float(result["baseline"])}
+
+        if (result["baseline"] != bucket.get("usage_baseline")
+                or result["total"] != before_total):
+            bucket["usage_baseline"] = result["baseline"]
+            bucket["usage_total"] = result["total"]
+            self._manager.async_save_delayed()
+
+        if usage_accumulator._number(reading) is None:
+            return None
+        return float(result["total"])
 
     def _component_meta(self, *, vacuum_entity_id: str, component: str) -> dict[str, Any]:
         """Adapter-declared metadata for one maintenance component."""
@@ -845,6 +944,7 @@ class MaintenanceManager:
         usage_hours = self._consumed_hours(
             state,
             self._component_meta(vacuum_entity_id=vacuum_entity_id, component=component),
+            vacuum_entity_id=vacuum_entity_id, component=component,
         )
         if usage_hours is None:
             # Unreadable, not zero. Snapshotting 0 here would silently baseline the
@@ -866,8 +966,18 @@ class MaintenanceManager:
             "reset_at_usage_hours": usage_hours,
             "reset_at": _iso_now(),
         }
-        if isinstance(existing, dict) and existing.get("interval_hours") is not None:
-            new_entry["interval_hours"] = existing["interval_hours"]
+        # ⚠ AND THE SAME TRAP CAUGHT THE ACCUMULATOR, 2026-09-12. The note above fixed ONE
+        # field; the guard then read as complete while the wholesale replace went on eating
+        # anything added later. `usage_baseline` and `usage_total` are OUR counter, not reset
+        # state — wiping them makes the next reading a first reading, so the counter silently
+        # restarts from zero on every reset and never books an hour again. A reset moves the
+        # BOOKMARK (`reset_at_usage_hours`); it must not touch the thing being bookmarked.
+        #
+        # Carrying a NAMED LIST rather than another `if` per field, so the next addition is
+        # a list entry instead of a fourth silent loss.
+        for _carried in ("interval_hours", "usage_baseline", "usage_total"):
+            if isinstance(existing, dict) and existing.get(_carried) is not None:
+                new_entry[_carried] = existing[_carried]
         maintenance[component] = new_entry
 
         return {
@@ -917,6 +1027,7 @@ class MaintenanceManager:
                     self._component_meta(
                         vacuum_entity_id=vacuum_entity_id, component=component
                     ),
+                    vacuum_entity_id=vacuum_entity_id, component=component,
                 )
                 if _consumed is not None:
                     current_usage = _consumed
