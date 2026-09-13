@@ -173,6 +173,20 @@ so its own tests target the logic that genuinely lives in the orchestrator.
   the standard set.
 - **Capabilities / storage / water amendment** — capability resolution + cache,
   the persistent store round-trip, and the post-job water patch.
+- **Maintenance source resolution** (`CAP-5`, `CAP-5b`, `CAP-5c`, `CAP-5d`) — which entity ends
+  up counting each component. The order is `user override > own sensor > proxy > picked clock`,
+  and each rung is pinned separately because each has its own way of going wrong. `CAP-5b`: one
+  picked clock fills every gap without displacing a component that counts itself. `CAP-5c`:
+  **`proxy_for` outranks the clock but never an own counter** — a proxy is the adapter's explicit
+  statement about one component, the clock a generic per-vacuum fallback, and inverting either
+  boundary silently swaps a real counter for a borrowed one. `CAP-5d`: an unresolvable borrow
+  falls through to the clock rather than pinning a dead derived id.
+
+  `proxy_for` was deleted on 2026-09-12 and restored on 2026-09-14; the failure that removed it
+  is now pinned as `UAC-20` in [09 — maintenance](09-maintenance.md), and the rule that a
+  borrowed counter must never drive a Replacement row is pinned across all three brands in
+  `tests/adapters/test_adapter_contract.py` — that one bites the exact shape v2.1.0 shipped,
+  where Eufy's Swivel Wheel reported the filter's 360-hour service life as its own.
 
 ---
 

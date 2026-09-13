@@ -201,11 +201,19 @@ the same object-id-suffix convention.
 
 Two more places where this adapter's own prose contradicts its own data:
 
-- `adapters/eufy/maintenance_components.py` states that `sensor_suffix` is `None` for components
-  that source via `proxy_for`. The single component using `proxy_for` declares both, four lines
-  below the prose. **The data is right and the prose is wrong** — core resolves the proxy first and
-  falls back to the component's own suffix, so declaring both buys a real fallback on firmware that
-  exposes a dedicated counter. A porter following the header nulls out a working fallback.
+- ~~`adapters/eufy/maintenance_components.py` states that `sensor_suffix` is `None` for
+  components that source via `proxy_for`.~~ **FIXED 2026-09-14.** The header now documents
+  `proxy_for` and states the resolution order outright. Declaring both a suffix and a proxy is
+  correct and deliberate — the point a porter needed and the prose denied.
+
+  ⚠ **The order stated here was also wrong, and the code changed to match the doc's own
+  rationale rather than the reverse.** It said core resolves the proxy *first* and falls back to
+  the component's own suffix. That was accurate for v2.1.0 and it defeats the stated purpose: if
+  the borrow always wins, a genuine per-part counter can never be used on firmware that has one.
+  Resolution is now `own > proxy > clock`. `proxy_for` itself was deleted on 2026-09-12 and
+  restored on 2026-09-14 — the failure that removed it (a source part's reset zeroing the
+  borrower) belonged to the old point-value maths, and `core/usage_accumulator.py` now re-baselines
+  on a move against expectation and books nothing. UAC-20 pins that; CAP-5c pins the order.
 - `adapters/eufy/entities.py::ALL_SUFFIXES` is described as covering every suffix this adapter
   knows, derived rather than hand-listed, so that a new constant joins automatically. It covers
   every suffix *that module* knows. The assembler builds at least fourteen more as inline

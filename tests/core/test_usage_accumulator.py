@@ -329,3 +329,45 @@ def test_changing_a_sources_unit_needs_no_migration():
     after = observe(to_hours(420, "min"), baseline=changed["baseline"], total=changed["total"],
                     direction=UP)
     assert after["counted"] == pytest.approx(0.1)
+
+
+def test_a_borrowed_counters_reset_does_not_zero_the_borrower():
+    """[UAC-20] THE BUG THAT KILLED `proxy_for`, and the proof it cannot recur.
+
+    Eufy publishes no swivel-wheel counter, so the wheel borrowed the FILTER's via `proxy_for`.
+    Under the old point-value maths that was fatal: resetting the filter dropped the wheel's
+    source from 46 to 0, the first clamp absorbed the difference, and the wheel silently read
+    BRAND NEW — a part with real wear reporting none, which is the one failure a maintenance
+    counter must not have. `proxy_for` was deleted for it on 2026-09-12.
+
+    IT WAS THE MATHS, NOT THE BORROW. A borrowed counter is perfectly monotonic between resets;
+    it simply is not OURS to reset. `observe` already refuses to read a move against expectation
+    as usage — the rule that exists for a device's own reset — and a proxied part's reset has
+    exactly that shape from the borrower's side. So the proxy came back on 2026-09-14 without
+    the failure, and Eufy needs no clock picker for its one uncounted component.
+
+    THE INPUT THAT MAKES THIS RED: book the drop as a delta, or re-baseline without preserving
+    the running total. Either way the middle assertion reads 0.0 and the wheel is brand new
+    again. NOTE THE SHAPE — the total must be carried THROUGH the reset, not merely restarted
+    after it; a version that zeroes and then counts forward still passes the final assertion
+    alone, which is why the 6.0 is asserted in the middle.
+    """
+    # the filter's own `usage_hours` climbs with runtime — an UP source, direction DECLARED by
+    # the attribute being numeric, so the wheel never spends a reading learning it.
+    first = observe(46.0, baseline=40.0, total=0.0, direction=UP)
+    assert first["counted"] == pytest.approx(6.0)
+    assert first["total"] == pytest.approx(6.0)
+
+    # the user replaces the FILTER and presses its reset. 46 -> 0, exactly the historical drop.
+    reset = observe(0.0, baseline=first["baseline"], total=first["total"], direction=UP)
+    assert reset["counted"] == 0.0, "another part's reset is not this part's usage"
+    assert reset["total"] == pytest.approx(6.0), (
+        "the wheel's accumulated hours must survive the filter's reset — this exact assertion "
+        "is what `proxy_for` was deleted for failing"
+    )
+    assert reset["baseline"] == 0.0, "and it must re-baseline, or it freezes here forever"
+
+    # counting resumes from the new baseline, adding to the total rather than replacing it
+    after = observe(3.0, baseline=reset["baseline"], total=reset["total"], direction=UP)
+    assert after["counted"] == pytest.approx(3.0)
+    assert after["total"] == pytest.approx(9.0)

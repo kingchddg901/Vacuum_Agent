@@ -1870,11 +1870,28 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "hours the machine has run."
                 ),
             },
-            # REMOVED 2026-09-12 — `proxy_for`. It borrowed ANOTHER COMPONENT's counter,
-            # which is not monotonic from the borrower's point of view: resetting the source
-            # part dropped the borrower's reading to zero and it silently read brand new. A
-            # component the integration counts nothing for now falls back to the ONE clock the
-            # user picks per vacuum (capabilities.MAINTENANCE_CLOCK_ROLE), which nobody resets.
+            "proxy_for": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Component id whose sensor THIS component borrows when it has no "
+                    "counter of its own. Removed 2026-09-12 and RESTORED 2026-09-14: it "
+                    "was deleted because a borrowed counter is not monotonic from the "
+                    "borrower's side — resetting the source part dropped the borrower to "
+                    "zero and it silently read brand new — but that failure belonged to "
+                    "the old point-value maths. core/usage_accumulator.py re-baselines on "
+                    "a move against expectation and books nothing, so the source part's "
+                    "reset no longer touches the borrower's total. Prefer it over the "
+                    "per-vacuum clock where the adapter can name the counter itself: it "
+                    "needs no user choice, and on Eufy the borrowed sensor carries a "
+                    "`usage_hours` attribute, so direction is DECLARED and the component "
+                    "never spends a reading learning it. Resolution order is own sensor > "
+                    "proxy > picked clock. A component with a proxy and no counter of its "
+                    "own should also set `maintenance_only`: a borrowed counter can say "
+                    "how long the machine ran, never how worn THIS part is, so it must "
+                    "not drive a Replacement row."
+                ),
+            },
             "reset_button": {
                 "type": "dict",
                 "required": False,

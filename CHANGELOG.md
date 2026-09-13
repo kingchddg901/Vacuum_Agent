@@ -15,10 +15,11 @@ only.
 - **Maintenance panels now follow your actual machine, not your brand.** Each model is typed by
   three measured facts — what kind of mop it takes, what its dock does, how many tanks it has —
   and only the parts that follow from those appear. A robot with no washing station stops being
-  offered a Cleaning Tray; a vacuum-only model stops being offered a mop. Roborock owners will
-  see fewer panels than before: fourteen became seven, because the old list enumerated *parts*
-  the way a spares catalogue does, and a maintenance card is a *job* — one trip, one set of
-  hands, often several parts.
+  offered a Cleaning Tray; a vacuum-only model stops being offered a mop.
+- **Roborock: fourteen maintenance items became seven.** The old list named individual parts;
+  the new one names jobs you actually do, and one job often covers several parts. Nothing about
+  your machine stopped needing care — the washing station, for instance, is now a single
+  Cleaning Tray item instead of four separate rows for the board, the tray and both tanks.
 - **We count the hours now, not the device.** Maintenance wear is accumulated from the change
   between readings instead of read off the device as a point value. The practical difference:
   when a part's own counter resets — because you replaced it, or the robot decided to — the
@@ -36,6 +37,13 @@ only.
   resolving something that would never update again. They are now carried across, keeping the
   same entity id — so dashboards, automations and long-term statistics continue uninterrupted,
   and there is nothing for you to fix.
+- **Eufy: Swivel Wheel was reporting the filter's figures as its own.** Eufy publishes no wear
+  counter for the swivel wheel, so the item borrowed the filter's — and then showed the
+  *filter's* 360-hour service life and remaining percentage under the Swivel Wheel heading. The
+  number was real; it was answering a different question. The wheel now has a maintenance
+  interval you can set and no replacement figure at all, because the machine does not report
+  one. Its hours also survive a filter change now, where previously resetting the filter made
+  the wheel read brand new.
 - **Retired Roborock items no longer linger as dead entities.** Eight parts left the list (the
   dust bin, water filter, main wheel, cleaning brush, strainer, dust bag and both water tanks).
   Where those published entities, the entities are removed rather than left permanently

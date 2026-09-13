@@ -11,8 +11,17 @@ Each component entry contains:
                           replacement-counter sensor entity ID (e.g.
                           'filter_remaining' -> sensor.{object_id}_filter_remaining).
                           ABSENT when the firmware publishes no counter for this
-                          component — it then falls back to the ONE clock entity the
-                          user picked for this vacuum (capabilities.MAINTENANCE_CLOCK_ROLE).
+                          component — it then falls back to `proxy_for` if declared,
+                          and otherwise to the ONE clock entity the user picked for
+                          this vacuum (capabilities.MAINTENANCE_CLOCK_ROLE).
+    proxy_for           — component id whose sensor this one borrows when its own
+                          suffix does not resolve. RESOLUTION ORDER IS
+                          `own > proxy > clock`, so declaring BOTH a suffix and a
+                          proxy is correct and deliberate: the real counter wins
+                          wherever firmware provides one, the borrow covers the rest.
+                          A component relying on a borrow must also set
+                          `maintenance_only` — a borrowed counter cannot speak to
+                          THIS part's wear, so it must not drive a Replacement row.
     default_interval_hours — Eufy's official guide recommendation.
                              This is the reference anchor. Never change
                              this value — it reflects the manufacturer
@@ -101,11 +110,34 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     # NOT renamed the other way: `caster_wheel` and `omnidirectional_wheel` are distinct in the
     # packs (ru: Ролик vs Всенаправленное колесо), and merging them would be wrong in 17 languages.
     "omnidirectional_wheel": {
-        # NO SENSOR AND NO PROXY. Eufy publishes no swivel-wheel counter at all --
-        # `sensor.<obj>_swivel_wheel_remaining` does not exist -- which is why this carried
-        # `proxy_for: "filter"`. That borrowed the FILTER's counter, and resetting the filter
-        # dropped this component's source from 46 to 0, so the wheel silently read brand new.
-        # It now falls back to the vacuum's chosen clock like every other uncounted component.
+        # NO SENSOR OF ITS OWN. Eufy publishes no swivel-wheel counter at all --
+        # `sensor.<obj>_swivel_wheel_remaining` does not exist -- MEASURED on a live X10:
+        # six of Eufy's seven components resolve their own `*_remaining`, and this is the one
+        # that does not. It is the whole reason `proxy_for` was invented.
+        #
+        # THE PROXY IS BACK, and the bug that killed it is not. Borrowing the filter's counter
+        # used to zero this component whenever the filter was reset (46 -> 0, absorbed by the
+        # old clamp, wheel reads brand new). The accumulator now treats that drop as a move
+        # against expectation: it re-baselines and books NOTHING, so the wheel keeps its hours.
+        # What Eufy publishes makes this better than a picked clock, not merely equal to one --
+        # `sensor.<obj>_filter_remaining` carries a `usage_hours` attribute, so
+        # `declared_direction` returns UP immediately and this component never spends a tick
+        # learning which way its source moves.
+        # BOTH ARE DECLARED, as they were at v2.1.0, and the precedence is `own > proxy`. No
+        # Eufy firmware we have seen publishes `swivel_wheel_remaining`, but declaring it costs
+        # nothing and buys a real fallback on one that does: a genuine per-part counter would
+        # then drive the maintenance figure instead of a borrowed runtime clock. ⚠ THE ORDER
+        # CHANGED DELIBERATELY. v2.1.0 resolved the PROXY first and fell back to the own suffix,
+        # so a real counter could never win once a proxy was declared.
+        "sensor_suffix": "swivel_wheel_remaining",
+        "proxy_for": "filter",
+        # ⚠ REQUIRED ALONGSIDE THE PROXY, and it was missing for the proxy's entire shipped
+        # life. Without it this emits a REPLACEMENT row, which reads the borrowed sensor and
+        # reports the FILTER's 360-hour service life as the WHEEL's -- v2.1.0 shipped that.
+        # Doc 41: replacement is the DEVICE's question, and the device has no answer for this
+        # part. A borrowed counter can honestly say how long the machine has run; it cannot say
+        # how worn this wheel is.
+        "maintenance_only": True,
         "default_interval_hours": 60.0,
         "max_interval_hours": 360,
         "label": "Swivel Wheel",

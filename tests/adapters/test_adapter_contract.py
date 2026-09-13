@@ -757,3 +757,52 @@ def test_d17_the_declared_values_still_match_what_was_verified():
         "in adapters/config_schema.py and docs/dev/22-adapter-contract.md §5 against the "
         "new set before updating this test"
     )
+
+
+def test_a_borrowed_counter_never_drives_a_replacement_row():
+    """A component with `proxy_for` and no counter of its own MUST be `maintenance_only`.
+
+    THE DEFECT THIS PINS SHIPPED IN v2.1.0 AND NOBODY SAW IT. Eufy's `swivel_wheel` declared
+    `proxy_for: "filter"` and never declared `maintenance_only`, so it emitted a REPLACEMENT
+    row — and that row reads the borrowed sensor. Every X10 owner has been shown the FILTER's
+    360-hour service life and remaining percentage under the heading "Swivel Wheel", for a part
+    Eufy publishes no counter for at all. Plausible on its face, which is why it survived a
+    release: the number is real, it is just answering a different question.
+
+    Doc 41 draws the line: REPLACEMENT IS THE DEVICE'S QUESTION and maintenance is ours. A
+    borrowed counter can honestly say how long the machine has run — that is all a maintenance
+    interval needs — but it can say nothing whatever about how worn THIS part is. So the borrow
+    is legitimate for the maintenance row and illegitimate for the replacement row, and
+    `maintenance_only` is the flag that draws exactly that line.
+
+    THE INPUT THAT MAKES THIS RED: declare `proxy_for` on a component without
+    `maintenance_only` — which is precisely the shipped state this was written against, so the
+    assertion is known to bite rather than assumed to.
+
+    Deliberately checks EVERY brand's catalog, not Eufy's. Eufy is the only one using a proxy
+    today; a second brand adopting the pattern is exactly when this is worth having.
+    """
+    offenders = []
+    for brand in ("dreame", "eufy", "roborock"):
+        module = __import__(
+            f"custom_components.eufy_vacuum.adapters.{brand}.maintenance_components",
+            fromlist=["MAINTENANCE_COMPONENTS"],
+        )
+        for component, meta in module.MAINTENANCE_COMPONENTS.items():
+            if not meta.get("proxy_for"):
+                continue
+            # ⚠ DECLARING A `sensor_suffix` TOO IS NOT AN EXEMPTION, and an earlier draft of
+            # this test wrongly treated it as one — which would have let the real shipped defect
+            # through, since v2.1.0's `swivel_wheel` declared BOTH. A proxy is only ever
+            # consulted when the component's own suffix fails to resolve, and at exactly that
+            # moment the replacement row is reading the borrowed counter. The declared suffix
+            # says what SHOULD count this part; it is no evidence that anything does.
+            if not meta.get("maintenance_only"):
+                offenders.append(f"{brand}.{component} (proxy_for={meta['proxy_for']!r})")
+
+    assert not offenders, (
+        "these components borrow another part's counter but still emit a Replacement row, so "
+        "they report the SOURCE part's service life as their own: "
+        + ", ".join(offenders)
+        + ". Add \"maintenance_only\": True, or give the component a real counter."
+    )

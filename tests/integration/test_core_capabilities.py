@@ -251,6 +251,76 @@ def test_an_uncounted_component_takes_the_vacuums_chosen_clock(hass):
         "a component with its own counter must keep it — the clock fills gaps, it does not win"
     )
 
+def test_a_proxy_outranks_the_clock_but_never_an_own_counter(hass):
+    """[CAP-5c] `proxy_for` RESTORED 2026-09-14, and the order is the contract.
+
+    It was deleted on 2026-09-12 because a borrowed counter zeroed its borrower on the source
+    part's reset. That failure belonged to the old point-value maths; `usage_accumulator.observe`
+    re-baselines on a move against expectation and books nothing, so the borrow is safe now —
+    UAC-20 pins that half. Chris: "keeping the proxy for on eufy and the other two brands get
+    the picker."
+
+    WHY THE PROXY MUST BEAT THE CLOCK: it is the adapter's explicit statement about THIS
+    component, while the clock is a generic per-vacuum fallback for components nobody named a
+    source for. Eufy needs no picker precisely because its adapter can name the counter itself.
+
+    THE INPUT THAT MAKES THIS RED, in three directions: order the fallback `own or clock or
+    borrowed` and the proxy is dead whenever a clock exists; order it `borrowed or own` and a
+    component that counts itself gets overwritten by a borrow; drop the `not own` guard and a
+    proxy declared beside a real suffix silently shadows the real one.
+    """
+    hass.states.async_set("sensor.alfred_filter_remaining", "75")
+    hass.states.async_set("sensor.alfred_side_brush_remaining", "180")
+    hass.states.async_set("sensor.alfred_total_cleaning_time", "41.8")
+    components = {
+        "filter": {"sensor_suffix": "filter_remaining"},
+        # no counter of its own — this is the real Eufy wheel's shape
+        "omnidirectional_wheel": {"proxy_for": "filter"},
+        # counts itself AND names a proxy: the proxy must not win
+        "side_brush": {"sensor_suffix": "side_brush_remaining", "proxy_for": "filter"},
+        # nothing names a source for this one at all
+        "cleaning_tray": {},
+    }
+
+    picked = _detect_maintenance_sources(
+        hass, object_id="alfred", maintenance_components=components,
+        clock="sensor.alfred_total_cleaning_time")
+
+    assert picked["omnidirectional_wheel"] == "sensor.alfred_filter_remaining", (
+        "the adapter named this counter explicitly; the generic clock must not displace it"
+    )
+    assert picked["side_brush"] == "sensor.alfred_side_brush_remaining", (
+        "a component with its own counter keeps it — a proxy is a fallback, never an override"
+    )
+    assert picked["cleaning_tray"] == "sensor.alfred_total_cleaning_time"
+    assert picked["filter"] == "sensor.alfred_filter_remaining"
+
+
+def test_a_proxy_target_that_does_not_resolve_falls_through_to_the_clock(hass):
+    """[CAP-5d] A borrow is not a guarantee. If the proxied component's own sensor is missing
+    too, the borrower must fall through to the clock rather than pin a dead id — the same
+    `override_unresolved` principle one layer down.
+
+    THE INPUT THAT MAKES THIS RED: return the derived candidate without checking it exists.
+    """
+    hass.states.async_set("sensor.alfred_total_cleaning_time", "41.8")
+    components = {
+        "filter": {"sensor_suffix": "filter_remaining"},   # never published
+        "omnidirectional_wheel": {"proxy_for": "filter"},
+    }
+
+    picked = _detect_maintenance_sources(
+        hass, object_id="alfred", maintenance_components=components,
+        clock="sensor.alfred_total_cleaning_time")
+
+    # Both land on the clock, by two different routes: `filter` because its own declared suffix
+    # never resolved, the wheel because the thing it tried to borrow did not resolve either.
+    assert picked["filter"] == "sensor.alfred_total_cleaning_time"
+    assert picked["omnidirectional_wheel"] == "sensor.alfred_total_cleaning_time", (
+        "an unresolvable borrow must fall through, not pin a dead derived id"
+    )
+
+
 def test_get_vacuum_capabilities_refreshes_when_model_newly_known(manager):
     """[CAP-7] cached caps with no detected_model + a now-known model triggers a
     refresh even with refresh=False (upgrades the cached snapshot on first detect)."""

@@ -372,17 +372,37 @@ def _detect_maintenance_sources(
                 continue
             _reasons[component] = REASON_OVERRIDE_UNRESOLVED
         own = _resolve(meta.get("sensor_suffix"))
-        # ONE CLOCK FOR EVERYTHING UNCOUNTED. A component whose integration publishes no counter
-        # for it still needs one, and every such component wants the SAME thing — hours the
-        # machine has run. Chris: "why a per component pick, one would work for all." So the
-        # user picks once per vacuum (role MAINTENANCE_CLOCK_ROLE) and it fills every gap.
+        # ⚠ `proxy_for` BORROWS ANOTHER COMPONENT'S COUNTER, and it was deleted on 2026-09-12
+        # for a measured failure: resetting the filter dropped the wheel's source from 46 to 0,
+        # the old clamp ate the difference, and the wheel silently read BRAND NEW.
         #
-        # ⚠ REPLACED `proxy_for`, which borrowed ANOTHER PART's counter — and that counter is
-        # not monotonic from this component's point of view. Resetting the filter dropped the
-        # caster wheel's source from 46 to 0, clamp 1 ate the difference, and the wheel silently
-        # read brand new. A lifetime clock is reset by nobody, which is what the bookmark model
-        # in doc 41 §1 actually requires.
-        sources[component] = own or clock
+        # RESTORED 2026-09-14, because the counter underneath it is no longer the one that
+        # broke. `core/usage_accumulator.py` re-baselines on a move AGAINST expectation and
+        # books nothing, which is exactly what a filter reset looks like from the wheel's side:
+        # the borrowed total keeps its hours instead of zeroing. The proxy never needed
+        # deleting; it needed the accumulator, which did not exist yet. Chris: "keeping the
+        # proxy for on eufy and the other two brands get the picker."
+        #
+        # It also makes Eufy need no picker at all. Eufy publishes `usage_hours` on every
+        # consumable, so the filter's counter IS a lifetime runtime clock — one the adapter can
+        # name itself instead of asking the user to choose. Six of Eufy's seven components
+        # count themselves; this covers the seventh.
+        #
+        # PRECEDENCE: own > proxy > clock. A component's own counter always wins. The proxy is
+        # the adapter's explicit statement about THIS component, so it outranks the generic
+        # per-vacuum clock, which exists for components nothing has named a source for. (The
+        # user's per-component override still beats all three — it is handled above and
+        # `continue`s.)
+        proxy_id = meta.get("proxy_for")
+        borrowed = None
+        if proxy_id and not own:
+            borrowed = _resolve(
+                (maintenance_components.get(proxy_id) or {}).get("sensor_suffix")
+            )
+        # ONE CLOCK FOR EVERYTHING STILL UNCOUNTED. Every such component wants the SAME thing —
+        # hours the machine has run. Chris: "why a per component pick, one would work for all."
+        # So the user picks once per vacuum (role MAINTENANCE_CLOCK_ROLE) and it fills the rest.
+        sources[component] = own or borrowed or clock
 
     return sources
 
