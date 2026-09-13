@@ -13,6 +13,17 @@ rows = list(csv.DictReader(io.open(os.path.join(FIX, 'derived/manifest_table.csv
 # would have claimed models it has never seen. `brand` cannot do this job: mova/trouver/xiaomi
 # are Dreame-built rebadges served by the same integration.
 PLATFORM = 'dreame_vacuum'
+# THE VENDOR'S WORD IS NORMALISED HERE, SO IT NEVER REACHES CODE. Chris: "simumop really is
+# just a special cloth, its a bit of noise" -- 8 rows of 754. The CSV keeps `SimuMop` because
+# that is the measurement and the manifest is the provenance record; the emitted table carries
+# only the neutral vocabulary {cloth, pad, roller, track}. Doing it here rather than in emit()
+# is what lets adapters/upkeep_keys.py hold no brand vocabulary and no alias parameter.
+# The emitted CARDS are unchanged either way -- emit() used to alias internally -- what changes
+# is that the regime ID reads `cloth|...` and the two SimuMop regimes merge into their cloth
+# twins (dreame 15 -> 13 distinct).
+MOP_NORMALISE = {'SimuMop': 'cloth'}
+for _r in rows:
+    _r['mop_type'] = MOP_NORMALISE.get(_r['mop_type'], _r['mop_type'])
 _all = len(rows)
 rows = [r for r in rows if r.get('upstream_platform', PLATFORM) == PLATFORM]
 print('manifest: %d rows, %d on %s' % (_all, len(rows), PLATFORM))

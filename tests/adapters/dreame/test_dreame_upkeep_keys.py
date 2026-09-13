@@ -268,7 +268,12 @@ def test_a_vacuum_only_machine_is_never_told_to_empty_water():
         )
 
     # ...and the clause MUST still fire where the machine does mop with no station.
-    for mop in ("cloth", "pad", "SimuMop"):
+    # THE NEUTRAL VOCABULARY, ALL FOUR. `SimuMop` was in this list and is not any more: the
+    # regime GENERATOR now maps the vendor's word to `cloth` when it writes the table, so it
+    # can no longer reach `emit()` and passing it here tested a path that no longer exists.
+    # Using all four mop shapes tests the RULE (mop + no station tanks -> the clause) rather
+    # than the three values that happened to be handy, and bites on roller/track too.
+    for mop in ("cloth", "pad", "roller", "track"):
         steps = {c: s for c, s, _n in emit(mop, "charge_only", "no")}["filter"]
         assert BIN_IS_2IN1 in steps, (
             f"{mop}|charge_only|no mops with no station tanks, so its water is on board in the "
@@ -304,7 +309,7 @@ def test_every_panel_points_at_the_manual(regime):
 
 
 def test_the_collapse_holds():
-    """[DUK-8] 700 models, 15 regimes, 7 cards — the argument for the whole system."""
+    """[DUK-8] 700 models, 13 regimes, 7 cards — the argument for the whole system."""
     bodies = {
         json.dumps(DREAME_UPKEEP_KEY_GUIDES[r], sort_keys=True)
         for r in DREAME_MODEL_KEY_REGIMES.values()
@@ -313,8 +318,12 @@ def test_the_collapse_holds():
         f"{len(DREAME_MODEL_KEY_REGIMES)} models routed, expected 700 — update this "
         "deliberately if the catalog grew"
     )
-    assert len(DREAME_UPKEEP_KEY_GUIDES) == 15, (
-        f"{len(DREAME_UPKEEP_KEY_GUIDES)} regimes, expected 15"
+    assert len(DREAME_UPKEEP_KEY_GUIDES) == 13, (
+        f"{len(DREAME_UPKEEP_KEY_GUIDES)} regimes, expected 13 — was 15 until the generator "
+        "started normalising `SimuMop` to `cloth`, which merged two regimes into their cloth "
+        "twins (SimuMop|charge_only|no and SimuMop|auto_empty|no). NOT decay: the emitted CARD "
+        "for all 700 models was byte-identical across that change, because emit() had been "
+        "aliasing the same two values internally all along"
     )
     assert len(bodies) == 7, (
         f"{len(bodies)} distinct card SETS, expected 7. NOTE THE UNIT: this counts unique "

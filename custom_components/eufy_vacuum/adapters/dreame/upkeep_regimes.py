@@ -110,7 +110,7 @@ DREAME_MODEL_REGIMES: dict[str, tuple[str, str, str]] = {
     "dreame.vacuum.r2338h":        ("pad", "wash+empty", "yes"),
     "dreame.vacuum.r2345a":        ("pad", "wash+empty", "yes"),
     "dreame.vacuum.r2345h":        ("pad", "wash+empty", "yes"),
-    "dreame.vacuum.r2350":         ("SimuMop", "wash+empty", "yes"),
+    "dreame.vacuum.r2350":         ("cloth", "wash+empty", "yes"),
     "dreame.vacuum.r2355":         ("pad", "wash+empty", "yes"),
     "dreame.vacuum.r2360":         ("pad", "wash+empty", "yes"),
     "dreame.vacuum.r2360w":        ("pad", "wash+empty", "yes"),
@@ -126,13 +126,13 @@ DREAME_MODEL_REGIMES: dict[str, tuple[str, str, str]] = {
     "dreame.vacuum.r2377":         ("pad", "wash+empty", "yes"),
     "dreame.vacuum.r2380":         ("pad", "wash_only", "yes"),
     "dreame.vacuum.r2380r":        ("pad", "wash_only", "yes"),
-    "dreame.vacuum.r2382a":        ("SimuMop", "charge_only", "no"),
-    "dreame.vacuum.r2382k":        ("SimuMop", "charge_only", "no"),
-    "dreame.vacuum.r2382r":        ("SimuMop", "charge_only", "no"),
-    "dreame.vacuum.r2383a":        ("SimuMop", "auto_empty", "no"),
-    "dreame.vacuum.r2383k":        ("SimuMop", "auto_empty", "no"),
-    "dreame.vacuum.r2385":         ("SimuMop", "wash+empty", "yes"),
-    "dreame.vacuum.r2385a":        ("SimuMop", "wash+empty", "yes"),
+    "dreame.vacuum.r2382a":        ("cloth", "charge_only", "no"),
+    "dreame.vacuum.r2382k":        ("cloth", "charge_only", "no"),
+    "dreame.vacuum.r2382r":        ("cloth", "charge_only", "no"),
+    "dreame.vacuum.r2383a":        ("cloth", "auto_empty", "no"),
+    "dreame.vacuum.r2383k":        ("cloth", "auto_empty", "no"),
+    "dreame.vacuum.r2385":         ("cloth", "wash+empty", "yes"),
+    "dreame.vacuum.r2385a":        ("cloth", "wash+empty", "yes"),
     "dreame.vacuum.r2386":         ("pad", "wash_only", "yes"),
     "dreame.vacuum.r2388":         ("cloth", "charge_only", "no"),
     "dreame.vacuum.r2394a":        ("pad", "wash+empty", "yes"),
@@ -727,20 +727,18 @@ DREAME_MODEL_REGIMES: dict[str, tuple[str, str, str]] = {
     "xiaomi.vacuum.d110ch":        ("pad", "auto_empty", "no"),
 }
 
-# The 15 distinct regimes present, largest first — a comment, not a second copy. Derive from
+# The 13 distinct regimes present, largest first — a comment, not a second copy. Derive from
 # DREAME_MODEL_REGIMES rather than reading this:
 #   pad       wash+empty        yes      351 models
 #   roller    wash+empty        yes       73 models
-#   cloth     charge_only       no        62 models
-#   cloth     auto_empty        no        62 models
+#   cloth     charge_only       no        65 models
+#   cloth     auto_empty        no        64 models
 #   pad       wash+empty        plumbed   56 models
 #   track     wash+empty        yes       22 models
 #   pad       auto_empty        no        19 models
 #   pad       wash_only         yes       15 models
 #   pad       wash+empty+swap   yes       15 models
 #   roller    wash+empty        plumbed   15 models
-#   SimuMop   wash+empty        yes        3 models
-#   SimuMop   charge_only       no         3 models
-#   SimuMop   auto_empty        no         2 models
+#   cloth     wash+empty        yes        3 models
 #   pad       charge_only       no         1 models
 #   track     wash+empty        plumbed    1 models
