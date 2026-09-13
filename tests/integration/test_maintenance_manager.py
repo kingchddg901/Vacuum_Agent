@@ -178,12 +178,22 @@ def test_countdown_brand_maintenance_counter_moves(mnt, manager, hass, monkeypat
     assert mnt.reset_maintenance(
         vacuum_entity_id=_VAC, component="main_brush")["reset_at_usage_hours"] == pytest.approx(0.0)
 
-    # Ten more cleaning hours: the device counts DOWN, our total rises by 10.
+    # ⚠ THE FIRST MOVEMENT IS SPENT LEARNING, and it is visible here on purpose. Roborock
+    # publishes NO `state_class` on any sensor, so nothing declares which way this source
+    # counts and the first move is what teaches us. Booking on a guess instead would risk
+    # counting every reset as runtime for the life of the install — silently. One tick is the
+    # whole price and it is paid once per source.
+    hass.states.async_set(_SRC, "291")
+    assert mnt.get_maintenance_remaining(
+        vacuum_entity_id=_VAC, component="main_brush",
+        interval_hours=30.0)["used_since_reset_hours"] == pytest.approx(0.0)
+
+    # Now it knows. Eight more cleaning hours: the device counts DOWN, our total rises by 8.
     hass.states.async_set(_SRC, "283")
     got = mnt.get_maintenance_remaining(
         vacuum_entity_id=_VAC, component="main_brush", interval_hours=30.0)
-    assert got["used_since_reset_hours"] == pytest.approx(10.0)
-    assert got["remaining_hours"] == pytest.approx(20.0)   # the user's 30 h cadence, not the device's
+    assert got["used_since_reset_hours"] == pytest.approx(8.0)
+    assert got["remaining_hours"] == pytest.approx(22.0)   # the user's 30 h cadence, not the device's
     assert got["source_available"] is True
 
 
@@ -253,22 +263,26 @@ def test_a_reset_moves_the_bookmark_without_wiping_the_counter(mnt, manager, has
     hass.states.async_set(_SRC, "300")
     mnt.get_maintenance_remaining(
         vacuum_entity_id=_VAC, component="main_brush", interval_hours=300.0)
-    hass.states.async_set(_SRC, "290")          # 10 h of real use, counted
+    hass.states.async_set(_SRC, "298")          # the learning tick — teaches DOWN, books 0
+    mnt.get_maintenance_remaining(
+        vacuum_entity_id=_VAC, component="main_brush", interval_hours=300.0)
+    hass.states.async_set(_SRC, "288")          # 10 h of real use, counted
     mnt.get_maintenance_remaining(
         vacuum_entity_id=_VAC, component="main_brush", interval_hours=300.0)
 
     bucket = mnt.get_maintenance_state(vacuum_entity_id=_VAC)["main_brush"]
     assert bucket["usage_total"] == pytest.approx(10.0)
-    assert bucket["usage_baseline"] == pytest.approx(290.0)
+    assert bucket["usage_baseline"] == pytest.approx(288.0)
 
     mnt.reset_maintenance(vacuum_entity_id=_VAC, component="main_brush")
     bucket = mnt.get_maintenance_state(vacuum_entity_id=_VAC)["main_brush"]
     assert bucket["usage_total"] == pytest.approx(10.0), "the reset wiped our counter"
-    assert bucket["usage_baseline"] == pytest.approx(290.0), "the reset wiped our baseline"
+    assert bucket["usage_baseline"] == pytest.approx(288.0), "the reset wiped our baseline"
+    assert bucket["usage_moves_down"] == 2, "the reset wiped the learned direction"
     assert bucket["reset_at_usage_hours"] == pytest.approx(10.0), "the bookmark is the total"
 
     # and the counter keeps going from where it was, rather than starting over
-    hass.states.async_set(_SRC, "285")
+    hass.states.async_set(_SRC, "283")
     got = mnt.get_maintenance_remaining(
         vacuum_entity_id=_VAC, component="main_brush", interval_hours=300.0)
     assert got["used_since_reset_hours"] == pytest.approx(5.0)

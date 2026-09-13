@@ -14,7 +14,9 @@ from custom_components.eufy_vacuum.core.usage_accumulator import (
     DOWN,
     MAX_SINGLE_DELTA_HOURS,
     UP,
+    declared_direction,
     direction_for,
+    learned_direction,
     observe,
 )
 
@@ -100,7 +102,8 @@ def test_a_non_reading_touches_nothing(junk):
     baseline, it destroys the reference we count from. It must change nothing at all.
     """
     out = observe(junk, baseline=250.0, total=42.0, direction=DOWN)
-    assert out == {"baseline": 250.0, "total": 42.0, "counted": 0.0, "rejected": None}
+    assert out == {"baseline": 250.0, "total": 42.0, "counted": 0.0,
+                   "rejected": None, "moved": None}
 
 
 def test_unavailable_mid_sequence_does_not_break_the_span():
@@ -113,7 +116,8 @@ def test_unavailable_mid_sequence_does_not_break_the_span():
 def test_the_first_reading_establishes_the_baseline_only():
     """[UAC-7] a fresh install must not book the hours already on the part."""
     out = observe(130.0, baseline=None, total=0.0, direction=DOWN)
-    assert out == {"baseline": 130.0, "total": 0.0, "counted": 0.0, "rejected": None}
+    assert out == {"baseline": 130.0, "total": 0.0, "counted": 0.0,
+                   "rejected": None, "moved": None}
 
 
 def test_an_impossible_delta_is_rejected_and_reported_not_absorbed():
@@ -193,3 +197,91 @@ def test_a_reset_inside_a_gap_loses_that_gap_and_it_fails_low():
 
     netted = _run([300, 295])
     assert netted["total"] == 5.0, "when the reading is still lower, only the net is booked"
+
+
+# ---------------------------------------------------------------------------
+# [UAC-13..17] learning the direction from the source itself
+# ---------------------------------------------------------------------------
+
+
+def _learn(readings, *, declared=None):
+    """Fold a sequence with NOTHING declared, learning direction as it goes."""
+    baseline, total, up, down = None, 0.0, 0, 0
+    for r in readings:
+        direction = learned_direction(declared, up, down)
+        out = observe(r, baseline=baseline, total=total, direction=direction)
+        baseline, total = out["baseline"], out["total"]
+        if out["moved"] == UP:
+            up += 1
+        elif out["moved"] == DOWN:
+            down += 1
+    return {"total": total, "up": up, "down": down,
+            "direction": learned_direction(declared, up, down)}
+
+
+def test_a_countdown_teaches_us_its_direction():
+    """[UAC-13] no declaration, no metadata — the source's own movement names it.
+
+    Roborock declares no `state_class` on any sensor, so this is the path its parts take.
+    """
+    out = _learn([300, 299, 297, 295])
+    assert out["direction"] == DOWN
+    # THE LEARNING COST, stated as a number rather than a hope: real use across this sequence
+    # is 5 h (300 -> 295) and we book 4. The single hour lost is the 300 -> 299 tick that
+    # taught us the direction. That is the whole price, it is paid once per source, and it is
+    # bounded — unlike a wrong lock, which is unbounded and silent.
+    assert out["total"] == 4.0
+
+
+def test_a_count_up_teaches_us_the_other_direction():
+    """[UAC-14] the mirror, from the same rule."""
+    out = _learn([0, 1, 3, 5])
+    assert out["direction"] == UP
+    assert out["total"] == 4.0
+
+
+def test_a_first_movement_that_is_a_reset_is_outvoted():
+    """[UAC-15] THE CASE THAT MADE LOCKING ON THE FIRST TICK UNSAFE.
+
+    If the very first movement we ever see is a reset, a lock-on-first rule learns the INVERSE
+    and then books every later reset as runtime while ignoring all real use — permanently, and
+    silently, because every number still looks plausible.
+
+    Measured shape: robin's side brush went 193 -> 200 on a reset. Here that jump lands first;
+    the ordinary ticks that follow outvote it and the counter recovers on its own.
+
+    THE INPUT THAT MAKES THIS RED: make `learned_direction` return on the first movement
+    instead of the majority, and direction comes back UP with total 0.
+    """
+    out = _learn([193, 200, 199, 198, 197])
+    assert out["direction"] == DOWN, "the reset was outvoted by ordinary use"
+    assert out["up"] == 1 and out["down"] == 3
+
+
+def test_nothing_is_booked_while_the_direction_is_unknown():
+    """[UAC-16] booking on a guess is worse than booking late.
+
+    A wrong guess counts resets as runtime and ignores real hours forever. Learning costs at
+    most the first couple of movements, which is bounded and visible; a wrong lock is neither.
+    """
+    assert _learn([300])["total"] == 0.0
+    assert _learn([300, 299])["total"] == 0.0        # first movement teaches, books nothing
+    assert _learn([300, 299, 298])["total"] == 1.0   # thereafter it counts
+
+
+def test_a_declaration_short_circuits_the_learning():
+    """[UAC-17] HA's own `state_class` is a head start where it exists — measured per brand.
+
+    alfred's total clock says `total`, robin's says `total_increasing`, alfred's part counters
+    say `measurement`. ivy says NOTHING on any sensor, which is why the declaration can only
+    ever be a shortcut and never the rule.
+    """
+    assert declared_direction("total", None, "usage_hours") == UP
+    assert declared_direction("total_increasing", None, "usage_hours") == UP
+    assert declared_direction("measurement", None, "usage_hours") == DOWN
+    assert declared_direction(None, None, "usage_hours") is None
+    assert declared_direction("", {"usage_hours": 46}, "usage_hours") == UP
+
+    # declared -> counted from the very first movement, no learning tick spent
+    out = _learn([300, 299, 297], declared=DOWN)
+    assert out["total"] == 3.0

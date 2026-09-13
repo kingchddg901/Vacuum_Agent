@@ -843,13 +843,17 @@ class MaintenanceManager:
             return None
 
         attributes = getattr(state, "attributes", None) or {}
-        direction = usage_accumulator.direction_for(
-            getattr(state, "state", None), attributes, self.USAGE_ATTRIBUTE
-        )
+        # The usage ATTRIBUTE is its own source when present; otherwise the STATE is.
+        has_usage_attr = usage_accumulator._number(
+            attributes.get(self.USAGE_ATTRIBUTE)
+        ) is not None
         reading = (
             attributes.get(self.USAGE_ATTRIBUTE)
-            if direction == usage_accumulator.UP
+            if has_usage_attr
             else getattr(state, "state", None)
+        )
+        declared = usage_accumulator.declared_direction(
+            attributes.get("state_class"), attributes, self.USAGE_ATTRIBUTE
         )
 
         # A caller with no component identity cannot persist; fold nothing and answer from the
@@ -864,6 +868,14 @@ class MaintenanceManager:
         ).setdefault(component, {})
         had_baseline = bucket.get("usage_baseline") is not None
         before_total = float(bucket.get("usage_total") or 0.0)
+        moves_up = int(bucket.get("usage_moves_up") or 0)
+        moves_down = int(bucket.get("usage_moves_down") or 0)
+
+        # DECLARED IF HA SAYS SO, LEARNED FROM THE SOURCE OTHERWISE, and None until it has
+        # moved enough to tell. Roborock publishes no `state_class` on any sensor, so its parts
+        # take the learning path; alfred and robin declare one and skip it. Nothing is booked
+        # while the answer is None — see `observe`.
+        direction = usage_accumulator.learned_direction(declared, moves_up, moves_down)
 
         result = usage_accumulator.observe(
             reading,
@@ -871,6 +883,10 @@ class MaintenanceManager:
             total=before_total,
             direction=direction,
         )
+        if result["moved"] == usage_accumulator.UP:
+            moves_up += 1
+        elif result["moved"] == usage_accumulator.DOWN:
+            moves_down += 1
 
         if result["rejected"] is not None:
             # REPORTED, NEVER ABSORBED. A glitch that books a whole service life and
@@ -883,14 +899,18 @@ class MaintenanceManager:
             )
 
         if not had_baseline and result["baseline"] is not None:
-            if direction == usage_accumulator.UP:
+            if has_usage_attr:
                 # Adopt the device's own total; it has been counting all along.
                 result = {**result, "total": float(result["baseline"])}
 
         if (result["baseline"] != bucket.get("usage_baseline")
-                or result["total"] != before_total):
+                or result["total"] != before_total
+                or moves_up != int(bucket.get("usage_moves_up") or 0)
+                or moves_down != int(bucket.get("usage_moves_down") or 0)):
             bucket["usage_baseline"] = result["baseline"]
             bucket["usage_total"] = result["total"]
+            bucket["usage_moves_up"] = moves_up
+            bucket["usage_moves_down"] = moves_down
             self._manager.async_save_delayed()
 
         if usage_accumulator._number(reading) is None:
@@ -975,7 +995,8 @@ class MaintenanceManager:
         #
         # Carrying a NAMED LIST rather than another `if` per field, so the next addition is
         # a list entry instead of a fourth silent loss.
-        for _carried in ("interval_hours", "usage_baseline", "usage_total"):
+        for _carried in ("interval_hours", "usage_baseline", "usage_total",
+                         "usage_moves_up", "usage_moves_down"):
             if isinstance(existing, dict) and existing.get(_carried) is not None:
                 new_entry[_carried] = existing[_carried]
         maintenance[component] = new_entry

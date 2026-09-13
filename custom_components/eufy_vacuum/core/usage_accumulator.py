@@ -85,46 +85,131 @@ def _number(value: Any) -> float | None:
     return number
 
 
+def learned_direction(
+    declared: str | None, moves_up: int, moves_down: int
+) -> str | None:
+    """Which way this source counts, or None while we still have no idea.
+
+    A DECLARATION WINS WHEN THERE IS ONE. HA's `state_class` says it outright for some
+    integrations — `total` / `total_increasing` is a counter that rises, `measurement` on a
+    remaining-hours sensor is one that falls. Roborock declares nothing on any sensor, so that
+    signal covers two brands of three and cannot be the whole rule.
+
+    OTHERWISE THE SOURCE TELLS US ITSELF, because of what a reset is. During ordinary use a
+    counter only ever moves ONE way; a reset is a single move the other way, and it returns the
+    counter to an extreme — measured on Chris's own machines, both shapes, same day:
+
+        robin  side_brush  state 193 ->  200   a new HIGH (its full life)   countdown
+        alfred rolling_brush state 314 -> 360  a new HIGH (total_life)      countdown
+        alfred rolling_brush usage  46 ->   0  a new LOW                    count-up
+
+    THE MAJORITY IS THE SHAPE. Usage is frequent and small, a reset is rare and large, so the
+    direction moved more OFTEN is the direction of use. That makes the rule self-correcting: if
+    the very first movement we ever see happens to be a reset, the next two ordinary ticks
+    outvote it. Locking the direction on the first movement would be right almost always and
+    wrong silently and permanently the rest of the time.
+
+    ⚠ IT IDENTIFIES THE SOURCE, NOT THE BRAND OR THE DEVICE. Chris: "even if we assume both
+    sides were not published." Alfred's sensor publishes a falling STATE and a rising ATTRIBUTE;
+    watch either alone and this names that one correctly. Which is what the design needs, since
+    the user picks the source.
+    """
+    if declared in (UP, DOWN):
+        return declared
+    if moves_up == 0 and moves_down == 0:
+        return None
+    if moves_up == moves_down:
+        return None
+    return UP if moves_up > moves_down else DOWN
+
+
 def observe(
     reading: Any,
     *,
     baseline: float | None,
     total: float,
-    direction: str,
+    direction: str | None,
     max_delta_hours: float | None = MAX_SINGLE_DELTA_HOURS,
 ) -> dict[str, Any]:
     """Fold one reading into ``(baseline, total)``. Pure — no clock, no storage, no entity.
 
-    Returns ``{"baseline", "total", "counted", "rejected"}``:
+    Returns ``{"baseline", "total", "counted", "rejected", "moved"}``:
       counted   hours added by THIS reading (0.0 whenever nothing was booked)
       rejected  the delta that breached the cap, else None — the caller says so out loud
+      moved     UP / DOWN / None — which way this reading went, for the caller's tally
 
-    Every rule in the module docstring is one branch below, in the order it is stated there.
+    ``direction=None`` means WE DO NOT KNOW YET: the source's shape has not been declared and it
+    has not moved enough for us to tell. Nothing is booked while that is true — we only watch,
+    report `moved`, and re-baseline. Booking on a guess would be worse than booking late, because
+    a wrong guess counts resets as runtime and ignores the real hours, forever and silently.
+    Learning costs at most the first couple of movements; see `learned_direction`.
     """
     value = _number(reading)
     if value is None:
         # Not a reading. Not a baseline, not a zero, not a gap — nothing happened.
-        return {"baseline": baseline, "total": total, "counted": 0.0, "rejected": None}
+        return {"baseline": baseline, "total": total, "counted": 0.0,
+                "rejected": None, "moved": None}
 
     if baseline is None:
         # FIRST READING ESTABLISHES THE BASELINE ONLY. Without this a fresh install books
         # `life - remaining` on its first poll, as if every hour already on the part had
         # elapsed while we were watching.
-        return {"baseline": value, "total": total, "counted": 0.0, "rejected": None}
+        return {"baseline": value, "total": total, "counted": 0.0,
+                "rejected": None, "moved": None}
+
+    moved = None
+    if value > baseline:
+        moved = UP
+    elif value < baseline:
+        moved = DOWN
+
+    if direction is None:
+        # Watching, not counting. Re-baseline so the NEXT movement is measured from here.
+        return {"baseline": value, "total": total, "counted": 0.0,
+                "rejected": None, "moved": moved}
 
     delta = (baseline - value) if direction == DOWN else (value - baseline)
 
     if delta <= 0:
         # AGAINST EXPECTATION: a reset, a part swap, a re-pair. Count nothing, and MOVE THE
         # BASELINE — skipping the move is what freezes the accumulator forever.
-        return {"baseline": value, "total": total, "counted": 0.0, "rejected": None}
+        return {"baseline": value, "total": total, "counted": 0.0,
+                "rejected": None, "moved": moved}
 
     if max_delta_hours is not None and delta > max_delta_hours:
         # Too large to be real. Re-baseline so we recover on the next reading, book nothing,
         # and hand the caller the number so it can be logged rather than silently swallowed.
-        return {"baseline": value, "total": total, "counted": 0.0, "rejected": delta}
+        return {"baseline": value, "total": total, "counted": 0.0,
+                "rejected": delta, "moved": moved}
 
-    return {"baseline": value, "total": total + delta, "counted": delta, "rejected": None}
+    return {"baseline": value, "total": total + delta, "counted": delta,
+            "rejected": None, "moved": moved}
+
+
+def declared_direction(state_class: Any, attributes: dict[str, Any] | None,
+                       usage_attribute: str) -> str | None:
+    """The direction HA itself states, or None when it states nothing.
+
+    A head start, never a requirement. MEASURED ACROSS THE THREE INTEGRATIONS:
+
+        alfred  total_cleaning_time   state_class "total"              -> UP
+        robin   total_cleaning_time   state_class "total_increasing"   -> UP
+        alfred  *_remaining           state_class "measurement"        -> a falling counter
+        ivy     everything            state_class ABSENT               -> nothing
+
+    Roborock publishes no `state_class` on any sensor, so its lifetime clock and its part
+    countdowns are indistinguishable by metadata. Anything that REQUIRED this signal would be
+    guessing precisely where there is least information — which is why the learning rule above
+    is the floor and this is the shortcut.
+    """
+    if attributes and _number(attributes.get(usage_attribute)) is not None:
+        return UP
+    sc = str(state_class or "").strip().lower()
+    if sc in ("total", "total_increasing"):
+        return UP
+    if sc == "measurement":
+        return DOWN
+    return None
 
 
 def direction_for(state: Any, attributes: dict[str, Any] | None, usage_attribute: str) -> str:

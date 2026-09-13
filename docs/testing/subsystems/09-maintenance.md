@@ -103,3 +103,11 @@ Absorbing a reset is not counting it.
 | UAC-10 | **count-up is the same rule mirrored.** Eufy's `usage_hours` rises where Roborock's `time_left` falls; applied as written the spec would count nothing on Eufy. |
 | UAC-11 | direction is inferred per **entity**, not per brand — keeping doc 41's "holds both without a brand check". A per-adapter declaration would be strictly weaker. |
 | UAC-12 | **the one direction it drifts**, pinned as a decision: a reset inside an unobserved gap loses that gap (or books only the net). It fails LOW and SILENT, bounded by how long we can go unobserved. |
+
+| UAC-13/14 | **the source teaches us its own direction** — no declaration, no metadata. Roborock publishes no `state_class` on any sensor, so this is the path its parts take. |
+| UAC-15 | **a first movement that is a reset is OUTVOTED.** Locking on the first tick is right almost always and, when it is wrong, is wrong silently and permanently — it would book every later reset as runtime and ignore all real use. Majority self-corrects within two ordinary ticks. |
+| UAC-16 | nothing is booked while the direction is unknown. Booking on a guess is worse than booking late: the guess is unbounded, the wait costs one movement. |
+| UAC-17 | HA's `state_class` is a **head start where it exists** (`total`/`total_increasing` → up, `measurement` → down) and never a requirement — it covers two integrations of three. |
+
+**The learning cost, as a number:** one movement per source, once. MNT-7c and MNT-8b both show
+the tick explicitly rather than hiding it behind a fixture that declares `state_class`.
