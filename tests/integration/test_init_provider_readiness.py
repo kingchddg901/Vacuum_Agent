@@ -160,15 +160,30 @@ async def test_capabilities_are_redetected_once_the_provider_is_up(
     # component the brand declares now names a companion that really exists.
     sources = warm["maintenance_sources"]
     assert set(sources) == set(MAINTENANCE_COMPONENTS)
-    unresolved = sorted(c for c, src in sources.items() if src is None)
+    # ⚠ SCOPED TO COMPONENTS THE INTEGRATION ACTUALLY COUNTS, 2026-09-12. A component with no
+    # `sensor_suffix` has no companion to find — Eufy publishes no swivel-wheel counter at all
+    # — so it resolves to None until the user picks a clock for the vacuum, and that is the
+    # correct answer rather than a cold-boot cache miss. Asserting over ALL components would
+    # make this test red for a reason it was never about, and it would stay red forever.
+    # It previously passed because `proxy_for` borrowed the filter's counter, which silently
+    # reset the wheel whenever the filter was reset.
+    countable = {c for c, meta in MAINTENANCE_COMPONENTS.items() if meta.get("sensor_suffix")}
+    unresolved = sorted(
+        c for c, src in sources.items() if src is None and c in countable
+    )
     assert not unresolved, (
         f"maintenance sources still unresolved after the provider came up: "
         f"{unresolved} — the cold-boot answer was cached (INKR1TW7)"
     )
-    assert set(sources.values()) <= _LATE_COUNTER_ENTITIES, (
+    # `None` is a legitimate value here now — a component the integration counts nothing for
+    # has no companion to resolve to. What this guards is unchanged: anything that DID resolve
+    # must name an entity this install actually published.
+    resolved = {src for src in sources.values() if src is not None}
+    assert resolved <= _LATE_COUNTER_ENTITIES, (
         f"resolved to entities this install never published: "
-        f"{sorted(set(sources.values()) - _LATE_COUNTER_ENTITIES)}"
+        f"{sorted(resolved - _LATE_COUNTER_ENTITIES)}"
     )
+    assert resolved, "nothing resolved at all — that is a cache miss, not an uncounted part"
     # Named verbatim, so no degenerate snapshot can satisfy this.
     assert sources["filter"] == "sensor.alfred_filter_remaining"
     assert sources["cleaning_tray"] == "sensor.alfred_cleaning_tray_remaining"

@@ -10,9 +10,9 @@ Each component entry contains:
     sensor_suffix       — full suffix appended to '{object_id}_' to form the
                           replacement-counter sensor entity ID (e.g.
                           'filter_remaining' -> sensor.{object_id}_filter_remaining).
-                          None for components that source via proxy_for.
-    proxy_for           — component ID whose sensor this component reuses when
-                          the firmware shares a counter (swivel_wheel -> filter).
+                          ABSENT when the firmware publishes no counter for this
+                          component — it then falls back to the ONE clock entity the
+                          user picked for this vacuum (capabilities.MAINTENANCE_CLOCK_ROLE).
     default_interval_hours — Eufy's official guide recommendation.
                              This is the reference anchor. Never change
                              this value — it reflects the manufacturer
@@ -101,8 +101,11 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     # NOT renamed the other way: `caster_wheel` and `omnidirectional_wheel` are distinct in the
     # packs (ru: Ролик vs Всенаправленное колесо), and merging them would be wrong in 17 languages.
     "omnidirectional_wheel": {
-        "sensor_suffix": "swivel_wheel_remaining",
-        "proxy_for": "filter",
+        # NO SENSOR AND NO PROXY. Eufy publishes no swivel-wheel counter at all --
+        # `sensor.<obj>_swivel_wheel_remaining` does not exist -- which is why this carried
+        # `proxy_for: "filter"`. That borrowed the FILTER's counter, and resetting the filter
+        # dropped this component's source from 46 to 0, so the wheel silently read brand new.
+        # It now falls back to the vacuum's chosen clock like every other uncounted component.
         "default_interval_hours": 60.0,
         "max_interval_hours": 360,
         "label": "Swivel Wheel",

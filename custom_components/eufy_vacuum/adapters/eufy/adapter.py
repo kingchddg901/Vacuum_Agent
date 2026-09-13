@@ -1016,7 +1016,6 @@ def register_eufy_adapter_for_vacuum(
             # display metadata, and interval configuration.
             component_id: {
                 "sensor_suffix": component.get("sensor_suffix"),
-                "proxy_for": component.get("proxy_for"),
                 # Reset-button resolution sourced from buttons.py (single source
                 # for all button discovery). None when the component has no
                 # reset button.

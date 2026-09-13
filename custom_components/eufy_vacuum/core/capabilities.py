@@ -286,6 +286,11 @@ def _rescue_maintenance_source(
     )
 
 
+#: Override role holding the ONE entity that backs every uncounted component on a vacuum.
+#: Not a component id, so it can never collide with one.
+MAINTENANCE_CLOCK_ROLE = "maintenance_clock"
+
+
 def _detect_maintenance_sources(
     hass: HomeAssistant,
     *,
@@ -296,8 +301,13 @@ def _detect_maintenance_sources(
     universe: Iterable[str] = (),
     translation_keys: dict[str, str] | None = None,
     reasons: dict[str, str] | None = None,
+    clock: str | None = None,
 ) -> dict[str, str | None]:
     """Return a component → source entity_id map for maintenance tracking.
+
+    ``clock`` is the ONE entity the user picked to back every component the integration counts
+    nothing for. It is resolved by the caller from the same override store as everything else,
+    under ``MAINTENANCE_CLOCK_ROLE``.
 
     ``reasons``, when given, is written INTO — the same dict ``detect_capabilities``
     fills for roles, because ``overrides`` is one flat namespace shared by roles and
@@ -305,12 +315,12 @@ def _detect_maintenance_sources(
     text) and a component's stale choice has to reach the same readers as a role's.
 
     maintenance_components is the adapter's component catalog dict:
-    {component_id: {sensor_suffix, proxy_for, label, icon, …}}.
+    {component_id: {sensor_suffix, label, icon, …}}.
 
     ``sensor_suffix`` is the full suffix appended to ``sensor.{object_id}_`` to
     form the counter entity ID — no brand naming is assumed here. A component
-    with ``proxy_for`` set sources from that component's sensor when present,
-    falling back to its own ``sensor_suffix`` (e.g. swivel_wheel -> filter).
+    A component with no ``sensor_suffix`` sources from the ONE clock the user picked for this
+    vacuum, because the integration counts nothing for it.
     """
 
     def _resolve(suffix: Any) -> str | None:
@@ -325,6 +335,12 @@ def _detect_maintenance_sources(
         )
 
     user_choices = overrides if isinstance(overrides, dict) else {}
+    # The clock rides in the SAME override namespace as every other user pick — one store, one
+    # service, one contract. `services/setup.py::set_entity_override` takes the role as free
+    # text, so nothing new had to be built to save it.
+    if clock is None:
+        _clock = user_choices.get(MAINTENANCE_CLOCK_ROLE)
+        clock = _clock if isinstance(_clock, str) and "." in _clock else None
     _reasons = reasons if isinstance(reasons, dict) else {}
     sources: dict[str, str | None] = {}
     for component, meta in maintenance_components.items():
@@ -356,12 +372,17 @@ def _detect_maintenance_sources(
                 continue
             _reasons[component] = REASON_OVERRIDE_UNRESOLVED
         own = _resolve(meta.get("sensor_suffix"))
-        proxy_id = meta.get("proxy_for")
-        if proxy_id:
-            proxy_meta = maintenance_components.get(proxy_id, {})
-            sources[component] = _resolve(proxy_meta.get("sensor_suffix")) or own
-        else:
-            sources[component] = own
+        # ONE CLOCK FOR EVERYTHING UNCOUNTED. A component whose integration publishes no counter
+        # for it still needs one, and every such component wants the SAME thing — hours the
+        # machine has run. Chris: "why a per component pick, one would work for all." So the
+        # user picks once per vacuum (role MAINTENANCE_CLOCK_ROLE) and it fills every gap.
+        #
+        # ⚠ REPLACED `proxy_for`, which borrowed ANOTHER PART's counter — and that counter is
+        # not monotonic from this component's point of view. Resetting the filter dropped the
+        # caster wheel's source from 46 to 0, clamp 1 ate the difference, and the wheel silently
+        # read brand new. A lifetime clock is reset by nobody, which is what the bookmark model
+        # in doc 41 §1 actually requires.
+        sources[component] = own or clock
 
     return sources
 

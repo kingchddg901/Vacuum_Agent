@@ -1863,20 +1863,18 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "description": (
                     "Full suffix appended to 'sensor.{object_id}_' to form the "
                     "replacement counter sensor entity ID (e.g. 'filter_remaining' "
-                    "-> sensor.{object_id}_filter_remaining). Null when the "
-                    "component has no own counter and sources only via proxy_for."
+                    "-> sensor.{object_id}_filter_remaining). ABSENT when the "
+                    "integration publishes no counter for this component — it then "
+                    "sources from the one clock entity the user picked for the "
+                    "vacuum, since every uncounted component wants the same thing: "
+                    "hours the machine has run."
                 ),
             },
-            "proxy_for": {
-                "type": "str | null",
-                "required": False,
-                "description": (
-                    "Component ID whose sensor this component sources from when "
-                    "present, falling back to this component's own sensor_suffix. "
-                    "Used when the firmware shares a counter between components "
-                    "(e.g. swivel_wheel proxies filter)."
-                ),
-            },
+            # REMOVED 2026-09-12 — `proxy_for`. It borrowed ANOTHER COMPONENT's counter,
+            # which is not monotonic from the borrower's point of view: resetting the source
+            # part dropped the borrower's reading to zero and it silently read brand new. A
+            # component the integration counts nothing for now falls back to the ONE clock the
+            # user picks per vacuum (capabilities.MAINTENANCE_CLOCK_ROLE), which nobody resets.
             "reset_button": {
                 "type": "dict",
                 "required": False,

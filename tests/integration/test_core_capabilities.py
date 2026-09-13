@@ -197,7 +197,7 @@ def test_detect_robot_position_needs_both(hass):
 
 
 def test_detect_maintenance_sources(hass):
-    """[CAP-5] full-suffix entity resolves; None suffix → None; proxy_for wins."""
+    """[CAP-5] a full suffix resolves; no suffix and no clock resolves to None."""
     hass.states.async_set("sensor.alfred_main_brush_remaining", "90")
     hass.states.async_set("sensor.alfred_filter_remaining", "75")
     sources = _detect_maintenance_sources(
@@ -206,159 +206,50 @@ def test_detect_maintenance_sources(hass):
         maintenance_components={
             "main_brush": {"sensor_suffix": "main_brush_remaining"},
             "side_brush": {"sensor_suffix": "side_brush_remaining"},  # no entity → None
-            "no_suffix": {"sensor_suffix": None},                     # None suffix → None
+            "no_suffix": {"sensor_suffix": None},                     # nothing counts it → None
             "filter": {"sensor_suffix": "filter_remaining"},
-            # proxies filter when present
-            "caster_wheel": {"sensor_suffix": "swivel_wheel_remaining", "proxy_for": "filter"},
         },
     )
     assert sources["main_brush"] == "sensor.alfred_main_brush_remaining"
     assert sources["side_brush"] is None
     assert sources["no_suffix"] is None
-    # swivel wheel proxies the filter entity when present
-    assert sources["caster_wheel"] == "sensor.alfred_filter_remaining"
 
 
-def test_detect_maintenance_swivel_own_fallback(hass):
-    """[CAP-5] proxy target absent → component falls back to its own sensor."""
-    hass.states.async_set("sensor.alfred_swivel_wheel_remaining", "60")
-    sources = _detect_maintenance_sources(
-        hass, object_id="alfred",
-        maintenance_components={
-            "caster_wheel": {"sensor_suffix": "swivel_wheel_remaining", "proxy_for": "filter"},
-        },
-    )
-    assert sources["caster_wheel"] == "sensor.alfred_swivel_wheel_remaining"
+def test_an_uncounted_component_takes_the_vacuums_chosen_clock(hass):
+    """[CAP-5b] ONE pick covers every component the integration counts nothing for.
 
+    REPLACED `proxy_for`, which borrowed another PART's counter. That counter is not monotonic
+    from the borrower's point of view: on a real box, resetting the filter dropped the caster
+    wheel's source from 46 h to 0, the first clamp ate the difference, and the wheel silently
+    read BRAND NEW. A lifetime clock is reset by nobody, which is what doc 41 §1's bookmark
+    model actually requires.
 
-async def test_maintenance_override_wins_when_it_still_resolves(hass):
-    """[CAP-5b] The precedence half of live:ENT-7 must survive the fix.
-
-    Guard against over-correcting: a LIVE override still beats a derived sensor
-    that resolves perfectly well, and records no reason. Without this the
-    existence check could be tightened into "derivation always wins", which is
-    the opposite bug.
+    And it is ONE pick, not one per component — Chris: "why a per component, pick one would work
+    for all." Every uncounted component wants the same number: hours the machine has run.
     """
+    hass.states.async_set("sensor.alfred_total_cleaning_time", "41.8")
+    components = {
+        "filter": {"sensor_suffix": "filter_remaining"},        # counted by the integration
+        "omnidirectional_wheel": {},                            # not counted — no suffix at all
+        "cleaning_tray": {},                                    # ditto
+    }
+
+    # No clock picked yet: the uncounted ones have no source, and say so rather than borrowing.
+    bare = _detect_maintenance_sources(
+        hass, object_id="alfred", maintenance_components=components)
+    assert bare["omnidirectional_wheel"] is None
+    assert bare["cleaning_tray"] is None
+
+    # One pick fills every gap, and does not disturb a component that counts itself.
     hass.states.async_set("sensor.alfred_filter_remaining", "75")
-    hass.states.async_set("sensor.the_filter_i_actually_want", "40")
-    reasons: dict[str, str] = {}
-
-    sources = _detect_maintenance_sources(
-        hass,
-        object_id="alfred",
-        maintenance_components={"filter": {"sensor_suffix": "filter_remaining"}},
-        overrides={"filter": "sensor.the_filter_i_actually_want"},
-        reasons=reasons,
+    picked = _detect_maintenance_sources(
+        hass, object_id="alfred", maintenance_components=components,
+        clock="sensor.alfred_total_cleaning_time")
+    assert picked["omnidirectional_wheel"] == "sensor.alfred_total_cleaning_time"
+    assert picked["cleaning_tray"] == "sensor.alfred_total_cleaning_time"
+    assert picked["filter"] == "sensor.alfred_filter_remaining", (
+        "a component with its own counter must keep it — the clock fills gaps, it does not win"
     )
-
-    assert sources["filter"] == "sensor.the_filter_i_actually_want"
-    assert reasons == {}, (
-        "a working override was reported as a problem; the picker would nag the "
-        "user about a choice that is doing exactly what they asked"
-    )
-
-
-async def test_a_stale_maintenance_override_falls_through_but_says_so(hass):
-    """[CAP-5b] C14 — the MAINTENANCE path had only the precedence half of ENT-7.
-
-    It pinned the user's id with no existence check and no reason, so a renamed
-    or deleted source left the component silently blank: no state to read, zero
-    usage hours, the Replacement row AND the Maintenance row both dead, and the
-    System screen explaining nothing. Mirror the role path — fall through to the
-    derived sensor and record `override_unresolved`.
-    """
-    hass.states.async_set("sensor.alfred_filter_remaining", "75")
-    reasons: dict[str, str] = {}
-
-    sources = _detect_maintenance_sources(
-        hass,
-        object_id="alfred",
-        maintenance_components={"filter": {"sensor_suffix": "filter_remaining"}},
-        overrides={"filter": "sensor.deleted_last_tuesday"},
-        reasons=reasons,
-    )
-
-    assert sources["filter"] == "sensor.alfred_filter_remaining", (
-        "a stale maintenance override pinned a dead id; the component reads no "
-        "state and both its upkeep rows go quiet"
-    )
-    assert reasons["filter"] == "override_unresolved", (
-        "the fall-through was silent, so the one screen built to explain "
-        "bindings had nothing to say about a user choice that stopped working"
-    )
-
-
-async def test_a_disabled_maintenance_override_is_still_honoured(hass):
-    """[CAP-5b] REGISTERED counts — same bar as the derived path and the roles.
-
-    A disabled entity is a toggle in the user's own UI, not a dead id. Treating
-    it as unresolved would re-point the component at our guess behind the user's
-    back the moment they switched their own sensor off.
-    """
-    registry = er.async_get(hass)
-    entry = registry.async_get_or_create(
-        "sensor", "eufy_vacuum", "alfred_filter_pinned_but_off",
-        suggested_object_id="alfred_filter_pinned_but_off",
-    )
-    hass.states.async_set("sensor.alfred_filter_remaining", "75")
-    reasons: dict[str, str] = {}
-
-    sources = _detect_maintenance_sources(
-        hass,
-        object_id="alfred",
-        maintenance_components={"filter": {"sensor_suffix": "filter_remaining"}},
-        overrides={"filter": entry.entity_id},
-        reasons=reasons,
-    )
-
-    assert sources["filter"] == entry.entity_id
-    assert reasons == {}
-
-
-async def test_stale_maintenance_override_reaches_the_resolution_reasons(hass):
-    """[CAP-5b] The reason has to arrive where a reader looks.
-
-    `config_flow._resolution_gaps` renders one picker per key in
-    `entity_resolution_reasons` that is not `resolved`. Recording the reason
-    into a dict `detect_capabilities` then drops on the floor would be the same
-    silence in a new place, so assert the wiring end to end.
-    """
-    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
-    hass.states.async_set("sensor.alfred_filter_remaining", "75")
-
-    caps = detect_capabilities(
-        hass,
-        vacuum_entity_id=_VAC,
-        maintenance_components={"filter": {"sensor_suffix": "filter_remaining"}},
-        entity_overrides={"filter": "sensor.deleted_last_tuesday"},
-    )
-
-    assert caps["maintenance_sources"]["filter"] == "sensor.alfred_filter_remaining"
-    assert caps["entity_resolution_reasons"].get("filter") == "override_unresolved", (
-        "the stale maintenance override never reached entity_resolution_reasons, "
-        "so the options flow offers no picker to correct it"
-    )
-
-
-async def test_find_registry_entity_by_tokens(hass):
-    """[CAP-6]"""
-    registry = er.async_get(hass)
-    registry.async_get_or_create(
-        "sensor", "eufy_vacuum", "alfred_main_brush_life",
-        suggested_object_id="alfred_main_brush_life",
-    )
-    found = _find_registry_entity_by_tokens(
-        hass, domain="sensor", object_id_prefix="alfred",
-        required_tokens=["main_brush", "life"],
-    )
-    assert found is not None and "main_brush_life" in found
-    # a token that doesn't match → None
-    miss = _find_registry_entity_by_tokens(
-        hass, domain="sensor", object_id_prefix="alfred",
-        required_tokens=["nonexistent_token"],
-    )
-    assert miss is None
-
 
 def test_get_vacuum_capabilities_refreshes_when_model_newly_known(manager):
     """[CAP-7] cached caps with no detected_model + a now-known model triggers a

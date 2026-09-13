@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers import entity_registry as er
 
-from ..adapters.entity_resolve import resolve_action_entity
+from ..adapters.entity_resolve import resolve_action_entity, sweep_siblings
 from ..core import usage_accumulator
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..timestamp_utils import utc_now_iso
@@ -369,6 +369,84 @@ class MaintenanceManager:
     # anchor: BNNYPRQB
     # Upkeep snapshot
     # ------------------------------------------------------------------
+
+    def get_maintenance_source_candidates(
+        self,
+        *,
+        vacuum_entity_id: str,
+    ) -> list[dict[str, Any]]:
+        """Entities that could back a maintenance counter for this vacuum, for the user to pick.
+
+        WHY A PICKER AND NOT A RULE. A component with no counter of its own needs a clock, and
+        there is no way to derive WHICH entity that should be. Measured across the three
+        integrations:
+
+          * a suffix rule breaks on real installs — alfred's lifetime clock is
+            `sensor.dining_room_alfred_total_cleaning_time`, which is not
+            `sensor.{object_id}_{suffix}` at all;
+          * `state_class` would filter it, but ROBOROCK DECLARES NONE on any sensor, so its
+            clock and its part countdowns are indistinguishable by metadata.
+
+        Guessing would therefore be wrong exactly where there is least information. Chris: "can
+        we read and filter to counter timers for the integration we are looking at and ask users
+        to select one?" — so we list, and the person who owns the machine decides.
+
+        THE WRITE HALF ALREADY EXISTS. A user's pick is stored through
+        `services/setup.py::set_entity_override` keyed by COMPONENT, and
+        `core/capabilities.py::resolve_maintenance_sources` already lets an explicit choice
+        outrank derivation (live:ENT-7). Nothing new is stored and nothing new resolves it.
+
+        THE POOL IS THE VACUUM'S OWN INTEGRATION, via the same two-scope sweep every rescue
+        uses (device, then config entry — live:ENT-5). We never offer another integration's
+        entities: a clock from an unrelated device would count something, plausibly, forever.
+
+        Excluded: anything WE created. Our own `*_maintenance_remaining` sensors are outputs of
+        this very calculation, so offering one would let a user point the counter at its own
+        result.
+        """
+        from ..const import DOMAIN
+
+        hass = getattr(self._manager, "hass", None)
+        if hass is None:
+            return []
+        try:
+            registry = er.async_get(hass)
+            entry = registry.async_get(vacuum_entity_id)
+        except Exception:  # pragma: no cover - defensive
+            return []
+        if entry is None:
+            return []
+
+        siblings, _device_count = sweep_siblings(registry, entry)
+        out: list[dict[str, Any]] = []
+        for entity_id in siblings:
+            if not entity_id.startswith("sensor."):
+                continue
+            sibling = registry.async_get(entity_id)
+            if sibling is not None and getattr(sibling, "platform", None) == DOMAIN:
+                continue  # ours — offering it would point the counter at its own output
+            state = hass.states.get(entity_id)
+            if state is None:
+                continue
+            attributes = getattr(state, "attributes", None) or {}
+            if attributes.get("device_class") != "duration":
+                continue
+            if usage_accumulator._number(getattr(state, "state", None)) is None:
+                continue
+            out.append({
+                "entity_id": entity_id,
+                "name": attributes.get("friendly_name") or entity_id,
+                "state": state.state,
+                "unit": attributes.get("unit_of_measurement"),
+                # A HINT FOR THE LIST, never a requirement: where HA declares a state_class we
+                # can say which way it counts before it has moved. Roborock declares none, and
+                # the counter learns from the source itself in that case.
+                "direction_hint": usage_accumulator.declared_direction(
+                    attributes.get("state_class"), attributes, self.USAGE_ATTRIBUTE
+                ),
+            })
+        out.sort(key=lambda c: c["name"])
+        return out
 
     def get_upkeep_snapshot(
         self,

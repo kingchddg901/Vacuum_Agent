@@ -958,7 +958,6 @@ def register_roborock_adapter_for_vacuum(
             # maintenance_components.py. (R2-STALE-5: said 13; there are 12.)
             component_id: {
                 "sensor_suffix": component.get("sensor_suffix"),
-                "proxy_for": component.get("proxy_for"),
                 "maintenance_only": component.get("maintenance_only", False),
                 "default_interval_hours": component.get("default_interval_hours", 0.0),
                 "max_interval_hours": component.get("max_interval_hours", 0.0),
