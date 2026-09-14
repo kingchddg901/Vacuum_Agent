@@ -540,6 +540,38 @@ export function applyRoomsActions(proto) {
   };
 
   /**
+   * Persist a room's dynamic blocker/modifier rules.
+   *
+   * THE SIBLING THAT WAS MISSING. `bindings/room-rules.js` has called this since the repo's
+   * first commit (not present at eae291fa) and it has never existed, so both call sites --
+   * save and delete -- used `?.()` and evaluated to `undefined`. The drawer then closed with
+   * no error and the rule simply was not there on the next snapshot read: a UI glitch, not a
+   * failure, which is why it survived. Everything else in the chain was already built --
+   * `update_room_fields` declares `rules` (services.yaml), its schema accepts it
+   * (services/rooms.py::update_room_fields) and the manager writes it (core/manager.py, the
+   * `if rules is not None` branch).
+   *
+   * NO mapId PARAMETER, deliberately. `updateRoomFields` resolves the map from
+   * `state.activeMapId()`, and the rules UI is active-map scoped on both ends
+   * (`resolvedRoomRulesRoom` and `roomRulesForRoom` both go through `getRoomsForActiveMap`),
+   * so a room id here is always on the active map. Taking a `mapId` we then discard would
+   * promise a targeting the service does not honour.
+   *
+   * PASSING `[]` IS MEANINGFUL. The delete path sends the remaining rules, which is an empty
+   * array once the last one goes. The backend guards on `is not None`, not truthiness, so an
+   * empty list persists as a clear rather than being skipped -- do not "optimise" either side
+   * to bail on an empty array.
+   *
+   * @param {number} roomId - room on the ACTIVE map.
+   * @param {Array<object>} rules - the room's complete rule list (from `_buildRulePayload`).
+   */
+  proto.saveRoomRules = async function (roomId, rules) {
+    return this.updateRoomFields(roomId, {
+      rules: Array.isArray(rules) ? rules : [],
+    });
+  };
+
+  /**
    * Clear the whole access graph for the active map.
    *
    * RELEASING THE DOCK CLEARS THE GRAPH (Chris, 2026-08-04): the tree is rooted

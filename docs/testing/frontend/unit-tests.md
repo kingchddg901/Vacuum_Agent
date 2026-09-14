@@ -189,6 +189,7 @@ of these cases red while every no-toast control stays green.
 | File | Cases | What it guards |
 |------|------:|----------------|
 | `controllers/learning-controller-progress.test.mjs` | 19 | `getRoomProgressSnapshot` (per-room progress flags/percent) and `_computeProgressPercent`. |
+| `bindings/room-rules-save-reaches-service.test.mjs` | 6 | `RRS-*` — **reachability**: the rule save/delete bindings actually reach `saveRoomRules`, which did not exist (call-only since `eae291fa`), so both sites evaluated to `undefined` and the drawer closed with no error while the rule vanished. Also pins that an EMPTY list is sent (deleting the last rule is a clear, not a no-op) and that a refusal keeps the drawer open. `room-rules-payload.test.mjs` could not catch this — it proves the payload is built, never that it reaches a sink. |
 | `bindings/maintenance-clock-response-unwrap.test.mjs` | 6 | `MCU-*` — the maintenance-COUNTER picker's two service calls unwrap `.response`. The picker rendered "no suitable counter found" over a list of six because it read `result.candidates` off the envelope; the save path additionally treats `{status:"error"}` as a refusal rather than a save that took. |
 | `bindings/room-rules-payload.test.mjs` | 9 | `_buildRulePayload` — rule draft → persisted payload (modifier/blocker action, clean_passes 1\|2 gate, fan-out filter). |
 | `bindings/setup-reconciliation.test.mjs` | 9 | `CARD-7`/RP-019 — the reconcile-room Update/Dismiss bindings (bare-proto mixin + recorded `_onAll` handlers). |

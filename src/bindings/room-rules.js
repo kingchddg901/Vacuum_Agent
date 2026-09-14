@@ -75,7 +75,7 @@ export function applyRoomRulesBindings(proto) {
         const updated = existing.filter((rule) => String(rule.id) !== String(ruleId));
 
         try {
-          await this.card._actions.saveRoomRules?.(room.mapId, room.id, updated);
+          await this.card._actions.saveRoomRules?.(room.id, updated);
           await this.card.refreshDashboardSnapshot?.();
           this.card._scheduleRender();
         } catch (err) {
@@ -224,7 +224,7 @@ export function applyRoomRulesBindings(proto) {
         }
 
         try {
-          const result = await this.card._actions.saveRoomRules?.(room.mapId, room.id, updated);
+          const result = await this.card._actions.saveRoomRules?.(room.id, updated);
 
           if (result?.ok === false || result?.updated === false) {
             const message =
