@@ -28,7 +28,7 @@ Each `_bind*` lives in its own module, mixed onto `VacuumCardBindings.prototype`
 `apply*Bindings(...)` calls at `bindings/index.js#CNYGJAD4` — with **one exception**: `_bindToasts` is
 defined **inline** in `bindings/index.js::_bindToasts` (there is no `toasts.js` module and no `applyToastsBindings`
 import). Modules that own a large region sub-bind
-further (e.g. `_bindMap` → 17 sub-binders at `bindings/map.js:81-97`; `_bindRoomEditor` → 5 at
+further (e.g. `_bindMap` → 17 sub-binders at `bindings/map.js::_bindMap`; `_bindRoomEditor` → 5 at
 `bindings/room-editor.js:22-26`).
 
 | Module (`src/bindings/`) | `_bind*` entry | Region / view it wires |

@@ -24,7 +24,7 @@ integration rather than talking to hardware — and like Roborock, nothing in th
 during a clean.
 
 Capability flags are **the model profile OR-ed with live entity presence**
-(`adapters/config_schema.py::detect_capabilities`), so the registered config reflects this
+(`core/capabilities.py::detect_capabilities`), so the registered config reflects this
 installation's actual HA surface rather than the catalog's opinion of the model. That matters more
 here than it did for Roborock, because the catalog is thin (§6).
 
@@ -122,7 +122,7 @@ Roborock was a second.
 
 ---
 
-## 6. Capabilities fail closed, and one of them is a known false
+## 6. Capabilities fail closed, and the one that looked like a false CAN'T is not
 
 `adapters/dreame/model_catalog.py::DEFAULT_PROFILE` is what an unrecognised Dreame gets, and it is
 deliberately asymmetric. Mop and station flags default **True**, because they degrade safely — a
@@ -138,11 +138,26 @@ model as hardware is confirmed. `MODEL_PROFILES ⊆ DREAME_MODEL_REGIMES` is ass
 the capability source and the guide/name source cannot drift — the two-table lesson from 24 §7,
 applied before it could bite.
 
-> **`supports_edge_mopping` is hardcoded `False` with a comment saying some Dreame models have
-> it.** That is a *false CAN'T*, and this brand's own working rule is that a false CAN'T hides a
-> capability silently and permanently for every user of the brand, where a false CAN merely
-> surfaces a control that errors. It is the one place in the package where the deferral is
-> invisible from the outside. Resolving it needs per-model hardware confirmation.
+**`supports_edge_mopping` is `False`, and it is worth knowing why**, because the comment that used
+to explain it was the more interesting defect. It read "left False until confirmed per-model
+(PHASE 3, hardware)" — an unconfirmed deferral, which is the shape of a *false CAN'T*: a capability
+hidden silently and permanently for every user of the brand, with nothing ever contradicting it.
+
+Measured on `vacuum.robin`, 2026-09-13, and the answer is the opposite of a deferral. The hardware
+is plainly there — `switch.<obj>_mop_extend` and `select.<obj>_mop_extend_frequency` both exist.
+But **this flag gates a PER-ROOM control**, and both of those entities are **global**. The per-room
+surface upstream exposes is exactly eleven kinds:
+
+```
+cleaning_mode  cleaning_route  cleaning_times  floor_material  floor_material_direction
+mop_pad_humidity  name  order  suction_level  visibility  wetness_level
+```
+
+No mop-extend among them. So `False` is a real "no" with a **mechanism** — the thing a real no
+requires — rather than an absence of sightings. What would change it is upstream exposing a
+`room_<n>_mop_extend`; a per-model profile flag would not, because the gap is per-room exposure and
+not model hardware. The vocabulary file previously advised exactly that per-model declaration, and
+that advice is now marked superseded rather than left to be acted on.
 
 Five more deferrals are marked `PHASE 3` / `PHASE 4` in `adapter.py` and carry conservative values.
 

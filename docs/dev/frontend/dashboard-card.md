@@ -230,7 +230,7 @@ thing that triggers the loader).
 - **`max_clean_passes`** caps the passes chips (Eufy 2, Roborock 3); `passes_is_global`
   changes per-room vs whole-run semantics.
 - **Two cards on one dashboard** — ✅ **pan/zoom** is keyed per *context* (panel vs card)
-  + per device (`_mapTransformKey` → `evcc_map_xform_<ctx>_<vac>`, `src/state/map.js:1926-1929`;
+  + per device (`_mapTransformKey` → `evcc_map_xform_<ctx>_<vac>`, `src/state/map.js::_mapTransformKey`;
   `_mapCtx` on the state), so the panel and a dashboard card keep independent map
   *viewports*. ⚠️ **Moved room-name labels are NOT context-keyed** — `_labelStorageKey`
   (`src/state/map.js:893-897`) is vacuum + active map + kind only, so a dragged label
@@ -242,7 +242,7 @@ thing that triggers the loader).
   operate-on-rooms site (render, room toggle, `_startContext`, `_turnOffAllRooms`, room-by-id
   lookup) uses the filtered set, which also prevents a Start from targeting an off-map room
   when two maps share `room_id` values. Unfiltered `_rooms()` survives only in the
-  `_activeMapId()` fallback (`src/cards/dashboard-card.js:292`). The re-render guard is
+  `_activeMapId()` fallback (`src/cards/dashboard-card.js::_activeMapId`). The re-render guard is
   `_shouldRender(prev, hass)` (`:210`, called from `set hass` at `:196`) and it does not
   use `_rooms()` at all — it walks `roomSwitchesFor()` directly. (There is no
   `shouldUpdate` method; the stale name survives only in the code comment at `:281`.)

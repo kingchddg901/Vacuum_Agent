@@ -221,12 +221,12 @@ ROOM_PROFILES: dict[str, dict] = {
         "water_level": "26",  # upper end of the 1..32 wetness scale (toward app "Wet")
         "clean_intensity": "deep",
         "clean_passes": 2,
-        # Declared False to match the brand-wide position, NOT because every
-        # Dreame lacks the hardware. Follow the Roborock precedent recorded at
-        # adapters/roborock/vocabulary.py: an edge/lift capability is a PER-MODEL
-        # fact, and freezing it at brand level then gating the card on it hides
-        # the control on every model including those that have it. Add a real
-        # per-model declaration before turning this on anywhere.
+        # False because Dreame exposes mop extend GLOBALLY and this field is
+        # PER-ROOM. Measured on vacuum.robin 2026-09-13: switch.<obj>_mop_extend
+        # exists, but the per-room surface has no mop-extend member. The earlier
+        # note here advised adding a per-MODEL declaration before turning this on;
+        # that would not help, because the gap is per-room exposure rather than
+        # model hardware. See adapters/dreame/adapter.py for the full measurement.
         "edge_mopping": False,
         "mop_required": True,
     },

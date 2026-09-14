@@ -1,39 +1,43 @@
 """
-Model number → name and guide family catalog for the Eufy adapter.
+Model number → display name catalog for the Eufy adapter.
 
 UPKEEP_MODEL_NAMES maps Eufy device model numbers to human-readable display
-names shown in the UI and upkeep guide headers.
+names shown in the UI and upkeep guide headers. It is the only dict this module
+declares.
 
-UPKEEP_MODEL_GUIDE_FAMILIES maps model numbers to a guide family key. Multiple
-models share one family when their upkeep instructions are identical. This
-allows the guide library to be compact without duplicating entries.
-
-UPKEEP_GUIDE_FAMILY_NAMES maps guide family keys to the display name shown
-in the upkeep guide header for that family group.
-
-A port to a different brand replaces all three dicts with the equivalent
-model numbers and display names for that brand.
+⚠ THIS DOCSTRING USED TO DESCRIBE THREE DICTS. ``UPKEEP_MODEL_GUIDE_FAMILIES``
+and ``UPKEEP_GUIDE_FAMILY_NAMES`` were deleted in c2725f6a when Eufy was ported
+to the shared regime → i18n-key guide system, and the guide family concept went
+with them: guidance is now routed by REGIME (``upkeep_keys.py`` over
+``upkeep_regimes.py``, the same three measured fields every brand uses), and the
+backend holds no guide words at all. The docstring outlived the structure it
+described, which is why a doc citing ``UPKEEP_MODEL_GUIDE_FAMILIES`` still read
+as current.
 """
 
-# ⚠ THE THREE EUFY CATALOGS DO NOT DESCRIBE THE SAME DEVICE SET, and none of them
-# says so. Measured 2026-08-23 (by AST, not grep — a regex over these files counts
-# nested keys and gets it wrong):
+# ⚠ THE EUFY CATALOGS DO NOT DESCRIBE THE SAME DEVICE SET, and none of them says so.
+# Re-measured 2026-09-13 after the regime port (by AST, not grep — a regex over these
+# files counts nested keys and gets it wrong):
 #
-#   MODEL_CODE_FAMILIES (model_catalog.py)   22 codes
-#   UPKEEP_MODEL_NAMES  (here)               13
-#   UPKEEP_MODEL_GUIDE_FAMILIES (here)       12
-#   WATER_MODEL_CONFIGS (water_config.py)     1  — "T2351" only
+#   MODEL_CODE_FAMILIES    (model_catalog.py)   22 codes
+#   UPKEEP_MODEL_NAMES     (here)               13
+#   EUFY_MODEL_KEY_REGIMES (upkeep_keys.py)     13
+#   WATER_MODEL_CONFIGS    (water_config.py)     1  — "T2351" only
 #
-#   • 9 of the 22 codes have NO upkeep name at all.
-#   • "T2352" has a NAME here and NO guide row below — a model that presents a
-#     display name with no guide behind it.
+#   • 9 of the 22 codes still have NO upkeep name at all.
 #   • every Eufy except T2351 takes core's generic water flow rate.
+#
+# WHAT THE REGIME PORT FIXED: the old third catalog, UPKEEP_MODEL_GUIDE_FAMILIES, held
+# 12 rows against these 13 names, so "T2352" carried a display name with no guide behind
+# it. The regime table replaced it and the two now agree EXACTLY — 0 models named here
+# without a regime row, 0 the other way. That drift class is closed; the name-vs-code gap
+# above is not.
 #
 # Every one of those degradations is reported honestly at runtime rather than faked,
 # which is why none of it is a bug. The HAZARD is a reader: a catalog comment saying
-# "dock-action entities confirmed" reads as SUPPORTED, when what it confirms is that
-# ONE of three catalogs was updated. Adding a code here does not give it a guide, and
-# adding a guide does not give it water rates. Check all three when adding a model.
+# "dock-action entities confirmed" reads as SUPPORTED, when what it confirms is that ONE
+# catalog was updated. Adding a code here does not give it water rates. Check each when
+# adding a model.
 UPKEEP_MODEL_NAMES: dict[str, str] = {
     "T2351": "Robovac X10 Pro Omni",
     "T2352": "Robovac Omni E28",

@@ -283,15 +283,22 @@ fixed model-family membership tests, and `adapters/eufy/model_catalog.py` maps c
 *names* with no capability fields at all. Roborock's catalog does carry per-model capability rows,
 which is presumably where the sentence came from. Declared here today, it would be ignored.
 
-**The three model catalogs do not describe the same device set.** A code can appear in
-`adapters/eufy/model_catalog.py::MODEL_CODE_FAMILIES` and in
-`adapters/eufy/upkeep_catalog.py::UPKEEP_MODEL_NAMES` while having no row in
-`adapters/eufy/upkeep_catalog.py::UPKEEP_MODEL_GUIDE_FAMILIES` — a model name with no guide behind
-it. Nine of twenty-two codes have no upkeep name at all, and
+**The model catalogs do not describe the same device set.** Re-measured 2026-09-13:
+`adapters/eufy/model_catalog.py::MODEL_CODE_FAMILIES` holds 22 codes,
+`adapters/eufy/upkeep_catalog.py::UPKEEP_MODEL_NAMES` holds 13, and
 `adapters/eufy/water_config.py::WATER_MODEL_CONFIGS` contains exactly one model, so every other
-Eufy takes core's generic flow rate. Every degradation is reported honestly rather than faked; the
-hazard is that a catalog comment reading "dock-action entities confirmed" reads as *supported*
-when one of three catalogs was updated.
+Eufy takes core's generic flow rate. **Nine of the twenty-two codes have no upkeep name at all.**
+Every degradation is reported honestly rather than faked; the hazard is that a catalog comment
+reading "dock-action entities confirmed" reads as *supported* when one catalog was updated.
+
+This paragraph used to name a third catalog, `UPKEEP_MODEL_GUIDE_FAMILIES`, and cite it as the
+place a model could have a name with no guide behind it — 12 guide rows against 13 names, with
+"T2352" the odd one out. That dict was deleted in `c2725f6a` when Eufy was ported to the shared
+regime → i18n-key system, and the regime table `adapters/eufy/upkeep_regimes.py::EUFY_MODEL_REGIMES` replaced it
+with 13 rows that agree with the name catalog **exactly**, in both directions (it reaches the
+card through `adapters/eufy/upkeep_keys.py`, which unpacks it via the shared emitter). So that particular
+drift class is closed. The name-versus-code gap above is not, and is the one still worth checking
+when adding a model.
 
 **A retired premise is cited under the live name.** A comment in `adapters/eufy/room_profiles.py`
 explains that two retired cleaning-path values need no alias because the store repair resets them

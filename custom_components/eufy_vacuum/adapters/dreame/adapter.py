@@ -122,8 +122,25 @@ def register_dreame_adapter_for_vacuum(
         "supports_goto": profile.get("has_path_control", False),
         # Declared False in the capabilities block below too — it must ALSO be a hint,
         # because the room-payload gate reads the runtime-detected capabilities payload,
-        # not the config block (the D18 lesson from Roborock). Dreame HAS edge mopping on
-        # some models; left False until confirmed per-model (PHASE 3, hardware).
+        # not the config block (the D18 lesson from Roborock).
+        #
+        # FALSE FOR A MECHANISM, NOT FOR WANT OF CONFIRMATION. This flag gates a PER-ROOM
+        # control, and Dreame has no per-room edge setting to bind it to. Measured on
+        # vacuum.robin 2026-09-13: the hardware is plainly there — `switch.<obj>_mop_extend`
+        # and `select.<obj>_mop_extend_frequency` — but BOTH are GLOBAL, and the per-room
+        # surface upstream exposes is exactly eleven kinds (cleaning_mode, cleaning_route,
+        # cleaning_times, floor_material, floor_material_direction, mop_pad_humidity, name,
+        # order, suction_level, visibility, wetness_level) with no mop-extend among them.
+        #
+        # So this is a real "no" with a stated mechanism rather than an absence of sightings
+        # — the distinction the brand's own working rule turns on. The earlier comment here
+        # said "left False until confirmed per-model (PHASE 3, hardware)", which framed a
+        # permanent architectural fact as an unconfirmed deferral: the shape of a false
+        # CAN'T, which hides a capability silently and forever.
+        #
+        # WHAT WOULD CHANGE IT: upstream exposing a per-room mop-extend entity (a
+        # `room_<n>_mop_extend` alongside the eleven above). A per-MODEL profile flag would
+        # not help — the gap is per-room exposure, not model hardware.
         "supports_edge_mopping": False,
         # Authoritative + defaults True: to DISABLE, the key must be PRESENT as False
         # (capabilities._hint_wins). No zone-clean entity is exposed; zone is a service,
@@ -264,6 +281,7 @@ def register_dreame_adapter_for_vacuum(
             # below declares the service; enabled by default (standard on novel-protocol
             # Dreames), a model without it overrides has_path_control=False in its profile.
             "supports_path_control": profile.get("has_path_control", True),
+            # Global-only on this brand; see the hint above for the measurement.
             "supports_edge_mopping": False,
             "supports_zone_clean": caps.get("supports_zone_clean", False),
             # dreame_vacuum.vacuum_clean_zone accepts at most 10 zones per call (confirmed
