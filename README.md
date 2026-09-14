@@ -119,6 +119,10 @@ The Roborock adapter (tested on the **S6**) brings the stock integration up to p
 
 Dreame arrives through [dreame-vacuum by Tasshack](https://github.com/Tasshack/dreame-vacuum), and the map is the part that works differently. Eufy's rooms are inferred from map screenshots and Roborock's arrive as vendor rooms; Dreame's arrive as **encoded map data on a camera attribute**, which Vacuum Agent decodes itself — so you get **true per-room areas**, furniture, and live robot heading rather than an approximation.
 
+![Dreame L10s Ultra Gen2 — a decoded map with true per-room areas, furniture and floor materials, room names drawn by Vacuum Agent](docs/screenshots/dreame-rooms-map.png)
+
+*Dreame's map, decoded rather than screenshotted: true per-room areas, furniture, and live robot heading — with room labels drawn by Vacuum Agent and the baked-in ones switched off upstream.*
+
 **Maintenance comes from Dreame's own manuals.** 700 models are routed to a maintenance profile built from the manufacturer's published care instructions rather than guessed at, and the guidance is translated into all eighteen languages.
 
 > **Set your map up in the Dreame integration first.** A Dreame that has no saved map yet is the one case that misbehaves during first setup; a mapped device is unaffected. Run a mapping pass, let it save, then add the vacuum here — or if you hit it, finish mapping and reload the integration.

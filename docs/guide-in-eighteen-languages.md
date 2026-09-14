@@ -4,8 +4,8 @@ The filter's care card, in every language Vacuum Agent ships. It is here rather 
 the README because eighteen screenshots is a gallery, not an argument.
 
 **This is the deep end of the translation work, not the shallow one.** Chips and buttons
-are single words with obvious equivalents. This card is *prose* — five ordered care steps
-and two warnings — plus a health readout, an editable interval with its own units, and a
+are single words with obvious equivalents. This card is *prose* — six ordered care steps
+and three warnings — plus a health readout, an editable interval with its own units, and a
 reset. Getting it right means translating instructions someone follows with the machine
 in front of them.
 
@@ -15,6 +15,12 @@ it is only string substitution:
 * **Turkish puts the percent sign first.** English reads `100% remaining`; Turkish reads
   `%100 kaldı`. The sign precedes the number, which no amount of `{value}%` templating
   gets right on its own.
+* **French puts a space before it, and is the only one that does.** English reads
+  `100% remaining`; French reads `100 % restants`, and the unit spaces too — `Par défaut 20 h
+  · Max 120 h` against German's `Standard 20h`. Of the seventeen translated packs, French is
+  the only `{percent} %` and Turkish the only `%{percent}`; the other fifteen are `{percent}%`.
+  Two languages, unique in opposite directions, and the space is authored into the string
+  because no shared template can add it for one language alone.
 * **The hour unit localises, not just the words around it.** English `Default 20h · Max
   120h` becomes Turkish `Varsayılan 20sa · En fazla 120sa` (*saat*) and Arabic
   `الافتراضي 20س · الحد الأقصى 120س` (*ساعة*).
