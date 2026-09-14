@@ -78,6 +78,48 @@ If the integration has calculated an available clean tank volume, the card also 
 
     This card only reflects a real level on vacuums with a base-station water reservoir. On no-station models (such as the Roborock S6) there is no reservoir to read, so the card stays at Unknown or Empty.
 
+### Which panels you see
+
+The panels you get are decided by **your model**, not your brand. Each model is typed by three
+measured facts — what kind of mop it takes, what its dock does, and how many tanks it has — and only
+the parts that follow from those appear. A robot with no washing station is not offered a Cleaning
+Tray; a vacuum-only model is not offered a mop.
+
+So if an item you used to see is gone after an update, that is the gate working: your machine does
+not have that part. Its job has not disappeared — it is usually covered by one of the panels that
+remain.
+
+!!! note "If we don't recognise your model"
+
+    A model we cannot place keeps every item the device itself reports a figure for, and drops the
+    guide-only ones. That is deliberate: a reading your robot is actively publishing is real
+    whatever the model turns out to be, while a guide-only item would be invented.
+
+### Choosing the counter your maintenance is measured against
+
+Some parts count themselves — the device publishes a figure and we read it. Others do not: a mop
+cloth, a cleaning tray, the caster wheel. Those are measured against **one running-time counter you
+choose**, per vacuum.
+
+At the top right of the **Maintenance Items** panel there is a link showing the counter in use. It
+is a **warning colour until you pick one**, and fades once set, naming your choice. Click it to open
+the picker.
+
+The picker lists the running-time sensors on that vacuum with their current readings, and marks the
+one currently in use. Pick the one that measures **how long the robot has run in total** — not a
+per-job timer, which resets every clean. The two often differ by a single word in the name, which is
+why the picker shows the full entity id under each name.
+
+!!! warning "Counters that only count one part"
+
+    Some candidates are a *single part's* countdown rather than a whole-machine total. The picker
+    marks these. They work, but they stop at zero: if that one part goes overdue and is not reset,
+    the counter freezes and every item measured against it stops advancing too. A whole-machine
+    running-time sensor is the safer choice.
+
+Until a counter is picked, items that depend on one show a full bar that never moves — which is why
+the link is coloured to get your attention.
+
 ### Item detail modal
 
 Clicking any maintenance or replacement card opens a modal with full detail for that item.
@@ -93,7 +135,7 @@ Below that:
 
 #### Adjusting the Interval
 
-The **Interval** section shows the current maintenance interval (in hours) for the item along with the manufacturer-recommended default and the maximum allowed override. Enter a new value and click **Save** to persist it; click **Default** to put the manufacturer's recommended interval back into the input (you still need to click **Save** to commit).
+The **Interval** section shows the current maintenance interval (in hours) for the item along with the recommended default and the maximum allowed override. **Every item has one**, including the ones the manufacturer publishes no service life for — those carry a sensible starting point and a range rather than nothing, because the whole point is that you can set them. Enter a new value and click **Save** to persist it; click **Default** to put the manufacturer's recommended interval back into the input (you still need to click **Save** to commit).
 
 Intervals are stored per vacuum per component and persist across restarts. The value is shared with the matching maintenance-interval number entity for that component (e.g. `number.<vacuum>_<component>_maintenance_interval`, with the exact id derived by Home Assistant from the device and component names), so changes made on the card show up on the entity (and the reverse). Editing the interval does not reset the counter — the new value takes effect immediately and the "remaining" figure recalculates from current usage.
 

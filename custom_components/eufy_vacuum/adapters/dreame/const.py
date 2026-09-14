@@ -7,10 +7,9 @@ model string + live entities + ``model_catalog`` (the Eufy/Roborock technique), 
 one adapter covers the L10s Ultra Gen 2 today and future Dreame/MOVA models without
 a new adapter_id.
 
-⚠ NOT WIRED on master. There is deliberately no ``BRAND_REGISTRARS`` row for Dreame;
-that row is the release and it is gated on a RELEASED upstream ``dreame_vacuum`` build
-carrying Tasshack #1707. These constants are inert until a registrar row selects the
-adapter — see ``adapters/dreame/__init__.py``.
+LIVE since 2026-09-13 (v2.2.0): the ``BRAND_REGISTRARS`` row that reaches this package
+is committed. These constants were inert until that row landed — see
+``adapters/dreame/__init__.py`` for the gate and why it was retired.
 """
 
 from __future__ import annotations

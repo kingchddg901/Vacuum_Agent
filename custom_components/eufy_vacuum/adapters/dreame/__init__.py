@@ -1,13 +1,16 @@
-"""Dreame adapter package — DATA ONLY, deliberately not wired.
+"""Dreame adapter package — LIVE since 2026-09-13 (v2.2.0).
 
-⚠ THERE IS NO ``BRAND_REGISTRARS`` ROW FOR DREAME, AND ADDING ONE IS THE RELEASE.
-That row is the switch. The adapter is gated on a RELEASED upstream build of the
-`dreame_vacuum` custom integration carrying Tasshack issue #1707; our #1742 is closed
-as a duplicate and reads green, which it is not. Until that lands, everything here is
-inert reference data that ships without changing behaviour for anyone.
+The ``BRAND_REGISTRARS`` row in ``adapters/brands.py`` is what reaches this package, and
+it was deliberately withheld through all 131 commits of development: until it landed the
+whole package was inert reference data that shipped without changing behaviour for anyone.
+That row is now present, and ``test_dreame_has_a_brand_registrar_row`` [DUK-1] asserts it
+stays — a dropped row is the SILENT direction, since nothing else imports this package.
 
-What lives here is the half that does not depend on the gate: the upkeep guides and the
-model metadata. The driving logic (`adapter.py`) does.
+The withholding condition was recorded as "a RELEASED upstream build carrying Tasshack
+#1707". It was retired by measurement on 2026-08-30: only an UNMAPPED first setup is
+bitten, a mapped device never is, so the remedy is a setup note — map first, then reload —
+which shipped with the user guide. Do NOT re-derive the gate from tracker #1742; it is
+closed as a duplicate and reads green, which it is not.
 
 The guides are i18n KEY LISTS routed by REGIME (`upkeep_keys.py` over
 `upkeep_regimes.py`), not prose routed by guide family. The backend holds no guide words

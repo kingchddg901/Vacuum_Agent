@@ -2,9 +2,9 @@
 
 ## What is this?
 
-eufy_vacuum is a Home Assistant custom integration paired with a Lovelace card called **eufy-vacuum-command-center**. Together they give you room-level control over your robot vacuum directly from your HA dashboard. It's a multi-brand integration — it supports **Eufy** and **Roborock** vacuums today through an adapter system, and is built to extend to other brands.
+eufy_vacuum is a Home Assistant custom integration paired with a Lovelace card called **eufy-vacuum-command-center**. Together they give you room-level control over your robot vacuum directly from your HA dashboard. It's a multi-brand integration — it supports **Eufy**, **Roborock** and **Dreame** vacuums today through an adapter system, and is built to extend to other brands.
 
-The integration has been tested on the **Eufy X10 Pro Omni** and the **Roborock S6**. Other models of either brand may work but aren't officially supported. Because capabilities differ by brand and model, some tabs and controls described in this guide appear, are hidden, or read differently depending on your vacuum — those differences are called out inline as you go.
+The integration has been tested on the **Eufy X10 Pro Omni**, the **Roborock S6** and the **Dreame L10s Ultra Gen2**. Other models of any of the three may work but aren't officially supported. Dreame works through the community [dreame-vacuum](https://github.com/Tasshack/dreame-vacuum) integration, which you set up first — see [Setup](11-setup.md). Because capabilities differ by brand and model, some tabs and controls described in this guide appear, are hidden, or read differently depending on your vacuum — those differences are called out inline as you go.
 
 ## Will my Eufy vacuum work?
 

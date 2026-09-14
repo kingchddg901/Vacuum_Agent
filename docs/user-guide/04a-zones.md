@@ -10,8 +10,10 @@ There are three ways to use a zone, from most casual to most deliberate:
 
 The first is a quick tool. The second and third are what turn zone cleaning from a one-off into something the card remembers, sequences, and learns.
 
+There is also **go-to**, which is not a zone at all: it sends the robot to a single point and leaves it there, without cleaning. It is covered at the end.
+
 !!! note "Where zones work"
-    Zone cleaning needs a device-accurate map backdrop — either the **live map** image or the rendered **▦** room map — on a brand that supports it: **Eufy** (eufy-clean v1.11.1+) and **Roborock** (the S6, and likely other models, through the stock integration). You can draw at any map rotation. Right after you **switch maps**, drawing is briefly paused until the robot moves and re-localizes on the new map (a banner explains and offers an override) — drawing before then would land the box in the old map's coordinates. Per-clean limits are brand-specific — see [Brand support and limits](#brand-support-and-limits) at the end.
+    Zone cleaning needs a device-accurate map backdrop — either the **live map** image or the rendered **▦** room map — on a brand that supports it: **Eufy** (eufy-clean v1.11.1+), **Roborock** (the S6, and likely other models, through the stock integration) and **Dreame** (on models whose geometry we have verified against real hardware — see the table at the end). You can draw at any map rotation. Right after you **switch maps**, drawing is briefly paused until the robot moves and re-localizes on the new map (a banner explains and offers an override) — drawing before then would land the box in the old map's coordinates. Per-clean limits are brand-specific — see [Brand support and limits](#brand-support-and-limits) at the end.
 
 ---
 
@@ -91,13 +93,52 @@ Once you run a saved zone as a step, the card **learns how long it takes** — a
 
 ---
 
+## Send the robot to a spot (go-to)
+
+Sometimes you don't want an area cleaned — you want the robot *over there*. Go-to sends it to a
+single point and leaves it there.
+
+Tap the go-to control on the map, then tap where you want it to go. The robot drives there and
+stops; it does not start cleaning, and it does not return to the dock on its own.
+
+It is useful for the things a room clean can't express: parking the robot out of the way before
+guests arrive, bringing it somewhere you can reach it, or driving it to a spot you're about to
+clean manually so you can see it has localized correctly.
+
+!!! note "Where go-to works"
+
+    Go-to appears only on vacuums that support it, so if you don't see the control your model
+    doesn't offer it. On Dreame it is gated the same way zone cleaning is — verified models only,
+    for the same coordinate-frame reason (see [Brand support and limits](#brand-support-and-limits)).
+
+Automations can do the same thing with `eufy_vacuum.goto` — see
+[Services](../advanced/03-services.md).
+
+---
+
 ## Brand support and limits
 
-| | Eufy | Roborock |
-|---|---|---|
-| Zone cleaning | eufy-clean v1.11.1+ | S6 (and likely others) via the stock integration |
-| Zones per clean | up to **10** | up to **5** |
-| Per-zone size | ~0.5–10 m per side | **1 ft² – 32.8 ft²** each |
-| Draw over | live map or the ▦ rendered map | the ▦ rendered map (the **Draw a zone** button appears once it's on) |
+| | Eufy | Roborock | Dreame |
+|---|---|---|---|
+| Zone cleaning | eufy-clean v1.11.1+ | S6 (and likely others) via the stock integration | verified models only — currently the **L10s Ultra Gen2** |
+| Zones per clean | up to **10** | up to **5** | up to **10** |
+| Per-zone size | ~0.5–10 m per side | **1 ft² – 32.8 ft²** each | no separate size cap |
+| Repeat passes | — | — | up to **2** |
+| Draw over | live map or the ▦ rendered map | the ▦ rendered map (the **Draw a zone** button appears once it's on) | live map or the ▦ rendered map |
+
+!!! note "Dreame: why your model may not offer it"
+
+    A drawn box has to be inverted into the robot's own coordinate frame, and getting that wrong
+    sends the robot to the wrong place. So zone cleaning and go-to start **switched off** on any
+    Dreame model whose geometry has not been checked against real hardware — everything else in the
+    card still works. It opens up per model as hardware is confirmed; open an issue if you have one
+    you would like checked.
+
+!!! note "Dreame: a zone clean uses your global settings"
+
+    On Dreame a zone clean is a *global* clean — the device applies the settings it would use for a
+    whole-house run, not your per-room ones. The card sets those globals for the zone and **puts
+    them all back afterwards**, including the per-room custom-cleaning switch it has to turn off to
+    write them. Your next normal clean is unaffected.
 
 The card enforces the count cap as you draw — it stops the draw once you hit the per-clean zone limit. The size limit isn't checked at draw or save time; it's checked when you actually clean the zone, and an out-of-size zone is refused then with a message. When in doubt, draw a modest box; you can always save several small zones and clean them as a batch.

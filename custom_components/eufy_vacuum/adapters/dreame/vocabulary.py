@@ -1,8 +1,7 @@
-"""Dreame vocabulary — DATA ONLY, deliberately not wired.
+"""Dreame vocabulary — LIVE since 2026-09-13 (v2.2.0).
 
-Sibling of ``upkeep_keys.py`` and gated the same way: see the package
-docstring in ``__init__.py``. There is no ``BRAND_REGISTRARS`` row for Dreame and
-no ``adapter.py``; nothing here is reachable at runtime. It ships inert.
+Sibling of ``upkeep_keys.py``; see the package docstring in ``__init__.py`` for the
+release switch this waited behind and why it was retired. Reachable at runtime now.
 
 ⚠ EVERY VALUE IN THIS FILE WAS READ OFF A LIVE DEVICE, NOT A MANUAL.
 Captured 2026-08-26 from ``vacuum.robin`` (RLH-class, unique_id

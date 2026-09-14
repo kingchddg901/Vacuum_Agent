@@ -70,6 +70,20 @@ Dispatches an ad-hoc free-form zone clean — draw one or more boxes on the live
 
 Supports response.
 
+### `goto`
+
+Sends the robot to a single point on the live map and stops — a cruise-to, not a clean. Fire-and-forget: it carries no room IDs, does not touch the active job, queue or learning store, and produces no completion event. The robot stays where it lands; it does not return to the dock on its own.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `point` | Yes | Normalized `[nx, ny]`, each `0–1` of the live-map image with a top-left origin. Converted to the device's world coordinates at dispatch, and **refused** if that projection cannot be validated — a point that cannot be placed confidently is not sent. |
+| `map_id` | No | Auto-resolved from the active map when omitted. |
+
+Requires a provider that supports path control (capability `supports_path_control`). On Dreame this is gated per model — see [Zones](../user-guide/04a-zones.md#brand-support-and-limits).
+
+Supports response.
+
 ### Saved Zones
 
 Named, persisted clean regions stored per map. Unlike `start_zone_clean` (ad-hoc, nothing persisted), a saved zone keeps its geometry and can be re-cleaned by ID. These six services create, rename, delete, file, and clean saved zones. Every one requires `map_id` explicitly — it is **not** auto-resolved from the active map — and all support response.
@@ -1299,7 +1313,7 @@ Records that a maintenance component has been cleaned or replaced, resetting its
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `component` | Yes | Component ID as declared in the adapter's `maintenance_components` block (e.g. `"side_brush"`, `"filter"`). Valid values: `filter`, `sensor`, `side_brush`, `rolling_brush`, `mopping_cloth`, `cleaning_tray`, `swivel_wheel`. |
+| `component` | Yes | Component ID as declared in the adapter's `maintenance_components` block (e.g. `"side_brush"`, `"filter"`). Shared by all three brands: `filter`, `sensor`, `side_brush`, `main_brush`, `mop`, `omnidirectional_wheel`, `cleaning_tray`. Dreame adds `mop_pad_holders_dock`. Which of these exist on a given vacuum depends on its model — see `get_upkeep_snapshot`. **Renamed in 2.2.0:** `mopping_cloth` is now `mop`, `swivel_wheel` is now `omnidirectional_wheel` and `rolling_brush` is now `main_brush`; stored intervals and the backing entities were migrated, but an automation passing an old id will not match. |
 
 Supports response.
 
@@ -1312,6 +1326,22 @@ Persists a custom maintenance interval for one component, overriding the adapter
 | `vacuum_entity_id` | Yes | |
 | `component` | Yes | Component ID. |
 | `interval_hours` | Yes | Replacement interval in hours. The backend handler trusts its caller and does **not** clamp this against any declared maximum — range validation against the adapter's default/max is done card-side in the UI before the service is called. (The backing number entity does clamp to its own min/max.) |
+
+Supports response.
+
+### `get_maintenance_source_candidates`
+
+Lists the entities that could back this vacuum's **maintenance counter** — the running-time figure that components the device does not count itself (a mop cloth, a cleaning tray, the caster wheel) are measured against. This is what the card's counter picker reads.
+
+Computed live rather than served from a snapshot: it walks the entity registry and reads a state per sibling entity, so the list reflects what exists right now.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+
+Returns `{"candidates": [...]}`. Each candidate carries `entity_id`, `name`, `state`, `unit`, `is_current` (whether it is the one in use), `bound_components` (components this entity already counts, empty for a whole-machine total) and `caveat_key` — set when the candidate counts only a single part and therefore **stops at zero** until that part is reset, freezing every component measured against it.
+
+Write the choice with `set_entity_override` using role `maintenance_clock`.
 
 Supports response.
 

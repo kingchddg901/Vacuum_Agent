@@ -8,7 +8,7 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **411** · consumer `var()` uses **2356**
+- Catalog **411** · consumer `var()` uses **2379**
 - **277** with a STATIC consumer · **134** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
 - `var()` → non-catalog tokens **12** · dynamic `var(--evcc-…${…})` sites **3**
 
@@ -16,7 +16,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 > - **84** `animal` — `src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`
 > - **38** `floor-material` — `src/renderers/floor-texture-surface.js` and `src/bindings/map.js` build `--evcc-floor-${type}-…` from the material key
 > - **12** `room-fill` — `src/cards/map-room-color.js` — `roomFillTokenName(i)` builds `--evcc-room-fill-N`, 1-based and wrapping at 12 (contract pinned by MRC-1..MRC-7)
-- **Token CSS coverage 98.7%** — 1416/1434 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
+- **Token CSS coverage 98.8%** — 1434/1452 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
 
 ---
 
@@ -95,7 +95,13 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/learning.js:373 (color)
 - src/styles/learning.js:499
 - src/styles/learning.js:505
-- src/styles/maintenance.js:285
+- src/styles/maintenance.js:182
+- src/styles/maintenance.js:186
+- src/styles/maintenance.js:196
+- src/styles/maintenance.js:197
+- src/styles/maintenance.js:235 (color)
+- src/styles/maintenance.js:350
+- src/styles/maintenance.js:449
 - src/styles/map.js:363 (background)
 - src/styles/map.js:364 (border-color)
 - src/styles/map.js:405 (background)
@@ -304,9 +310,12 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/learning.js:326 (color)
 - src/styles/learning.js:716 (color)
 - src/styles/learning.js:759 (color)
-- src/styles/maintenance.js:226 (color)
-- src/styles/maintenance.js:391 (color)
-- src/styles/maintenance.js:445 (color)
+- src/styles/maintenance.js:151 (color)
+- src/styles/maintenance.js:217 (color)
+- src/styles/maintenance.js:245 (color)
+- src/styles/maintenance.js:338 (color)
+- src/styles/maintenance.js:390 (color)
+- src/styles/maintenance.js:555 (color)
 - src/styles/map.js:41 (color)
 - src/styles/map.js:1099 (color)
 - src/styles/map.js:1180 (color)
@@ -482,11 +491,13 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/maintenance.js:58 (color)
 - src/styles/maintenance.js:113 (color)
 - src/styles/maintenance.js:119 (color)
-- src/styles/maintenance.js:192 (color)
-- src/styles/maintenance.js:218 (color)
-- src/styles/maintenance.js:341 (color)
-- src/styles/maintenance.js:358 (color)
-- src/styles/maintenance.js:418 (color)
+- src/styles/maintenance.js:177 (color)
+- src/styles/maintenance.js:342
+- src/styles/maintenance.js:362 (color)
+- src/styles/maintenance.js:382 (color)
+- src/styles/maintenance.js:505 (color)
+- src/styles/maintenance.js:522 (color)
+- src/styles/maintenance.js:582 (color)
 - src/styles/map.js:62 (color)
 - src/styles/map.js:504 (color)
 - src/styles/map.js:670 (color)
@@ -653,16 +664,17 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/maintenance.js:52 (color)
 - src/styles/maintenance.js:63 (color)
 - src/styles/maintenance.js:90 (color)
-- src/styles/maintenance.js:178
-- src/styles/maintenance.js:186 (color)
-- src/styles/maintenance.js:198 (color)
-- src/styles/maintenance.js:352 (color)
-- src/styles/maintenance.js:364 (color)
-- src/styles/maintenance.js:376 (color)
-- src/styles/maintenance.js:384 (color)
-- src/styles/maintenance.js:423 (color)
-- src/styles/maintenance.js:431 (color)
-- src/styles/maintenance.js:437 (color)
+- src/styles/maintenance.js:143 (color)
+- src/styles/maintenance.js:297
+- src/styles/maintenance.js:319 (color)
+- src/styles/maintenance.js:356 (color)
+- src/styles/maintenance.js:516 (color)
+- src/styles/maintenance.js:528 (color)
+- src/styles/maintenance.js:540 (color)
+- src/styles/maintenance.js:548 (color)
+- src/styles/maintenance.js:587 (color)
+- src/styles/maintenance.js:595 (color)
+- src/styles/maintenance.js:601 (color)
 - src/styles/map.js:54 (color)
 - src/styles/map.js:1092 (color)
 - src/styles/map.js:1234 (color)
@@ -879,7 +891,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/foundation.js:46
 - src/styles/foundation.js:257 (--evcc-bg-input)
 - src/styles/foundation.js:273 (--evcc-chip-bg)
-- src/styles/maintenance.js:177
+- src/styles/maintenance.js:296
 - src/styles/map.js:51 (background)
 - src/styles/map.js:60 (background)
 - src/styles/map.js:1126 (background)
@@ -983,7 +995,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/foundation.js:256 (--evcc-panel-bg)
 - src/styles/foundation.js:277 (--evcc-chip-hover-bg)
 - src/styles/learning.js:39 (--evcc-learning-panel-bg)
-- src/styles/maintenance.js:150 (background)
+- src/styles/maintenance.js:269 (background)
 - src/styles/map.js:94 (background)
 - src/styles/map.js:452 (background)
 - src/styles/map.js:525 (background)
@@ -1053,9 +1065,11 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/maintenance.js:107 (background)
 - src/styles/maintenance.js:112
 - src/styles/maintenance.js:118
-- src/styles/maintenance.js:212 (background)
-- src/styles/maintenance.js:274
-- src/styles/maintenance.js:402 (background)
+- src/styles/maintenance.js:176 (background)
+- src/styles/maintenance.js:197
+- src/styles/maintenance.js:376 (background)
+- src/styles/maintenance.js:438
+- src/styles/maintenance.js:566 (background)
 - src/styles/map.js:503 (background)
 - src/styles/map.js:1336 (background)
 - src/styles/map.js:1362 (background)
@@ -1079,7 +1093,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/cards/dashboard-card.js:1316 (background)
 - src/cards/dashboard-card.js:1320 (background)
 - src/room-card.js:388 (--surface-subtle)
-- src/styles/maintenance.js:377 (background)
+- src/styles/maintenance.js:541 (background)
 - src/styles/modal-host.js:842 (background)
 - src/styles/modal-host.js:857 (background)
 - src/styles/rooms.js:863 (background)
@@ -1147,10 +1161,12 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/learning.js:785
 - src/styles/learning.js:820
 - src/styles/maintenance.js:24
-- src/styles/maintenance.js:149
-- src/styles/maintenance.js:176
-- src/styles/maintenance.js:273
-- src/styles/maintenance.js:444
+- src/styles/maintenance.js:150
+- src/styles/maintenance.js:175
+- src/styles/maintenance.js:268
+- src/styles/maintenance.js:295
+- src/styles/maintenance.js:317
+- src/styles/maintenance.js:437
 - src/styles/map.js:37
 - src/styles/map.js:501
 - src/styles/map.js:1129
@@ -1265,7 +1281,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/base-station.js:102 (border-color)
 - src/styles/foundation.js:105
 - src/styles/foundation.js:279 (--evcc-chip-hover-border)
-- src/styles/maintenance.js:316 (border-color)
+- src/styles/maintenance.js:480 (border-color)
 - src/styles/map.js:64 (border-color)
 - src/styles/map.js:1143 (border-color)
 - src/styles/map.js:1764 (border-color)
@@ -1294,9 +1310,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/learning.js:387
 - src/styles/learning.js:438
 - src/styles/maintenance.js:106
-- src/styles/maintenance.js:211
-- src/styles/maintenance.js:378
-- src/styles/maintenance.js:401
+- src/styles/maintenance.js:375
+- src/styles/maintenance.js:542
+- src/styles/maintenance.js:565
 - src/styles/map.js:1114
 - src/styles/map.js:1209
 - src/styles/map.js:1220
@@ -1400,7 +1416,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-chip-bg`** — Chip BG · default `var(--evcc-surface-input)` src/styles/foundation.js:273, src/styles/modal-host.js:327, src/styles/order.js:48, src/styles/rooms.js:531, src/styles/rooms.js:537, src/styles/rooms.js:544, src/styles/rooms.js:552, src/styles/rooms.js:654, src/styles/rooms.js:662, src/styles/rooms.js:669, src/styles/rooms.js:1376, src/styles/rooms.js:1382
 - src/styles/foundation.js:46 (background)
-- src/styles/maintenance.js:177 (background)
+- src/styles/maintenance.js:296 (background)
 - src/styles/rooms.js:579
 - src/styles/rooms.js:580
 - src/styles/rooms.js:599
@@ -1409,7 +1425,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-chip-border`** — Chip Border · default `var(--evcc-border-default)` src/styles/foundation.js:274, src/styles/modal-host.js:323, src/styles/order.js:52, src/styles/rooms.js:532, src/styles/rooms.js:538, src/styles/rooms.js:546, src/styles/rooms.js:553, src/styles/rooms.js:657, src/styles/rooms.js:665, src/styles/rooms.js:671, src/styles/rooms.js:1377, src/styles/rooms.js:1383
 - src/styles/foundation.js:44
-- src/styles/maintenance.js:176
+- src/styles/maintenance.js:295
 - src/styles/theme-preview.js:238
 
 **`--evcc-chip-excluded-bg`** — Chip Excluded BG · default —
@@ -1437,7 +1453,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-chip-height`** — Chip Height · default `24px` src/styles/foundation.js:269, src/styles/modal-host.js:245, src/styles/order.js:43, src/styles/order.js:70, src/styles/order.js:81, src/styles/rooms.js:527, src/styles/rooms.js:646, src/styles/rooms.js:1185, src/styles/rooms.js:1372
 - src/styles/foundation.js:40 (min-height)
-- src/styles/maintenance.js:173 (min-height)
+- src/styles/maintenance.js:292 (min-height)
+- src/styles/maintenance.js:314 (min-height)
 
 **`--evcc-chip-hover-bg`** — Chip Hover BG · default `var(--evcc-surface-panel)` src/styles/foundation.js:277, src/styles/modal-host.js:341
 - src/styles/foundation.js:103 (background)
@@ -1483,11 +1500,13 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-chip-padding`** — Chip Padding · default `5px 14px` src/styles/foundation.js:270, src/styles/modal-host.js:248, src/styles/order.js:44, src/styles/order.js:71, src/styles/order.js:82, src/styles/rooms.js:528, src/styles/rooms.js:647, src/styles/rooms.js:1186, src/styles/rooms.js:1373
 - src/styles/foundation.js:41 (padding)
-- src/styles/maintenance.js:174 (padding)
+- src/styles/maintenance.js:293 (padding)
+- src/styles/maintenance.js:315 (padding)
 
 **`--evcc-chip-radius`** — Chip Radius · default `999px` src/styles/foundation.js:271, src/styles/modal-host.js:251
 - src/styles/foundation.js:43 (border-radius)
-- src/styles/maintenance.js:175 (border-radius)
+- src/styles/maintenance.js:294 (border-radius)
+- src/styles/maintenance.js:316 (border-radius)
 - src/styles/modal-host.js:478 (border-radius)
 - src/styles/modal-host.js:496 (border-radius)
 
@@ -1505,7 +1524,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-chip-text`** — Chip Text · default `var(--evcc-text-secondary)` src/styles/foundation.js:275, src/styles/modal-host.js:331, src/styles/order.js:55, src/styles/rooms.js:533, src/styles/rooms.js:539, src/styles/rooms.js:548, src/styles/rooms.js:656, src/styles/rooms.js:664, src/styles/rooms.js:670, src/styles/rooms.js:1378, src/styles/rooms.js:1384
 - src/styles/foundation.js:47 (color)
-- src/styles/maintenance.js:178 (color)
+- src/styles/maintenance.js:297 (color)
 - src/styles/theme-preview.js:239
 
 **`--evcc-chip-warning-bg`** — Chip Warning BG · default —
@@ -2158,7 +2177,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/maintenance.js:38
 - src/styles/maintenance.js:117
 - src/styles/maintenance.js:118
-- src/styles/maintenance.js:307
+- src/styles/maintenance.js:471
 - src/styles/map.js:1551
 - src/styles/map.js:1552 (color)
 - src/styles/map.js:1553
@@ -2275,7 +2294,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/maintenance.js:29
 - src/styles/maintenance.js:111
 - src/styles/maintenance.js:112
-- src/styles/maintenance.js:298
+- src/styles/maintenance.js:462
 - src/styles/map.js:1484 (color)
 - src/styles/map.js:1724
 - src/styles/map.js:1729
@@ -2378,7 +2397,10 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/learning.js:785
 - src/styles/learning.js:786
 - src/styles/maintenance.js:34
-- src/styles/maintenance.js:303
+- src/styles/maintenance.js:330
+- src/styles/maintenance.js:331
+- src/styles/maintenance.js:332 (color)
+- src/styles/maintenance.js:467
 - src/styles/map.js:306
 - src/styles/metrics.js:122
 - src/styles/metrics.js:123
@@ -3020,8 +3042,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/base-station.js:12 (gap)
 - src/styles/layout.js:64 (--evcc-room-grid-gap)
 - src/styles/layout.js:78
-- src/styles/maintenance.js:134 (gap)
-- src/styles/maintenance.js:139 (gap)
+- src/styles/maintenance.js:253 (gap)
+- src/styles/maintenance.js:258 (gap)
 - src/styles/metrics.js:7 (gap)
 - src/styles/metrics.js:18 (gap)
 - src/styles/review.js:7 (gap)
@@ -3094,11 +3116,12 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/job-summary.js:41 (border-radius)
 - src/styles/maintenance.js:23 (border-radius)
 - src/styles/maintenance.js:105 (border-radius)
-- src/styles/maintenance.js:148 (border-radius)
-- src/styles/maintenance.js:210 (border-radius)
-- src/styles/maintenance.js:272 (border-radius)
-- src/styles/maintenance.js:400 (border-radius)
-- src/styles/maintenance.js:443 (border-radius)
+- src/styles/maintenance.js:149 (border-radius)
+- src/styles/maintenance.js:174 (border-radius)
+- src/styles/maintenance.js:267 (border-radius)
+- src/styles/maintenance.js:374 (border-radius)
+- src/styles/maintenance.js:436 (border-radius)
+- src/styles/maintenance.js:564 (border-radius)
 - src/styles/metrics.js:27 (border-radius)
 - src/styles/metrics.js:94 (border-radius)
 - src/styles/metrics.js:187 (border-radius)
@@ -3176,8 +3199,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/foundation.js:58
 - src/styles/foundation.js:59
 - src/styles/foundation.js:60
-- src/styles/maintenance.js:288
-- src/styles/maintenance.js:289
+- src/styles/maintenance.js:452
+- src/styles/maintenance.js:453
 - src/styles/order.js:93
 - src/styles/order.js:94
 - src/styles/order.js:95

@@ -1,9 +1,8 @@
 """Dreame adapter — assembles + registers the adapter config for one vacuum.
 
-⚠ NOT WIRED on master. There is deliberately no ``BRAND_REGISTRARS`` row for Dreame;
-that row is the release and it is gated on a RELEASED upstream ``dreame_vacuum`` build
-carrying Tasshack #1707. This module is inert until such a row selects it — see
-``adapters/dreame/__init__.py``. A local build adds the row in its own deploy only.
+LIVE since 2026-09-13 (v2.2.0). The ``BRAND_REGISTRARS`` row that selects this module
+is committed; before that it was inert and no import reached it. See
+``adapters/dreame/__init__.py`` for the gate it waited behind and why it was retired.
 
 Structure mirrors ``adapters/roborock/adapter.py`` (the other brand that wraps an
 upstream integration). Values are verified against the live ``vacuum.robin``

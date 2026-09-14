@@ -108,15 +108,15 @@ export function applyMaintenanceRenderers(proto) {
    * HA instance language. So a card set to Russian shows Russian guide text even on
    * an English HA instance — one switch.
    *
-   * TWO ROUTINGS, and the payload says which:
+   * ONE ROUTING NOW. The backend ships i18n KEYS and no words (`steps_keys` /
+   * `notes_keys`); every sentence is resolved here against the per-language key pack.
    *
-   *   KEY-ROUTED (`steps_keys` / `notes_keys` present — Dreame). The backend ships i18n
-   *   keys and no words; every sentence is resolved here against the per-language key
-   *   pack. Handled first, below.
-   *
-   *   PROSE-ROUTED (eufy, roborock). The backend ships guide.display already worded in
-   *   the INSTANCE language; we overlay steps/notes/frequency from GUIDE_TRANSLATIONS
-   *   per-field, falling back to English and then to the backend's own value.
+   * There used to be a second, PROSE-ROUTED path for eufy and roborock, overlaying
+   * steps/notes/frequency per-field from `GUIDE_TRANSLATIONS` — ~2.4 MB of vendor text
+   * keyed by device family. Both brands were ported to keys on 2026-09-12 and that
+   * catalog was deleted with its last producer (330c5c31), so the branch had no source
+   * and could not execute. Do not reintroduce a prose fallback: a brand that wants its
+   * own display word declares `label_key`, which the key pack resolves like any other.
    *
    * @param {object} item - maintenance/replacement item (has guide, component, kind).
    * @returns {object|null} a display-shaped guide ({frequency, steps, notes, …}).
