@@ -67,7 +67,14 @@ export function makeNullObject(record, path = "", seed = null) {
         case "length":           return 0;
         case "then":             return undefined;        // never thenable
         case "toJSON":           return () => null;
-        case "name": case "prototype": case "constructor":
+        // `name` is a STRING FIELD THE CARD READS — a profile's name, a room's, a
+        // zone's. Forwarding it to the target handed back the function's own name, so
+        // every absorbed object rendered the literal text "nullObject", and these
+        // previews are published to the gallery page. It is configurable on a function,
+        // so the trap may legally return something else; every other coercion here
+        // already returns an empty value for exactly this reason.
+        case "name":             return "";
+        case "prototype": case "constructor":
           return Reflect.get(t, prop);
       }
       if (typeof prop === "symbol") return undefined;
