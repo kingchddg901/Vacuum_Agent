@@ -6,8 +6,9 @@
  *   - THEME_TOKEN_MAP.md    the catalog: every --evcc-* token by group, with its
  *                           editor label (what it controls), type, and slider range.
  *   - THEME_TOKEN_USAGE.md  the CSS-usage trace: for each token, its default
- *                           declaration and every real consumer var() (file:line +
- *                           CSS property). Multiline-aware (handles var( wrapped
+ *                           declaration and every real consumer var() (FILE +
+ *                           CSS property -- deliberately not file:line, see siteOf).
+ *                           Multiline-aware (handles var( wrapped
  *                           across lines); scans src/, the animal-svg/ module, and
  *                           the Python preloaded themes. Flags tokens with no
  *                           consumer (dead vs dynamically-consumed) and var() refs
@@ -109,6 +110,26 @@ const range = (t) => (t.min === undefined && t.max === undefined)
   const DYNG = /var\(\s*--evcc-[A-Za-z0-9-]*\$\{/g;
   const PROPRE = /(--[A-Za-z0-9-]+|[A-Za-z][A-Za-z0-9-]*)\s*:\s*$/;
   const push = (m, k, v) => (m.get(k) ?? m.set(k, []).get(k)).push(v);
+
+  /**
+   * A site is a FILE, never a file:line.
+   *
+   * Line numbers made this doc churn on edits that changed nothing about token
+   * usage: adding a comment above a rule shifted every reference below it, so a
+   * 2-line content change arrived as a 98-line diff and the staleness gate went
+   * red. A gate whose diff is 98% noise is one nobody reads -- it gets --fix'd
+   * unexamined, which is worse than not having it.
+   *
+   * What MATTERS is content: a token added or removed, a new file consuming it, a
+   * different CSS property, a changed default. All of that survives here. Where
+   * exactly it sits in the file does not, and is stale the moment anyone edits
+   * above it. Same reasoning as the repo's anchor notation for prose docs.
+   *
+   * [TKD-2] holds it: insert lines into a scanned source and the output must not
+   * move. [TKD-1] above it holds the same property for directory order.
+   */
+  const siteOf = (s) => String(s).replace(/:\d+$/, "");
+  const uniq = (a) => [...new Set(a)];
   const lineAt = (t, i) => { let n = 1; for (let j = 0; j < i; j++) if (t[j] === "\n") n++; return n; };
   const uses = new Map(), defaults = new Map(), setp = new Map(), orphan = new Map(), dynamic = [];
 
@@ -259,8 +280,8 @@ const range = (t) => (t.min === undefined && t.max === undefined)
     L.push("");
     for (const t of tokens) {
       const u = uses.get(t.key) || [];
-      const d = (defaults.get(t.key) || []).join(", ") || "—";
-      const sp = setp.get(t.key) ? ` · apply ${setp.get(t.key).join(", ")}` : "";
+      const d = uniq((defaults.get(t.key) || []).map(siteOf)).join(", ") || "—";
+      const sp = setp.get(t.key) ? ` · apply ${uniq(setp.get(t.key).map(siteOf)).join(", ")}` : "";
       // The VALUE next to the location, so this file answers "what colour is it"
       // without a second hop into foundation.js.
       const dv = DEFAULT_VALUES.get(t.key);
@@ -271,7 +292,12 @@ const range = (t) => (t.min === undefined && t.max === undefined)
           ? `- _no STATIC consumer — consumed dynamically (${fam.name}): ${fam.site}_`
           : "- _NO CONSUMER — not referenced anywhere; genuinely worth checking_");
       }
-      else for (const s of u) L.push(`- ${s.file}:${s.line}${s.prop ? ` (${s.prop})` : ""}`);
+      // Deduped by (file, property): three uses of one token in one file for the
+      // same property are one FACT, and printing it three times only guaranteed the
+      // list would move when any of them did.
+      else {
+        for (const site of uniq(u.map((s) => `${s.file}${s.prop ? ` (${s.prop})` : ""}`))) L.push(`- ${site}`);
+      }
       L.push("");
     }
   }
@@ -300,13 +326,13 @@ const range = (t) => (t.min === undefined && t.max === undefined)
     L.push("---\n");
     L.push(`## var() → non-catalog tokens  ·  ${orphan.size}\n`);
     L.push("Used in CSS but not in the editor registry (dynamic fragments or intentional internals like `--evcc-grp`).\n");
-    for (const [k, sites] of orphan) L.push(`- \`${k}\` — ${sites.slice(0, 8).join(", ")}${sites.length > 8 ? ` …(+${sites.length - 8})` : ""}`);
+    for (const [k, sites] of orphan) { const ss = uniq(sites.map(siteOf)); L.push(`- \`${k}\` — ${ss.slice(0, 8).join(", ")}${ss.length > 8 ? ` …(+${ss.length - 8})` : ""}`); }
     L.push("");
   }
   if (dynamic.length) {
     L.push("---\n");
     L.push(`## dynamic var(--evcc-…\${…}) sites  ·  ${dynamic.length}\n`);
-    for (const s of dynamic) L.push(`- ${s}`);
+    for (const s of uniq(dynamic.map(siteOf))) L.push(`- ${s}`);
     L.push("");
   }
   writeFileSync(join(OUT, "THEME_TOKEN_USAGE.md"), BANNER + L.join("\n") + "\n");

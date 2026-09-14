@@ -22,8 +22,8 @@ import { tmpdir } from "node:os";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-function render(reverse) {
-  const out = join(mkdtempSync(join(tmpdir(), "evcc-tk-")), reverse ? "rev" : "nat");
+function render({ reverse = false, shiftLines = 0 } = {}) {
+  const out = join(mkdtempSync(join(tmpdir(), "evcc-tk-")), `r${reverse ? 1 : 0}s${shiftLines}`);
   mkdirSync(out, { recursive: true });
   const gen = "file:///" + join(ROOT, "scripts", "gen-theme-token-docs.mjs").split("\\").join("/");
   execFileSync(process.execPath, ["-e", `
@@ -31,6 +31,20 @@ function render(reverse) {
     const real = fs.readdirSync;
     fs.readdirSync = (...a) => { const r = real(...a); return ${reverse
       ? "Array.isArray(r) ? [...r].reverse() : r" : "r"}; };
+    const realRead = fs.readFileSync;
+    fs.readFileSync = (p, ...a) => {
+      const v = realRead(p, ...a);
+      // Prepend comment lines to every scanned source. Every token reference in the
+      // file moves down by exactly ${shiftLines}; not one fact about token usage changes.
+      // BACKSLASH-FREE on purpose: this source is embedded in a template literal and
+      // then eval'd, so a regex literal with an escape does not survive the trip.
+      const SEP = String.fromCharCode(92);
+      const sp = String(p).split(SEP).join("/");
+      if (${shiftLines} > 0 && typeof v === "string" && sp.includes("/src/styles/")) {
+        return ("/* shift */" + String.fromCharCode(10)).repeat(${shiftLines}) + v;
+      }
+      return v;
+    };
     process.env.EVCC_GENDOC_OUT = ${JSON.stringify(out)};
     import(${JSON.stringify(gen)});
   `], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -38,11 +52,30 @@ function render(reverse) {
 }
 
 test("[TKD-1] the usage trace does not depend on directory order", () => {
-  const natural = render(false);
-  const reversed = render(true);
+  const natural = render();
+  const reversed = render({ reverse: true });
   assert.equal(
     natural, reversed,
     "reversing every directory listing changed the output — the generator is " +
     "filesystem-order dependent again, so Windows and Linux will disagree forever",
+  );
+});
+
+test("[TKD-2] the usage trace does not depend on WHERE in a file a token sits", () => {
+  // The content is the fact; the line number is an accident of layout. Adding a
+  // comment above a rule used to shift every reference below it, so a change that
+  // touched no token at all arrived as a ~98-line diff and turned the staleness
+  // gate red. A gate whose diff is almost entirely noise stops being read: it gets
+  // regenerated unexamined, and a REAL token change rides in unnoticed alongside.
+  //
+  // Sibling of [TKD-1]: same defect class, different axis. That one was the output
+  // moving with directory order, this one is the output moving with line position.
+  const flat = render();
+  const shifted = render({ shiftLines: 20 });
+  assert.equal(
+    flat, shifted,
+    "pushing every src/styles source down 20 lines changed the usage trace — it is " +
+    "line-position dependent again, so any added comment will show up as churn and " +
+    "bury the real token changes in it",
   );
 });
