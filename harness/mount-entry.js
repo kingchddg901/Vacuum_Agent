@@ -48,6 +48,7 @@ import { CARD_FIXTURES, CARD_STATES, CARD_SERVICE_RESPONSES } from "./fixtures/c
 import { SEMANTIC_COLOR_TOKENS } from "./semantic-tokens.js";
 import { BADGE_MARK_PATHS, MARK_VIEWBOX } from "../src/renderers/badge-marks.js";
 import { detectFloorScope, clampThemeScalars } from "../src/theme-tokens/floor-scope.js";
+import { flattenThemeBuckets } from "../src/theme-tokens/flatten.js";
 import { THEME_TOKEN_MAP } from "../src/theme-tokens/index.js";
 import { themeLibraryFixture, tokenCount } from "./fixtures/theme-library.mjs";
 // REAL-CARD MOUNT (opt-in): importing main.js for its side effect registers
@@ -498,16 +499,28 @@ function renderReadmeShot(id, opts = {}) {
  *   - keep only known registry `--evcc-*` keys (drops unknown keys AND
  *     unknown floor-type namespaces this build doesn't recognise);
  *   - clamp bounded scalars to each token's range (clampThemeScalars);
- *   - drop non-primitive values; never eval.
+ *   - drop non-primitive values; never eval;
+ *   - flatten the three buckets through flattenThemeBuckets, which COMPOSES
+ *     `alpha[k]` onto `colors[k]` instead of overwriting it. Concatenating
+ *     them (the old behaviour) resolved a paired key to a bare `0.76` — a
+ *     defined-but-invalid colour, so the CSS fallback never fired and the
+ *     built-in default painted, with `0 skipped` reported.
  * The returned values are applied downstream via host.style.setProperty
  * (CSS-validated), never injected into HTML — so running a stranger's export
  * in CI is safe.
  *
  * @param {object} envelope - parsed export ({ theme:{tokens,colors,alpha}, scope? }).
- * @returns {{ bundle: object, scope: string[], report: object }}
+ * @returns {{ bundle: object, scope: string[], report: object }} report carries
+ *   `composed` (keys whose alpha was baked in — positive evidence the path
+ *   fired) and `unappliedAlpha` (alpha entries that reached nothing: no colour
+ *   for that key, or a base no alpha can bake into). Neither was visible before,
+ *   which is why `0 clamped, 0 skipped` read as an all-clear over dead colours.
  */
 function ingestTheme(envelope) {
-  const report = { ok: false, reason: null, keyCount: 0, clamped: 0, skippedKeys: [], unknownFloor: [] };
+  const report = {
+    ok: false, reason: null, keyCount: 0, clamped: 0,
+    skippedKeys: [], unknownFloor: [], composed: [], unappliedAlpha: [],
+  };
   if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) {
     report.reason = "not an object";
     return { bundle: {}, scope: [], report };
@@ -522,7 +535,10 @@ function ingestTheme(envelope) {
   report.clamped = corrected;
 
   const theme = clamped.theme || {};
-  const bundle = {};
+  // Validate PER BUCKET (registry membership + primitive), keeping the three
+  // apart — they only merge in flattenThemeBuckets, which knows that `alpha`
+  // composes onto `colors` rather than replacing it.
+  const kept = { tokens: {}, colors: {}, alpha: {} };
   for (const bucket of ["tokens", "colors", "alpha"]) {
     const dict = theme[bucket];
     if (!dict || typeof dict !== "object") continue;
@@ -535,9 +551,12 @@ function ingestTheme(envelope) {
         report.skippedKeys.push(key);
         continue;
       }
-      bundle[key] = value;
+      kept[bucket][key] = value;
     }
   }
+  const { bundle, composed, unappliedAlpha } = flattenThemeBuckets(kept);
+  report.composed = composed;
+  report.unappliedAlpha = unappliedAlpha;
   report.keyCount = Object.keys(bundle).length;
   report.ok = true;
   const scope = Array.isArray(envelope.scope) ? envelope.scope.slice() : detectFloorScope(envelope).known;

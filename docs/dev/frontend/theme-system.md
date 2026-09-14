@@ -122,13 +122,15 @@ Each is sugar over `type:"number"` plus the kind's `min`/`max`/`step` (the expor
 Theme entries — and the working draft — carry two separate dictionaries:
 
 - **`colors`** — stores the raw hex (or CSS expression) value for every color-type token, without any alpha multiplier applied. Example: `"--evcc-accent": "#6AA7FF"`.
-- **`tokens`** — the CSS-ready resolved value for every token. For color tokens, this is the hex value with the alpha channel baked in as an 8-character hex string. For non-color tokens, this is the final CSS value string. `tokens` is a superset of `colors`.
+- **`tokens`** — the CSS-ready resolved value for every token. For color tokens, this is the hex value with the alpha channel baked in as an 8-character hex string. For non-color tokens, this is the final CSS value string. For anything the *editor* saves, `tokens` is a superset of `colors` (see "Canonical duplication at save time" below) — but that is a save-time convention, not a guarantee of the format: a hand- or AI-authored envelope may carry `colors` + `alpha` with no matching `tokens` entry at all, and the combine below is what makes it render.
 
 **Why two arrays?**
 
-Alpha multipliers are stored as a third separate bucket (`alpha`) as floating-point numbers in the range 0–1. When `resolvedTheme()` runs, it combines `colors[key]` and `alpha[key]` using `_hexWithAlpha()` to produce the final 8-char hex written into `tokens[key]`. Keeping them separate prevents an alpha-only draft change from accidentally overwriting a stored hex color with a computed value that loses precision on round-trip.
+Alpha multipliers are stored as a third separate bucket (`alpha`) as floating-point numbers in the range 0–1. When `resolvedTheme()` runs, it combines `colors[key]` and `alpha[key]` using `hexWithAlpha()` to produce the final 8-char hex written into `tokens[key]`. Keeping them separate prevents an alpha-only draft change from accidentally overwriting a stored hex color with a computed value that loses precision on round-trip.
 
-**Merge rule:** `tokens` always wins for final CSS application. The `colors` bucket exists so the editor can read back the un-alpha'd hex for a color picker input without having to strip the alpha channel from `tokens`.
+**Merge rule:** `colors` + `alpha` win over `tokens` for any key they cover — the recombined value overwrites a pre-baked `tokens` entry, which is what makes an alpha-only change re-bake instead of leaving a stale hex. `tokens` is the final CSS map, but it is an *output* of the combine, not an authority over it. For every key `colors` does **not** cover, the `tokens` value stands as authored. The `colors` bucket exists so the editor can read back the un-alpha'd hex for a color picker input without having to strip the alpha channel from `tokens`.
+
+> **Never concatenate the three buckets.** A flat `{...tokens, ...colors, ...alpha}` makes `alpha[key]` *overwrite* the hex, so the token resolves to a bare number like `0.9` — which is not a color. `var(--evcc-text-secondary)` is still **defined**, so the CSS fallback does not fire and the built-in default paints, with nothing reported. Every consumer that wants a flat map calls **`flattenThemeBuckets()`** (`src/theme-tokens/flatten.js`), which owns this rule; `resolvedTheme()`, the render harness ingest gate, and the theme-picker preview swatch all route through it. The helper also returns `composed` (keys whose alpha was baked in) and `unappliedAlpha` (alpha entries that reached nothing — an orphan key, or a base such as `rgb()` / `color-mix()` that no alpha can bake into), so a report can stop claiming an all-clear it has not earned.
 
 **Canonical duplication at save time:** `_build_preloaded_theme_entry()` (and every save path) always writes a color's value into both `colors` and `tokens` so consumers can read from either bucket safely.
 
@@ -276,7 +278,7 @@ The card's `resolvedTheme()` method in `state/theme.js` builds the final token m
 
 2. **Overlay — working draft:** iterate `workingDraft.colors` → overwrite `colorMap`; iterate `workingDraft.alpha` → overwrite `alphaMap`; iterate `workingDraft.tokens` → overwrite `tokens`. All sources tagged `"draft"`.
 
-3. **Combine color + alpha:** for every key in `colorMap`, call `_hexWithAlpha(colorHex, alphaMap[key])`. The result (an 8-char hex or the original value unchanged if it is not a valid hex) is written back into `tokens[key]`, overwriting any pre-baked value from step 1 or 2. This ensures an alpha-only draft change reflects correctly even when the color came from the theme base.
+3. **Combine color + alpha:** hand `tokens`, `colorMap` and `alphaMap` to `flattenThemeBuckets()` (`src/theme-tokens/flatten.js`). For every key in `colorMap` it calls `hexWithAlpha(colorHex, alphaMap[key])`; the result (an 8-char hex, or the original value unchanged if it is not a valid hex) is written into `tokens[key]`, overwriting any pre-baked value from step 1 or 2. This ensures an alpha-only draft change reflects correctly even when the color came from the theme base. The same helper is the ingest path for uploaded themes, so a gallery preview and the live card can never disagree about what a paired key means.
 
 Return value: `{ tokens, sources }` where `sources[key]` is `"default"` (from the Step 0 room-fill palette seed), `"theme"`, `"draft"`, or absent (key not in any bucket).
 
@@ -469,10 +471,17 @@ The envelope is the same `theme` object an export produces:
   number (a *bounded* scalar must stay inside its **Range** — e.g. an opacity in `0–1`),
   a `duration` is `"180ms"`, and so on. This is exactly how the built-in themes are
   stored — `colors`/`alpha` empty, the value (alpha included) sitting in `tokens`.
-- **`colors` + `alpha` are an editor convenience.** They hold the 6-char base hex and a
-  separate `0–1` alpha that `resolvedTheme()` recombines into the 8-char `tokens` value,
-  so the editor can offer a color picker + alpha slider. Populate them too only if you
-  want those keys to stay picker-editable after import; otherwise leave them `{}`.
+- **`colors` + `alpha` are the picker-editable form.** They hold the 6-char base hex and a
+  separate `0–1` alpha that the card recombines into the 8-char `tokens` value, so the
+  editor can offer a color picker + alpha slider. Populate them if you want those keys to
+  stay picker-editable after import; otherwise leave them `{}`. **A key may appear in both
+  `colors` and `alpha` — that pairing is the point, and it is what the editor's own opacity
+  rail writes.** The two forms are equivalent on screen: `colors: {"--evcc-text-secondary":
+  "#F4EBD8"}` + `alpha: {"--evcc-text-secondary": 0.9}` renders exactly as
+  `tokens: {"--evcc-text-secondary": "#F4EBD8E6"}`. What is *not* equivalent is putting an
+  alpha on a key with no color in the same envelope, or on a non-hex base (`rgb()`,
+  `color-mix()`): there is nothing to bake it into, so the alpha is dropped — the harness
+  names those keys under `unappliedAlpha` in its ingest report.
 - **Partial is fine.** Include only the keys you want — anything you omit falls through
   to the card's built-in defaults (the `foundation.js` `:host` seeds), since
   `applyDynamicTheme()` only sets the keys present.

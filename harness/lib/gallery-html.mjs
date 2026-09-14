@@ -118,6 +118,12 @@ ${list
       </div>
     </section>`;
   const skipped = report.skippedKeys.length ? esc(report.skippedKeys.join(", ")) : "none";
+  // Alpha accounting. `composed` is positive evidence the colours+alpha pairing
+  // actually fired; `unappliedAlpha` names alpha entries that reached nothing.
+  // Without these the header read "0 clamped, 0 skipped" over a theme whose
+  // paired colours had been silently dropped — a false all-clear.
+  const composedCount = (report.composed || []).length;
+  const unapplied = report.unappliedAlpha || [];
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -132,6 +138,7 @@ ${list
   header h1 { margin:8px 0 4px; font-size:1.5rem; }
   .meta { color:#8b94a0; font-size:.84rem; margin:0 0 2px; }
   .meta a { color:#5aa9ff; }
+  .meta.warn { color:#e9a100; }
   .dl-row { margin:10px 0 8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .download-btn { display:inline-block; padding:8px 15px; border:1px solid #2f6dd0; border-radius:8px; background:#173455; color:#cfe2ff; text-decoration:none; font-size:.88rem; font-weight:600; }
   .download-btn:hover { background:#1d4474; }
@@ -154,8 +161,9 @@ ${SITE_NAV_CSS}
     <a class="back" href="../index.html">← all themes</a>
     <h1>${esc(themeName)}</h1>
     ${meta.download ? `<p class="dl-row"><a class="download-btn" href="${esc(meta.download)}" download="${esc(meta.download)}">⤓ Download theme (.json)</a> <span class="dl-hint">then import it via the card's <strong>Upload</strong> button</span></p>` : ""}
-    <p class="meta">scope: ${scope.length ? esc(scope.join(", ")) : "full"} · ${report.keyCount} tokens · ${report.clamped} clamped · ${report.skippedKeys.length} skipped</p>
+    <p class="meta">scope: ${scope.length ? esc(scope.join(", ")) : "full"} · ${report.keyCount} tokens · ${report.clamped} clamped · ${report.skippedKeys.length} skipped · ${composedCount} alpha composed</p>
     <p class="meta">skipped keys: ${skipped} · <a href="ingest-report.json">ingest report</a> · <a href="_contact-sheet.png">contact sheet</a></p>
+    ${unapplied.length ? `<p class="meta warn">alpha applied to nothing (${unapplied.length}): ${esc(unapplied.join(", "))}</p>` : ""}
     ${attributionHtml(meta.attr)}
     ${tagChipsHtml(meta.tags)}
     ${cbDetailHtml(meta.colorblind)}

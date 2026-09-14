@@ -6,7 +6,7 @@ with Node's built-in test runner, no browser and no build.
 
 - **Run them all:** `npm run test:units` (`node --test "src/**/*.test.mjs"`).
 - **Run one file:** `node --test src/state/rooms-logic.test.mjs`.
-- **935 cases across 91 files**, currently all green. Node ≥ 21 (native glob).
+- **1047 cases across 103 files**, currently all green. Node ≥ 21 (native glob).
   (The `node --test` summary line is the authority for these numbers — rerun
   `npm run test:units` rather than trusting this doc's total.)
 
@@ -27,7 +27,7 @@ This is one of three separate frontend test tracks — see [the three tracks](#t
     and refusal surfacing), `src/bindings/` (confirm dialogs, rejected-import
     surfacing), `src/renderers/` (the review modal, job summary, live
     charge/zone banners), the steps editors under `src/state/`, and the
-    i18n/font wiring — now 904 cases across 91 files.
+    i18n/font wiring — taking it to 904 cases across 91 files at the campaign's close.
 
 ---
 
@@ -103,6 +103,7 @@ derivations — no DOM, no hass.
 | `helpers.test.mjs` | 22 | `makeTokenLabel` (key → title-case label) + `makeGroupedToken` / `makeTypedGroupToken` (type-validated, finite-range-merge token factories). |
 | `floor-scope.test.mjs` | 14 | `detectFloorScope` / `sliceThemeByTypes` / `clampThemeScalars` — targeted theme export/import (longest-name-wins scoping, out-of-range scalar clamp). |
 | `animals.test.mjs` | 4 | Per-animal theme-token shape (editor lists only the tokens an animal themes). |
+| `flatten.test.mjs` | 12 | `flattenThemeBuckets` / `hexWithAlpha` / `alphaApplies` — the ONE rule for turning `{tokens, colors, alpha}` into a CSS-ready map. Guards the compose-not-concatenate invariant (a key in both `colors` and `alpha` must bake to 8-char hex, never resolve to the bare alpha number) and the `composed` / `unappliedAlpha` accounting that keeps a clean report honest. Eight of the twelve go red against the concatenation this replaced. |
 
 ### `src/textures/` — floor-material render math
 

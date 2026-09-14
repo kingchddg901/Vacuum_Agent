@@ -56,36 +56,10 @@
  */
 
 import { THEME_GROUPS, THEME_TOKEN_MAP } from "../theme-tokens/index.js";
+import { flattenThemeBuckets } from "../theme-tokens/flatten.js";
 import { effectiveThemeTags } from "../theme-tags/index.mjs";
 import { ROOM_FILL_PALETTE } from "../cards/map-room-color.js";
 import { FLOOR_TEXTURE_REGISTRY } from "../textures/floor-texture-registry.js";
-
-/**
- * Bake an alpha multiplier (0–1) into a CSS hex color string.
- * Strips any existing alpha channel from the hex, then appends the new one.
- * Returns the original value unchanged if it is not a valid 6- or 8-char hex.
- */
-function _hexWithAlpha(colorHex, alpha) {
-  const trimmed = String(colorHex || "").trim();
-
-  let base6;
-  if (/^#[0-9a-fA-F]{8}$/.test(trimmed)) {
-    base6 = `#${trimmed.slice(1, 7)}`;
-  } else if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
-    base6 = trimmed;
-  } else {
-    return trimmed;
-  }
-
-  if (alpha === null || alpha === undefined) {
-    return trimmed;
-  }
-
-  const clamped = Math.max(0, Math.min(1, Number(alpha)));
-  if (Number.isNaN(clamped)) return trimmed;
-  const alphaHex = Math.round(clamped * 255).toString(16).padStart(2, "0").toLowerCase();
-  return `${base6}${alphaHex}`;
-}
 
 export function applyThemeState(proto) {
   proto._emptyThemeDraft = function () {
@@ -380,7 +354,7 @@ export function applyThemeState(proto) {
     // `tokens` holds the final CSS-ready values for every key.
     // `colorMap` and `alphaMap` are kept separate so color hex strings
     // and alpha multipliers (0–1 numbers) never overwrite each other during
-    // the merge — they are combined with _hexWithAlpha() at the very end.
+    // the merge — they are combined by flattenThemeBuckets() at the very end.
     const tokens = {};
     const sources = {};
     const colorMap = {};
@@ -497,13 +471,13 @@ export function applyThemeState(proto) {
        so that an alpha-only draft change is reflected correctly.
        ------------------------------------------------------- */
     // anchor: CNGE76CN
-    Object.entries(colorMap).forEach(([k, color]) => {
-      const alpha = k in alphaMap ? alphaMap[k] : null;
-      tokens[k] = _hexWithAlpha(color, alpha);
-    });
+    // flattenThemeBuckets owns the rule (theme-tokens/flatten.js) — the harness
+    // ingest and the preset-preview swatch call the SAME helper, so a consumer
+    // can no longer concatenate the buckets and let alpha clobber the hex.
+    const { bundle } = flattenThemeBuckets({ tokens, colors: colorMap, alpha: alphaMap });
 
     // anchor: CNWWDBRT
-    return { tokens, sources };
+    return { tokens: bundle, sources };
   };
 
   /* =========================================================

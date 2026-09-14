@@ -90,7 +90,7 @@ export const STYLES = [
  *   consumed:  fill="hsl(var(--animal-fur))"          332 uses, 332 wrapped
  *
  * But the theme system stores every colour token as 8-digit hex
- * (state/theme.js:_hexWithAlpha), so setting Fur to yellow at 88% produced
+ * (theme-tokens/flatten.js:hexWithAlpha), so setting Fur to yellow at 88% produced
  * `fill="hsl(#e8e800e0)"` — invalid CSS. An invalid fill falls back to SVG's
  * initial value, which is BLACK. So ANY animal colour a user set turned that
  * part of the animal black, while untouched animals looked correct because
