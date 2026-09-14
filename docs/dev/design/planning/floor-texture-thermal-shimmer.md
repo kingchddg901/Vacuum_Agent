@@ -148,10 +148,9 @@ default. It looks like three lines of CSS and is not.
 1. **Amplitude: token or constant?** A token is one more thing to tune and to get wrong (the
    whole effect dies above ~2%). A fixed 1% cannot be ruined by a submitter. Leaning constant,
    with the *period* tokenized — the period is what makes it feel bespoke.
-2. **Per-material or marble-only?** The read is specific to marble's fracture network. Carpet
-   weave and tile grout shimmering would be nonsense. Per-material tokens keep the shape
-   generic and let only marble ship a non-zero default; marble-only grows a special case in
-   the registry. Leaning per-material, zero everywhere.
+2. **Per-material or marble-only? — SETTLED: per-material, zero everywhere**, but for a
+   better reason than "only marble makes sense". See §8; the renderer must not be the thing
+   deciding what is physically sensible.
 3. **Does the map need a matching treatment?** Card shimmers, map does not (§4). Acceptable, or
    does the map need a static "hot" bias so the two surfaces do not visibly disagree?
 4. **What does the theme editor show?** A period slider with no live preview is a control the
@@ -166,3 +165,42 @@ The feasibility is not the risk — that is settled above. The risk is that the 
 **subliminal by design**: at the amplitude where it works, nobody can tell you whether it is
 on. That makes it very hard to know when it is finished, and close to impossible to review.
 That is the sort of thing to start rested and deliberately, not at the end of a session.
+
+
+---
+
+## 8. The renderer does not enforce realism
+
+The obvious grouping is by whether a material's texture already implies heterogeneous
+internal structure:
+
+| | | |
+|---|---|---|
+| **Plausibly reactive** | marble, granite, concrete | the masks already read as fracture networks, aggregate, and inclusions |
+| **Fights the illusion** | tile, wood, carpet | rigid manufactured geometry, or a flat texture where opacity drift reads as brightness pumping rather than material behaviour |
+
+And within the reactive set the recipes should differ, or it looks like one animation pasted
+onto three textures: marble is **vein energy**, granite is **aggregate speckle**, concrete is
+**broad/micro mottling**.
+
+**But that table is a statement about DEFAULTS, not about capability, and the distinction is
+the whole design.** Wood grain brightening out of phase would read as wetness or a
+supernatural glow long before it read as heat — which is a defect in Black One and the entire
+point in an arcane, bioluminescent, alien-organic or corrupted-tech theme. Marble veins as
+magic channels. Granite aggregate as a starfield. Concrete microtexture as embers.
+
+Tile is the clearest case, and it inverts the table: rigid grout geometry is a *liability* for
+thermal shimmer and an *asset* for deliberate artificial energy — grout as emissive circuit
+traces, with a pulse chasing through the intersections. Same layer system, completely
+different fiction.
+
+So the architecture and the authoring are separate questions:
+
+- **Can a material carry motion?** Any of them. The layers are already independent and the
+  renderer has no opinion.
+- **Should it, by default?** Only where it matches the material — and even then, opt-in.
+
+This is what makes the per-material, zero-default shape correct. Not because six materials
+minus marble is nonsense, but because **deciding what a layer MEANS is the theme author's job,
+not the renderer's.** A generic "every floor inherits shimmer because the primitive exists"
+would foreclose exactly the interesting cases.
