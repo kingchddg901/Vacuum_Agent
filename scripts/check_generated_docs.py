@@ -330,6 +330,20 @@ GENERATORS: tuple[Generator, ...] = (
             "custom_components/eufy_vacuum/adapters/eufy/adapter.py",
             "custom_components/eufy_vacuum/adapters/roborock/adapter.py",
             "custom_components/eufy_vacuum/adapters/dreame/adapter.py",
+            # The generator also runs a conservative static scan for READ SITES of each
+            # config key and prints them WITH LINE NUMBERS, so these three feed the output
+            # too. They were missing from this list when the generator was registered,
+            # which left GENERATION_MAP telling a reader to edit six files when nine can
+            # move the doc. The gate itself was unaffected -- it regenerates and diffs, so
+            # it caught the drift anyway; it is the "EDIT HERE" map that was wrong.
+            #
+            # ⚠ Because those citations carry line numbers, ANY insertion in these files
+            # restales this doc, even one that changes nothing it documents. Adding a
+            # snapshot field to core/manager.py shifted a cited read site from :6369 to
+            # :6387 and that alone turned the gate red.
+            "custom_components/eufy_vacuum/core/manager.py",
+            "custom_components/eufy_vacuum/diagnostics.py",
+            "custom_components/eufy_vacuum/mapping/mapping_services.py",
         ),
         note="the adapter config contract, witnessed by all three shipped adapters",
     ),

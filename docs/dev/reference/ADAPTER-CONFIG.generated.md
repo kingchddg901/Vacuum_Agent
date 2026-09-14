@@ -527,7 +527,7 @@ Job dispatch configuration.
 
 *Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1277`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:558`.
 
-*Read sites found by a conservative static scan (12; a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py:558`, `custom_components/eufy_vacuum/core/manager.py:3649`, `custom_components/eufy_vacuum/core/manager.py:5857`, `custom_components/eufy_vacuum/core/manager.py:6970`, `custom_components/eufy_vacuum/dispatch/manager.py:358`, `custom_components/eufy_vacuum/dispatch/manager.py:623`, `custom_components/eufy_vacuum/dispatch/manager.py:745`, `custom_components/eufy_vacuum/dispatch/manager.py:90` ...
+*Read sites found by a conservative static scan (12; a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py:558`, `custom_components/eufy_vacuum/core/manager.py:3649`, `custom_components/eufy_vacuum/core/manager.py:5857`, `custom_components/eufy_vacuum/core/manager.py:6988`, `custom_components/eufy_vacuum/dispatch/manager.py:358`, `custom_components/eufy_vacuum/dispatch/manager.py:623`, `custom_components/eufy_vacuum/dispatch/manager.py:745`, `custom_components/eufy_vacuum/dispatch/manager.py:90` ...
 
 ## Capabilities
 
@@ -701,7 +701,7 @@ Pluggable MAP segmenter engine selection + tuning (doc 22 §13a). Engine name an
 
 *Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2131`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:398`.
 
-*Read sites found by a conservative static scan (5; a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py:398`, `custom_components/eufy_vacuum/core/manager.py:5921`, `custom_components/eufy_vacuum/core/manager.py:6369`, `custom_components/eufy_vacuum/diagnostics.py:470`, `custom_components/eufy_vacuum/mapping/mapping_services.py:1289`
+*Read sites found by a conservative static scan (5; a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py:398`, `custom_components/eufy_vacuum/core/manager.py:5921`, `custom_components/eufy_vacuum/core/manager.py:6387`, `custom_components/eufy_vacuum/diagnostics.py:470`, `custom_components/eufy_vacuum/mapping/mapping_services.py:1289`
 
 ### `map_state_source`
 

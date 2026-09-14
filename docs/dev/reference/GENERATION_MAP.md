@@ -17,7 +17,7 @@ this map is complete by construction. **Do not hand-edit** — edit the registry
 
 | output(s) | gate | generated&nbsp;by | edit instead (sources) | downstream |
 |---|---|---|---|---|
-| `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` | gated | `adapter-config` (python scripts/gen_adapter_config_docs.py) | `custom_components/eufy_vacuum/adapters/config_schema.py` · `custom_components/eufy_vacuum/adapters/registry.py` · `custom_components/eufy_vacuum/core/capabilities.py` · `custom_components/eufy_vacuum/adapters/eufy/adapter.py` · `custom_components/eufy_vacuum/adapters/roborock/adapter.py` · `custom_components/eufy_vacuum/adapters/dreame/adapter.py` | — |
+| `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` | gated | `adapter-config` (python scripts/gen_adapter_config_docs.py) | `custom_components/eufy_vacuum/adapters/config_schema.py` · `custom_components/eufy_vacuum/adapters/registry.py` · `custom_components/eufy_vacuum/core/capabilities.py` · `custom_components/eufy_vacuum/adapters/eufy/adapter.py` · `custom_components/eufy_vacuum/adapters/roborock/adapter.py` · `custom_components/eufy_vacuum/adapters/dreame/adapter.py` · `custom_components/eufy_vacuum/core/manager.py` · `custom_components/eufy_vacuum/diagnostics.py` · `custom_components/eufy_vacuum/mapping/mapping_services.py` | — |
 | `custom_components/eufy_vacuum/frontend/animal-svg/animals/*.js` (6) | map-only | `animal-modules` (node scripts/build-animal.mjs <descriptor.json> --first-party) | `custom_components/eufy_vacuum/frontend/animal-svg/src/` | — |
 | `src/i18n/guide-keys.js` | map-only | `dreame-guide-keys` (python scripts/sync-dreame-guide-keys.py) | `durable/dreame-port-fixture/resources/key-authoring/` _(external)_ | — |
 | `docs/dev/reference/EVENTS.md` | gated | `events` (python scripts/gen_event_docs.py) | `custom_components/eufy_vacuum/` | — |
@@ -35,7 +35,10 @@ this map is complete by construction. **Do not hand-edit** — edit the registry
 - **`custom_components/eufy_vacuum/adapters/registry.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
 - **`custom_components/eufy_vacuum/adapters/roborock/adapter.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
 - **`custom_components/eufy_vacuum/core/capabilities.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
+- **`custom_components/eufy_vacuum/core/manager.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
+- **`custom_components/eufy_vacuum/diagnostics.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
 - **`custom_components/eufy_vacuum/frontend/animal-svg/src/`** → regenerates `custom_components/eufy_vacuum/frontend/animal-svg/animals/*.js` (6) · run `node scripts/build-animal.mjs <descriptor.json> --first-party`
+- **`custom_components/eufy_vacuum/mapping/mapping_services.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
 - **`durable/dreame-port-fixture/resources/key-authoring/`** _(external, provenance only)_ → regenerates `src/i18n/guide-keys.js` · run `python scripts/sync-dreame-guide-keys.py`
 - **`scripts/check_generated_docs.py`** → regenerates `docs/dev/reference/GENERATION_MAP.md` · run `python scripts/gen_generation_map.py`
 - **`src/i18n/en.js`** → regenerates `custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc` · run `npm run build:locale-reference`
@@ -47,7 +50,7 @@ this map is complete by construction. **Do not hand-edit** — edit the registry
 
 ### `adapter-config`
 _the adapter config contract, witnessed by all three shipped adapters_
-- **EDIT HERE:** `custom_components/eufy_vacuum/adapters/config_schema.py`, `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/core/capabilities.py`, `custom_components/eufy_vacuum/adapters/eufy/adapter.py`, `custom_components/eufy_vacuum/adapters/roborock/adapter.py`, `custom_components/eufy_vacuum/adapters/dreame/adapter.py`
+- **EDIT HERE:** `custom_components/eufy_vacuum/adapters/config_schema.py`, `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/core/capabilities.py`, `custom_components/eufy_vacuum/adapters/eufy/adapter.py`, `custom_components/eufy_vacuum/adapters/roborock/adapter.py`, `custom_components/eufy_vacuum/adapters/dreame/adapter.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/diagnostics.py`, `custom_components/eufy_vacuum/mapping/mapping_services.py`
 - **DO NOT EDIT:** `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md`
 - **REGEN:** `python scripts/gen_adapter_config_docs.py`
 
