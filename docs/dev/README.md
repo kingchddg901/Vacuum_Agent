@@ -116,6 +116,7 @@ assuming the doc is stale.
 - [design/shipped/eufy-native-transition.md](design/shipped/eufy-native-transition.md)
 - [design/planning/entity-resolution-reliability.md](design/planning/entity-resolution-reliability.md)
 - [design/planning/voice-assist-wizard.md](design/planning/voice-assist-wizard.md)
+- [design/planning/floor-texture-thermal-shimmer.md](design/planning/floor-texture-thermal-shimmer.md) — PARKED, not scheduled
 
 ## HISTORY — what we stopped doing
 
