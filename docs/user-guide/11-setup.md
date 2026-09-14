@@ -67,6 +67,10 @@ or revisit room settings.
     - **Vacuum Agent** — the Rooms map has a **Hide room labels** toggle, which turns off
       our pills and keeps the baked-in ones.
 
+    Either change takes effect straight away — dreame-vacuum reloads itself and redraws the
+    map, so there is no Home Assistant restart to do. Give the map a moment and refresh the
+    page if the old image is still cached.
+
     The same applies in reverse: if a control you expect is **missing** on Dreame, check
     whether its backing entity is disabled or hidden in dreame-vacuum. Vacuum Agent decides
     what to offer from the entities that actually exist, so an entity you turn off there

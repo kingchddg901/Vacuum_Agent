@@ -6071,6 +6071,24 @@ class EufyVacuumManager:
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
+            # The user's OWN name for this vacuum, or None. The card header rendered the
+            # upstream `friendly_name` and nothing else, so a title set through
+            # `setup_set_panel_title` renamed the sidebar and left the card saying whatever the
+            # vendor integration called the entity — a setting that could be written and never
+            # read back.
+            #
+            # RAW, NOT `effective_panel_title`. That helper answers the SIDEBAR's question and
+            # falls back to "Vacuum Agent", which is right for a sidebar entry and wrong here:
+            # it would replace a perfectly good friendly_name with a generic label on every
+            # vacuum nobody renamed. None means "the user did not choose one", and the card
+            # falls through to friendly_name.
+            "panel_title": (
+                str(
+                    (self.data.get("vacuums", {}).get(vacuum_entity_id) or {}).get("panel_title")
+                    or ""
+                ).strip()
+                or None
+            ),
             "status_summary": job_control.get("status_summary") or job_progress.get("status_summary"),
             "attention_summary": upkeep.get("attention_summary"),
             "planned_job_estimate": planned_job_estimate,

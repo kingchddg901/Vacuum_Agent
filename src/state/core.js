@@ -210,10 +210,26 @@ export function applyCoreState(proto) {
   };
 
   /**
-   * User-friendly vacuum name. Priority: friendly_name attribute → formatted object_id.
+   * User-friendly vacuum name.
+   *
+   * PRIORITY: the user's own panel title → `friendly_name` → formatted object_id.
+   *
+   * The panel title comes FIRST because it is the only one of the three the user chose.
+   * It is settable per vacuum (`setup_set_panel_title`), the sidebar has always honoured
+   * it, and until the snapshot carried it this header ignored it — so renaming a vacuum
+   * moved its sidebar entry and left the card still showing whatever the upstream
+   * integration named the entity. A setting that can be written and never read.
+   *
+   * The snapshot ships it RAW: null when unset, never the sidebar's "Vacuum Agent"
+   * fallback. So an untitled vacuum falls through to `friendly_name` exactly as before
+   * rather than every card reading "Vacuum Agent".
+   *
    * @returns {string}
    */
   proto.vacuumDisplayName = function () {
+    const panelTitle = String(this.dashboardSnapshot?.()?.panel_title ?? "").trim();
+    if (panelTitle) return panelTitle;
+
     const attrs = this.vacuumAttrs();
     if (attrs?.friendly_name) return String(attrs.friendly_name).trim();
 
