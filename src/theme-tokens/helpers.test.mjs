@@ -195,9 +195,14 @@ test("[TG-4] semantic methods stamp type:number + the kind's SCALAR_RANGES defau
   assert.equal(unit.step, SCALAR_RANGES.unit.step); // 0.01
 
   const blur = gm.blur("--evcc-blur");
+  // 32, not 8. Blur is px with no CSS ceiling, and 8 was measurably too tight: a
+  // 24px vein is a visibly different render that the SLIDER could not reach, so the
+  // only way there was typing into the number box beside it. Literal here on
+  // purpose -- asserting against SCALAR_RANGES.blur would make this a tautology
+  // that cannot notice the constant moving.
   assert.deepEqual(
     { min: blur.min, max: blur.max, step: blur.step },
-    { min: 0, max: 8, step: 0.5 },
+    { min: 0, max: 32, step: 0.5 },
   );
 
   const angle = gm.angle("--evcc-hue");

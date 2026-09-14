@@ -26,6 +26,7 @@
  */
 
 import { FLOOR_TEXTURE_REGISTRY } from "../textures/floor-texture-registry.js";
+import { scalarClampBounds } from "./helpers.js";
 
 /** Common prefix of every floor token, before the type segment. */
 export const FLOOR_TOKEN_PREFIX = "--evcc-floor-";
@@ -213,8 +214,8 @@ export function clampThemeScalars(envelope, tokenMap) {
     if (!dict || typeof dict !== "object") return out;
     for (const [key, value] of Object.entries(dict)) {
       const spec = map[key];
-      const min = spec && Number.isFinite(spec.min) ? spec.min : null;
-      const max = spec && Number.isFinite(spec.max) ? spec.max : null;
+      // The IMPORT bound, not the slider's ergonomic span — see scalarClampBounds.
+      const { min, max } = scalarClampBounds(spec);
       const num = Number(value);
 
       if ((min !== null || max !== null) && Number.isFinite(num)) {

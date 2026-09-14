@@ -66,6 +66,7 @@
 import { applyThemeToCard } from "../styles/apply-theme.js";
 import { THEME_GROUPS, THEME_TOKEN_MAP, THEME_TOKEN_REGISTRY } from "../theme-tokens/index.js";
 import { sliceThemeByTypes, themeKeyCount, detectFloorScope, clampThemeScalars } from "../theme-tokens/floor-scope.js";
+import { scalarClampBounds } from "../theme-tokens/helpers.js";
 import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
 
 /* =========================================================
@@ -919,10 +920,26 @@ export function applyThemeBindings(proto) {
    * still emitting plain numbers for number-only tokens.
    */
   proto._formatScalarThemeValue = function (value, tokenDef, sourceElement = null) {
-    const numeric = parseFloat(String(value || "").trim());
-    if (Number.isNaN(numeric)) {
+    const parsed = parseFloat(String(value || "").trim());
+    if (Number.isNaN(parsed)) {
       return "";
     }
+
+    // Bound the ESCAPE HATCH. The slider cannot leave its own min/max, but the
+    // number field beside it can: a number input's min/max are validation hints,
+    // and `.value` returns whatever was typed. Unbounded, that made export/import
+    // LOSSY -- the editor stored a value, rendered it, and the importer silently
+    // rewrote it on the way back in (measured: 5 in, 1 out on a 0-1 token).
+    //
+    // Clamped to the IMPORT bound, deliberately NOT the slider's: holding the hatch
+    // to the slider range would just move the surprise into the editor, and the
+    // hatch exists because those ranges are ergonomic rather than semantic (layer
+    // opacity is a product, so a factor above 1 is meaningful). Same bound both
+    // directions => the round trip is lossless by construction.
+    const { min, max } = scalarClampBounds(tokenDef);
+    let numeric = parsed;
+    if (min !== null && numeric < min) numeric = min;
+    if (max !== null && numeric > max) numeric = max;
 
     if (tokenDef?.type === "number") {
       return `${numeric}`;

@@ -200,13 +200,13 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-floor-marble-base-opacity` | Marble Base Layer Opacity | number | — | 0–1 step 0.01 |
 | `--evcc-floor-marble-micro-opacity` | Marble Micro Layer Opacity | number | — | 0–1 step 0.01 |
 | `--evcc-floor-marble-vein-opacity` | Marble Vein Opacity (master) | number | — | 0–1 step 0.01 |
-| `--evcc-floor-marble-vein-blur` | Marble Vein Blur (master, px) | number | — | 0–8 step 0.5 |
+| `--evcc-floor-marble-vein-blur` | Marble Vein Blur (master, px) | number | — | 0–32 step 0.5 |
 | `--evcc-floor-marble-vein-major-opacity` | Marble Major Vein Opacity +/- | number | — | -1–1 step 0.01 |
 | `--evcc-floor-marble-vein-minor-opacity` | Marble Minor Vein Opacity +/- | number | — | -1–1 step 0.01 |
-| `--evcc-floor-marble-vein-major-blur` | Marble Major Vein Blur +/- (px) | number | — | -8–8 step 0.5 |
-| `--evcc-floor-marble-vein-minor-blur` | Marble Minor Vein Blur +/- (px) | number | — | -8–8 step 0.5 |
+| `--evcc-floor-marble-vein-major-blur` | Marble Major Vein Blur +/- (px) | number | — | -32–32 step 0.5 |
+| `--evcc-floor-marble-vein-minor-blur` | Marble Minor Vein Blur +/- (px) | number | — | -32–32 step 0.5 |
 | `--evcc-floor-marble-vein-minor-light` | Marble Minor Vein Lighten (L+) | number | — | -1–1 step 0.01 |
-| `--evcc-floor-marble-vein-minor-chroma` | Marble Minor Vein Saturation (xC) | number | — | 0–2 step 0.01 |
+| `--evcc-floor-marble-vein-minor-chroma` | Marble Minor Vein Saturation (xC) | number | — | 0–8 step 0.01 |
 | `--evcc-floor-marble-vein-minor-hue` | Marble Minor Vein Hue Shift (deg) | number | — | -180–180 step 1 |
 
 ## Floor Textures — Concrete  ·  5

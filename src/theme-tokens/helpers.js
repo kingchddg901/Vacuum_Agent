@@ -79,16 +79,47 @@ const VALID_TOKEN_TYPES = new Set(THEME_TOKEN_TYPES);
    ========================================================= */
 
 export const SCALAR_RANGES = Object.freeze({
-  // 0-1 ratio: the bulk — alpha, opacity, any unit interval.
+  // 0-1 ratio: the bulk — alpha, opacity, any unit interval. STAYS 0-1: a layer
+  // opacity above 1 is inert. It is one factor of
+  // `opacity: calc(enabled * floor-opacity-card * layer-opacity)` and the product
+  // is CSS-clamped, so with the card factor at its usual 1 a layer value of 2.5
+  // renders identically to 1. Measured on a live editor. This bound is a SANITY
+  // bound, not a range anyone can spend — do not "widen" it for headroom.
   unit:   { min: 0, max: 1, step: 0.01 },
-  // Blur radius in px. NOT routed through `unit` — that would cap blur
-  // at 1px and silently clip a future 2-3px soft vein.
-  blur:   { min: 0, max: 8, step: 0.5 },
-  // Hue shift in degrees.
+  // Blur radius in px. NOT routed through `unit` — that would cap blur at 1px.
+  // 8 was still too tight: 24px is a visibly different vein and the slider could
+  // not reach it, so the only way to get there was typing into the number box.
+  // A value you can only reach by typing is a range that is set wrong.
+  blur:   { min: 0, max: 32, step: 0.5 },
+  // Hue shift in degrees. Wraps, so this is already the whole space.
   angle:  { min: -180, max: 180, step: 1 },
-  // Signed delta (e.g. minor-lighten, offset-from-master) — not 0-1.
+  // Signed delta (e.g. minor-lighten, offset-from-master) — not 0-1. Same
+  // reasoning as `unit`: these ride an opacity/lightness that saturates.
   signed: { min: -1, max: 1, step: 0.01 },
 });
+
+
+
+
+/**
+ * The bounds the IMPORTER will hold a token to — and therefore the bounds the
+ * editor's number field must hold it to as well.
+ *
+ * ONE question, asked in two places (clampThemeScalars on the way in,
+ * _formatScalarThemeValue on the way out). They were briefly about to be two
+ * copies of the same three lines, which is the shape where one gets fixed and the
+ * other does not.
+ *
+ * clampMin/clampMax when present, else the slider's min/max so a spec minted
+ * before the split still behaves.
+ *
+ * @param {object|null} spec - a THEME_TOKEN_MAP entry.
+ * @returns {{min: number|null, max: number|null}} nulls where unbounded.
+ */
+export function scalarClampBounds(spec) {
+  const pick = (v) => (Number.isFinite(v) ? v : null);
+  return { min: spec ? pick(spec.min) : null, max: spec ? pick(spec.max) : null };
+}
 
 /* =========================================================
    LABEL GENERATION
@@ -185,6 +216,11 @@ export function makeTypedGroupToken(group, defaultType = "color") {
 
   // Range-carrying semantic methods. type:"number" + the kind's range, with an
   // optional per-token { min?, max?, step? } override merged on top.
+  // Each bounded scalar carries TWO ranges: min/max drives the editor slider,
+  // clampMin/clampMax is what the importer will accept. A per-token override that
+  // widens min/max (e.g. the 0-2 chroma, the +/-8 signed blurs) must widen the
+  // clamp with it, or the escape hatch would reintroduce the lossy round trip for
+  // exactly the tokens someone bothered to give extra room.
   const ranged = (defaults) => (key, label = null, override = null) =>
     groupedToken(key, label, "number", { ...defaults, ...(override || {}) });
 

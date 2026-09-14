@@ -84,10 +84,19 @@ export const FLOOR_TEXTURE_TOKENS = [
   gm.blur(   "--evcc-floor-marble-vein-blur",          "Marble Vein Blur (master, px)"),
   gm.signed( "--evcc-floor-marble-vein-major-opacity", "Marble Major Vein Opacity +/-"),
   gm.signed( "--evcc-floor-marble-vein-minor-opacity", "Marble Minor Vein Opacity +/-"),
-  gm.signed( "--evcc-floor-marble-vein-major-blur",    "Marble Major Vein Blur +/- (px)", { min: -8, max: 8, step: 0.5 }),
-  gm.signed( "--evcc-floor-marble-vein-minor-blur",    "Marble Minor Vein Blur +/- (px)", { min: -8, max: 8, step: 0.5 }),
+  gm.signed( "--evcc-floor-marble-vein-major-blur",    "Marble Major Vein Blur +/- (px)", { min: -32, max: 32, step: 0.5 }),
+  gm.signed( "--evcc-floor-marble-vein-minor-blur",    "Marble Minor Vein Blur +/- (px)", { min: -32, max: 32, step: 0.5 }),
   gm.signed( "--evcc-floor-marble-vein-minor-light",   "Marble Minor Vein Lighten (L+)"),
-  gm.unit(   "--evcc-floor-marble-vein-minor-chroma",  "Marble Minor Vein Saturation (xC)", { max: 2 }),
+  // max 8, and the ceiling is MEASURED rather than chosen. This multiplies the
+  // accent's own OKLCH chroma, so how far it goes before the sRGB gamut edge
+  // depends on the ACCENT, not on the token: a saturated accent (#c54a07) is done
+  // by ~2, a gold at L-0.99 by ~7, the registry default keeps moving to ~8. Past
+  // that the render does not get more saturated -- it CYCLES HUE (red -> orange ->
+  // yellow -> chartreuse -> green) as the gamut mapping breaks down, which is where
+  // a "why are my veins green" report comes from. 8 is where the last real case
+  // ends and the garbage starts. 2 was far too tight: it put usable range behind
+  // the number box.
+  gm.unit(   "--evcc-floor-marble-vein-minor-chroma",  "Marble Minor Vein Saturation (xC)", { max: 8 }),
   gm.angle(  "--evcc-floor-marble-vein-minor-hue",     "Marble Minor Vein Hue Shift (deg)"),
 
   /* === CONCRETE === */
