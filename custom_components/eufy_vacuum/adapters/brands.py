@@ -82,6 +82,8 @@ from .eufy.adapter import register_eufy_adapter_for_vacuum
 from .eufy.const import UPSTREAM_PLATFORMS as EUFY_PLATFORMS
 from .roborock.adapter import register_roborock_adapter_for_vacuum
 from .roborock.const import UPSTREAM_PLATFORMS as ROBOROCK_PLATFORMS
+from .dreame.adapter import register_dreame_adapter_for_vacuum
+from .dreame.const import UPSTREAM_PLATFORMS as DREAME_PLATFORMS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,6 +128,28 @@ BRAND_REGISTRARS: tuple[BrandRegistrar, ...] = (
         brand_id="eufy",
         register=register_eufy_adapter_for_vacuum,
         platforms=EUFY_PLATFORMS,
+    ),
+    # THE THIRD BRAND, released 2026-09-13. This row was deliberately withheld for the
+    # whole of the adapter's development: it is the switch, and while it was absent the
+    # adapter was dead code that no import reached. It was never committed before today
+    # — `git log -S dreame` on this file is empty up to that point.
+    #
+    # ON THE GATE IT WAS HELD BEHIND. The withholding condition was recorded as "a
+    # RELEASED upstream build carrying Tasshack #1707". That premise was retired by
+    # measurement on 2026-08-30: only an UNMAPPED first setup is bitten, a mapped device
+    # never is, so the remedy is a setup note (map first, then reload) rather than an
+    # upstream release — document-handled, not blocking. The user-guide note landed with
+    # it. Tracker #1742 remains closed-as-duplicate and reads green, which it is not;
+    # do not re-derive the gate from it.
+    #
+    # `test_dreame_has_no_brand_registrar_row` [DUK-1] was the guardrail against
+    # committing this by accident, and it said in its own message that clearing the gate
+    # meant deleting it deliberately. It is now inverted rather than removed: DUK-1
+    # asserts the row is PRESENT, so the switch cannot be thrown back by accident either.
+    BrandRegistrar(
+        brand_id="dreame",
+        register=register_dreame_adapter_for_vacuum,
+        platforms=DREAME_PLATFORMS,
     ),
 )
 

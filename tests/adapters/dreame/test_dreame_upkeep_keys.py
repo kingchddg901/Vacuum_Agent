@@ -96,17 +96,33 @@ def _english_pack() -> dict:
     return json.loads(src[src.index("{"): src.rindex("}") + 1])
 
 
-def test_dreame_has_no_brand_registrar_row():
-    """[DUK-1] the switch is off, and this is the test that notices it being thrown."""
+def test_dreame_has_a_brand_registrar_row():
+    """[DUK-1] the switch is ON, and this is the test that notices it being thrown BACK.
+
+    INVERTED 2026-09-13, deliberately, which is what the previous version of this test
+    asked for in its own failure message. It guarded the withheld release: while the row
+    was absent the Dreame adapter was dead code no import reached, and this test went red
+    the moment a local testing row was left in by accident.
+
+    The gate it guarded — "a RELEASED upstream build carrying Tasshack #1707" — was
+    retired by measurement on 2026-08-30: only an UNMAPPED first setup is bitten, a mapped
+    device never is, so a setup note (map first, then reload) is the remedy and it landed.
+    Tracker #1742 is closed-as-duplicate and reads green, which it is not.
+
+    It is inverted rather than deleted because the asymmetry was never real: a row that can
+    be added by accident can be dropped by accident, and a dropped row is SILENT — the
+    adapter simply stops being reached, no import breaks, and every other test still
+    passes, because the whole point of the design is that nothing else references it.
+    THE INPUT THAT MAKES THIS RED: remove the dreame row from BRAND_REGISTRARS.
+    """
     from custom_components.eufy_vacuum.adapters.brands import BRAND_REGISTRARS
 
     assert BRAND_REGISTRARS, "no brands registered — this test is anchored wrong"
     brands = {r.brand_id for r in BRAND_REGISTRARS}
-    assert "dreame" not in brands, (
-        "Dreame has a BRAND_REGISTRARS row. That row IS the release and it is gated on "
-        "a released upstream build carrying Tasshack #1707 — our #1742 is closed as a "
-        "duplicate and reads green, which it is not. If the gate has genuinely cleared, "
-        "this test is the thing to delete, deliberately."
+    assert "dreame" in brands, (
+        "Dreame has NO BRAND_REGISTRARS row. That row IS the release: without it the "
+        "adapter is unreachable dead code and every Dreame vacuum silently resolves to "
+        "UNSUPPORTED, with nothing else in the suite noticing."
     )
 
 

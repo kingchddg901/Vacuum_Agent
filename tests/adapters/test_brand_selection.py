@@ -255,18 +255,53 @@ def test_a_real_eufy_resolves_to_eufy_positively(hass):
     assert (registrar.brand_id, source) == ("eufy", "platform")
 
 
+#: The platform used wherever a test needs a device NO registrar claims.
+#:
+#: It was ``dreame_vacuum`` until 2026-09-13, when the Dreame release switch was thrown and
+#: two tests below went red -- correctly, because their EXAMPLE had become supported while
+#: the invariant they assert did not change. The lesson is that an "unsupported" example is
+#: a claim about the shipped table, so it needs its own guard: ``test_the_unsupported_example
+#: _is_actually_unsupported`` fails the moment a brand adopts this platform, naming the fix
+#: instead of leaving two unrelated tests to fail mysteriously.
+#:
+#: ``tuya`` is chosen because it cannot rot the way ``dreame_vacuum`` did: reduced/Tuya-stack
+#: Eufy devices are unsupported BY RULING -- documented, deliberately not detected -- rather
+#: than merely not-yet-built.
+UNSUPPORTED_PLATFORM = "tuya"
+
+
+def test_the_unsupported_example_is_actually_unsupported():
+    """[BR-13] The guard on the example the two tests below depend on.
+
+    THE INPUT THAT MAKES THIS RED: add ``tuya`` to any brand's ``UPSTREAM_PLATFORMS``. That
+    is exactly what happened to the previous example when Dreame shipped, and it surfaced as
+    two confusing failures in tests that were themselves correct.
+    """
+    from custom_components.eufy_vacuum.adapters.brands import BRAND_REGISTRARS
+
+    claimed = {p for r in BRAND_REGISTRARS for p in r.platforms}
+    assert claimed, "no platforms claimed — this test is anchored wrong"
+    assert UNSUPPORTED_PLATFORM not in claimed, (
+        f"{UNSUPPORTED_PLATFORM!r} is now claimed by a registrar, so it can no longer stand "
+        f"for an unsupported device. Pick a platform no brand claims and update "
+        f"UNSUPPORTED_PLATFORM — do NOT weaken the assertions that use it."
+    )
+
+
 def test_an_unrecognised_device_is_refused_not_assumed(hass):
     """[BR-3] END-TO-END against the SHIPPED table — the policy, on real registrars.
 
     This test used to assert the opposite: an unrecognised device resolved to Eufy and
-    reported "default". That was the leak. A Dreame (`dreame_vacuum`) is the live case —
-    `vacuum.robin` bound 2 of ~10 Eufy roles by coincidence of naming and looked
-    configured rather than wrong.
+    reported "default". That was the leak. The original live case was a Dreame
+    (`dreame_vacuum`) — `vacuum.robin` bound 2 of ~10 Eufy roles by coincidence of naming
+    and looked configured rather than wrong. Dreame became SUPPORTED on 2026-09-13, so the
+    example moved to `UNSUPPORTED_PLATFORM`; the leak this pins is unchanged, and the
+    historical case is recorded here rather than lost with the string.
     """
     from homeassistant.helpers import entity_registry as er
 
     vid = er.async_get(hass).async_get_or_create(
-        "vacuum", "dreame_vacuum", "u_dreame", suggested_object_id="robin_real"
+        "vacuum", UNSUPPORTED_PLATFORM, "u_unsupported", suggested_object_id="stranger_real"
     ).entity_id
     registrar, source = resolve_brand(hass, vid)
     assert registrar is None
@@ -323,8 +358,10 @@ def test_an_unmatched_platform_is_unsupported(hass):
 
     It was written as a PIN on the wrong behaviour, so that removing the default arm
     would change exactly one test. It did.
+
+    Its example was `dreame_vacuum` until that brand shipped; see `UNSUPPORTED_PLATFORM`.
     """
-    vid = _register_vacuum(hass, "dreame_vacuum", "robin_platform")
+    vid = _register_vacuum(hass, UNSUPPORTED_PLATFORM, "stranger_platform")
     registrar, source = resolve_brand(hass, vid)
     assert (registrar, source) == (None, "unsupported")
 

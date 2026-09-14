@@ -73,9 +73,14 @@ def _build_dreame(hass) -> dict[str, Any]:
     path for the brand-agnostic contract. Device-specific behaviour (the r2469a profile,
     the live dreame_vacuum surface) is verified against the live device separately.
 
-    ⚠ The Dreame adapter is DATA-ONLY on master (no BRAND_REGISTRARS row, gated on
-    upstream #1707). This fixture calls the registrar DIRECTLY, which is the whole point:
-    it makes the config assembly testable without the release switch being thrown.
+    This fixture calls the registrar DIRECTLY rather than going through
+    ``BRAND_REGISTRARS``. That was originally the whole point — the adapter was DATA-ONLY
+    on master, with no registrar row, so calling it directly was the only way to make
+    config assembly testable without throwing the release switch. The switch was thrown
+    on 2026-09-13 and the row is now present, so the indirection is no longer load-bearing
+    for reachability. It stays because a direct call is still the right shape here: it
+    pins THIS brand's config assembly without depending on brand resolution, which
+    ``test_brand_selection`` owns separately.
     """
     from custom_components.eufy_vacuum.adapters.dreame.adapter import (
         register_dreame_adapter_for_vacuum,
