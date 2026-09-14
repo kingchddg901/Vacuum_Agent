@@ -551,11 +551,32 @@ export const themeStyles = `
     position: absolute;
     top: 6px;
     inset-inline-end: 6px;
+    /* z-index 2, matching .evcc-preset-tag-edit at the opposite corner. WITHOUT it
+       this button is INVISIBLE: .evcc-preset-preview below is position:relative and
+       comes LATER in the DOM, so with both at z-index:auto the preview paints over
+       it, covering everything but a 2px sliver along the top edge. The button still
+       took clicks the whole time -- it raised its confirm from under an opaque
+       panel. The tag button never had the bug because it was given a z-index; this
+       one, its twin, was not. */
+    z-index: 2;
     border: none;
     background: none;
     color: var(--evcc-text-muted, rgba(255,255,255,0.6));
     cursor: pointer;
     padding: 2px;
+    opacity: 0.65;
+    /* 16px to match the tag button. Unset, ha-icon falls back to the mdc default of
+       24px, so the two corner controls on one card rendered at different sizes. */
+    --mdc-icon-size: 16px;
+  }
+
+  /* A destructive control with no hover state reads as decoration. Its twin has had
+     one all along; the accent here is the error colour rather than the theme accent,
+     because this one deletes. */
+  .evcc-preset-delete:hover,
+  .evcc-preset-delete:focus-visible {
+    color: var(--evcc-sem-error, #ef4444);
+    opacity: 1;
   }
 
   .evcc-preset-preview {

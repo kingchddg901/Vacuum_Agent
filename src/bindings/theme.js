@@ -1379,7 +1379,19 @@ export function applyThemeBindings(proto) {
 
       const themeId = e.currentTarget.dataset.presetId;
       if (!themeId) return;
-      if (!(await this.card._confirm(this.t("bind_theme.delete_theme_confirm", { themeId: this.esc(themeId) }), { danger: true }))) return;
+
+      // Confirm on the NAME the user sees on the card, not the internal id. Themes
+      // minted by the editor are `theme_<microsecond timestamp>`
+      // (themes/manager.py::_generate_theme_id), so this dialog was asking people to
+      // confirm deleting "theme_20260913T212639789315" -- unreadable, and it names
+      // nothing the user chose. Falls back to the id when the library has no entry,
+      // which is the only case where the id is the best available label.
+      // NOTE the placeholder is still spelled `themeId` across all 19 locale files;
+      // the VALUE is a display name. Renaming it would touch every locked
+      // translation to change nothing a reader sees.
+      const label =
+        this.card._state._ensureThemeState().library?.[themeId]?.name || themeId;
+      if (!(await this.card._confirm(this.t("bind_theme.delete_theme_confirm", { themeId: this.esc(label) }), { danger: true }))) return;
 
       await this.card._actions.deleteTheme(themeId);
       await this._refreshThemeFromBackend();
