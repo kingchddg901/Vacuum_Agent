@@ -11,13 +11,13 @@
 [![Validate][validate-badge]][validate-url]
 [![License: MIT][license-badge]][license-url]
 
-A custom Home Assistant integration that adds a whole control-and-intelligence layer on top of your robot vacuum — **room-level cleaning, a live map you can actually drive from, a learning/ETA system, saved zones, battery-health tracking, a themeable dashboard, eighteen languages, and automation events** — for **Eufy** *and* **Roborock**. It uses an adapter pattern, so more brands can follow.
+A custom Home Assistant integration that adds a whole control-and-intelligence layer on top of your robot vacuum — **room-level cleaning, a live map you can actually drive from, a learning/ETA system, saved zones, battery-health tracking, a themeable dashboard, eighteen languages, and automation events** — for **Eufy**, **Roborock** *and* **Dreame**. It uses an adapter pattern, so more brands can follow.
 
 ![Vacuum Agent — a real home's map with every room painted in its own floor material, robot mid-clean](docs/screenshots/floor-texture-map.png)
 
 *Every room painted with its real floor material — wood, marble, granite, tile, carpet — rendered live over your robot's actual map.*
 
-It doesn't replace your vacuum integration, it builds on it: for **Eufy** that's [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean); for **Roborock**, Home Assistant's built-in Roborock integration. Vacuum Agent consumes whatever they already expose and adds everything the stock integrations don't.
+It doesn't replace your vacuum integration, it builds on it: for **Eufy** that's [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean); for **Roborock**, Home Assistant's built-in Roborock integration; for **Dreame**, [dreame-vacuum by Tasshack](https://github.com/Tasshack/dreame-vacuum). Vacuum Agent consumes whatever they already expose and adds everything the stock integrations don't.
 
 ---
 
@@ -115,6 +115,16 @@ The Roborock adapter (tested on the **S6**) brings the stock integration up to p
 
 **Wash docks** surface their two consumables — `Dock Cleaning Brush` and `Dock Strainer`. They live on the dock, which Roborock exposes as a *second device*, so they were previously invisible. Whether a dock can wash, dry or empty is read from the dock itself rather than guessed, and a bare charger produces no rows and no buttons.
 
+## Also on Dreame
+
+Dreame arrives through [dreame-vacuum by Tasshack](https://github.com/Tasshack/dreame-vacuum), and the map is the part that works differently. Eufy's rooms are inferred from map screenshots and Roborock's arrive as vendor rooms; Dreame's arrive as **encoded map data on a camera attribute**, which Vacuum Agent decodes itself — so you get **true per-room areas**, furniture, and live robot heading rather than an approximation.
+
+**Maintenance comes from Dreame's own manuals.** 700 models are routed to a maintenance profile built from the manufacturer's published care instructions rather than guessed at, and the guidance is translated into all eighteen languages.
+
+> **Set your map up in the Dreame integration first.** A Dreame that has no saved map yet is the one case that misbehaves during first setup; a mapped device is unaffected. Run a mapping pass, let it save, then add the vacuum here — or if you hit it, finish mapping and reload the integration.
+
+**Go-to and zone clean are per-model.** A drawn box has to be inverted into the robot's own coordinate frame, and getting that wrong sends the robot to the wrong place — so both controls start **switched off** on any model whose geometry hasn't been checked against real hardware. Today that means the L10s Ultra Gen2. Every other Dreame gets rooms, map, maintenance and history, and simply doesn't show those two controls. [Open an issue](https://github.com/kingchddg901/Vacuum_Agent/issues) if you'd like yours verified.
+
 ## Two ways to override how a Roborock cleans
 
 Path-optimising vacuums re-route whatever you send them. You pick five rooms in a sensible order, the robot takes them as one batch, and it cleans them in whatever order its own planner prefers. There are two ways to override that, and they are different tools with different reach.
@@ -180,8 +190,10 @@ Wire the vacuum into the rest of your home. Vacuum Agent fires `eufy_vacuum_job_
 | Roborock | S6 | Tested — Roborock adapter reference |
 | Roborock | Q5 Pro (a72) | Tested by a contributor — catalogued as mop-unsettable and dockless |
 | Roborock | Other models | Untested — may work, not supported |
+| Dreame | L10s Ultra Gen2 | Tested — Dreame adapter reference |
+| Dreame | Other models | Untested — may work, not supported |
 
-Each brand's adapter was built and validated against one **reference model** — the **Eufy X10 Pro Omni** and the **Roborock S6**. Those are the devices the adapter's behavior is tested against; other models of the same brand reuse that adapter and frequently work, but aren't individually verified.
+Each brand's adapter was built and validated against one **reference model** — the **Eufy X10 Pro Omni**, the **Roborock S6** and the **Dreame L10s Ultra Gen2**. Those are the devices the adapter's behavior is tested against; other models of the same brand reuse that adapter and frequently work, but aren't individually verified.
 
 If you run this on another model, please [open an issue](https://github.com/kingchddg901/Vacuum_Agent/issues) with the model name and what worked or didn't — the table grows from there.
 
@@ -203,11 +215,11 @@ Vacuum Agent is a supervisory control layer — it consumes whatever your provid
 **Required**
 
 - Home Assistant **2025.6.0 or later** — that is the minimum HACS enforces. Development and testing happen on **2026.8+**; older cores are permitted and expected to work, but are not exercised, so reports from them are welcome.
-- A working `vacuum.*` entity for your robot, from your brand's upstream integration: [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) for Eufy, or Home Assistant's built-in **Roborock** integration for Roborock. Vacuum Agent builds on top of it — it doesn't replace it.
+- A working `vacuum.*` entity for your robot, from your brand's upstream integration: [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) for Eufy, Home Assistant's built-in **Roborock** integration for Roborock, or [dreame-vacuum by Tasshack](https://github.com/Tasshack/dreame-vacuum) for Dreame. Vacuum Agent builds on top of it — it doesn't replace it.
 
 **Optional** *(Vacuum Agent works without these — they unlock extra capabilities)*
 
-- A provider **map / camera / image entity** for the live-map backdrop and richer map views (including the rendered floor-texture map). On **Eufy** this comes from **eufy-clean** — `camera.<device>_map` first appeared in v1.11.1, and running the current release is almost always better; on **Roborock** it's the built-in integration's map image. Without it, room control, queues, and profiles still work — you just don't get the live backdrop or the map-based tools.
+- A provider **map / camera / image entity** for the live-map backdrop and richer map views (including the rendered floor-texture map). On **Eufy** this comes from **eufy-clean** — `camera.<device>_map` first appeared in v1.11.1, and running the current release is almost always better; on **Roborock** it's the built-in integration's map image; on **Dreame** it's the map camera the dreame-vacuum integration exposes, which Vacuum Agent decodes into true per-room areas and furniture. Without it, room control, queues, and profiles still work — you just don't get the live backdrop or the map-based tools.
 - The Python science stack (**numpy, Pillow, scipy**) for **Auto (CV) map segmentation** — bundled in Home Assistant OS, but not always present on Container / Core / Supervised installs. Without it, Auto (CV) is hidden and you set rooms up manually (draw bounds with primitive shapes, or compose over a live/custom map — a few minutes in the editor). Manual setup is fully supported and is the source of truth; it is never required to install or load the integration.
 - Brand-specific **companion entities** (dock, station, etc.) for richer controls and status.
 
@@ -217,7 +229,7 @@ Vacuum Agent is a supervisory control layer — it consumes whatever your provid
 2. Install it.
 3. Restart Home Assistant.
 4. Go to **Settings → Devices & Services → Add Integration** and search for **Vacuum Agent**.
-5. In the setup form, **pick your vacuum entity** from the **Vacuum** dropdown. This is the `vacuum.*` entity provided by your brand's upstream integration ([eufy-clean](https://github.com/jeppesens/eufy-clean) for Eufy, the built-in Roborock integration for Roborock) — you need that integration installed and working first. The Vacuum field is optional during setup; you can leave it blank now and fill it in later via **Configure**.
+5. In the setup form, **pick your vacuum entity** from the **Vacuum** dropdown. This is the `vacuum.*` entity provided by your brand's upstream integration ([eufy-clean](https://github.com/jeppesens/eufy-clean) for Eufy, the built-in Roborock integration for Roborock, [dreame-vacuum](https://github.com/Tasshack/dreame-vacuum) for Dreame) — you need that integration installed and working first. The Vacuum field is optional during setup; you can leave it blank now and fill it in later via **Configure**.
 6. A **Vacuum Agent** item appears in your sidebar (the default panel title; rename it per-vacuum later). The panel card is registered automatically — no manual dashboard editing required.
 
 If you submitted setup without picking a vacuum, the sidebar entry still appears but shows a "setup needed" placeholder pointing you back to **Settings → Devices & Services → Vacuum Agent → Configure** to add it.
@@ -329,7 +341,7 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **The
 
 ## Feature summary
 
-- **Floor-texture map** — each room painted in its real material (wood, tile, marble, concrete, granite, carpet), themeable, on Eufy and Roborock
+- **Floor-texture map** — each room painted in its real material (wood, tile, marble, concrete, granite, carpet), themeable, on all three brands
 - Room selection and targeted clean jobs
 - Cleaning queue — build, reorder, inspect before starting
 - Zone cleaning — draw boxes on the live map and clean just those areas
