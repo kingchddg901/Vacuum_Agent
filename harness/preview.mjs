@@ -34,6 +34,10 @@ const OUT = join(repo, "harness", "out", "preview", "themes");
 // excluded — too small to be theme-expressive). Includes the External Jobs
 // subtab + the two review-wizard steps so a theme is shown on the modal too.
 const FULL_GALLERIES = [
+  // FIRST on purpose. Floors are an uploadable, shareable artifact -- a theme can be
+  // nothing but floors -- so the materials board leads the page instead of sitting
+  // eight shots down a tour as a wash behind a room card.
+  "floor-materials",
   "rooms-active",
   "review-badges",
   "external-jobs",
@@ -111,7 +115,9 @@ for (const file of files) {
   // non-empty scope as "texture pack" demoted the first theme that did so from
   // twelve renders to one.
   const views = floorOnly
-    ? [{ kind: "gallery", id: "rooms-active" }]
+    // A pack IS floors, so show the materials board -- not `rooms-active`, whose
+    // fixture suppresses textures and would render a pack as an untextured card.
+    ? [{ kind: "gallery", id: "floor-materials" }]
     : [
         ...FULL_GALLERIES.map((id) => ({ kind: "gallery", id })),
         ...VIEW_ORDER.filter((id) => !GALLERY_TAB_IDS.has(id)).map((id) => ({ kind: "tab", id })),

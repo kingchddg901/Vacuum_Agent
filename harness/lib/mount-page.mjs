@@ -4,7 +4,7 @@
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const BUNDLE = join(here, "..", "dist", "mount.js");
@@ -31,6 +31,45 @@ const PAGE_HTML =
  */
 const FONT_DIR = join(here, "..", "..", "custom_components", "eufy_vacuum",
                       "frontend", "fonts");
+
+/**
+ * The floor-texture layers point at /eufy_vacuum/textures/<type>/<mask>.png, which
+ * Home Assistant serves from the integration's textures/ directory. The harness has
+ * no such route, so every mask 404s and the material renders as nothing.
+ *
+ * That is the same shape as the font bug above, and it cost the same thing: the
+ * gallery's rooms fixture SUPPRESSED floor textures outright, reasoning that the
+ * masks were "absent headless". They were never absent -- 27 of them are tracked in
+ * this repo -- only unroutable. So a theme's floor work was invisible in every
+ * published preview, and the first theme to ship floor tokens had no shot that
+ * showed them.
+ *
+ * Fulfil from the shipped PNGs so the harness composites the same materials a real
+ * install does.
+ */
+const TEXTURE_DIR = join(here, "..", "..", "custom_components", "eufy_vacuum", "textures");
+
+async function serveFloorTextures(page) {
+  await page.route("**/eufy_vacuum/textures/**", (route) => {
+    // Registry URLs carry a ?v=<asset-ver> cache-bust, so take the pathname only.
+    // Masks live in per-material subdirectories, so keep the path below the prefix.
+    const rel = new URL(route.request().url()).pathname.split("/eufy_vacuum/textures/")[1] || "";
+    const file = resolve(TEXTURE_DIR, rel);
+    // The only caller is our own registry, but a route that resolves a URL-shaped
+    // path should not be able to read outside the texture tree regardless.
+    if (file !== resolve(TEXTURE_DIR) && !file.startsWith(resolve(TEXTURE_DIR) + sep)) {
+      route.abort();
+      return;
+    }
+    try {
+      route.fulfill({ status: 200, contentType: "image/png", body: readFileSync(file) });
+    } catch {
+      // Same reasoning as the fonts: a missing mask should render visibly
+      // untextured rather than hang the page.
+      route.abort();
+    }
+  });
+}
 
 async function serveCardFonts(page) {
   await page.route("**/eufy_vacuum/fonts/*", (route) => {
@@ -66,6 +105,7 @@ export async function mountHarness(page) {
   // win. Registered first, the catch-all above answers the .woff2 with HTML and
   // the face fails to parse — the same NetworkError, one layer along.
   await serveCardFonts(page);
+  await serveFloorTextures(page);
   await page.goto("https://evcc.harness.test/", { waitUntil: "domcontentloaded" });
   await page.addScriptTag({ content: readFileSync(BUNDLE, "utf8") });
   await page.waitForFunction(() => Boolean(window.__evcc));

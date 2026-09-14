@@ -28,6 +28,8 @@
    ========================================================= */
 
 /** A room object with the fields the rooms renderer reads. */
+import { FLOOR_TEXTURE_REGISTRY } from "../../src/textures/floor-texture-registry.js";
+
 function room(id, name, extra = {}) {
   return {
     id,
@@ -874,7 +876,62 @@ const SETUP_SYSTEM = {
   },
 };
 
+/* =========================================================
+   FLOOR MATERIALS — every registry material, textures ON
+   ========================================================= */
+
+/**
+ * DERIVED FROM THE REGISTRY, never a hand-listed seven.
+ *
+ * The card's own editor preview (renderers/theme-preview.js
+ * _renderThemePreviewFloorTextures) DOES hand-list them, and that list is only
+ * reachable when a user has focused the Floor Textures token group in the editor
+ * — so an eighth material would show up in the token groups and in no preview
+ * anywhere. This board is whatever the registry holds, and [FLOOR-1] proves each
+ * entry actually RENDERS rather than merely being declared.
+ */
+const FLOOR_MATERIALS = Object.keys(FLOOR_TEXTURE_REGISTRY).filter((k) => k !== "default");
+
+const materialLabel = (key) =>
+  key.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+const FLOOR_MATERIALS_GALLERY = {
+  id: "floor-materials",
+  view: "rooms",
+  label: "Floor materials — every registry material with its texture composited",
+  // Deliberately NO `--evcc-floor-textures-card-enabled: 0`, unlike the three rooms
+  // galleries: this board exists to show the materials. force_floor_texture keeps it
+  // rendering even for a theme that turns card textures off, on the same grounds the
+  // shipped preview card gives — a preview must preview.
+  tokens: [],
+  // Clip to the room grid. Unclipped this renders the whole rooms view -- queue,
+  // live progress, estimates -- and the materials end up buried mid-page, which is
+  // the exact complaint this board exists to answer.
+  clip: ".evcc-room-grid",
+  state: {
+    // Inherit the active-job suppressors (queueZonePickerOpen: false and the rest);
+    // a bare state lets the stub null-object read every modal as OPEN, which put an
+    // "Add a zone step" dialog over the first render of this board.
+    ...ROOMS_ACTIVE.state,
+    getRoomsForActiveMap: () =>
+      FLOOR_MATERIALS.map((key, i) =>
+        room(String(i + 1), materialLabel(key), {
+          floor_type: key,
+          force_floor_texture: true,
+          clean_mode: "vacuum_mop",
+        })),
+    // Neutralise the per-room job noise the inherited state carries: it is keyed to
+    // rooms 1-5 and would stamp estimates, a trouble badge and progress chips across
+    // materials that mean nothing here. The subject is the MATERIAL.
+    roomEstimateForRoom: () => null,
+    troubleRoomForRoom: () => null,
+    learningCompletedRooms: () => [],
+    hasActiveRun: () => false,
+  },
+};
+
 export const GALLERY = [
+  FLOOR_MATERIALS_GALLERY,
   ROOMS_ACTIVE,
   SETUP_SYSTEM,
   ROOMS_OPENDYSLEXIC,

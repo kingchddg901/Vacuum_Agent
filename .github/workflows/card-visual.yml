@@ -35,8 +35,13 @@ jobs:
       - name: Build harness bundle
         run: node harness/build.mjs
 
-      - name: Visual regression + per-device theme resolution
-        run: npx playwright test -c harness/playwright.config.mjs visual device-theme
+      # gallery-completeness runs HERE because this is the only Playwright invocation
+      # in CI. Its gates -- every semantic-colour token claimed by a fixture, and
+      # [FLOOR-1] every registry floor material actually rendering -- had never once
+      # executed on a runner: a correct gate with no caller, which is the same shape
+      # as the dead --evcc-sem-info claimant the spec's own allowlist warns about.
+      - name: Visual regression + per-device theme resolution + gallery completeness
+        run: npx playwright test -c harness/playwright.config.mjs visual device-theme gallery-completeness
 
       - name: Upload diff report on failure
         if: failure()

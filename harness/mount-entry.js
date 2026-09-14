@@ -47,7 +47,7 @@ import { README_SHOTS } from "./fixtures/readme-shots.js";
 import { CARD_FIXTURES, CARD_STATES, CARD_SERVICE_RESPONSES } from "./fixtures/cards.js";
 import { SEMANTIC_COLOR_TOKENS } from "./semantic-tokens.js";
 import { BADGE_MARK_PATHS, MARK_VIEWBOX } from "../src/renderers/badge-marks.js";
-import { detectFloorScope, clampThemeScalars, isFloorOnlyKeySet } from "../src/theme-tokens/floor-scope.js";
+import { detectFloorScope, clampThemeScalars, isFloorOnlyKeySet, floorTypeNames } from "../src/theme-tokens/floor-scope.js";
 import { flattenThemeBuckets } from "../src/theme-tokens/flatten.js";
 import { THEME_TOKEN_MAP } from "../src/theme-tokens/index.js";
 import { themeLibraryFixture, tokenCount } from "./fixtures/theme-library.mjs";
@@ -1036,6 +1036,8 @@ window.__evcc = {
                   //  treats a typeless .js as CJS and won't reparse the ESM export)
   VacuumCardState, // exposed so tooling can drive real state (e.g. per-device theme)
   semanticTokens: SEMANTIC_COLOR_TOKENS,
+  // Registry-derived floor materials, for [FLOOR-1]'s expectation side.
+  floorTypes: floorTypeNames(),
   badgeMarks: BADGE_MARK_PATHS,
   markViewBox: MARK_VIEWBOX,
   ingestTheme,

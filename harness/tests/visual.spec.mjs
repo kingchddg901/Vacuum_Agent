@@ -40,6 +40,13 @@ const RUN = Boolean(process.env.CI) || Boolean(process.env.VISUAL);
 // Mirror of the gallery entry ids in harness/fixtures/gallery.js. The
 // "ids in sync" test below fails if these drift, so this stays honest.
 const GALLERY_IDS = [
+  // The floor-materials board (every FLOOR_TEXTURE_REGISTRY material, textures ON).
+  // Its baseline is the FIRST render in this repo's history where the mask PNGs are
+  // actually reachable -- serveFloorTextures in lib/mount-page.mjs routes them from
+  // the shipped textures/ dir. Before that every floor render was untextured, which
+  // is the same failure the rooms-opendyslexic note below describes for the typeface:
+  // a case that cannot show its subject cannot catch anything about it.
+  "floor-materials",
   "rooms-active",
   "rooms-cyrillic",
   // Added with the OpenDyslexic gallery case (dd2ec11, 2026-08-04) and never

@@ -192,6 +192,29 @@ The completeness gate asserts every such token is claimed by a gallery entry (or
 allowlisted with a reason) — so a new colored state-token fails the gate until it
 has a fixture row.
 
+**Floor materials are their own gallery, and they are served, not suppressed.** The
+`floor-materials` entry renders one room card per `FLOOR_TEXTURE_REGISTRY` material
+with `force_floor_texture`, clipped to `.evcc-room-grid`. It is **derived from the
+registry**, not hand-listed — unlike the card's editor preview
+(`renderers/theme-preview.js`), which hand-lists seven and is only reachable when a
+user has focused the Floor Textures token group, so an eighth material would appear
+in the token groups and in no preview at all. `[FLOOR-1]`
+(`harness/tests/gallery-completeness.spec.mjs`) closes that: it reads the expectation
+from the registry and the observation off the rendered tree, and fails when a
+material has no textured card.
+
+The textures render at all because `serveFloorTextures` (`harness/lib/mount-page.mjs`)
+routes `/eufy_vacuum/textures/**` at the 27 mask PNGs shipped in
+`custom_components/eufy_vacuum/textures/`, exactly as `serveCardFonts` does for the
+woff2 faces. Before that the rooms fixtures suppressed floor textures outright
+(`--evcc-floor-textures-card-enabled: 0`) on the grounds that the masks were "absent
+headless" — they were never absent, only unroutable, and the result was that a
+theme's floor work appeared in no published preview. Note `[FLOOR-1]` needs two arms
+to see this: a layer's `<span>` is emitted whether or not its mask URL resolves, so
+counting spans cannot tell a composited material from a flat one. The second arm
+watches the mask responses' content type, because the harness catch-all answers an
+unrouted request with page HTML rather than a 404.
+
 ---
 
 ## 4. Visual regression
