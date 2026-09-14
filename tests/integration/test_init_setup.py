@@ -851,8 +851,10 @@ async def test_remove_config_entry_device_removes_vacuum(hass, mock_config_entry
     rt._room_history_cache_loading.add(_VAC)
     rt._map_state_source_cache[_VAC] = {"mtime": None, "map_id": "9", "result": {}}
 
-    device = dr.async_get(hass).async_get_device(
-        identifiers={(DOMAIN, _VAC.replace(".", "_"))}
+    # `async_get_device(identifiers=...)` is DEPRECATED and newer Home Assistant RAISES on
+    # it — identifiers are no longer unique across config entries. Scoped lookup instead.
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, _VAC.replace(".", "_")), mock_config_entry.entry_id
     )
     assert device is not None
 
@@ -918,8 +920,8 @@ async def test_remove_non_configured_vacuum_keeps_entry(
     assert _VAC2 in dd.get("_discovery_unsubs", {})
     rt._map_state_source_cache[_VAC2] = {"mtime": None, "map_id": "1", "result": {}}
 
-    device2 = dr.async_get(hass).async_get_device(
-        identifiers={(DOMAIN, _VAC2.replace(".", "_"))}
+    device2 = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, _VAC2.replace(".", "_")), mock_config_entry.entry_id
     )
     assert device2 is not None
 
