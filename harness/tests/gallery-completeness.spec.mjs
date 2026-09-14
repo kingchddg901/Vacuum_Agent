@@ -11,7 +11,7 @@
  * fixture row.
  */
 import { test, expect } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { mountHarness } from "../lib/mount-page.mjs";
@@ -74,12 +74,19 @@ test("the AnimalSVG stub lists exactly the animals that ship", async ({ page }) 
   // shape that always drifts: it listed five while seven shipped, so every harness
   // render of the mascot picker under-represented the product and nothing said so.
   //
-  // Compared against the shipped index rather than a second hardcoded list here —
-  // a gate that mirrors the mirror would drift in exactly the same way.
-  const shipped = JSON.parse(readFileSync(
-    join(HERE, "../../custom_components/eufy_vacuum/frontend/animal-svg/animals/index.json"),
-    "utf8",
-  )).map((f) => f.replace(/\.js$/, "")).sort();
+  // Compared against what SHIPS rather than a second hardcoded list here — a gate
+  // that mirrors the mirror would drift in exactly the same way.
+  //
+  // Read from the animals/ DIRECTORY, not animals/index.json. That index is a runtime
+  // artifact: manifest.js says the integration "generates animals/index.json at
+  // startup from whatever .js files exist", and .gitignore:58 ignores it. So the file
+  // exists on a box that has booted HA and nowhere else — this test could never pass
+  // on a runner, and nothing noticed because gallery-completeness was not wired into
+  // CI at all. The directory is the same source of truth the startup scan uses, and
+  // it is tracked.
+  const shipped = readdirSync(
+    join(HERE, "../../custom_components/eufy_vacuum/frontend/animal-svg/animals"),
+  ).filter((f) => f.endsWith(".js")).map((f) => f.replace(/\.js$/, "")).sort();
 
   await mountHarness(page);
   const stubbed = (await page.evaluate(() => window.AnimalSVG?.list?.() ?? [])).slice().sort();
