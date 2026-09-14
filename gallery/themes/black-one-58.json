@@ -21,7 +21,19 @@
       "--evcc-room-fill-opacity": "0.34",
       "--evcc-queue-completed-opacity": "0.92",
       "--evcc-queue-pending-opacity": "1",
-      "--evcc-status-pulse-duration": "2.6s"
+      "--evcc-status-pulse-duration": "2.6s",
+      "--evcc-floor-marble-base": "#222020",
+      "--evcc-floor-marble-micro": "#c54711",
+      "--evcc-floor-marble-accent": "#c54a07",
+      "--evcc-floor-marble-opacity-card": "1",
+      "--evcc-floor-marble-micro-opacity": "1",
+      "--evcc-floor-marble-base-opacity": "1",
+      "--evcc-floor-marble-vein-opacity": "0.99",
+      "--evcc-floor-marble-vein-major-opacity": "0.2",
+      "--evcc-floor-marble-vein-minor-opacity": "-0.42",
+      "--evcc-floor-marble-vein-major-blur": "1",
+      "--evcc-floor-marble-vein-minor-light": "0.2",
+      "--evcc-floor-marble-vein-minor-chroma": "1.01"
     },
     "colors": {
       "--evcc-surface-base": "#0a0a09",
@@ -90,8 +102,8 @@
       "--evcc-floor-tile-base": "#a98a34",
       "--evcc-floor-tile-accent": "#d8d6cf",
       "--evcc-floor-tile-grout": "#141312",
-      "--evcc-floor-marble-base": "#d6d3cd",
-      "--evcc-floor-marble-micro": "#0a0a09",
+      "--evcc-floor-marble-base": "#222020",
+      "--evcc-floor-marble-micro": "#c54711",
       "--evcc-floor-concrete-base": "#d7d4d0",
       "--evcc-floor-concrete-accent": "#141312",
       "--evcc-floor-granite-light-base": "#8e8b85",
@@ -123,9 +135,14 @@
       "--evcc-status-dot-error": "#d8434e",
       "--evcc-status-cleaning-bg": "#c9541e26",
       "--evcc-status-cleaning-border": "#c9541e73",
-      "--evcc-status-cleaning-text": "#f0b48c"
+      "--evcc-status-cleaning-text": "#f0b48c",
+      "--evcc-floor-marble-accent": "#c54a07"
     },
-    "alpha": {},
+    "alpha": {
+      "--evcc-floor-marble-base": 0.97,
+      "--evcc-floor-marble-micro": 0.85,
+      "--evcc-floor-marble-accent": 0.96
+    },
     "tags": [
       "military",
       "weathered",
