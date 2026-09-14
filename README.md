@@ -123,6 +123,15 @@ Dreame arrives through [dreame-vacuum by Tasshack](https://github.com/Tasshack/d
 
 > **Set your map up in the Dreame integration first.** A Dreame that has no saved map yet is the one case that misbehaves during first setup; a mapped device is unaffected. Run a mapping pass, let it save, then add the vacuum here — or if you hit it, finish mapping and reload the integration.
 
+**Two renderers, one backdrop — and you choose which draws what.** The dreame-vacuum integration bakes labels and overlays *into* the camera image it produces, and Vacuum Agent draws its own on top of that image. Where both are switched on you see the same thing twice — most visibly room names, each appearing once as a baked-in label and once as a Vacuum Agent name pill.
+
+Nothing is broken when that happens; it is two sets of switches that don't know about each other. Fix it from whichever side you prefer:
+
+- **In dreame-vacuum:** *Configure → Options → Hidden Map objects*, and tick **Room Names**, **Room Icons** and **Room Name Background**. That list also covers the path, no-go and no-mop zones, virtual walls, the robot and charger icons, furniture, carpet and floor material — so if you would rather Vacuum Agent drew an overlay, hide it there.
+- **In Vacuum Agent:** the Rooms map has a **Hide room labels** toggle, which turns off *our* name pills and leaves the baked-in ones.
+
+Worth a minute during setup, because the default is both on.
+
 **Go-to and zone clean are per-model.** A drawn box has to be inverted into the robot's own coordinate frame, and getting that wrong sends the robot to the wrong place — so both controls start **switched off** on any model whose geometry hasn't been checked against real hardware. Today that means the L10s Ultra Gen2. Every other Dreame gets rooms, map, maintenance and history, and simply doesn't show those two controls. [Open an issue](https://github.com/kingchddg901/Vacuum_Agent/issues) if you'd like yours verified.
 
 ## Two ways to override how a Roborock cleans

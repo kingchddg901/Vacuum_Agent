@@ -50,6 +50,29 @@ or revisit room settings.
 
 ## Step 1 — Add Vacuum
 
+!!! note "Dreame — if you see everything twice"
+
+    The dreame-vacuum integration draws labels and overlays **into** the map image it
+    produces, and Vacuum Agent draws its own on top. With both switched on you see the
+    same thing twice — room names are the obvious one, appearing as a baked-in label and
+    again as a Vacuum Agent name pill.
+
+    Nothing is wrong; they are two sets of switches that don't know about each other.
+    Pick a side:
+
+    - **dreame-vacuum → Configure → Options → Hidden Map objects** — tick **Room Names**,
+      **Room Icons** and **Room Name Background**. The same list covers the path, no-go
+      and no-mop zones, virtual walls, robot and charger icons, furniture, carpet and
+      floor material, so hide anything there you would rather Vacuum Agent drew.
+    - **Vacuum Agent** — the Rooms map has a **Hide room labels** toggle, which turns off
+      our pills and keeps the baked-in ones.
+
+    The same applies in reverse: if a control you expect is **missing** on Dreame, check
+    whether its backing entity is disabled or hidden in dreame-vacuum. Vacuum Agent decides
+    what to offer from the entities that actually exist, so an entity you turn off there
+    reads here as a capability your robot does not have — the control simply does not
+    render, with nothing to say why.
+
 !!! note "Dreame — map your robot in the app first"
 
     Before you add a **Dreame** robot, give it a saved map: run at least one
