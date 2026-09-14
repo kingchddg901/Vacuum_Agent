@@ -385,10 +385,38 @@ signal the bot keys on.
 
 **The bot** (`.github/workflows/theme-submission.yml`, on
 `issues: [opened, reopened, edited]`, gated `if` the `theme-submission` label is
-present). Its core is a **pure transform** — `scripts/process-submission.mjs`,
+present). Its core is a **near-pure transform** — `scripts/process-submission.mjs`,
 issue-body → `{envelope, report}`, unit-tested by `process-submission.test.mjs`
 and sharing the **same theme-tags core** the card and gallery use, so a
-submission is tagged and verified identically to an in-card theme:
+submission is tagged and verified identically to an in-card theme. Its one read of
+the world is the published gallery, for the name clash check below:
+
+**Name clashes are RESOLVED, never rejected.** `resolveThemeName` compares the
+submission's display name against `gallery/themes/*.json` and suffixes a collision
+— `Nord` → `Nord (2)` → `Nord (3)` — telling the submitter what changed and how to
+override. That is the house answer, already shipped one layer down: the card's
+importer suffixes rather than refusing. Refusing would be wrong here, because a
+name clash is **cosmetic**: filenames carry the issue number so they never
+collide, and `theme.id` is re-minted locally by `import_theme`, so a duplicate
+cannot overwrite a theme anyone owns. Two things this does that the card's copy
+does not — it **loops** (a single-shot suffix lands a second `Nord (2)`) and it
+compares **normalized** (`themeNameKey`: case-folded, whitespace-collapsed), so
+`black one` does not slip past `Black One`.
+
+A re-run on the **same issue** is a replace, not a clash: the bot re-runs on every
+edit and its own previously-written file is recognised by stem
+(`slugify(name)-<issue>`), so no author check or maintainer flag is needed. The
+slug is minted from the **submitted** name, never the resolved one — derive it
+from a name the bot just rewrote and a re-run computes a different stem and
+clashes with itself.
+
+Guarded by `[PS-CLASH-1..5]`, each ablated: the loop, the normalization, the
+self-replace arm, the **default** gallery read (a guard that only fires when a
+caller passes a list is one flag-flip from being silently off — the workflow calls
+`processSubmission` with two arguments), and the corpus invariant that **no two
+published themes share a name**, which holds however a duplicate arrives: the bot,
+a hand-added file, or two submissions that each validated clean and then merged
+one after the other.
 
 1. **Extract + validate.** The form's `render: json` field wraps the export in a
    fenced JSON block; the bot regex-extracts it, `JSON.parse`s it, and

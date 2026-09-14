@@ -22,6 +22,9 @@
  * report says why.
  * ============================================================
  */
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   effectiveThemeTags,
   themeAttribution,
@@ -104,11 +107,114 @@ const slugify = (name) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 40) || "theme";
 
-function buildReport({ themeName, tags, colorblind, attr, cbClaim, authorUrlRejected }) {
+
+/* =========================================================
+   NAME CLASH
+   ========================================================= */
+
+const GALLERY_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "gallery", "themes");
+
+/**
+ * The comparison key for "is this the same name".
+ *
+ * Case-folded and whitespace-collapsed, because a reader cannot tell "Black One",
+ * "black one" and "Black  One" apart on a gallery card. The card's own importer
+ * (custom_components/eufy_vacuum/themes/manager.py) compares names RAW, so it lets
+ * exactly those through -- the shorter copy of this predicate.
+ *
+ * NOT slugified. Slugifying would fold "Black-One" into "Black One" and refuse a
+ * title a reader sees as different.
+ */
+export function themeNameKey(name) {
+  return String(name || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * Every published theme as {stem, name}. `stem` is the filename without .json --
+ * the gallery's real key, since harness/preview.mjs cards by basename.
+ *
+ * Read at CALL time, not import time: the bot re-runs on issue edit and the
+ * checkout it reads may have moved.
+ */
+export function existingGalleryThemes(dir = GALLERY_DIR) {
+  let files = [];
+  try {
+    files = readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
+  } catch {
+    return []; // no gallery yet is not a clash
+  }
+  const out = [];
+  for (const f of files) {
+    try {
+      const env = JSON.parse(readFileSync(join(dir, f), "utf8"));
+      const t = (env && typeof env === "object" && env.theme) || env || {};
+      out.push({ stem: f.replace(/\.json$/, ""), name: String(t.name || "") });
+    } catch {
+      // A malformed file already fails its own render; it cannot claim a name.
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolve a submission's display name against what is already published.
+ *
+ * AUTO-DISAMBIGUATE, never reject. That is the house answer, already shipped one
+ * layer down: the card's importer appends a suffix rather than refusing
+ * (themes/manager.py). Refusing a stranger over a name the gallery happens to
+ * hold -- it already holds Signal, Voltage, Alpenglow -- would contradict what the
+ * product does everywhere else, and a name clash is cosmetic: filenames carry the
+ * issue number so they never collide, and theme.id is re-minted locally on import,
+ * so a duplicate cannot overwrite anything anyone owns.
+ *
+ * Two things the card's copy gets wrong and this does not:
+ *   - it LOOPS. A single-shot suffix yields two themes with the SAME suffixed
+ *     name on the second collision; the card survives that only because its
+ *     library is keyed by a minted id. The gallery is keyed by filename and has
+ *     no such escape.
+ *   - it compares NORMALIZED (see themeNameKey), so lowercase does not slip past.
+ *
+ * `selfStem` is this issue's own file. A re-run on the same issue is a REPLACE,
+ * not a clash -- deterministic from the filename, so it needs no author check and
+ * no maintainer flag.
+ *
+ * @returns {{name:string, renamed:boolean, collidedWith:string|null}}
+ */
+export function resolveThemeName(name, existing = [], { selfStem = null } = {}) {
+  const taken = new Map();
+  for (const e of existing) {
+    if (selfStem && e.stem === selfStem) continue; // our own earlier run
+    const k = themeNameKey(e.name);
+    if (k && !taken.has(k)) taken.set(k, e.name);
+  }
+  const base = String(name || "").trim();
+  if (!taken.has(themeNameKey(base))) return { name: base, renamed: false, collidedWith: null };
+
+  const collidedWith = taken.get(themeNameKey(base));
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${base} (${n})`;
+    if (!taken.has(themeNameKey(candidate))) {
+      return { name: candidate, renamed: true, collidedWith };
+    }
+  }
+  // 998 themes of one name is not a real gallery; fall back rather than loop.
+  return { name: `${base} (${existing.length + 1})`, renamed: true, collidedWith };
+}
+
+function buildReport({ themeName, tags, colorblind, attr, cbClaim, authorUrlRejected, renamedFrom }) {
   const lines = [`### ✅ Validated — ${themeName}`, ""];
 
   if (authorUrlRejected) {
     lines.push(`> ⚠ ${AUTHOR_URL_ERROR} Your credit will show without a link — fix it and reopen if you want one.`, "");
+  }
+
+  if (renamedFrom) {
+    lines.push(
+      `> ℹ The gallery already has a theme called **${renamedFrom}**, so this one is published as ` +
+      `**${themeName}** to keep them apart. Nothing else changed. If you'd rather pick your own ` +
+      `name, edit the export's \`name\` in the issue above and close/reopen it.`,
+      "",
+    );
   }
 
   const tagList = orderTags(tags).map((t) => `\`${t}\``).join(" ");
@@ -143,8 +249,13 @@ function buildReport({ themeName, tags, colorblind, attr, cbClaim, authorUrlReje
 /**
  * @param {string} issueBody  the rendered issue-form body.
  * @param {number|string} issueNumber  used to make the slug unique per issue.
+ * @param {object} [opts]  {existingThemes} — the published gallery, for the name
+ *   clash check. Defaults to reading gallery/themes/ off disk, so the live bot is
+ *   guarded without the workflow having to remember to pass anything; tests inject
+ *   a list instead. [PS-CLASH-4] pins the DEFAULT, because a guard that only works
+ *   when a caller opts in is the shape that silently stops working.
  */
-export function processSubmission(issueBody, issueNumber) {
+export function processSubmission(issueBody, issueNumber, opts = {}) {
   const body = String(issueBody || "");
 
   // 1. Extract the export JSON (the only ```json fence in the form).
@@ -203,11 +314,31 @@ export function processSubmission(issueBody, issueNumber) {
   const { tags, colorblind } = effectiveThemeTags(theme);
   const attr = themeAttribution(theme);
 
-  const themeName = String(t.name || slugify(t.name)) || "Theme";
+  // Slug from the SUBMITTED name, never the resolved one: it is this issue's stable
+  // identity across re-runs (the bot re-runs on edit/reopen and pushes to the same
+  // branch). Derive it from a name we just rewrote and a re-run would compute a
+  // different stem, fail to recognise its own file, and clash with ITSELF.
   const slug = `${slugify(t.name)}-${issueNumber}`;
-  const report = buildReport({ themeName, tags, colorblind, attr, cbClaim, authorUrlRejected });
 
-  return { ok: true, slug, themeName, envelope, report, tags, colorblind };
+  const existingThemes = opts.existingThemes ?? existingGalleryThemes();
+  const resolved = resolveThemeName(
+    String(t.name || slugify(t.name)) || "Theme",
+    existingThemes,
+    { selfStem: slug },
+  );
+  const themeName = resolved.name;
+  if (resolved.renamed) theme.name = themeName; // the published JSON carries it too
+
+  const report = buildReport({
+    themeName, tags, colorblind, attr, cbClaim, authorUrlRejected,
+    renamedFrom: resolved.renamed ? resolved.collidedWith : null,
+  });
+
+  return {
+    ok: true, slug, themeName, envelope, report, tags, colorblind,
+    renamed: resolved.renamed,
+    collidedWith: resolved.collidedWith,
+  };
 }
 
 // Exposed for the test + any CLI use.
