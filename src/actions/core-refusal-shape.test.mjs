@@ -33,14 +33,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { makeActions } from "./_test-host.mjs";
+import { makeActions, envelope } from "./_test-host.mjs";
 
 // Real VacuumCardActions + a fake host, so the toast delegation is under test rather
 // than supplied by the harness — see _test-host.mjs (R3-BUG-1).
 function makeCard({ response = undefined, withHost = true } = {}) {
   return makeActions({
     host: withHost ? undefined : null,
-    hass: { callService: async () => response },
+    hass: { callService: async () => envelope(response) },
   });
 }
 

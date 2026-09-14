@@ -18,6 +18,28 @@
 import { VacuumCardActions } from "./index.js";
 
 /**
+ * Wrap a service payload the way Home Assistant ACTUALLY delivers it.
+ *
+ * `hass.callService(domain, service, data, target, notifyOnError, true)` resolves to an
+ * ENVELOPE -- `{context, response}` -- never the bare payload. Measured on the live panel
+ * 2026-09-13: `Object.keys(result)` came back `["context","response"]`.
+ *
+ * Every fake at this seam used to return the payload BARE, which is a fixture agreeing with
+ * the CALLER instead of the callee, and it is the whole reason a refusal check that could
+ * never fire had six green tests over it for months. Wrap every `hass.callService` fake with
+ * this, so the action layer is fed the shape production feeds it.
+ *
+ * `undefined` passes through: that is what HA returns when returnResponse is false.
+ *
+ * @param {*} payload - the service handler's own return value.
+ * @returns {{context: object, response: *}|undefined}
+ */
+export function envelope(payload) {
+  if (payload === undefined) return undefined;
+  return { context: { id: "01TESTCTX", parent_id: null, user_id: null }, response: payload };
+}
+
+/**
  * A stand-in for the host element (main.js's card, or the map-host shim). Exposes the
  * two surfaces the action layer delegates to: `showToast` and `_renderers`.
  */

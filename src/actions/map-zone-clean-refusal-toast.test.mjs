@@ -28,7 +28,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { makeActions } from "./_test-host.mjs";
+import { makeActions, envelope } from "./_test-host.mjs";
 
 // Real VacuumCardActions + a fake host (the class already carries every action mixin,
 // so map.js's cleanZone is present); the toast delegation is under test rather than
@@ -39,7 +39,7 @@ function makeCard({ response, vacuumEntityId = "vacuum.alfred" } = {}) {
     hass: {
       callService: async (domain, service, data, target, notifyOnError, returnResponse) => {
         hassCalls.push({ domain, service, data, returnResponse });
-        return response;
+        return envelope(response);
       },
     },
     state: {

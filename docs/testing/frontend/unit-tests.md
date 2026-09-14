@@ -153,10 +153,19 @@ are responsible for telling the user — and the two shapes (a **throwing** call
 vs a normal response carrying `{success: false, reason}`, the operational-
 refusal contract) are pinned separately.
 
+**Every fake at the `hass` seam must return the ENVELOPE.** `hass.callService(...,
+returnResponse)` resolves to `{context, response}`, never the bare payload. Until
+2026-09-13 all four fixtures below returned it bare — a fixture agreeing with the CALLER,
+not the callee — so `callService`'s refusal check, which read `result.success` off the
+ENVELOPE and could therefore never fire, sat under six green cases for months. Wrap fakes
+with `envelope()` from `_test-host.mjs`. Ablating the unwrap in `core.js` now turns **8**
+of these cases red while every no-toast control stays green.
+
 | File | Cases | What it guards |
 |------|------:|----------------|
 | `rooms-clear-applied.test.mjs` | 8 | Defect #8 — post-apply room mutations (`updateRoomFields`, `persistRoomOrdering`) drop the pending applied stepped run profile so Start runs the just-edited FLAT selection, not the saved step sequence. |
-| `core-refusal-shape.test.mjs` | 6 | `CRS-*` — the generic `callService` wrapper toasts a non-throwing `{success: false, reason}` response. |
+| `core-envelope-shape.test.mjs` | 7 | `CES-*` — the `{context, response}` ENVELOPE contract: `callService` returns the UNWRAPPED payload; a null `response` falls back to the envelope (**not** `null`, which would report a save that took as a failure); **REPLICA `RNGP3ZBE` parity** with `cards/_shared.js::callResponse`; the second funnel (`_callThemeService`) revives; and the predicate stays NARROW — `{ok:false}`/`{updated:false}`/`{status:"error"}` remain their own funnels' business, or one refusal toasts twice. |
+| `core-refusal-shape.test.mjs` | 6 | `CRS-*` — the generic `callService` wrapper toasts a non-throwing `{success: false, reason}` response. Fixture returns the real envelope. |
 | `core-service-failure.test.mjs` | 6 | A **throwing** service call surfaces as a toast (was: console.error + resolve `null`). |
 | `rooms-cancel-through-seam.test.mjs` | 6 | The card-cancel bypass — Cancel must call the integration's `cancel_active_job`, never stock `vacuum.return_to_base` (which left the tracker believing the job was live). |
 | `fetch-failure-tristate.test.mjs` | 5 | A FAILED fetch is not rendered as a confident empty result — "never loaded" / "failed" / "genuinely empty" stay distinct. |

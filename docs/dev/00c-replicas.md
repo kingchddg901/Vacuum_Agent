@@ -554,6 +554,28 @@ unwrap `response`, null on any failure, **never throw into the render cycle**.
 Panel and standalone card must refuse alike. Diverge and one surface swallows a failure
 the other reports — or worse, one throws mid-render.
 
+**The `unwrap response` clause was FALSE of the primary from this entry's creation until
+2026-09-13.** `hass.callService(..., returnResponse)` resolves to `{context, response}`;
+the card twin unwrapped it, the panel primary returned the envelope. Nothing could see the
+divergence: `callResponse` had no test at all, and every fake at the `hass` seam returned
+the payload bare. The cost was not a shape mismatch but a **silent refusal** — the panel's
+central check read `result.success` on the envelope, so it never fired once, and
+`actions/rooms.js` had already deleted its own toast in favour of it (MZ-2). A second
+funnel, `actions/theme.js::_callThemeService`, was dead the same way. The clause is now
+true of both members and pinned by `[CES-5]` in `src/actions/core-envelope-shape.test.mjs`,
+which asserts the two members return the SAME shape for the same `hass`.
+
+**Refusal parity is narrower than "refuse alike" reads.** The card member has no refusal
+inspection, deliberately: its only two consumers are read-only fetches
+(`get_dashboard_snapshot`, `get_saved_run_profiles`), which have no refusal shape to report.
+The shared clause is the **argument list, the unwrap, and null-on-failure** — not the toast.
+Widening the card to toast would need a refusal-shaped service on that surface first.
+
+*Lesson for the register:* the `unwrap response` clause was added at PROMOTION from
+`00c-h-replica-harvest.md`, where the harvested row lists only the three arguments. The
+promoted prose described the replica and was read forever after as describing both. When
+promoting, check each added clause against the **primary**, not the copy you were looking at.
+
 ---
 
 ### `RN60D6C4` — the per-room SWITCH FILTER · **2 copies**

@@ -10,7 +10,9 @@ The **map render-DATA shapes** — the map segment geometry, `room_names`, and t
 
 ### HA Services
 
-All services live in the `eufy_vacuum` domain. Call them via `hass.callService(domain, service, data, target?, notifyOnError?, returnResponse?)`. Services marked **response** must be called with `returnResponse = true`; the result lives at `result.response`.
+All services live in the `eufy_vacuum` domain. Call them via `hass.callService(domain, service, data, target?, notifyOnError?, returnResponse?)`. Services marked **response** must be called with `returnResponse = true`; the RAW result is an envelope and the payload lives at `result.response`.
+
+> **Which layer unwraps.** `hass.callService` hands back `{context, response}`. The card's own wrappers — `actions/core.js::callService` and its replica `cards/_shared.js::callResponse` (anchor `RNGP3ZBE`) — unwrap it, so **everything above them sees the payload directly** and must not reach for `.response` again. Reach for `result.response` only when you are calling `hass.callService` yourself. This paragraph exists because the panel wrapper did NOT unwrap until 2026-09-13, which left two central refusal checks reading a key that was never at that level; pinned by `[CES-1]`/`[CES-5]` in `src/actions/core-envelope-shape.test.mjs`.
 
 > **`map_id` is usually optional even where a table lists it as required** — most services auto-resolve it to the active map (`resolved_call_data`), so passing it explicitly always works but omitting it is fine. The over-strict direction is safe. Separately, `debug_capture_*` / `debug_log_live_room` are internal diagnostics, **not** part of the client contract.
 

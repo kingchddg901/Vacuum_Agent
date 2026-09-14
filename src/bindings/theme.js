@@ -142,10 +142,18 @@ export function applyThemeBindings(proto) {
     if (!proceed) return false;
 
     const { envelope: clamped, corrected } = clampThemeScalars(envelope, THEME_TOKEN_MAP);
-    await this.card._actions.importTheme(
+    // READ THE RESULT. This discarded it and toasted success unconditionally, while its twin
+    // _handleFullImportResult (below) has always checked `ok === false` -- the shorter copy was
+    // the bug, and it was invisible only because the central refusal toast in
+    // actions/theme.js::_callThemeService was itself dead (it inspected the {context, response}
+    // envelope). With that funnel revived, a refused scoped import would show BOTH "could not
+    // complete" and "Replaced <floor types>" for the same refusal -- not a duplicate, a
+    // CONTRADICTION. The toast for the refusal is the funnel's job; ours is to stop here.
+    const importResult = await this.card._actions.importTheme(
       { ...clamped, scope: known },
       this.card._config.vacuum_entity_id
     );
+    if (importResult?.ok === false) return false;
     await this._refreshThemeFromBackend();
     this.card.showToast(
       this.t("bind_theme.replaced_floor_types", { known: known.join(", "), sourceLabel: this.esc(sourceLabel) }) +

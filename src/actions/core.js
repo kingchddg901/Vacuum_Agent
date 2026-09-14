@@ -74,31 +74,56 @@ export function applyCoreActions(proto) {
         false,       // notifyOnError
         returnResponse
       );
+      //
+      // UNWRAP FIRST, THEN INSPECT. `hass.callService(..., returnResponse)` resolves to an
+      // ENVELOPE -- `{context, response}` -- and the service's own return value is the
+      // `response` half. Every line below this used to read the ENVELOPE, so `result.success`
+      // was ALWAYS undefined and this entire branch could never fire. Measured on the live
+      // panel 2026-09-13: Object.keys(result) === ["context","response"]. Every refusal toast
+      // the card has ever declared has therefore been silent, including the ones whose call
+      // sites DELETED their own toast in favour of this one (see actions/rooms.js#L143's
+      // comment, MZ-2, which describes a behaviour that never shipped).
+      //
+      // `?? result`, NOT `?? null`. A handler returning None gives `response: null`; falling
+      // back to the envelope keeps the value TRUTHY, which is what bindings/maintenance.js and
+      // bindings/base-station.js test for (`result === null` / `result !== null`) to decide
+      // whether a save or a dock action took. `?? null` would report a successful save as a
+      // failure. The `?? result` arm also makes this backward-compatible with the ~40 callers
+      // that already spell the unwrap themselves -- their `result?.response ?? result` simply
+      // becomes a no-op on an already-unwrapped payload.
+      //
+      // REPLICA RNGP3ZBE: this is the clause that had diverged. src/cards/_shared.js's
+      // callResponse -- the declared twin -- has always returned the unwrapped payload.
+      // Unwrapping here also revives the SECOND dead funnel, actions/theme.js's
+      // `_callThemeService`, which reads `result.ok === false` at this same level.
+      const payload = returnResponse ? (result?.response ?? result) : undefined;
+
       // A NON-throwing response can still be an operational refusal, and the
       // backend has TWO such shapes: {success:false, reason} (RP-031, most
       // services) and {started:false, reason} (job_control's start_*). Without
       // this check either is handed back identically to a genuine success — no
-      // toast, nothing. showServiceRefusalToast never swallows `result`;
-      // callers still get the full payload back below.
+      // toast, nothing. showServiceRefusalToast never swallows the payload;
+      // callers still get it back below.
       //
-      // MZ-2: {started:false} used to be handled per call site, and only ONE of
-      // the three ever did. startCleaning toasted it; cleanZone and
-      // startRunProfile did not — so a refused ad-hoc zone clean was completely
-      // silent and the user believed the robot was going. Asking the question
-      // once here is what stops the next start-shaped service repeating it.
+      // DELIBERATELY NOT WIDENED to the other discriminators the backend emits
+      // ({ok:false}, {updated:false}, {saved:false}, {status:"error"}, {error}).
+      // Those are already inspected by their own funnels -- theme.js for `ok`,
+      // bindings/room-editor.js::_roomEditorSaveWasRejected for updated/error --
+      // and adding them here would DOUBLE-toast every one. Fixing the shape is
+      // not licence to change the contract; widening the set is a separate call.
       //
       // confirmation_required is EXEMPT: it is a prompt, not a refusal, and
       // startCleaning answers it with a dedicated dialog. Toasting it would put
       // an error next to a question the user is being asked.
-      if (returnResponse && result && typeof result === "object") {
+      if (returnResponse && payload && typeof payload === "object") {
         const refused =
-          result.success === false ||
-          (result.started === false && result.reason !== "confirmation_required");
+          payload.success === false ||
+          (payload.started === false && payload.reason !== "confirmation_required");
         if (refused) {
-          this.showServiceRefusalToast(result.reason);
+          this.showServiceRefusalToast(payload.reason);
         }
       }
-      return returnResponse ? result : undefined;
+      return payload;
     } catch (err) {
       console.error(
         `[eufy-vacuum-command-center] ${domain}.${service} failed`,

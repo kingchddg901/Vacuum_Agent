@@ -20,7 +20,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { makeActions } from "./_test-host.mjs";
+import { makeActions, envelope } from "./_test-host.mjs";
 
 // Builds the REAL VacuumCardActions against a fake host — see _test-host.mjs for why
 // this must not go back to attaching showToast/t onto a bare prototype (R3-BUG-1).
@@ -30,7 +30,7 @@ function makeCard({ fail = false, response = undefined, withHost = true } = {}) 
     hass: {
       callService: async () => {
         if (fail) throw new Error("service unavailable");
-        return response;
+        return envelope(response);
       },
     },
   });
