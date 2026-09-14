@@ -138,26 +138,23 @@ model as hardware is confirmed. `MODEL_PROFILES ⊆ DREAME_MODEL_REGIMES` is ass
 the capability source and the guide/name source cannot drift — the two-table lesson from 24 §7,
 applied before it could bite.
 
-**`supports_edge_mopping` is `False`, and it is worth knowing why**, because the comment that used
-to explain it was the more interesting defect. It read "left False until confirmed per-model
-(PHASE 3, hardware)" — an unconfirmed deferral, which is the shape of a *false CAN'T*: a capability
-hidden silently and permanently for every user of the brand, with nothing ever contradicting it.
+**`supports_edge_mopping` is `False`, and the reason is a mechanism rather than a deferral.**
 
-Measured on `vacuum.robin`, 2026-09-13, and the answer is the opposite of a deferral. The hardware
-is plainly there — `switch.<obj>_mop_extend` and `select.<obj>_mop_extend_frequency` both exist.
-But **this flag gates a PER-ROOM control**, and both of those entities are **global**. The per-room
-surface upstream exposes is exactly eleven kinds:
+The hardware is there — `switch.<obj>_mop_extend` and `select.<obj>_mop_extend_frequency` both
+exist on a live device (measured 2026-09-13). But **this flag gates a PER-ROOM control**, and both
+of those entities are **global**. The per-room surface upstream exposes is exactly eleven kinds:
 
 ```
 cleaning_mode  cleaning_route  cleaning_times  floor_material  floor_material_direction
 mop_pad_humidity  name  order  suction_level  visibility  wetness_level
 ```
 
-No mop-extend among them. So `False` is a real "no" with a **mechanism** — the thing a real no
-requires — rather than an absence of sightings. What would change it is upstream exposing a
-`room_<n>_mop_extend`; a per-model profile flag would not, because the gap is per-room exposure and
-not model hardware. The vocabulary file previously advised exactly that per-model declaration, and
-that advice is now marked superseded rather than left to be acted on.
+No mop-extend among them. That makes `False` a real "no" with a mechanism, not an absence of
+sightings — the distinction between a genuine limit and a *false CAN'T*, which hides a capability
+silently and permanently for every user of a brand.
+
+**What would change it:** upstream exposing a `room_<n>_mop_extend` alongside the eleven above. A
+per-model profile flag would not, because the gap is per-room exposure rather than model hardware.
 
 Five more deferrals are marked `PHASE 3` / `PHASE 4` in `adapter.py` and carry conservative values.
 

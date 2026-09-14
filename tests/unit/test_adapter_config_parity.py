@@ -57,10 +57,11 @@ REGISTRY_PY = COMPONENT / "adapters" / "registry.py"
 # pointed there since the retirement. A failure saying "doc 22 documents these" sent someone
 # to EDIT THE RETIRED DOC — a real detour, 2026-09-12 — because the message named a document
 # instead of the path it actually reads. Messages now say GENERATED DOC and print the path.
-# Regenerate with: python .claude/generated-docs/adapter-config/gen_adapter_config_docs.py
+# Regenerate with: python scripts/gen_adapter_config_docs.py
+# MOVED 2026-09-13 out of `.claude/`, which .gitignore covers with no exceptions — so
+# this file did not exist in CI and these two tests could never pass there.
 GENERATED_CONFIG_DOC = (
-    REPO_ROOT / ".claude" / "generated-docs" / "adapter-config"
-    / "ADAPTER-CONFIG.generated.md"
+    REPO_ROOT / "docs" / "dev" / "reference" / "ADAPTER-CONFIG.generated.md"
 )
 
 # Schema metadata keys — the vocabulary OF the schema, never config keys.

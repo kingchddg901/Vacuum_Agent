@@ -9,7 +9,7 @@ Adapter](23-eufy-adapter.md) and [24 — The Roborock Adapter](24-roborock-adapt
 **The per-field schema is generated, not written.** Every block, every key, its type, whether it is
 required and what an omission degrades to — that table is produced from
 `adapters/config_schema.py` itself and lives at
-`.claude/generated-docs/adapter-config/ADAPTER-CONFIG.generated.md` in the repo. It is the successor
+[`docs/dev/reference/ADAPTER-CONFIG.generated.md`](reference/ADAPTER-CONFIG.generated.md) in the repo. It is the successor
 to the hand-written config reference, and it cannot go stale against the schema because it is
 derived from it. This document covers what the schema cannot say: which rules actually run, what an
 omission means in practice, and where a declaration has no reader.

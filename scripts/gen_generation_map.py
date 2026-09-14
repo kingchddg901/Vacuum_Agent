@@ -157,7 +157,12 @@ def main() -> int:
         "One authoritative graph of every checked-in **generated** artifact: who owns it,",
         "what it is generated **from**, what **regenerates** it, and what changes",
         "**downstream** when its source does. Rendered from the `GENERATORS` registry in",
-        "[`scripts/check_generated_docs.py`](../../../scripts/check_generated_docs.py); that",
+        # NOT A LINK. `mkdocs --strict` resolves relative links against the docs root, so
+        # `../../../scripts/...` escapes the documentation tree and aborts the build --
+        # it did, from 2026-09-01 until 2026-09-13, unseen because the docs workflow had
+        # not run since 2026-08-25. The script is real but is not a published page, so it
+        # is named as code rather than linked.
+        "`scripts/check_generated_docs.py`; that",
         "gate's UNGATED scan fails CI if any banner-bearing tracked file is missing here, so",
         "this map is complete by construction. **Do not hand-edit** — edit the registry.",
         "",

@@ -4,7 +4,7 @@
 adapter computes as opposed to transcribes, the declarations that look like mistakes and are not,
 and the surfaces that no longer do what they say. The CV segmenter is a separate subsystem and is
 not covered here. The per-field schema is generated, not written — see
-`.claude/generated-docs/adapter-config/ADAPTER-CONFIG.generated.md` in the repo.
+[`docs/dev/reference/ADAPTER-CONFIG.generated.md`](reference/ADAPTER-CONFIG.generated.md) in the repo.
 
 This adapter was the reference implementation before there was a contract to implement. That
 ordering is the single most useful thing to know about it, and most of what follows is downstream
@@ -291,14 +291,12 @@ Eufy takes core's generic flow rate. **Nine of the twenty-two codes have no upke
 Every degradation is reported honestly rather than faked; the hazard is that a catalog comment
 reading "dock-action entities confirmed" reads as *supported* when one catalog was updated.
 
-This paragraph used to name a third catalog, `UPKEEP_MODEL_GUIDE_FAMILIES`, and cite it as the
-place a model could have a name with no guide behind it — 12 guide rows against 13 names, with
-"T2352" the odd one out. That dict was deleted in `c2725f6a` when Eufy was ported to the shared
-regime → i18n-key system, and the regime table `adapters/eufy/upkeep_regimes.py::EUFY_MODEL_REGIMES` replaced it
-with 13 rows that agree with the name catalog **exactly**, in both directions (it reaches the
-card through `adapters/eufy/upkeep_keys.py`, which unpacks it via the shared emitter). So that particular
-drift class is closed. The name-versus-code gap above is not, and is the one still worth checking
-when adding a model.
+**Guide coverage is not a third way to drift.** Maintenance guidance is routed by regime, and
+`adapters/eufy/upkeep_regimes.py::EUFY_MODEL_REGIMES` carries one row per model — 13, agreeing
+with the name catalog **exactly, in both directions** (it reaches the card through
+`adapters/eufy/upkeep_keys.py`, which unpacks it via the shared emitter). A model here cannot
+carry a name with no guidance behind it. The name-versus-code gap above is the one still worth
+checking when adding a model.
 
 **A retired premise is cited under the live name.** A comment in `adapters/eufy/room_profiles.py`
 explains that two retired cleaning-path values need no alias because the store repair resets them

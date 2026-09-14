@@ -309,6 +309,30 @@ GENERATORS: tuple[Generator, ...] = (
         sources=("src/theme-tokens/", "src/styles/"),
         note="theme editor registry + card CSS",
     ),
+    # MOVED OUT OF `.claude/` 2026-09-13. Generator and output both lived under the
+    # ignored tree, so two tests in tests/unit/test_adapter_config_parity.py read a file
+    # that CANNOT exist in CI — they failed there from the day they were written and
+    # nobody saw it, because Tests had not run on master since 2026-08-26. Being here
+    # also makes it GATED for the first time: it was the one generated doc nothing
+    # checked for staleness.
+    Generator(
+        id="adapter-config",
+        cmd=(sys.executable, "scripts/gen_adapter_config_docs.py"),
+        out_env="EVCC_GENDOC_OUT",
+        files=(
+            "docs/dev/reference/ADAPTER-CONFIG.generated.md",
+            "docs/dev/reference/CAPABILITY-FLAGS.generated.md",
+        ),
+        sources=(
+            "custom_components/eufy_vacuum/adapters/config_schema.py",
+            "custom_components/eufy_vacuum/adapters/registry.py",
+            "custom_components/eufy_vacuum/core/capabilities.py",
+            "custom_components/eufy_vacuum/adapters/eufy/adapter.py",
+            "custom_components/eufy_vacuum/adapters/roborock/adapter.py",
+            "custom_components/eufy_vacuum/adapters/dreame/adapter.py",
+        ),
+        note="the adapter config contract, witnessed by all three shipped adapters",
+    ),
     Generator(
         id="events",
         cmd=(sys.executable, "scripts/gen_event_docs.py"),

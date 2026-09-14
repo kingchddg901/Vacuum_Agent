@@ -5,14 +5,10 @@ UPKEEP_MODEL_NAMES maps Eufy device model numbers to human-readable display
 names shown in the UI and upkeep guide headers. It is the only dict this module
 declares.
 
-⚠ THIS DOCSTRING USED TO DESCRIBE THREE DICTS. ``UPKEEP_MODEL_GUIDE_FAMILIES``
-and ``UPKEEP_GUIDE_FAMILY_NAMES`` were deleted in c2725f6a when Eufy was ported
-to the shared regime → i18n-key guide system, and the guide family concept went
-with them: guidance is now routed by REGIME (``upkeep_keys.py`` over
-``upkeep_regimes.py``, the same three measured fields every brand uses), and the
-backend holds no guide words at all. The docstring outlived the structure it
-described, which is why a doc citing ``UPKEEP_MODEL_GUIDE_FAMILIES`` still read
-as current.
+There is no guide-family catalog here. Guidance is routed by REGIME
+(``upkeep_keys.py`` over ``upkeep_regimes.py`` — the same three measured fields
+every brand uses) and the backend holds no guide words at all; the card resolves
+i18n keys in the reader's own language.
 """
 
 # ⚠ THE EUFY CATALOGS DO NOT DESCRIBE THE SAME DEVICE SET, and none of them says so.

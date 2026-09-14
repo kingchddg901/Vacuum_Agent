@@ -1,5 +1,7 @@
-title: Theme Token Reference
+title: Generated Reference
 nav:
+  - ADAPTER-CONFIG.generated.md
+  - CAPABILITY-FLAGS.generated.md
   - THEME_TOKEN_MAP.md
   - THEME_TOKEN_USAGE.md
   - ai-theme-authoring.md

@@ -5,7 +5,7 @@
 One authoritative graph of every checked-in **generated** artifact: who owns it,
 what it is generated **from**, what **regenerates** it, and what changes
 **downstream** when its source does. Rendered from the `GENERATORS` registry in
-[`scripts/check_generated_docs.py`](../../../scripts/check_generated_docs.py); that
+`scripts/check_generated_docs.py`; that
 gate's UNGATED scan fails CI if any banner-bearing tracked file is missing here, so
 this map is complete by construction. **Do not hand-edit** — edit the registry.
 
@@ -17,6 +17,7 @@ this map is complete by construction. **Do not hand-edit** — edit the registry
 
 | output(s) | gate | generated&nbsp;by | edit instead (sources) | downstream |
 |---|---|---|---|---|
+| `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` | gated | `adapter-config` (python scripts/gen_adapter_config_docs.py) | `custom_components/eufy_vacuum/adapters/config_schema.py` · `custom_components/eufy_vacuum/adapters/registry.py` · `custom_components/eufy_vacuum/core/capabilities.py` · `custom_components/eufy_vacuum/adapters/eufy/adapter.py` · `custom_components/eufy_vacuum/adapters/roborock/adapter.py` · `custom_components/eufy_vacuum/adapters/dreame/adapter.py` | — |
 | `custom_components/eufy_vacuum/frontend/animal-svg/animals/*.js` (6) | map-only | `animal-modules` (node scripts/build-animal.mjs <descriptor.json> --first-party) | `custom_components/eufy_vacuum/frontend/animal-svg/src/` | — |
 | `src/i18n/guide-keys.js` | map-only | `dreame-guide-keys` (python scripts/sync-dreame-guide-keys.py) | `durable/dreame-port-fixture/resources/key-authoring/` _(external)_ | — |
 | `docs/dev/reference/EVENTS.md` | gated | `events` (python scripts/gen_event_docs.py) | `custom_components/eufy_vacuum/` | — |
@@ -28,6 +29,12 @@ this map is complete by construction. **Do not hand-edit** — edit the registry
 ## Reverse index — “I need to change …”
 
 - **`custom_components/eufy_vacuum/`** → regenerates `docs/dev/reference/EVENTS.md` · run `python scripts/gen_event_docs.py`
+- **`custom_components/eufy_vacuum/adapters/config_schema.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
+- **`custom_components/eufy_vacuum/adapters/dreame/adapter.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
+- **`custom_components/eufy_vacuum/adapters/eufy/adapter.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
+- **`custom_components/eufy_vacuum/adapters/registry.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
+- **`custom_components/eufy_vacuum/adapters/roborock/adapter.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
+- **`custom_components/eufy_vacuum/core/capabilities.py`** → regenerates `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md` · run `python scripts/gen_adapter_config_docs.py`
 - **`custom_components/eufy_vacuum/frontend/animal-svg/src/`** → regenerates `custom_components/eufy_vacuum/frontend/animal-svg/animals/*.js` (6) · run `node scripts/build-animal.mjs <descriptor.json> --first-party`
 - **`durable/dreame-port-fixture/resources/key-authoring/`** _(external, provenance only)_ → regenerates `src/i18n/guide-keys.js` · run `python scripts/sync-dreame-guide-keys.py`
 - **`scripts/check_generated_docs.py`** → regenerates `docs/dev/reference/GENERATION_MAP.md` · run `python scripts/gen_generation_map.py`
@@ -37,6 +44,12 @@ this map is complete by construction. **Do not hand-edit** — edit the registry
 - **`tests/`** → regenerates `docs/testing/subsystems/*.md` (19) · run `python scripts/mock_docs.py`
 
 ## Per generator — edit here, never there
+
+### `adapter-config`
+_the adapter config contract, witnessed by all three shipped adapters_
+- **EDIT HERE:** `custom_components/eufy_vacuum/adapters/config_schema.py`, `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/core/capabilities.py`, `custom_components/eufy_vacuum/adapters/eufy/adapter.py`, `custom_components/eufy_vacuum/adapters/roborock/adapter.py`, `custom_components/eufy_vacuum/adapters/dreame/adapter.py`
+- **DO NOT EDIT:** `docs/dev/reference/ADAPTER-CONFIG.generated.md`, `docs/dev/reference/CAPABILITY-FLAGS.generated.md`
+- **REGEN:** `python scripts/gen_adapter_config_docs.py`
 
 ### `animal-modules`  ·  map-only
 _per-animal codegen from a sanitised descriptor; own gate is check-animal-pr_
