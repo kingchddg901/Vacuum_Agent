@@ -10,6 +10,55 @@ only.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-09-13
+
+### Added
+
+- **Dreame vacuums are supported.** The third brand, alongside Eufy and Roborock. It works
+  through the community [dreame-vacuum](https://github.com/Tasshack/dreame-vacuum) integration —
+  install and set that up first, and this card then adds the room control, mapping, scheduling
+  and maintenance layer on top of it. Rooms, per-room cleaning settings, the live map with true
+  per-room areas and furniture, robot heading, per-room job history and the full maintenance
+  system work across the range: 700 models are routed to a maintenance profile built from
+  Dreame's own manuals rather than guessed at.
+
+  > **Go-to and zone clean start switched off on a model we have not verified.** They are only
+  > offered where the geometry has been checked against real hardware, because a drawn box sent
+  > to the wrong coordinate frame would send the robot to the wrong place. Today that means the
+  > L10s Ultra Gen2; every other model gets everything else and simply does not show those two
+  > controls. This opens up per model as hardware is confirmed — if you have a Dreame and want
+  > yours checked, open an issue.
+
+  > **Set your map up in the Dreame integration before adding the vacuum here.** A device with no
+  > map yet is the one case that misbehaves during first setup; a mapped device is unaffected. If
+  > you do hit it, finish mapping and reload the integration.
+
+- **Go to a spot, or clean a box you draw.** Two new map controls. Tap a point and the robot
+  drives there; drag a rectangle and it cleans just that area. Both are on the map itself, and
+  both are capability-gated, so they only appear on a machine that can actually do them. A zone
+  clean uses your device's global cleaning settings and restores them afterwards, so it never
+  quietly changes what your next normal clean does. Backed by `eufy_vacuum.goto` and
+  `eufy_vacuum.start_zone_clean` — two separate services, one per control.
+
+- **Pick the counter your maintenance is measured against.** Parts that the robot does not count
+  itself — a mop cloth, a cleaning tray, the caster wheel — are measured against one counter you
+  choose, per vacuum. A link in the Maintenance tab opens the picker: it lists the running-time
+  sensors on that vacuum with their current readings, marks the one in use, and warns you about
+  candidates that only count a single part. The link is a warning colour until you pick one and
+  fades once set, naming your choice so a wrong pick is easy to spot. Backed by
+  `eufy_vacuum.get_maintenance_source_candidates`.
+
+- **Every maintenance item now has an interval you can set.** Including the ones the manufacturer
+  publishes no service life for. Each ships a sane default and a range, and you change it from the
+  item's panel or its `number.*` entity.
+
+- **A new theme, Black One**, and the active tab is now themeable rather than hard-coded.
+
+- **Eighteen languages.** The maintenance panel headings and the upkeep guides are translated
+  throughout. The guides are now one shared catalogue of maintenance sentences that every brand
+  routes into, rather than per-manufacturer prose — so a guide step reads the same in your
+  language whichever robot you own, and a new brand inherits the whole translated set.
+
 ### Changed
 
 - **Maintenance panels now follow your actual machine, not your brand.** Each model is typed by
@@ -50,10 +99,36 @@ only.
   unavailable. Their jobs did not disappear — they are covered by the panels that remain, and
   the whole washing-station trip is now the one Cleaning Tray card.
 
+> **Maintenance entities for parts your model does not have will stop being recreated.** The model
+> gate above decides which parts exist for your machine, and where a part was being offered wrongly
+> — a Cleaning Tray on a robot with no washing station, Mop Pad Holders on a robot that has none —
+> its `button`/`number`/`sensor` entities are no longer created. Unlike the renamed and retired
+> items above, these are **not** migrated or removed for you: Home Assistant will keep showing them
+> as unavailable until you delete them by hand. They were reporting on hardware you do not have.
+
 > **If you had set a custom interval on one of the eight retired Roborock items**, that value is
 > gone and there is nowhere to restore it, because the item itself no longer exists. Set the
 > interval you want on the panel that now covers that job. Every other custom interval is
 > carried across untouched.
+
+- **Refused actions were silent.** When the integration declined to do something — a start
+  blocked because a job is already running, a theme import rejected — it said so in a way the
+  card was reading at the wrong level, so no message ever reached you. Every refusal now
+  surfaces, with the reason. This affected both the general case and theme actions.
+- **Saving a room rule did nothing.** The rule editor closed without an error and the rule was
+  simply not there afterwards; deleting one left it in place. Room rules now save.
+- **"Not supported" no longer reads as a failure.** A Roborock Q7 M5 owner was told a map import
+  had failed and asked to report it with diagnostics — for hardware that simply does not store a
+  map the way the import needs. Asking a vacuum for something its hardware cannot do now says so
+  plainly instead of reporting an error and inviting a bug report about the machine's own limits.
+  Thanks @elgreko16 (#55).
+- **The Edge Mopping toggle no longer appears where it does nothing.** It used to show on every
+  mop-capable non-carpet room regardless of brand, including on Roborock and Dreame, which do not
+  act on it. It now appears only where the vacuum can honour it.
+- **Themes: colour and transparency are composed at every step.** A token that set both could
+  end up with the transparency dropped depending on which path resolved it.
+- **A start blocked by a map mismatch compared map ids inconsistently**, so it could block a run
+  that was on the right map after all.
 
 ## [2.1.0] - 2026-08-24
 
