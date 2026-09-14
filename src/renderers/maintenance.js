@@ -614,7 +614,15 @@ export function applyMaintenanceRenderers(proto) {
             const current = c?.is_current === true;
             const caveatKey = c?.caveat_key ? String(c.caveat_key) : "";
             const unit = c?.unit ? String(c.unit) : "";
-            const value = c?.state == null ? "" : String(c.state);
+            // ROUND. The state arrives as HA's raw string, and Roborock's is a float all the way
+            // down -- ivy offered "206.618888888889 h" against Dreame's tidy "414 min", purely
+            // because one firmware divides and the other does not. Twelve decimals of a
+            // lifetime counter are noise in a list someone is SCANNING; one is already more
+            // precision than the choice needs. Non-numeric states pass through untouched.
+            const stateNum = Number(c?.state);
+            const value = c?.state == null
+              ? ""
+              : (Number.isFinite(stateNum) ? String(Math.round(stateNum * 10) / 10) : String(c.state));
             return `
               <button
                 type="button"

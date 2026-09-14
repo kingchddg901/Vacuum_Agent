@@ -74,12 +74,19 @@ export function applyMaintenanceBindings(proto) {
       { vacuum_entity_id: vacuumEntityId },
       true
     );
-    if (result === null || result === undefined) {
+    // UNWRAP `.response`. A `supports_response` service comes back as `{context, response}` on
+    // this HA — `result.candidates` is always undefined, so the picker rendered its own
+    // "no counter found" empty state over a list of six. Every one of the 86 response-reading
+    // call sites in `src/actions/` already spells it `result?.response ?? result`; these were the
+    // first two in `src/bindings/`, and the shorter copy is the bug. The `?? result` half is the
+    // compatibility arm the actions layer carries, kept here for the same reason.
+    const payload = result?.response ?? result;
+    if (payload === null || payload === undefined) {
       this.card._state.setMaintenanceClockPickerError?.(
         this.t("common.service_failed", { service: "get_maintenance_source_candidates" })
       );
     } else {
-      this.card._state.setMaintenanceClockCandidates?.(result?.candidates ?? []);
+      this.card._state.setMaintenanceClockCandidates?.(payload?.candidates ?? []);
     }
     this.card._scheduleRender();
   };
@@ -120,7 +127,12 @@ export function applyMaintenanceBindings(proto) {
         );
         this.card._state.setMaintenanceClockPending?.("");
 
-        if (result === null) {
+        // Same `.response` unwrap as the fetch above, and for the second reason: the service
+        // answers a refusal with `{status: "error", reason}` rather than raising, so a null-only
+        // check reads `runtime_unavailable` as a save that took. The picker would then close over
+        // a choice the backend never stored.
+        const saved = result?.response ?? result;
+        if (saved === null || saved === undefined || saved?.status === "error") {
           this.card._state.setMaintenanceClockPickerError?.(
             this.t("common.service_failed", { service: "set_entity_override" })
           );

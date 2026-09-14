@@ -125,6 +125,125 @@ export const maintenanceModalHostStyles = `
     flex-wrap: wrap;
     gap: 8px;
   }
+
+  /* ---------------------------------------------------------------------------------------
+     BELOW HERE: rules the BODY-PORTAL modal needs.
+
+     They live in the HOST export, not the shadow one, because the shadow export interpolates
+     this string (see maintenanceStyles) and the host export cannot interpolate back. One
+     definition, both cascades — the direction is the whole point. The counter picker shipped
+     with these under maintenanceStyles and rendered its candidate rows as bare inline
+     buttons in the portal: a full list, correctly fetched, that read as a broken modal.
+     --------------------------------------------------------------------------------------- */
+
+  /* Shared with the panel: the picker's intro line and its loading / empty / error states. */
+  .evcc-maintenance-panel-subtitle {
+    margin-top: 4px;
+    font-size: 0.82rem;
+    color: var(--evcc-text-secondary);
+    line-height: 1.45;
+  }
+
+  .evcc-maintenance-empty {
+    padding: 12px;
+    border-radius: var(--evcc-radius-inner, 8px);
+    border: 1px dashed var(--evcc-border-default);
+    color: var(--evcc-text-muted);
+    font-size: 0.84rem;
+    line-height: 1.5;
+  }
+
+  /* ---- the counter picker's candidate list ------------------------------------------- */
+  .evcc-clock-candidate-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  /* A row is a button. 6-9 of these on a real machine, so it reads as a short list a person
+     scans, not a search result — which is why the caveat below has to look like a property
+     rather than an alarm: on one live vacuum SIX of nine rows carry it. */
+  .evcc-clock-candidate {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 12px;
+    width: 100%;
+    text-align: start;
+    padding: 10px 12px;
+    border-radius: var(--evcc-radius-inner, 10px);
+    border: 1px solid var(--evcc-border-default);
+    background: var(--evcc-surface-raised);
+    color: var(--evcc-text-primary);
+    cursor: pointer;
+  }
+
+  .evcc-clock-candidate:hover {
+    border-color: color-mix(in srgb, var(--evcc-accent) 45%, transparent);
+  }
+
+  .evcc-clock-candidate:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--evcc-accent) 65%, transparent);
+    outline-offset: 2px;
+  }
+
+  .evcc-clock-candidate[disabled] {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .evcc-clock-candidate--current {
+    border-color: color-mix(in srgb, var(--evcc-accent) 55%, transparent);
+    background: color-mix(in srgb, var(--evcc-accent) 10%, var(--evcc-surface-raised));
+  }
+
+  /* The left cell. min-width:0 is what lets the entity id below it wrap instead of forcing
+     the 1fr track wider than the modal — a grid item's automatic minimum is its content. */
+  .evcc-clock-candidate-main {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  .evcc-clock-candidate-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  /* The entity id, shown deliberately: two candidates can carry near-identical friendly names
+     ("Cleaning time" vs "Total cleaning time" differ by one word, and one of them is the WRONG
+     pick — a per-job timer that resets every run). */
+  .evcc-clock-candidate-id {
+    font-size: 0.74rem;
+    color: var(--evcc-text-muted);
+  }
+
+  .evcc-clock-candidate-side {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    text-align: end;
+    align-self: center;
+  }
+
+  .evcc-clock-candidate-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 0.88rem;
+  }
+
+  .evcc-clock-candidate-current {
+    font-size: 0.72rem;
+    color: var(--evcc-accent);
+  }
+
+  /* The saturation caveat. Muted, not warning-coloured: these candidates are legitimate choices
+     with a property worth knowing, and six-of-nine rows shouting would train people to ignore
+     it. */
+  .evcc-clock-candidate-caveat {
+    grid-column: 1 / -1;
+    margin-top: 4px;
+    font-size: 0.74rem;
+    color: var(--evcc-text-muted);
+  }
 `;
 
 export const maintenanceStyles = `
@@ -232,91 +351,6 @@ export const maintenanceStyles = `
     outline-offset: 2px;
   }
 
-  /* ---- the counter picker's candidate list ------------------------------------------- */
-  .evcc-clock-candidate-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 12px;
-  }
-
-  /* A row is a button. 6-9 of these on a real machine, so it reads as a short list a person
-     scans, not a search result — which is why the caveat below has to look like a property
-     rather than an alarm: on one live vacuum SIX of nine rows carry it. */
-  .evcc-clock-candidate {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 2px 12px;
-    width: 100%;
-    text-align: start;
-    padding: 10px 12px;
-    border-radius: var(--evcc-radius-inner, 10px);
-    border: 1px solid var(--evcc-border-default);
-    background: var(--evcc-surface-raised);
-    color: var(--evcc-text-primary);
-    cursor: pointer;
-  }
-
-  .evcc-clock-candidate:hover {
-    border-color: color-mix(in srgb, var(--evcc-accent) 45%, transparent);
-  }
-
-  .evcc-clock-candidate:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--evcc-accent) 65%, transparent);
-    outline-offset: 2px;
-  }
-
-  .evcc-clock-candidate[disabled] {
-    opacity: 0.55;
-    cursor: default;
-  }
-
-  .evcc-clock-candidate--current {
-    border-color: color-mix(in srgb, var(--evcc-accent) 55%, transparent);
-    background: color-mix(in srgb, var(--evcc-accent) 10%, var(--evcc-surface-raised));
-  }
-
-  .evcc-clock-candidate-name {
-    font-weight: 600;
-    font-size: 0.9rem;
-  }
-
-  /* The entity id, shown deliberately: two candidates can carry near-identical friendly names
-     ("Cleaning time" vs "Total cleaning time" differ by one word, and one of them is the WRONG
-     pick — a per-job timer that resets every run). */
-  .evcc-clock-candidate-id {
-    font-size: 0.74rem;
-    color: var(--evcc-text-muted);
-  }
-
-  .evcc-clock-candidate-side {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    text-align: end;
-    align-self: center;
-  }
-
-  .evcc-clock-candidate-value {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    font-size: 0.88rem;
-  }
-
-  .evcc-clock-candidate-current {
-    font-size: 0.72rem;
-    color: var(--evcc-accent);
-  }
-
-  /* The saturation caveat. Muted, not warning-coloured: these candidates are legitimate choices
-     with a property worth knowing, and six-of-nine rows shouting would train people to ignore
-     it. */
-  .evcc-clock-candidate-caveat {
-    grid-column: 1 / -1;
-    margin-top: 4px;
-    font-size: 0.74rem;
-    color: var(--evcc-text-muted);
-  }
-
   .evcc-maintenance-model-line {
     font-size: 0.82rem;
     color: var(--evcc-text-secondary);
@@ -328,12 +362,6 @@ export const maintenanceStyles = `
     color: var(--evcc-text-primary);
   }
 
-  .evcc-maintenance-panel-subtitle {
-    margin-top: 4px;
-    font-size: 0.82rem;
-    color: var(--evcc-text-secondary);
-    line-height: 1.45;
-  }
 
   .evcc-maintenance-stats {
     display: grid;
@@ -574,14 +602,6 @@ export const maintenanceStyles = `
     line-height: 1.45;
   }
 
-  .evcc-maintenance-empty {
-    padding: 12px;
-    border-radius: var(--evcc-radius-inner, 8px);
-    border: 1px dashed var(--evcc-border-default);
-    color: var(--evcc-text-muted);
-    font-size: 0.84rem;
-    line-height: 1.5;
-  }
 
   ${maintenanceModalHostStyles}
 

@@ -139,6 +139,8 @@ now delegate) so they could be unit-tested off the render path.
 | `learning-charge-status.test.mjs` | 3 | The live charge banner gates ONLY on `liveChargeStatus()` — a `charge_wait` phase has an empty room timeline, so the old queue-gated placement never rendered it. |
 | `learning-zone-status.test.mjs` | 3 | The live zone banner — same shape as the charge banner: gated on `liveZoneStatus()`, never on the room queue. |
 | `run-profiles-unsupported-position.test.mjs` | 3 | `CARD-6` clause 1 display half — an EXISTING saved profile with a leading/trailing break renders the unsupported-position notice. |
+| `maintenance-clock-modal-host-css.test.mjs` | 3 | `MHC-*` — every `evcc-*` class the counter picker emits is DEFINED in `MODAL_HOST_STYLES`, the body-portal cascade that actually renders it (the shadow cascade interpolates that export, so the flow is one-way). Caught `.evcc-clock-candidate-main`, emitted with no rule in either cascade, on its first run. |
+| `maintenance-clock-candidate-value.test.mjs` | 3 | `MCV-*` — a candidate's reading is rounded to one decimal. The same picker read "414 min" on a Dreame and "206.618888888889 h" on a Roborock; non-numeric states pass through untouched. |
 | `room-estimate-allocated.test.mjs` | 2 | `CARD-2` clause 2 — the room-estimate modal's ALLOCATED-source labeling (not just `default`). |
 | `metrics-edge-mopping-capability.test.mjs` | 2 | `CARD-8` — the "Edge Mopping" subtitle chip must be capability-gated, not shown whenever `edge_mopping` is truthy. |
 
@@ -178,6 +180,7 @@ refusal contract) are pinned separately.
 | File | Cases | What it guards |
 |------|------:|----------------|
 | `controllers/learning-controller-progress.test.mjs` | 19 | `getRoomProgressSnapshot` (per-room progress flags/percent) and `_computeProgressPercent`. |
+| `bindings/maintenance-clock-response-unwrap.test.mjs` | 6 | `MCU-*` — the maintenance-COUNTER picker's two service calls unwrap `.response`. The picker rendered "no suitable counter found" over a list of six because it read `result.candidates` off the envelope; the save path additionally treats `{status:"error"}` as a refusal rather than a save that took. |
 | `bindings/room-rules-payload.test.mjs` | 9 | `_buildRulePayload` — rule draft → persisted payload (modifier/blocker action, clean_passes 1\|2 gate, fan-out filter). |
 | `bindings/setup-reconciliation.test.mjs` | 9 | `CARD-7`/RP-019 — the reconcile-room Update/Dismiss bindings (bare-proto mixin + recorded `_onAll` handlers). |
 | `bindings/theme-import-rejected.test.mjs` | 8 | `CARD-9(3)` — rejected-keys surfacing at BOTH theme-import entry points. |
