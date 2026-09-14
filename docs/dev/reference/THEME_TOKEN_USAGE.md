@@ -8,7 +8,7 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **411** · consumer `var()` uses **2379**
+- Catalog **411** · consumer `var()` uses **2380**
 - **277** with a STATIC consumer · **134** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
 - `var()` → non-catalog tokens **12** · dynamic `var(--evcc-…${…})` sites **3**
 
@@ -16,7 +16,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 > - **84** `animal` — `src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`
 > - **38** `floor-material` — `src/renderers/floor-texture-surface.js` and `src/bindings/map.js` build `--evcc-floor-${type}-…` from the material key
 > - **12** `room-fill` — `src/cards/map-room-color.js` — `roomFillTokenName(i)` builds `--evcc-room-fill-N`, 1-based and wrapping at 12 (contract pinned by MRC-1..MRC-7)
-- **Token CSS coverage 98.8%** — 1434/1452 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
+- **Token CSS coverage 98.8%** — 1435/1453 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
 
 ---
 
@@ -249,26 +249,26 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:478
 - src/styles/theme.js:542 (border-color)
 - src/styles/theme.js:545
-- src/styles/theme.js:578 (background)
-- src/styles/theme.js:628 (color)
-- src/styles/theme.js:629
-- src/styles/theme.js:630
-- src/styles/theme.js:650 (color)
-- src/styles/theme.js:655 (border-color)
-- src/styles/theme.js:721 (border-color)
-- src/styles/theme.js:731 (color)
-- src/styles/theme.js:739
-- src/styles/theme.js:861 (border-color)
-- src/styles/theme.js:894 (border-color)
-- src/styles/theme.js:897
-- src/styles/theme.js:1040
-- src/styles/theme.js:1041 (color)
-- src/styles/theme.js:1099
-- src/styles/theme.js:1306
-- src/styles/theme.js:1329
-- src/styles/theme.js:1391
-- src/styles/theme.js:1414
-- src/styles/theme.js:1437 (border-color)
+- src/styles/theme.js:599 (background)
+- src/styles/theme.js:649 (color)
+- src/styles/theme.js:650
+- src/styles/theme.js:651
+- src/styles/theme.js:671 (color)
+- src/styles/theme.js:676 (border-color)
+- src/styles/theme.js:742 (border-color)
+- src/styles/theme.js:752 (color)
+- src/styles/theme.js:760
+- src/styles/theme.js:882 (border-color)
+- src/styles/theme.js:915 (border-color)
+- src/styles/theme.js:918
+- src/styles/theme.js:1061
+- src/styles/theme.js:1062 (color)
+- src/styles/theme.js:1120
+- src/styles/theme.js:1327
+- src/styles/theme.js:1350
+- src/styles/theme.js:1412
+- src/styles/theme.js:1435
+- src/styles/theme.js:1458 (border-color)
 - src/styles/toast-host.js:82
 
 **`--evcc-accent-soft`** — Accent Soft · default `rgba(0,229,255,0.16)` src/styles/foundation.js:219
@@ -430,13 +430,13 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:355 (color)
 - src/styles/theme.js:378 (color)
 - src/styles/theme.js:502 (color)
-- src/styles/theme.js:556 (color)
-- src/styles/theme.js:641 (color)
-- src/styles/theme.js:690 (color)
-- src/styles/theme.js:837 (color)
-- src/styles/theme.js:980 (color)
-- src/styles/theme.js:998 (color)
-- src/styles/theme.js:1502 (color)
+- src/styles/theme.js:564 (color)
+- src/styles/theme.js:662 (color)
+- src/styles/theme.js:711 (color)
+- src/styles/theme.js:858 (color)
+- src/styles/theme.js:1001 (color)
+- src/styles/theme.js:1019 (color)
+- src/styles/theme.js:1523 (color)
 - src/styles/toast-host.js:90 (color)
 
 **`--evcc-text-on-accent`** — Text On Accent · default `#ffffff` src/styles/foundation.js:207
@@ -610,13 +610,13 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:103 (color)
 - src/styles/theme.js:158 (color)
 - src/styles/theme.js:374 (color)
-- src/styles/theme.js:593 (color)
-- src/styles/theme.js:716 (color)
-- src/styles/theme.js:825 (color)
-- src/styles/theme.js:854 (color)
-- src/styles/theme.js:912 (color)
-- src/styles/theme.js:1187 (color)
-- src/styles/theme.js:1429 (color)
+- src/styles/theme.js:614 (color)
+- src/styles/theme.js:737 (color)
+- src/styles/theme.js:846 (color)
+- src/styles/theme.js:875 (color)
+- src/styles/theme.js:933 (color)
+- src/styles/theme.js:1208 (color)
+- src/styles/theme.js:1450 (color)
 - src/styles/toast-host.js:72 (color)
 - src/styles/toast-host.js:97 (color)
 
@@ -763,10 +763,10 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:298 (color)
 - src/styles/theme.js:325 (color)
 - src/styles/theme.js:394 (color)
-- src/styles/theme.js:614 (color)
-- src/styles/theme.js:682 (color)
-- src/styles/theme.js:876 (color)
-- src/styles/theme.js:1261 (color)
+- src/styles/theme.js:635 (color)
+- src/styles/theme.js:703 (color)
+- src/styles/theme.js:897 (color)
+- src/styles/theme.js:1282 (color)
 
 **`--evcc-text-strong`** — Text Strong · default `var(--primary-text-color, #f0f2f5)` src/styles/foundation.js:206
 - src/styles/learning.js:751 (color)
@@ -833,15 +833,15 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/foundation.js:182
 - src/styles/modal-host.js:99 (--evcc-modal-bg)
 - src/styles/modal-host.js:658 (--evcc-modal-bg)
-- src/styles/theme.js:564 (background)
-- src/styles/theme.js:1304 (background)
-- src/styles/theme.js:1307
-- src/styles/theme.js:1327 (background)
-- src/styles/theme.js:1330
-- src/styles/theme.js:1389 (background)
-- src/styles/theme.js:1392
-- src/styles/theme.js:1412 (background)
-- src/styles/theme.js:1415
+- src/styles/theme.js:585 (background)
+- src/styles/theme.js:1325 (background)
+- src/styles/theme.js:1328
+- src/styles/theme.js:1348 (background)
+- src/styles/theme.js:1351
+- src/styles/theme.js:1410 (background)
+- src/styles/theme.js:1413
+- src/styles/theme.js:1433 (background)
+- src/styles/theme.js:1436
 
 **`--evcc-surface-card`** — Surface Card · default `var(--evcc-surface-base)` src/styles/foundation.js:180
 - custom_components/eufy_vacuum/themes/preloaded.py:71
@@ -867,7 +867,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:275
 - src/styles/theme.js:524 (background)
 - src/styles/theme.js:546
-- src/styles/theme.js:1186 (background)
+- src/styles/theme.js:1207 (background)
 
 **`--evcc-surface-chip`** — Surface Chip · default `rgba(255,255,255,0.09)` src/styles/foundation.js:187
 - src/styles/learning.js:674 (background)
@@ -963,12 +963,12 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/setup.js:947 (background)
 - src/styles/theme-preview.js:194 (background)
 - src/styles/theme.js:134 (background)
-- src/styles/theme.js:615 (background)
-- src/styles/theme.js:683 (background)
-- src/styles/theme.js:715 (background)
-- src/styles/theme.js:851 (background)
-- src/styles/theme.js:1088 (background)
-- src/styles/theme.js:1425 (background)
+- src/styles/theme.js:636 (background)
+- src/styles/theme.js:704 (background)
+- src/styles/theme.js:736 (background)
+- src/styles/theme.js:872 (background)
+- src/styles/theme.js:1109 (background)
+- src/styles/theme.js:1446 (background)
 
 **`--evcc-surface-overlay`** — Surface Overlay · default `rgba(0,0,0,0.4)` src/styles/foundation.js:184
 - custom_components/eufy_vacuum/themes/preloaded.py:201
@@ -1038,13 +1038,13 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:144 (background)
 - src/styles/theme.js:305
 - src/styles/theme.js:306
-- src/styles/theme.js:584 (background)
-- src/styles/theme.js:785
-- src/styles/theme.js:805
-- src/styles/theme.js:888 (background)
-- src/styles/theme.js:898
-- src/styles/theme.js:971 (background)
-- src/styles/theme.js:977
+- src/styles/theme.js:605 (background)
+- src/styles/theme.js:806
+- src/styles/theme.js:826
+- src/styles/theme.js:909 (background)
+- src/styles/theme.js:919
+- src/styles/theme.js:992 (background)
+- src/styles/theme.js:998
 
 **`--evcc-surface-raised`** — Surface Raised · default `color-mix(in srgb, var(--evcc-surface-base) 92%, white 8%)` src/styles/foundation.js:182
 - custom_components/eufy_vacuum/themes/preloaded.py:96
@@ -1258,18 +1258,18 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:593
 - src/styles/theme-preview.js:669
 - src/styles/theme-preview.js:706
-- src/styles/theme.js:852
-- src/styles/theme.js:1089
-- src/styles/theme.js:1188
-- src/styles/theme.js:1248
-- src/styles/theme.js:1280
-- src/styles/theme.js:1292
-- src/styles/theme.js:1317
-- src/styles/theme.js:1339
-- src/styles/theme.js:1365
-- src/styles/theme.js:1377
-- src/styles/theme.js:1402
-- src/styles/theme.js:1426
+- src/styles/theme.js:873
+- src/styles/theme.js:1110
+- src/styles/theme.js:1209
+- src/styles/theme.js:1269
+- src/styles/theme.js:1301
+- src/styles/theme.js:1313
+- src/styles/theme.js:1338
+- src/styles/theme.js:1360
+- src/styles/theme.js:1386
+- src/styles/theme.js:1398
+- src/styles/theme.js:1423
+- src/styles/theme.js:1447
 - src/styles/toast-host.js:74
 
 **`--evcc-border-strong`** — Border Strong · default `rgba(255,255,255,0.18)` src/styles/foundation.js:212, src/styles/modal-host.js:222, src/styles/modal-host.js:719
@@ -1360,16 +1360,16 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:340
 - src/styles/theme.js:471
 - src/styles/theme.js:525
-- src/styles/theme.js:616
-- src/styles/theme.js:664
-- src/styles/theme.js:684
-- src/styles/theme.js:714
-- src/styles/theme.js:729
-- src/styles/theme.js:788
-- src/styles/theme.js:808
-- src/styles/theme.js:867 (border-color)
-- src/styles/theme.js:889
-- src/styles/theme.js:978
+- src/styles/theme.js:637
+- src/styles/theme.js:685
+- src/styles/theme.js:705
+- src/styles/theme.js:735
+- src/styles/theme.js:750
+- src/styles/theme.js:809
+- src/styles/theme.js:829
+- src/styles/theme.js:888 (border-color)
+- src/styles/theme.js:910
+- src/styles/theme.js:999
 
 **`--evcc-border-success`** — Border Success · default `rgba(76,175,110,0.35)` src/styles/foundation.js:214
 - src/styles/rooms.js:231 (border-color)
@@ -2233,7 +2233,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:568
 - src/styles/theme-preview.js:569
 - src/styles/theme-preview.js:570 (color)
-- src/styles/theme.js:698 (color)
+- src/styles/theme.js:578 (color)
+- src/styles/theme.js:719 (color)
 - src/styles/toast-host.js:81
 
 **`--evcc-sem-info`** — Sem Info · default `#4a9fe0` src/styles/foundation.js:233
@@ -2345,9 +2346,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/shell.js:153
 - src/styles/shell.js:158
 - src/styles/shell.js:475
-- src/styles/theme.js:622 (color)
-- src/styles/theme.js:623
-- src/styles/theme.js:624
+- src/styles/theme.js:643 (color)
+- src/styles/theme.js:644
+- src/styles/theme.js:645
 - src/styles/toast-host.js:80
 
 **`--evcc-sem-warning`** — Sem Warning · default `var(--warning-color, #f5a623)` src/styles/foundation.js:228
@@ -3083,9 +3084,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js:605 (border-radius)
 - src/styles/theme-preview.js:670 (border-radius)
 - src/styles/theme.js:526 (border-radius)
-- src/styles/theme.js:789 (border-radius)
-- src/styles/theme.js:809 (border-radius)
-- src/styles/theme.js:868 (border-radius)
+- src/styles/theme.js:810 (border-radius)
+- src/styles/theme.js:830 (border-radius)
+- src/styles/theme.js:889 (border-radius)
 
 **`--evcc-radius-chip`** — Radius Chip · default `999px` src/styles/foundation.js:238
 - src/styles/external-jobs.js:51 (border-radius)
@@ -3152,11 +3153,11 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js:136 (border-radius)
 - src/styles/theme.js:364 (border-radius)
 - src/styles/theme.js:470 (border-radius)
-- src/styles/theme.js:563 (border-radius)
-- src/styles/theme.js:713 (border-radius)
-- src/styles/theme.js:732 (border-radius)
-- src/styles/theme.js:890 (border-radius)
-- src/styles/theme.js:1338 (border-radius)
+- src/styles/theme.js:584 (border-radius)
+- src/styles/theme.js:734 (border-radius)
+- src/styles/theme.js:753 (border-radius)
+- src/styles/theme.js:911 (border-radius)
+- src/styles/theme.js:1359 (border-radius)
 
 **`--evcc-radius-panel`** — Radius Panel · default —
 - src/styles/learning.js:231 (border-radius)
@@ -3278,7 +3279,7 @@ Used in CSS but not in the editor registry (dynamic fragments or intentional int
 - `--evcc-a11y-font-family` — src/styles/modal-host.js:163, src/styles/shell.js:57, src/styles/theme-preview.js:121, src/styles/toast-host.js:59
 - `--evcc-surface-hover` — src/styles/rooms.js:1117
 - `--evcc-sheen-dir` — src/styles/rooms.js:1271, src/styles/rooms.js:1284, src/styles/rooms.js:1285, src/styles/rooms.js:1324, src/styles/rooms.js:1331, src/styles/rooms.js:1333
-- `--evcc-font-preview` — src/styles/theme.js:1035
+- `--evcc-font-preview` — src/styles/theme.js:1056
 
 ---
 
