@@ -95,6 +95,22 @@ export function cbDetailHtml(cb) {
     </div>`;
 }
 
+/**
+ * The scope line on a theme's card and on its detail page.
+ *
+ * Three cases, because "names floor types" and "is a texture pack" are different
+ * facts. A pack names its floors; a full theme that grades its floors says so
+ * without reading as partial; a theme with no floor work just says full.
+ *
+ * One formatter, two call sites — they previously carried the same expression
+ * twice, which is how only one of them would have been fixed.
+ */
+export function scopeLabel(scope, floorOnly) {
+  const types = Array.isArray(scope) ? scope : [];
+  if (!types.length) return "full";
+  return floorOnly ? types.join(", ") : `full · floors: ${types.join(", ")}`;
+}
+
 /** Per-theme detail page: the renders grouped into sections (galleries vs
  *  tabs) plus the ingest report. Written as <name>/index.html so the top
  *  index links to it. */
@@ -161,7 +177,7 @@ ${SITE_NAV_CSS}
     <a class="back" href="../index.html">← all themes</a>
     <h1>${esc(themeName)}</h1>
     ${meta.download ? `<p class="dl-row"><a class="download-btn" href="${esc(meta.download)}" download="${esc(meta.download)}">⤓ Download theme (.json)</a> <span class="dl-hint">then import it via the card's <strong>Upload</strong> button</span></p>` : ""}
-    <p class="meta">scope: ${scope.length ? esc(scope.join(", ")) : "full"} · ${report.keyCount} tokens · ${report.clamped} clamped · ${report.skippedKeys.length} skipped · ${composedCount} alpha composed</p>
+    <p class="meta">scope: ${esc(scopeLabel(scope, meta.floorOnly))} · ${report.keyCount} tokens · ${report.clamped} clamped · ${report.skippedKeys.length} skipped · ${composedCount} alpha composed</p>
     <p class="meta">skipped keys: ${skipped} · <a href="ingest-report.json">ingest report</a> · <a href="_contact-sheet.png">contact sheet</a></p>
     ${unapplied.length ? `<p class="meta warn">alpha applied to nothing (${unapplied.length}): ${esc(unapplied.join(", "))}</p>` : ""}
     ${attributionHtml(meta.attr)}
@@ -201,7 +217,7 @@ export function writeIndex(entries, outDir) {
   const cards = entries
     .map((e) => {
       const dir = encodeURIComponent(e.name);
-      const meta = `${e.scope.length ? esc(e.scope.join(", ")) : "full"} · ${e.report.keyCount} tokens`;
+      const meta = `${esc(scopeLabel(e.scope, e.floorOnly))} · ${e.report.keyCount} tokens`;
       // data-tags drives the facet filter; data-text drives the search box
       // (name + author + every tag, incl. free-text vibe tags).
       const dataTags = esc(e.filterTokens.join(" "));

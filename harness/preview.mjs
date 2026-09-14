@@ -84,7 +84,7 @@ for (const file of files) {
   }
 
   await mountHarness(page); // (re)load the bundle — contact-sheet setContent below replaces it
-  const { bundle, scope, report } = await page.evaluate(
+  const { bundle, scope, floorOnly, report } = await page.evaluate(
     (env) => window.__evcc.ingestTheme(env),
     envelope,
   );
@@ -95,16 +95,22 @@ for (const file of files) {
 
   const outDir = join(OUT, name);
   mkdirSync(outDir, { recursive: true });
-  writeFileSync(join(outDir, "ingest-report.json"), JSON.stringify({ scope, ...report }, null, 2));
+  writeFileSync(join(outDir, "ingest-report.json"), JSON.stringify({ scope, floorOnly, ...report }, null, 2));
 
-  // Scope drives what we show. A texture-scoped export only needs the rooms
-  // gallery (where floor textures live). A full theme is previewed across the
-  // WHOLE card — the all-states galleries PLUS a tab tour — because this is a
-  // theme-SHARING preview: a sharer wants their theme on every surface. The
-  // galleries ARE the populated rooms / learning-review / mapping-review tabs,
-  // so those three plain tabs are skipped (their stub renders are just empty
-  // versions of the galleries); the rest are toured, incl. setup.
-  const views = scope.length
+  // What we show turns on whether this is a texture PACK or a whole theme. A
+  // pack — nothing but floor tokens — only needs the rooms gallery, where floor
+  // textures live. A full theme is previewed across the WHOLE card: the
+  // all-states galleries PLUS a tab tour, because this is a theme-SHARING
+  // preview and a sharer wants their theme on every surface. The galleries ARE
+  // the populated rooms / learning-review / mapping-review tabs, so those three
+  // plain tabs are skipped (their stub renders are just empty versions of the
+  // galleries); the rest are toured, incl. setup.
+  //
+  // This asks `floorOnly`, NOT `scope.length`. A full theme is allowed to grade
+  // its floors — the card advertises per-room floor material — and reading a
+  // non-empty scope as "texture pack" demoted the first theme that did so from
+  // twelve renders to one.
+  const views = floorOnly
     ? [{ kind: "gallery", id: "rooms-active" }]
     : [
         ...FULL_GALLERIES.map((id) => ({ kind: "gallery", id })),
@@ -181,15 +187,15 @@ for (const file of files) {
   // is already a derived tag).
   const filterTokens = [...new Set([...themeTags, ...(attr.source ? [attr.source] : [])])];
 
-  writeThemePage(outDir, envelope.theme?.name || name, scope, report, shots, { tags: themeTags, attr, colorblind, download: downloadFile });
+  writeThemePage(outDir, envelope.theme?.name || name, scope, report, shots, { tags: themeTags, attr, colorblind, download: downloadFile, floorOnly });
 
-  processed.push({ name, themeName: envelope.theme?.name || name, scope, report, tags: themeTags, attr, filterTokens, download: downloadFile });
+  processed.push({ name, themeName: envelope.theme?.name || name, scope, floorOnly, report, tags: themeTags, attr, filterTokens, download: downloadFile });
   // Alpha accounting is part of the one-line summary on purpose: "0 clamped,
   // 0 skipped" was a true statement over a theme whose paired colours had been
   // silently dropped, and it read as an all-clear.
   const unapplied = report.unappliedAlpha || [];
   console.log(
-    `✓ ${name}: ${report.keyCount} keys, scope=[${scope.join(",") || "full"}], ` +
+    `✓ ${name}: ${report.keyCount} keys, ${shots.length} shots, scope=[${scope.join(",") || "none"}]${floorOnly ? " floor-only" : ""}, ` +
       `${report.clamped} clamped, ${report.skippedKeys.length} skipped, ` +
       `${(report.composed || []).length} alpha composed -> harness/out/preview/themes/${name}/`,
   );

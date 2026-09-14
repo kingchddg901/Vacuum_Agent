@@ -7,6 +7,8 @@
 //                                      never dash-splits; string|array names; envelope metadata.
 //   [FS-7..9]  clampThemeScalars    - clamps bounded scalars to [min,max]; colors/rangeless
 //                                      pass through; {envelope,corrected} count; only min or only max.
+//   [FS-10..12] isFloorOnlyKeySet   - texture PACK vs a full theme that merely grades its
+//                                      floors; the two questions must be able to disagree.
 //   Internal invariants typeOfFloorKey / keyInType / floorTypeNames are reached transitively
 //   through the exported entry points above (no source change).
 //
@@ -24,6 +26,7 @@ import {
   sliceThemeByTypes,
   themeKeyCount,
   clampThemeScalars,
+  isFloorOnlyKeySet,
 } from "./floor-scope.js";
 
 // ---------------------------------------------------------------------------
@@ -300,4 +303,51 @@ test("[FS-9b] clampThemeScalars: non-finite spec bounds ignored; envelope metada
   assert.equal(out.ok, true);
   assert.equal(out.version, 7);
   assert.equal(out.theme.name, "Keep");
+});
+
+// ---------------------------------------------------------------------------
+// anchor: Q4TLMV8D
+// isFloorOnlyKeySet — "is this a texture PACK" is not "does this touch floors"
+// ---------------------------------------------------------------------------
+
+test("[FS-10] isFloorOnlyKeySet: a pure texture pack is floor-only", () => {
+  assert.equal(isFloorOnlyKeySet([
+    "--evcc-floor-wood-base",
+    "--evcc-floor-wood-accent",
+    "--evcc-floor-tile-grout",
+  ]), true);
+  // An unrecognised floor namespace is still a floor token: the pack is scoped
+  // to floors whether or not this build knows the type.
+  assert.equal(isFloorOnlyKeySet(["--evcc-floor-bamboo-base"]), true);
+});
+
+test("[FS-11] isFloorOnlyKeySet: floors PLUS anything else is NOT floor-only", () => {
+  // THE BITE. This is the shape that regressed: a full theme that also grades
+  // its floors. Revert the predicate to "has any floor token" (i.e. the old
+  // `detectFloorScope(...).known.length` reading) and this line goes red — which
+  // is the only thing separating a twelve-render gallery entry from a one-render
+  // one. detectFloorScope agrees the floors are there; that was never the point.
+  const fullThemeWithGradedFloors = [
+    "--evcc-surface-card",
+    "--evcc-accent",
+    "--evcc-floor-wood-base",
+    "--evcc-floor-marble-base",
+  ];
+  assert.equal(isFloorOnlyKeySet(fullThemeWithGradedFloors), false);
+  assert.deepEqual(
+    detectFloorScope({ theme: { colors: Object.fromEntries(fullThemeWithGradedFloors.map((k) => [k, "#000"])) } }).known,
+    ["marble", "wood"],
+    "the two questions must be able to disagree — non-empty scope, still not a pack",
+  );
+
+  // One non-floor key is enough; the majority being floors changes nothing.
+  assert.equal(isFloorOnlyKeySet(["--evcc-floor-wood-base", "--evcc-floor-tile-base", "--evcc-accent"]), false);
+});
+
+test("[FS-12] isFloorOnlyKeySet: empty themes nothing, so it is not a pack", () => {
+  assert.equal(isFloorOnlyKeySet([]), false, "an empty bundle takes the full tour, not the pack path");
+  assert.equal(isFloorOnlyKeySet(null), false);
+  assert.equal(isFloorOnlyKeySet(undefined), false);
+  assert.equal(isFloorOnlyKeySet(["--evcc-accent"]), false);
+  assert.equal(isFloorOnlyKeySet(new Set(["--evcc-floor-wood-base"])), true, "any iterable, not just arrays");
 });

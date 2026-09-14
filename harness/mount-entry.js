@@ -47,7 +47,7 @@ import { README_SHOTS } from "./fixtures/readme-shots.js";
 import { CARD_FIXTURES, CARD_STATES, CARD_SERVICE_RESPONSES } from "./fixtures/cards.js";
 import { SEMANTIC_COLOR_TOKENS } from "./semantic-tokens.js";
 import { BADGE_MARK_PATHS, MARK_VIEWBOX } from "../src/renderers/badge-marks.js";
-import { detectFloorScope, clampThemeScalars } from "../src/theme-tokens/floor-scope.js";
+import { detectFloorScope, clampThemeScalars, isFloorOnlyKeySet } from "../src/theme-tokens/floor-scope.js";
 import { flattenThemeBuckets } from "../src/theme-tokens/flatten.js";
 import { THEME_TOKEN_MAP } from "../src/theme-tokens/index.js";
 import { themeLibraryFixture, tokenCount } from "./fixtures/theme-library.mjs";
@@ -523,11 +523,11 @@ function ingestTheme(envelope) {
   };
   if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) {
     report.reason = "not an object";
-    return { bundle: {}, scope: [], report };
+    return { bundle: {}, scope: [], floorOnly: false, report };
   }
   if (!envelope.theme || typeof envelope.theme !== "object") {
     report.reason = "missing theme";
-    return { bundle: {}, scope: [], report };
+    return { bundle: {}, scope: [], floorOnly: false, report };
   }
 
   report.unknownFloor = detectFloorScope(envelope).unknown;
@@ -560,7 +560,10 @@ function ingestTheme(envelope) {
   report.keyCount = Object.keys(bundle).length;
   report.ok = true;
   const scope = Array.isArray(envelope.scope) ? envelope.scope.slice() : detectFloorScope(envelope).known;
-  return { bundle, scope, report };
+  // `scope` says WHICH floor types this defines. `floorOnly` says whether that is
+  // ALL it defines. Two different questions — see isFloorOnlyKeySet.
+  const floorOnly = isFloorOnlyKeySet(Object.keys(bundle));
+  return { bundle, scope, floorOnly, report };
 }
 
 /**

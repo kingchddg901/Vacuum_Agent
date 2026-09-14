@@ -5,7 +5,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attributionHtml } from "./gallery-html.mjs";
+import { attributionHtml, scopeLabel } from "./gallery-html.mjs";
 
 test("attributionHtml drops dangerous-scheme author_url (no live href)", () => {
   const dangerous = [
@@ -35,4 +35,21 @@ test("attributionHtml escapes the author name + source", () => {
   const html = attributionHtml({ author: "<img src=x onerror=alert(1)>", source: "community" });
   assert.ok(!/<img/.test(html), `unescaped markup leaked: ${html}`);
   assert.ok(html.includes("&lt;img"), "author markup escaped");
+});
+
+// ---------------------------------------------------------------------------
+// scopeLabel — a theme that grades its floors is not a partial theme
+// ---------------------------------------------------------------------------
+
+test("scopeLabel distinguishes a texture pack from a full theme with floors", () => {
+  // A pack: floors are the whole story, so name them.
+  assert.equal(scopeLabel(["tile", "wood"], true), "tile, wood");
+  // A full theme that also grades its floors: says full, and still credits the
+  // floor work. Printing the bare type list here read as "this theme only covers
+  // those floors", which was wrong about the first theme to ship floor tokens.
+  assert.equal(scopeLabel(["marble", "wood"], false), "full · floors: marble, wood");
+  // No floor work at all.
+  assert.equal(scopeLabel([], false), "full");
+  assert.equal(scopeLabel([], true), "full");
+  assert.equal(scopeLabel(undefined, false), "full");
 });

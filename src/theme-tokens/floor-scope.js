@@ -125,6 +125,29 @@ export function detectFloorScope(envelope) {
  * @param {string[]|string} names - floor type name(s) to keep.
  * @returns {object} {ok, version, exported_at, scope:[...], theme:{name,tokens,colors,alpha}}
  */
+/**
+ * Is this key set nothing BUT floor tokens — a texture pack rather than a theme?
+ *
+ * Deliberately NOT `detectFloorScope(...).known.length`. That answers "which
+ * floor types does this define", which a FULL theme may also answer: grading the
+ * floors is a normal thing for a theme to do, and the README sells per-room floor
+ * material as a feature. The two questions only ever coincided because no full
+ * theme had yet set a floor token. The first one that did was read as a texture
+ * pack and lost eleven of its twelve gallery renders.
+ *
+ * Ask this of the INGESTED bundle, not the raw envelope, so keys the registry
+ * already dropped cannot make a texture pack look like a full theme.
+ *
+ * @param {Iterable<string>} keys - token keys, e.g. Object.keys(bundle).
+ * @returns {boolean} true only if there is at least one key and EVERY key is a
+ *   floor token. An empty set is NOT floor-only — it themes nothing, so it takes
+ *   the full tour rather than being mistaken for a texture pack.
+ */
+export function isFloorOnlyKeySet(keys) {
+  const list = Array.from(keys || []);
+  return list.length > 0 && list.every((key) => String(key).startsWith(FLOOR_TOKEN_PREFIX));
+}
+
 export function sliceThemeByTypes(envelope, names) {
   const theme = (envelope && typeof envelope === "object" && envelope.theme) || {};
   const wanted = (Array.isArray(names) ? names : [names]).filter(Boolean);

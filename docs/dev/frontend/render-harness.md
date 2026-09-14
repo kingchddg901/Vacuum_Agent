@@ -306,10 +306,18 @@ recolored by it — the config is the seed, the render is the deliverable.
   is the entire reason running a stranger's export in CI is safe — the export is
   data, not code.
 - **Preview** (`harness/preview.mjs`) — builds the gallery from
-  `gallery/themes/*.json`. Per theme, scope drives the detail render: a full
-  theme → the all-states galleries, the populated single-tab fixtures (so the
-  theme shows on real content, not empty stubs), and a tour of the remaining tabs;
-  a texture-scoped export → the rooms gallery. It also writes a single-room-card **thumbnail** per
+  `gallery/themes/*.json`. Per theme, the detail render turns on whether the export
+  is a texture PACK or a whole theme: a full theme → the all-states galleries, the
+  populated single-tab fixtures (so the theme shows on real content, not empty
+  stubs), and a tour of the remaining tabs; a floor-texture pack → the rooms
+  gallery alone. The discriminator is `floorOnly` (`isFloorOnlyKeySet` over the
+  ingested bundle — every key a floor token), **not** a non-empty `scope`. Those
+  are different questions: `scope` names which floor types an export defines, and
+  a full theme is entitled to define them, since per-room floor material is a
+  shipped feature. Reading one as the other cost the first theme to grade its
+  floors eleven of its twelve renders. `scope` still labels the page — a pack
+  names its floors, a full theme reads `full · floors: …` — via `scopeLabel`.
+  It also writes a single-room-card **thumbnail** per
   theme and a themes index (`harness/out/preview/themes/index.html`) that grids those thumbnails
   (each linking its detail page) under a **"+ Submit a theme"** button (§8). A per-theme
   `_contact-sheet.png` is produced too — the submission bot embeds it inline in
