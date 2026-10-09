@@ -84,6 +84,10 @@ def register(hass: HomeAssistant) -> None:
         return
 
     watched: dict[str, str] = {}
+    # Per-entity trigger maps for EXTRA watches only. The dock_status entity keeps
+    # reading `triggers` live at event time, so the shape that has always worked is
+    # byte-identical; an entity absent from here takes that path.
+    extra_triggers: dict[str, dict] = {}
     for vacuum_entity_id in manager.get_known_vacuum_ids():
         # REG-4: dock_events.enabled (config_schema.py, default False) gates
         # whether this vacuum's dock_status gets watched at all -- an adapter
@@ -93,9 +97,56 @@ def register(hass: HomeAssistant) -> None:
             vacuum_entity_id, "dock_events", "enabled", fallback=False
         ):
             continue
-        dock_entity = (get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get("dock_status")
+        _cfg = get_adapter_config(vacuum_entity_id) or {}
+        dock_entity = _cfg.get("entities", {}).get("dock_status")
         if dock_entity:
             watched[dock_entity] = vacuum_entity_id
+
+        # ONE SENSOR IS EUFY'S SHAPE, NOT EVERY BRAND'S (issue #62's capture).
+        #
+        # This listener assumed the whole dock state lives in one `dock_status`
+        # string, which is true of Eufy and of nothing else measured since. On a
+        # Roborock there is no dock_status role at all: wash and empty appear in the
+        # VACUUM's status sensor (`washing_the_mop`, `emptying_the_bin`) and drying
+        # appears in NEITHER -- the status returns to `charging` at the same instant
+        # the dry switch turns on. Declaring only what a status string can see would
+        # have left a dry counter reading a confident zero forever.
+        #
+        # `extra_watches` is the generic form: each entry names a source and the
+        # events it can raise. A `role` is a declared entity role; an `action` is a
+        # dock action, resolved through DockManager's three-rung ladder so it still
+        # binds on a localized install, where the entity id is in another language
+        # ([DK-20]). Nothing here is Roborock-specific.
+        for _watch in (_cfg.get("dock_events", {}) or {}).get("extra_watches") or []:
+            _trig = _watch.get("triggers") or {}
+            if not _trig:
+                continue
+            _entity: str | None = None
+            if _watch.get("role"):
+                _entity = _cfg.get("entities", {}).get(_watch["role"])
+            elif _watch.get("action"):
+                try:
+                    _entity = manager.dock._get_dock_action_entity(  # noqa: SLF001
+                        vacuum_entity_id=vacuum_entity_id,
+                        action=str(_watch["action"]),
+                    )
+                except Exception:  # pragma: no cover - defensive
+                    _LOGGER.debug(
+                        "dock_events: could not resolve action %r for %s",
+                        _watch.get("action"), vacuum_entity_id, exc_info=True,
+                    )
+                    _entity = None
+            if not _entity:
+                _LOGGER.debug(
+                    "dock_events: extra_watch %r for %s resolved no entity — the "
+                    "events it carries will not be recorded",
+                    _watch.get("role") or _watch.get("action"), vacuum_entity_id,
+                )
+                continue
+            watched[_entity] = vacuum_entity_id
+            # An entity named twice merges rather than replaces: a brand may route
+            # two events through one source.
+            extra_triggers[_entity] = {**extra_triggers.get(_entity, {}), **_trig}
 
     if not watched:
         domain_data[_DOCK_EVENT_UNSUBS] = []
@@ -119,11 +170,16 @@ def register(hass: HomeAssistant) -> None:
         if manager_local is None:
             return
 
-        _triggers = get_adapter_value(
-            vacuum_entity_id,
-            "dock_events", "triggers",
-            fallback={},
-        )
+        # An EXTRA watch carries its own map (it is not the dock_status string and
+        # the brand's `triggers` vocabulary does not describe it). Everything else
+        # reads `triggers` live, exactly as before.
+        _triggers = extra_triggers.get(entity_id)
+        if _triggers is None:
+            _triggers = get_adapter_value(
+                vacuum_entity_id,
+                "dock_events", "triggers",
+                fallback={},
+            )
 
         # Raw (un-normalized) values for the shared edge test -- it does its
         # own strip/lower normalization, matching both callers' prior

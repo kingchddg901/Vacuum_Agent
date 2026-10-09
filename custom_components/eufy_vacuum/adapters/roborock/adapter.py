@@ -420,6 +420,50 @@ def register_roborock_adapter_for_vacuum(
             "entity_suffixes": ["dock_dust_emptying", "dust_emptying"], **_SW,
         }
 
+    # DOCK EVENT SOURCES — issue #62's capture is what made these declarable.
+    #
+    # There is no `dock_status` role on this brand, and the listener was built around
+    # Eufy's shape where one sensor string says what the dock is doing. Measured on a
+    # German Saros 20 Sonic over a full run:
+    #
+    #   06:55:05  status washing_the_mop    dock mop-wash switch ON   (pre-run wash)
+    #   07:06:14  status emptying_the_bin   dust-empty switch ON
+    #   07:06:41  status washing_the_mop    mop-wash switch ON
+    #   07:12:37  status charging           DRY switch ON             <- status says charging
+    #
+    # Wash and empty are in the VACUUM's status sensor. Drying is in NEITHER status
+    # string: the status returns to `charging` at the same instant the dry switch turns
+    # on, so a status-watching detector cannot see it at all and would leave the dry
+    # counter reading a confident zero. That is why `extra_watches` takes an `action`
+    # as well as a `role` — the dry switch is reached through DockManager's three-rung
+    # ladder, so it still binds where the entity id is in another language ([DK-20]).
+    #
+    # The STATE values are English slugs even on a German box, so matching on them is
+    # locale-safe; only entity IDS are translated.
+    #
+    # Each watch is gated on the dock actually having that function, so a wash-only
+    # dock gets no dry watch. NOT DECLARED: `entities.dry_duration` — the countdown
+    # exists on this device but its upstream translation_key was not in the harness
+    # dump, and guessing it is how a localized install silently reads nothing. The
+    # event still records; only its duration is absent.
+    #
+    # Also absent by construction: the active-job mop-wash OBSERVATION in
+    # listeners/lifecycle.py, which additionally requires the entity to BE
+    # `entities.dock_status`. It has never fired on this brand and does not start now.
+    _status_triggers: dict[str, list[str]] = {}
+    if dock_washable:
+        _status_triggers["last_mop_wash"] = ["washing_the_mop"]
+    if dock_collectable:
+        _status_triggers["last_dust_empty"] = ["emptying_the_bin"]
+
+    _extra_watches: list[dict] = []
+    if _status_triggers:
+        _extra_watches.append({"role": "task_status", "triggers": _status_triggers})
+    if dock_dryable:
+        _extra_watches.append(
+            {"action": "dry_mop", "triggers": {"last_dry_start": ["on"]}}
+        )
+
     capability_hints: dict[str, bool] = {
         "supports_mop_features": has_mop,
         "supports_mop_wash": dock_washable,
@@ -1267,7 +1311,21 @@ def register_roborock_adapter_for_vacuum(
         # declared: those are the EVENT path and need a real device's state vocabulary,
         # which the simulator cannot supply. Declaring `enabled` without `triggers`
         # opens the Base Station tab with activity counters stuck at zero.
-        **({"dock_events": {"action_controls": _dock_controls}} if _dock_controls else {}),
+        **(
+            {
+                "dock_events": {
+                    "action_controls": _dock_controls,
+                    # `enabled` turns the dedicated listener on. It also gates the
+                    # lifecycle mop-wash observer, which additionally requires a
+                    # `dock_status` entity this brand does not have — so that one
+                    # stays off either way.
+                    **({"enabled": True, "extra_watches": _extra_watches}
+                       if _extra_watches else {}),
+                }
+            }
+            if _dock_controls
+            else {}
+        ),
         #
         # room_profiles is NO LONGER omitted. "Framework defaults suffice" was wrong for
         # this one: the in-code catalog is EUFY's (Eufy declares it by reference), so

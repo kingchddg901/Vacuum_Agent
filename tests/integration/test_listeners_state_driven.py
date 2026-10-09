@@ -35,6 +35,13 @@ Coverage targets
 [LS-19] L11: both triggers must still fire on the genuine edges they exist for.
         A guard that fixes the startup case by never firing is the same bug
         wearing the opposite sign.
+[LS-20] dock_events.extra_watches, ROLE form: a brand with no dock_status entity
+        records wash/empty off another declared role (issue #62's capture).
+[LS-21] extra_watches, ACTION form: drying is recorded off the dock switch, which
+        is the ONLY place it appears -- the status string never says it.
+[LS-22] a dock_status entity and extra_watches coexist; neither suppresses the other.
+[LS-23] an extra_watch that resolves no entity is skipped without taking the rest
+        of the registration down with it.
 """
 
 from __future__ import annotations
@@ -930,3 +937,144 @@ async def test_ls19_the_genuine_edges_both_still_fire(hass, manager, monkeypatch
 
     assert map_calls == [_VAC], f"a real 6 -> 7 map change did not fire: {map_calls}"
     discovery.remove(hass)
+
+
+# ---------------------------------------------------------------------------
+# [LS-20] — [LS-23] dock_events.extra_watches (issue #62's capture)
+# ---------------------------------------------------------------------------
+
+_DRY_SWITCH = "switch.alfred_dock_mop_drying"
+
+#: Roborock's measured shape: NO dock_status entity at all. Wash and empty live in
+#: the vacuum's own status sensor; drying lives only on the dock switch.
+_ADAPTER_ROBOROCK_SHAPE = {
+    "adapter_id": "roborock_shape",
+    "source": "test",
+    "entities": {"task_status": _TASK_STATUS_ENTITY},
+    "dock_events": {
+        "enabled": True,
+        "action_controls": {
+            "dry_mop": {
+                "entity_suffixes": ["dock_mop_drying", "mop_drying"],
+                "domain": "switch", "service": "turn_on",
+            },
+        },
+        "extra_watches": [
+            {"role": "task_status", "triggers": {
+                "last_mop_wash": ["washing_the_mop"],
+                "last_dust_empty": ["emptying_the_bin"],
+            }},
+            {"action": "dry_mop", "triggers": {"last_dry_start": ["on"]}},
+        ],
+    },
+}
+
+
+async def _arm_roborock_shape(hass, manager, adapter=None):
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, adapter or _ADAPTER_ROBOROCK_SHAPE)
+    hass.states.async_set(_TASK_STATUS_ENTITY, "charging")
+    hass.states.async_set(_DRY_SWITCH, "off")
+    await hass.async_block_till_done()
+    dock_events.register(hass)
+
+
+async def test_ls20_role_watch_records_wash_without_a_dock_status_entity(hass, manager):
+    """[LS-20] This listener assumed the whole dock state lives in one `dock_status`
+    string. Roborock declares no such role: wash and empty are in the VACUUM's status
+    sensor. Measured on a German Saros 20 Sonic (issue #62) -- the STATE values are
+    English slugs even there, so matching on them is locale-safe.
+
+    ABLATION: drop the `role` branch from register() and this goes red.
+    """
+    await _arm_roborock_shape(hass, manager)
+
+    hass.states.async_set(_TASK_STATUS_ENTITY, "washing_the_mop")
+    await hass.async_block_till_done()
+
+    dock_data = manager.data.get("dock_events", {}).get(_VAC, {})
+    assert "last_mop_wash" in dock_data, (
+        "a brand with no dock_status entity recorded nothing; extra_watches(role) is "
+        "the only way its wash can be seen"
+    )
+    assert dock_data.get("mop_wash_count", 0) >= 1
+
+
+async def test_ls21_action_watch_records_drying_the_status_never_mentions(hass, manager):
+    """[LS-21] THE CASE THAT MOTIVATED THE MECHANISM.
+
+    On the captured device the status sensor goes to `charging` at the exact instant
+    the dry switch turns on -- drying appears in NO status string. A status-watching
+    detector therefore cannot see it at all, and declaring only what a status string
+    carries would have left the dry counter reading a confident zero forever.
+
+    The source is addressed as a dock ACTION, not an entity id, so it resolves through
+    the same three-rung ladder the controls use and still binds where the entity id is
+    in another language ([DK-20]).
+
+    ABLATION: drop the `action` branch from register() and this goes red.
+    """
+    await _arm_roborock_shape(hass, manager)
+
+    # The status says CHARGING, exactly as captured -- the switch is the only signal.
+    hass.states.async_set(_TASK_STATUS_ENTITY, "charging")
+    hass.states.async_set(_DRY_SWITCH, "on")
+    await hass.async_block_till_done()
+
+    dock_data = manager.data.get("dock_events", {}).get(_VAC, {})
+    assert "last_dry_start" in dock_data, (
+        "drying was not recorded; it exists only on the dock switch, so an "
+        "action-addressed watch is the only thing that can see it"
+    )
+
+
+async def test_ls22_dock_status_and_extra_watches_coexist(hass, manager):
+    """[LS-22] Adding a source must not disable the one that already worked. A brand
+    may legitimately have both -- the dock_status map stays live-read, the extra watch
+    carries its own."""
+    import copy
+
+    both = copy.deepcopy(_ADAPTER_WITH_DOCK)
+    both["entities"]["task_status"] = _TASK_STATUS_ENTITY
+    both["dock_events"]["extra_watches"] = [
+        {"role": "task_status", "triggers": {"last_dust_empty": ["emptying_the_bin"]}},
+    ]
+    await _arm_roborock_shape(hass, manager, adapter=both)
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "idle")
+    await hass.async_block_till_done()
+    dock_events.register(hass)
+
+    # the ORIGINAL path
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "washing")
+    await hass.async_block_till_done()
+    assert "last_mop_wash" in manager.data.get("dock_events", {}).get(_VAC, {}), (
+        "the dock_status path stopped working once an extra watch was declared"
+    )
+
+    # the NEW path, on a different entity
+    hass.states.async_set(_TASK_STATUS_ENTITY, "emptying_the_bin")
+    await hass.async_block_till_done()
+    assert "last_dust_empty" in manager.data.get("dock_events", {}).get(_VAC, {})
+
+
+async def test_ls23_an_unresolvable_extra_watch_is_skipped_not_fatal(hass, manager):
+    """[LS-23] A watch naming a role or action this install does not have must be
+    skipped quietly -- a dockless unit, or an action whose entity was never created.
+    Taking registration down would cost the vacuum every OTHER dock event too."""
+    import copy
+
+    broken = copy.deepcopy(_ADAPTER_ROBOROCK_SHAPE)
+    broken["dock_events"]["extra_watches"] = [
+        {"role": "no_such_role", "triggers": {"last_mop_wash": ["x"]}},
+        {"action": "no_such_action", "triggers": {"last_dry_start": ["on"]}},
+        # the good one, declared LAST so a bail-out would skip it
+        {"role": "task_status", "triggers": {"last_dust_empty": ["emptying_the_bin"]}},
+    ]
+    await _arm_roborock_shape(hass, manager, adapter=broken)
+
+    hass.states.async_set(_TASK_STATUS_ENTITY, "emptying_the_bin")
+    await hass.async_block_till_done()
+
+    assert "last_dust_empty" in manager.data.get("dock_events", {}).get(_VAC, {}), (
+        "an unresolvable watch took the surviving ones down with it"
+    )

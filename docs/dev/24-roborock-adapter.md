@@ -129,6 +129,42 @@ reports whatever `RoborockStateCode` the library defines, and that enum annotate
 members per model with no `a279` among them. Declaring `enabled` without `triggers` opens
 the Base Station tab with activity counters that can only read zero.
 
+> **NOW DECLARED — and `triggers` was the wrong shape for this brand.** Issue #62's reporter
+> exported a full run from a German Saros 20 Sonic, which supplied the vocabulary and showed
+> why the declaration could not be a `triggers` map:
+>
+> | | |
+> |---|---|
+> | `06:55:05` | status `washing_the_mop`, mop-wash switch on — a PRE-RUN wash, which is the norm |
+> | `07:06:14` | status `emptying_the_bin`, dust-empty switch on |
+> | `07:06:41` | status `washing_the_mop` again, after the return |
+> | `07:12:37` | status **`charging`**, DRY switch on |
+>
+> `triggers` is matched against `entities.dock_status`, and this brand declares no such
+> role — wash and empty are in the VACUUM's status sensor, and **drying is in no status
+> string at all**. The status goes back to `charging` at the same instant the dry switch
+> turns on, so a status-watching detector cannot see drying however the vocabulary is
+> written. Declaring only what a status string carries would have left the dry counter at a
+> confident zero, which is the failure the paragraph above was avoiding.
+>
+> `dock_events.extra_watches` is the generic answer: a list of `{role|action, triggers}`,
+> each naming its own source. A `role` is a declared entity role (here `task_status`); an
+> `action` is a dock action, resolved through DockManager's three-rung ladder so it still
+> binds on a localized install where the entity id is in another language. Eufy is untouched
+> — the `dock_status` entity still reads `triggers` live, and an entity absent from the
+> extra map takes exactly the path it always did.
+>
+> Each watch is gated on the dock having that function, so a wash-only dock gets no dry
+> watch. `entities.dry_duration` is deliberately NOT declared: the countdown exists on the
+> device (3.0 h, falling 1/60 per minute) but its upstream translation_key was not in the
+> harness dump, and guessing it is how a localized install silently reads nothing. The event
+> records; only its duration is absent.
+>
+> One thing this does NOT turn on: the active-job mop-wash observation in
+> `listeners/lifecycle.py`, which gates on `dock_events.enabled` AND requires the firing
+> entity to BE `entities.dock_status`. It has never fired on this brand and does not start
+> now. Pinned by `[LS-20]`–`[LS-23]`.
+
 ---
 
 ## 4. Where the reverse port sent the bill

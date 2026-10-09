@@ -977,6 +977,20 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Absent keys produce no events."
                 ),
             },
+            "extra_watches": {
+                "type": "list[dict]",
+                "required": False,
+                "description": (
+                    "Additional event sources, for a brand whose dock state is not "
+                    "one status string. Each entry is {role|action, triggers}: "
+                    "'role' names a declared entity role, 'action' names a dock "
+                    "action (resolved through the localization-safe ladder). "
+                    "'triggers' is the same {event_type: [states]} shape as "
+                    "'triggers' above, scoped to that one source. Roborock keeps "
+                    "wash/empty in the VACUUM's status sensor and exposes drying "
+                    "only as a switch, so neither fits the dock_status field."
+                ),
+            },
             "debounce_seconds": {
                 "type": "dict[str, float]",
                 "required": False,
