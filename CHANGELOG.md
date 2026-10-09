@@ -8,6 +8,57 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.2.5] - 2026-10-09
+
+A small release, but the first item stops a whole class of Roborock being unable to clean at all. Thanks to **@abyssc0der** for [#67](https://github.com/kingchddg901/Vacuum_Agent/issues/67), whose report named the cause precisely enough that no diagnostics were needed, and to **@150d**, whose history export on [#62](https://github.com/kingchddg901/Vacuum_Agent/issues/62) is what made dock activity recordable on Roborock at all.
+
+> **This release changes the integration only**, so it needs a full Home Assistant restart. A browser refresh is not enough.
+
+### Added
+
+- **Dock activity is now recorded on Roborock.** Mop washes, dust emptying and mop drying are counted and timestamped, so the Base Station tab shows real activity instead of staying empty, and maintenance tracking can use it.
+
+  This needed a recording from a real dock, because the vacuum's status reports only part of it. Wash and emptying appear there; **drying does not appear in it at all** — the status returns to "charging" at the moment drying starts, so drying is read from the dock's own drying control instead. Which functions get watched depends on what your dock actually has, so a dock that only empties is not watched for washes it cannot do.
+
+  **You will normally see two mop washes per mopping run.** The robot washes the mop before setting out as well as after returning. That is the robot's own behaviour, not double-counting.
+
+  One gap worth stating: the drying *duration* is not recorded yet, only that drying started. The countdown exists on the device, but reading it reliably on a non-English install needs a detail we do not have yet, and guessing it would mean silently reading nothing.
+
+### Fixed
+
+- **A Roborock with no mop could not clean at all.** Every room clean failed before it started, with a message about not being able to apply the water setting. Reported on a Q5.
+
+  Before a clean that includes any vacuum-only room, Vacuum Agent lowers the water setting first. That guard matters because water on a Roborock is one device-wide setting rather than a per-room one, so starting without lowering it is what wet-mops rooms you asked to be vacuumed only — and when it cannot apply that setting it refuses to start rather than risk your floors.
+
+  On a vacuum with no mop there was nothing to apply, and the refusal fired on a machine that could never have wet-mopped anything. An all-vacuum clean — the plainest case — hit it just as hard. Vacuum Agent assumes an unrecognised Roborock can control its mop, on the grounds that a wrong guess costs nothing more than a rejected command; that reasoning holds for a vacuum that has a mop control and declines to use it, and not for one where the control does not exist.
+
+  If no mop control is present, there is now nothing to make safe and the clean proceeds. The guard is unchanged for every vacuum that can actually mop, including when its control is briefly unavailable during a restart — refusing is still right there. This keys on what your vacuum publishes rather than on its model name, so it covers every mopless Roborock rather than one model.
+
+  **One visible change on those vacuums:** because Vacuum Agent now knows yours cannot be told to mop, the water picker, the vacuum/mop picker and the reusable room-profiles section no longer appear for it. None of them could ever reach that hardware. Any values already stored on your rooms are left exactly as they are.
+
+- **A spare, empty map could not be deleted.** v2.2.4 noted that the map-identity fix could leave a spare empty map behind, and that it was harmless. It was harmless, but it was also permanent: deleting it reported "no imported data" and left it in place, because a map with no rooms was treated as one that did not exist.
+
+  Both halves are fixed. Deleting an empty map now deletes it. And the path that created those in the first place — simply opening the Rooms tab could save a map under whatever name it was handed — no longer stores anything for a map it does not recognise, so no new ones appear.
+
+  **Clearing an existing one needs the action, not the Setup page.** The Setup list only shows maps that have rooms, so a leftover does not appear there and has no Delete button beside it. To remove one, go to Developer Tools → Actions, pick `eufy_vacuum.setup_delete_map`, switch to YAML mode and call it like this:
+
+  ```yaml
+  vacuum_entity_id: vacuum.your_vacuum
+  map_id: "Home (ID: 12)"      # the leftover's name, exactly as stored
+  confirmation_token: "yes"
+  ```
+
+  The `confirmation_token` matters: if this vacuum has only one map with rooms in it, Vacuum Agent counts the delete as removing your last map and asks you to confirm instead of acting. Without the token the call returns "Confirm deletion of…" and nothing is removed, which reads like the fix not working. Any text will do.
+
+  Previously this took editing Home Assistant's stored data by hand with the server stopped. Leaving it alone remains fine — it is empty, and nothing reads it.
+
+### Internal
+
+- Two entries in the Roborock model table claimed things that were not true: an unrecognised vacuum reported having a mop it may not have, and a capability flag was declared on every model and read by nothing. Neither was visible in use, but both reached diagnostics, and a self-check that describes an install confidently and wrongly is worse than one that says nothing.
+
+- Dock buttons on a non-English install were confirmed to resolve correctly, and are now pinned by a test built from a real German install's entity names. Nothing changed; the check was missing.
+
+
 ## [2.2.4] - 2026-10-07
 
 Most of this came from [#63](https://github.com/kingchddg901/Vacuum_Agent/issues/63), [#65](https://github.com/kingchddg901/Vacuum_Agent/issues/65) and [#66](https://github.com/kingchddg901/Vacuum_Agent/issues/66) — thanks to **@150d** and **@mactron254**, who kept reporting through a run of releases that each fixed part of what they were seeing.
