@@ -1080,3 +1080,73 @@ def test_ms4_a_catalogued_mop_model_is_never_narrowed(monkeypatch, hass):
         "a CATALOGUED mop model was narrowed by entity absence — that converts #51's "
         "safe abort into a silent skip, and wet-mops dry rooms"
     )
+
+
+def test_ms5_uncatalogued_with_no_mop_signal_at_all_reports_no_mop(monkeypatch, hass):
+    """[MS-5] The other optimistic guess. With neither the water tank nor the intensity
+    select, an uncatalogued model claimed a mop it does not have. Nothing aborted on it
+    — unlike mop_settable — but it reached the vacuum-list snapshot and diagnostics, and
+    a self-check that describes an install confidently and wrongly has cost this project
+    a release before.
+
+    ABLATION: drop the `_any_mop_signal` term and this goes red.
+    """
+    cfg = _register_unknown(monkeypatch, hass, model="roborock.vacuum.zz96")
+    assert cfg["capabilities"]["supports_mop_features"] is False
+
+
+def test_ms6_a_mop_it_cannot_command_is_still_a_mop(monkeypatch, hass):
+    """[MS-6] THE DISTINCTION THAT MUST NOT COLLAPSE, and the reason [MS-5] keys on two
+    signals rather than one.
+
+    `has_mop` and `mop_settable` are deliberately separate: the S6 carries a mop and
+    rejects every command to it. So a device advertising the water tank but no intensity
+    select is mop-HAVING and mop-UNSETTABLE, and narrowing `has_mop` on the absence of
+    the CONTROL would erase a real capability. Only the absence of BOTH means no mop.
+
+    ABLATION: key `has_mop` on `_mop_control_exists` alone and this goes red while
+    [MS-5] stays green — which is exactly how the two would have been conflated.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.zz95")
+    hass.states.async_set("binary_sensor.ivy_water_box_attached", "on")
+    assert hass.states.get("select.ivy_mop_intensity") is None, "no CONTROL, by design"
+    assert er.async_get(hass).async_get("select.ivy_mop_intensity") is None
+
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    cfg = get_adapter_config(_RVAC)
+
+    assert cfg["capabilities"]["supports_mop_features"] is True, (
+        "a water tank with no intensity select is the S6's own shape: it HAS a mop. "
+        "Narrowing has_mop on the control signal erases that."
+    )
+    assert _water_pre_call(cfg) is None, (
+        "...and it still cannot be COMMANDED, so the pre-call that needs the select "
+        "must stay away — the two flags answer different questions"
+    )
+
+
+def test_ms7_no_profile_declares_the_dead_segments_key(monkeypatch, hass):
+    """[MS-7] `supports_segments` was declared True on every profile of two brands and
+    read by nobody: core computes its own (`supports_segments = supports_rooms`) and the
+    profile key was never consulted, never forwarded as a hint. A value that looks
+    authoritative and is inert is worse than silence, because the next reader believes
+    it. Removed from both catalogues; this stops it drifting back.
+
+    The CORE capability is untouched and still reported — that is the one callers use.
+    """
+    from custom_components.eufy_vacuum.adapters.dreame import (
+        model_catalog as dreame_catalog,
+    )
+
+    for name, catalog in (("roborock", model_catalog), ("dreame", dreame_catalog)):
+        profiles = dict(getattr(catalog, "MODEL_PROFILES", {}))
+        profiles["DEFAULT_PROFILE"] = catalog.DEFAULT_PROFILE
+        offenders = [n for n, p in profiles.items() if "supports_segments" in p]
+        assert not offenders, (
+            f"{name}: {offenders} declare supports_segments, which nothing reads — "
+            "wire it to a consumer or leave it out; do not re-add a dead authority"
+        )

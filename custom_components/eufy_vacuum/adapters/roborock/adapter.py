@@ -194,6 +194,37 @@ def register_roborock_adapter_for_vacuum(
         )
         mop_settable = False
 
+    # ISSUE #67 FOLLOW-UP — the same narrowing, for the table's other optimistic guess.
+    #
+    # `has_mop` feeds the `supports_mop_features` hint, so an uncatalogued mopless device
+    # reported a mop that is not there. Nothing aborts on it, unlike mop_settable, but it
+    # is wrong in the vacuum-list snapshot and in diagnostics — and this project has
+    # already paid for diagnostics that describe an install confidently and incorrectly
+    # (2.2.2 fixed a self-check that blamed a correct configuration).
+    #
+    # has_mop AND mop_settable ARE DISTINCT AND MUST STAY SO. The catalogue's whole point
+    # is that the S6 HAS a mop and cannot be told to use it. So this deliberately does
+    # NOT key on the intensity select alone, which is the CONTROL signal: it requires
+    # BOTH mop signals to be absent — the water-tank binary sensor (presence) and the
+    # intensity select (control). The S6 publishes both, so it is untouched even in the
+    # hypothetical where it were uncatalogued.
+    #
+    # Same discipline as above: narrows the GUESS only, never a catalogued entry, and
+    # only ever True -> False.
+    _water_box_id = build_entity_id(vid, SUFFIX_WATER_BOX, DOMAIN_BINARY_SENSOR)
+    _any_mop_signal = _mop_control_exists or (
+        hass.states.get(_water_box_id) is not None
+        or er.async_get(hass).async_get(_water_box_id) is not None
+    )
+    has_mop = bool(profile.get("has_mop", False))
+    if has_mop and profile is DEFAULT_PROFILE and not _any_mop_signal:
+        _LOGGER.debug(
+            "roborock %s: uncatalogued model with neither %s nor %s — reporting no mop "
+            "rather than claiming one it does not have (issue #67)",
+            vid, _water_box_id, _mop_intensity_id,
+        )
+        has_mop = False
+
     # Mop dispatch (settable models only): water is a device-GLOBAL select, not a
     # per-room app_segment_clean field, so it rides dispatch.global_pre_calls — set the
     # mop intensity select BEFORE each group's segment clean. The engine re-runs pre-calls
@@ -414,7 +445,7 @@ def register_roborock_adapter_for_vacuum(
         }
 
     capability_hints: dict[str, bool] = {
-        "supports_mop_features": profile["has_mop"],
+        "supports_mop_features": has_mop,
         "supports_mop_wash": dock_washable,
         "supports_mop_dry": dock_dryable,
         "supports_empty_dust": dock_collectable,
@@ -1083,7 +1114,7 @@ def register_roborock_adapter_for_vacuum(
             # (RoborockUnsupportedFeature) so mop_settable is False -> water control
             # off, picker hidden, mop observed via the tank. A settable-mop model
             # (S7/S8) sets water control True -> the picker + the mop pre-call engage.
-            "supports_mop_features": caps.get("supports_mop_features", profile["has_mop"]),
+            "supports_mop_features": caps.get("supports_mop_features", has_mop),
             "supports_water_control": mop_settable,
             # Per-room fan/water do not ride the app_segment_clean wire (global only).
             # The path/route axis is per-MODEL though, so read the catalog rather than

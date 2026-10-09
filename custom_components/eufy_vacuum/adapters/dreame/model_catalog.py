@@ -66,7 +66,6 @@ MODEL_PROFILES: dict[str, dict] = {
         "station_collectable": True,  # auto_empty_status + start_auto_empty button
         "station_washable": True,     # self_wash_base_status + mop_wash_level select
         "station_dryable": True,      # drying_progress/drying_left + drying_time select
-        "supports_segments": True,    # per-room selects present
         # per-room cleaning_route (standard/intensive/deep) is the route axis.
         "has_path_control": True,
         # Zone cleaning is a service (dreame_vacuum.vacuum_clean_zone), not an entity.
@@ -90,7 +89,6 @@ DEFAULT_PROFILE: dict = {
     "station_collectable": True,
     "station_washable": True,
     "station_dryable": True,
-    "supports_segments": True,
     "has_path_control": False,
     "supports_zone_clean": False,
 }

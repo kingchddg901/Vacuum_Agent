@@ -317,6 +317,25 @@ this is reachable on any Roborock not in the catalog whose mop set is actually r
 > included, gave new rooms an inert `water_level` against an axis with no options. The declared
 > profiles are now stripped of mop-only fields when the mop is not settable. Stored rooms are
 > untouched.
+>
+> **The rest of the table was then audited for the same shape, and two more were found.** The
+> hazard is not optimism as such — it is an optimistic guess whose stated absorber does not hold on
+> some path. `has_dock`, `has_path_control` and `supports_clean_sequence_write` all default *False*
+> and can only ever hide a capability, so they are not in this class.
+>
+> `has_mop` was the second real one. It feeds the `supports_mop_features` hint, so an uncatalogued
+> mopless device reported a mop it does not have — inert for dispatch, but wrong in the vacuum-list
+> snapshot and in diagnostics, which this project has been bitten by before. It is narrowed the same
+> way, with one deliberate difference: `has_mop` and `mop_settable` are distinct (the S6 *has* a mop
+> and cannot be told to use it), so narrowing keys on BOTH mop signals being absent — the water-tank
+> binary sensor (presence) and the intensity select (control). Keying it on the control alone would
+> erase a real capability, which is what `[MS-6]` exists to catch.
+>
+> `supports_segments` was the third, and it was not a hazard but a lie: declared `True` on every
+> profile of two brands and read by nobody. Core computes its own (`supports_segments =
+> supports_rooms`) and the profile key was never consulted nor forwarded as a hint. Removed from
+> both catalogues rather than left looking authoritative; `[MS-7]` stops it drifting back. The core
+> capability is unchanged and is the one every caller already used.
 
 **One capability seam is open at the core end and unconnected at the brand end.** A comment explains
 that zone-clean support is read from capabilities so a model catalog entry can declare it False and

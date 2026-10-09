@@ -43,7 +43,6 @@ MODEL_PROFILES: dict[str, dict] = {
         # Native segment / room cleaning (isOrderCleanSupported + isRoomNameSupported
         # + isReSegmentSupported). Multi-map capable (isMultiFloorSupported) even
         # though the current single-floor setting caps stored maps at 1.
-        "supports_segments": True,
         # V1 device protocol => RoborockCommand.SET_CLEAN_SEQUENCE applies.
         "supports_clean_sequence_write": True,
         # No path/route axis on this unit — owner-confirmed on hardware.
@@ -65,7 +64,6 @@ MODEL_PROFILES: dict[str, dict] = {
         # ...but SET_WATER_BOX_CUSTOM_MODE is rejected on-device, and
         # binary_sensor.<obj>_water_box_attached reads unavailable.
         "mop_settable": False,
-        "supports_segments": True,
         # V1 device protocol => RoborockCommand.SET_CLEAN_SEQUENCE applies.
         "supports_clean_sequence_write": True,
         "has_path_control": False,
@@ -97,7 +95,6 @@ MODEL_PROFILES: dict[str, dict] = {
         "has_dock": False,
         "has_mop": True,
         "mop_settable": True,
-        "supports_segments": True,
         # V1 device protocol => RoborockCommand.SET_CLEAN_SEQUENCE applies.
         "supports_clean_sequence_write": True,
         "has_path_control": False,
@@ -108,7 +105,6 @@ MODEL_PROFILES: dict[str, dict] = {
         "has_dock": False,
         "has_mop": True,
         "mop_settable": True,
-        "supports_segments": True,
         # V1 device protocol => RoborockCommand.SET_CLEAN_SEQUENCE applies.
         "supports_clean_sequence_write": True,
         "has_path_control": False,
@@ -166,7 +162,6 @@ DEFAULT_PROFILE: dict = {
     "has_dock": False,
     "has_mop": True,
     "mop_settable": True,
-    "supports_segments": True,
     "has_path_control": False,
     # ⚠ FAILS CLOSED, UNLIKE mop_settable ABOVE, AND THE ASYMMETRY IS DELIBERATE.
     #
