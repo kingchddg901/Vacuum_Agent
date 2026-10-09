@@ -33,6 +33,9 @@ Coverage targets
 [DK-19] _get_dock_action_entity: all four actions resolve on a device whose buttons
         do not share the vacuum's stem, including dry_mop against the stop_dry_mop
         token collision (issue #49) -- the CALLER arms the ownership guard.
+[DK-20] A GERMAN Roborock dock switch resolves, from a real capture: the entity id
+        shares nothing with the declared English suffixes and only the upstream
+        translation_key rung can bind it.
 """
 
 from __future__ import annotations
@@ -520,3 +523,74 @@ def test_dc_5_a_non_button_domain_without_a_service_is_refused_not_guessed():
     # ...while the button default is still supplied, because it is unambiguous.
     cfg_btn = {"dock_events": {"action_controls": {"wash_mop": {"entity_suffixes": ["w"]}}}}
     assert _dock_control(cfg_btn, "wash_mop")["service"] == "press"
+
+
+def test_dk20_a_german_dock_switch_resolves_on_the_translation_key(
+    dock, hass, mock_config_entry
+):
+    """[DK-20] REAL-WORLD INPUT, from the history export on issue #62 (a Roborock
+    Saros 20 Sonic on a German install).
+
+    Home Assistant builds an entity id from the TRANSLATED name, so the dock switches
+    there are `dock_moppwasche` / `dock_mopp_trocknung` / `dock_staubentleerung`. The
+    adapter declares English suffixes (`dock_mop_washing`, `mop_washing`), which share
+    no substring with those, and no token_sets -- so rungs 1 and 2 cannot bind and
+    neither can the token fallback. Only rung 3, matching the upstream
+    `translation_key`, speaks German.
+
+    That rung exists (issue #51) and the second declared suffix doubles as the key --
+    the harness recorded `switch.<obj>_dock_mop_washing` carrying
+    `translation_key: "mop_washing"`. This pins that the two halves still line up: a
+    rename of either the declaration or the upstream key breaks a localized install
+    silently, because the failure mode is a button that never appears.
+
+    ABLATION: drop "mop_washing" from entity_suffixes and this goes red.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    # Roborock's own declaration, verbatim.
+    register_adapter_config(_VAC, {
+        "adapter_id": "roborock", "source": "code",
+        "dock_events": {"action_controls": {
+            "wash_mop": {
+                "entity_suffixes": ["dock_mop_washing", "mop_washing"],
+                "domain": "switch", "service": "turn_on",
+            },
+        }},
+    })
+
+    ent_reg = er.async_get(hass)
+    dev_reg = dr.async_get(hass)
+    if mock_config_entry.entry_id not in hass.config_entries.async_entry_ids():
+        mock_config_entry.add_to_hass(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=mock_config_entry.entry_id,
+        identifiers={("roborock", "saros20")},
+    )
+    # The vacuum must be in the registry: rungs 2 and 3 sweep siblings from it.
+    ent_reg.async_get_or_create(
+        "vacuum", "roborock", "saros20_vac",
+        suggested_object_id="alfred", device_id=device.id,
+    )
+    # The German switch -- id shares nothing with either declared suffix.
+    german = ent_reg.async_get_or_create(
+        "switch", "roborock", "saros20_mop_washing",
+        suggested_object_id="saros_20_sonic_complete_dock_moppwasche",
+        device_id=device.id,
+        translation_key="mop_washing",
+    )
+    assert german.entity_id == "switch.saros_20_sonic_complete_dock_moppwasche"
+    for _suffix in ("dock_mop_washing", "mop_washing"):
+        assert not german.entity_id.endswith(_suffix), (
+            "the fixture must not be resolvable by suffix, or it proves nothing"
+        )
+    hass.states.async_set(german.entity_id, "off")
+
+    resolved = dock._get_dock_action_entity(vacuum_entity_id=_VAC, action="wash_mop")
+
+    assert resolved == german.entity_id, (
+        "a localized dock switch must bind through its upstream translation_key; "
+        "without that rung the user sees no dock buttons at all and nothing in the log "
+        f"says why (got {resolved!r})"
+    )

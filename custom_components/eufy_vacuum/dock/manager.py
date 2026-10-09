@@ -125,9 +125,25 @@ class DockManager:
     ) -> str | None:
         """Return the upstream button entity for one dock action.
 
-        Resolution is adapter-driven: entity_suffixes (appended to
-        '<domain>.{object_id}_', the domain the ADAPTER declares) are tried
-        first, then token_sets as registry fallbacks. An action absent from
+        Resolution is adapter-driven, and the ladder is `resolve_action_entity`'s
+        THREE rungs, not the one this docstring used to describe. It said
+        "entity_suffixes (appended to '<domain>.{object_id}_') are tried first, then
+        token_sets as registry fallbacks", which reads as though a declared suffix is
+        only ever an entity-id fragment. It is not, and believing that produced a
+        confident wrong conclusion while reading a real German capture (issue #62):
+        that the dock controls could not resolve on a localized install at all.
+
+            1. the derived id `<domain>.<object_id>_<suffix>`;
+            2. a sibling whose object id ENDS with the suffix;
+            3. a sibling whose upstream `translation_key` IS the suffix.
+
+        Rung 3 is why the Roborock declaration carries TWO suffixes per action: the
+        second doubles as the upstream key (`mop_washing`, `mop_drying`,
+        `dust_emptying`), so a German install whose entity is `dock_moppwasche` --
+        sharing no substring with either -- still binds. [DK-20] pins that pairing,
+        because breaking either side fails silently as a button that never appears.
+
+        token_sets are the fallback AFTER all three rungs. An action absent from
         dock_events.action_controls resolves to None (reported unavailable).
         """
         from ..adapters.registry import get_adapter_config as _get_adapter_config
