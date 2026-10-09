@@ -296,6 +296,28 @@ plainest case, an all-vacuum batch. On that path both a missing target entity an
 the select raise and **abort the dispatch**. Since an uncatalogued model defaults to mop-settable,
 this is reachable on any Roborock not in the catalog whose mop set is actually rejected.
 
+> **CLOSED by issue #67**, which is what this paragraph had been predicting. A plain Q5 — mopless,
+> and not the catalogued Q5 *Pro* — failed every clean with `global pre-call target
+> 'select.<obj>_mop_intensity' does not exist`, an all-vacuum batch included. The catalogue's
+> optimism was justified on the grounds that a wrong guess "costs a rejected call that is caught and
+> logged"; that absorber exists only when the select exists, and nothing had joined the two
+> statements.
+>
+> The adapter now narrows **the guess alone** — identity-tested against `DEFAULT_PROFILE`, so a
+> catalogued entry is never touched — using the same three-state check
+> `rooms/room_discovery.py::get_active_map_id` makes. In the state machine: the profile decides. In
+> the registry but not the state machine: a boot window on a device that really does mop, so the
+> guess stands and the abort still fires; collapsing this branch is the one change that could
+> wet-mop a dry room. In neither: the integration never created the entity, so there is no mop to
+> make safe and the pre-call is not declared. Pinned by `[MS-1..4]`.
+>
+> It also surfaced a pre-existing contract violation it had been masking: the vocabulary declares
+> `water_level_options` / `clean_mode_options` only when the mop is settable, while the room
+> profiles carried those fields unconditionally — so every mopless Roborock, the catalogued S6
+> included, gave new rooms an inert `water_level` against an axis with no options. The declared
+> profiles are now stripped of mop-only fields when the mop is not settable. Stored rooms are
+> untouched.
+
 **One capability seam is open at the core end and unconnected at the brand end.** A comment explains
 that zone-clean support is read from capabilities so a model catalog entry can declare it False and
 be believed. No model profile carries that key and the hints dict never forwards one, so a catalog

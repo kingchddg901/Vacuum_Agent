@@ -144,6 +144,22 @@ MODEL_PROFILES: dict[str, dict] = {
 # its mop ("not all Roborocks are the S6"): mop_settable True is best-effort and
 # degrades safely (a device that can't set mop rejects the call, which is caught +
 # logged). A known no-op model (like the S6) is catalogued explicitly False above.
+#
+# ⚠ THAT ABSORBER ONLY EXISTS WHEN THE SELECT EXISTS, and the sentence above was read
+# for a long time as though it covered every wrong guess. It does not. A rejected call
+# is absorbed; a MISSING target is not — the safest-water pre-call aborts the whole
+# dispatch on one (issue #51, deliberately). So on a mopless model that never reaches
+# this catalogue the optimism cost every clean, not a log line (ISSUE #67: a plain Q5;
+# the Q5 Pro IS catalogued, which is why it never showed up here).
+#
+# The optimism is still right, and is still the default. What makes it safe is that
+# `adapters/roborock/adapter.py` now narrows THIS GUESS ONLY — identity-tested against
+# DEFAULT_PROFILE — when the mop select is in neither the state machine nor the entity
+# registry. Catalogued entries are untouched, so a measured mop model whose entity is
+# briefly absent keeps aborting, which is the safe answer there. Pinned by [MS-1..4].
+#
+# The consequence for THIS table: adding a mopless model here is an optimisation, not
+# the fix. Leaving one out is no longer fatal.
 DEFAULT_PROFILE: dict = {
     "family": "generic",
     "display_name": "Roborock",

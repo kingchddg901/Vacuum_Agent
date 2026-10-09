@@ -52,7 +52,7 @@ from .entities import (
 )
 from .dock import dock_profile
 from .maintenance_components import MAINTENANCE_COMPONENTS
-from .model_catalog import profile_for_model
+from .model_catalog import DEFAULT_PROFILE, profile_for_model
 from .upkeep_catalog import ROBOROCK_MODEL_NAMES
 from .upkeep_keys import ROBOROCK_MODEL_KEY_REGIMES, ROBOROCK_UPKEEP_KEY_GUIDES
 from .vocabulary import (
@@ -100,6 +100,30 @@ def _device_for_vacuum(hass: HomeAssistant, vacuum_entity_id: str):
 # routinely empty on real installs (which is why Eufy never had a detector at all).
 
 
+#: Fields that only mean something on a device whose mop can be commanded. They are
+#: exactly the axes `vocabulary` gates on `mop_settable`, so the two must move together
+#: — one question, one answer. Adding a mop-only axis to the vocabulary gate without
+#: adding it here re-opens the contract violation #67 surfaced.
+_MOP_ONLY_PROFILE_FIELDS = ("water_level", "clean_mode")
+
+
+def _strip_mop_fields(profiles: dict, mop_settable: bool) -> dict:
+    """Drop mop-only fields from room profiles on a device that cannot mop.
+
+    Returns the input UNCHANGED (same object) when the mop is settable, so every
+    mop-capable install is byte-identical and this cannot perturb what already works.
+    Handles both shapes the caller passes: a map of profiles, and a single profile.
+    """
+    if mop_settable:
+        return profiles
+    if profiles and all(isinstance(v, dict) for v in profiles.values()):
+        return {
+            name: {k: v for k, v in prof.items() if k not in _MOP_ONLY_PROFILE_FIELDS}
+            for name, prof in profiles.items()
+        }
+    return {k: v for k, v in profiles.items() if k not in _MOP_ONLY_PROFILE_FIELDS}
+
+
 def register_roborock_adapter_for_vacuum(
     hass: HomeAssistant,
     vacuum_entity_id: str,
@@ -125,7 +149,50 @@ def register_roborock_adapter_for_vacuum(
     # A device can carry a mop tank yet reject every mop command (the S6). mop_settable
     # gates the water picker (vocabulary) + supports_water_control + the mop
     # global_pre_calls dispatch — all no-ops when False, so the S6 stays byte-identical.
+    #
+    # ISSUE #67 — THE GUESS HAD NO ABSORBER WHEN THE SELECT WAS NEVER CREATED.
+    #
+    # An uncatalogued model takes DEFAULT_PROFILE's optimistic `mop_settable: True`, and
+    # the catalogue justifies that optimism explicitly: a wrong guess "costs a rejected
+    # call that is caught and logged". That holds for a device whose mop select EXISTS
+    # and refuses the command. It does not hold when the select was never created — the
+    # safest-water pre-call aborts dispatch on a MISSING TARGET (issue #51), by design,
+    # because failing to push safe water before a batch containing dry rooms is what
+    # wet-mops them. Both halves were already written down (see the ⚠ on the safest-water
+    # entry below); nothing joined them. On a plain Q5 — mopless, and NOT the catalogued
+    # Q5 Pro — every clean died with "global pre-call target ... does not exist",
+    # including the plainest all-vacuum batch.
+    #
+    # NARROW THE GUESS ONLY. `profile is DEFAULT_PROFILE` is an identity test, so a
+    # CATALOGUED entry is never touched: on a measured mop model whose entity is briefly
+    # missing, aborting (#51) is the safe answer and must survive. Widening never
+    # happens here — this can only turn a guessed True into False.
+    #
+    # THREE STATES, AND THE MIDDLE ONE IS THE POINT — the same distinction
+    # rooms/room_discovery.py::get_active_map_id draws, for the same reason:
+    #
+    #   in the state machine     -> the profile decides, unchanged.
+    #   registry but no state    -> the entity EXISTS and has not materialised yet: a
+    #                               boot window on a device that really does mop. Keep
+    #                               the guess, so #51 still aborts. Treating this as
+    #                               "no mop" is the one branch that could wet-mop a dry
+    #                               room, which is the damage the abort exists to prevent.
+    #   in NEITHER               -> the integration never created it, so there is no mop
+    #                               control and nothing to make safe. The pre-call could
+    #                               then only ever abort.
+    _mop_intensity_id = build_entity_id(vid, SUFFIX_MOP_INTENSITY, DOMAIN_SELECT)
+    _mop_control_exists = hass.states.get(_mop_intensity_id) is not None or (
+        er.async_get(hass).async_get(_mop_intensity_id) is not None
+    )
     mop_settable = bool(profile.get("mop_settable", False))
+    if mop_settable and profile is DEFAULT_PROFILE and not _mop_control_exists:
+        _LOGGER.debug(
+            "roborock %s: uncatalogued model with no %s in the state machine or the "
+            "entity registry — treating it as mopless (issue #67) rather than letting "
+            "the safest-water pre-call abort every run",
+            vid, _mop_intensity_id,
+        )
+        mop_settable = False
 
     # Mop dispatch (settable models only): water is a device-GLOBAL select, not a
     # per-room app_segment_clean field, so it rides dispatch.global_pre_calls — set the
@@ -1205,9 +1272,26 @@ def register_roborock_adapter_for_vacuum(
         # profile picker keep working; only the VALUES are Roborock's.
         "room_profiles": {
             "default_profile": "vacuum_quick",
-            "builtins": ROOM_PROFILES,
-            "custom_template": CUSTOM_ROOM_PROFILE,
-            "normalize_defaults": CUSTOM_ROOM_PROFILE,
+            # MOP FIELDS STRIPPED WHEN THE DEVICE CANNOT MOP, because the vocabulary
+            # block above declares `water_level_options` / `clean_mode_options` only when
+            # `mop_settable`. A profile that still carried `water_level` there would store
+            # a value against an axis this brand declares no options for -- an inert field
+            # nobody can act on, which `test_new_room_defaults_use_only_this_brands_
+            # declared_vocabulary` forbids.
+            #
+            # PRE-EXISTING, SURFACED BY #67, NOT CAUSED BY IT: every `mop_settable: False`
+            # Roborock already had this -- the catalogued S6 and Q5 Pro included -- and the
+            # contract test simply never ran against a mopless fixture until the #67 gate
+            # made one. Stripping is the right direction and ungating the vocabulary is
+            # not: `src/state/room-editor.js` hides the water row on an empty option list,
+            # so declaring the options to satisfy the contract would put a water control on
+            # an S6 whose mop is observe-only.
+            #
+            # NEW rooms only. Stored rooms keep whatever they already hold; nothing is
+            # rewritten underneath a user.
+            "builtins": _strip_mop_fields(ROOM_PROFILES, mop_settable),
+            "custom_template": _strip_mop_fields(CUSTOM_ROOM_PROFILE, mop_settable),
+            "normalize_defaults": _strip_mop_fields(CUSTOM_ROOM_PROFILE, mop_settable),
             "floor_type_water_defaults": RB_FLOOR_TYPE_WATER_DEFAULTS,
             "floor_type_fan_defaults": RB_FLOOR_TYPE_FAN_DEFAULTS,
             # DECLARED EMPTY, not absent. Roborock has no retired profile names of

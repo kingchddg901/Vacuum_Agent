@@ -970,3 +970,113 @@ def test_rt_7_every_builtin_profile_writes_a_route_value_the_picker_offers():
         f"Offered: {sorted(offered)}. A stored value outside the declared list renders "
         f"as nothing-selected and defeats the vocabulary reset."
     )
+
+
+# --- mop_settable: the guess, narrowed (issue #67) ---------------------------
+
+
+def _water_pre_call(cfg):
+    """The safest-water global pre-call, or None when the adapter declared none."""
+    for entry in (cfg.get("dispatch") or {}).get("global_pre_calls") or []:
+        if entry.get("field") == "water_level":
+            return entry
+    return None
+
+
+def _register_unknown(monkeypatch, hass, model="roborock.vacuum.zz99"):
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model=model)
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    return get_adapter_config(_RVAC)
+
+
+def test_ms1_uncatalogued_mopless_declares_no_water_pre_call(monkeypatch, hass):
+    """[MS-1] THE RED INPUT, from issue #67, reported on a plain Roborock Q5.
+
+    An uncatalogued model takes DEFAULT_PROFILE's optimistic `mop_settable: True`. The
+    catalogue justified that by saying a wrong guess costs "a rejected call that is
+    caught and logged" -- true only when the select EXISTS. With no select at all the
+    safest-water pre-call aborts the whole dispatch on a missing target (#51), so every
+    clean failed with "global pre-call target 'select.<obj>_mop_intensity' does not
+    exist", including an all-vacuum batch on a machine with no mop.
+
+    ABLATION: drop the `_mop_control_exists` term and this goes red.
+    """
+    cfg = _register_unknown(monkeypatch, hass)
+
+    assert _water_pre_call(cfg) is None, (
+        "a device with no mop select has nothing to make safe; declaring the pre-call "
+        "can only ever abort the dispatch"
+    )
+    assert cfg["capabilities"]["supports_water_control"] is False
+
+
+def test_ms2_boot_window_keeps_the_guess_so_51_still_aborts(monkeypatch, hass):
+    """[MS-2] THE MIDDLE STATE, and the branch that must NOT be collapsed.
+
+    Registry-but-no-state means the entity exists and has not materialised yet -- a boot
+    window on a device that really does mop. Treating that as "mopless" would drop the
+    safe-water push and wet-mop dry rooms, which is the exact damage #51's abort exists
+    to prevent. Absence of a STATE is not absence of a MOP.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.zz98")
+    reg = er.async_get(hass)
+    entry = reg.async_get_or_create(
+        "select", "roborock", "zz98_mop_intensity", suggested_object_id="ivy_mop_intensity"
+    )
+    assert entry.entity_id == "select.ivy_mop_intensity", entry.entity_id
+    assert hass.states.get("select.ivy_mop_intensity") is None, "no STATE, by design"
+
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    cfg = get_adapter_config(_RVAC)
+
+    assert _water_pre_call(cfg) is not None, (
+        "registry-only is a boot window on a real mop device; the guess must stand so "
+        "the missing-target abort still fires rather than silently skipping safe water"
+    )
+
+
+def test_ms3_uncatalogued_with_a_live_select_is_unchanged(monkeypatch, hass):
+    """[MS-3] The no-regression guard: a mop select present in the state machine leaves
+    the optimistic default exactly as it was, so every uncatalogued mop model that works
+    today is byte-identical."""
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.zz97")
+    hass.states.async_set(
+        "select.ivy_mop_intensity", "off", {"options": ["off", "low", "medium", "high"]}
+    )
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    cfg = get_adapter_config(_RVAC)
+
+    pre = _water_pre_call(cfg)
+    assert pre is not None and pre["mixed_mode_water_policy"] == "safest"
+    assert cfg["capabilities"]["supports_water_control"] is True
+
+
+def test_ms4_a_catalogued_mop_model_is_never_narrowed(monkeypatch, hass):
+    """[MS-4] NARROW THE GUESS, NEVER A MEASUREMENT -- the dangerous direction.
+
+    The S7 is catalogued `mop_settable: True` on evidence. If its select is missing we
+    must keep declaring the pre-call so #51 aborts: on a device that genuinely mops,
+    "entity absent" is a fault to refuse on, not permission to skip safe water. Only
+    DEFAULT_PROFILE's guess may be narrowed, which is why the adapter identity-tests the
+    profile rather than reading a flag any future catalogue row could reuse.
+    """
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.a15")
+    assert hass.states.get("select.ivy_mop_intensity") is None
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    cfg = get_adapter_config(_RVAC)
+
+    assert model_catalog.profile_for_model("roborock.vacuum.a15") is not model_catalog.DEFAULT_PROFILE
+    assert _water_pre_call(cfg) is not None, (
+        "a CATALOGUED mop model was narrowed by entity absence — that converts #51's "
+        "safe abort into a silent skip, and wet-mops dry rooms"
+    )
