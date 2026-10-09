@@ -65,7 +65,21 @@ async def delete_map(
 
     vacuum_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {})
     bucket = vacuum_maps.get(map_id_str)
-    if bucket is None or not bucket.get("rooms"):
+    # ABSENT AND EMPTY ARE DIFFERENT, and conflating them made a phantom bucket
+    # permanently undeletable. `already_done` tells the caller nothing remains; for an
+    # EMPTY bucket that was false -- the key was still sitting in `maps`, `run_profiles`
+    # and `room_rule_status`, and this was the only route the UI offers to remove it.
+    #
+    # The pairing is what made it a trap: `ensure_map_bucket` mints a bucket from any
+    # caller-supplied map_id, so an empty one is easy to create (a stale id reaching
+    # `get_map_segments` did it on a live install, issue #67's sibling), while this
+    # refused to remove one. Easy to create, impossible to delete, through any supported
+    # route.
+    #
+    # Everything below copes with an empty bucket already: protection evaluates to
+    # `normal` with no rooms and no learning data, `_deleted_room_ids` is [], and
+    # `remove_map` clears all eight PER_MAP_STORES regardless.
+    if bucket is None:
         return _action_result(
             "already_done",
             code="map_not_found",

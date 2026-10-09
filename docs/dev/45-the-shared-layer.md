@@ -57,6 +57,19 @@ segments — must refuse an unknown address rather than mint a phantom durable b
 `ensure`'s unconditional create means a typo'd or never-discovered map id silently becomes a real,
 persisted bucket.
 
+**And a READ can mint too, which the rule as first written did not cover.** The distinction was
+drawn for addressed *writes*, so `get_map_segments` kept `ensure` on the grounds that reading is
+pure. It is pure with respect to the segmenter; it is not pure with respect to storage. The card's
+`refreshSavedZones` calls it from `set hass` and on ROOMS view entry, so merely opening a tab minted
+a durable nine-key bucket for whatever map id was passed — measured on a live install as
+`maps["vacuum.alfred"]["Home (ID: 12)"]`, the map switcher's display *label*, sitting beside the
+real `"12"`. It now takes `require` and serves a transient empty bucket on a miss, so the answer is
+still "this map has no segments" and nothing is persisted. Pinned by `[MSH-9]`.
+
+That phantom was unremovable, which is the half that made it bite: `delete_map` treated a bucket
+with no rooms as *not found* and answered `already_done` while the key was still on disk. Easy to
+create, impossible to delete. See [17 §8](17-room-identity.md).
+
 **This is the fourth independent arrival at the same rule**, and the pattern is worth naming
 because each site found it separately:
 
@@ -126,6 +139,7 @@ renders as a fallback box in one language and nowhere else, on someone else's in
 | `const.py` defines the integration's identity | it re-exports it from the brand package, to fifty-eight importers — §1 |
 | the dataclass/TypedDict split is a design rule | it is chronological: constructed objects versus shapes annotated after the fact — §2 |
 | `ensure_map_bucket` is the accessor to use | for a caller-supplied map id it mints a phantom; `require_map_bucket` is the addressed-write form — §3 |
+| only WRITES can mint a phantom bucket | `get_map_segments` is a read and minted one on every ROOMS view entry; "pure" meant pure of the segmenter, not of storage — §3 |
 | the original data model was provisional | every map-manager function name and three of four model classes are still here — §4 |
 | the capability dataclass was dropped | it moved to a probe that returns a dict, because the answer became derived — §4 |
 | a font declares which languages it supports | support is measured from its character map against the strings this product ships — §5 |

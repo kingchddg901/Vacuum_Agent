@@ -1362,11 +1362,32 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
     map_id: str = call.data["map_id"]
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    # A READ MUST NOT MINT. This used `ensure_map_bucket`, whose unconditional
+    # setdefault means any caller-supplied map_id -- a stale one, a typo, a display
+    # label -- silently gains a real, persisted nine-key bucket. `require_map_bucket`'s
+    # own docstring names that hazard; this handler sat just outside its window because
+    # it is classed as a read rather than a write. It is reached from the card's
+    # `refreshSavedZones`, which is scheduled from `set hass` and on ROOMS view entry,
+    # so merely opening a tab was enough to persist one. Measured on a live install:
+    # `maps["vacuum.alfred"]["Home (ID: 12)"]`, beside the real `"12"`.
+    #
+    # On a miss, serve a TRANSIENT empty bucket rather than refusing. The read then
+    # answers "this map has no segments", which is true and is what the caller can
+    # already handle, and the migrations below write into a dict that is thrown away.
+    # Refusing outright would change this service's response shape for every caller.
+    map_bucket = require_map_bucket(
         data=manager.data,
         vacuum_entity_id=vacuum_entity_id,
         map_id=map_id,
     )
+    if map_bucket is None:
+        _LOGGER.debug(
+            "get_map_segments: %s has no bucket for map %r — serving empty rather than "
+            "minting one (known: %s)",
+            vacuum_entity_id, map_id,
+            known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        )
+        map_bucket = {"map_id": str(map_id), "rooms": {}, "summary": {}}
 
     # CV-or-Custom: serve whichever segment store the toggle selects. Reading is
     # pure — it never invokes the segmenter — so a custom <-> cv flip is a cheap

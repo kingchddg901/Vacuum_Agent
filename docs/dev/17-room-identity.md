@@ -258,6 +258,17 @@ sequence — which is what it was, and which silently missed `run_profiles`, `qu
 `onboarding` for as long as those existed. `active_jobs` is **reset** to a default state rather
 than deleted, because callers index a known vacuum/map pair without a presence check.
 
+**Absent and empty are different answers.** `delete_map`'s guard was
+`if bucket is None or not bucket.get("rooms")` → `already_done / map_not_found`, which told the
+caller nothing remained while an empty bucket was still sitting in `maps`, `run_profiles` and
+`room_rule_status`. Paired with `ensure_map_bucket` minting one from any caller-supplied id (see
+[45 §3](45-the-shared-layer.md)), that made a phantom map easy to create and impossible to remove
+through the only route the UI offers — it took a hand edit of `.storage`. The guard now refuses
+only a genuinely absent bucket; everything downstream already coped with an empty one, since
+protection evaluates to `normal` with no rooms and `remove_map` clears all eight stores regardless.
+Pinned by `[SD-11]`, with `[SD-11b]` holding the absent case so success cannot be claimed for
+nothing.
+
 **It performs no cross-map access-graph cleanup, and that is correct.** `grants_access_to` holds
 bare room ids scoped to a single map — identity is vacuum + map + room — and every consumer
 resolves them only against that same map's room set. A grant on a surviving map cannot reach a

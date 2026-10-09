@@ -19,6 +19,8 @@ Coverage targets
 [MSH-7g] A4-CUSTOM-2: the same guard on set_companion_anchor.
 [MSH-8b] A3-IMAGE--4: get_map_segments reports segments_stale, and still serves.
 [MSH-8]  delete_map_image: returns a well-formed dict when no image exists.
+[MSH-9]  A READ MUST NOT MINT: get_map_segments on an unknown map_id serves empty
+         and creates NO durable bucket (the phantom-map defect).
 [LAYOUT-1] legacy single custom_segments store migrates into ONE default layout; shared links/anchors split.
 [LAYOUT-2] create / rename / list / set-active / delete lifecycle, incl. delete-active reassign + delete-last flips to CV.
 [LIVE-SEG-1] set_custom_segments over a live-backed layout: card-supplied backdrop dims let it save (no upload); no dims + no backdrop → no_custom_backdrop.
@@ -1347,3 +1349,46 @@ async def test_get_map_segments_reports_stale_segments(hass, mapping_services):
     # the segments are still SERVED -- marked, never deleted, because zones and
     # layout art anchor to them (RP-006)
     assert stale["segments"], "a stale store must still answer, not go blank"
+
+
+# ---------------------------------------------------------------------------
+# [MSH-9] a read must not mint a durable bucket
+# ---------------------------------------------------------------------------
+
+async def test_msh9_get_map_segments_does_not_mint_a_bucket(hass, mapping_services):
+    """[MSH-9] THE RED INPUT, measured on a live install.
+
+    This handler used `ensure_map_bucket`, whose unconditional setdefault gives any
+    caller-supplied map_id -- a stale id, a typo, a display label -- a real, persisted
+    nine-key bucket. `require_map_bucket`'s own docstring names that hazard for WRITE
+    handlers; this one sat just outside the window because it is a read.
+
+    It is not an obscure path: the card's `refreshSavedZones` calls it from `set hass`
+    and on ROOMS view entry, so merely opening a tab persisted one. On the maintainer's
+    box that produced `maps["vacuum.alfred"]["Home (ID: 12)"]` -- the map-switcher's
+    display LABEL -- sitting beside the real `"12"`, and `delete_map` then refused to
+    remove it because it held no rooms. Easy to create, impossible to delete.
+
+    ABLATION: put `ensure_map_bucket` back and this goes red.
+    """
+    manager = mapping_services
+    _seed_segments(manager)
+    before = set(manager.data.get("maps", {}).get(_VAC, {}))
+    assert _MAP in before, "fixture should have seeded the real map"
+
+    bogus = "Home (ID: 99)"
+    result = await _call(hass, SERVICE_GET_MAP_SEGMENTS,
+                         {"vacuum_entity_id": _VAC, "map_id": bogus})
+
+    after = set(manager.data.get("maps", {}).get(_VAC, {}))
+    assert after == before, (
+        f"reading an unknown map created {after - before} -- a read must not mint a "
+        "durable bucket, and delete_map could not remove an empty one"
+    )
+    # Still a well-formed, usable answer: "this map has no segments" is true.
+    assert result["segments"] == []
+    assert result["summary"]["segment_count"] == 0
+    # And the real map is untouched by the miss.
+    assert manager.data["maps"][_VAC][_MAP]["image_segments"]["segments"], (
+        "the seeded map lost its segments"
+    )

@@ -18,6 +18,9 @@ Coverage targets
         import_active_map.
 [SD-10] Delete sweeps leftover registry entities (platform=DOMAIN, unique_id
         prefixed by vacuum+map) that platform teardown may have missed.
+[SD-11] An EMPTY bucket exists and is deletable — absent and empty are different
+        answers, and conflating them made a phantom map permanently unremovable
+        through the only route the UI offers.
 """
 
 from __future__ import annotations
@@ -238,3 +241,71 @@ async def test_delete_map_sweeps_stale_registry_entities(hass, manager):
     assert reg.async_get(stray.entity_id) is not None    # unknown: preserved
     orphans = result["data"]["orphan_candidates"]
     assert [o["unique_id"] for o in orphans] == [f"{prefix}roomhist_stale"]
+
+
+# ---------------------------------------------------------------------------
+# [SD-11] An empty bucket EXISTS — "already_done" was a lie about it
+# ---------------------------------------------------------------------------
+
+async def test_sd11_an_empty_bucket_is_deletable(hass, manager):
+    """[SD-11] THE RED INPUT: a phantom map, measured on a live install.
+
+    `ensure_map_bucket` mints a durable nine-key bucket from any caller-supplied
+    map_id, and `delete_map` refused to remove one that held no rooms -- it answered
+    `already_done / map_not_found` while the key was still sitting in `maps`,
+    `run_profiles` and `room_rule_status`. Easy to create, impossible to delete, with
+    no supported route out: the maintainer had to edit .storage by hand.
+
+    `already_done` must mean nothing remains. It did not.
+
+    ABLATION: restore `or not bucket.get("rooms")` to the guard and this goes red.
+    """
+    from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
+
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    phantom = "Home (ID: 12)"
+
+    # TWO real maps, so `only_map` protection cannot fire and this test measures the
+    # empty-bucket guard rather than the confirmation ladder. `imported_map_ids` counts
+    # buckets WITH rooms, so one real map would still trip `len <= 1`.
+    setup_map(manager, _VAC, _MAP)
+    setup_map(manager, _VAC, _MAP2)
+
+    # Create the phantom exactly the way the defect did.
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=phantom)
+    # ...and the siblings that rode along with it on the real install.
+    manager.data.setdefault("run_profiles", {}).setdefault(_VAC, {})[phantom] = {}
+    manager.data.setdefault("room_rule_status", {}).setdefault(_VAC, {})[phantom] = {}
+
+    assert phantom in manager.data["maps"][_VAC], "fixture did not create the phantom"
+    assert not manager.data["maps"][_VAC][phantom].get("rooms"), "must be EMPTY to bite"
+
+    from custom_components.eufy_vacuum.setup.protection import evaluate_map_protection
+    _prot = evaluate_map_protection(manager, vacuum_entity_id=_VAC, map_id=phantom)
+    assert _prot["protection_level"] == "normal", (
+        f"an empty phantom beside two real maps should need no confirmation; "
+        f"reasons={_prot['reasons']}"
+    )
+
+    result = await delete_map(hass, vacuum_entity_id=_VAC, map_id=phantom)
+
+    assert result["status"] == "success", (
+        f"an empty bucket that EXISTS must be deletable, got {result['status']!r} "
+        f"/ {result.get('code')!r}"
+    )
+    assert phantom not in manager.data["maps"].get(_VAC, {}), "bucket survived the delete"
+    for store in ("run_profiles", "room_rule_status"):
+        assert phantom not in manager.data.get(store, {}).get(_VAC, {}), (
+            f"{store} still carries the phantom; remove_map must clear every "
+            "PER_MAP_STORE, not just the bucket"
+        )
+
+
+async def test_sd11b_a_genuinely_absent_map_still_answers_already_done(hass, manager):
+    """[SD-11b] The other half of the split, so [SD-11] cannot be satisfied by making
+    delete_map claim success for anything. A map with NO bucket is genuinely nothing to
+    do, and must keep saying so."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    result = await delete_map(hass, vacuum_entity_id=_VAC, map_id="never-existed")
+    assert result["status"] == "already_done"
+    assert result["code"] == "map_not_found"
