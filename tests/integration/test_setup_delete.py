@@ -21,6 +21,8 @@ Coverage targets
 [SD-11] An EMPTY bucket exists and is deletable — absent and empty are different
         answers, and conflating them made a phantom map permanently unremovable
         through the only route the UI offers.
+[SD-11c] THE PUBLISHED RECIPE: the exact call the release notes tell a user to make,
+        on the install shape the notes describe (ONE real map + the leftover).
 """
 
 from __future__ import annotations
@@ -309,3 +311,43 @@ async def test_sd11b_a_genuinely_absent_map_still_answers_already_done(hass, man
     result = await delete_map(hass, vacuum_entity_id=_VAC, map_id="never-existed")
     assert result["status"] == "already_done"
     assert result["code"] == "map_not_found"
+
+
+async def test_sd11c_the_published_recipe_actually_deletes_it(hass, manager):
+    """[SD-11c] The release notes hand the user a literal call. This is that call, on
+    the install shape the notes are addressed to.
+
+    [SD-11] deliberately stages TWO real maps so it measures the empty-bucket guard
+    instead of the confirmation ladder. That makes it the WRONG witness for the
+    documented recipe, because the shape this bug actually produces is ONE real map
+    plus the leftover -- and there `only_map` fires, the delete returns
+    `requires_confirmation`, and nothing is removed. A user following notes written
+    without the token would conclude the fix did not ship.
+
+    So this asserts the failure first, then the documented remedy, in the same test:
+    without `confirmation_token` nothing is deleted; with it the leftover goes.
+
+    ABLATION: drop `confirmation_token` from the second call and this goes red.
+    """
+    from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
+
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    phantom = "Home (ID: 12)"
+    setup_map(manager, _VAC, _MAP)          # ONE real map -- the documented shape
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=phantom)
+
+    # Without the token: refused, and the map survives. This is what the first draft
+    # of the notes would have produced for almost every affected user.
+    first = await delete_map(hass, vacuum_entity_id=_VAC, map_id=phantom)
+    assert first["status"] == "requires_confirmation", first
+    assert phantom in manager.data["maps"][_VAC], "refused but deleted anyway"
+
+    # With it -- exactly what the notes print, a quoted string (the schema is cv.string).
+    second = await delete_map(
+        hass, vacuum_entity_id=_VAC, map_id=phantom, confirmation_token="yes",
+    )
+    assert second["status"] == "success", (
+        f"the recipe published in the release notes did not work: {second}"
+    )
+    assert phantom not in manager.data["maps"].get(_VAC, {})
+    assert _MAP in manager.data["maps"][_VAC], "the REAL map was taken with it"
