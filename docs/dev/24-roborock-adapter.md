@@ -311,12 +311,28 @@ this is reachable on any Roborock not in the catalog whose mop set is actually r
 > wet-mop a dry room. In neither: the integration never created the entity, so there is no mop to
 > make safe and the pre-call is not declared. Pinned by `[MS-1..4]`.
 >
-> It also surfaced a pre-existing contract violation it had been masking: the vocabulary declares
-> `water_level_options` / `clean_mode_options` only when the mop is settable, while the room
-> profiles carried those fields unconditionally — so every mopless Roborock, the catalogued S6
-> included, gave new rooms an inert `water_level` against an axis with no options. The declared
-> profiles are now stripped of mop-only fields when the mop is not settable. Stored rooms are
-> untouched.
+> **It also produced a wrong turn worth recording, because the wrong answer looked like the right
+> one.** Making the contract fixture mopless tripped
+> `test_new_room_defaults_use_only_this_brands_declared_vocabulary`: the vocabulary withholds
+> `water_level_options` / `clean_mode_options` when the mop is unsettable, while the room profiles
+> carry those fields unconditionally, so the profiles appeared to store a value against an axis with
+> no options. The fix attempted was to strip the mop-only fields from the declared profiles.
+>
+> That is the one edit this area must not make. `profiles/room_profiles.py::declared_profile_fields`
+> is the single answer to "does this brand have such an axis at all?", it reads THOSE PROFILES, and
+> it is shared by `_finalize_room_update` (every room save) and `rooms/vocabulary_migration.py` (the
+> one-shot repair) precisely so the two cannot diverge. Emptying the profiles therefore does not
+> satisfy a test — it tells both of those that the axis is gone, and they drop the field from stored
+> rooms. The migration's Safety note names the outcome exactly: it "would strip `water_level` and
+> `clean_mode` from every room on an S6". `clean_mode` is not inert there; it is the owner's
+> vacuum/mop choice and it drives `may_wet_floor`. Caught by the pre-release audit, after the strip
+> had been committed and deployed.
+>
+> **Absence of an OPTION LIST is a capability statement, per model. Absence from the PROFILES is an
+> axis statement, per brand.** The contract test now keys its "no axis" branch on
+> `declared_profile_fields` and treats a withheld option list as "cannot judge the value", which is
+> what the migration's Safety note had said all along. The profiles are unchanged, and so is every
+> stored room.
 >
 > **The rest of the table was then audited for the same shape, and two more were found.** The
 > hazard is not optimism as such — it is an optimistic guess whose stated absorber does not hold on

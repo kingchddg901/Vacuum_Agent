@@ -26,7 +26,6 @@ from homeassistant.core import ServiceCall, SupportsResponse
 
 from custom_components.eufy_vacuum.adapters.registry import clear_registry
 from custom_components.eufy_vacuum.adapters.roborock import adapter as rb
-from custom_components.eufy_vacuum.adapters.roborock import model_catalog
 from custom_components.eufy_vacuum.listeners import lifecycle
 
 
@@ -98,23 +97,17 @@ def _setup(hass, manager, monkeypatch, model="roborock.vacuum.s6"):
             f"a new Roborock room was created with fan_speed {_fresh['fan_speed']!r} — "
             "brand defaults regressed to another vocabulary"
         )
-        # MODEL-DEPENDENT since issue #67, and the split is the assertion. The adapter
-        # declares `water_level_options` only when the mop is SETTABLE, and a value
-        # stored against an axis with no options is precisely the inert field the
-        # clean_intensity assertion below has always forbidden. So the default must
-        # exist on a settable model and must NOT exist on one whose mop is observe-only
-        # (the S6, this helper's default). `_setup` is shared by both, so asserting
-        # either one unconditionally is wrong -- read the profile.
-        if model_catalog.profile_for_model(model).get("mop_settable", False):
-            assert _fresh["water_level"] == "off", (
-                "a settable-mop model declares water_level_options, so a new room must "
-                "carry a valid default from them"
-            )
-        else:
-            assert not _fresh.get("water_level"), (
-                "this model cannot be told to mop, so a new room must not store a water "
-                "level it exposes no options for"
-            )
+        # UNCONDITIONAL, and briefly was not. This was made model-dependent on the
+        # reasoning that the S6 declares no `water_level_options`, so storing a water
+        # level looked like the inert field the clean_intensity assertion below forbids.
+        # The two are NOT the same case. Roborock HAS a water axis; it withholds the
+        # OPTION LIST on models whose mop is unsettable, which is a per-model capability
+        # statement. Roborock has no intensity axis at all, which is a per-brand one.
+        # `declared_profile_fields` is the single authority on the second, and it reads
+        # the brand's PROFILES -- so emptying them to satisfy a contract test makes every
+        # room save drop the field from stored rooms. See the note in the adapter's
+        # room_profiles block.
+        assert _fresh["water_level"] == "off"
         assert not _fresh.get("clean_intensity"), (
             "Roborock exposes no intensity axis; a new room must not store one"
         )

@@ -100,30 +100,6 @@ def _device_for_vacuum(hass: HomeAssistant, vacuum_entity_id: str):
 # routinely empty on real installs (which is why Eufy never had a detector at all).
 
 
-#: Fields that only mean something on a device whose mop can be commanded. They are
-#: exactly the axes `vocabulary` gates on `mop_settable`, so the two must move together
-#: — one question, one answer. Adding a mop-only axis to the vocabulary gate without
-#: adding it here re-opens the contract violation #67 surfaced.
-_MOP_ONLY_PROFILE_FIELDS = ("water_level", "clean_mode")
-
-
-def _strip_mop_fields(profiles: dict, mop_settable: bool) -> dict:
-    """Drop mop-only fields from room profiles on a device that cannot mop.
-
-    Returns the input UNCHANGED (same object) when the mop is settable, so every
-    mop-capable install is byte-identical and this cannot perturb what already works.
-    Handles both shapes the caller passes: a map of profiles, and a single profile.
-    """
-    if mop_settable:
-        return profiles
-    if profiles and all(isinstance(v, dict) for v in profiles.values()):
-        return {
-            name: {k: v for k, v in prof.items() if k not in _MOP_ONLY_PROFILE_FIELDS}
-            for name, prof in profiles.items()
-        }
-    return {k: v for k, v in profiles.items() if k not in _MOP_ONLY_PROFILE_FIELDS}
-
-
 def register_roborock_adapter_for_vacuum(
     hass: HomeAssistant,
     vacuum_entity_id: str,
@@ -1303,26 +1279,28 @@ def register_roborock_adapter_for_vacuum(
         # profile picker keep working; only the VALUES are Roborock's.
         "room_profiles": {
             "default_profile": "vacuum_quick",
-            # MOP FIELDS STRIPPED WHEN THE DEVICE CANNOT MOP, because the vocabulary
-            # block above declares `water_level_options` / `clean_mode_options` only when
-            # `mop_settable`. A profile that still carried `water_level` there would store
-            # a value against an axis this brand declares no options for -- an inert field
-            # nobody can act on, which `test_new_room_defaults_use_only_this_brands_
-            # declared_vocabulary` forbids.
+            # NOT stripped on a mopless model, and the attempt is recorded because it
+            # looked right: the vocabulary withholds `water_level_options` /
+            # `clean_mode_options` when the mop is unsettable, so a profile carrying
+            # those fields looks like a value against an axis with no options.
             #
-            # PRE-EXISTING, SURFACED BY #67, NOT CAUSED BY IT: every `mop_settable: False`
-            # Roborock already had this -- the catalogued S6 and Q5 Pro included -- and the
-            # contract test simply never ran against a mopless fixture until the #67 gate
-            # made one. Stripping is the right direction and ungating the vocabulary is
-            # not: `src/state/room-editor.js` hides the water row on an empty option list,
-            # so declaring the options to satisfy the contract would put a water control on
-            # an S6 whose mop is observe-only.
+            # It is not. `profiles/room_profiles.py::declared_profile_fields` is the
+            # single answer to "does this brand have such an axis at all?", and it reads
+            # THESE PROFILES. Emptying them does not merely satisfy a contract test — it
+            # tells `_finalize_room_update` (every room save) and
+            # `rooms/vocabulary_migration.py` (the one-shot repair) that the axis does
+            # not exist, and both then DROP the field from stored rooms. The migration's
+            # Safety note names that exact outcome as the thing never to do: it "would
+            # strip water_level and clean_mode from every room on an S6". clean_mode is
+            # not inert there — it is the owner's vacuum/mop choice and it drives
+            # may_wet_floor.
             #
-            # NEW rooms only. Stored rooms keep whatever they already hold; nothing is
-            # rewritten underneath a user.
-            "builtins": _strip_mop_fields(ROOM_PROFILES, mop_settable),
-            "custom_template": _strip_mop_fields(CUSTOM_ROOM_PROFILE, mop_settable),
-            "normalize_defaults": _strip_mop_fields(CUSTOM_ROOM_PROFILE, mop_settable),
+            # Absence of an OPTION LIST is a capability statement, per model. Absence
+            # from these PROFILES is an axis statement, per brand. Only the second
+            # belongs here.
+            "builtins": ROOM_PROFILES,
+            "custom_template": CUSTOM_ROOM_PROFILE,
+            "normalize_defaults": CUSTOM_ROOM_PROFILE,
             "floor_type_water_defaults": RB_FLOOR_TYPE_WATER_DEFAULTS,
             "floor_type_fan_defaults": RB_FLOOR_TYPE_FAN_DEFAULTS,
             # DECLARED EMPTY, not absent. Roborock has no retired profile names of

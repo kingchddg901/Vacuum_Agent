@@ -440,8 +440,14 @@ def test_new_room_defaults_use_only_this_brands_declared_vocabulary(adapter):
         resolve_new_room_defaults,
     )
 
+    from custom_components.eufy_vacuum.profiles.room_profiles import (
+        declared_profile_fields,
+    )
+
     brand, config = adapter
     defaults = resolve_new_room_defaults(config.get("room_profiles"))
+    # The axis-existence authority, NOT the option list -- see the two branches below.
+    axis_fields = declared_profile_fields(config.get("room_profiles"))
 
     for field, options_key in (
         ("fan_speed", "fan_speed_options"),
@@ -452,14 +458,26 @@ def test_new_room_defaults_use_only_this_brands_declared_vocabulary(adapter):
         declared = _option_values(config, options_key)
         value = defaults.get(field)
 
-        if declared is None:
-            # A brand that exposes no such axis must not have a default for it either —
-            # Roborock declares no clean_intensity_options, so storing "Quick" on every
-            # one of its rooms would be an inert field nobody can act on.
+        if field not in axis_fields:
+            # THE BRAND HAS NO SUCH AXIS. `declared_profile_fields` reads the brand's own
+            # PROFILES and is the single authority on this question, shared with the
+            # one-shot store repair and with every room save so the two cannot diverge.
+            # Roborock carries no clean_intensity in any profile, so storing "Quick" on
+            # every one of its rooms would be an inert field nobody can act on.
             assert not value, (
-                f"{brand}: declares no {options_key} but a new room would store "
+                f"{brand}: no profile declares {field}, but a new room would store "
                 f"{field}={value!r}"
             )
+            continue
+
+        if declared is None:
+            # THE AXIS EXISTS AND THIS MODEL'S OPTION LIST IS WITHHELD -- a capability
+            # statement, per model, not an axis statement. Roborock withholds
+            # `water_level_options` when the mop is unsettable while still carrying
+            # water_level in its profiles. Absence of an option list means "cannot judge
+            # the value", never "the axis does not exist"; treating it as the latter is
+            # what rooms/vocabulary_migration.py's Safety note says "would strip
+            # water_level and clean_mode from every room on an S6".
             continue
 
         # An axis the brand DOES expose may still be left to the room/profile; but if the
