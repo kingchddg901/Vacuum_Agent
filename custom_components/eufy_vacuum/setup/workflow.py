@@ -225,12 +225,12 @@ def _no_map_message(
             "Nothing is wrong with your rooms or your map — the vacuum can be fully "
             "mapped in its own app and this will still happen, because it is the Home "
             "Assistant integration that is not delivering the map data. Some models "
-            "only send it over one of the transports their integration supports, and "
-            "go quiet on the other. Please do NOT point this role at a map CAMERA: a "
-            "camera's state is a timestamp, not a map id, and Vacuum Agent will refuse "
-            "it. If other values from this vacuum (battery, dock status) are arriving "
-            "normally, that is the signature — the scalar half works and the map half "
-            "does not."
+            "never send it at all; others only send it over one of the transports "
+            "that integration supports, and go quiet on the other. Please do NOT "
+            "point this role at a map CAMERA: a camera's state is a timestamp, not a "
+            "map id, and Vacuum Agent will refuse it. If other values from this "
+            "vacuum (battery, dock status) are arriving normally, that is the "
+            "signature — the scalar half works and the map half does not."
         )
 
     # Refresh succeeded (or was a no-op) and we still have no anchor. Either the
