@@ -1498,3 +1498,51 @@ async def test_cap_17f_a_dead_override_on_an_uncandidated_role_still_says_so(has
     assert caps["entity_resolution_reasons"]["work_mode"] == "override_unresolved", (
         "a genuinely dead pick must still be reported as such"
     )
+
+
+def test_cap_available_means_carrying_a_value_not_merely_resolved(hass):
+    """[CAP-20] ISSUE #68 — `active_map_available` keyed on presence, so it read True
+    against an entity reporting `unavailable`.
+
+    `_find` returns an id when the role RESOLVED, and an entity sitting at
+    `unavailable` resolves. On the reported C20 the diagnostics therefore said
+    `active_map_available: true` three lines from `active_map_id: null` — the one
+    artifact a maintainer trusts, disagreeing with itself inside one file.
+
+    `supports_active_map` stays keyed on presence on purpose: "does this device have
+    the concept" and "is there a value right now" are different questions, and the
+    transport tell depends on the first ([DIAG-14] — upstream creates the sensor only
+    on MQTT, so its mere existence is meaningful).
+
+    ABLATION: put `bool(active_map_entity)` back and this goes red.
+    """
+    hass.states.async_set(_VAC, "docked")
+    hass.states.async_set("sensor.alfred_map", "unavailable")
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        entity_candidates={"active_map": ["sensor.alfred_map"]},
+    )
+
+    assert caps["supports_active_map"] is True, (
+        "the device still HAS the concept — presence is the right question here, and "
+        "the transport tell depends on it"
+    )
+    assert caps["active_map_available"] is False, (
+        "'available' must mean a usable value is present; reporting True for an "
+        "entity at 'unavailable' is what made the #68 diagnostics self-contradictory"
+    )
+
+
+def test_cap_available_is_true_on_a_real_value(hass):
+    """[CAP-20b] The no-over-correction half: a real value still reads available, so
+    [CAP-20] cannot be satisfied by making the flag always False."""
+    hass.states.async_set(_VAC, "docked")
+    hass.states.async_set("sensor.alfred_map", "12")
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        entity_candidates={"active_map": ["sensor.alfred_map"]},
+    )
+    assert caps["supports_active_map"] is True
+    assert caps["active_map_available"] is True

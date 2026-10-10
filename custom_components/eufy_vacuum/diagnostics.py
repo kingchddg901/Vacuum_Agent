@@ -288,7 +288,18 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     supports_room_clean = bool(caps.get("supports_room_clean") or caps.get("supports_rooms"))
 
     if has_active_map_entity:
-        # BRAND LEAK (issue #61). "novel / MQTT" are EUFY's api_type and transport; a
+        # PRESENCE IS THE TRANSPORT TELL HERE, AND THAT IS NOT THE USUAL ANSWER.
+        # Checked against upstream on 2026-10-10 (issue #68) after an attempt to
+        # "fix" this to `active_map_usable`: robovac_mqtt's sensor.py creates the
+        # active_map sensor ONLY under `if coordinator.connection_type == "mqtt"`,
+        # with the comment "Tuya Cloud / local-Tuya don't carry
+        # MultiMapsManageResponse so the ID never arrives; skip the entity to avoid
+        # permanent `unavailable`." So the entity existing DOES establish the
+        # transport, independently of whether a value ever lands in it — and a C20
+        # sitting at `unavailable` is on MQTT with a device that does not send a map
+        # id, not on the reduced transport. [DIAG-14] states this and is correct.
+        #
+                # BRAND LEAK (issue #61). "novel / MQTT" are EUFY's api_type and transport; a
         # Roborock has neither, and this branch fires for any brand whose active_map
         # role resolves — so a Roborock owner reading his own diagnostics was told his
         # vacuum runs on a transport that belongs to a different manufacturer. Same

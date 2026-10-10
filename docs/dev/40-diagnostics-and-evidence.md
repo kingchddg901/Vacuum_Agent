@@ -19,6 +19,25 @@ that entity exists, and its current state.
 That section is first for a measured reason: the most common *"I can't configure my rooms"* report
 is a missing or blank active-map sensor, and it shows up here at a glance.
 
+**`<role>_available` means carrying a value; `supports_<role>` means having the concept.** The two
+are separate questions and the dump answers both, because confusing them is how it contradicts
+itself. `_find` returns an id when a role RESOLVED, and an entity parked at `unavailable` resolves
+— so `active_map_available` keyed on presence once reported `true` three lines from
+`active_map_id: null` in the same file (issue #68, a Eufy Omni C20, which is issue #44 on the same
+model). It now asks `is_blank_state`, the shared answer to *did we actually get a value*. The six
+sibling `*_available` flags still key on presence; five have no consumer and `work_mode_available`
+has a documented presence contract, so changing them is a decision rather than a cleanup.
+
+**One place presence IS the right question, and it is not an inconsistency.** The transport line
+keys on the active-map entity merely existing, because upstream creates that sensor only under
+`connection_type == "mqtt"` — its own comment says Tuya Cloud and local-Tuya never carry
+`MultiMapsManageResponse`, so it skips the entity rather than leaving it permanently unavailable.
+Existence therefore establishes the transport independently of any value, and a device sitting at
+`unavailable` is on MQTT with hardware that does not send a map id — not on the reduced path.
+`[DIAG-14]` pins that, and an attempt to "correct" it to the usable-value predicate was reverted
+after reading the upstream source. Check the upstream before assuming a presence test is the
+careless copy of a value test.
+
 ⚠ **The dashboard snapshot is deliberately excluded**, and the reason is the important part:
 computing it can advance room timing and fire room-transition events during a live clean. A
 diagnostics download has to stay **read-only**, because a support tool that perturbs the run it is

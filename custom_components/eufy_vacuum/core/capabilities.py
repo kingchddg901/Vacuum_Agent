@@ -999,6 +999,20 @@ def detect_capabilities(
     _origins = _aug_report.get("origins") or {}
     _overrides = entity_overrides if isinstance(entity_overrides, dict) else {}
 
+    def _role_has_value(entity_id: str | None) -> bool:
+        """Is this role RESOLVED and carrying a usable value right now?
+
+        `_find` answers the first half only. `is_blank_state` is the shared answer to
+        "did we actually get a value?" — used rather than re-listing the sentinel set
+        here, which is how the copies drift apart.
+        """
+        from ..entity_helpers import is_blank_state
+
+        if not entity_id:
+            return False
+        state = hass.states.get(entity_id)
+        return state is not None and not is_blank_state(state.state)
+
     def _find(key: str) -> str | None:
         """Resolve a role, recording WHY it failed (live:ENT-2).
 
@@ -1257,7 +1271,23 @@ def detect_capabilities(
         "supports_rooms": supports_rooms,
         "supports_segments": supports_segments,
         "supports_active_map": supports_active_map,
-        "active_map_available": bool(active_map_entity),
+        # AVAILABLE MEANS CARRYING A VALUE, NOT MERELY RESOLVED (issue #68).
+        #
+        # `_find` returns an id when the role RESOLVED, and an entity sitting at
+        # `unavailable` resolves. So this read True on a C20 whose active_map sensor
+        # had no value at all, three lines from `active_map_id: null` in the same
+        # diagnostics file — the one artifact a maintainer trusts, contradicting
+        # itself. `supports_active_map` above is deliberately left on presence: that
+        # asks whether the device HAS the concept, which is a different question.
+        #
+        # ⚠ SIX SIBLINGS BELOW STILL USE THE PRESENCE FORM — active_cleaning_target,
+        # task_status, work_mode, dock_status, cleaning_stats, station_water. On the
+        # #68 install three of those were also True against a valueless entity. They
+        # are left alone deliberately: five are diagnostics-only with no consumer, and
+        # `work_mode_available`'s presence semantics are a DOCUMENTED contract
+        # (adapters/config_schema.py: "only for PRESENCE ... the sensor's STATE is
+        # never consulted"). Changing them is a decision, not a cleanup.
+        "active_map_available": _role_has_value(active_map_entity),
         "supports_active_cleaning_target": supports_active_cleaning_target,
         "active_cleaning_target_available": bool(active_cleaning_target_entity),
         "supports_task_status": supports_task_status,

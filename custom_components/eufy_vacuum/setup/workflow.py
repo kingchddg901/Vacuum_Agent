@@ -162,6 +162,7 @@ def _no_map_message(
     `rooms/source_refresh.py`; an unreachable branch reads as coverage.
     """
     from ..adapters.registry import get_adapter_config
+    from ..entity_helpers import is_blank_state
 
     config = get_adapter_config(vacuum_entity_id) or {}
     brand = str(config.get("brand") or config.get("adapter_id") or "").strip()
@@ -200,6 +201,36 @@ def _no_map_message(
         return (
             f"Asking '{vacuum_entity_id}' for its maps failed. If the vacuum is "
             "online and the problem persists, please report it with diagnostics."
+        )
+
+    # PRESENT BUT CARRYING NOTHING (issue #68) — the cause the tail below could not
+    # name, and the one a reduced-transport device actually hits.
+    #
+    # A C20 owner with ONE map and every room named in the app was told to "complete a
+    # mapping run" (he had) and that a multi-map vacuum needs its map-selector entity
+    # (he has one map, and the entity exists). Neither sentence was about him. The
+    # entity had resolved and was simply reporting `unavailable`, which the diagnostics
+    # self-check already stated in plain words — we knew, and said something else at
+    # the point of failure.
+    #
+    # Read through the SAME source `rooms/room_discovery.py::get_active_map_id` reads,
+    # so the two cannot disagree about which entity this is: the resolved
+    # `entities.active_map`, not the derived guess.
+    _active_map_entity = (config.get("entities") or {}).get("active_map")
+    _ams = hass.states.get(_active_map_entity) if _active_map_entity else None
+    if _ams is not None and is_blank_state(_ams.state):
+        return (
+            f"'{vacuum_entity_id}' has an active-map entity ({_active_map_entity}) but "
+            f"it is reporting '{_ams.state}', so there is no map id to import from. "
+            "Nothing is wrong with your rooms or your map — the vacuum can be fully "
+            "mapped in its own app and this will still happen, because it is the Home "
+            "Assistant integration that is not delivering the map data. Some models "
+            "only send it over one of the transports their integration supports, and "
+            "go quiet on the other. Please do NOT point this role at a map CAMERA: a "
+            "camera's state is a timestamp, not a map id, and Vacuum Agent will refuse "
+            "it. If other values from this vacuum (battery, dock status) are arriving "
+            "normally, that is the signature — the scalar half works and the map half "
+            "does not."
         )
 
     # Refresh succeeded (or was a no-op) and we still have no anchor. Either the

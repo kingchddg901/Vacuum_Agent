@@ -510,3 +510,59 @@ def test_compute_room_drift_removed(manager):
     removed_ids = {r["room_id"] for r in drift["removed_rooms"]}
     assert 2 in removed_ids
     assert drift["in_sync"] is False
+
+
+async def test_sw9e_active_map_present_but_valueless_gets_its_own_message(
+    hass, manager, _no_panel
+):
+    """[SW-9e] ISSUE #68 — and ISSUE #44 before it, on the same model.
+
+    A Eufy Omni C20 owner with ONE map and every room named in the app was told to
+    "complete a mapping run with rooms set up in the app" (he had) and that a vacuum
+    reporting more than one map needs its map-selector entity (he has one map, and the
+    entity exists and resolves). Neither sentence was about him.
+
+    His active_map sensor had resolved and was simply reporting `unavailable` —
+    upstream creates it on the MQTT transport and leaves it valueless until a map id
+    arrives, and on this model one never does. The diagnostics self-check already said
+    exactly that ([DIAG-14], added for #44). The importer, reading the same state, said
+    something else. That is the defect: not detection, but the message at the point of
+    failure.
+
+    `_no_map_message`'s own docstring says one message per cause is not optional. This
+    cause had no branch.
+
+    ABLATION: delete the `is_blank_state` branch in `_no_map_message` and this goes red.
+    """
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy", "source": "code",
+        "entities": {"active_map": "sensor.alfred_active_map"},
+    })
+    hass.states.async_set(_VAC, "docked")
+    # Created by the integration, never filled — exactly the C20's state.
+    hass.states.async_set("sensor.alfred_active_map", "unavailable")
+    await add_vacuum(hass, _VAC)
+
+    result = await import_active_map(hass, _VAC)
+    msg = str(result.get("message") or "")
+
+    assert result["status"] != "success"
+    assert "sensor.alfred_active_map" in msg, (
+        "the message must name the entity it is talking about; the user cannot act on "
+        f"a message that does not say which one is empty — got: {msg!r}"
+    )
+    assert "unavailable" in msg, "say the state it is actually reporting"
+    # The two sentences that sent #68 the wrong way must NOT appear for this cause.
+    assert "map-selector entity" not in msg, (
+        "this user HAS the entity; blaming its absence is what made #68 read as a "
+        "Vacuum Agent bug"
+    )
+    assert "completed a mapping run" not in msg, (
+        "this user HAS a completed map with named rooms; telling him to go make one "
+        "is the sentence that wasted his time"
+    )
+    # And steer him off the trap #60 already paid for.
+    assert "camera" in msg.lower(), (
+        "a map CAMERA is the obvious-looking wrong answer here (its state is a "
+        "timestamp); the message should say not to"
+    )

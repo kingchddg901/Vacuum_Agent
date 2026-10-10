@@ -102,7 +102,7 @@ currently in the state machine and usable now.
 | Flag | Value |
 |---|---|
 | `active_cleaning_target_available` | `bool(active_cleaning_target_entity)` |
-| `active_map_available` | `bool(active_map_entity)` |
+| `active_map_available` | `_role_has_value(active_map_entity)` |
 | `cleaning_stats_available` | `bool(cleaning_area_entity or cleaning_time_entity)` |
 | `dock_status_available` | `bool(dock_status_entity)` |
 | `robot_position_available` | `robot_position_available` |

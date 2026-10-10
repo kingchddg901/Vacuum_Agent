@@ -268,7 +268,7 @@ Full HA entity IDs for companion entities.
 
 *Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:84`.
 
-*Read in 26 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/battery/manager.py`, `custom_components/eufy_vacuum/core/charging.py`, `custom_components/eufy_vacuum/core/error_tracker.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/core/water_amendment.py`, `custom_components/eufy_vacuum/diagnostics.py`, `custom_components/eufy_vacuum/dispatch/manager.py` ...
+*Read in 27 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/battery/manager.py`, `custom_components/eufy_vacuum/core/charging.py`, `custom_components/eufy_vacuum/core/error_tracker.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/core/water_amendment.py`, `custom_components/eufy_vacuum/diagnostics.py`, `custom_components/eufy_vacuum/dispatch/manager.py` ...
 
 ## Vocabulary
 
