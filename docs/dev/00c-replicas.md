@@ -800,6 +800,51 @@ map / projection failed" on the first real tap — [[feedback_anchor_replica_at_
 
 ---
 
+### `RNJE1GDZ` — the `state` accessors `renderRoomCard` reads · **1 reader + 1 declared stub**
+
+`src/renderers/theme-preview.js::_themePreviewState` (**primary** — it carries the
+reasoning, and it is the copy that goes stale) and the `state` reads inside
+`src/renderers/rooms.js::renderRoomCard`.
+
+The theme preview renders **real** room cards — the real grid class, the real renderer — so
+a token edited in the editor moves the specimen exactly as it moves the Rooms view. The
+price is that the preview must supply, by hand, whatever `renderRoomCard` asks of `state`.
+That list is a replica, and `_themePreviewState`'s own docstring used to assert it was
+complete: *"the card calls these six accessors on `state` and nothing else"*. True when
+written.
+
+**Then `d32aa092` added a seventh, `isBrandDefaultSetting`, and did not add it here — so the
+entire Theme view rendered as `shell.view_error` for the whole of 2.4.0.** Worse, the three
+new reads were written bare (`state.x(...)`) while every other read in the same function is
+`state?.x?.()`, because the grid defaults `state` to `null` and eight of its nine call sites
+pass one argument. Two independent defects, one omission.
+
+Nothing caught it, and the reason is the interesting part — it was not weak assertions:
+
+- `smoke.spec.mjs` already asserted `res.ok`, which the harness sets to `false` on a throw.
+  Sufficient. But **the crash was unreachable**: under the plain stub the Theme view's body
+  renders empty (the tab needs `_ensureThemeState()` / `resolvedTheme()`, which
+  `stub-state.js` deliberately does not hand-write), so the preview pane never ran.
+  Measured: `ok:true`, 4402 characters of header-and-footer chrome, and no
+  `.evcc-theme-preview-pane` in the tree. `viewLen > 20` waved it through.
+- `renderThemeEditor` had **already** been built to solve exactly this, after the same trap
+  made the mobile-layout probe "report a clean shell having measured nothing". The lesson
+  was applied there and never propagated to smoke — the shoulder just after a guard's
+  window ([[feedback_partial_guard_blind_spot]]).
+
+Gated now in both directions. `theme-preview-room-card-state.test.mjs` `[TPS-6]` diffs the
+reads against the declared set and fails on drift; `[TPS-1..3]` pin the three shapes of
+absence (`null`, `{}`, the real stub). `smoke.spec.mjs` sweeps every registered preview
+group through `renderThemeEditor` and asserts some subject actually produced a room card —
+without that last clause the sweep passes while never reaching the code that broke.
+Verified by restoring the defect: **15 of 25 groups fail** with `Cannot read properties of
+null (reading 'isBrandDefaultSetting')` ([[feedback_live_differential_proof]],
+[[feedback_anchor_replica_at_the_fix]]).
+
+**Declared at** `_themePreviewState`.
+
+---
+
 ## Observational vs MUTATION replicas
 
 A replica set that decides **what to display or bind** is bad when it diverges: someone

@@ -1207,7 +1207,19 @@ proto.renderRoomCard = function (room, state) {
   // never fired and the suction chip rendered on every room including defaults.
   // `"normal"` is the tell: `vocab.clean_intensity.normal` exists and is manual-only,
   // so the pair reads as copied out of an intensity context into a fan test.
-  const isDefaultPower = state.isBrandDefaultSetting("fan_speed", normalizedRoom.fanSpeed);
+  // REPLICA RNJE1GDZ — the twin is _themePreviewState() in renderers/theme-preview.js,
+  // which DECLARES the accessor set this function reads. Adding a `state` read here
+  // without adding it there is what took the Theme view down for all of 2.4.0;
+  // theme-preview-room-card-state.test.mjs [TPS-6] now fails if the two drift.
+  //
+  // `state?.x?.()`, like every other read on this parameter: the theme preview
+  // renders REAL room cards (that is the point of it) with NO state — `null` at
+  // theme-preview.js's grid default, which is what eight of its nine call sites
+  // get, and the declared stub at the one site that passes one. Reading it bare
+  // turned the whole Theme view into `shell.view_error` in 2.4.0. Absent
+  // predicate => not-a-default => the chip renders, which is both the pre-2.4.0
+  // behaviour and what a preview wants.
+  const isDefaultPower = state?.isBrandDefaultSetting?.("fan_speed", normalizedRoom.fanSpeed);
   const powerChip = !isDefaultPower
     ? this.tVocabRaw("fan_speed", normalizedRoom.fanSpeed, normalizedRoom.fanSpeedLabel || this._formatFanSpeed(normalizedRoom.fanSpeed))
     : null;
@@ -1215,7 +1227,7 @@ proto.renderRoomCard = function (room, state) {
   // Was a hardcoded `"standard"`: right for Roborock and Dreame by coincidence (both
   // default to it) and wrong for Eufy, where `standard` is a RETIRED clean_intensity
   // value — so it hid a value that should not exist and showed the real default `Quick`.
-  const isDefaultPath = state.isBrandDefaultSetting(
+  const isDefaultPath = state?.isBrandDefaultSetting?.(
     "clean_intensity", normalizedRoom.cleanIntensity,
   );
   const pathChip = !isDefaultPath
@@ -1226,7 +1238,7 @@ proto.renderRoomCard = function (room, state) {
   // "no water" word now comes from the brand too. Eufy spells it `Off`, Roborock
   // `off`, and Dreame has no enum at all (a 1..32 slider whose empty value is "").
   const waterChip = this._isMopMode(normalizedRoom.cleanMode) &&
-    !state.isBrandDefaultSetting("water_level", normalizedRoom.waterLevel)
+    !state?.isBrandDefaultSetting?.("water_level", normalizedRoom.waterLevel)
     ? this.tVocabRaw("water_level", normalizedRoom.waterLevel, normalizedRoom.waterLevelLabel || this._formatWaterLevel(normalizedRoom.waterLevel))
     : null;
 

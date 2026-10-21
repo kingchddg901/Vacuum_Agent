@@ -1726,7 +1726,19 @@ class EufyVacuumCommandCenter extends HTMLElement {
       viewHtml = renderView(ctx);
     } catch (err) {
       console.error("[eufy-vacuum-command-center] renderView threw for view:", ctx.view, err);
-      viewHtml = `<div class="evcc-empty">${ctx.renderers.t("shell.view_error", { view: ctx.view })}</div>`;
+      // `data-evcc-view-error` so a GATE can see this, not just a human reading
+      // the console. On the real panel this catch is the whole story a user
+      // gets: the Theme view threw on every render for all of 2.4.0 and showed
+      // exactly this div, with the cause only in the console. A ~60-character
+      // fallback also clears any "did the view render something?" check, so a
+      // probe needs a positive marker rather than a length.
+      //
+      // NOT the reason the harness missed 2.4.0 — that was unreachability, and
+      // smoke.spec.mjs carries the measurement. A machine-readable marker beats
+      // matching the translated string, which changes per locale and reads like
+      // ordinary empty-state copy. The class stays for styling; the attribute is
+      // the signal.
+      viewHtml = `<div class="evcc-empty" data-evcc-view-error="${ctx.view}">${ctx.renderers.t("shell.view_error", { view: ctx.view })}</div>`;
     }
 
     // Mobile-only chrome regions: bottom nav and the overflow sheet

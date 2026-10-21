@@ -50,6 +50,7 @@ import { BADGE_MARK_PATHS, MARK_VIEWBOX } from "../src/renderers/badge-marks.js"
 import { detectFloorScope, clampThemeScalars, isFloorOnlyKeySet, floorTypeNames } from "../src/theme-tokens/floor-scope.js";
 import { flattenThemeBuckets } from "../src/theme-tokens/flatten.js";
 import { THEME_TOKEN_MAP } from "../src/theme-tokens/index.js";
+import { THEME_PREVIEW_REGISTRY } from "../src/renderers/theme-preview-registry.js";
 import { themeLibraryFixture, tokenCount } from "./fixtures/theme-library.mjs";
 // REAL-CARD MOUNT (opt-in): importing main.js for its side effect registers
 // <eufy-vacuum-command-center> with customElements. Everything above renders a
@@ -1042,6 +1043,12 @@ window.__evcc = {
   markViewBox: MARK_VIEWBOX,
   ingestTheme,
   tokenMap: THEME_TOKEN_MAP,
+  // A FUNCTION, not a snapshot: THEME_PREVIEW_REGISTRY is an `export let` that
+  // gets REBUILT when an animal registers itself, so a value captured here would
+  // freeze the roster at module-eval time. Read at call time, a gate enumerates
+  // whatever is actually registered — which is the point of exposing it. A spec
+  // that hardcodes the group list stops covering the group added after it.
+  themePreviewGroups: () => Object.keys(THEME_PREVIEW_REGISTRY),
   gallery: GALLERY.map((g) => ({
     id: g.id,
     view: g.view,
