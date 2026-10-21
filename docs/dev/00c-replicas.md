@@ -809,15 +809,18 @@ reasoning, and it is the copy that goes stale) and the `state` reads inside
 The theme preview renders **real** room cards — the real grid class, the real renderer — so
 a token edited in the editor moves the specimen exactly as it moves the Rooms view. The
 price is that the preview must supply, by hand, whatever `renderRoomCard` asks of `state`.
-That list is a replica, and `_themePreviewState`'s own docstring used to assert it was
-complete: *"the card calls these six accessors on `state` and nothing else"*. True when
-written.
+That list is a replica, and `_themePreviewState`'s own docstring asserted it was complete:
+*"the card calls these six accessors on `state` and nothing else"*. **That was already
+loose when written** — two of the six, `orderDragItemId` and `orderDragOverItemId`, are
+read off `this.card._state`, a different object, and never off the `state` parameter. The
+real `state` set is five.
 
-**Then `d32aa092` added a seventh, `isBrandDefaultSetting`, and did not add it here — so the
-entire Theme view rendered as `shell.view_error` for the whole of 2.4.0.** Worse, the three
-new reads were written bare (`state.x(...)`) while every other read in the same function is
-`state?.x?.()`, because the grid defaults `state` to `null` and eight of its nine call sites
-pass one argument. Two independent defects, one omission.
+**Then `d32aa092` added a sixth `state` read, `isBrandDefaultSetting`, and did not add it
+here — so the entire Theme view rendered as `shell.view_error` for the whole of 2.4.0.**
+Worse, the three new reads were written bare (`state.x(...)`) while every other read in the
+same function is `state?.x?.()`, because the grid defaults `state` to `null` and six of its
+seven call sites pass one argument (and `_renderFloorPreviewCard` passes an explicit `null`
+besides). Two independent defects, one omission.
 
 Nothing caught it, and the reason is the interesting part — it was not weak assertions:
 
@@ -837,8 +840,14 @@ reads against the declared set and fails on drift; `[TPS-1..3]` pin the three sh
 absence (`null`, `{}`, the real stub). `smoke.spec.mjs` sweeps every registered preview
 group through `renderThemeEditor` and asserts some subject actually produced a room card —
 without that last clause the sweep passes while never reaching the code that broke.
-Verified by restoring the defect: **15 of 25 groups fail** with `Cannot read properties of
-null (reading 'isBrandDefaultSetting')` ([[feedback_live_differential_proof]],
+Verified by restoring the defect: **15 of the 25 registered groups fail.** Fourteen reach
+`renderRoomCard` with `null` and raise `Cannot read properties of null (reading
+'isBrandDefaultSetting')` — the message off the reporter's own console. The fifteenth,
+`Learning & Metrics`, is the single call site that passes a stub OBJECT rather than
+nothing, so the bare read raises `state.isBrandDefaultSetting is not a function` instead.
+That split is the sharper evidence that BOTH halves of the defect were real: the null
+fourteen need the guard, and the one that already had a state still broke because the
+accessor was undeclared ([[feedback_live_differential_proof]],
 [[feedback_anchor_replica_at_the_fix]]).
 
 **Declared at** `_themePreviewState`.

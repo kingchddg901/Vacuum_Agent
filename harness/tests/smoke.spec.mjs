@@ -28,15 +28,20 @@
  * having measured nothing". That lesson was applied there and never propagated
  * here. A guard that EXISTS reads as complete; this is the shoulder just after
  * its window closed. The second describe block below is that propagation, and
- * it is measured in both directions: with the 2.4.0 defect restored, 9 of 12
- * groups fail with `Cannot read properties of null (reading
- * 'isBrandDefaultSetting')`; with it fixed, all of them render.
+ * it is measured in both directions: with the 2.4.0 defect restored, 15 of the
+ * 25 registered groups fail — 14 with `Cannot read properties of null (reading
+ * 'isBrandDefaultSetting')` and `Learning & Metrics`, the one site that passes a
+ * stub object rather than nothing, with `… is not a function`, which is the
+ * sharper evidence that BOTH halves of the defect were real. With it fixed, all
+ * 25 render and 15 of them produce room cards.
  *
- * The `data-evcc-view-error` assertion is kept as a cheap second channel. Being
- * honest about it: it would NOT have caught 2.4.0 either, because nothing
- * reached the throw. It guards the paths where `main.js`'s try/catch really does
- * apply (the real-element mounts), where a throw becomes a ~60-character
- * fallback div that `viewLen > 20` would otherwise wave through.
+ * NO `data-evcc-view-error` CHECK LIVES IN THIS FILE, deliberately. `main.js`'s
+ * try/catch — the only thing that emits that marker — is not on this path at
+ * all: `renderTab` calls the harness's own `render()`, which wraps
+ * `renderView(ctx)` in its own try/catch and reports `{ok:false, error}`. An
+ * assertion on the marker here could never go red, and a check with no failure
+ * mode reads as coverage while being none. It lives in `real-frame.spec.mjs`,
+ * where `mountRealCard` builds main.js's real frame and the catch genuinely runs.
  *
  * NOT IN CI. `card-visual.yml` runs only `visual device-theme
  * gallery-completeness`, so this file runs when someone runs it. The unit-level
@@ -52,16 +57,6 @@ test.describe("harness smoke: every tab renders without throwing", () => {
       const pageErrors = [];
       page.on("pageerror", (e) => pageErrors.push(String(e.stack || e)));
 
-      // What the renderView catch logs on its way to swallowing a throw. Scoped
-      // to that one marker on purpose — failing on any console.error would make
-      // this spec a tripwire for unrelated noise.
-      const renderThrows = [];
-      page.on("console", (m) => {
-        if (m.type() === "error" && m.text().includes("renderView threw")) {
-          renderThrows.push(m.text());
-        }
-      });
-
       await mountHarness(page);
       const res = await renderTab(page, view);
 
@@ -74,30 +69,16 @@ test.describe("harness smoke: every tab renders without throwing", () => {
         `uncaught pageerror during ${view}:\n${pageErrors.join("\n")}`,
       ).toEqual([]);
 
-      const probe = await page.evaluate(() => {
+      const viewLen = await page.evaluate(() => {
         const host = document.getElementById("evcc-host");
         const root = host?.shadowRoot?.querySelector("[data-evcc-view-root]");
-        return {
-          len: root ? root.innerHTML.trim().length : 0,
-          viewError: root?.querySelector("[data-evcc-view-error]")
-            ?.getAttribute("data-evcc-view-error") ?? null,
-        };
+        return root ? root.innerHTML.trim().length : 0;
       });
 
-      expect(
-        probe.viewError,
-        `${view} fell back to the view-error div — renderView threw and the ` +
-        `catch swallowed it. Console said:\n${renderThrows.join("\n")}`,
-      ).toBe(null);
-
-      expect(
-        renderThrows,
-        `renderView threw while rendering ${view}:\n${renderThrows.join("\n")}`,
-      ).toEqual([]);
-
       // Real content, not silence. NOT SUFFICIENT ALONE — see the header: the
-      // theme view cleared this bar for a release with its body empty.
-      expect(probe.len, `view-root rendered empty for ${view}`).toBeGreaterThan(20);
+      // theme view cleared this bar for a whole release with its body empty,
+      // which is why the second describe block exists.
+      expect(viewLen, `view-root rendered empty for ${view}`).toBeGreaterThan(20);
     });
   }
 });

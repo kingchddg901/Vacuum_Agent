@@ -172,16 +172,24 @@ export function applyThemePreviewRenderers(proto) {
 
   // anchor: RNJE1GDZ  the `state` accessors renderRoomCard reads — the replica set
   //
-  // The card calls these SEVEN accessors on `state` and nothing else - verified by
-  // reading renderRoomCard, not by guessing. Defaults are the quiet case; each
-  // preview opts in to only what its own token family needs to show.
+  // Seven entries, and they are NOT all read off `state`. Derived by reading
+  // renderRoomCard rather than guessing: it reads FIVE of these on the `state`
+  // parameter — isBrandDefaultSetting, roomEstimateForRoom,
+  // dashboardPlannedWaterRoomForRoom, troubleRoomForRoom, hasActiveRun — while
+  // `orderDragItemId` / `orderDragOverItemId` are read off `this.card._state`, a
+  // DIFFERENT object that the preview host always has. They are declared here
+  // anyway, for the grid's own card-level reads; [TPS-6] does not cover them,
+  // because that gate is one-directional (reads ⊆ declared).
   //
-  // THIS LIST IS A REPLICA of what renderRoomCard reads, so it goes stale
-  // silently: `isBrandDefaultSetting` was added to the card in d32aa092 and NOT
-  // added here, which took the Theme view down for the whole of 2.4.0. The
-  // renderer now guards every read, so a missing accessor degrades instead of
-  // throwing - and `theme-preview-state-contract.test.mjs` fails if this set
-  // ever falls behind the renderer again.
+  // Defaults are the quiet case; each preview opts in to only what its own token
+  // family needs to show.
+  //
+  // THE `state` HALF OF THIS LIST IS A REPLICA of what renderRoomCard reads, so
+  // it goes stale silently: `isBrandDefaultSetting` was added to the card in
+  // d32aa092 and NOT added here, which took the Theme view down for the whole of
+  // 2.4.0. The renderer now guards every read, so a missing accessor degrades
+  // instead of throwing — and `theme-preview-room-card-state.test.mjs` [TPS-6]
+  // fails if this set ever falls behind the renderer again.
   //
   // `isBrandDefaultSetting: () => false` is deliberate, not a placeholder: false
   // means "not the brand default", so every chip renders. A preview whose job is

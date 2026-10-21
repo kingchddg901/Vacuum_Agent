@@ -1214,9 +1214,10 @@ proto.renderRoomCard = function (room, state) {
   //
   // `state?.x?.()`, like every other read on this parameter: the theme preview
   // renders REAL room cards (that is the point of it) with NO state — `null` at
-  // theme-preview.js's grid default, which is what eight of its nine call sites
-  // get, and the declared stub at the one site that passes one. Reading it bare
-  // turned the whole Theme view into `shell.view_error` in 2.4.0. Absent
+  // theme-preview.js's grid default, which is what six of its seven call sites
+  // get, and the declared stub at the one site that passes one.
+  // `_renderFloorPreviewCard` passes an explicit `null` on top of that. Reading
+  // it bare turned the whole Theme view into `shell.view_error` in 2.4.0. Absent
   // predicate => not-a-default => the chip renders, which is both the pre-2.4.0
   // behaviour and what a preview wants.
   const isDefaultPower = state?.isBrandDefaultSetting?.("fan_speed", normalizedRoom.fanSpeed);

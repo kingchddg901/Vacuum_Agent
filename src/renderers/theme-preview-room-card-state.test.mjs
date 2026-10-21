@@ -5,26 +5,37 @@
 // `renderRoomCard` are the real classes and the real renderer, so a token edited
 // in the theme editor moves the specimen exactly as it moves the Rooms view.
 // `_themePreviewRoomGrid(rooms, state = null)` has defaulted that state to null
-// since v0.9.0, and eight of its nine call sites pass one argument.
+// since 33ad5ef7 ("seven previews stop drawing pictures and render the product"),
+// and six of its seven call sites pass one argument. The preview has been handing
+// `renderRoomCard` no state for longer than that: `_renderFloorPreviewCard` has
+// passed an explicit `null` since v0.9.0.
 //
-// d32aa092 then added three reads of a SEVENTH accessor, `isBrandDefaultSetting`,
+// d32aa092 then added three reads of a NEW accessor, `isBrandDefaultSetting`,
 // and wrote them bare — `state.isBrandDefaultSetting(...)` — while every other
 // read on that parameter in the same function is `state?.x?.()`. The result
 // shipped in 2.4.0: the entire Theme view rendered as `shell.view_error`, every
 // frame, on a real box.
 //
-// NOTHING CAUGHT IT, and the reason is worth keeping. `main.js` wraps
-// `renderView` in try/catch, so the throw never became an uncaught pageerror;
-// `smoke.spec.mjs` watches only `pageerror` and then asserts the view-root holds
-// >20 characters, which the ~60-character error div satisfies. A guard that
-// EXISTS (the catch) converted a hard failure into a silent one, and the only
-// gate that looks for failures was watching the wrong channel.
+// WHY NOTHING CAUGHT IT — and it is NOT that the assertions were too weak.
+// `smoke.spec.mjs` already asserted `res.ok`, and the harness's own `render()`
+// (harness/mount-entry.js — it calls `renderView(ctx)` inside its own try/catch,
+// not main.js's `_render`) sets that false on a throw. That assertion was
+// sufficient. THE CRASH WAS SIMPLY NEVER REACHED: under the plain stub the Theme
+// view's body renders EMPTY, because the tab reads `_ensureThemeState()` and
+// `resolvedTheme()` and stub-state.js deliberately does not hand-write those.
+// Measured on the harness: `ok:true`, ~4.4k characters in the view-root, and no
+// `.evcc-theme-preview-pane` in the tree at all — header and footer chrome,
+// sailing past a `viewLen > 20` check.
+//
+// `renderThemeEditor` already existed to fix exactly this, after the same trap
+// made the mobile-layout probe "report a clean shell having measured nothing".
+// That lesson was applied there and never propagated to smoke.
 //
 // Coverage (TPS = Theme Preview State)
 // ------------------------------------
 // The absence has THREE distinct shapes and a signed test for one of them does
 // not carry the others, so each is injected separately:
-//   [TPS-1] state === null          — the grid default, 8 call sites
+//   [TPS-1] state === null          — the grid default, 6 of 7 call sites
 //   [TPS-2] state === {}            — an object with no such method
 //   [TPS-3] state === _themePreviewState() — the real preview stub
 // then the two directions of the predicate, to prove the guard did not neuter it:
@@ -87,7 +98,7 @@ function previewState(over = {}) {
 
 /* ---- [TPS-1..3] the three shapes of absence -------------------------------- */
 
-test("[TPS-1] state = null (the grid default, 8 call sites) renders a card", () => {
+test("[TPS-1] state = null (the grid default, 6 of 7 call sites) renders a card", () => {
   const html = makeRenderers().renderRoomCard(ROOM, null);
   assert.match(html, /evcc-room-card/, "no card came back for the null state");
 });

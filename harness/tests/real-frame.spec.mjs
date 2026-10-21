@@ -197,3 +197,37 @@ test("[RF-8] PANEL mode sizes itself; card mode still defers to the host", async
   });
   expect(asCard.shellHeight, "card mode stopped filling its host").toBeGreaterThan(700);
 });
+
+test("[RF-9] the real frame does not fall back to the view-error div", async ({ page }) => {
+  // THE ONLY REACHABLE CONSUMER of `data-evcc-view-error`, which is why it lives
+  // here and not in smoke.spec.mjs. main.js wraps `renderView(ctx)` in try/catch
+  // and on a throw swallows it into `<div class="evcc-empty"
+  // data-evcc-view-error="<view>">`. That catch runs ONLY when main.js builds the
+  // frame — i.e. on this path. The synthetic path calls the harness's own
+  // `render()`, which has its own try/catch and reports `{ok:false}` instead, so
+  // an assertion on this marker over there could never go red.
+  //
+  // It is the shape of failure 2.4.0 actually shipped: the whole Theme view threw
+  // on every render and the user got this div, with the cause only in the console.
+  // A ~60-character fallback also satisfies any "did the view render something?"
+  // length check, so a positive marker is the only honest probe.
+  //
+  // SCOPE, stated rather than implied: this covers the view the card mounts with,
+  // not every tab — driving the tabs through the real frame is a bigger harness
+  // job. The per-view sweep is smoke.spec.mjs's, over the synthetic path.
+  const r = await mountRealCard(page, { width: 1180, viewport: { width: 1280, height: 800 } });
+  expect(r.mounted, "main.js never built .evcc-shell — the assertion below is vacuous without it").toBe(true);
+
+  const fallback = await page.evaluate(() => {
+    const sr = document.querySelector("eufy-vacuum-command-center")?.shadowRoot;
+    const el = sr?.querySelector("[data-evcc-view-error]");
+    return el ? el.getAttribute("data-evcc-view-error") : null;
+  });
+
+  expect(
+    fallback,
+    `renderView threw and main.js swallowed it: the mounted frame is showing the ` +
+    `view-error fallback for view "${fallback}". The cause is in the browser ` +
+    `console as "[eufy-vacuum-command-center] renderView threw for view:".`,
+  ).toBe(null);
+});
