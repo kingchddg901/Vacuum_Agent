@@ -845,6 +845,40 @@ null (reading 'isBrandDefaultSetting')` ([[feedback_live_differential_proof]],
 
 ---
 
+### `RNS5JWBV` — the THEME-INVERSION pair: overlay ink + accent floor · **2 sites, one file**
+
+| Site | Kind |
+|---|---|
+| `src/styles/foundation.js` `--evcc-overlay-ink` | **primary** — carries the #65 reasoning |
+| `src/styles/foundation.js` `:host([data-evcc-scheme="light"])` | the accent floor — the tint rule's stated EXCEPTION |
+
+One question, answered twice because one answer cannot cover both halves: **what keeps the
+card readable when Home Assistant's theme is light?** The ink derives from
+`--primary-text-color`, so every tinted surface, border and chip inverts with the theme at
+no cost. The accent cannot follow it — `--evcc-accent` is HA's own `--accent-color`, a hue
+rather than a tint of the base — so it gets a light-scheme-only `color-mix` toward the ink.
+
+**Obliged, and the obligation runs one way.** The mix is `35%` toward the ink, and `35%` is
+not a preference: it is the first step that clears WCAG AA on the measured light base
+(2.63 → 4.82:1). Re-derive the ink and that figure is measuring against something else, so
+it has to be re-measured, not re-read. The reverse does not hold — the accent floor is
+downstream.
+
+**Observational** (contrast, not persisted state), but the #65 shape is why it is worth
+recording: not "broken", *half-themed* — text already followed HA while the surfaces did
+not, so the card read as incomplete rather than unreadable, and #62 spent weeks assuming
+features were missing rather than invisible.
+
+**Declared at** `--evcc-overlay-ink`.
+
+*Previously carried the hand-written id `RNLGHT4K` (`d3e7c38c`): malformed — Crockford
+Base32 excludes `L` — and declared at BOTH sites rather than declared once and referenced.
+`--check` reported the malformation, but could never have reported the duplicate: an
+unregistered-looking token is not matched as a declaration at all, so the uniqueness guard
+never saw it.*
+
+---
+
 ## Observational vs MUTATION replicas
 
 A replica set that decides **what to display or bind** is bad when it diverges: someone

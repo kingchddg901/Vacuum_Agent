@@ -167,7 +167,7 @@ export const foundationTokens = `
     --evcc-surface-base:   var(--card-background-color, #1c2127);
     --evcc-surface-card:   var(--evcc-surface-base);
 
-    /* anchor: RNLGHT4K  the OVERLAY INK -- the one question every tinted surface
+    /* anchor: RNS5JWBV  the OVERLAY INK -- the one question every tinted surface
        and border asks: "what colour do I tint the base WITH?"
        ISSUE #65. Every token below was a literal white-alpha, which is correct
        only while --evcc-surface-base is dark. But surface-base FOLLOWS HA
@@ -297,7 +297,8 @@ export const foundationTokens = `
     --evcc-transition-normal: 150ms ease;
   }
 
-  /* anchor: RNLGHT4K (cont.)  THE ACCENT IS NOT A TINT, so it is not fixed by the ink.
+  /* REPLICA RNS5JWBV — primary: --evcc-overlay-ink above.
+     THE ACCENT IS NOT A TINT, so it is not fixed by the ink.
      --evcc-accent is HA's own --accent-color. Measured on a real render: #03a9f4 scores
      6.48:1 on the dark base and 2.63:1 on the light one -- readable on dark, below even
      the large-text floor on light, on the active tab pill, "Create Profile", "Run" and

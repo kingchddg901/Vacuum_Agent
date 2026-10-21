@@ -67,3 +67,17 @@ jobs:
           python-version: "3.14"
       - name: Check every generated doc is current
         run: python scripts/check_generated_docs.py
+
+      # Anchor ids are the citation seam between code and prose, and the MALFORMED
+      # check is the ONLY thing that can see this class of defect. A typo'd prefix
+      # does not fail validation -- it makes the anchor INVISIBLE, because a token
+      # that does not look registered is never matched as a declaration at all.
+      # `RNLGHT4K` (an `L`, which Crockford Base32 excludes to keep it apart from
+      # `1`) therefore sat declared TWICE for 15 days and the duplicate-uniqueness
+      # guard never saw it -- the one guarantee every other guarantee rests on.
+      # Nothing ran this script, which is the same shape as the generated-doc gate
+      # above: a defect that reads exactly like being correct.
+      # Stdlib-only and sub-second, so it rides in this job rather than paying for
+      # its own runner. Exit 1 on any MALFORMED, DUPLICATE, BROKEN or MOVED anchor.
+      - name: Check anchor ids are unique and every citation resolves
+        run: python scripts/doc_anchor.py --check
