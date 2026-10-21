@@ -8,6 +8,28 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.4.1] - 2026-10-21
+
+**2.4.0 broke the Theme view completely.** If you opened it on 2.4.0 you saw a single "View error" box and nothing else — no palette, no token editor, no preview. It threw on every render from the moment that release shipped. Sorry; this one was entirely ours, and it was one release old.
+
+> **Card-only release.** A hard refresh of the dashboard (Ctrl+Shift+R) is enough — no Home Assistant restart needed.
+
+### Fixed
+
+- **The whole Theme view was an error box.** The theme editor's preview deliberately renders *real* room cards — the real grid, the real renderer — so that a colour or spacing token you edit moves the specimen exactly as it moves your Rooms view. The cost of that honesty is that the preview has to hand the room-card renderer everything it asks for, by hand.
+
+  2.4.0 taught the renderer to ask your vacuum what its default suction, water and route are, so a setting sitting at the default could stop showing a chip. The preview was never told about that new question, and the renderer asked it without checking whether anyone was there to answer — so the first preview that drew a room card threw, and the view fell back to the error box. Fifteen of the twenty-five preview groups were affected, which is to say: all the ones that show a card.
+
+  Both halves are fixed — the renderer now asks safely, and the preview answers. Either fix alone would have been enough, which is deliberate; they cover different paths into the same code.
+
+### Internal
+
+- The failure was invisible to the test harness, and not because the assertions were weak — the one that mattered had been there since the harness was written. The Theme view's *body* renders empty under the test fixture, so the preview never ran and the crash was never reached. The view still produced four thousand characters of header and footer, which sailed past the "did this view render anything?" check. The per-view smoke sweep now drives the theme tab through the fixture that supplies real theme state, enumerates every registered preview group from the live registry rather than a hardcoded list, and asserts that some group actually produced a room card — without that last clause the sweep passes while never reaching the code that broke.
+
+- A render failure now tags its fallback with `data-evcc-view-error`, so a gate can see a dead view instead of a human noticing it in the console.
+
+- An anchor id used to cite a code location from the documentation was malformed — it spelled a word, using a letter the id alphabet excludes — and had therefore been invisible to the uniqueness check for fifteen days while declared twice. The check that would have caught it was never run by CI; it is now.
+
 ## [2.4.0] - 2026-10-19
 
 One report, and the three things it named turned out to be three different problems — plus a fourth nobody had noticed. Thanks to **@NokSamLeong** ([#71](https://github.com/kingchddg901/Vacuum_Agent/issues/71)), who pasted the raw values from their robot rather than a screenshot; two of these were only findable that way.
