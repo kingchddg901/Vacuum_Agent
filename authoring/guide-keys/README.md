@@ -35,8 +35,9 @@ for a *part* (dust bin, brush guard, mop pad holder), the notes say so and that 
 as nomenclature; that is the `_lexicon` / `_vocabulary` rule, and part names are not prose.
 
 The notes **cite** manuals by model and section and **paraphrase** what they say where the
-reasoning depends on it. They do not quote them. Six passages that did were redacted to
-citations on 2026-10-22 when this directory moved into the repository; the manuals
+reasoning depends on it. They do not quote them; the passages that did were redacted to
+citations when this directory moved into the repository and again in the 2.5.0 pre-release
+audit, which found four the first pass missed. The manuals
 themselves, the OCR corpus and the derived tables that produced the regimes stay outside
 git, deliberately, because they are not ours to host.
 

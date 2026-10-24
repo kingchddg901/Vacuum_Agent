@@ -30,8 +30,9 @@ workflow; §4 is where you confirm it actually arrived.
       equal the tag without the leading `v`; the release workflow fails the release if it does not.
       Cutting a stable tag off a tree whose manifest still says `-beta` is the specific mistake
       that guard exists for.
-- [ ] `CHANGELOG.md` — finalize the `## [X.Y.Z] - YYYY-MM-DD` section (dated), and leave a fresh
-      empty `## [Unreleased]` above it.
+- [ ] `CHANGELOG.md` — add the `## [X.Y.Z] - YYYY-MM-DD` section (dated) directly under the
+      preamble. This changelog carries no `[Unreleased]` section between releases; no release
+      since 2.2.4 has, and the section is written at release time from the audited notes.
 - [ ] Commit: `release: vX.Y.Z`.
 
 ## 3. Merge + tag

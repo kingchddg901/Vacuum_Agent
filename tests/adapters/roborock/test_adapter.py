@@ -1396,6 +1396,50 @@ def test_rd5_the_lookup_trips_no_registry_deprecation(monkeypatch, hass):
     assert not reported, reported
 
 
+def test_rd6_a_core_without_the_scoped_lookup_still_resolves_the_dock(monkeypatch, hass):
+    """[RD-6] The 2025.6.0 floor holds: no ``async_get_device_by_identifier``, still a dock.
+
+    Measured in home-assistant/core: the scoped method is absent from device_registry.py
+    at 2025.6.0 and 2026.7.0 and first present at 2026.8.0, while hacs.json declares a
+    2025.6.0 floor. Called bare, the lookup is an AttributeError on every core in that
+    span and the Roborock adapter never registers there. The 2.5.0 pre-release audit
+    caught exactly that, shipped bare.
+
+    The REAL registry stands in for an old core by losing the one method — delattr on
+    the class — so the instance reads as a 2026.7 instance would. The fallback is the
+    unscoped call, which on this core fires the 2026.10 deprecation; that is expected
+    here and is why [RD-5] guards the main path separately.
+
+    ABLATION: drop the getattr fallback and call ``async_get_device_by_identifier``
+    directly, and this goes red with AttributeError.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.roborock import dock as rb_dock
+
+    entry = MockConfigEntry(domain="roborock", entry_id="rd6_entry")
+    entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    robot = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd6_duid")},
+    )
+    dock = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd6_duid_dock")},
+    )
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", "roborock", "rd6_uid",
+        suggested_object_id="rd6", device_id=robot.id, config_entry=entry,
+    )
+
+    monkeypatch.delattr(dr.DeviceRegistry, "async_get_device_by_identifier")
+    assert not hasattr(dev_reg, "async_get_device_by_identifier"), (
+        "precondition: the registry must look like a core older than 2026.8"
+    )
+
+    found = rb_dock.find_dock_device(hass, vac.entity_id)
+    assert found is not None and found.id == dock.id
+
+
 # ---------------------------------------------------------------------------
 # [DD-*] ISSUE #69 follow-up — the dock dump records WHICH BRANCH ran
 # ---------------------------------------------------------------------------

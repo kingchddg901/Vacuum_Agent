@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Ship the Dreame guide KEY PACKS into the card.
 
-The Dreame guide is 51 i18n KEYS, not per-family prose (see
+The Dreame guide is 42 i18n KEYS, not per-family prose (see
 adapters/dreame/upkeep_keys.py). The card resolves those keys in the USER's language — the globe,
 not the HA instance language — so the packs have to live client-side, exactly like the existing
 family-based guide catalogs.

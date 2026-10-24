@@ -107,6 +107,16 @@ def find_dock_device(hass: HomeAssistant, vacuum_entity_id: str) -> Any | None:
     ``DeviceEntry.config_entries``. An entity with no config entry cannot be the
     upstream integration's, so it resolves to None rather than to an unscoped search.
 
+    THE HA FLOOR IS 2025.6.0 (hacs.json) AND THE NEW METHOD IS 2026.8+. Measured in
+    home-assistant/core: ``async_get_device_by_identifier`` is absent from
+    ``device_registry.py`` at 2025.6.0 and 2026.7.0 and present from 2026.8.0. Called
+    bare it is an AttributeError on every core from the floor through 2026.7, and the
+    Roborock adapter would never register there — the 2.5.0 pre-release audit caught it
+    shipped bare. So, the shape ``entity_helpers.device_config_entry_ids`` already uses:
+    read the new name first (that is what silences the 2026.10 deprecation where it
+    fires) and fall back to the unscoped ``async_get_device``, which exists at the floor
+    and is not deprecated before 2026.10. [RD-6] holds the floor.
+
     ``async_get_device_by_identifier`` searches MAIN devices only; the upstream dock
     is registered with ``DeviceInfo``, not ``ChildDeviceInfo``, so it is reachable
     here. A future upstream move of the dock to a child device would need
@@ -133,10 +143,13 @@ def find_dock_device(hass: HomeAssistant, vacuum_entity_id: str) -> Any | None:
     config_entry_id = entry.config_entry_id
     if config_entry_id is None:
         return None
-    for duid in sorted(duids):
-        device = dev_reg.async_get_device_by_identifier(
-            (ROBOROCK_DOMAIN, f"{duid}{DOCK_IDENTIFIER_SUFFIX}"), config_entry_id
-        )
+    wanted = [(ROBOROCK_DOMAIN, f"{duid}{DOCK_IDENTIFIER_SUFFIX}") for duid in sorted(duids)]
+    by_identifier = getattr(dev_reg, "async_get_device_by_identifier", None)
+    if by_identifier is None:
+        # A core older than 2026.8 — see the docstring. Not deprecated there.
+        return dev_reg.async_get_device(identifiers=set(wanted))
+    for ident in wanted:
+        device = by_identifier(ident, config_entry_id)
         if device is not None:
             return device
     return None

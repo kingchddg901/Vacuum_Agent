@@ -50,7 +50,9 @@ refuses.
 
 `find_dock_device` reaches that device by **identifier**, `(roborock, {duid}_dock)`, through one
 `dev_reg.async_get_device_by_identifier` call scoped to the vacuum entity's own config entry
-(read from the entity registry). Until ISSUE #69 it walked `vacuum_device.config_entries` and
+(read from the entity registry); a core older than 2026.8 has no such method, so there it falls
+back to the unscoped `async_get_device` — not deprecated on those cores — the same measured shim
+`entity_helpers.device_config_entry_ids` uses. Until ISSUE #69 it walked `vacuum_device.config_entries` and
 scanned every device in each entry looking for the same identifier. Two things were wrong with
 that: the read is deprecated from HA 2026.8 and removed in 2027.10, and the config-entry scoping
 it bought was never load-bearing — the duid is the robot's own id, so the suffixed identifier
@@ -61,7 +63,8 @@ robots in the **same** entry, which the old scoping could not have distinguished
 entry — the duid still does the robot-vs-robot work, the entry scope does the entry-vs-entry
 work. `[RD-4]` pins that a same-identifier dock under another entry is never returned, and
 `[RD-5]` pins that the lookup trips no registry deprecation, so the next one HA schedules
-surfaces in the suite before it surfaces in a production log.
+surfaces in the suite before it surfaces in a production log. `[RD-6]` pins that a registry
+without the new method still resolves the dock, so the 2025.6.0 floor holds.
 
 How that resolution went is recorded on the config as `_dock_detection` — `resolved` and `source`
 (the live device, or the catalogue fallback), plus the vendor's `dock_type` / `dock_type_name` and
