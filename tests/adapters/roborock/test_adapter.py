@@ -1310,6 +1310,92 @@ def test_rd3_a_vacuum_with_no_dock_device_resolves_to_none(hass):
     assert rb_dock.find_dock_device(hass, vac.entity_id) is None
 
 
+def test_rd4_a_same_identifier_dock_under_another_entry_is_never_returned(hass):
+    """[RD-4] The lookup is scoped to the vacuum's OWN config entry.
+
+    HA 2026.10 deprecated the unscoped ``async_get_device`` (gone in 2027.8.0) because
+    identifiers are unique only within a config entry: two Roborock entries can each
+    hold a ``(roborock, duid_dock)`` — an account added twice, a re-added entry whose
+    devices were never purged — and the unscoped call chose between them by insertion
+    order. The dock registered by this vacuum's own entry is the only right answer.
+
+    The foreign dock is registered FIRST so that insertion order favours it; that is
+    what makes the unscoped lookup return the wrong device here.
+
+    ABLATION: swap the scoped call back to ``async_get_device(identifiers=...)`` and
+    this goes red.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.roborock import dock as rb_dock
+
+    theirs = MockConfigEntry(domain="roborock", entry_id="rd4_theirs")
+    theirs.add_to_hass(hass)
+    mine = MockConfigEntry(domain="roborock", entry_id="rd4_mine")
+    mine.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    foreign_dock = dev_reg.async_get_or_create(
+        config_entry_id=theirs.entry_id, identifiers={("roborock", "rd4_duid_dock")},
+    )
+    robot = dev_reg.async_get_or_create(
+        config_entry_id=mine.entry_id, identifiers={("roborock", "rd4_duid")},
+    )
+    my_dock = dev_reg.async_get_or_create(
+        config_entry_id=mine.entry_id, identifiers={("roborock", "rd4_duid_dock")},
+    )
+    assert my_dock.id != foreign_dock.id, (
+        "precondition: a 2026.10 registry holds one device per entry for the same "
+        "identifier; if these merged, the ambiguity this test guards cannot exist"
+    )
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", "roborock", "rd4_uid",
+        suggested_object_id="rd4", device_id=robot.id, config_entry=mine,
+    )
+
+    found = rb_dock.find_dock_device(hass, vac.entity_id)
+    assert found is not None and found.id == my_dock.id
+    assert found.id != foreign_dock.id, "another entry's dock must never be returned"
+
+
+def test_rd5_the_lookup_trips_no_registry_deprecation(monkeypatch, hass):
+    """[RD-5] The registry read must not be one HA has scheduled for removal.
+
+    ``homeassistant.helpers.frame.report_usage`` is what printed "Detected that custom
+    integration 'eufy_vacuum' calls `device_registry.async_get_device`, which is
+    deprecated" at startup on a live 2026.10.1 box — the deprecated method calls it
+    before doing anything else. This spies on the registry module's binding of it (the
+    frame helper itself reports each call site only once per process, so a log-based
+    check could be masked by an earlier test) and pins that the dock lookup makes no
+    such call. The next registry read HA deprecates surfaces here first.
+
+    ABLATION: swap the scoped call back to ``async_get_device(identifiers=...)`` and
+    this goes red.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.roborock import dock as rb_dock
+
+    entry = MockConfigEntry(domain="roborock", entry_id="rd5_entry")
+    entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    robot = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd5_duid")},
+    )
+    dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd5_duid_dock")},
+    )
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", "roborock", "rd5_uid",
+        suggested_object_id="rd5", device_id=robot.id, config_entry=entry,
+    )
+
+    reported: list[str] = []
+    monkeypatch.setattr(dr, "report_usage", lambda what, **kw: reported.append(what))
+
+    assert rb_dock.find_dock_device(hass, vac.entity_id) is not None
+    assert not reported, reported
+
+
 # ---------------------------------------------------------------------------
 # [DD-*] ISSUE #69 follow-up — the dock dump records WHICH BRANCH ran
 # ---------------------------------------------------------------------------

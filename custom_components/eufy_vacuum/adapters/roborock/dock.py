@@ -98,12 +98,19 @@ def find_dock_device(hass: HomeAssistant, vacuum_entity_id: str) -> Any | None:
     replaced by the lookup it was hand-rolling — no deprecated attribute, no version
     shim, and an index hit instead of a scan over every device in the entry.
 
-    ``async_get_device``'s signature is unchanged across 2025.6.0, 2026.7.0, 2026.8.0
-    and 2026.10.1 (checked in the wheels), so this needs no compatibility branch. It
-    searches MAIN devices only; the upstream dock is registered with ``DeviceInfo``,
-    not ``ChildDeviceInfo`` (``roborock/coordinator.py::dock_device_info``, read at
-    2026.10.1), so it is reachable here. A future upstream move of the dock to a child
-    device would need ``async_get_child_device_by_identifier`` instead.
+    HA 2026.10 then deprecated the unscoped ``async_get_device`` itself (removed in
+    2027.8.0): identifiers are unique only WITHIN a config entry now, so a lookup must
+    say whose entry it means. The scope here is the vacuum ENTITY's own config entry,
+    read from the entity registry — the upstream dock is registered from the same
+    entry as the robot (``roborock/coordinator.py::dock_device_info``, read at
+    2026.10.1) — which is a live, non-deprecated source, unlike
+    ``DeviceEntry.config_entries``. An entity with no config entry cannot be the
+    upstream integration's, so it resolves to None rather than to an unscoped search.
+
+    ``async_get_device_by_identifier`` searches MAIN devices only; the upstream dock
+    is registered with ``DeviceInfo``, not ``ChildDeviceInfo``, so it is reachable
+    here. A future upstream move of the dock to a child device would need
+    ``async_get_child_device_by_identifier`` instead.
     """
     ent_reg = er.async_get(hass)
     entry = ent_reg.async_get(vacuum_entity_id)
@@ -123,10 +130,16 @@ def find_dock_device(hass: HomeAssistant, vacuum_entity_id: str) -> Any | None:
     if not duids:
         return None
 
-    wanted = {
-        (ROBOROCK_DOMAIN, f"{duid}{DOCK_IDENTIFIER_SUFFIX}") for duid in duids
-    }
-    return dev_reg.async_get_device(identifiers=wanted)
+    config_entry_id = entry.config_entry_id
+    if config_entry_id is None:
+        return None
+    for duid in sorted(duids):
+        device = dev_reg.async_get_device_by_identifier(
+            (ROBOROCK_DOMAIN, f"{duid}{DOCK_IDENTIFIER_SUFFIX}"), config_entry_id
+        )
+        if device is not None:
+            return device
+    return None
 
 
 def dock_type_value(device: Any | None) -> int | None:
