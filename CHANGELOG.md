@@ -8,6 +8,34 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.5.0] - 2026-10-24
+
+**Queued room groups now run as the sequence the card has been promising.** Add a second room group to a run — rooms A and B today, A and C tomorrow — and each group keeps its own per-room settings and runs in order: no profile per room, no waiting for the first group to finish. Requested in [#72](https://github.com/kingchddg901/Vacuum_Agent/issues/72) for "vacuum twice, then mop" across a set of rooms that changes day to day.
+
+> **Backend release.** Restart Home Assistant after updating; a hard refresh of the dashboard alone is not enough this time.
+
+### Added
+
+- **Multiple room groups in one run.** The card already let you queue a second group, previewed "Clean A → Clean B" and routed Start through the stepped path. The three gates that actually execute a run only asked "is there a wait, a charge stop or a zone in here?" — so a plain two-group plan was rebuilt into one flat clean, with every group's own settings thrown away. All three now ask the question the card asks: is this plan more than one group? On Roborock, each group's rooms also run in the order you listed them, as stepped runs always have; Eufy already honoured room order. ([#72](https://github.com/kingchddg901/Vacuum_Agent/issues/72))
+
+  Not included yet, on purpose: queueing whole *profiles* by name, and groups that span different maps. Both are open questions on the issue.
+
+### Fixed
+
+- **A room group whose saved zone went missing also lost its settings.** Fixing the above surfaced a second defect that reached single-group runs: when a zone in a plan resolved to nothing, the rebuild that dropped it also replaced that group's per-room settings with the global view. A surviving group is now kept as authored, not rebuilt.
+
+- **Roborock: the dock library is loaded off the event loop, and a newer dock no longer passes through the library's "unknown" placeholder.** The dock capability read imported `python-roborock` inline, inside Home Assistant's event loop; it is now loaded in an executor before the adapter registers, and a failed load is retried on the next registration pass rather than cached. A dock code newer than the installed library used to be accepted as whatever the library's `unknown` member said; it is now recorded as a real dock of unknown type, with the wash, dry and collect controls off until the library catches up. Contributed by @Nebr88 ([#73](https://github.com/kingchddg901/Vacuum_Agent/pull/73)).
+
+- **Roborock: the startup deprecation warning from Home Assistant 2026.10 is gone.** Home Assistant now treats device identifiers as unique only within a config entry, and warned that the dock lookup used the old registry-wide call (due to stop working in 2027.8). The lookup is scoped to your vacuum's own config entry; a dock registered under a different entry with the same identifier is never picked up. On cores older than 2026.8, which do not have the newer registry call, the lookup keeps the previous one — not deprecated there — so the supported floor of 2025.6.0 still holds.
+
+### Internal
+
+- Tests get a fresh Home Assistant configuration directory per case, so completed-job archives from one run can no longer leak into the next — a second `pytest` in the same environment used to fail two tests for exactly that reason. Contributed by @Nebr88 ([#74](https://github.com/kingchddg901/Vacuum_Agent/pull/74)).
+- `python-roborock` is pinned as a test-only dependency in `requirements_test.txt`, so the local Docker image and CI both install it and the twelve dock-SDK tests cannot `importorskip` away without going red.
+- The card's cache-bust token is computed from normalised text, so it no longer depends on the line endings of the tree that ran the build; binary assets are hashed as they are. Expect one cache refresh on this update.
+- The maintenance-guide system is documented end to end (`docs/dev/41-maintenance-and-the-dock.md`), and the guide-key authoring source now lives in the repository under `authoring/guide-keys/` rather than in an external corpus.
+- A generated catalog of every break-notation (`BN`) anchor in the tree, and a rule for when to mint one.
+
 ## [2.4.1] - 2026-10-21
 
 **2.4.0 broke the Theme view completely.** If you opened it on 2.4.0 you saw a single "View error" box and nothing else — no palette, no token editor, no preview. It threw on every render from the moment that release shipped. Sorry; this one was entirely ours, and it was one release old.
