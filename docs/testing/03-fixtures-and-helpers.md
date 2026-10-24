@@ -11,6 +11,7 @@ Applies to the whole suite.
 | Fixture | Scope | What it gives you |
 |---------|-------|-------------------|
 | `auto_enable_custom_integrations` | autouse | Wraps phac's `enable_custom_integrations` so HA's loader can see `custom_components/eufy_vacuum`. Without it, phac blocks custom integrations for isolation. You never call this — it just runs. |
+| `hass_config_dir` | function | A fresh `tmp_path` for each Home Assistant fixture. Learning archives, battery data and generated files cannot carry over from another test or a previous pytest run. |
 | `brand` | function, **parametrized** | One run per declared brand catalog (`tests/brand_catalogs.py`), returning the catalog post-`resolve_profile_catalog` — what core consumers actually receive. **A test using it must assert RELATIONSHIPS, never a literal**: a literal passes for one brand and fails for the rest, which is the leak the parametrization exists to catch. |
 | `synthetic_catalog` | function | A catalog whose words belong to **no real brand**. For tests that need *a* catalog but are not about vocabulary — dispatch, queueing, planning. If one fails only because a real brand's word is missing, that word is load-bearing somewhere it should not be. |
 | `synthetic_adapter` | function | Registers the synthetic brand for `vacuum.alfred` and **unregisters on teardown**. For code that resolves its own catalog from the registry rather than taking one as a parameter — "a dispatch test that only passes against Eufy is testing Eufy". Teardown is not optional: the registry is global and a leftover entry silently satisfies a later test that should have failed. |
@@ -20,7 +21,7 @@ Applies to the whole suite.
 
 The `hass` fixture itself comes from `pytest-homeassistant-custom-component` —
 you do not define it. Just add `hass` as a test parameter and you get a fresh
-in-memory Home Assistant.
+in-memory Home Assistant with an isolated temporary configuration directory.
 
 ## Integration: `tests/integration/conftest.py`
 

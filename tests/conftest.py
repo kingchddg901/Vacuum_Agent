@@ -42,6 +42,12 @@ def auto_enable_custom_integrations(enable_custom_integrations):
     yield
 
 
+@pytest.fixture
+def hass_config_dir(tmp_path) -> str:
+    """Isolate on-disk history as well as in-memory Home Assistant state."""
+    return str(tmp_path)
+
+
 # ---------------------------------------------------------------------------
 # Brand catalogs — see tests/brand_catalogs.py for why these exist.
 # ---------------------------------------------------------------------------
