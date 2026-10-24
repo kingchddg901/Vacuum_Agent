@@ -82,6 +82,7 @@ from .eufy.adapter import register_eufy_adapter_for_vacuum
 from .eufy.const import UPSTREAM_PLATFORMS as EUFY_PLATFORMS
 from .roborock.adapter import register_roborock_adapter_for_vacuum
 from .roborock.const import UPSTREAM_PLATFORMS as ROBOROCK_PLATFORMS
+from .roborock.dock import load_dock_library
 from .dreame.adapter import register_dreame_adapter_for_vacuum
 from .dreame.const import UPSTREAM_PLATFORMS as DREAME_PLATFORMS
 
@@ -106,6 +107,8 @@ class BrandRegistrar:
     #: ``platform``. This is the adapter's identity claim about itself; core never
     #: sniffs strings on a brand's behalf.
     platforms: tuple[str, ...] = ()
+    #: Optional blocking preparation, always invoked through HA's executor.
+    prepare: Callable[[], None] | None = None
 
 
 #: Ordered; the first registrar claiming the vacuum's platform wins.
@@ -123,6 +126,7 @@ BRAND_REGISTRARS: tuple[BrandRegistrar, ...] = (
         brand_id="roborock",
         register=register_roborock_adapter_for_vacuum,
         platforms=ROBOROCK_PLATFORMS,
+        prepare=load_dock_library,
     ),
     BrandRegistrar(
         brand_id="eufy",
@@ -235,6 +239,18 @@ def _vacuum_platform(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
         return None
     return getattr(entry, "platform", None) if entry is not None else None
 
+
+
+async def async_prepare_brand_adapter(
+    hass: HomeAssistant,
+    vacuum_entity_id: str,
+    *,
+    data: dict[str, Any] | None = None,
+) -> None:
+    """Prepare only the selected provider before synchronous registration."""
+    registrar, _ = resolve_brand(hass, vacuum_entity_id, data=data)
+    if registrar is not None and registrar.prepare is not None:
+        await hass.async_add_executor_job(registrar.prepare)
 
 
 def register_brand_adapter(

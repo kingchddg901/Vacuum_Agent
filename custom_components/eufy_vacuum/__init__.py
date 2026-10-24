@@ -63,7 +63,7 @@ from .adapters.registry import (
     AdapterCoordinator,
     unregister_adapter_config,
 )
-from .adapters.brands import register_brand_adapter
+from .adapters.brands import async_prepare_brand_adapter, register_brand_adapter
 from .adapters.config_loader import load_stored_adapter_configs
 from .adapters.registry import get_adapter_config
 from .core.vacuum_identity import sweep_orphaned_vacuums
@@ -487,6 +487,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         for _vacuum_entity_id in manager.get_known_vacuum_ids():
             try:
+                await async_prepare_brand_adapter(
+                    hass, _vacuum_entity_id, data=_brand_data
+                )
                 register_brand_adapter(hass, _vacuum_entity_id, data=_brand_data)
             except Exception:
                 _LOGGER.exception(  # pragma: no cover
@@ -555,6 +558,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         _vocab_before = deepcopy(
                             (get_adapter_config(_vid) or {}).get("vocabulary")
                         )
+                        await async_prepare_brand_adapter(hass, _vid, data=_brand_data)
                         register_brand_adapter(hass, _vid, data=_brand_data)
                         _after = manager.refresh_vacuum_capabilities(
                             vacuum_entity_id=_vid

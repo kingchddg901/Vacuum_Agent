@@ -181,8 +181,9 @@ async def _handle_delete_adapter_config(hass: HomeAssistant, call: ServiceCall) 
     # CODE adapter the same way a restart already would: register_brand_adapter is
     # the exact function __init__.py calls per managed vacuum during
     # async_setup_entry, so this makes delete's restore byte-identical to that.
-    from ..adapters.brands import register_brand_adapter
+    from ..adapters.brands import async_prepare_brand_adapter, register_brand_adapter
 
+    await async_prepare_brand_adapter(hass, vacuum_entity_id, data=manager.data)
     register_brand_adapter(hass, vacuum_entity_id, data=manager.data)
 
     await manager.async_save()

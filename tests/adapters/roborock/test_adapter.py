@@ -635,7 +635,7 @@ def test_dock_profile_reports_no_dock_without_needing_the_vendor_library(monkeyp
     assert prof["reason"] == "model_id_unknown"
 
 
-def test_dock_profile_returns_undetermined_when_vendor_library_is_absent(monkeypatch):
+async def test_dock_profile_returns_undetermined_when_vendor_library_is_absent(monkeypatch, hass):
     """A real dock code with no python-roborock must yield None — NOT a guess.
 
     None means "could not determine", and the adapter falls back to the model catalog's
@@ -649,6 +649,7 @@ def test_dock_profile_returns_undetermined_when_vendor_library_is_absent(monkeyp
     monkeypatch.setattr(
         rb_dock, "find_dock_device", lambda h, v: _FakeDockDevice("7")
     )
+    await hass.async_add_executor_job(rb_dock.load_dock_library)
     try:
         import roborock  # noqa: F401
     except ImportError:

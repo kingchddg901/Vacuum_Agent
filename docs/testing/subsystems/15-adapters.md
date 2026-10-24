@@ -32,6 +32,12 @@ as a third shipped brand. -->
 Source: `custom_components/eufy_vacuum/adapters/`
 Architecture reference: [22 — The Adapter Contract](../../dev/22-adapter-contract.md)
 
+### `test_dock_sdk.py` — optional SDK loading and unknown dock codes
+
+These 12 cases exercise the real `python-roborock` enum and feature classes. Unknown codes that map to the SDK's `unknown` member retain their original integer and disable unconfirmed wash/dry/collect controls; an enum that raises `ValueError` follows the same policy. Known dock features pass through the vendor implementation. A synchronous profile lookup cannot import an unprepared SDK. The registry-selected preparation hook runs imports in an executor, retries after a missing provider package, and leaves other providers alone.
+
+The SDK is a test-only pin in `requirements_test.txt`, so the local Docker image and CI both install it — when it is absent this whole file `importorskip`s away at collection and nothing goes red. The pin matches Home Assistant 2026.10.1; the production manifest continues to defer dependency ownership to the Roborock integration. SDK modules initialize process-lifetime rate-limiters, so the SDK tests import their classes during collection rather than introducing those daemon threads inside an individual Home Assistant test's cleanup boundary.
+
 ### `test_disabled_action_warn_once.py` — advice that repeats is noise with a severity
 
 `resolve_action_entity` can answer **disabled**, which is a toggle in the user's own UI

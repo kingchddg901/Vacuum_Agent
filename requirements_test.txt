@@ -13,3 +13,12 @@ scipy>=1.14
 Pillow>=11
 fonttools>=4.47.0
 brotli>=1.1.0
+
+# python-roborock is TEST-ONLY. The production manifest deliberately does not
+# declare it — the Roborock integration pins it and this adapter only runs when
+# that integration is set up (adapters/roborock/dock.py, IMPORT STRATEGY). It is
+# here so the local image and CI both run tests/adapters/roborock/test_dock_sdk.py
+# against the real enum/feature classes: that file importorskips the whole module
+# when the SDK is absent, so without this pin 12 tests vanish with no red.
+# Matches HA 2026.10.1's roborock manifest; bump when Home Assistant does.
+python-roborock==7.12.0

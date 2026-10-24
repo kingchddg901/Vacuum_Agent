@@ -23,7 +23,10 @@ hardware and all three are wrong; the reasoning and the measurements are in
 
 So: read the integer, ask the vendor.
 
-IMPORT STRATEGY. ``python-roborock`` is imported lazily and defensively. It is NOT in
+IMPORT STRATEGY. ``python-roborock`` is loaded defensively by the selected registrar's
+executor preparation before setup and post-start registration. Synchronous capability
+reads only use prepared classes. Failed imports are retried on the next
+preparation pass, since the provider may not have installed its package yet. It is NOT in
 our manifest and must not be added — this adapter only runs when the Roborock
 integration is set up, and THAT manifest pins the library. If the import somehow fails
 we return ``None`` ("unknown"), which leaves the caller on its pre-existing no-dock
@@ -58,6 +61,25 @@ ROBOROCK_DOMAIN = "roborock"
 
 #: Suffix the upstream integration appends to the duid for the dock's identifier.
 DOCK_IDENTIFIER_SUFFIX = "_dock"
+
+_DOCK_TYPES: tuple[Any, Any] | None = None
+
+
+def load_dock_library() -> None:
+    """Load optional SDK modules in the registrar's preparation executor."""
+    global _DOCK_TYPES
+    try:
+        from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
+        from roborock.device_features import RoborockDockFeatures
+    except ImportError:
+        # The provider may not have installed its dependency yet. Do not cache
+        # failure: the post-start registration pass must be able to retry.
+        _LOGGER.debug(
+            "%s: python-roborock unavailable; leaving dock capabilities undetermined",
+            ADAPTER_ID,
+        )
+    else:
+        _DOCK_TYPES = RoborockDockTypeCode, RoborockDockFeatures
 
 
 def find_dock_device(hass: HomeAssistant, vacuum_entity_id: str) -> Any | None:
@@ -152,19 +174,22 @@ def dock_profile(hass: HomeAssistant, vacuum_entity_id: str) -> dict[str, Any] |
             "reason": "no_dock_device" if device is None else "model_id_unknown",
         }
 
-    try:
-        from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
-        from roborock.device_features import RoborockDockFeatures
-    except ImportError:  # pragma: no cover — the roborock integration guarantees this
+    # Capability reads are synchronous and run in the event loop. Only use
+    # prepared classes; never import here.
+    if _DOCK_TYPES is None:
         _LOGGER.debug(
             "%s: python-roborock unavailable; leaving dock capabilities undetermined",
             ADAPTER_ID,
         )
         return None
+    dock_type_class, features_class = _DOCK_TYPES
 
     try:
-        dock_type = RoborockDockTypeCode(value)
+        dock_type = dock_type_class(value)
     except ValueError:
+        dock_type = None
+
+    if dock_type is None or dock_type.value != value:
         # A dock newer than the installed library. Do NOT assume no-dock: the device
         # registry says a dock is there and reported a real code, so has_dock is True
         # and only the fine detail is unknown.
@@ -177,10 +202,13 @@ def dock_profile(hass: HomeAssistant, vacuum_entity_id: str) -> dict[str, Any] |
             "has_dock": True,
             "dock_type": value,
             "dock_type_name": None,
+            "is_washable": False,
+            "is_collectable": False,
+            "is_dryable": False,
             "reason": "dock_type_newer_than_library",
         }
 
-    features = RoborockDockFeatures.from_dock_type(dock_type)
+    features = features_class.from_dock_type(dock_type)
     return {
         "has_dock": features.has_dock,
         "dock_type": value,
