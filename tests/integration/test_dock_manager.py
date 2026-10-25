@@ -299,6 +299,33 @@ def test_gate_action_specific(dock, manager, hass, monkeypatch):
     assert status["actions"]["empty_dust"]["reason"] == "already_emptying"
 
 
+def test_gate_roborock_dry_switch_state(dock, manager, hass, monkeypatch):
+    """Drying availability must follow the dock switch state on Roborock devices."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "roborock_test", "source": "test",
+        "dock_events": {"triggers": {"last_dry_start": ["drying"]}},
+    })
+    _ready(
+        dock,
+        manager,
+        hass,
+        monkeypatch,
+        dock_status="charging",
+        entity="switch.alfred_dock_mop_drying",
+    )
+    hass.states.async_set("switch.alfred_dock_mop_drying", "on")
+
+    status = dock.get_dock_action_status(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert status["actions"]["dry_mop"]["reason"] == "already_drying"
+    assert status["actions"]["stop_dry_mop"]["allowed"] is True
+    assert status["actions"]["stop_dry_mop"]["reason"] == "ready"
+
+    hass.states.async_set("switch.alfred_dock_mop_drying", "off")
+    status = dock.get_dock_action_status(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert status["actions"]["stop_dry_mop"]["reason"] == "not_drying"
+
+
 def test_gate_dock_busy(dock, manager, hass, monkeypatch):
     """[DK-12] adapter hard_service_states gates non-stop actions as dock_busy."""
     from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
