@@ -276,8 +276,12 @@ keep out of `CN`.
 
 **Where the minted ones are.** Every `BN` in the tree is listed in
 [`reference/BN-CATALOG.generated.md`](../../reference/BN-CATALOG.generated.md) — by file,
-with its line, its name and which documents cite it. Generated and gated, because a
-hand-kept catalog of this size would rot exactly as the per-class counts above did. The
+with its name and which documents cite it. Generated and gated, because a hand-kept
+catalog of this size would rot exactly as the per-class counts above did. **No line
+numbers, deliberately:** the citation form above is `path#TOKEN` precisely so prose
+survives the code moving, and a line column made this generated file a function of every
+anchored file's layout — a contributor PR that inserted 18 lines above an anchor turned
+the gate red over `430 -> 448`. The address is the token; grep it. The
 catalog's own tokens are excluded from the citation scan, so listing an anchor there is not
 citing it; it also surfaces any `BN` with no name line beneath it — the condition the
 pass-time gate otherwise catches only when someone remembers to run it.

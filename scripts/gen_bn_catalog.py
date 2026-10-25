@@ -11,10 +11,21 @@ A catalog of 177 tokens that drifts with every BN pass would rot the same way, f
 This one is registered in check_generated_docs.py as a gated generator, so CI diffs it on
 every push and a stale catalog is a red build, not a quiet lie.
 
-WHAT A CARD HOLDS. The token, where it is declared, the NAME on the line beneath it (the
-part people read — the token is what survives renaming it), and which documents cite it.
-Grouped by file and ordered by line, so a reader can see the regions of core/manager.py
-at a glance without opening 7,629 lines.
+WHAT A CARD HOLDS. The token, the NAME on the line beneath it (the part people read — the
+token is what survives renaming it), and which documents cite it. Grouped by file and
+ordered by line, so a reader can see the regions of core/manager.py at a glance without
+opening 7,629 lines.
+
+⚠ NO LINE NUMBER, DELIBERATELY — AND THE SORT IS NOT THE COLUMN. This table carried one
+until 2026-10-25, which made a CI-gated generated file a function of every anchored file's
+LAYOUT: PR #76 inserted 18 lines into dock/manager.py and turned the gate red over
+`430 -> 448`, a diff that said nothing about anchors. One in three contributor PRs since
+the catalog landed hit it. Ordering by line is the feature and needs the number
+INTERNALLY; printing it was a separate decision nobody made on purpose, and it contradicts
+the notation itself — `notation-anchors.md` § `BN` cites a region as `path#TOKEN`, with no
+line in the form, precisely so prose survives the code moving. The address IS the token:
+grep it. This file now changes only when an anchor is added, removed, renamed, re-cited or
+moves between files, which is exactly when a reader needs to know.
 
 ⚠ THE TOKENS IN THE OUTPUT ARE DATA, NOT REFERENCES. doc_anchor.cites() counts a bare
 token anywhere under docs/ as a live citation, so a catalog listing every BN would make
@@ -95,9 +106,11 @@ def build() -> tuple[str, dict[str, int]]:
     out.append("")
     out.append(
         "A `BN` anchors a **place**, not a claim — a region of a file that prose can address "
-        "without the file being split. This is the card catalog of them: where each one is, "
-        "the name on the line beneath it, and which documents cite it. The rule for when a "
-        "divider earns one is in "
+        "without the file being split. This is the card catalog of them: the name on the line "
+        "beneath each one, and which documents cite it. There are deliberately no line "
+        "numbers here — the citation form is `path#TOKEN` so that prose survives the code "
+        "moving, and a column of line numbers would make this file drift every time any "
+        "anchored file gained a line. The rule for when a divider earns one is in "
         "[design/shipped/notation-anchors.md](../design/shipped/notation-anchors.md) § `BN`."
     )
     out.append("")
@@ -117,12 +130,12 @@ def build() -> tuple[str, dict[str, int]]:
         rows = sorted(by_file[rel])
         out.append(f"## `{rel}` · {len(rows)}")
         out.append("")
-        out.append("| line | token | section | cited by |")
-        out.append("|---:|---|---|---|")
-        for line_no, tok, name, citing in rows:
+        out.append("| token | section | cited by |")
+        out.append("|---|---|---|")
+        for _line_no, tok, name, citing in rows:
             cell = ", ".join(f"`{c}`" for c in citing) if citing else "—"
             safe = name.replace("|", "\\|")
-            out.append(f"| {line_no} | {tok} | {safe} | {cell} |")
+            out.append(f"| {tok} | {safe} | {cell} |")
         out.append("")
 
     stats = {"anchors": total, "files": len(by_file), "cited": cited, "nameless": nameless}
