@@ -23,6 +23,9 @@ Coverage targets
 [DK-21] gating: drying read from the adapter-declared dry CONTROL, for a brand with no
         dock_status entity and no dock_events.triggers (#76). Pins the precondition too:
         with no triggers declared, no dock_status can mean drying.
+[DK-22] gating: wash/empty read from the adapter-declared ROLE entity, the other half of
+        the same hole. Cross-event assertions pin that the event KEY selects, so a helper
+        matching any declared state in any watch would go red.
 [DK-9]  gating: job_active.
 [DK-10] gating: not_docked.
 [DK-11] gating: already_washing / already_drying / not_drying / already_emptying.
@@ -370,6 +373,72 @@ def test_gate_dry_control_state_when_no_dock_status_exists(dock, manager, hass, 
         hass.states.async_set(_SWITCH, _other)
         status = dock.get_dock_action_status(vacuum_entity_id=_VAC, map_id=_MAP)
         assert status["actions"]["stop_dry_mop"]["reason"] == "not_drying", _other
+
+
+def test_gate_wash_and_empty_from_declared_role_entity(dock, manager, hass, monkeypatch):
+    """[DK-22] The other half of #76's hole: wash/empty on a brand with no dock_status.
+
+    `[DK-21]` covers the ACTION-scoped form (drying, which appears in no status string at
+    all). This is the ROLE-scoped form, and on the brand both exist for they are the same
+    defect: with no `dock_events.triggers`, `_wash_states` and `_empty_states` are empty,
+    so `wash_mop` and `empty_dust` reported `ready` while the dock was already doing the
+    thing. Less visible than the Stop Dry half because the consequence is benign — the
+    control is a switch that is already on, so the press is a no-op and records nothing —
+    but the card offered an action that does nothing.
+
+    Fixture from the real producer (`adapters/roborock/adapter.py`): no
+    `dock_events.triggers`, `entities.task_status` declared, and one role-scoped watch
+    carrying BOTH event keys, which is how that adapter emits them.
+
+    THE CROSS-EVENT ASSERTIONS ARE THE POINT. A helper that returned True for any
+    declared state in any watch — rather than for the one event key asked about — would
+    satisfy a test that only ever set one status at a time. So each status asserts the
+    OTHER action is still ready.
+
+    ABLATION: revert either arm to `dock_status in _wash_states` / `_empty_states` and
+    the matching assertion goes red; drop the role watch from the fixture and both do.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    _TASK = "sensor.alfred_task_status"
+    register_adapter_config(_VAC, {
+        "adapter_id": "roborock_test", "source": "test",
+        "vocabulary": {"hard_service_states": []},
+        "entities": {"task_status": _TASK},
+        "dock_events": {
+            "action_controls": {
+                "wash_mop": {"entity_suffixes": ["dock_mop_washing"],
+                             "domain": "switch", "service": "turn_on"},
+                "empty_dust": {"entity_suffixes": ["dock_dust_emptying"],
+                               "domain": "switch", "service": "turn_on"},
+            },
+            "enabled": True,
+            "extra_watches": [
+                {"role": "task_status", "triggers": {
+                    "last_mop_wash": ["washing_the_mop"],
+                    "last_dust_empty": ["emptying_the_bin"],
+                }},
+            ],
+        },
+    })
+    _ready(dock, manager, hass, monkeypatch, dock_status="charging")
+    monkeypatch.setattr(dock, "_get_dock_action_entity", lambda **kw: {
+        "wash_mop": "switch.alfred_dock_mop_washing",
+        "empty_dust": "switch.alfred_dock_dust_emptying",
+    }.get(kw["action"], "switch.alfred_dock_other"))
+
+    def _reasons(task_status):
+        hass.states.async_set(_TASK, task_status)
+        _st = dock.get_dock_action_status(vacuum_entity_id=_VAC, map_id=_MAP)
+        return (_st["actions"]["wash_mop"]["reason"],
+                _st["actions"]["empty_dust"]["reason"])
+
+    # Nothing happening, and a status the adapter declared for NEITHER event.
+    for _idle in ("charging", "cleaning", "", "unavailable"):
+        assert _reasons(_idle) == ("ready", "ready"), _idle
+
+    # Each declared status gates its OWN action and leaves the sibling alone.
+    assert _reasons("washing_the_mop") == ("already_washing", "ready")
+    assert _reasons("emptying_the_bin") == ("ready", "already_emptying")
 
 
 def test_gate_dock_busy(dock, manager, hass, monkeypatch):

@@ -43,6 +43,13 @@ Architecture reference: [41 — Maintenance and the Dock](../../dev/41-maintenan
   so it never established the condition it claimed to test. The test now pins the
   precondition first (with no triggers declared, no `dock_status` can mean drying)
   and asserts that an undeclared switch state is not drying either.
+- **Wash and empty on that same brand** ([DK-22]) — the ROLE-scoped half of the same
+  hole: with no `dock_events.triggers`, `already_washing` / `already_emptying` were
+  equally inert, so the card offered actions the dock was already performing. The
+  gate reads the entity for the declared role (`task_status`). Each declared status
+  asserts the SIBLING action is still `ready`, which is what pins that the event
+  KEY selects — a helper matching any declared state in any watch passes a test that
+  only ever sets one status at a time, and goes red here.
 - **Dispatch** — `_async_run_dock_action` + the four `async_*` wrappers: an
   allowed action presses the button (`performed=True`), a gated action returns
   `performed=False` with the gate reason.

@@ -229,11 +229,12 @@ These are **framework keys, not brand words** — core owning them is correct
 ([[feedback_eufy_is_not_the_default]]: core owns KEYS, never a brand's WORDS), so
 "derive them from the adapter" would be the wrong fix and is worth stating because the
 original finding (`A6-DIAG-8`) proposed exactly that. The state STRINGS these keys look up
-*are* correctly adapter-derived — from `dock_events.triggers` via `_vocab_set` for the
-dock_status string, and, for a brand that has no such entity, from an **action-scoped
-`dock_events.extra_watches`** entry via `_declared_action_states` (`last_dry_start` today, which
-is how Roborock's dry switch is read). Both with a documented no-brand-fallback. The second
-source is not a third hand-written copy of the keys: it looks one up by the same name.
+*are* correctly adapter-derived, from two declaration sites and under these same three key
+names: `dock_events.triggers` via `_vocab_set` for the dock_status string, and — for a brand
+that has no such entity — `dock_events.extra_watches` via `_declared_event_running`, in either
+its `role` form (Roborock's wash and empty, off `task_status`) or its `action` form (drying, off
+the control's own switch). Both with a documented no-brand-fallback. The second site is NOT a
+fourth hand-written copy of the keys: it looks one up, by the same name, from the same set.
 
 **What is actually wrong is the copying**, and a module-level constant is the real fix —
 the `constant` rung, the top of the ladder. This records the set until then.

@@ -244,19 +244,37 @@ the tempting default was right there. Silence produces nothing rather than somet
 may have no such entity.** Roborock has none — and declares no `dock_events.triggers` either, so
 `_dry_states`, `_wash_states` and `_empty_states` are all empty on every one of them and every
 gate reading them is inert. That is not a gap in the declaration; it is the declaration being
-honest about a dock whose state is not one string. What such a brand declares instead is an
-**action-scoped `extra_watches`** entry — the same `{event_type: [states]}` shape scoped to one
-source, e.g. `{"action": "dry_mop", "triggers": {"last_dry_start": ["on"]}}`.
+honest about a dock whose state is not one string. What such a brand declares instead is
+`dock_events.extra_watches`, in either of two forms — the same `{event_type: [states]}` shape,
+scoped to one source:
 
-The cost of missing that: `stop_dry_mop` tested `dock_status not in _dry_states`, which on a
-brand with no dock_status is **true forever**, so Stop Dry reported `not_drying` and was
-unavailable for the whole life of the feature on every Roborock dock that can dry. An outside
-contributor found it ([#76](https://github.com/kingchddg901/Vacuum_Agent/pull/76)). The first fix
-compared the control's state to a hardcoded `"on"` in core, which worked and made this section
-false; the gate now reads the adapter's own action-scoped declaration, the same one
-`listeners/dock_events.py` already watches to count the event. **Two readers, one declaration** —
-they cannot disagree about what drying looks like, and a brand that declares nothing still gets
-no detection.
+| form | reads | Roborock's |
+|---|---|---|
+| `{"role": …, "triggers": …}` | the declared entity for that role | `{"role": "task_status", "triggers": {"last_mop_wash": ["washing_the_mop"], "last_dust_empty": ["emptying_the_bin"]}}` |
+| `{"action": …, "triggers": …}` | the resolved dock-action control | `{"action": "dry_mop", "triggers": {"last_dry_start": ["on"]}}` |
+
+Drying takes the second form because it appears in **no status string at all** — the vacuum's
+status returns to `charging` at the moment the dry switch turns on, so the control's own state is
+the only evidence.
+
+The cost of missing all this was all three gates, in both directions:
+
+- `stop_dry_mop` tested `dock_status not in _dry_states`, which on a brand with no dock_status is
+  **true forever**, so Stop Dry reported `not_drying` and was unavailable for the whole life of
+  the feature on every Roborock dock that can dry. An outside contributor found that half
+  ([#76](https://github.com/kingchddg901/Vacuum_Agent/pull/76)).
+- `wash_mop` and `empty_dust` tested the inverse, so they reported `ready` while the dock was
+  already washing or emptying. Benign — the control is a switch that is already on, so the press
+  is a no-op and records nothing, since `listeners/dock_events.py` counts on state *change* — but
+  the card offered an action that does nothing.
+
+`#76`'s fix compared the control's state to a hardcoded `"on"` in core, which worked and made
+this section false. The gate now asks **one question for all three events** —
+`_declared_event_running(<event key>)` — over both declaration forms, which are the same ones
+`listeners/dock_events.py` watches to count the events. **Two readers, one declaration:** they
+cannot disagree about what washing, drying or emptying looks like, no state string enters core,
+and a brand that declares nothing still gets no detection. Pinned by `[DK-21]` (action form) and
+`[DK-22]` (role form, with cross-event assertions so the event key is proven to select).
 
 The **event-type keys** are the opposite case and are owned by core, which is also correct — they
 are framework vocabulary, not a brand's words. The recorded defect there is not the ownership but
