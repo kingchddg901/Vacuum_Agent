@@ -314,6 +314,24 @@ class DockManager:
             for s in _adapter_vocab.get("hard_service_states", [])
         )
 
+        def _entity_state_is_on(entity_id: str | None) -> bool:
+            if entity_id is None:
+                return False
+            state = self._hass.states.get(entity_id)
+            if state is None:
+                return False
+            return str(state.state).strip().lower() == "on"
+
+        dry_action_entity = self._get_dock_action_entity(
+            vacuum_entity_id=vacuum_entity_id, action="dry_mop"
+        )
+        stop_dry_action_entity = self._get_dock_action_entity(
+            vacuum_entity_id=vacuum_entity_id, action="stop_dry_mop"
+        )
+        dry_switch_on = _entity_state_is_on(dry_action_entity) or _entity_state_is_on(
+            stop_dry_action_entity
+        )
+
         def build_action_status(
             *, action: str, supported: bool, action_entity: str | None
         ) -> dict[str, Any]:
@@ -345,11 +363,11 @@ class DockManager:
                 reason = "already_washing"
                 message = "The dock is already washing the mop."
                 allowed = False
-            elif action == "dry_mop" and dock_status in _dry_states:
+            elif action == "dry_mop" and (dock_status in _dry_states or dry_switch_on):
                 reason = "already_drying"
                 message = "The dock is already drying the mop."
                 allowed = False
-            elif action == "stop_dry_mop" and dock_status not in _dry_states:
+            elif action == "stop_dry_mop" and not (dock_status in _dry_states or dry_switch_on):
                 reason = "not_drying"
                 message = "Stop dry is only useful while the dock is actively drying."
                 allowed = False
