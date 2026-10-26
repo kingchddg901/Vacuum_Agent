@@ -20,6 +20,9 @@ Coverage targets
 [DK-6]  get_dock_action_status: ready (docked, idle, supported, entity present).
 [DK-7]  gating: unsupported_feature.
 [DK-8]  gating: missing_action_entity.
+[DK-21] gating: drying read from the adapter-declared dry CONTROL, for a brand with no
+        dock_status entity and no dock_events.triggers (#76). Pins the precondition too:
+        with no triggers declared, no dock_status can mean drying.
 [DK-9]  gating: job_active.
 [DK-10] gating: not_docked.
 [DK-11] gating: already_washing / already_drying / not_drying / already_emptying.
@@ -299,31 +302,74 @@ def test_gate_action_specific(dock, manager, hass, monkeypatch):
     assert status["actions"]["empty_dust"]["reason"] == "already_emptying"
 
 
-def test_gate_roborock_dry_switch_state(dock, manager, hass, monkeypatch):
-    """Drying availability must follow the dock switch state on Roborock devices."""
+def test_gate_dry_control_state_when_no_dock_status_exists(dock, manager, hass, monkeypatch):
+    """[DK-21] #76 — drying read from the control the ADAPTER declares, not from a status string.
+
+    THE FIXTURE IS THE POINT, so it is the producer's real shape, not an Eufy-shaped one.
+    `adapters/roborock/adapter.py` declares, for a dryable dock: no `entities.dock_status`,
+    no `dock_events.triggers`, ONE switch for both dry actions with inverse services, and
+    the drying state as an action-scoped extra watch whose word is `"on"`. The submitted
+    version of this test declared `triggers: {"last_dry_start": ["drying"]}` instead — a
+    shape no Roborock emits — and that value was INERT: changing it, emptying it, or
+    deleting the whole block left the test green (measured five ways), because
+    `dock_status` was `"charging"` and matched neither set. It passed without ever
+    establishing the condition every real Roborock is in.
+
+    ABLATION, both halves: revert either gate to `dock_status in _dry_states` and the
+    corresponding assertion goes red; drop the `extra_watches` declaration and the switch
+    stops being read at all, which the first block below pins.
+    """
     from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    _SWITCH = "switch.alfred_dock_mop_drying"
     register_adapter_config(_VAC, {
         "adapter_id": "roborock_test", "source": "test",
-        "dock_events": {"triggers": {"last_dry_start": ["drying"]}},
+        "vocabulary": {"hard_service_states": []},
+        "dock_events": {
+            "action_controls": {
+                "dry_mop": {"entity_suffixes": ["dock_mop_drying"],
+                            "domain": "switch", "service": "turn_on"},
+                "stop_dry_mop": {"entity_suffixes": ["dock_mop_drying"],
+                                 "domain": "switch", "service": "turn_off"},
+            },
+            "enabled": True,
+            "extra_watches": [
+                {"action": "dry_mop", "triggers": {"last_dry_start": ["on"]}},
+            ],
+        },
     })
-    _ready(
-        dock,
-        manager,
-        hass,
-        monkeypatch,
-        dock_status="charging",
-        entity="switch.alfred_dock_mop_drying",
-    )
-    hass.states.async_set("switch.alfred_dock_mop_drying", "on")
+    _ready(dock, manager, hass, monkeypatch, dock_status="charging", entity=_SWITCH)
+    # Per ACTION, not one entity for all four: the two dry actions share the one switch
+    # by construction on this brand, and wash/empty must NOT be that switch or a test
+    # could pass by reading the wrong control.
+    monkeypatch.setattr(dock, "_get_dock_action_entity", lambda **kw: {
+        "dry_mop": _SWITCH, "stop_dry_mop": _SWITCH,
+        "wash_mop": "switch.alfred_dock_mop_washing",
+        "empty_dust": "switch.alfred_dock_dust_emptying",
+    }.get(kw["action"]))
 
+    # THE PRECONDITION, stated rather than assumed: with no triggers declared, the
+    # status-string sets are empty, so no dock_status can ever mean drying.
+    hass.states.async_set(_SWITCH, "off")
+    for _status in ("charging", "drying", "washing_the_mop", ""):
+        manager.get_lifecycle_state = lambda _s=_status, **kw: {
+            "dock_status": _s, "lifecycle_state": "ready", "message": "ok"}
+        _st = dock.get_dock_action_status(vacuum_entity_id=_VAC, map_id=_MAP)
+        assert _st["actions"]["stop_dry_mop"]["reason"] == "not_drying", _status
+        assert _st["actions"]["dry_mop"]["reason"] == "ready", _status
+
+    # The declared control going on is the only thing that means drying here.
+    hass.states.async_set(_SWITCH, "on")
     status = dock.get_dock_action_status(vacuum_entity_id=_VAC, map_id=_MAP)
     assert status["actions"]["dry_mop"]["reason"] == "already_drying"
     assert status["actions"]["stop_dry_mop"]["allowed"] is True
     assert status["actions"]["stop_dry_mop"]["reason"] == "ready"
 
-    hass.states.async_set("switch.alfred_dock_mop_drying", "off")
-    status = dock.get_dock_action_status(vacuum_entity_id=_VAC, map_id=_MAP)
-    assert status["actions"]["stop_dry_mop"]["reason"] == "not_drying"
+    # And a state the adapter did NOT declare is not drying — this is what keeps the
+    # read a declaration lookup rather than a hardcoded truthiness test.
+    for _other in ("off", "unavailable", "unknown", "drying"):
+        hass.states.async_set(_SWITCH, _other)
+        status = dock.get_dock_action_status(vacuum_entity_id=_VAC, map_id=_MAP)
+        assert status["actions"]["stop_dry_mop"]["reason"] == "not_drying", _other
 
 
 def test_gate_dock_busy(dock, manager, hass, monkeypatch):

@@ -305,7 +305,8 @@ class DockManager:
         # correct (feedback_eufy_is_not_the_default) and deriving them from the
         # adapter would be the wrong fix -- the residue of A6-DIAG-8 is the copying,
         # not the ownership. A module constant is the real fix; this records the set
-        # until then. The STATE STRINGS below are correctly adapter-derived.
+        # until then. The STATE STRINGS below are correctly adapter-derived — including
+        # the dry control's own, which comes from the action-scoped declaration below.
         _wash_states: frozenset[str] = _vocab_set("last_mop_wash")
         _dry_states: frozenset[str] = _vocab_set("last_dry_start")
         _empty_states: frozenset[str] = _vocab_set("last_dust_empty")
@@ -314,23 +315,54 @@ class DockManager:
             for s in _adapter_vocab.get("hard_service_states", [])
         )
 
-        def _entity_state_is_on(entity_id: str | None) -> bool:
-            if entity_id is None:
-                return False
-            state = self._hass.states.get(entity_id)
-            if state is None:
-                return False
-            return str(state.state).strip().lower() == "on"
+        def _declared_action_states(action: str, event_key: str) -> frozenset[str]:
+            """States an adapter declares for one ACTION-SCOPED dock event.
 
-        dry_action_entity = self._get_dock_action_entity(
-            vacuum_entity_id=vacuum_entity_id, action="dry_mop"
+            `triggers` above answers "what does the dock_status STRING say", and a brand
+            with no such entity cannot answer it at all — `_vocab_set` returns an empty
+            set and every gate reading it is inert. Roborock is that brand: it declares
+            no `entities.dock_status` and no `dock_events.triggers`, so `_dry_states`,
+            `_wash_states` and `_empty_states` are all empty on every one of them. That
+            is why `stop_dry_mop` answered `not_drying` for the whole life of the
+            feature, on every Roborock dock that can dry — the condition it tested could
+            never be true. #76 found it.
+
+            What such a brand declares instead is an action-scoped `extra_watches`
+            entry, the same `{event_type: [states]}` shape scoped to one source:
+            Roborock's is `{"action": "dry_mop", "triggers": {"last_dry_start": ["on"]}}`.
+            `listeners/dock_events.py` already watches exactly that to COUNT the event;
+            this reads the same declaration to GATE on it, so the two cannot disagree
+            about what drying looks like.
+
+            Core still owns no state string: #76 landed `== "on"` written here, which
+            made this block's own claim above false and put a second copy of a declared
+            value in core. An adapter that declares nothing gets an empty set and no
+            detection, which is the no-fallback rule the trigger block states.
+            """
+            return frozenset(
+                str(s).strip().lower()
+                for _watch in (_adapter_cfg.get("dock_events", {}) or {}).get("extra_watches") or []
+                if str(_watch.get("action") or "") == action
+                for s in (_watch.get("triggers") or {}).get(event_key) or []
+            )
+
+        _dry_action_states: frozenset[str] = _declared_action_states(
+            "dry_mop", "last_dry_start"
         )
-        stop_dry_action_entity = self._get_dock_action_entity(
-            vacuum_entity_id=vacuum_entity_id, action="stop_dry_mop"
-        )
-        dry_switch_on = _entity_state_is_on(dry_action_entity) or _entity_state_is_on(
-            stop_dry_action_entity
-        )
+
+        def _dry_control_running() -> bool:
+            """True iff the dry control reads one of its declared drying states.
+
+            Reads `dry_entity`, resolved below — a closure, called only from the
+            `actions` map further down, so the name is bound by then. Deliberately not a
+            fourth resolver call: `stop_dry_mop` shares `dry_mop`'s entity BY
+            CONSTRUCTION on the brand this exists for (one switch, inverse services —
+            `adapters/roborock/adapter.py`), so asking it twice asked one entity twice.
+            """
+            if not _dry_action_states or dry_entity is None:
+                return False
+            _st = self._hass.states.get(dry_entity)
+            return _st is not None and str(_st.state).strip().lower() in _dry_action_states
 
         def build_action_status(
             *, action: str, supported: bool, action_entity: str | None
@@ -363,11 +395,15 @@ class DockManager:
                 reason = "already_washing"
                 message = "The dock is already washing the mop."
                 allowed = False
-            elif action == "dry_mop" and (dock_status in _dry_states or dry_switch_on):
+            elif action == "dry_mop" and (
+                dock_status in _dry_states or _dry_control_running()
+            ):
                 reason = "already_drying"
                 message = "The dock is already drying the mop."
                 allowed = False
-            elif action == "stop_dry_mop" and not (dock_status in _dry_states or dry_switch_on):
+            elif action == "stop_dry_mop" and not (
+                dock_status in _dry_states or _dry_control_running()
+            ):
                 reason = "not_drying"
                 message = "Stop dry is only useful while the dock is actively drying."
                 allowed = False

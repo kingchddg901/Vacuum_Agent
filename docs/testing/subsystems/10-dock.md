@@ -33,6 +33,16 @@ Architecture reference: [41 — Maintenance and the Dock](../../dev/41-maintenan
   `not_docked`, the action-specific `already_washing` / `already_drying` /
   `not_drying` / `already_emptying`, and `dock_busy` (adapter
   `hard_service_states`).
+- **Drying on a brand with no `dock_status` entity** ([DK-21]) — the gate reads the
+  dry CONTROL's state against the states the adapter declares for it in an
+  action-scoped `dock_events.extra_watches` entry. The fixture is built from the
+  real producer's shape (no `dock_events.triggers`, one switch for both dry actions
+  with inverse services, `["on"]` as the declared drying state) **because the
+  submitted version of this test declared an Eufy-shaped `triggers` block instead
+  and that value was inert** — changing, emptying or deleting it left the test green,
+  so it never established the condition it claimed to test. The test now pins the
+  precondition first (with no triggers declared, no `dock_status` can mean drying)
+  and asserts that an undeclared switch state is not drying either.
 - **Dispatch** — `_async_run_dock_action` + the four `async_*` wrappers: an
   allowed action presses the button (`performed=True`), a gated action returns
   `performed=False` with the gate reason.

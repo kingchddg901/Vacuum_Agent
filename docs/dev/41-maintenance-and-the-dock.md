@@ -240,6 +240,24 @@ than inheriting the reference brand's vocabulary.
 That is [23 §2](23-eufy-adapter.md)'s residual-default problem handled correctly at a site where
 the tempting default was right there. Silence produces nothing rather than something borrowed.
 
+**But the question those strings answer is "what does the dock_status STRING say", and a brand
+may have no such entity.** Roborock has none — and declares no `dock_events.triggers` either, so
+`_dry_states`, `_wash_states` and `_empty_states` are all empty on every one of them and every
+gate reading them is inert. That is not a gap in the declaration; it is the declaration being
+honest about a dock whose state is not one string. What such a brand declares instead is an
+**action-scoped `extra_watches`** entry — the same `{event_type: [states]}` shape scoped to one
+source, e.g. `{"action": "dry_mop", "triggers": {"last_dry_start": ["on"]}}`.
+
+The cost of missing that: `stop_dry_mop` tested `dock_status not in _dry_states`, which on a
+brand with no dock_status is **true forever**, so Stop Dry reported `not_drying` and was
+unavailable for the whole life of the feature on every Roborock dock that can dry. An outside
+contributor found it ([#76](https://github.com/kingchddg901/Vacuum_Agent/pull/76)). The first fix
+compared the control's state to a hardcoded `"on"` in core, which worked and made this section
+false; the gate now reads the adapter's own action-scoped declaration, the same one
+`listeners/dock_events.py` already watches to count the event. **Two readers, one declaration** —
+they cannot disagree about what drying looks like, and a brand that declares nothing still gets
+no detection.
+
 The **event-type keys** are the opposite case and are owned by core, which is also correct — they
 are framework vocabulary, not a brand's words. The recorded defect there is not the ownership but
 the **copying**: the three keys are hand-written at three sites in one file, and the anchor on that

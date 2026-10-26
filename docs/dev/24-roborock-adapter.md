@@ -300,6 +300,13 @@ the Base Station tab with activity counters that can only read zero.
 > `listeners/lifecycle.py`, which gates on `dock_events.enabled` AND requires the firing
 > entity to BE `entities.dock_status`. It has never fired on this brand and does not start
 > now. Pinned by `[LS-20]`–`[LS-23]`.
+>
+> **A SECOND READER since [#76](https://github.com/kingchddg901/Vacuum_Agent/pull/76):** the
+> action-scoped dry watch above is now read by `dock/manager.py::get_dock_action_status` as well,
+> to decide whether Stop Dry is available. Declaring it here was already necessary to *count* the
+> event; it turned out to be the only thing on this brand that can say drying is happening at
+> all, because there is no `dock_status` string to ask. Before that, Stop Dry was permanently
+> unavailable on every Roborock dock that can dry. Pinned by `[DK-21]`.
 
 ---
 
