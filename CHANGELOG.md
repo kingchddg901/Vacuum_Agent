@@ -8,6 +8,28 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.5.1] - 2026-10-26
+
+**Roborock: the dock controls now know what the dock is doing.** All four of them were asking a question this brand cannot answer. Stop Dry has been greyed out on every Roborock dock that can dry since the dock controls shipped in 2.2.4 — the card said "Stop dry is only useful while the dock is actively drying" at the exact moment it *was* drying. Wash Mop, Dry Mop and Empty Dust had the same fault pointing the other way: all three offered themselves as ready while the dock was already washing, drying or emptying. The drying half was found and fixed by @louisa-uno ([#76](https://github.com/kingchddg901/Vacuum_Agent/pull/76)); the other three turned out to be the same hole.
+
+> **Backend release.** Restart Home Assistant after updating; a hard refresh of the dashboard alone is not enough this time.
+>
+> **Roborock only.** Nothing changes for Eufy or Dreame. Eufy's dock reports wash, dry and empty in a single status string, which is the path that already worked. Dreame reports wash and dry there but not empty — its dust-empty state lives on a separate sensor the adapter deliberately does not declare — so Dreame's Empty Dust has always had the same shape as Roborock's, and still does. That is a known, accepted gap, unchanged by this release.
+
+### Fixed
+
+- **Roborock: Stop Dry was never available.** The availability check asked the dock's *status string* whether it was drying. Roborock has no such entity — its dock functions are three switches on a second device — so the question had no answer, the check read "not drying" permanently, and Stop Dry was unavailable for the whole life of the controls (2.2.4 through 2.5.0). It now reads the drying switch the adapter already declares for counting dry cycles, so the button and the activity counter cannot disagree. Found and fixed by @louisa-uno ([#76](https://github.com/kingchddg901/Vacuum_Agent/pull/76)).
+
+- **Roborock: Wash Mop, Dry Mop and Empty Dust claimed to be ready mid-cycle.** The same missing answer, inverted: each read "not washing", "not drying" and "not emptying" whichever way round the dock actually was, so the card offered you an action the dock was already performing. Wash and Empty now read the vacuum's own status sensor, which is where this brand reports washing and emptying; Dry Mop reads the drying control itself — the same entity Stop Dry reads, so that pair finally agrees with itself. Pressing one of these did no harm: it re-sent "on" to a switch that was already on, and dock activity is counted on a state *change*, so nothing was double-counted. But the card was telling you the wrong thing about your dock.
+
+- **Roborock: the dock services answer honestly now too.** That same gate governs `eufy_vacuum.wash_mop`, `dry_mop`, `stop_dry_mop` and `empty_dust`, not only the card's buttons. `stop_dry_mop` used to fail every single call with "Stop dry is only useful while the dock is actively drying"; it now stops the dryer. The other three now refuse with "The dock is already …" when the dock is mid-cycle and no clean of yours is running, where before they re-sent a switch that was already on and reported success. **If you script these**, a step that fires one unconditionally can now raise where it used to pass silently — the hardware outcome is the same either way, because that press never did anything.
+
+### Internal
+
+- One question, three events. The three "is the dock already doing this?" gates and Stop Dry's inverse now ask a single helper that reads whichever source the adapter declared — the vacuum's status sensor for wash and empty, the control's own switch for drying — instead of a state string written into core. `listeners/dock_events.py` already watched exactly those declarations to *count* the events, so the gate and the counter now read one declaration and cannot drift apart. A brand that declares nothing still gets no detection.
+
+- The generated break-notation catalog no longer prints a line number next to each anchor, which is the one thing the notation exists to avoid. It still sorts by position in the file; the citation form, which belongs to prose rather than to the catalog, is `path#TOKEN`.
+
 ## [2.5.0] - 2026-10-24
 
 **Queued room groups now run as the sequence the card has been promising.** Add a second room group to a run — rooms A and B today, A and C tomorrow — and each group keeps its own per-room settings and runs in order: no profile per room, no waiting for the first group to finish. Requested in [#72](https://github.com/kingchddg901/Vacuum_Agent/issues/72) for "vacuum twice, then mop" across a set of rooms that changes day to day.

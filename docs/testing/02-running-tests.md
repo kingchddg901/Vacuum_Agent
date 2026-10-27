@@ -176,9 +176,32 @@ Lifecycle:
    it once (the only slow run).
 2. **Every run after** — reuses the image, so a test run is just `pytest` with no
    install step.
-3. **After `requirements_test.txt` changes** — rebuild with
+3. **When the RESOLVED versions drift** — rebuild with
    `scripts\build-test-image.bat` (or delete the image and let `test.bat`
-   rebuild it).
+   rebuild it). Not "when `requirements_test.txt` changes": every requirement in
+   it is a `>=` floor and CI pip-installs fresh on every job, so the file can sit
+   untouched for weeks while a baked image and CI diverge by a whole Home
+   Assistant version. That is how a local 4921-PASSED once stood against a RED CI
+   run. Check what the image actually holds before trusting a local green:
+
+   ```powershell
+   docker run --rm eufy-vacuum-test python -c "from importlib.metadata import version; print(version('homeassistant'), version('pytest-homeassistant-custom-component'))"
+   ```
+
+   The script passes `--pull --no-cache`, and that is load-bearing: on an
+   unchanged requirements file Docker otherwise serves the cached pip layer and
+   reports a successful rebuild that changed nothing — measured 2026-10-26, where
+   a plain rebuild left the image on homeassistant 2026.10.2 /
+   `pytest-homeassistant-custom-component` 0.13.373 while a fresh install resolved
+   2026.10.4 / 0.13.375.
+
+   **Grade the image against a fresh resolve, not against PyPI's newest.**
+   `pytest-homeassistant-custom-component` pins `homeassistant`, `pytest`,
+   `pytest-asyncio` and `numpy` *exactly*, so "pytest 9.1.1 is out" is not drift —
+   0.13.375 pins 9.0.3, and that is what CI installs too. `Pillow` is not pinned
+   there and still resolves to 12.3.0 rather than 13.0.0 on `python:3.14-slim`
+   (wheel availability). Comparing the image to PyPI latest therefore reports
+   drift that does not exist, and hides the two packages that do move.
 
 The image is ~1.4 GB and lives only on your machine — it is not committed; only
 the Dockerfile + scripts are. Anyone who clones the repo gets the same baked

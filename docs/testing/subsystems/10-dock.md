@@ -37,9 +37,9 @@ Architecture reference: [41 — Maintenance and the Dock](../../dev/41-maintenan
   dry CONTROL's state against the states the adapter declares for it in an
   action-scoped `dock_events.extra_watches` entry. The fixture is built from the
   real producer's shape (no `dock_events.triggers`, one switch for both dry actions
-  with inverse services, `["on"]` as the declared drying state) **because the
-  submitted version of this test declared an Eufy-shaped `triggers` block instead
-  and that value was inert** — changing, emptying or deleting it left the test green,
+  with inverse services, `["on"]` as the declared drying state) **because a
+  `dock_status`-shaped `triggers` block in its place is INERT on this brand** —
+  changing, emptying or deleting such a value left an earlier draft green,
   so it never established the condition it claimed to test. The test now pins the
   precondition first (with no triggers declared, no `dock_status` can mean drying)
   and asserts that an undeclared switch state is not drying either.

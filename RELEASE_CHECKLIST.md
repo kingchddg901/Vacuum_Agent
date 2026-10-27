@@ -64,8 +64,13 @@ workflow; §4 is where you confirm it actually arrived.
 
 ## Gotchas
 
-- A locally-built bundle pushed straight to a branch **bypasses** the hassfest/visual CI gates —
-  they only run on PR to `master`, so don't skip the PR.
+- **The gates are branch-filtered, not PR-only.** `Tests` and `Validate` (hassfest + HACS) both
+  trigger on `push: branches: [master]` as well as on `pull_request` (`tests.yml` / `validate.yml`
+  lines 3-7), so a direct push to `master` — which is how this project releases — runs them. What
+  bypasses them is pushing to a NON-master branch without opening a PR. `card visual regression` is
+  additionally **path**-filtered (`src/**`, `harness/**`, `package.json`, `package-lock.json`), so a
+  backend-only or docs-only release correctly shows it ABSENT from `gh run list` rather than
+  pending — added is not run, and a missing path-filtered check is not a failure.
 - HACS reads `manifest.json` `version` + `hacs.json` (`name`, `homeassistant` minimum). It does
   **not** read `package.json`.
 - Card visual-regression baselines are generated in the pinned Playwright image; if a real UI

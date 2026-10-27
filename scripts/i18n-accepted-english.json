@@ -1,5 +1,5 @@
 {
-  "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated awaiting a Chris ruling; move to accepted or fix, do not let entries rot here. (2026-08-04: the nl samples pair was RULED translate-not-accept -> \"metingen\"; pending is now empty.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule — the localizing locales ar/he/ru/ja/ko/tr/zh DO differ, which is the proof the values are real rather than untranslated.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule. ar/he/ru/ja/ko/tr/zh DO differ, which is the proof these are real values rather than untranslated ones — both were DERIVED from strings the locales already had, never authored.) (2026-08-14: setup.subtab_system accepted for de/pl under the COGNATE rule — 'System' is the ordinary German and Polish word, not an untranslated string; the other 15 locales do differ, which is the proof.)",
+  "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated awaiting a Chris ruling; move to accepted or fix, do not let entries rot here. (2026-08-04: the nl samples pair was RULED translate-not-accept -> \"metingen\"; pending is now empty.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule — the localizing locales ar/he/ru/ja/ko/tr/zh DO differ, which is the proof the values are real rather than untranslated.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule. ar/he/ru/ja/ko/tr/zh DO differ, which is the proof these are real values rather than untranslated ones — both were DERIVED from strings the locales already had, never authored.) (2026-08-14: setup.subtab_system accepted for de/pl under the COGNATE rule — 'System' is the ordinary German and Polish word, not an untranslated string; the other 15 locales do differ, which is the proof.) (2026-10-26: vocab.path_type.standard de/fr/it and vocab.dreame.fan_speed.turbo cs/de/fr/it/ja/nl added as REPLICAS of rulings already in this file, not as new adjudications — vocab.fan_speed.standard carries 'Standard' for exactly de/fr/it and vocab.fan_speed.max carries 'Max' for exactly those six locales, and the two new keys hold the identical English values ('Standard', 'Max') for the identical locale sets. Found because --strict-coverage, which docs/dev/frontend/i18n-system.md calls release-gate mode, was RED on these nine at 2.5.0 while the permissive run that gates a push was green; nothing runs the strict mode in CI.)",
   "rationales": {
     "_note": "Per-entry rationales for full-phrase / sentence entries in `accepted`. The general rule (see _meta) is units/symbols/cognates only; anything longer needs a rationale here explaining why the Latin-locale packs deliberately keep the English form.",
     "metrics.battery_samples_tooltip": "Full explanatory sentence — an in-tooltip clarification of the samples/count ratio. The 10 Latin locales (cs/de/es/fr/id/it/nl/pl/pt/tr) all use the same English wording deliberately: the message is a tightly-worded methodological note that maps directly onto a domain term (\"sampled\") whose meaning does not survive loose paraphrase, and no shipping locale currently attempts it. Retranslate at any point without penalty; the accepted-list entry is provisional, not a design choice.",
@@ -1129,6 +1129,14 @@
       "de",
       "it"
     ],
+    "vocab.dreame.fan_speed.turbo": [
+      "cs",
+      "de",
+      "fr",
+      "it",
+      "ja",
+      "nl"
+    ],
     "vocab.fan_speed.boost": [
       "de",
       "id",
@@ -1176,6 +1184,11 @@
     ],
     "vocab.metrics_tab.water": [
       "nl"
+    ],
+    "vocab.path_type.standard": [
+      "de",
+      "fr",
+      "it"
     ],
     "vocab.theme_facet.accent": [
       "fr",
