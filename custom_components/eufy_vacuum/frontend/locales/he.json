@@ -67,11 +67,16 @@
       "canceled": "בוטלה",
       "cancelled": "בוטלה",
       "failed": "נכשלה",
-      "interrupted": "הופסקה"
+      "interrupted": "הופסקה",
+      "external": "חיצונית",
+      "idle": "בהמתנה",
+      "paused": "מושהית",
+      "started": "התחילה"
     },
     "job_scope": {
       "single_room": "חדר יחיד",
-      "multi_room": "מספר חדרים"
+      "multi_room": "מספר חדרים",
+      "unknown": "לא ידוע"
     },
     "origin": {
       "external": "חיצוני",
@@ -715,7 +720,7 @@
       "duration": "משך",
       "motion": "תנועה",
       "typography": "טיפוגרפיה",
-      "easing": "easing"
+      "easing": "האטה"
     },
     "setting_field": {
       "clean_mode": "מצב ניקוי",
@@ -755,6 +760,14 @@
       "standard": "סטנדרטי",
       "deep": "יסודי",
       "deep_plus": "יסודי+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "משימה פועלת",
+      "dock_drying": "ייבוש בתחנה",
+      "map_mismatch": "אי-התאמת מפה",
+      "mid_job_service": "שירות באמצע משימה",
+      "ready": "מוכן",
+      "vacuum_busy": "שואב עסוק"
     }
   },
   "map": {

@@ -1966,7 +1966,11 @@
       "canceled": "Annulé",
       "failed": "Échoué",
       "interrupted": "Interrompu",
-      "cancelled": "Annulé"
+      "cancelled": "Annulé",
+      "external": "Externe",
+      "idle": "Inactif",
+      "paused": "En pause",
+      "started": "Démarré"
     },
     "used_for_learning": {
       "true": "Utilisé pour l'apprentissage",
@@ -2539,7 +2543,8 @@
     },
     "job_scope": {
       "single_room": "Pièce unique",
-      "multi_room": "Plusieurs pièces"
+      "multi_room": "Plusieurs pièces",
+      "unknown": "Inconnu"
     },
     "device_status": {
       "cleaning": "Nettoyage",
@@ -2654,6 +2659,14 @@
       "standard": "Standard",
       "deep": "Approfondi",
       "deep_plus": "Approfondi+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "Tâche en cours",
+      "dock_drying": "Station en séchage",
+      "map_mismatch": "Carte différente",
+      "mid_job_service": "Entretien en cours",
+      "ready": "Prêt",
+      "vacuum_busy": "Aspirateur occupé"
     }
   },
   "order_modal": {

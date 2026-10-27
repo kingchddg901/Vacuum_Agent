@@ -67,11 +67,16 @@
       "canceled": "İptal edildi",
       "cancelled": "İptal edildi",
       "failed": "Başarısız oldu",
-      "interrupted": "Kesintiye uğradı"
+      "interrupted": "Kesintiye uğradı",
+      "external": "Harici",
+      "idle": "Boşta",
+      "paused": "Duraklatıldı",
+      "started": "Başlatıldı"
     },
     "job_scope": {
       "single_room": "Tek Oda",
-      "multi_room": "Çok Odalı"
+      "multi_room": "Çok Odalı",
+      "unknown": "Bilinmiyor"
     },
     "origin": {
       "external": "Harici",
@@ -755,6 +760,14 @@
       "standard": "Standart",
       "deep": "Derin",
       "deep_plus": "Derin+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "İş Çalışıyor",
+      "dock_drying": "İstasyon Kurutuyor",
+      "map_mismatch": "Harita Uyuşmazlığı",
+      "mid_job_service": "İş Ortası Servisi",
+      "ready": "Hazır",
+      "vacuum_busy": "Robot Meşgul"
     }
   },
   "map": {

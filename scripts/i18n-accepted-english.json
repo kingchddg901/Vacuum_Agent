@@ -1,5 +1,5 @@
 {
-  "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated awaiting a Chris ruling; move to accepted or fix, do not let entries rot here. (2026-08-04: the nl samples pair was RULED translate-not-accept -> \"metingen\"; pending is now empty.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule — the localizing locales ar/he/ru/ja/ko/tr/zh DO differ, which is the proof the values are real rather than untranslated.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule. ar/he/ru/ja/ko/tr/zh DO differ, which is the proof these are real values rather than untranslated ones — both were DERIVED from strings the locales already had, never authored.) (2026-08-14: setup.subtab_system accepted for de/pl under the COGNATE rule — 'System' is the ordinary German and Polish word, not an untranslated string; the other 15 locales do differ, which is the proof.) (2026-10-26: vocab.path_type.standard de/fr/it and vocab.dreame.fan_speed.turbo cs/de/fr/it/ja/nl added as REPLICAS of rulings already in this file, not as new adjudications — vocab.fan_speed.standard carries 'Standard' for exactly de/fr/it and vocab.fan_speed.max carries 'Max' for exactly those six locales, and the two new keys hold the identical English values ('Standard', 'Max') for the identical locale sets. Found because --strict-coverage, which docs/dev/frontend/i18n-system.md calls release-gate mode, was RED on these nine at 2.5.0 while the permissive run that gates a push was green; nothing runs the strict mode in CI.)",
+  "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated awaiting a Chris ruling; move to accepted or fix, do not let entries rot here. (2026-08-04: the nl samples pair was RULED translate-not-accept -> \"metingen\"; pending is now empty.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule — the localizing locales ar/he/ru/ja/ko/tr/zh DO differ, which is the proof the values are real rather than untranslated.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule. ar/he/ru/ja/ko/tr/zh DO differ, which is the proof these are real values rather than untranslated ones — both were DERIVED from strings the locales already had, never authored.) (2026-08-14: setup.subtab_system accepted for de/pl under the COGNATE rule — 'System' is the ordinary German and Polish word, not an untranslated string; the other 15 locales do differ, which is the proof.) (2026-10-26: vocab.path_type.standard de/fr/it and vocab.dreame.fan_speed.turbo cs/de/fr/it/ja/nl added as REPLICAS of rulings already in this file, not as new adjudications — vocab.fan_speed.standard carries 'Standard' for exactly de/fr/it and vocab.fan_speed.max carries 'Max' for exactly those six locales, and the two new keys hold the identical English values ('Standard', 'Max') for the identical locale sets. Found because --strict-coverage, which docs/dev/frontend/i18n-system.md calls release-gate mode, was RED on these nine at 2.5.0 while the permissive run that gates a push was green; nothing runs the strict mode in CI.) (2026-10-27: SEVEN pairs REMOVED, reversing part of the 2026-08-04 product-vocabulary line and the whole of the 2026-10-26 replica note above. vocab.fan_speed.max, vocab.dreame.fan_speed.turbo and vocab.battery_bucket_key.max lose 'ja' -> all three now read 最大; theme_preview.shell.kicker loses 'ar' and 'ru' -> هيكل EVCC / Оболочка EVCC; vocab.token_type.easing loses 'he' -> האטה; theme_preview.foundations.chip loses 'zh-Hant' -> 標籤. The reason in every case is the SAME PACK CONTRADICTING ITSELF, not a judgement about the language: ja.json already renders Max as 最大 in room_rules.help_max / maintenance.interval_max_hint / saved_zones.over_cap; ar.json already renders this sense of Shell as هيكل in four theme_preview keys and ru.json as оболочка in four; he.json already renders easing as האטה in evcc_reorder_flip_easing and evcc_learning_anim_ease; zh-Hant.json already uses 標籤 for the chip component in theme_group.chips and six token rows. Found by a rule section D cannot express -- a NON-LATIN-SCRIPT locale whose value still carries a Latin word, placeholders and units stripped -- which returned 15 candidates: these 7, seven font.opendyslexic (a typeface name, correct), and ja common.ok (standard in Japanese UIs; note ru transliterates to ОК). INVARIANT THIS LEAVES BEHIND: all six of these entries now list Latin-script locales only. The rule's floor: it says nothing about the 817 of 898 accepted pairs that sit in Latin-script locales, where a cognate and an untranslated word are byte-identical to it.)",
   "rationales": {
     "_note": "Per-entry rationales for full-phrase / sentence entries in `accepted`. The general rule (see _meta) is units/symbols/cognates only; anything longer needs a rationale here explaining why the Latin-locale packs deliberately keep the English form.",
     "metrics.battery_samples_tooltip": "Full explanatory sentence — an in-tooltip clarification of the samples/count ratio. The 10 Latin locales (cs/de/es/fr/id/it/nl/pl/pt/tr) all use the same English wording deliberately: the message is a tightly-worded methodological note that maps directly onto a domain term (\"sampled\") whose meaning does not survive loose paraphrase, and no shipping locale currently attempts it. Retranslate at any point without penalty; the accepted-list entry is provisional, not a design choice.",
@@ -1030,15 +1030,13 @@
       "it",
       "nl",
       "pl",
-      "pt",
-      "zh-Hant"
+      "pt"
     ],
     "theme_preview.shell.accent": [
       "fr",
       "nl"
     ],
     "theme_preview.shell.kicker": [
-      "ar",
       "cs",
       "de",
       "es",
@@ -1048,7 +1046,6 @@
       "nl",
       "pl",
       "pt",
-      "ru",
       "tr"
     ],
     "theme_preview.status.error": [
@@ -1079,7 +1076,6 @@
       "de",
       "fr",
       "it",
-      "ja",
       "nl"
     ],
     "vocab.battery_bucket_key.standard": [
@@ -1134,7 +1130,6 @@
       "de",
       "fr",
       "it",
-      "ja",
       "nl"
     ],
     "vocab.fan_speed.boost": [
@@ -1147,7 +1142,6 @@
       "de",
       "fr",
       "it",
-      "ja",
       "nl"
     ],
     "vocab.fan_speed.standard": [
@@ -1323,7 +1317,6 @@
     "vocab.token_type.easing": [
       "cs",
       "fr",
-      "he",
       "id",
       "it",
       "nl",

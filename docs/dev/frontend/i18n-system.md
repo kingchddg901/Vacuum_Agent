@@ -131,6 +131,24 @@ component) as English labels. `this.tVocab(field, value, fallback)` localizes th
   few sinks that escape downstream (e.g. a value dropped into a data object the
   renderer `escapeHtml`s later — using `tVocab` there would double-escape).
 
+> ⚠ **Pick the twin by the SINK, and the mistake is invisible until a translator
+> types an apostrophe.** `_renderBaseStationStat` escapes what it is handed, so the
+> Base Station stat rows must use `tVocabRaw`; the escaping twin there yields
+> `&amp;` / `&#39;` on screen. That stayed harmless for as long as it did only
+> because of a property of the *data*, not of the code — measured 2026-10-27: zero
+> of the 18 `vocab.device_status.*` catalogues contain `& < > " '`, while 144
+> `vocab.*` values across 92 keys elsewhere do. So the bug is latent per-field and
+> goes live the day a locale renders that field with a possessive or a contraction.
+> Check the sink, not the current catalogue.
+
+Three fields on the Base Station "Station Status" panel show how narrowly this is
+scoped: `device_status` (the dock's own sensor), `lifecycle_state` (the start-readiness
+verdict from `jobs/job_monitor.py`, six values, replica set `RN1SW6P4`) and `status`
+(**this integration's** active-job slot, `jobs/active_job.py`). Three adjacent rows,
+three different producers — which is why a pass that fixed the first left the other two
+English. `get_dock_action_status` carries `active_job_status` and never `task_status`, so
+the "Task" row is our job's state, not the robot's device string.
+
 For room-**setting** values (`clean_mode` / `clean_intensity` / `fan_speed` /
 `water_level`) the slug-derives-the-key contract only lands if the value the card
 receives is already the canonical code. Stored settings are un-normalized display
@@ -326,14 +344,40 @@ contract gate, run after every wave. Four sections:
   product term) or untranslated leakage, and telling them apart needs a human
   exactly once. `scripts/i18n-accepted-english.json` is the reviewed snapshot
   (`accepted`: key → locale list or `"*"`; `pending`: provisionally tolerated
-  but listed so entries can't rot invisibly — 178 `accepted` keys and 2 `pending`
-  today: `vocab.obstacle_type.cable` (`es`) and `vocab.obstacle_type.pedestal`
-  (`es`, `pt`). ⚠ The file's own `_meta` still asserts "pending is now empty" under a
-  dated 2026-08-04 note — the data file misdescribes itself, so read the `pending`
-  object, never the prose beside it). Only **NEW**
-  English-identical values not in the snapshot are flagged; comparison is
+  but listed so entries can't rot invisibly — measured 2026-10-27: `accepted` holds
+  **211 keys / 898 (key, locale) pairs**, `pending` 2: `vocab.obstacle_type.cable`
+  (`es`) and `vocab.obstacle_type.pedestal` (`es`, `pt`). ⚠ The file's own `_meta`
+  still asserts "pending is now empty" under a dated 2026-08-04 note — the data file
+  misdescribes itself, so read the `pending` object, never the prose beside it). Only
+  **NEW** English-identical values not in the snapshot are flagged; comparison is
   language-blind by design (no dictionaries; plural objects compared by
   key-sorted serialization).
+
+> **What the ratchet cannot judge, and the cheap rule that covers part of it.** Section
+> D asks whether a value is English-identical, never whether being English is *right* —
+> that call was made once, by hand, and then it is a snapshot. So an acceptance granted
+> in error is invisible to it forever, and a *replica* of that acceptance inherits the
+> error (`vocab.dreame.fan_speed.turbo` was added as a faithful copy of
+> `vocab.fan_speed.max`'s ruling, and copied its one wrong locale with it).
+>
+> One asymmetry is mechanically checkable: a **non-Latin-script** locale (`ar`, `he`,
+> `ja`, `ko`, `ru`, `zh-Hans`, `zh-Hant`) whose value still carries a Latin *word*, with
+> placeholders and units stripped. Run over the whole catalogue 2026-10-27 it returned 15
+> candidates — 7 real leaks, 7 `font.opendyslexic` (a typeface name, correct by design),
+> and `ja` `common.ok` (standard in Japanese UIs; `ru` transliterated to `ОК`). The
+> `ja` hit was decisive because *every* sibling in its field was Japanese and all six
+> other non-Latin locales had translated that same key.
+>
+> **Its detection floor:** of the 898 accepted pairs, **817 are in Latin-script locales**
+> and the rule is blind to every one of them — a cognate and an untranslated word are
+> byte-identical to it. It also says nothing at all about a value that is wrong but not
+> English. It covers the remaining 81.
+>
+> The pairs reconcile exactly, which is the check that the snapshot has not rotted:
+> **908** English-identical pairs by section D's own comparison (plural objects by
+> key-sorted serialisation) = **905** accepted + **3** pending, before these seven left.
+> Count strings only and you get 905 and three phantom "stale acceptances" that are just
+> the plural keys.
 
 **`--strict-coverage`** is release-gate mode: NEW English-identical values and
 any untranslated key become **failures** instead of a printed list (the

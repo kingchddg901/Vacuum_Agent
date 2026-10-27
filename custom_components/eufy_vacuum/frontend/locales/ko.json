@@ -67,11 +67,16 @@
       "canceled": "취소됨",
       "cancelled": "취소됨",
       "failed": "실패",
-      "interrupted": "중단됨"
+      "interrupted": "중단됨",
+      "external": "외부",
+      "idle": "대기 중",
+      "paused": "일시정지",
+      "started": "시작됨"
     },
     "job_scope": {
       "single_room": "단일 방",
-      "multi_room": "다중 방"
+      "multi_room": "다중 방",
+      "unknown": "알 수 없음"
     },
     "origin": {
       "external": "외부",
@@ -755,6 +760,14 @@
       "standard": "표준",
       "deep": "꼼꼼",
       "deep_plus": "꼼꼼+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "작업 진행 중",
+      "dock_drying": "도크 건조 중",
+      "map_mismatch": "지도 불일치",
+      "mid_job_service": "작업 중 서비스",
+      "ready": "준비됨",
+      "vacuum_busy": "로봇 사용 중"
     }
   },
   "map": {

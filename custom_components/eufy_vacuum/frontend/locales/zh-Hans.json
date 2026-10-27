@@ -67,11 +67,16 @@
       "canceled": "已取消",
       "cancelled": "已取消",
       "failed": "失败",
-      "interrupted": "已中断"
+      "interrupted": "已中断",
+      "external": "外部",
+      "idle": "空闲",
+      "paused": "已暂停",
+      "started": "已开始"
     },
     "job_scope": {
       "single_room": "单房间",
-      "multi_room": "多房间"
+      "multi_room": "多房间",
+      "unknown": "未知"
     },
     "origin": {
       "external": "外部",
@@ -755,6 +760,14 @@
       "standard": "标准",
       "deep": "深度",
       "deep_plus": "深度+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "任务运行中",
+      "dock_drying": "基站烘干中",
+      "map_mismatch": "地图不匹配",
+      "mid_job_service": "任务中途维护",
+      "ready": "就绪",
+      "vacuum_busy": "扫地机忙碌"
     }
   },
   "map": {

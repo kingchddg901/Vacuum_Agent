@@ -67,11 +67,16 @@
       "canceled": "Zrušeno",
       "cancelled": "Zrušeno",
       "failed": "Selhalo",
-      "interrupted": "Přerušeno"
+      "interrupted": "Přerušeno",
+      "external": "Externí",
+      "idle": "Nečinný",
+      "paused": "Pozastaveno",
+      "started": "Zahájeno"
     },
     "job_scope": {
       "single_room": "Jedna místnost",
-      "multi_room": "Více místností"
+      "multi_room": "Více místností",
+      "unknown": "Neznámé"
     },
     "origin": {
       "external": "Externí",
@@ -755,6 +760,14 @@
       "standard": "Standardní",
       "deep": "Hloubkový",
       "deep_plus": "Hloubkový+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "Úloha probíhá",
+      "dock_drying": "Dok suší",
+      "map_mismatch": "Neshoda mapy",
+      "mid_job_service": "Servis během úlohy",
+      "ready": "Připraveno",
+      "vacuum_busy": "Vysavač zaneprázdněn"
     }
   },
   "map": {

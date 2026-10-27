@@ -149,11 +149,16 @@
       "canceled": "Canceled",
       "cancelled": "Cancelled",  // British spelling — the value the learning/metrics backend actually emits
       "failed": "Failed",
-      "interrupted": "Interrupted"
+      "interrupted": "Interrupted",
+      "idle": "Idle",  // active-job slot: nothing in the slot
+      "started": "Started",  // active-job slot: the job is running
+      "paused": "Paused",  // active-job slot: the job is paused
+      "external": "External"  // active-job slot: a run started in the vendor's own app that we observe rather than drive (same sense as vocab.origin.external)
     },
     "job_scope": {
       "single_room": "Single Room",  // learning-review job coverage: one room cleaned
-      "multi_room": "Multi Room"  // learning-review job coverage: several rooms in one run
+      "multi_room": "Multi Room",  // learning-review job coverage: several rooms in one run
+      "unknown": "Unknown"  // learning-review job coverage: the job recorded no rooms at all, so the scope is not known — the third value renderers/review.js already routes through tVocabRaw and was the only one unkeyed
     },
     "origin": {
       "external": "External",
@@ -178,6 +183,14 @@
       "offline": "Offline",
       "unavailable": "Unavailable",
       "unknown": "Unknown"
+    },
+    "lifecycle_state": {
+      "ready": "Ready",  // nothing blocks a new room-clean job
+      "map_mismatch": "Map Mismatch",  // the card's selected map is not the robot's active map; start refused
+      "mid_job_service": "Mid-Job Service",
+      "dock_drying": "Dock Drying",  // dock is air-drying the pad; a start is still ALLOWED, shown as a warning
+      "active_job_running": "Job Running",  // a job we dispatched is running
+      "vacuum_busy": "Vacuum Busy"  // robot is busy elsewhere and cannot take a room job
     },
     "used_for_learning": {
       "true": "Used For Learning",
@@ -849,10 +862,10 @@
     "stat_dock_status": "Dock Status",
     "stat_docked": "Docked",  // stat label asking 'is the robot docked?' (value = Yes/No), not a status word
     "stat_job_use": "Job Use",  // stat label: clean-water this job is projected to use (ml)
-    "stat_lifecycle": "Lifecycle",  // stat label: dock lifecycle state (drying/washing/idle), not product lifespan
+    "stat_lifecycle": "Lifecycle",  // stat label over a START-READINESS state (Ready / Dock Drying / Vacuum Busy / …, see vocab.lifecycle_state.*); not product lifespan, and NOT the dock's own status — that is the row above
     "stat_station_water": "Station Water",
     "stat_tank_now": "Tank Now",  // stat label: clean-water tank volume right now (water tank, in ml)
-    "stat_task": "Task",  // stat label: robot's current task status string from the device
+    "stat_task": "Task",  // stat label over THIS integration's active-job slot status (Idle/Started/Paused/External, see vocab.status.*) — get_dock_action_status carries active_job_status and never the device's own task_status, so this is our job, not the robot's device string
     "state_ready": "Ready",
     "state_running": "Running...",  // dock-action button state while the action is sending, not robot 'cleaning'
     "state_unavailable": "Unavailable",

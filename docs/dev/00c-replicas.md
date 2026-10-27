@@ -512,6 +512,35 @@ load order and the spec validates a model nothing uses.
 
 ---
 
+### `RN1SW6P4` — the `lifecycle_state` VOCABULARY · **2 copies, 2 languages**
+
+`jobs/job_monitor.py::evaluate_job_lifecycle` (**primary** — carries the reasoning) is the
+only producer of the six start-readiness values. `src/i18n/en.js`'s
+`vocab.lifecycle_state.*` is the display copy, rendered on the Base Station "Lifecycle"
+stat.
+
+| Copy | Holds |
+|---|---|
+| `jobs/job_monitor.py::evaluate_job_lifecycle` | `map_mismatch`, `mid_job_service`, `dock_drying`, `active_job_running`, `vacuum_busy`, `ready` — as six `return` literals |
+| `src/i18n/en.js` `vocab.lifecycle_state.*` | one key per member, plus the 17 shipped packs |
+
+**What makes it silent rather than loud:** `tVocab`'s fallback-to-the-backend-label is
+*by design* — an unkeyed value renders `_display_label`'s title-cased English rather than a
+raw key, which is the right behaviour for a brand that emits something new. The cost is
+that a seventh producer value is indistinguishable from a deliberate fallback: no test
+fails, no key is orphaned, and the row simply reads English in all 17 locales. `check:i18n`
+cannot see it either — it validates the keys that EXIST against the packs, never the
+producer against the catalogue.
+
+**The Task row beside it is NOT part of this set.** It carries `active_job_status`, whose
+vocabulary is `vocab.status.*` and whose producer is `jobs/active_job.py`. Same stat block,
+different producer — which is exactly why the CENSUS-6 pass fixed the dock-status row and
+left both of its neighbours English.
+
+**Declared at** `jobs/job_monitor.py::evaluate_job_lifecycle`'s docstring.
+
+---
+
 ### `RNNPSKT7` — the composer's 2dp CORNER ROUNDING · **2 copies**
 
 `src/state/map.js::composeToSegments` (**primary**) and

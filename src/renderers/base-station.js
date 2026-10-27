@@ -34,13 +34,34 @@ export function applyBaseStationRenderers(proto) {
     // English in all 18 locales while vocab.device_status.* — documented for
     // exactly this row — sat unused. tVocab falls back to the backend label for
     // any state not keyed, so an unknown status still reads.
+    //
+    // All three rows use tVocab**Raw**: the sink below is _renderBaseStationStat,
+    // which escapeHtml()s what it is handed. tVocab escapes too, so the escaping
+    // twin double-escapes — latent while no catalogue value carries & < > " ',
+    // measured true for all 18 device_status catalogues, and no longer true the
+    // moment a locale renders one of these with an apostrophe.
     const _dockStatusCode = state.dockStatus?.() ?? upkeep.dock_status ?? null;
     const _dockStatusLabel = state.dockStatusLabel?.() ?? upkeep.dock_status_label ?? null;
     const dockStatus = _dockStatusCode
-      ? this.tVocab("device_status", _dockStatusCode, _dockStatusLabel ?? _dockStatusCode)
+      ? this.tVocabRaw("device_status", _dockStatusCode, _dockStatusLabel ?? _dockStatusCode)
       : (_dockStatusLabel ?? null);
-    const lifecycleState = state.dockLifecycleStateLabel?.() ?? state.dockLifecycleState?.() ?? null;
-    const taskStatus = state.dockTaskStatusLabel?.() ?? state.dockTaskStatus?.() ?? null;
+    // The two rows CENSUS-6 stopped short of. Same shape, different vocabularies:
+    // lifecycle_state is the start-readiness verdict (vocab.lifecycle_state.*, six
+    // values, RN1SW6P4), while the Task row carries active_job_status — our own job
+    // slot, not the device. get_dock_action_status (dock/manager.py:489) emits
+    // active_job_status and NEVER task_status, so dockTaskStatus()'s first branch is
+    // unreachable from this payload; vocab.status.* is the right field for what does
+    // arrive, and a restored task_status would fall back to the backend label.
+    const _lifecycleCode = state.dockLifecycleState?.() ?? null;
+    const _lifecycleLabel = state.dockLifecycleStateLabel?.() ?? null;
+    const lifecycleState = _lifecycleCode
+      ? this.tVocabRaw("lifecycle_state", _lifecycleCode, _lifecycleLabel ?? _lifecycleCode)
+      : (_lifecycleLabel ?? null);
+    const _taskCode = state.dockTaskStatus?.() ?? null;
+    const _taskLabel = state.dockTaskStatusLabel?.() ?? null;
+    const taskStatus = _taskCode
+      ? this.tVocabRaw("status", _taskCode, _taskLabel ?? _taskCode)
+      : (_taskLabel ?? null);
     const docked = state.isDocked?.() ?? false;
     const actionStatus = state.dockActionStatus?.() ?? null;
     const plannedWater = state.dashboardPlannedWaterEstimate?.() ?? null;

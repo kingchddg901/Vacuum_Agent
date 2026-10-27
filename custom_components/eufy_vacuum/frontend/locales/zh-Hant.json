@@ -67,11 +67,16 @@
       "canceled": "已取消",
       "cancelled": "已取消",
       "failed": "失敗",
-      "interrupted": "已中斷"
+      "interrupted": "已中斷",
+      "external": "外部",
+      "idle": "閒置",
+      "paused": "已暫停",
+      "started": "已開始"
     },
     "job_scope": {
       "single_room": "單一房間",
-      "multi_room": "多個房間"
+      "multi_room": "多個房間",
+      "unknown": "未知"
     },
     "origin": {
       "external": "外部",
@@ -755,6 +760,14 @@
       "standard": "標準",
       "deep": "深度",
       "deep_plus": "深度+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "作業執行中",
+      "dock_drying": "基站烘乾中",
+      "map_mismatch": "地圖不符",
+      "mid_job_service": "作業途中服務",
+      "ready": "就緒",
+      "vacuum_busy": "掃地機忙碌"
     }
   },
   "map": {
@@ -1185,7 +1198,7 @@
       "wood": "木質"
     },
     "foundations": {
-      "chip": "Chip",
+      "chip": "標籤",
       "composite_desc": "基礎樣式會影響多個系統，因此此預覽刻意混合幾個代表性的表面。",
       "composite_sample": "綜合樣本",
       "foundation_input": "基礎輸入框",

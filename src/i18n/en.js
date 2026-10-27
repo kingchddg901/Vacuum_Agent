@@ -173,10 +173,10 @@ export const en = {
   "base_station.stat_dock_status": "Dock Status",
   "base_station.stat_docked": "Docked",  // stat label asking 'is the robot docked?' (value = Yes/No), not a status word
   "base_station.stat_job_use": "Job Use",  // stat label: clean-water this job is projected to use (ml)
-  "base_station.stat_lifecycle": "Lifecycle",  // stat label: dock lifecycle state (drying/washing/idle), not product lifespan
+  "base_station.stat_lifecycle": "Lifecycle",  // stat label over a START-READINESS state (Ready / Dock Drying / Vacuum Busy / …, see vocab.lifecycle_state.*); not product lifespan, and NOT the dock's own status — that is the row above
   "base_station.stat_station_water": "Station Water",
   "base_station.stat_tank_now": "Tank Now",  // stat label: clean-water tank volume right now (water tank, in ml)
-  "base_station.stat_task": "Task",  // stat label: robot's current task status string from the device
+  "base_station.stat_task": "Task",  // stat label over THIS integration's active-job slot status (Idle/Started/Paused/External, see vocab.status.*) — get_dock_action_status carries active_job_status and never the device's own task_status, so this is our job, not the robot's device string
   "base_station.state_ready": "Ready",
   "base_station.state_running": "Running...",  // dock-action button state while the action is sending, not robot 'cleaning'
   "base_station.state_unavailable": "Unavailable",
@@ -1968,8 +1968,19 @@ export const en = {
   "vocab.status.cancelled": "Cancelled",  // British spelling — the value the learning/metrics backend actually emits
   "vocab.status.failed": "Failed",
   "vocab.status.interrupted": "Interrupted",
+  // The five above are a FINISHED run's outcome. The four below are the live
+  // active-job slot (jobs/active_job.py), which shares the same vocabulary and the same
+  // field: the Base Station "Task" stat and the Learning Review job badges both
+  // tVocabRaw("status", …) against active_job["status"], whose closed set is
+  // idle | started | paused | completed | cancelled | interrupted | failed | external.
+  // Without these four a paused or app-started job read English in all 17 locales.
+  "vocab.status.idle": "Idle",          // active-job slot: nothing in the slot
+  "vocab.status.started": "Started",    // active-job slot: the job is running
+  "vocab.status.paused": "Paused",      // active-job slot: the job is paused
+  "vocab.status.external": "External",  // active-job slot: a run started in the vendor's own app that we observe rather than drive (same sense as vocab.origin.external)
   "vocab.job_scope.single_room": "Single Room",  // learning-review job coverage: one room cleaned
   "vocab.job_scope.multi_room": "Multi Room",     // learning-review job coverage: several rooms in one run
+  "vocab.job_scope.unknown": "Unknown",           // learning-review job coverage: the job recorded no rooms at all, so the scope is not known — the third value renderers/review.js already routes through tVocabRaw and was the only one unkeyed
   // Origin filter chip VALUES (review history): external = app-started/captured; internal = dispatched by this integration.
   "vocab.origin.external": "External",
   "vocab.origin.internal": "Dispatched",
@@ -1994,6 +2005,20 @@ export const en = {
   "vocab.device_status.offline": "Offline",
   "vocab.device_status.unavailable": "Unavailable",
   "vocab.device_status.unknown": "Unknown",
+  // REPLICA RN1SW6P4 — the declaration is at jobs/job_monitor.py::evaluate_job_lifecycle,
+  // which is the ONLY producer of these values. This catalogue is the display copy and
+  // must carry a key for every member it returns; a member with no key here renders the
+  // backend's title-cased English (_display_label) in all 17 locales, with nothing red.
+  // START-READINESS values for the Base Station "Lifecycle" stat. Distinct from
+  // device_status above (which is the dock's own sensor) and from the job_finalizer's
+  // lifecycle_name (charge_timeout / stranded_no_completion / …), which lands on a run
+  // RECORD and never on this payload.
+  "vocab.lifecycle_state.ready": "Ready",                    // nothing blocks a new room-clean job
+  "vocab.lifecycle_state.map_mismatch": "Map Mismatch",      // the card's selected map is not the robot's active map; start refused
+  "vocab.lifecycle_state.mid_job_service": "Mid-Job Service",// dock is washing or emptying before cleaning continues; start refused
+  "vocab.lifecycle_state.dock_drying": "Dock Drying",        // dock is air-drying the pad; a start is still ALLOWED, shown as a warning
+  "vocab.lifecycle_state.active_job_running": "Job Running", // a job we dispatched is running
+  "vocab.lifecycle_state.vacuum_busy": "Vacuum Busy",        // robot is busy elsewhere and cannot take a room job
   "vocab.used_for_learning.true": "Used For Learning",
   "vocab.used_for_learning.false": "Excluded From Learning",  // matches the backend filter label
   "vocab.trust_level.none": "None",  // learning trust/confidence tier on a room/profile estimate

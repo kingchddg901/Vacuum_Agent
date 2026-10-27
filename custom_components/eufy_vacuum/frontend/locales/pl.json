@@ -67,11 +67,16 @@
       "canceled": "Anulowano",
       "cancelled": "Anulowano",
       "failed": "Nie powiodło się",
-      "interrupted": "Przerwano"
+      "interrupted": "Przerwano",
+      "external": "Zewnętrzne",
+      "idle": "Bezczynny",
+      "paused": "Wstrzymano",
+      "started": "Rozpoczęto"
     },
     "job_scope": {
       "single_room": "Jeden pokój",
-      "multi_room": "Wiele pokoi"
+      "multi_room": "Wiele pokoi",
+      "unknown": "Nieznane"
     },
     "origin": {
       "external": "Zewnętrzne",
@@ -755,6 +760,14 @@
       "standard": "Standardowe",
       "deep": "Dokładne",
       "deep_plus": "Dokładne+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "Zadanie w toku",
+      "dock_drying": "Suszenie mopa",
+      "map_mismatch": "Niezgodna mapa",
+      "mid_job_service": "Serwis w toku",
+      "ready": "Gotowy",
+      "vacuum_busy": "Odkurzacz zajęty"
     }
   },
   "map": {

@@ -67,11 +67,16 @@
       "canceled": "Dibatalkan",
       "cancelled": "Dibatalkan",
       "failed": "Gagal",
-      "interrupted": "Terputus"
+      "interrupted": "Terputus",
+      "external": "Eksternal",
+      "idle": "Diam",
+      "paused": "Dijeda",
+      "started": "Dimulai"
     },
     "job_scope": {
       "single_room": "Ruangan Tunggal",
-      "multi_room": "Multi Ruangan"
+      "multi_room": "Multi Ruangan",
+      "unknown": "Tidak Diketahui"
     },
     "origin": {
       "external": "Eksternal",
@@ -755,6 +760,14 @@
       "standard": "Standar",
       "deep": "Dalam",
       "deep_plus": "Dalam+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "Tugas Berjalan",
+      "dock_drying": "Dok Mengeringkan",
+      "map_mismatch": "Ketidakcocokan Peta",
+      "mid_job_service": "Servis Tengah-tugas",
+      "ready": "Siap",
+      "vacuum_busy": "Penyedot Debu Sibuk"
     }
   },
   "map": {

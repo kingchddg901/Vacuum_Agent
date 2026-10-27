@@ -13,7 +13,7 @@
       "standard": "標準",
       "boost": "ブースト",
       "turbo": "ターボ",
-      "max": "Max"
+      "max": "最大"
     },
     "water_level": {
       "off": "オフ",
@@ -47,7 +47,7 @@
       "standard": "標準",
       "boost": "ブースト",
       "turbo": "ターボ",
-      "max": "Max",
+      "max": "最大",
       "off": "オフ",
       "low": "少",
       "medium": "中",
@@ -67,11 +67,16 @@
       "canceled": "キャンセル",
       "cancelled": "キャンセル",
       "failed": "失敗",
-      "interrupted": "中断"
+      "interrupted": "中断",
+      "external": "外部",
+      "idle": "待機中",
+      "paused": "一時停止中",
+      "started": "実行中"
     },
     "job_scope": {
       "single_room": "単一部屋",
-      "multi_room": "複数部屋"
+      "multi_room": "複数部屋",
+      "unknown": "不明"
     },
     "origin": {
       "external": "外部",
@@ -748,13 +753,21 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "Max"
+        "turbo": "最大"
       }
     },
     "path_type": {
       "standard": "標準",
       "deep": "念入り",
       "deep_plus": "念入り+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "ジョブ実行中",
+      "dock_drying": "ドック乾燥中",
+      "map_mismatch": "マップの不一致",
+      "mid_job_service": "ジョブ中のサービス",
+      "ready": "準備完了",
+      "vacuum_busy": "掃除機使用中"
     }
   },
   "map": {

@@ -174,6 +174,15 @@ def evaluate_job_lifecycle(
 
     Drying is a warning-only state (``blocking=False``). Washing, recycling,
     and dust-emptying are hard blockers.
+
+    anchor: RN1SW6P4  the ``lifecycle_state`` vocabulary -- the replica set.
+    The returns below are the ONLY producer of these six values: ``map_mismatch``,
+    ``mid_job_service``, ``dock_drying``, ``active_job_running``, ``vacuum_busy``,
+    ``ready``. The display copy is ``src/i18n/en.js`` (``vocab.lifecycle_state.*``),
+    which the card renders on the Base Station "Lifecycle" stat. Add a seventh value
+    here and the card falls back to ``_display_label``'s title-cased English for it in
+    all 17 locales -- silently, because the fallback is by design and no test can see a
+    key that was never written. Mirror every addition into that catalogue.
     """
     job_metadata = job_metadata or {}
 

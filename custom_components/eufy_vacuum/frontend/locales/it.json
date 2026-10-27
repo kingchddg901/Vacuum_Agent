@@ -1953,7 +1953,11 @@
       "canceled": "Annullato",
       "failed": "Non riuscito",
       "interrupted": "Interrotto",
-      "cancelled": "Annullato"
+      "cancelled": "Annullato",
+      "external": "Esterno",
+      "idle": "Inattivo",
+      "paused": "In pausa",
+      "started": "Avviato"
     },
     "used_for_learning": {
       "true": "Usato per l'apprendimento",
@@ -2526,7 +2530,8 @@
     },
     "job_scope": {
       "single_room": "Stanza singola",
-      "multi_room": "Più stanze"
+      "multi_room": "Più stanze",
+      "unknown": "Sconosciuto"
     },
     "device_status": {
       "cleaning": "In pulizia",
@@ -2641,6 +2646,14 @@
       "standard": "Standard",
       "deep": "Profonda",
       "deep_plus": "Profonda+"
+    },
+    "lifecycle_state": {
+      "active_job_running": "Lavoro in corso",
+      "dock_drying": "Base in asciugatura",
+      "map_mismatch": "Discrepanza mappa",
+      "mid_job_service": "Servizio a metà lavoro",
+      "ready": "Pronto",
+      "vacuum_busy": "Aspirapolvere occupato"
     }
   },
   "order_modal": {
