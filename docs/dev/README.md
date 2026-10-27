@@ -117,6 +117,7 @@ assuming the doc is stale.
 - [design/planning/entity-resolution-reliability.md](design/planning/entity-resolution-reliability.md)
 - [design/planning/voice-assist-wizard.md](design/planning/voice-assist-wizard.md)
 - [design/planning/floor-texture-thermal-shimmer.md](design/planning/floor-texture-thermal-shimmer.md) — PARKED, not scheduled
+- [design/planning/run-outcome-attribution.md](design/planning/run-outcome-attribution.md) — skipped ≠ missed; why a correction makes the rate go *up*
 
 ## HISTORY — what we stopped doing
 
@@ -127,6 +128,7 @@ Never wrong: a record of what was true then.
 - [history/documentation-epoch-lifecycle.md](history/documentation-epoch-lifecycle.md)
 - [history/floor-type-cleaning-defaults.md](history/floor-type-cleaning-defaults.md)
 - [history/room-bounds-from-traces.md](history/room-bounds-from-traces.md)
+- [history/presence-gated-cleaning.md](history/presence-gated-cleaning.md) — RULED OUT 2026-09-15; read before re-scoping presence from any neighbour survey
 
 ## Outside the shelves
 
