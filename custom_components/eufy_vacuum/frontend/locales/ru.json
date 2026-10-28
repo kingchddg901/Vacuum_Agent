@@ -2765,6 +2765,12 @@
       "mid_job_service": "Обслуживание на доке",
       "ready": "Готово",
       "vacuum_busy": "Пылесос занят"
+    },
+    "tank_status": {
+      "installed": "Установлен",
+      "not_installed": "Не установлен",
+      "low_water": "Мало воды",
+      "not_available": "Недоступно"
     }
   },
   "order_modal": {

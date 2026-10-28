@@ -132,6 +132,77 @@ test("[SSV-4] a WORD-valued sensor derives its status from the code, not the ren
   assert.ok(full.includes("status-good"), "full water must still read good");
 });
 
+test("[SSV-13] the enum tank cards localize the state, label demoted to the fallback", () => {
+  // The status CHIP on these cards was always translated while the VALUE beside it printed
+  // the backend's `_display_label(state)` — "Nicht verfügbar / Not Available" in one tile.
+  const h = makeHost();
+  const html = h._renderTankStatusCards({
+    clean: { state: "low_water", label: "Low Water" },
+    dirty: { state: "installed", label: "Installed" },
+  });
+  assert.ok(html.includes(DE["vocab.tank_status.low_water"]), "clean tank value must localize");
+  assert.ok(html.includes(DE["vocab.tank_status.installed"]), "dirty tank value must localize");
+  assert.ok(!html.includes(">Low Water<"), "the backend's English must not reach the value slot");
+});
+
+test("[SSV-14] an unkeyed tank state keeps the device's label, escaped exactly once", () => {
+  // Two properties in one input. The tank set is DEVICE-defined, so a state we never keyed
+  // must still read; and `fr`'s own word for low water carries an apostrophe ("Peu d'eau"),
+  // which is the live check that the raw twin plus the sink's escape is a SINGLE escape.
+  const h = makeHost("fr");
+  const FR = loadPack("fr");
+  assert.ok(FR["vocab.tank_status.low_water"].includes("'"), "fr must carry the apostrophe this tests");
+  const html = h._renderTankStatusCards({
+    clean: { state: "low_water", label: "Low Water" },
+    dirty: { state: "rinsing", label: "Rinsing" },
+  });
+  assert.ok(html.includes("Peu d&#39;eau"), "escaped once");
+  assert.ok(!html.includes("&amp;#39;"), "and never twice");
+  assert.ok(html.includes("Rinsing"), "an unkeyed device state falls back to its own label");
+});
+
+/* ------------------------------------------------------------------ component names */
+
+test("[SSV-15] the item NAME resolves through the same family as the modal TITLE", () => {
+  const h = makeHost();
+  // `_maintenanceItemName` only ever looked in `maintenance.component_label.*`, which has
+  // no `swivel_wheel` and no `cleaning_tray` entry at all — so a Eufy caster_wheel (whose
+  // label_key is "swivel_wheel") showed the backend's English name beside a modal title
+  // that was translated, from the same item, on the same screen.
+  assert.equal(
+    h._maintenanceItemName({ component: "caster_wheel", label_key: "swivel_wheel", label: "Swivel Wheel" }),
+    DE["vocab.maintenance_component.swivel_wheel"],
+  );
+  assert.equal(
+    h._maintenanceItemName({ component: "cleaning_tray", label: "Cleaning Tray" }),
+    DE["vocab.maintenance_component.cleaning_tray"],
+  );
+  // A component with no key in EITHER family keeps the backend's label — the forward-compat
+  // leg, and the reason the deferred `component_label` gap does not become a blank screen.
+  assert.equal(
+    h._maintenanceItemName({ component: "washboard", label: "Washboard" }),
+    "Washboard",
+  );
+  // Nothing at all still names the row rather than rendering empty.
+  assert.equal(h._maintenanceItemName({}), DE["maintenance.unnamed_item"]);
+});
+
+test("[SSV-16] the item name is RAW, because every one of its sinks escapes", () => {
+  // The latent half. `_maintenanceItemName` used `this.t()` for the component_label leg,
+  // which escapes — and all four consumers escape again (the item-name row, the
+  // reset-confirmation sentence, and the two modal titles that pass it as their fallback).
+  // Measured across 27 keys x 17 packs, zero values carry & < > " ', so it never showed —
+  // but only because the ten Latin packs still hold the raw ENGLISH for most of that group.
+  // THE INPUT THAT MAKES IT RED is the first translation of it, so this supplies one:
+  // French for the clean-water tank is "Réservoir d'eau propre".
+  const translated = "Réservoir d'eau propre";
+  registerLocale("xx-escape", { "maintenance.component_label.clean_water_tank": translated }, { status: "custom" });
+  const h = makeHost("xx-escape");
+  const name = h._maintenanceItemName({ component: "clean_water_tank", label: "Clean Water Tank" });
+  assert.equal(name, translated, "the helper must return the apostrophe RAW — its callers escape");
+  assert.ok(!name.includes("&#39;"), "a pre-escaped return double-escapes at every sink");
+});
+
 /* ------------------------------------------------------------------ wetness slider */
 
 test("[SSV-5] the room editor's wetness slider localizes the word and its three carriers", () => {

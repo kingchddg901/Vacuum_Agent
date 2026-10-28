@@ -784,6 +784,12 @@
       "mid_job_service": "Serwis w toku",
       "ready": "Gotowy",
       "vacuum_busy": "Odkurzacz zajęty"
+    },
+    "tank_status": {
+      "installed": "Założony",
+      "not_installed": "Niezałożony",
+      "low_water": "Mało wody",
+      "not_available": "Niedostępne"
     }
   },
   "map": {

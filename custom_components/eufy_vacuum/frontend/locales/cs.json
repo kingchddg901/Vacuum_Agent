@@ -784,6 +784,12 @@
       "mid_job_service": "Servis během úlohy",
       "ready": "Připraveno",
       "vacuum_busy": "Vysavač zaneprázdněn"
+    },
+    "tank_status": {
+      "installed": "Nasazena",
+      "not_installed": "Nenasazena",
+      "low_water": "Málo vody",
+      "not_available": "Nedostupné"
     }
   },
   "map": {

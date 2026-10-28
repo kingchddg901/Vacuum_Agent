@@ -784,6 +784,12 @@
       "mid_job_service": "Servis Tengah-tugas",
       "ready": "Siap",
       "vacuum_busy": "Penyedot Debu Sibuk"
+    },
+    "tank_status": {
+      "installed": "Terpasang",
+      "not_installed": "Tidak terpasang",
+      "low_water": "Air sedikit",
+      "not_available": "Tidak tersedia"
     }
   },
   "map": {

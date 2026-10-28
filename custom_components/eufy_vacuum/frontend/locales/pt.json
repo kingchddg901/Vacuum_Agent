@@ -2682,6 +2682,12 @@
       "mid_job_service": "Serviço a meio",
       "ready": "Pronto",
       "vacuum_busy": "Robô ocupado"
+    },
+    "tank_status": {
+      "installed": "Instalado",
+      "not_installed": "Não instalado",
+      "low_water": "Pouca água",
+      "not_available": "Não disponível"
     }
   },
   "order_modal": {

@@ -2667,6 +2667,12 @@
       "mid_job_service": "Dockservice",
       "ready": "Klaar",
       "vacuum_busy": "Stofzuiger bezig"
+    },
+    "tank_status": {
+      "installed": "Geplaatst",
+      "not_installed": "Niet geplaatst",
+      "low_water": "Weinig water",
+      "not_available": "Niet beschikbaar"
     }
   },
   "order_modal": {

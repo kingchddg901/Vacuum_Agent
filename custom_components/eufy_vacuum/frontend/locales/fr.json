@@ -2683,6 +2683,12 @@
       "mid_job_service": "Entretien en cours",
       "ready": "Prêt",
       "vacuum_busy": "Aspirateur occupé"
+    },
+    "tank_status": {
+      "installed": "Installé",
+      "not_installed": "Non installé",
+      "low_water": "Peu d'eau",
+      "not_available": "Non disponible"
     }
   },
   "order_modal": {

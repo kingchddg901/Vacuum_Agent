@@ -171,6 +171,62 @@ provenance line: the sentences are authored, the notes cite manuals and never qu
 
 ---
 
+## 1d. The component's NAME and the tank's STATE are two more key lookups
+
+⭐ **No live doc stated either before 2026-10-27.** The guide's words are keyed (§1c) while
+the component's own NAME and the enum tank cards still printed the backend's English, which
+is the shape a reader of §1c would not predict.
+
+### The name: one component, two chains, and they disagreed
+
+Every maintenance row resolves its display name through `_maintenanceItemName`
+(`renderers/maintenance.js`), and the two MODAL TITLE sites wrap that result in
+`tVocabRaw("maintenance_component", label_key ?? component, name)`. So the title consulted
+a family the helper did not, and the item name beside it — same item, same screen — was the
+backend label. The chain is now one order in both places:
+
+| step | lookup | notes |
+|---|---|---|
+| 1 | `vocab.maintenance_component.<key>` | 7 keys, the Eufy-shaped set; brand-scoped, so a brand's own word wins |
+| 2 | `maintenance.component_label.<key>` | 19 keys, the broader set added for Roborock + Dreame |
+| 3 | `item.label` → `component_label` → `name` → `title` | the backend's `_display_label(slug)`, i.e. title-cased English |
+| 4 | `maintenance.unnamed_item` | never blank, never a dotted key |
+
+The KEY is `label_key ?? component`, not the English label — a backend rename of the display
+word cannot strip a translation. The two steps are **not** redundant: step 2 has no
+`swivel_wheel` and no `cleaning_tray` entry at all, which is exactly what the canonical
+component rename left behind (Eufy's `caster_wheel` carries `label_key: "swivel_wheel"`), so
+before step 1 existed both fell straight to English in all 17 languages.
+
+> ⚠ **STILL ENGLISH, DELIBERATELY, AND THIS IS NOT THAT FIX.** `component_label` is
+> English-identical for 11–13 of its 19 keys in each of the ten Latin packs (cs de es fr id
+> it nl pl pt tr) and for 0 of 19 in the seven non-Latin ones, and `washboard` /
+> `washboard_filter` have no key in any family. That is a separate, deliberately deferred
+> piece of work — translating that group and minting those two keys — and step 1 narrows it
+> rather than closing it. Measure it again before quoting a number; do not read the fix above
+> as having addressed it.
+
+`_maintenanceItemName` returns a **RAW** string. All four consumers escape (the item-name
+row, the reset-confirmation sentence, and the two titles that pass it as their fallback), so
+the escaped twin there is a double escape — latent only because of what the packs currently
+hold, and live on the first translation of `clean_water_tank` into any Romance language.
+`[SSV-16]` supplies that input rather than waiting for it.
+
+### The state: an enum tank has no percent, so the word IS the reading
+
+A dock that reports tank presence as an enum rather than a fill percent (Dreame publishes no
+percent on any model) gets `_renderTankStatusCards` instead of the Station Water card. Four
+values, declared in `adapters/config_schema.py`:
+`installed` / `not_installed` / `low_water` / `not_available`, keyed as `vocab.tank_status.*`.
+
+The set belongs to the DEVICE — `tank_status` is a raw sensor state — so the backend's
+`_display_label` stays the fallback and a firmware that adds a fifth value reads as its own
+word rather than going blank. The card's `STATUS_BY_STATE` map also lists `normal` / `full` /
+`low`; those have no producer and are deliberately unkeyed, because they only pick a status
+colour and keying a value nothing emits costs 17 translations and changes nothing.
+
+---
+
 ## 2. The two clamps guard opposite ends, and different causes
 
 The arithmetic is two lines and both are clamped:

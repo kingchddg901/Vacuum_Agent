@@ -2667,6 +2667,12 @@
       "mid_job_service": "Zwischenservice",
       "ready": "Bereit",
       "vacuum_busy": "Saugroboter beschäftigt"
+    },
+    "tank_status": {
+      "installed": "Eingesetzt",
+      "not_installed": "Nicht eingesetzt",
+      "low_water": "Wenig Wasser",
+      "not_available": "Nicht verfügbar"
     }
   },
   "order_modal": {

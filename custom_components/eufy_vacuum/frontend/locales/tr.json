@@ -784,6 +784,12 @@
       "mid_job_service": "İş Ortası Servisi",
       "ready": "Hazır",
       "vacuum_busy": "Robot Meşgul"
+    },
+    "tank_status": {
+      "installed": "Takılı",
+      "not_installed": "Takılı değil",
+      "low_water": "Az su",
+      "not_available": "Kullanılamıyor"
     }
   },
   "map": {

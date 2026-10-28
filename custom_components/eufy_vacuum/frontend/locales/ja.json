@@ -784,6 +784,12 @@
       "mid_job_service": "ジョブ中のサービス",
       "ready": "準備完了",
       "vacuum_busy": "掃除機使用中"
+    },
+    "tank_status": {
+      "installed": "装着済み",
+      "not_installed": "未装着",
+      "low_water": "水が少ない",
+      "not_available": "利用不可"
     }
   },
   "map": {

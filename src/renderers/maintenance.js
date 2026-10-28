@@ -92,14 +92,41 @@ export function applyMaintenanceRenderers(proto) {
     // when present (e.g. Eufy `main_brush` -> "rolling_brush" label).
     const componentKey = item?.label_key ?? item?.component;
     if (componentKey) {
+      // `vocab.maintenance_component.*` FIRST — the family the two MODAL TITLE sites
+      // already resolve through. This helper only ever looked in
+      // `maintenance.component_label.*`, so the item NAME and the modal TITLE for the
+      // very same component disagreed: the title localized and the name beside it did
+      // not. tVocabRaw also brand-scopes, which this lookup never did.
+      //
+      // It matters most for the two keys the canonical rename left behind:
+      // `component_label` has no `swivel_wheel` and no `cleaning_tray` entry at all,
+      // while `vocab.maintenance_component` carries all seven Eufy keys — so a Eufy
+      // caster_wheel (label_key "swivel_wheel") and its cleaning tray fell straight
+      // through to the backend's English label in every one of the 17 languages.
+      //
+      // The empty-string fallback IS the miss signal: tVocabRaw returns its fallback
+      // unchanged on a miss, and `"" ?? x` is `""`, so a blank answer means "no entry"
+      // without restating the key template here.
+      const fromVocab = this.tVocabRaw("maintenance_component", componentKey, "");
+      if (fromVocab) return fromVocab;
+
       const key = `maintenance.component_label.${componentKey}`;
-      const translated = this.t(key);
+      // tRaw, not t: BOTH sinks of this helper escape what it returns (the item-name
+      // row and the reset-confirmation sentence), and so do the two title sites that
+      // pass it as their fallback. `t()` here escaped first and they escaped again.
+      // Latent rather than live — measured across the 27 keys x 17 packs, zero values
+      // carry & < > " ' — but only because the ten Latin packs still hold the raw
+      // ENGLISH for most of this group (the deferred finding below). It goes live on the
+      // first translation: French "Réservoir d'eau propre", Italian "Serbatoio
+      // dell'acqua pulita". Checked the sink, not the current catalogue.
+      //
       // A missing key round-trips as the key itself under the translate contract,
       // so treat that as "no translation" and fall through. The chain still
       // reaches the backend label, so the user never sees the bare key.
+      const translated = this.tRaw(key);
       if (translated && translated !== key) return translated;
     }
-    return item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t(fallbackKey);
+    return item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.tRaw(fallbackKey);
   };
 
 
@@ -807,7 +834,17 @@ export function applyMaintenanceRenderers(proto) {
       const title = this.t(which === "clean"
         ? "maintenance.clean_water_tank_title"
         : "maintenance.dirty_water_tank_title");
-      const label = String(tank.label || tank.state);
+      // The card's own status chip beside this value was always translated while the
+      // VALUE printed the backend's `_display_label(state)` — so the tile read
+      // "Nicht installiert / Not Installed" in German. `tank.state` is the stable code
+      // and sits on the same object; the label stays the fallback, which is load-bearing
+      // here because the set is DEVICE-defined (a raw sensor state), not ours. The four
+      // keyed values are the ones config_schema.py and dreame/adapter.py declare:
+      // installed / not_installed / low_water / not_available. The three extra rows in
+      // STATUS_BY_STATE above (normal / full / low) have no producer, so they stay
+      // unkeyed — they only pick a status colour, and keying a value nothing emits buys
+      // 17 translations and no behaviour. RAW: the value slot escapes.
+      const label = this.tVocabRaw("tank_status", tank.state, String(tank.label || tank.state));
       return `
       <article class="evcc-maintenance-card evcc-maintenance-card--status-${this.escapeHtml(statusKey)}">
         <div class="evcc-maintenance-card-header">

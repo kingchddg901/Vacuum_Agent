@@ -16,6 +16,7 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { maintenanceDueInBucket, applyMaintenanceRenderers } from "./maintenance.js";
+import { applySharedRenderers } from "./shared.js";
 import { loadGuideKeyPack } from "../i18n/guide-loader.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -468,6 +469,12 @@ test("[LG-4] an unknown language falls all the way to English, never null and ne
 
 function nameHost(componentKey_translation_map) {
   const proto = {};
+  // The REAL shared translators, because the helper now consults
+  // `vocab.maintenance_component.*` through tVocabRaw before the
+  // `maintenance.component_label.*` leg these cases pin. A hand-written tVocabRaw would
+  // restate the resolution; the supplied map decides which keys exist, so a case can
+  // exercise either leg by naming the key it wants.
+  applySharedRenderers(proto);
   applyMaintenanceRenderers(proto);
   const inst = Object.create(proto);
   // `t` echoes the key when no translation is provided — the real translate
@@ -476,6 +483,9 @@ function nameHost(componentKey_translation_map) {
   // a real label — otherwise a bare i18n key would leak into the modal title
   // whenever a component grew without a matching pack entry.
   inst.t = (key) => componentKey_translation_map[key] ?? key;
+  // tRaw is the twin the helper actually calls: all four of its sinks escape, so it must
+  // return the catalog string UNESCAPED or every one of them double-escapes.
+  inst.tRaw = (key) => componentKey_translation_map[key] ?? key;
   return inst;
 }
 
@@ -510,6 +520,31 @@ test("[MIN-4] nothing to fall back on -> final i18n fallback (translated or the 
     "maintenance.unnamed_item": "Unnamed item",
   });
   assert.equal(inst._maintenanceItemName(null), "Unnamed item");
+});
+
+test("[MIN-5] vocab.maintenance_component wins over maintenance.component_label", () => {
+  // THE ORDER, which the real catalogue cannot test: five components have a sensible entry
+  // in both families, so a real-pack assertion passes whichever one answers. Two
+  // deliberately different values make the precedence visible.
+  //
+  // vocab.* leads because it is the family the two MODAL TITLE sites already resolve
+  // through, and it is brand-scoped — a brand owns its own word for its own part. Running
+  // component_label first would reinstate the disagreement this fixed: a translated title
+  // above an item name that came from somewhere else.
+  const inst = nameHost({
+    "vocab.maintenance_component.rolling_brush": "from-vocab",
+    "maintenance.component_label.rolling_brush": "from-component-label",
+  });
+  const item = { component: "main_brush", label_key: "rolling_brush", label: "Rolling Brush" };
+  assert.equal(inst._maintenanceItemName(item), "from-vocab");
+
+  // And with only the second family present, that one still answers — the legs are
+  // ordered, not exclusive. `component_label` carries 19 keys to vocab's 7, so this is
+  // the leg every Roborock and Dreame component actually uses.
+  const fallbackOnly = nameHost({
+    "maintenance.component_label.rolling_brush": "from-component-label",
+  });
+  assert.equal(fallbackOnly._maintenanceItemName(item), "from-component-label");
 });
 
 /* ============================================================

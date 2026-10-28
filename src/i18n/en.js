@@ -2069,6 +2069,13 @@ export const en = {
   "vocab.maintenance_component.swivel_wheel": "Swivel Wheel",
   "vocab.maintenance_kind.maintenance": "Maintenance",  // upkeep card kind: a cleanable item
   "vocab.maintenance_kind.replacement": "Replacement",  // upkeep card kind: a replaceable consumable
+  // Water-tank STATE, for docks that report presence/level as an enum instead of a fill
+  // percent (Dreame publishes no percent on any model). Four values, declared in
+  // adapters/config_schema.py; the set is the DEVICE's, so anything else keeps its own label.
+  "vocab.tank_status.installed": "Installed",          // water tank: seated in the dock and usable
+  "vocab.tank_status.not_installed": "Not installed",  // water tank: missing from the dock
+  "vocab.tank_status.low_water": "Low water",          // CLEAN tank: seated, but running out
+  "vocab.tank_status.not_available": "Not available",  // the dock reports no state for this tank
   // estimate trust-reason sentences (learning manager codes) — shown on metrics found-profile cards
   "vocab.estimate_reason.excluded_from_learning": "This run is currently excluded from learning.",
   "vocab.estimate_reason.cancel_like": "This run looks like a canceled run.",

@@ -234,6 +234,12 @@
       "maintenance": "Maintenance",  // upkeep card kind: a cleanable item
       "replacement": "Replacement"  // upkeep card kind: a replaceable consumable
     },
+    "tank_status": {
+      "installed": "Installed",  // water tank: seated in the dock and usable
+      "not_installed": "Not installed",  // water tank: missing from the dock
+      "low_water": "Low water",  // CLEAN tank: seated, but running out
+      "not_available": "Not available"  // the dock reports no state for this tank
+    },
     "estimate_reason": {
       "excluded_from_learning": "This run is currently excluded from learning.",
       "cancel_like": "This run looks like a canceled run.",

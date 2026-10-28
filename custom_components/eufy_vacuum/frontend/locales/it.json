@@ -2670,6 +2670,12 @@
       "mid_job_service": "Servizio a metà lavoro",
       "ready": "Pronto",
       "vacuum_busy": "Aspirapolvere occupato"
+    },
+    "tank_status": {
+      "installed": "Installato",
+      "not_installed": "Non installato",
+      "low_water": "Poca acqua",
+      "not_available": "Non disponibile"
     }
   },
   "order_modal": {

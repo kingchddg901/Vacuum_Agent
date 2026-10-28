@@ -18,9 +18,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyMaintenanceRenderers } from "./maintenance.js";
+import { applySharedRenderers } from "./shared.js";
 
 function makeInstance() {
   const proto = {};
+  // The REAL tVocab/tVocabRaw pair, not a stub of it. The tank value and the station-water
+  // reading both resolve through it now, and a hand-written stand-in would be transcribing
+  // the resolution this file is supposed to be downstream of.
+  //
+  // With echo-keys below, every `vocab.*` lookup MISSES by construction (translate returns
+  // the key, tVocabRaw sees key === key and hands back the fallback) — so what this file
+  // pins is the FALLBACK leg, which is the load-bearing one here: the tank-state set is the
+  // DEVICE's, not ours, so a state we have never keyed must still reach the user as its own
+  // label. The keyed leg is covered against the real shipped packs in
+  // stored-setting-vocab.test.mjs [SSV-13], where a catalogue exists to hit.
+  applySharedRenderers(proto);
   applyMaintenanceRenderers(proto);
   const inst = Object.create(proto);
   inst.t = (key) => key;                      // echo keys: assert the BRANCH, not wording
@@ -56,15 +68,20 @@ test("[WTR-3] a null tank capacity never renders the ml line", () => {
   assert.ok(!html.includes("ml_remaining"), "Number(null)===0 must not surface as ~0 ml");
 });
 
-test("[TNK-1] enum tank status renders the device's own state", () => {
+test("[TNK-1] an UNKEYED tank state still reaches the user as its own label", () => {
   const inst = makeInstance();
+  // The set is the device's: `tank_status` is a raw sensor state, and config_schema.py
+  // declares four values we key. Anything else — a firmware that adds a fifth, a model we
+  // have not seen — must keep the backend's label rather than going blank or showing a
+  // dotted key. Under echo-keys every vocab lookup misses, so this is that leg.
   const html = inst._renderTankStatusCards({
-    clean: { state: "installed", label: "Installed" },
+    clean: { state: "rinsing", label: "Rinsing" },
     dirty: { state: "installed", label: "Installed" },
   });
   assert.ok(html.includes("clean_water_tank_title"), "clean tank card must render");
   assert.ok(html.includes("dirty_water_tank_title"), "dirty tank card must render");
-  assert.ok(html.includes("Installed"), "the device's own label must be shown");
+  assert.ok(html.includes("Rinsing"), "an unkeyed state must fall back to the device's label");
+  assert.ok(html.includes("Installed"), "and so must a keyed one when no catalogue is loaded");
 });
 
 test("[TNK-2] absent tank status renders nothing", () => {
