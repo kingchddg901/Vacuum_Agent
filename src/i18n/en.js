@@ -122,6 +122,18 @@ export const en = {
   "vocab.clean_mode.mop": "Mop",                  // clean mode: mop only
   "vocab.clean_mode.vacuum_mop": "Vacuum and mop",// clean mode: both (code form)
   "vocab.clean_mode.vacuum_and_mop": "Vacuum and mop", // alias: stored profiles use the display-string form "Vacuum and mop" (slug vacuum_and_mop), not the vacuum_mop code
+  // DISPLAY-SLUG ALIASES (the adapters' *_ALIASES maps). A room's STORED setting is an
+  // un-normalized display string, and the surfaces that render it untouched slug THAT, so
+  // every spelling an adapter accepts needs its own key or the row reverts to English —
+  // [AVK-1] fails if one has none.
+  //
+  // An alias keeps ITS OWN word, not core's canonical key's: `clean_intensity.standard`
+  // canonicalizes to `narrow`, and showing a Eufy owner "Narrow" where their app says
+  // "Standard" would put core's internal key in place of the brand's word. clean_mode is
+  // the one exception, pinned by [AVK-3]: every brand names that axis with the same phrase,
+  // so its aliases are loose spellings of one word rather than three app terms.
+  "vocab.clean_mode.vacuum_plus_mop": "Vacuum and mop", // alias of vacuum_mop: stored spelling "Vacuum plus mop"
+  "vocab.clean_mode.mop_and_vacuum": "Vacuum and mop",  // alias of vacuum_mop: stored spelling "Mop and vacuum"
   "vocab.fan_speed.quiet": "Quiet",               // suction level (lowest)
   "vocab.fan_speed.gentle": "Gentle",             // suction level (Roborock app term)
   "vocab.fan_speed.balanced": "Balanced",         // suction level (Roborock app term)
@@ -129,20 +141,40 @@ export const en = {
   "vocab.fan_speed.boost": "Boost",               // suction level
   "vocab.fan_speed.turbo": "Turbo",               // suction level (Eufy app term; the value the device actually emits)
   "vocab.fan_speed.max": "Max",                   // suction level (highest)
+  "vocab.fan_speed.boost_iq": "BoostIQ",          // alias of boost: PRODUCT TERM — Eufy's app shows "BoostIQ" untranslated in every language, so leave it
+  "vocab.fan_speed.boostiq": "BoostIQ",           // alias of boost: the unspaced stored spelling of the same product term
   // --- brand-scoped overrides (RN6F7RW6): a brand owns its value's word.
   // vocab(t, field, value, fb, brand) tries `vocab.<brand>.<field>.<value>` FIRST,
   // so the shared catalog above can NOT impose a cross-brand default. Dreame emits the
   // token `turbo` for its HIGHEST suction, which its app labels "Max" — not the Eufy "Turbo".
   "vocab.dreame.fan_speed.turbo": "Max",          // suction level (highest); Dreame app term for the `turbo` token
+  "vocab.dreame.fan_speed.strong": "Intense",     // suction level (second-highest); Dreame app term for the `strong` token, which no other brand emits
   "vocab.water_level.off": "Off",                 // water level: no water
   "vocab.water_level.low": "Low",                 // water level
   "vocab.water_level.medium": "Medium",           // water level
   "vocab.water_level.high": "High",               // water level
+  // The BAND words of a continuous water axis (Dreame's 1..32 wetness slider) and the
+  // members of its coarse three-state select — the same three words either way, so one
+  // family covers both. Wetness, not volume: how damp the floor is left, not how much
+  // water the tank holds.
+  "vocab.water_level.slightly_dry": "Slightly Dry", // wetness: driest band — a nearly-dry mop pass
+  "vocab.water_level.moist": "Moist",             // wetness: middle band
+  "vocab.water_level.wet": "Wet",                 // wetness: wettest band
+  // The dock's clean-water sensor can report no reading at all. These are Home Assistant's
+  // own two sentinel states, so use the same words as vocab.device_status.unknown/unavailable.
+  "vocab.water_level.unknown": "Unknown",         // the water-level sensor exists but has no reading yet
+  "vocab.water_level.unavailable": "Unavailable", // the water-level sensor is not responding
+  "vocab.water_level.quiet": "Quiet",             // alias of low: Eufy's own word for the lowest water rung — the same adjective as the quiet SUCTION level
+  "vocab.water_level.automatic": "Automatic",     // alias of medium: Eufy's own word — the dock chooses the amount
+  "vocab.water_level.auto": "Auto",               // alias of medium: the short stored spelling of "Automatic"
+  "vocab.water_level.strong": "Strong",           // alias of high: Eufy's own word for the highest WATER rung (not a suction level)
   "vocab.clean_intensity.quick": "Quick",         // cleaning path / intensity
   "vocab.clean_intensity.narrow": "Narrow",       // cleaning path / intensity
   "vocab.clean_intensity.deep": "Deep",           // cleaning path / intensity
   "vocab.clean_intensity.normal": "Normal",       // cleaning path / intensity (manual-only)
   "vocab.clean_intensity.standard": "Standard",   // cleaning path / intensity (Eufy app term; the dominant stored value)
+  "vocab.clean_intensity.intensive": "Intensive", // cleaning path / intensity: denser than standard, lighter than deep (Dreame)
+  "vocab.clean_intensity.fast": "Fast",           // alias of quick: Eufy's own word for the quick path, kept rather than replaced by core's key word
   // path_type is the SAME user-facing axis as clean_intensity under Roborock's own
   // name (the mop route). It had no keys at all until issue #66, because the picker
   // never rendered: the axis was declared with wide/narrow, which no Roborock has.

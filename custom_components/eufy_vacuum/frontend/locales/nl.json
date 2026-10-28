@@ -1887,7 +1887,9 @@
       "vacuum": "Stofzuigen",
       "mop": "Dweilen",
       "vacuum_mop": "Stofzuigen en dweilen",
-      "vacuum_and_mop": "Stofzuigen en dweilen"
+      "vacuum_and_mop": "Stofzuigen en dweilen",
+      "vacuum_plus_mop": "Stofzuigen en dweilen",
+      "mop_and_vacuum": "Stofzuigen en dweilen"
     },
     "fan_speed": {
       "quiet": "Stil",
@@ -1896,20 +1898,33 @@
       "max": "Max",
       "turbo": "Turbo",
       "gentle": "Zacht",
-      "balanced": "Gebalanceerd"
+      "balanced": "Gebalanceerd",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "Uit",
       "low": "Laag",
       "medium": "Gemiddeld",
-      "high": "Hoog"
+      "high": "Hoog",
+      "quiet": "Stil",
+      "automatic": "Automatisch",
+      "auto": "Auto",
+      "strong": "Sterk",
+      "unknown": "Onbekend",
+      "unavailable": "Niet beschikbaar",
+      "slightly_dry": "Licht droog",
+      "moist": "Vochtig",
+      "wet": "Nat"
     },
     "clean_intensity": {
       "quick": "Snel",
       "narrow": "Smal",
       "deep": "Grondig",
       "normal": "Normaal",
-      "standard": "Standaard"
+      "standard": "Standaard",
+      "fast": "Snel",
+      "intensive": "Intensief"
     },
     "metrics_tab": {
       "learning": "Leren",
@@ -2636,7 +2651,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "Max"
+        "turbo": "Max",
+        "strong": "Sterk"
       }
     },
     "path_type": {

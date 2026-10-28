@@ -545,7 +545,7 @@ export function applyRoomRulesRenderers(proto) {
                 class="evcc-chip ${changes[field] === option.value ? "active" : ""}"
                 data-rule-field="effect.changes.${this.escapeHtml(field)}"
                 data-rule-value="${this.escapeHtml(String(option.value))}"
-              >${this.escapeHtml(option.label)}</button>
+              >${this.escapeHtml(this.tVocabRaw(field, option.value, option.label))}</button>
             `).join("")}
           </div>
         </div>

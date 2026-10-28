@@ -76,7 +76,9 @@
       "vacuum": "Vacuum",  // clean mode: suction only
       "mop": "Mop",  // clean mode: mop only
       "vacuum_mop": "Vacuum and mop",
-      "vacuum_and_mop": "Vacuum and mop"  // alias: stored profiles use the display-string form "Vacuum and mop" (slug vacuum_and_mop), not the vacuum_mop code
+      "vacuum_and_mop": "Vacuum and mop",  // alias: stored profiles use the display-string form "Vacuum and mop" (slug vacuum_and_mop), not the vacuum_mop code
+      "vacuum_plus_mop": "Vacuum and mop",  // alias of vacuum_mop: stored spelling "Vacuum plus mop"
+      "mop_and_vacuum": "Vacuum and mop"  // alias of vacuum_mop: stored spelling "Mop and vacuum"
     },
     "fan_speed": {
       "quiet": "Quiet",  // suction level (lowest)
@@ -85,25 +87,39 @@
       "standard": "Standard",  // suction level
       "boost": "Boost",  // suction level
       "turbo": "Turbo",  // suction level (Eufy app term; the value the device actually emits)
-      "max": "Max"  // suction level (highest)
+      "max": "Max",  // suction level (highest)
+      "boost_iq": "BoostIQ",  // alias of boost: PRODUCT TERM — Eufy's app shows "BoostIQ" untranslated in every language, so leave it
+      "boostiq": "BoostIQ"  // alias of boost: the unspaced stored spelling of the same product term
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "Max"  // suction level (highest); Dreame app term for the `turbo` token
+        "turbo": "Max",  // suction level (highest); Dreame app term for the `turbo` token
+        "strong": "Intense"  // suction level (second-highest); Dreame app term for the `strong` token, which no other brand emits
       }
     },
     "water_level": {
       "off": "Off",  // water level: no water
       "low": "Low",  // water level
       "medium": "Medium",  // water level
-      "high": "High"  // water level
+      "high": "High",  // water level
+      "slightly_dry": "Slightly Dry",  // wetness: driest band — a nearly-dry mop pass
+      "moist": "Moist",  // wetness: middle band
+      "wet": "Wet",  // wetness: wettest band
+      "unknown": "Unknown",  // the water-level sensor exists but has no reading yet
+      "unavailable": "Unavailable",  // the water-level sensor is not responding
+      "quiet": "Quiet",  // alias of low: Eufy's own word for the lowest water rung — the same adjective as the quiet SUCTION level
+      "automatic": "Automatic",  // alias of medium: Eufy's own word — the dock chooses the amount
+      "auto": "Auto",  // alias of medium: the short stored spelling of "Automatic"
+      "strong": "Strong"  // alias of high: Eufy's own word for the highest WATER rung (not a suction level)
     },
     "clean_intensity": {
       "quick": "Quick",  // cleaning path / intensity
       "narrow": "Narrow",  // cleaning path / intensity
       "deep": "Deep",  // cleaning path / intensity
       "normal": "Normal",  // cleaning path / intensity (manual-only)
-      "standard": "Standard"  // cleaning path / intensity (Eufy app term; the dominant stored value)
+      "standard": "Standard",  // cleaning path / intensity (Eufy app term; the dominant stored value)
+      "intensive": "Intensive",  // cleaning path / intensity: denser than standard, lighter than deep (Dreame)
+      "fast": "Fast"  // alias of quick: Eufy's own word for the quick path, kept rather than replaced by core's key word
     },
     "path_type": {
       "standard": "Standard",  // mop route: normal pass density

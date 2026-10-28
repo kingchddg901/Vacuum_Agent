@@ -633,15 +633,27 @@ const inList = (m, k, lc) => !!(m && m[k] && (m[k] === "*" || m[k].includes(lc))
 const stable = (v) => (typeof v === "string" ? v : JSON.stringify(Object.fromEntries(Object.entries(v).sort())));
 const newIdentical = [];
 let pendingSeen = 0;
+let identicalTotal = 0;
+let acceptedSeen = 0;
 for (const { code, clean } of shippedClean) {
   for (const [k, v] of Object.entries(clean)) {
     const ev = enCatalog[k];
     if (ev === undefined || stable(v) !== stable(ev)) continue;
-    if (inList(ratchet.accepted, k, code)) continue;
+    identicalTotal += 1;
+    if (inList(ratchet.accepted, k, code)) { acceptedSeen += 1; continue; }
     if (inList(ratchet.pending, k, code)) { pendingSeen += 1; continue; }
     newIdentical.push(`${code}: ${k} = ${JSON.stringify(ev).slice(0, 60)}`);
   }
 }
+// Print the reconciliation rather than leaving it to be re-derived. The docs quoted this
+// split as hand arithmetic once and it was wrong in both directions: a string-only probe
+// skipped the plural-object keys and invented three "stale acceptances", and the snapshot's
+// own pair count was read as the identical count. These three numbers come from the same
+// loop that does the flagging, so they cannot disagree with it.
+console.log(
+  `  ${identicalTotal} English-identical (key, locale) pair(s): ` +
+  `${acceptedSeen} accepted, ${pendingSeen} pending, ${newIdentical.length} new`,
+);
 if (newIdentical.length === 0) {
   console.log(`  ✓ no NEW English-identical values (pending tolerated: ${pendingSeen})`);
 } else if (STRICT) {

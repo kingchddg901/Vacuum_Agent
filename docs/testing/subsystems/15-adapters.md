@@ -172,6 +172,29 @@ churn. What actually covers the hazard is the runtime failure: resolution raises
 `UndeclaredProfileCatalogError` naming the missing declaration, so a test that reaches it
 cannot get a quietly wrong answer.
 
+### `tests/unit/test_i18n_alias_vocab_keys.py` — an accepted spelling needs a card key
+
+The axis above is also where an adapter's **display-slug aliases** come from, and they
+have a card-side obligation that nothing used to enforce. A room's stored setting is an
+un-normalized display string, and the surfaces that render it untouched (the rooms-view
+chips, the standalone room card, the map selection bar's per-room summary, the
+external-run summary) slug *that* — so `vocab.clean_mode.vacuum_mop` does not cover a
+room whose stored value is `"Vacuum and mop"`. Nine spellings across the four Eufy alias
+maps had no key when this landed, which is why sinks that **do** call `tVocab` still read
+English for them: a correct call against a missing key falls back silently to the
+backend's word (4 tests + 4 parametrized, added 2026-10-27).
+
+| case | what it holds |
+|---|---|
+| `AVK-1` | every statically declared alias spelling has a `vocab.<field>.<slug>` key |
+| `AVK-2` | the mutation control — the same function, over a map with one invented spelling, names it |
+| `AVK-3` | **scoped to `clean_mode`, and the scope is the finding.** A first draft asserted it for every axis and went red correctly: `clean_intensity.standard` reads "Standard" while its canonical target `narrow` reads "Narrow". That is deliberate — an alias spelling on the suction / water / path axes *is* the brand's own app word, and replacing it with core's internal key word would show "Narrow" to an owner whose app says "Standard". `clean_mode` is the exception because all three brands name that axis with one phrase, so its aliases are loose spellings of one word rather than competing app terms. |
+| `AVK-4` | the Roborock exemption is anchored to the code that causes it — `build_positional_aliases` derives its spellings from the device's live option list, so they are not knowable ahead of time and cannot be pre-keyed. Localizing those is part of the per-install vocabulary question in `SCOPE-71`, not of this contract. |
+
+The slug rule is **mirrored** from `src/cards/_shared.js::vocab`, not imported — the owner
+is JavaScript. A divergence there aims this gate at keys the card never looks up, which is
+why the mirror is one function with the source named in its docstring.
+
 ### `tests/adapters/eufy/test_intensity_wire_mapping.py` — three chips, three densities
 
 VA declares three cleaning intensities. The device has three. They were not reaching

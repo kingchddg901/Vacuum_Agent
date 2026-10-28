@@ -4,7 +4,9 @@
       "vacuum": "Sedot Debu",
       "mop": "Pel",
       "vacuum_mop": "Sedot Debu dan Pel",
-      "vacuum_and_mop": "Sedot Debu dan Pel"
+      "vacuum_and_mop": "Sedot Debu dan Pel",
+      "vacuum_plus_mop": "Sedot Debu dan Pel",
+      "mop_and_vacuum": "Sedot Debu dan Pel"
     },
     "fan_speed": {
       "quiet": "Senyap",
@@ -13,20 +15,33 @@
       "standard": "Standar",
       "boost": "Boost",
       "turbo": "Turbo",
-      "max": "Maks"
+      "max": "Maks",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "Nonaktif",
       "low": "Rendah",
       "medium": "Sedang",
-      "high": "Tinggi"
+      "high": "Tinggi",
+      "quiet": "Senyap",
+      "automatic": "Otomatis",
+      "auto": "Otomatis",
+      "strong": "Kuat",
+      "unknown": "Tidak Diketahui",
+      "unavailable": "Tidak Tersedia",
+      "slightly_dry": "Agak kering",
+      "moist": "Lembap",
+      "wet": "Basah"
     },
     "clean_intensity": {
       "quick": "Cepat",
       "narrow": "Sempit",
       "deep": "Dalam",
       "normal": "Normal",
-      "standard": "Standar"
+      "standard": "Standar",
+      "fast": "Cepat",
+      "intensive": "Intensif"
     },
     "metrics_tab": {
       "learning": "Pembelajaran",
@@ -753,7 +768,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "Maks"
+        "turbo": "Maks",
+        "strong": "Kuat"
       }
     },
     "path_type": {

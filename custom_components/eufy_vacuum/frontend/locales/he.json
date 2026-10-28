@@ -4,7 +4,9 @@
       "vacuum": "שאיבה",
       "mop": "שטיפה",
       "vacuum_mop": "שאיבה ושטיפה",
-      "vacuum_and_mop": "שאיבה ושטיפה"
+      "vacuum_and_mop": "שאיבה ושטיפה",
+      "vacuum_plus_mop": "שאיבה ושטיפה",
+      "mop_and_vacuum": "שאיבה ושטיפה"
     },
     "fan_speed": {
       "quiet": "שקט",
@@ -13,20 +15,33 @@
       "standard": "סטנדרטי",
       "boost": "מוגבר",
       "turbo": "טורבו",
-      "max": "מקסימום"
+      "max": "מקסימום",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "כבוי",
       "low": "נמוך",
       "medium": "בינוני",
-      "high": "גבוה"
+      "high": "גבוה",
+      "quiet": "שקט",
+      "automatic": "אוטומטי",
+      "auto": "אוטומטי",
+      "strong": "חזק",
+      "unknown": "לא ידוע",
+      "unavailable": "לא זמין",
+      "slightly_dry": "יבש מעט",
+      "moist": "לח",
+      "wet": "רטוב"
     },
     "clean_intensity": {
       "quick": "מהיר",
       "narrow": "צר",
       "deep": "יסודי",
       "normal": "רגיל",
-      "standard": "סטנדרטי"
+      "standard": "סטנדרטי",
+      "fast": "מהיר",
+      "intensive": "אינטנסיבי"
     },
     "metrics_tab": {
       "learning": "למידה",
@@ -753,7 +768,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "מקסימום"
+        "turbo": "מקסימום",
+        "strong": "עוצמתי"
       }
     },
     "path_type": {

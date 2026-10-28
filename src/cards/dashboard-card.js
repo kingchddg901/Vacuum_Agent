@@ -746,7 +746,7 @@ class EufyDashboardCard extends HTMLElement {
       ${chipRow(this.t("room_card.cleaning_mode_label"), "clean_mode", cleanModes, fields.clean_mode, tv, roomId)}
       ${chipRow(this.t("room_card.suction_level_label"), "fan_speed", suction, fields.fan_speed, tv, roomId)}
       ${waterRange
-        ? sliderRow(this.t("room_card.water_level_label"), "water_level", waterRange, fields.water_level, roomId)
+        ? sliderRow(this.t("room_card.water_level_label"), "water_level", waterRange, fields.water_level, tv, roomId)
         : (water.length ? chipRow(this.t("room_card.water_level_label"), "water_level", water, fields.water_level, tv, roomId) : "")}
       ${chipRow(this.t("room_card.cleaning_path_label"), "clean_intensity", intensity, fields.clean_intensity, tv, roomId)}
       ${passesRow()}

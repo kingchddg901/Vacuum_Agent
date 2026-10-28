@@ -4,7 +4,9 @@
       "vacuum": "掃除",
       "mop": "水拭き",
       "vacuum_mop": "掃除と水拭き",
-      "vacuum_and_mop": "掃除と水拭き"
+      "vacuum_and_mop": "掃除と水拭き",
+      "vacuum_plus_mop": "掃除と水拭き",
+      "mop_and_vacuum": "掃除と水拭き"
     },
     "fan_speed": {
       "quiet": "静音",
@@ -13,20 +15,33 @@
       "standard": "標準",
       "boost": "ブースト",
       "turbo": "ターボ",
-      "max": "最大"
+      "max": "最大",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "オフ",
       "low": "少",
       "medium": "中",
-      "high": "多"
+      "high": "多",
+      "quiet": "静音",
+      "automatic": "自動",
+      "auto": "自動",
+      "strong": "強",
+      "unknown": "不明",
+      "unavailable": "利用不可",
+      "slightly_dry": "やや乾き",
+      "moist": "湿り",
+      "wet": "濡れ"
     },
     "clean_intensity": {
       "quick": "クイック",
       "narrow": "細かい",
       "deep": "念入り",
       "normal": "通常",
-      "standard": "標準"
+      "standard": "標準",
+      "fast": "高速",
+      "intensive": "集中"
     },
     "metrics_tab": {
       "learning": "学習",
@@ -753,7 +768,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "最大"
+        "turbo": "最大",
+        "strong": "強"
       }
     },
     "path_type": {

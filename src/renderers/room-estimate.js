@@ -72,16 +72,17 @@ export function applyRoomEstimateRenderers(proto) {
       hasEstimatedWater
         ? { label: this.t("room_estimate.label_projected_water"), value: this.t("room_estimate.water_ml", { ml: Math.round(estimatedWaterMl) }) }
         : null,
-      plannedWaterRoom?.clean_mode_label
-        ? { label: this.t("room_estimate.label_mode"), value: String(plannedWaterRoom.clean_mode_label) }
-        : plannedWaterRoom?.effective_clean_mode
-          ? { label: this.t("room_estimate.label_mode"), value: this.tVocabRaw("clean_mode", plannedWaterRoom.effective_clean_mode, plannedWaterRoom.effective_clean_mode) }
-          : null,
-      plannedWaterRoom?.water_level_label
-        ? { label: this.t("room_estimate.label_water_level"), value: String(plannedWaterRoom.water_level_label) }
-        : plannedWaterRoom?.effective_water_level
-          ? { label: this.t("room_estimate.label_water_level"), value: this.tVocabRaw("water_level", plannedWaterRoom.effective_water_level, plannedWaterRoom.effective_water_level) }
-          : null,
+      // CODE first, label as the FALLBACK. These two rows used to test the backend's
+      // English `*_label` first, so the already-correct tVocabRaw arm below them was only
+      // ever reached when the label was absent — which the backend does not do. tVocabRaw
+      // returns its fallback for a null value, so a payload that carries only the label
+      // still reads exactly as it did.
+      plannedWaterRoom?.effective_clean_mode || plannedWaterRoom?.clean_mode_label
+        ? { label: this.t("room_estimate.label_mode"), value: this.tVocabRaw("clean_mode", plannedWaterRoom.effective_clean_mode, plannedWaterRoom.clean_mode_label ?? plannedWaterRoom.effective_clean_mode) }
+        : null,
+      plannedWaterRoom?.effective_water_level || plannedWaterRoom?.water_level_label
+        ? { label: this.t("room_estimate.label_water_level"), value: this.tVocabRaw("water_level", plannedWaterRoom.effective_water_level, plannedWaterRoom.water_level_label ?? plannedWaterRoom.effective_water_level) }
+        : null,
     ].filter(Boolean);
 
     const liveRows = progressSnapshot

@@ -4,7 +4,9 @@
       "vacuum": "Vysávání",
       "mop": "Vytírání",
       "vacuum_mop": "Vysávání a vytírání",
-      "vacuum_and_mop": "Vysávání a vytírání"
+      "vacuum_and_mop": "Vysávání a vytírání",
+      "vacuum_plus_mop": "Vysávání a vytírání",
+      "mop_and_vacuum": "Vysávání a vytírání"
     },
     "fan_speed": {
       "quiet": "Tichý",
@@ -13,20 +15,33 @@
       "standard": "Standardní",
       "boost": "Zesílený",
       "turbo": "Turbo",
-      "max": "Max"
+      "max": "Max",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "Vypnuto",
       "low": "Nízké",
       "medium": "Střední",
-      "high": "Vysoké"
+      "high": "Vysoké",
+      "quiet": "Tichý",
+      "automatic": "Automatické",
+      "auto": "Auto",
+      "strong": "Silné",
+      "unknown": "Neznámý",
+      "unavailable": "Nedostupné",
+      "slightly_dry": "Mírně suchý",
+      "moist": "Vlhký",
+      "wet": "Mokrý"
     },
     "clean_intensity": {
       "quick": "Rychlý",
       "narrow": "Úzký",
       "deep": "Hloubkový",
       "normal": "Normální",
-      "standard": "Standardní"
+      "standard": "Standardní",
+      "fast": "Rychlé",
+      "intensive": "Intenzivní"
     },
     "metrics_tab": {
       "learning": "Učení",
@@ -753,7 +768,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "Max"
+        "turbo": "Max",
+        "strong": "Silný"
       }
     },
     "path_type": {

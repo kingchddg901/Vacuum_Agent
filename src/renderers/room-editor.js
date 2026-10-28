@@ -304,23 +304,37 @@ export function applyRoomEditorRenderer(proto) {
     const min = Number(range.min);
     const max = Number(range.max);
     const step = Number(range.step ?? 1);
-    const lbls = range.labels ?? {};
+    // The band words are the ADAPTER's English labels ("Slightly Dry"), i.e. vocabulary
+    // VALUES: localize each through `vocab.water_level.<slug>` with the adapter's own word
+    // as the fallback, so a custom-declared range keeps its author's wording. tVocabRaw,
+    // because every sink below escapes (the twin would double-escape a translated
+    // "Légèrement sec"). One localization point covers BOTH the initial word and the three
+    // data-word-* attrs the drag binding copies from — fixing only the word would flip it
+    // back to English on first drag.
+    const rawLbls = range.labels ?? {};
+    const band = (word) =>
+      word == null || word === "" ? "" : this.tVocabRaw("water_level", word, word);
+    const lbls = {
+      min_label: band(rawLbls.min_label),
+      mid_label: band(rawLbls.mid_label),
+      max_label: band(rawLbls.max_label),
+    };
     const mid = Math.round((min + max) / 2);
     const parsed = fields.water_level == null || fields.water_level === ""
       ? mid : Number(fields.water_level);
     const val = Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : mid;
     const third = (max - min) / 3;
-    const word = val <= min + third ? (lbls.min_label ?? "")
-      : val >= max - third ? (lbls.max_label ?? "") : (lbls.mid_label ?? "");
+    const word = val <= min + third ? lbls.min_label
+      : val >= max - third ? lbls.max_label : lbls.mid_label;
     return `
       <div class="evcc-editor-field-group">
         <div class="evcc-field-label">${this.t("room_editor.water_level")}</div>
         <div class="evcc-slider-row">
           <input type="range" class="evcc-range-slider"
             data-slider-field="water_level"
-            data-word-low="${this.escapeHtml(lbls.min_label ?? "")}"
-            data-word-mid="${this.escapeHtml(lbls.mid_label ?? "")}"
-            data-word-high="${this.escapeHtml(lbls.max_label ?? "")}"
+            data-word-low="${this.escapeHtml(lbls.min_label)}"
+            data-word-mid="${this.escapeHtml(lbls.mid_label)}"
+            data-word-high="${this.escapeHtml(lbls.max_label)}"
             min="${min}" max="${max}" step="${step}" value="${val}"
             aria-label="${this.escapeHtml(this.t("room_editor.water_level"))}" />
           <output class="evcc-slider-value">${val}</output>

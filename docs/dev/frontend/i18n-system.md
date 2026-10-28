@@ -141,6 +141,15 @@ component) as English labels. `this.tVocab(field, value, fallback)` localizes th
 > goes live the day a locale renders that field with a possessive or a contraction.
 > Check the sink, not the current catalogue.
 
+A **continuous** axis's band labels are vocabulary values too, and they come as *words*
+rather than codes: Dreame declares `water_level_range.labels` = "Slightly Dry" / "Moist"
+/ "Wet" for its 1..32 wetness slider, whose slugs land on
+`vocab.water_level.{slightly_dry,moist,wet}` — the same three keys its coarse select
+needs, so one family serves both. Localize at the point where the three labels are read
+(`sliderRow` in `cards/_shared.js`, `_renderWetnessSlider` in `renderers/room-editor.js`),
+not at the rendered word: the slider's live word is copied from `data-word-low/mid/high`
+on every input event, so a fix at the render alone reads correctly until the first drag.
+
 Three fields on the Base Station "Station Status" panel show how narrowly this is
 scoped: `device_status` (the dock's own sensor), `lifecycle_state` (the start-readiness
 verdict from `jobs/job_monitor.py`, six values, replica set `RN1SW6P4`) and `status`
@@ -166,7 +175,28 @@ card, the external-run summary) are covered by **display-slug alias keys** — e
 locale ships `vocab.clean_mode.vacuum_and_mop` alongside `vocab.clean_mode.vacuum_mop`,
 so the label the card actually stored localizes rather than falling back to English.
 Add a display spelling to an adapter's alias map and you must add the matching alias
-key, or that surface silently reverts to English for every language. (Reason-code
+key, or that surface silently reverts to English for every language.
+
+That sentence was unenforced until 2.5.3, and nine spellings had no key — which is why
+sinks that *do* call `tVocab` still rendered English for them: a correct call against a
+missing key falls back, silently, to the backend's word. **`[AVK-1]`**
+(`tests/unit/test_i18n_alias_vocab_keys.py`) is the gate now; it slugs every statically
+declared alias and fails on any with no `vocab.<field>.<slug>` key. Writing it settled two
+things:
+
+- **An alias keeps its OWN word, not the canonical key's.** `clean_intensity.standard`
+  canonicalizes to `narrow`, and showing a Eufy owner "Narrow" where their app says
+  "Standard" would put core's internal key in front of the brand's word. `clean_mode` is
+  the single exception (`[AVK-3]`), because all three brands name that axis with one
+  phrase, so its aliases are spellings of one word rather than competing app terms.
+- **Roborock's aliases are exempt because they are built at runtime.**
+  `build_positional_aliases` derives them from the device's live option list, so the
+  spellings are not knowable ahead of time. They ride `tVocab`'s documented fallback to
+  the adapter's label, and localizing them belongs to the per-install vocabulary question,
+  not to this contract. `[AVK-4]` anchors that exemption to the builder, so it dies with
+  the code rather than outliving it.
+
+(Reason-code
 surfaces follow the same contract: the Learning Review
 badges + per-job notes `tVocabRaw` the stable backend code — `vocab.reason_code.*`,
 `vocab.exclude_suggested_reason.*` — with the English text as the per-code fallback.)
@@ -344,14 +374,16 @@ contract gate, run after every wave. Four sections:
   product term) or untranslated leakage, and telling them apart needs a human
   exactly once. `scripts/i18n-accepted-english.json` is the reviewed snapshot
   (`accepted`: key → locale list or `"*"`; `pending`: provisionally tolerated
-  but listed so entries can't rot invisibly — measured 2026-10-27: `accepted` holds
-  **211 keys / 898 (key, locale) pairs**, `pending` 2: `vocab.obstacle_type.cable`
+  but listed so entries can't rot invisibly — `accepted` holds **215 keys / 941
+  (key, locale) pairs** at 2.5.3, `pending` 2: `vocab.obstacle_type.cable`
   (`es`) and `vocab.obstacle_type.pedestal` (`es`, `pt`). ⚠ The file's own `_meta`
   still asserts "pending is now empty" under a dated 2026-08-04 note — the data file
   misdescribes itself, so read the `pending` object, never the prose beside it). Only
   **NEW** English-identical values not in the snapshot are flagged; comparison is
   language-blind by design (no dictionaries; plural objects compared by
-  key-sorted serialization).
+  key-sorted serialization). **Don't re-derive the counts — the section prints its
+  own**: one line giving the identical total and its accepted / pending / new split,
+  from the same loop that does the flagging.
 
 > **What the ratchet cannot judge, and the cheap rule that covers part of it.** Section
 > D asks whether a value is English-identical, never whether being English is *right* —
@@ -368,16 +400,25 @@ contract gate, run after every wave. Four sections:
 > `ja` hit was decisive because *every* sibling in its field was Japanese and all six
 > other non-Latin locales had translated that same key.
 >
-> **Its detection floor:** of the 898 accepted pairs, **817 are in Latin-script locales**
+> **Its detection floor:** of the 941 accepted pairs, **846 are in Latin-script locales**
 > and the rule is blind to every one of them — a cognate and an untranslated word are
 > byte-identical to it. It also says nothing at all about a value that is wrong but not
-> English. It covers the remaining 81.
+> English. It covers the remaining 95.
 >
-> The pairs reconcile exactly, which is the check that the snapshot has not rotted:
-> **908** English-identical pairs by section D's own comparison (plural objects by
-> key-sorted serialisation) = **905** accepted + **3** pending, before these seven left.
-> Count strings only and you get 905 and three phantom "stale acceptances" that are just
-> the plural keys.
+> ⚠ **One new entry deliberately breaks the Latin-script-only invariant** the paragraph
+> above leaves behind: `vocab.fan_speed.boost_iq` / `.boostiq` are accepted for `"*"`,
+> because their value is the product name **BoostIQ**, which Eufy's app shows
+> untranslated in every language. Same exemption `font.opendyslexic` holds — it is a
+> name, not a word. The rule will flag them on every future run; that is the cost of the
+> rule being mechanical, and the reason the `_meta` note says so explicitly.
+>
+> The pairs reconcile exactly, which is the check that the snapshot has not rotted — and
+> the section now **prints that reconciliation itself** rather than leaving it to hand
+> arithmetic, which got it wrong twice (a string-only probe skipped the plural-object keys
+> and invented three phantom "stale acceptances"; the snapshot's own pair count was then
+> read as the identical count). At 2.5.3 the line reads **944 pairs = 941 accepted + 3
+> pending + 0 new**, and 941 is also the whole snapshot — every accepted pair is still
+> English-identical, so there is nothing stale in it at all.
 
 **`--strict-coverage`** is release-gate mode: NEW English-identical values and
 any untranslated key become **failures** instead of a printed list (the

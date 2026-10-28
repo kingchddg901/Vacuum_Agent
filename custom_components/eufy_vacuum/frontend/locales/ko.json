@@ -4,7 +4,9 @@
       "vacuum": "흡입",
       "mop": "물걸레",
       "vacuum_mop": "흡입 및 물걸레",
-      "vacuum_and_mop": "흡입 및 물걸레"
+      "vacuum_and_mop": "흡입 및 물걸레",
+      "vacuum_plus_mop": "흡입 및 물걸레",
+      "mop_and_vacuum": "흡입 및 물걸레"
     },
     "fan_speed": {
       "quiet": "저소음",
@@ -13,20 +15,33 @@
       "standard": "표준",
       "boost": "부스트",
       "turbo": "터보",
-      "max": "최대"
+      "max": "최대",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "없음",
       "low": "약",
       "medium": "중",
-      "high": "강"
+      "high": "강",
+      "quiet": "저소음",
+      "automatic": "자동",
+      "auto": "자동",
+      "strong": "강",
+      "unknown": "알 수 없음",
+      "unavailable": "사용 불가",
+      "slightly_dry": "약간 건조",
+      "moist": "촉촉",
+      "wet": "젖음"
     },
     "clean_intensity": {
       "quick": "빠름",
       "narrow": "좁게",
       "deep": "꼼꼼",
       "normal": "일반",
-      "standard": "표준"
+      "standard": "표준",
+      "fast": "고속",
+      "intensive": "집중"
     },
     "metrics_tab": {
       "learning": "학습",
@@ -753,7 +768,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "최대"
+        "turbo": "최대",
+        "strong": "강력"
       }
     },
     "path_type": {

@@ -4,7 +4,9 @@
       "vacuum": "扫地",
       "mop": "拖地",
       "vacuum_mop": "扫拖",
-      "vacuum_and_mop": "扫拖"
+      "vacuum_and_mop": "扫拖",
+      "vacuum_plus_mop": "扫拖",
+      "mop_and_vacuum": "扫拖"
     },
     "fan_speed": {
       "quiet": "安静",
@@ -13,20 +15,33 @@
       "standard": "标准",
       "boost": "强力",
       "turbo": "强劲",
-      "max": "最大"
+      "max": "最大",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "关闭",
       "low": "低",
       "medium": "中",
-      "high": "高"
+      "high": "高",
+      "quiet": "安静",
+      "automatic": "自动",
+      "auto": "自动",
+      "strong": "强",
+      "unknown": "未知",
+      "unavailable": "不可用",
+      "slightly_dry": "微干",
+      "moist": "湿润",
+      "wet": "潮湿"
     },
     "clean_intensity": {
       "quick": "快速",
       "narrow": "精细",
       "deep": "深度",
       "normal": "常规",
-      "standard": "标准"
+      "standard": "标准",
+      "fast": "快速",
+      "intensive": "强化"
     },
     "metrics_tab": {
       "learning": "学习",
@@ -753,7 +768,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "最大"
+        "turbo": "最大",
+        "strong": "强力"
       }
     },
     "path_type": {

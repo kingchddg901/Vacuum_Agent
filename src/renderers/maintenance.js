@@ -299,7 +299,7 @@ export function applyMaintenanceRenderers(proto) {
               ${this._renderMaintenanceStat(this.t("maintenance.stat_attention"), attentionCount)}
               ${this._renderMaintenanceStat(this.t("maintenance.stat_priority"), highestPriorityStatus || this.t("maintenance.priority_normal"))}
               ${this._renderMaintenanceStat(this.t("maintenance.stat_items"), maintenanceItems.length)}
-              ${this._renderMaintenanceStat(this.t("maintenance.stat_water"), upkeep.station_water_label ?? stationWater ?? this.t("maintenance.value_unknown"))}
+              ${this._renderMaintenanceStat(this.t("maintenance.stat_water"), this._formatMaintenanceWaterReading(stationWater, upkeep.station_water_label))}
             </div>
             ${totalTiles.length ? `
               <div class="evcc-maintenance-stats">
@@ -698,11 +698,14 @@ export function applyMaintenanceRenderers(proto) {
     // no water level at all read as a numeric 0 -> status "replace_now" -> the card claimed
     // "Empty · ~0 ml remaining". That is a fabricated reading, not a missing one.
     const isNumeric = hasValue && Number.isFinite(numericValue);
-    const rawValue = String(stationWaterLabel ?? "").trim() || (hasValue
-      ? (isNumeric ? `${Math.round(numericValue)}${this.t("metrics.unit_percent")}` : String(stationWater))
-      : this.t("maintenance.value_unknown"));
+    const backendLabel = String(stationWaterLabel ?? "").trim();
+    const rawValue = this._formatMaintenanceWaterReading(stationWater, stationWaterLabel);
 
-    const normalized = String(rawValue).trim().toLowerCase();
+    // Derived from the stable CODE, not from the rendered word. Reading it off `rawValue`
+    // meant a German "Niedrig" matched none of the buckets below and every non-numeric
+    // reading fell to "unknown" the moment the card was translated. The label is consulted
+    // only when no code arrived at all, which is the one case it carries the only signal.
+    const normalized = String(hasValue ? stationWater : backendLabel).trim().toLowerCase();
     let statusKey = "unknown";
 
     if (isNumeric) {
@@ -731,7 +734,12 @@ export function applyMaintenanceRenderers(proto) {
             : numericValue > 0
               ? this.t("maintenance.water_low")
               : this.t("maintenance.water_empty"))
-      : (String(stationWaterLabel ?? "").trim() || this._formatMaintenanceStatus(statusKey));
+      // Same demotion as `rawValue`: the localized status word (good / replace soon / …)
+      // was unreachable whenever the backend sent a label, which is always. No `|| label`
+      // tail — `_formatMaintenanceStatus` always answers (it falls back to its own
+      // `maintenance.status_unknown`), and `statusKey` is now derived from the label in the
+      // one case where the label is the only signal there is.
+      : this._formatMaintenanceStatus(statusKey);
     const fillPercent = isNumeric
       ? Math.max(0, Math.min(100, numericValue))
       : (
@@ -1318,6 +1326,39 @@ export function applyMaintenanceRenderers(proto) {
    * @param {string|null|undefined} label  - the backend's English label.
    * @returns {string}
    */
+  /**
+   * The station-water READING as one localized string — the single answer to
+   * "what does this dock's clean-water level say?", shared by the Upkeep stat row and the
+   * Station Water card so the two cannot disagree.
+   *
+   * Order is deliberate and is the fix for the census sink: a numeric fill renders through
+   * the card's own `metrics.unit_percent`; a vocabulary CODE ("low", "unknown") resolves
+   * through `vocab.water_level.<slug>`; the backend's English `station_water_label` is only
+   * the fallback. It used to LEAD both call sites, which printed English in all 17
+   * translated languages — and because the card then derived the status bucket from the
+   * rendered word, translating it would have broken the bucket too.
+   *
+   * RAW: both call sites escape (`_renderMaintenanceStat` and the card value both do).
+   *
+   * @param {*} stationWater - the raw sensor state: a numeric string, a word, or null.
+   * @param {*} stationWaterLabel - the backend's composed English label, or null.
+   * @returns {string} unescaped, localized reading.
+   */
+  proto._formatMaintenanceWaterReading = function (stationWater, stationWaterLabel) {
+    const backendLabel = String(stationWaterLabel ?? "").trim();
+    const hasValue = stationWater != null && stationWater !== "";
+    const numericValue = Number(stationWater);
+    // hasValue is load-bearing: Number(null) is 0, so without it a dock that reports no
+    // water level at all would read as a confident "0%".
+    if (hasValue && Number.isFinite(numericValue)) {
+      return `${Math.round(numericValue)}${this.t("metrics.unit_percent")}`;
+    }
+    if (hasValue) {
+      return this.tVocabRaw("water_level", stationWater, backendLabel || String(stationWater));
+    }
+    return backendLabel || this.t("maintenance.value_unknown");
+  };
+
   proto._maintenanceStatusText = function (status, label) {
     const normalized = String(status ?? "").trim().toLowerCase();
     if (normalized) {

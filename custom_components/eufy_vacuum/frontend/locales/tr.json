@@ -4,7 +4,9 @@
       "vacuum": "Süpürme",
       "mop": "Paspaslama",
       "vacuum_mop": "Süpürme ve paspaslama",
-      "vacuum_and_mop": "Süpürme ve paspaslama"
+      "vacuum_and_mop": "Süpürme ve paspaslama",
+      "vacuum_plus_mop": "Süpürme ve paspaslama",
+      "mop_and_vacuum": "Süpürme ve paspaslama"
     },
     "fan_speed": {
       "quiet": "Sessiz",
@@ -13,20 +15,33 @@
       "standard": "Standart",
       "boost": "Güçlü",
       "turbo": "Turbo",
-      "max": "Maksimum"
+      "max": "Maksimum",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "Kapalı",
       "low": "Düşük",
       "medium": "Orta",
-      "high": "Yüksek"
+      "high": "Yüksek",
+      "quiet": "Sessiz",
+      "automatic": "Otomatik",
+      "auto": "Otomatik",
+      "strong": "Güçlü",
+      "unknown": "Bilinmiyor",
+      "unavailable": "Kullanılamıyor",
+      "slightly_dry": "Hafif kuru",
+      "moist": "Nemli",
+      "wet": "Islak"
     },
     "clean_intensity": {
       "quick": "Hızlı",
       "narrow": "Dar",
       "deep": "Derin",
       "normal": "Normal",
-      "standard": "Standart"
+      "standard": "Standart",
+      "fast": "Hızlı",
+      "intensive": "Yoğun"
     },
     "metrics_tab": {
       "learning": "Öğrenme",
@@ -753,7 +768,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "Maksimum"
+        "turbo": "Maksimum",
+        "strong": "Güçlü"
       }
     },
     "path_type": {

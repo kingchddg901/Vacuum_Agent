@@ -4,7 +4,9 @@
       "vacuum": "كنس",
       "mop": "مسح",
       "vacuum_mop": "كنس ومسح",
-      "vacuum_and_mop": "كنس ومسح"
+      "vacuum_and_mop": "كنس ومسح",
+      "vacuum_plus_mop": "كنس ومسح",
+      "mop_and_vacuum": "كنس ومسح"
     },
     "fan_speed": {
       "quiet": "هادئ",
@@ -13,20 +15,33 @@
       "standard": "قياسي",
       "boost": "معزّز",
       "turbo": "توربو",
-      "max": "أقصى"
+      "max": "أقصى",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "إيقاف",
       "low": "منخفض",
       "medium": "متوسط",
-      "high": "مرتفع"
+      "high": "مرتفع",
+      "quiet": "هادئ",
+      "automatic": "تلقائي",
+      "auto": "تلقائي",
+      "strong": "قوي",
+      "unknown": "غير معروف",
+      "unavailable": "غير متاح",
+      "slightly_dry": "شبه جاف",
+      "moist": "رطب",
+      "wet": "مبلل"
     },
     "clean_intensity": {
       "quick": "سريع",
       "narrow": "ضيّق",
       "deep": "عميق",
       "normal": "عادي",
-      "standard": "قياسي"
+      "standard": "قياسي",
+      "fast": "سريع",
+      "intensive": "مكثّف"
     },
     "metrics_tab": {
       "learning": "التعلّم",
@@ -753,7 +768,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "أقصى"
+        "turbo": "أقصى",
+        "strong": "قويّ"
       }
     },
     "path_type": {

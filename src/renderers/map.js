@@ -909,18 +909,39 @@ export function applyMapRenderers(proto) {
    * in card state (setZoneSetting) and sent in start_zone_clean.settings — no device entity
    * is touched. The `zone-native-setting` change binding records the pick.
    */
+  // The zone params carry the ADAPTER's own axis names (mode / suction / route / water),
+  // which are not vocab field names — so both the caption and the option words were printed
+  // from the adapter's English labels while the sibling entity-backed branch above was fully
+  // localized. This is the bridge, and it deliberately maps onto the SAME four keys that
+  // branch already uses: `route` is the mop-route axis, which this card calls clean_intensity.
+  // An axis a future adapter declares under some other name is absent here and keeps its own
+  // declared label, which is the right answer for a word core has never seen.
+  const ZONE_SETTING_FIELDS = {
+    mode:    { field: "clean_mode",      caption: "map.zone_setting_mode" },
+    suction: { field: "fan_speed",       caption: "map.zone_setting_suction" },
+    route:   { field: "clean_intensity", caption: "map.zone_setting_intensity" },
+    water:   { field: "water_level",     caption: "map.zone_setting_water" },
+  };
+
   proto._renderNativeZoneSettingRows = function (state, native) {
     const esc = (s) => this.escapeHtml(String(s));
     return native.map((p) => {
       const opts = Array.isArray(p?.options) ? p.options : [];
       if (!p?.key || !opts.length) return "";
       const cur = state.zoneSettingValue?.(p.key, p.default);
+      const mapped = ZONE_SETTING_FIELDS[String(p.key)];
+      // t()/tVocab() are inserted RAW (both escape; the adapter's own label reaches the
+      // caption through esc() on the unmapped path only).
+      const caption = mapped ? this.t(mapped.caption) : esc(p.label || p.key);
+      const word = (o) => (mapped
+        ? this.tVocab(mapped.field, o.value, o.label ?? o.value)
+        : esc(o.label ?? o.value));
       return `
         <label class="evcc-zone-setting">
-          <span class="evcc-zone-setting-label">${esc(p.label || p.key)}</span>
+          <span class="evcc-zone-setting-label">${caption}</span>
           <select class="evcc-zone-setting-select" data-action="zone-native-setting"
                   data-setting-key="${esc(p.key)}">
-            ${opts.map((o) => `<option value="${esc(o.value)}"${o.value === cur ? " selected" : ""}>${esc(o.label ?? o.value)}</option>`).join("")}
+            ${opts.map((o) => `<option value="${esc(o.value)}"${o.value === cur ? " selected" : ""}>${word(o)}</option>`).join("")}
           </select>
         </label>`;
     }).join("");
@@ -1217,8 +1238,16 @@ export function applyMapRenderers(proto) {
 
   proto._mapRoomSettingsSummary = function (room) {
     const parts = [];
-    if (room.fanSpeed) parts.push(room.fanSpeed);
-    if (room.waterLevel) parts.push(room.waterLevel);
+    // These are the room's STORED setting values, printed straight into the selection bar
+    // with no lookup — English in all 17 translated languages. tVocabRaw, because the
+    // summary is escapeHtml'd at the sink (_renderMapSelectionBar).
+    //
+    // Stored values are un-normalized display strings, which the display-slug alias keys
+    // cover (`vocab.clean_mode.vacuum_and_mop` beside `.vacuum_mop`). Dreame's fine water
+    // axis stores a NUMBER as a string ("16"): its slug matches no key, so tVocabRaw hands
+    // the value straight back and the reading passes through unchanged.
+    if (room.fanSpeed) parts.push(this.tVocabRaw("fan_speed", room.fanSpeed, room.fanSpeed));
+    if (room.waterLevel) parts.push(this.tVocabRaw("water_level", room.waterLevel, room.waterLevel));
     return parts.join(" · ");
   };
 

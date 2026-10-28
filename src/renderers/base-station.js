@@ -142,7 +142,7 @@ export function applyBaseStationRenderers(proto) {
               </div>
 
               <div class="evcc-base-station-stats">
-                ${this._renderBaseStationStat(this.t("base_station.stat_station_water"), state.stationWaterLabel?.() || this._formatBaseStationWaterLevel(upkeep.station_water))}
+                ${this._renderBaseStationStat(this.t("base_station.stat_station_water"), this._formatBaseStationWaterLevel(upkeep.station_water, state.stationWaterLabel?.()))}
                 ${this._renderBaseStationStat(this.t("base_station.stat_tank_now"), this._formatBaseStationMilliliters(plannedWater?.available_clean_tank_ml))}
                 ${this._renderBaseStationStat(this.t("base_station.stat_after_job"), this._formatBaseStationProjectedTank(plannedWater))}
                 ${this._renderBaseStationStat(this.t("base_station.stat_job_use"), this._formatBaseStationMilliliters(plannedWater?.estimated_total_dock_clean_water_used_ml))}
@@ -346,13 +346,25 @@ export function applyBaseStationRenderers(proto) {
    * @param {*} value - Raw water level (numeric percent or string key).
    * @returns {string} Formatted water level string.
    */
-  proto._formatBaseStationWaterLevel = function (value) {
+  proto._formatBaseStationWaterLevel = function (value, backendLabel = null) {
+    // `hasValue` is LOAD-BEARING, and this is the SHORTER COPY of a guard the maintenance
+    // renderer already carries with its own note: Number(null) is 0 and Number.isFinite(0)
+    // is true, so without it a dock that reports no water level at all renders a confident
+    // "0%". It was reachable before (no code AND no label) and demoting the label below the
+    // code widened it to every no-code payload — caught by [SSV-1] on exactly that input.
+    const hasValue = value != null && value !== "";
     const numeric = Number(value);
-    if (Number.isFinite(numeric)) return `${Math.round(numeric)}${this.t("metrics.unit_percent")}`;
-    // String keys ("low", "medium", …) are backend vocabulary — localize via
-    // the existing vocab.water_level family; unknown values keep the
-    // title-cased fallback. Raw: the stat sink escapes.
-    return this.tVocabRaw("water_level", value, this._formatBaseStationLabel(value));
+    if (hasValue && Number.isFinite(numeric)) return `${Math.round(numeric)}${this.t("metrics.unit_percent")}`;
+    // String keys ("low", "medium", "unknown", …) are backend vocabulary — localize via
+    // the existing vocab.water_level family. Raw: the stat sink escapes.
+    //
+    // `backendLabel` is the payload's own station_water_label, and it is the FALLBACK, not
+    // the preference. It used to win outright at the call site (`stationWaterLabel() || …`),
+    // which short-circuited this whole function and printed the backend's English word in
+    // every locale while the Dock status row beside it was translated. The label still
+    // carries the only answer when no code arrives (tVocabRaw returns the fallback for a
+    // null value), so nothing is lost by demoting it.
+    return this.tVocabRaw("water_level", value, backendLabel || this._formatBaseStationLabel(value));
   };
 
   /**

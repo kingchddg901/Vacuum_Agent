@@ -1903,7 +1903,9 @@
       "vacuum": "Aspiration",
       "mop": "Serpillière",
       "vacuum_mop": "Aspiration et serpillière",
-      "vacuum_and_mop": "Aspiration et serpillière"
+      "vacuum_and_mop": "Aspiration et serpillière",
+      "vacuum_plus_mop": "Aspiration et serpillière",
+      "mop_and_vacuum": "Aspiration et serpillière"
     },
     "fan_speed": {
       "quiet": "Silencieux",
@@ -1912,20 +1914,33 @@
       "max": "Max",
       "turbo": "Turbo",
       "gentle": "Doux",
-      "balanced": "Équilibré"
+      "balanced": "Équilibré",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "Désactivé",
       "low": "Faible",
       "medium": "Moyen",
-      "high": "Élevé"
+      "high": "Élevé",
+      "quiet": "Silencieux",
+      "automatic": "Automatique",
+      "auto": "Auto",
+      "strong": "Fort",
+      "unknown": "Inconnu",
+      "unavailable": "Indisponible",
+      "slightly_dry": "Légèrement sec",
+      "moist": "Humide",
+      "wet": "Mouillé"
     },
     "clean_intensity": {
       "quick": "Rapide",
       "narrow": "Resserré",
       "deep": "Approfondi",
       "normal": "Normal",
-      "standard": "Standard"
+      "standard": "Standard",
+      "fast": "Rapide",
+      "intensive": "Intensif"
     },
     "metrics_tab": {
       "learning": "Apprentissage",
@@ -2652,7 +2667,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "Max"
+        "turbo": "Max",
+        "strong": "Intense"
       }
     },
     "path_type": {

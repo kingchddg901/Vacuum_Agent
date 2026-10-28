@@ -1985,7 +1985,9 @@
       "vacuum": "Уборка",
       "mop": "Влажная уборка",
       "vacuum_mop": "Уборка и влажная уборка",
-      "vacuum_and_mop": "Уборка и влажная уборка"
+      "vacuum_and_mop": "Уборка и влажная уборка",
+      "vacuum_plus_mop": "Уборка и влажная уборка",
+      "mop_and_vacuum": "Уборка и влажная уборка"
     },
     "fan_speed": {
       "quiet": "Тихий",
@@ -1994,20 +1996,33 @@
       "max": "Макс",
       "turbo": "Турбо",
       "gentle": "Деликатный",
-      "balanced": "Сбалансированный"
+      "balanced": "Сбалансированный",
+      "boost_iq": "BoostIQ",
+      "boostiq": "BoostIQ"
     },
     "water_level": {
       "off": "Выкл",
       "low": "Низкий",
       "medium": "Средний",
-      "high": "Высокий"
+      "high": "Высокий",
+      "quiet": "Тихий",
+      "automatic": "Автоматический",
+      "auto": "Авто",
+      "strong": "Сильный",
+      "unknown": "Неизвестно",
+      "unavailable": "Недоступно",
+      "slightly_dry": "Слегка сухой",
+      "moist": "Влажный",
+      "wet": "Мокрый"
     },
     "clean_intensity": {
       "quick": "Быстрая",
       "narrow": "Узкая",
       "deep": "Глубокая",
       "normal": "Обычная",
-      "standard": "Стандарт"
+      "standard": "Стандарт",
+      "fast": "Быстрая",
+      "intensive": "Интенсивная"
     },
     "metrics_tab": {
       "learning": "Обучение",
@@ -2734,7 +2749,8 @@
     },
     "dreame": {
       "fan_speed": {
-        "turbo": "Макс"
+        "turbo": "Макс",
+        "strong": "Мощный"
       }
     },
     "path_type": {

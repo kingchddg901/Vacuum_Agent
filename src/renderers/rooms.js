@@ -1355,9 +1355,19 @@ proto.renderRoomCard = function (room, state) {
           class="evcc-room-status"
           title="${this.escapeHtml(
             [
-              this.t("rooms.projected_water_use", { ml: Math.round(projectedWaterMl) }),
-              plannedWaterRoom?.clean_mode_label ? this.t("rooms.mode_label", { value: String(plannedWaterRoom.clean_mode_label) }) : plannedWaterRoom?.effective_clean_mode ? this.t("rooms.mode_label", { value: String(plannedWaterRoom.effective_clean_mode) }) : null,
-              plannedWaterRoom?.water_level_label ? this.t("rooms.water_label", { value: String(plannedWaterRoom.water_level_label) }) : plannedWaterRoom?.effective_water_level ? this.t("rooms.water_label", { value: String(plannedWaterRoom.effective_water_level) }) : null,
+              // tRaw, not t: this whole join is escapeHtml'd at the sink below, so t()
+              // here escaped twice. Measured 2026-10-27 — `rooms.projected_water_use`
+              // carries an apostrophe in `fr` ("Consommation d'eau projetée") and a
+              // quote in `he`, and both rendered their entity literally in the tooltip.
+              this.tRaw("rooms.projected_water_use", { ml: Math.round(projectedWaterMl) }),
+              // CODE first, label as the fallback — the backend's English `*_label` used
+              // to win and this tooltip read English in every locale.
+              plannedWaterRoom?.effective_clean_mode || plannedWaterRoom?.clean_mode_label
+                ? this.tRaw("rooms.mode_label", { value: this.tVocabRaw("clean_mode", plannedWaterRoom.effective_clean_mode, plannedWaterRoom.clean_mode_label ?? plannedWaterRoom.effective_clean_mode) })
+                : null,
+              plannedWaterRoom?.effective_water_level || plannedWaterRoom?.water_level_label
+                ? this.tRaw("rooms.water_label", { value: this.tVocabRaw("water_level", plannedWaterRoom.effective_water_level, plannedWaterRoom.water_level_label ?? plannedWaterRoom.effective_water_level) })
+                : null,
             ].filter(Boolean).join(" · ")
           )}"
         >
@@ -1416,9 +1426,12 @@ proto.renderRoomCard = function (room, state) {
   let lastCleanedChip = "";
   const lastCleanedAgoLabel = this.formatRelativeAgo?.(normalizedRoom.lastCleanedAt);
   if (lastCleanedAgoLabel && !(progressSnapshot?.isCurrent)) {
-    const titleParts = [this.t("rooms.last_cleaned_label", { value: normalizedRoom.lastCleanedAt })];
+    // tRaw throughout: the join is escapeHtml'd at the sink below (model A), so t() would
+    // escape twice. `lastJobMode` is a clean_mode CODE with no label sibling — it printed
+    // the raw token ("vacuum_mop") in every language, English included.
+    const titleParts = [this.tRaw("rooms.last_cleaned_label", { value: normalizedRoom.lastCleanedAt })];
     if (normalizedRoom.lastJobMode) {
-      titleParts.push(this.t("rooms.mode_label", { value: String(normalizedRoom.lastJobMode) }));
+      titleParts.push(this.tRaw("rooms.mode_label", { value: this.tVocabRaw("clean_mode", normalizedRoom.lastJobMode, normalizedRoom.lastJobMode) }));
     }
     lastCleanedChip = `
       <div

@@ -167,13 +167,36 @@ export function sliderWord(val, min, max, labels) {
   return l.mid_label ?? "";
 }
 
-export function sliderRow(label, fieldKey, range, currentVal, idPrefix = "") {
+export function sliderRow(label, fieldKey, range, currentVal, tVocabFn, idPrefix = "") {
   if (!range) return "";
   const pre = idPrefix ? `data-scope="${esc(idPrefix)}" ` : "";
   const min = Number(range.min);
   const max = Number(range.max);
   const step = Number(range.step ?? 1);
-  const lbls = range.labels ?? {};
+  // The band words arrive as the ADAPTER's English labels ("Slightly Dry"), so they are
+  // vocabulary VALUES and not authored text: localize each through `vocab.<fieldKey>.<slug>`
+  // and keep the adapter's own word as the fallback, so a custom-declared range (any words
+  // at all, config_schema.py allows them) still reads as its author wrote it.
+  //
+  // Localizing HERE, once, is what fixes the live word too: the three data-word-* attrs
+  // below are what the slider bindings copy into the chip on every input event
+  // (bindings/index.js, dashboard-card.js, room-card.js), so a fix at the initial render
+  // alone would flip back to English on the first drag.
+  //
+  // `tVocabFn` returns an ALREADY-ESCAPED string on both arms — a catalog hit through
+  // translate()'s Trust-Model-B escape, a miss through vocab()'s own esc(fallback) — so
+  // every sink below interpolates it RAW. Escaping again would render a translated
+  // "Légèrement sec" as `L&#39;...` (reference_i18n_double_escape).
+  const rawLbls = range.labels ?? {};
+  const band = (word) =>
+    word == null || word === ""
+      ? ""
+      : (typeof tVocabFn === "function" ? tVocabFn(fieldKey, word, word) : esc(word));
+  const lbls = {
+    min_label: band(rawLbls.min_label),
+    mid_label: band(rawLbls.mid_label),
+    max_label: band(rawLbls.max_label),
+  };
   const mid = Math.round((min + max) / 2);
   const parsed = currentVal == null || currentVal === "" ? mid : Number(currentVal);
   const val = Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : mid;
@@ -183,13 +206,13 @@ export function sliderRow(label, fieldKey, range, currentVal, idPrefix = "") {
       <div class="slider-row">
         <input type="range" class="range-slider"
           ${pre}data-slider-field="${esc(fieldKey)}"
-          data-word-low="${esc(lbls.min_label ?? "")}"
-          data-word-mid="${esc(lbls.mid_label ?? "")}"
-          data-word-high="${esc(lbls.max_label ?? "")}"
+          data-word-low="${lbls.min_label}"
+          data-word-mid="${lbls.mid_label}"
+          data-word-high="${lbls.max_label}"
           min="${min}" max="${max}" step="${step}" value="${val}"
           aria-label="${esc(label)}" />
         <output class="slider-value">${val}</output>
-        <span class="slider-word-wrap"><span class="slider-word" data-slider-word>${esc(sliderWord(val, min, max, lbls))}</span></span>
+        <span class="slider-word-wrap"><span class="slider-word" data-slider-word>${sliderWord(val, min, max, lbls)}</span></span>
       </div>
     </div>
   `;
