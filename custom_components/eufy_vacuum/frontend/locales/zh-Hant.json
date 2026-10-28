@@ -807,6 +807,14 @@
       "carpet_low": "短毛地毯",
       "carpet_high": "長毛地毯",
       "granite_light": "花崗岩"
+    },
+    "estimate_source": {
+      "learned": "已學習",
+      "default": "預設值"
+    },
+    "charge_ended_reason": {
+      "full": "已充滿",
+      "stopped": "提前結束"
     }
   },
   "map": {

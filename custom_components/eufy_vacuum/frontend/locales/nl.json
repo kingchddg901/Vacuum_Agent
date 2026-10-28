@@ -2681,6 +2681,14 @@
       "carpet_low": "Tapijt laag",
       "carpet_high": "Tapijt hoog",
       "granite_light": "Graniet"
+    },
+    "estimate_source": {
+      "learned": "Geleerd",
+      "default": "Standaard"
+    },
+    "charge_ended_reason": {
+      "full": "Volledig geladen",
+      "stopped": "Vroeg gestopt"
     }
   },
   "order_modal": {

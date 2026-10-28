@@ -807,6 +807,14 @@
       "carpet_low": "단모 카펫",
       "carpet_high": "장모 카펫",
       "granite_light": "화강암"
+    },
+    "estimate_source": {
+      "learned": "학습됨",
+      "default": "기본값"
+    },
+    "charge_ended_reason": {
+      "full": "완전 충전",
+      "stopped": "조기 종료"
     }
   },
   "map": {

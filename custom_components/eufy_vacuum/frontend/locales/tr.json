@@ -807,6 +807,14 @@
       "carpet_low": "Alçak Havlı Halı",
       "carpet_high": "Yüksek Havlı Halı",
       "granite_light": "Granit"
+    },
+    "estimate_source": {
+      "learned": "Öğrenildi",
+      "default": "Varsayılan"
+    },
+    "charge_ended_reason": {
+      "full": "Tam doldu",
+      "stopped": "Erken durdu"
     }
   },
   "map": {

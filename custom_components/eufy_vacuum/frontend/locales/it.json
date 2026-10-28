@@ -2684,6 +2684,14 @@
       "carpet_low": "Moquette bassa",
       "carpet_high": "Moquette alta",
       "granite_light": "Granito"
+    },
+    "estimate_source": {
+      "learned": "Appreso",
+      "default": "Predefinito"
+    },
+    "charge_ended_reason": {
+      "full": "Carica completa",
+      "stopped": "Interrotta prima"
     }
   },
   "order_modal": {

@@ -135,7 +135,21 @@ export function applyReviewRenderers(proto) {
                     room), grew the column as rooms × profiles × settings so it needed
                     scroll arrows, and could not filter jobs at all: a job spans rooms, so
                     _job_matches ignored it while the chip still rendered active. */ ""}
-              ${this._renderReviewChipFilter(this.t("review.filter_profile"), "profile_name", state.learningHistoryProfileNames?.() ?? [], state.learningHistoryFilters?.().profile_name, this.t("review.filter_all_profiles"))}
+              ${/* The chips resolve through tVocab("profile_name", …) and there are NO
+                    `vocab.profile_name.*` keys — not one — so every chip fell through to the
+                    backend's English name. Minting that family would duplicate the seven
+                    `rooms.profile_*` keys, and the ratchet's own lesson is that a replica
+                    inherits its parent's errors. So the localized name becomes the chip's
+                    FALLBACK instead, which is the arm tVocab was built around. */""}
+              ${this._renderReviewChipFilter(
+                this.t("review.filter_profile"), "profile_name",
+                (state.learningHistoryProfileNames?.() ?? []).map((opt) => (opt && typeof opt === "object" ? {
+                  ...opt,
+                  label: this._profileDisplayName(opt.value, opt.label),
+                  title: this._profileDisplayName(opt.value, opt.title ?? opt.label),
+                } : opt)),
+                state.learningHistoryFilters?.().profile_name, this.t("review.filter_all_profiles"),
+              )}
 
               ${this._renderReviewChipFilter(this.t("review.filter_status"), "status", state.learningHistoryStatusOptions?.(), state.learningHistoryFilters?.().status, this.t("review.filter_all_statuses"))}
 
@@ -366,6 +380,19 @@ export function applyReviewRenderers(proto) {
                   class="evcc-chip ${String(profileFilter) === String(match.profile_key) ? "active" : ""}"
                   data-review-matcher-profile="${this.escapeHtml(match.profile_key)}"
                   title="${this.t("review.matcher_chip_title")}"
+                ${/* `match.label` is profile_labels[key] off the sensor attribute — English
+                      ("Vacuum Only Quick", "User Profile 1") — and it used to win this
+                      chain, so the matcher chips read English in all 17 locales.
+                      NOTE: THIS LINE IS UNCHANGED, DELIBERATELY. (No U+26A0 in this file —
+                      [REB-12] scans the whole source for one, comments included, because a
+                      glyph that bypasses CSS is invisible to check-styles. It caught this
+                      comment.) The census listed the line as its own
+                      sink, and it was; but the fix went into _localizedProfile's fallback
+                      arm, which now resolves a built-in through its key before this chain's
+                      second element is reached. Ablating a per-chip fix here left every test
+                      green, which is the proof it would have been dead code — and the
+                      version I had written named an unknown profile "Standard", because
+                      _builtInProfileI18nKey("") answers with the standard key. */""}
                 >${this.escapeHtml(this._localizedProfile(match).label || match.label || match.profile_key)}</button>
               `).join("")}
             </div>

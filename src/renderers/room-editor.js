@@ -205,7 +205,14 @@ export function applyRoomEditorRenderer(proto) {
             ? this.t("room_editor.meta_custom")
             : currentProfile
               ? (currentProfileProtected
-                  ? this.t("room_editor.meta_profile_builtin", { label: this.escapeHtml(currentProfile.label) })
+                  // The BUILT-IN arm printed the backend's English label while the chip loop
+                  // thirty lines up already mapped the very same name through
+                  // _builtInProfileI18nKey — one translated row above one untranslated
+                  // sentence about the row it just translated. The CUSTOM arm keeps the
+                  // label as-is because a custom profile's label is the name the user typed.
+                  ? this.t("room_editor.meta_profile_builtin", {
+                      label: this.escapeHtml(this._profileDisplayName(currentProfileName, currentProfile.label)),
+                    })
                   : this.t("room_editor.meta_profile_custom", { label: this.escapeHtml(currentProfile.label) }))
               : this.t("room_editor.meta_select")}
         </div>

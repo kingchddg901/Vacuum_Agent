@@ -57,8 +57,12 @@ export function applyRoomEstimateRenderers(proto) {
       etaAt
         ? { label: this.t("room_estimate.label_done_by"), value: this._formatLearningWallClock(etaAt) }
         : null,
+      // The TWIN of rooms.js:1287, and the census found only that one — this row printed
+      // the same raw code ("learned" / "default") on the estimate modal while its sibling
+      // did on the room chip's tooltip. tVocabRaw: these rows are escapeHtml'd at the sink.
       roomEstimate?.source
-        ? { label: this.t("room_estimate.label_source"), value: String(roomEstimate.source) }
+        ? { label: this.t("room_estimate.label_source"),
+            value: this.tVocabRaw("estimate_source", roomEstimate.source, String(roomEstimate.source)) }
         : null,
       Number.isFinite(sampleCount)
         ? { label: this.t("room_estimate.label_samples"), value: String(sampleCount) }

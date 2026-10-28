@@ -2697,6 +2697,14 @@
       "carpet_low": "Alfombra de pelo bajo",
       "carpet_high": "Alfombra de pelo alto",
       "granite_light": "Granito"
+    },
+    "estimate_source": {
+      "learned": "Aprendido",
+      "default": "Predeterminado"
+    },
+    "charge_ended_reason": {
+      "full": "Cargado al máximo",
+      "stopped": "Detenido antes"
     }
   },
   "order_modal": {

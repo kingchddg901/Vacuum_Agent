@@ -807,6 +807,14 @@
       "carpet_low": "שטיח נמוך",
       "carpet_high": "שטיח גבוה",
       "granite_light": "גרניט"
+    },
+    "estimate_source": {
+      "learned": "נלמד",
+      "default": "ברירת מחדל"
+    },
+    "charge_ended_reason": {
+      "full": "נטען במלואו",
+      "stopped": "הופסק מוקדם"
     }
   },
   "map": {

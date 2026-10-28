@@ -807,6 +807,14 @@
       "carpet_low": "Koberec nízký vlas",
       "carpet_high": "Koberec vysoký vlas",
       "granite_light": "Žula"
+    },
+    "estimate_source": {
+      "learned": "Naučeno",
+      "default": "Výchozí"
+    },
+    "charge_ended_reason": {
+      "full": "Nabito na 100 %",
+      "stopped": "Zastaveno dříve"
     }
   },
   "map": {

@@ -807,6 +807,14 @@
       "carpet_low": "低パイルカーペット",
       "carpet_high": "高パイルカーペット",
       "granite_light": "御影石"
+    },
+    "estimate_source": {
+      "learned": "学習済み",
+      "default": "既定値"
+    },
+    "charge_ended_reason": {
+      "full": "満充電",
+      "stopped": "途中で終了"
     }
   },
   "map": {

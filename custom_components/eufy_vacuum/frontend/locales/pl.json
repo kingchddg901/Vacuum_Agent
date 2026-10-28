@@ -807,6 +807,14 @@
       "carpet_low": "Dywan niski",
       "carpet_high": "Dywan wysoki",
       "granite_light": "Granit"
+    },
+    "estimate_source": {
+      "learned": "Wyuczone",
+      "default": "Domyślne"
+    },
+    "charge_ended_reason": {
+      "full": "Naładowano do pełna",
+      "stopped": "Zatrzymano wcześniej"
     }
   },
   "map": {

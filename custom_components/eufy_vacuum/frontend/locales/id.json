@@ -807,6 +807,14 @@
       "carpet_low": "Karpet Rendah",
       "carpet_high": "Karpet Tinggi",
       "granite_light": "Granit"
+    },
+    "estimate_source": {
+      "learned": "Dipelajari",
+      "default": "Bawaan"
+    },
+    "charge_ended_reason": {
+      "full": "Terisi penuh",
+      "stopped": "Berhenti lebih awal"
     }
   },
   "map": {

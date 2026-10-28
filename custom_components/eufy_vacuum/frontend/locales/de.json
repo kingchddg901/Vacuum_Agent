@@ -2681,6 +2681,14 @@
       "carpet_low": "Teppich Niedrig",
       "carpet_high": "Teppich Hoch",
       "granite_light": "Granit"
+    },
+    "estimate_source": {
+      "learned": "Gelernt",
+      "default": "Standardwert"
+    },
+    "charge_ended_reason": {
+      "full": "Voll geladen",
+      "stopped": "Früh beendet"
     }
   },
   "order_modal": {

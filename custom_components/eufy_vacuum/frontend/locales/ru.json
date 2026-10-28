@@ -2779,6 +2779,14 @@
       "carpet_low": "Ковёр низкий",
       "carpet_high": "Ковёр высокий",
       "granite_light": "Гранит"
+    },
+    "estimate_source": {
+      "learned": "Изучено",
+      "default": "По умолчанию"
+    },
+    "charge_ended_reason": {
+      "full": "Заряжено полностью",
+      "stopped": "Остановлено раньше"
     }
   },
   "order_modal": {

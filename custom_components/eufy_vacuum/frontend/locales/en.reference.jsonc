@@ -230,6 +230,14 @@
       "cleaning_tray": "Cleaning Tray",
       "swivel_wheel": "Swivel Wheel"
     },
+    "estimate_source": {
+      "learned": "Learned",  // the estimate comes from this room's own observed runs
+      "default": "Default"  // no learned runs yet — a starting figure, shown with a ~
+    },
+    "charge_ended_reason": {
+      "full": "Charged to full",  // the session ran to 100%
+      "stopped": "Stopped early"  // charging ended below 100% — unplugged, or a new job started
+    },
     "floor_type": {
       "tile": "Tile",  // floor texture: ceramic/stone tiles with grout lines
       "wood": "Wood",  // floor texture: planks with visible grain

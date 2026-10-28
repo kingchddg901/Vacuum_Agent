@@ -2060,6 +2060,15 @@ export const en = {
   "vocab.maintenance_component.mopping_cloth": "Mopping Cloth",
   "vocab.maintenance_component.cleaning_tray": "Cleaning Tray",
   "vocab.maintenance_component.swivel_wheel": "Swivel Wheel",
+  // Where a room's time estimate came from. Printed as the bare code before 2.5.3, on both
+  // the room chip's tooltip and the estimate modal's Source row.
+  "vocab.estimate_source.learned": "Learned",   // the estimate comes from this room's own observed runs
+  "vocab.estimate_source.default": "Default",   // no learned runs yet — a starting figure, shown with a ~
+  // Why a post-job CHARGE session ended. Two values, from a single ternary in
+  // battery/manager.py. Named for the charge session, not for its `ended_reason` field:
+  // learning/history_store.py has its own `ended_reason` with a different vocabulary.
+  "vocab.charge_ended_reason.full": "Charged to full",  // the session ran to 100%
+  "vocab.charge_ended_reason.stopped": "Stopped early", // charging ended below 100% — unplugged, or a new job started
   // Floor-texture names, for the theme editor's floor-scope select and the preview's
   // swatch cards. MOVED from `theme_preview.floor.*` 2026-10-27: that group was named for
   // its first consumer, the preview, while the editor's own select needs the same seven

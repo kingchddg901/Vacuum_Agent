@@ -807,6 +807,14 @@
       "carpet_low": "سجاد خفيف",
       "carpet_high": "سجاد كثيف",
       "granite_light": "غرانيت"
+    },
+    "estimate_source": {
+      "learned": "مُكتسب",
+      "default": "افتراضي"
+    },
+    "charge_ended_reason": {
+      "full": "شُحن بالكامل",
+      "stopped": "توقّف مبكرًا"
     }
   },
   "map": {

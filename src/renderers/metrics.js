@@ -567,7 +567,31 @@ export function applyMetricsRenderers(proto) {
       subtitle: String(profile?.profile_subtitle || profile?.subtitle || ""),
     };
     const hasSettings = profile?.clean_mode != null || profile?.clean_intensity != null || profile?.fan_speed != null || profile?.water_level != null;
-    if (!hasSettings) return fallback;
+    if (!hasSettings) {
+      // THE FALLBACK ARM IS EVERY MULTI-ROOM JOB, not a rare edge. The backend attaches
+      // flat setting codes only for a single-room job with an archived room, so any run
+      // over two rooms arrives with none and this returned the backend's composed ENGLISH
+      // label — on the Profiles tab, the Learning Review's job detail and the water card
+      // alike, in all 17 languages.
+      //
+      // There is still enough to compose from: `is_custom_profile` plus the primary room.
+      // This mirrors learning/manager.py::_settings_profile_label's own join — [room,
+      // "Custom"] — using the card's already-translated `room_editor.custom`, so no new key.
+      // Codes would be better than a recomposition, but they are not sent on this path and
+      // sending them is a backend change; this is the honest best from what arrives.
+      if (profile?.is_custom_profile) {
+        const room = String(profile?.primary_room_label ?? profile?.room_label ?? "").trim();
+        const composed = [room, this.tRaw("room_editor.custom")].filter(Boolean).join(" ").trim();
+        if (composed) return { label: composed, subtitle: fallback.subtitle };
+      }
+      // A NAMED built-in with no codes: its key beats the backend's English name.
+      const named = profile?.profile_key
+        ? this._profileDisplayName(profile.profile_key, null)
+        : "";
+      const isPrettifiedKey = !this._builtInProfileI18nKey(profile?.profile_key);
+      if (named && !isPrettifiedKey) return { label: named, subtitle: fallback.subtitle };
+      return fallback;
+    }
 
     const v = (field, val) => (val == null || val === "") ? "" : this.tVocabRaw(field, val, String(val));
     const room = String(profile?.room_label ?? "").trim();
@@ -753,7 +777,17 @@ export function applyMetricsRenderers(proto) {
   proto._renderMetricsWaterProfileCard = function (profile) {
     return `
       <div class="evcc-metrics-card">
-        <div class="evcc-metrics-card-title">${this.escapeHtml(profile?.profile_label || profile?.profile_key || this.t("metrics.profile_fallback"))}</div>
+        ${/* The water card's own title printed the backend's English `profile_label`, or
+              the bare `profile_key` after it — while the Profiles tab two functions up
+              rendered the SAME snapshot row through _localizedProfile. Same data, two
+              answers, one screen apart. It carries everything that needs: clean_mode,
+              clean_intensity, fan_speed and water_level, all normalized to canonical codes
+              by learning/manager.py before emission. */""}
+        <div class="evcc-metrics-card-title">${this.escapeHtml(
+          this._localizedProfile(profile).label
+            || this._profileDisplayName(profile?.profile_key, profile?.profile_label)
+            || this.tRaw("metrics.profile_fallback"),
+        )}</div>
         <div class="evcc-metrics-card-value">${this.escapeHtml(this._formatMetricsMilliliters(profile?.avg_total_water_used_ml))}</div>
         <div class="evcc-metrics-card-detail">${this.t("metrics.detail_robot_overhead", { robot: this._formatMetricsMilliliters(profile?.avg_robot_water_used_ml), overhead: this._formatMetricsMilliliters(profile?.avg_water_overhead_ml) })}</div>
       </div>
@@ -1098,7 +1132,16 @@ export function applyMetricsRenderers(proto) {
             <tr><td>${this.t("metrics.battery_row_recharge_duration")}</td><td>${unitValue(numFmt(postJob.duration_min, 1), "run_profiles.minutes_unit")}</td></tr>
             <tr><td>${this.t("metrics.battery_row_recharge_delta")}</td><td><bdi>${this.escapeHtml(String(postJob.start_battery ?? "?"))} → ${this.escapeHtml(String(postJob.end_battery ?? "?"))}</bdi>&nbsp;${this.escapeHtml(this.t("metrics.unit_percent"))}</td></tr>
             <tr><td>${this.t("metrics.battery_row_avg_rate")}</td><td>${unitValue(numFmt(postJob.avg_rate_per_min, 2), "metrics.unit_per_min")}</td></tr>
-            <tr><td>${this.t("metrics.battery_row_ended")}</td><td>${this.escapeHtml(postJob.ended_reason ?? "—")}</td></tr>
+            ${/* The printed value IS the code, and not even title-cased — a bare "full" or
+                  "stopped" in every language. battery/manager.py is the sole producer and
+                  the set is a one-line ternary, so it is exactly two values. Note the field
+                  name: learning/history_store.py has its OWN `ended_reason` with a
+                  different vocabulary (interrupted / cancelled / …), and this row reads
+                  `post_job_charge`, so the key family is named for the CHARGE session it
+                  describes rather than for the field it arrives in. */""}
+            <tr><td>${this.t("metrics.battery_row_ended")}</td><td>${this.escapeHtml(
+              this.tVocabRaw("charge_ended_reason", postJob.ended_reason, postJob.ended_reason ?? "—"),
+            )}</td></tr>
           ` : `
             <tr><td>${this.t("metrics.battery_post_job_recharge")}</td><td><em>${this.t("metrics.battery_awaiting_charge_session")}</em></td></tr>
           `}

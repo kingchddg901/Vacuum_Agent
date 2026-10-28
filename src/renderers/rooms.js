@@ -1279,17 +1279,27 @@ proto.renderRoomCard = function (room, state) {
       ? this._formatLearningMinutes(roomEstimate.minutes)
       : `~${this._formatLearningMinutes(roomEstimate.minutes)}`;
 
+    // tRaw throughout: the join is escapeHtml'd into the title attribute below, so t()
+    // escapes twice. Unlike the planned-water tooltip in this same file, this one is
+    // LATENT with no input that makes it visible today — measured across all 17 packs, none
+    // of these three keys carries & < > " '. Converted for consistency with the file's
+    // other model-A sinks rather than because it bites; `rooms.projected_water_use` is the
+    // sibling where it did.
     const estimateParts = [
-      this.t("rooms.estimate_label", { value: this._formatLearningMinutes(roomEstimate.minutes) }),
+      this.tRaw("rooms.estimate_label", { value: this._formatLearningMinutes(roomEstimate.minutes) }),
     ];
 
     if (roomEstimate.source) {
-      estimateParts.push(this.t("rooms.source_label", { value: String(roomEstimate.source) }));
+      // `source` is the CODE ("learned" / "default") and had no lookup at all, so this
+      // tooltip read the raw token in every language, English included.
+      estimateParts.push(this.tRaw("rooms.source_label", {
+        value: this.tVocabRaw("estimate_source", roomEstimate.source, String(roomEstimate.source)),
+      }));
     }
 
     const estimateBattery = Number(roomEstimate.battery);
     if (Number.isFinite(estimateBattery)) {
-      estimateParts.push(this.t("rooms.battery_label", { value: estimateBattery }));
+      estimateParts.push(this.tRaw("rooms.battery_label", { value: estimateBattery }));
     }
 
     const estimateTitle = estimateParts.join(" · ");
@@ -1769,13 +1779,57 @@ proto.renderRoomCard = function (room, state) {
     return null;
   };
 
+  /**
+   * A profile key's name in the reader's language, or a prettified key.
+   *
+   * ⚠ HAD ZERO PRODUCTION CALLERS until 2.5.3. Only `_builtInProfileI18nKey` was ever
+   * called (from the room editor's chip loop), so this correct function sat beside three
+   * surfaces printing the backend's English profile names and passed every audit — the
+   * same shape as the `device_id` filter behind #77. It is reached through
+   * `_profileDisplayName` now.
+   *
+   * RAW, and that choice was free precisely because nothing called it: every one of the
+   * new call sites escapes (the review matcher chip, the review filter chips, the room
+   * editor's meta line), so `t()` here would have escaped twice at all three.
+   */
   proto._roomProfileLabel = function (profile) {
     const key = this._builtInProfileI18nKey(profile);
-    if (key) return this.t(key);
+    if (key) return this.tRaw(key);
 
     return String(profile ?? "").trim()
       .replace(/[_-]+/g, " ")
       .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  /**
+   * A saved profile's display NAME: the card's own word for a built-in, the backend's label
+   * for a user-authored one, a prettified key as the floor.
+   *
+   * The order is the whole point and it is not "localized first, always". A BUILT-IN
+   * profile's backend label is English ("Vacuum Only Quick"), so the key lookup must beat
+   * it; a USER-SAVED profile has no key, and its label is the name the user typed, so that
+   * must beat a prettified slug. Collapsing either direction gets one of the two wrong.
+   *
+   * RAW — every call site escapes.
+   *
+   * @param {*} profileKey - the stable saved-profile key (`vacuum_quick`, `user_1`, …).
+   * @param {*} [backendLabel] - the backend's own label for it, if the payload carries one.
+   * @returns {string}
+   */
+  proto._profileDisplayName = function (profileKey, backendLabel = null) {
+    const key = this._builtInProfileI18nKey(profileKey);
+    if (key) {
+      // Through `_roomProfileLabel`, not a second `this.tRaw(key)` here. A first version
+      // inlined the lookup, which left `_roomProfileLabel`'s own key branch with zero
+      // reachable callers — the exact defect this wave exists to close, reintroduced one
+      // function along. Caught by ablation: flipping that branch's twin changed nothing.
+      const name = this._roomProfileLabel(profileKey);
+      // A miss round-trips as the key, which must never reach the user.
+      if (name && name !== key) return name;
+    }
+    const label = String(backendLabel ?? "").trim();
+    if (label) return label;
+    return this._roomProfileLabel(profileKey);
   };
 
   proto._formatCleanMode = function (value) {

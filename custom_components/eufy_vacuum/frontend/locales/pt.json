@@ -2696,6 +2696,14 @@
       "carpet_low": "Alcatifa baixa",
       "carpet_high": "Alcatifa alta",
       "granite_light": "Granito"
+    },
+    "estimate_source": {
+      "learned": "Aprendido",
+      "default": "Predefinido"
+    },
+    "charge_ended_reason": {
+      "full": "Carregado na totalidade",
+      "stopped": "Parado antes do fim"
     }
   },
   "order_modal": {
