@@ -790,6 +790,23 @@
       "not_installed": "Niezałożony",
       "low_water": "Mało wody",
       "not_available": "Niedostępne"
+    },
+    "animal": {
+      "cat": "Kot",
+      "dog": "Pies",
+      "fox": "Lis",
+      "parrot": "Papuga",
+      "raccoon": "Szop",
+      "snake": "Wąż"
+    },
+    "floor_type": {
+      "tile": "Płytki",
+      "wood": "Drewno",
+      "marble": "Marmur",
+      "concrete": "Beton",
+      "carpet_low": "Dywan niski",
+      "carpet_high": "Dywan wysoki",
+      "granite_light": "Granit"
     }
   },
   "map": {
@@ -1051,15 +1068,6 @@
       "medium": "Średnia pewność"
     },
     "eyebrow": "Podgląd kontekstowy",
-    "floor": {
-      "carpet_high": "Dywan wysoki",
-      "carpet_low": "Dywan niski",
-      "concrete": "Beton",
-      "granite": "Granit",
-      "marble": "Marmur",
-      "tile": "Płytki",
-      "wood": "Drewno"
-    },
     "foundations": {
       "chip": "Chip",
       "composite_desc": "Podstawy dotyczą wielu systemów, dlatego podgląd celowo łączy kilka reprezentatywnych powierzchni.",

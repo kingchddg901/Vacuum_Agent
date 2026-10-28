@@ -790,6 +790,23 @@
       "not_installed": "미장착",
       "low_water": "물 부족",
       "not_available": "사용할 수 없음"
+    },
+    "animal": {
+      "cat": "고양이",
+      "dog": "강아지",
+      "fox": "여우",
+      "parrot": "앵무새",
+      "raccoon": "라쿤",
+      "snake": "뱀"
+    },
+    "floor_type": {
+      "tile": "타일",
+      "wood": "원목",
+      "marble": "대리석",
+      "concrete": "콘크리트",
+      "carpet_low": "단모 카펫",
+      "carpet_high": "장모 카펫",
+      "granite_light": "화강암"
     }
   },
   "map": {
@@ -1210,15 +1227,6 @@
       "medium": "보통 신뢰도"
     },
     "eyebrow": "상황별 미리보기",
-    "floor": {
-      "carpet_high": "장모 카펫",
-      "carpet_low": "단모 카펫",
-      "concrete": "콘크리트",
-      "granite": "화강암",
-      "marble": "대리석",
-      "tile": "타일",
-      "wood": "원목"
-    },
     "foundations": {
       "chip": "칩",
       "composite_desc": "기초 요소는 여러 시스템에 영향을 주므로, 미리보기는 대표적인 표면 몇 가지를 의도적으로 섞어 보여줍니다.",

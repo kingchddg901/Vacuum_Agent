@@ -207,6 +207,40 @@ sees every `vocab.*` key — a `this.t(varKey)` would read as a dead key. Standa
 components that don't use the renderers prototype (the room-card classes) carry
 their own `tVocab` method using the same pattern.
 
+> ⚠ **And the call must be DOTTED.** The scanner's pattern is `/\.t(?:Raw)?\(`…`/` — it
+> needs `.t(` or `.tRaw(`, so a bare `t(\`…\`)` on an injected translator parameter is
+> invisible to it however correct the template is. That rules out the obvious shape for a
+> pure helper outside the renderer prototype: take a translator, build the key, call it.
+> A first cut of `floorTypeDisplayName` did exactly that, and all seven floor keys
+> immediately reported dead. **The fix is to route through `tVocab` rather than to widen
+> the scanner** — `tVocab` already carries a dotted inline template, so a helper that takes
+> a `tVocabFn` and calls `tVocabFn(field, value, fallback)` inherits its reachability. It is
+> also why both frontend-registry helpers (`animalDisplayName`, `floorTypeDisplayName`) take
+> a vocab twin rather than a plain `t`.
+
+### Two frontend REGISTRIES are vocabulary too
+
+`vocab.animal.*` and `vocab.floor_type.*` are the exceptions to "the integration hands the
+card vocabulary values": the animal companions and the floor textures are declared in the
+card's own code and served assets, so no backend `*_label` was ever involved and the
+surfaces simply printed the registry id. Two things about them are worth stating:
+
+- **A proper noun gets no key.** `mittens` is a memorial pet — the 🌈 Rainbow Bridge group
+  exists to treat her as a name — so she is deliberately absent from `vocab.animal.*` and
+  resolves through the registry's own label in every language. Same exemption
+  `font.opendyslexic` holds. `[ANM-1]` asserts she is the ONLY unkeyed entry, so a species
+  added without a key is caught rather than inheriting the exemption.
+- **The fallback makes a completeness gate necessary.** Both helpers prettify an unkeyed id
+  rather than failing, which means a registry entry with no key renders a plausible English
+  word and reads exactly like a finished one. `[FTL-1]` and `[ANM-1]` are what tell
+  "English by design" from "nobody added the key".
+
+`vocab.floor_type.*` replaced `theme_preview.floor.*` in 2.5.3. The old group was named for
+its first consumer while the theme editor's own floor select needed the same seven words,
+and its one irregular key (`.granite` serving the `granite_light` texture, annotated as
+such) is the drift a consumer-named group collects — the single entry a derived key cannot
+carry (`f/token_names_consumer_neutral`).
+
 ### faultLabel — brand fault codes
 
 Hardware faults follow the same backend-hands-a-key contract, with their own

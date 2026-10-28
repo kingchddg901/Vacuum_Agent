@@ -1713,15 +1713,6 @@
       "medium": "Gemiddelde betrouwbaarheid"
     },
     "eyebrow": "Contextuele voorbeeldweergave",
-    "floor": {
-      "carpet_high": "Tapijt hoog",
-      "carpet_low": "Tapijt laag",
-      "concrete": "Beton",
-      "granite": "Graniet",
-      "marble": "Marmer",
-      "tile": "Tegel",
-      "wood": "Hout"
-    },
     "foundations": {
       "chip": "Chip",
       "composite_desc": "Foundations raken meerdere systemen, dus de voorbeeldweergave mengt bewust een paar representatieve oppervlakken.",
@@ -2673,6 +2664,23 @@
       "not_installed": "Niet geplaatst",
       "low_water": "Weinig water",
       "not_available": "Niet beschikbaar"
+    },
+    "animal": {
+      "cat": "Kat",
+      "dog": "Hond",
+      "fox": "Vos",
+      "parrot": "Papegaai",
+      "raccoon": "Wasbeer",
+      "snake": "Slang"
+    },
+    "floor_type": {
+      "tile": "Tegel",
+      "wood": "Hout",
+      "marble": "Marmer",
+      "concrete": "Beton",
+      "carpet_low": "Tapijt laag",
+      "carpet_high": "Tapijt hoog",
+      "granite_light": "Graniet"
     }
   },
   "order_modal": {

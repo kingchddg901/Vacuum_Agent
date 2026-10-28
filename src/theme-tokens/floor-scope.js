@@ -46,6 +46,51 @@ export function floorTypeNames() {
     .sort();
 }
 
+/**
+ * A floor type's name as a human reads it, localized through `vocab.floor_type.*`.
+ *
+ * Accepts either spelling — the registry's underscored key (`carpet_low`) or the hyphenated
+ * token-namespace name (`carpet-low`) — because the surfaces that need a name hold
+ * different ones, and `tVocab`'s own slug rule folds them together anyway.
+ *
+ * WHY `vocab.floor_type.*` AND NOT THE OLD `theme_preview.floor.*`, which already held all
+ * seven words. Two reasons, and the first is mechanical:
+ *
+ *  1. check:i18n section B proves a key reachable from a `t(`…${…}…`)` template, and its
+ *     scanner requires a DOTTED call (`.t(` / `.tRaw(`). A helper like this one, handed a
+ *     translator as a parameter, can only make a bare `t(...)` call — invisible to it. A
+ *     first draft did exactly that and all seven floor keys immediately reported DEAD, and
+ *     a dead key is a warning, so nothing went red. Routing through `tVocab` instead means
+ *     the template lives in `renderers/shared.js` where it already satisfies the scanner.
+ *  2. `theme_preview.floor.*` was named for its FIRST CONSUMER. The theme editor's floor
+ *     select needs the same seven words and is not the preview, and the group's one
+ *     irregular key (`.granite` serving `granite_light`, annotated as such) is the shape a
+ *     consumer-named group drifts into. `vocab.floor_type.granite_light` follows its own
+ *     name, which is what lets this derive the key instead of tabulating it.
+ *
+ * The fallback is a prettified name rather than a key echo, so a floor type added to the
+ * registry before its key exists reads as words. `[FTL-1]` fails if any registry type has
+ * no key at all, which is the gate that keeps that fallback from being the normal path.
+ *
+ * @param {string} name - either spelling of the floor type.
+ * @param {(field: string, value: string, fallback: string) => string} [tVocabFn] - the
+ *   caller's tVocab twin, picked by ITS sink: the escaping one for a raw interpolation
+ *   (the theme editor's `<option>`), the raw one where the renderer escapes downstream
+ *   (the preview, whose name goes through renderRoomCard).
+ * @returns {string}
+ */
+export function floorTypeDisplayName(name, tVocabFn = null) {
+  const raw = String(name ?? "").trim();
+  if (!raw) return "";
+  const prettified = raw.replace(/[-_]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  return typeof tVocabFn === "function" ? tVocabFn("floor_type", raw, prettified) : prettified;
+}
+
+/** The vocabulary key a floor type's name resolves through — for gates, not for rendering. */
+export function floorTypeLabelKey(name) {
+  return `vocab.floor_type.${String(name ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+}
+
 /** The token-key prefix that scopes one floor type's namespace. */
 export function floorTypePrefix(name) {
   return `${FLOOR_TOKEN_PREFIX}${name}-`;

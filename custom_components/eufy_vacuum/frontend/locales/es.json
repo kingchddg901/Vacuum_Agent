@@ -1729,15 +1729,6 @@
       "medium": "Confianza media"
     },
     "eyebrow": "Vista previa contextual",
-    "floor": {
-      "carpet_high": "Alfombra de pelo alto",
-      "carpet_low": "Alfombra de pelo bajo",
-      "concrete": "Hormigón",
-      "granite": "Granito",
-      "marble": "Mármol",
-      "tile": "Baldosa",
-      "wood": "Madera"
-    },
     "foundations": {
       "chip": "Chip",
       "composite_desc": "Las bases tocan varios sistemas, así que la vista previa mezcla intencionadamente algunas superficies representativas.",
@@ -2689,6 +2680,23 @@
       "not_installed": "No instalado",
       "low_water": "Poca agua",
       "not_available": "No disponible"
+    },
+    "animal": {
+      "cat": "Gato",
+      "dog": "Perro",
+      "fox": "Zorro",
+      "parrot": "Loro",
+      "raccoon": "Mapache",
+      "snake": "Serpiente"
+    },
+    "floor_type": {
+      "tile": "Baldosa",
+      "wood": "Madera",
+      "marble": "Mármol",
+      "concrete": "Hormigón",
+      "carpet_low": "Alfombra de pelo bajo",
+      "carpet_high": "Alfombra de pelo alto",
+      "granite_light": "Granito"
     }
   },
   "order_modal": {

@@ -790,6 +790,23 @@
       "not_installed": "Nenasazena",
       "low_water": "Málo vody",
       "not_available": "Nedostupné"
+    },
+    "animal": {
+      "cat": "Kočka",
+      "dog": "Pes",
+      "fox": "Liška",
+      "parrot": "Papoušek",
+      "raccoon": "Mýval",
+      "snake": "Had"
+    },
+    "floor_type": {
+      "tile": "Dlažba",
+      "wood": "Dřevo",
+      "marble": "Mramor",
+      "concrete": "Beton",
+      "carpet_low": "Koberec nízký vlas",
+      "carpet_high": "Koberec vysoký vlas",
+      "granite_light": "Žula"
     }
   },
   "map": {
@@ -1051,15 +1068,6 @@
       "medium": "Střední jistota"
     },
     "eyebrow": "Kontextový náhled",
-    "floor": {
-      "carpet_high": "Koberec vysoký vlas",
-      "carpet_low": "Koberec nízký vlas",
-      "concrete": "Beton",
-      "granite": "Žula",
-      "marble": "Mramor",
-      "tile": "Dlažba",
-      "wood": "Dřevo"
-    },
     "foundations": {
       "chip": "Čip",
       "composite_desc": "Základy se dotýkají více systémů, takže náhled záměrně kombinuje několik reprezentativních povrchů.",

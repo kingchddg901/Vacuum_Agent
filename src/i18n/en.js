@@ -1856,13 +1856,6 @@ export const en = {
   "theme_preview.confidence.low": "Low confidence",  // theme-editor demo confidence badge (Low); previews badge color only
   "theme_preview.confidence.medium": "Medium confidence",  // theme-editor demo confidence badge (Medium); previews badge color only
   "theme_preview.eyebrow": "Contextual Preview",  // small overline 'Contextual Preview' above the theme preview pane
-  "theme_preview.floor.carpet_high": "Carpet High",
-  "theme_preview.floor.carpet_low": "Carpet Low",
-  "theme_preview.floor.concrete": "Concrete",
-  "theme_preview.floor.granite": "Granite",  // swatch label for the granite floor texture (maps to granite_light key)
-  "theme_preview.floor.marble": "Marble",
-  "theme_preview.floor.tile": "Tile",  // swatch label for the tile floor texture in the preview grid
-  "theme_preview.floor.wood": "Wood",  // swatch label for the wood floor texture in the preview grid
   "theme_preview.foundations.chip": "Chip",  // plain sample chip labeled 'Chip' in the foundations preview; demo swatch
   "theme_preview.foundations.composite_desc": "Foundations touch multiple systems, so the preview intentionally mixes a few representative surfaces.",
   "theme_preview.foundations.composite_sample": "Composite Sample",
@@ -2067,6 +2060,30 @@ export const en = {
   "vocab.maintenance_component.mopping_cloth": "Mopping Cloth",
   "vocab.maintenance_component.cleaning_tray": "Cleaning Tray",
   "vocab.maintenance_component.swivel_wheel": "Swivel Wheel",
+  // Floor-texture names, for the theme editor's floor-scope select and the preview's
+  // swatch cards. MOVED from `theme_preview.floor.*` 2026-10-27: that group was named for
+  // its first consumer, the preview, while the editor's own select needs the same seven
+  // words — and its one irregular key (`.granite` serving `granite_light`) is the drift a
+  // consumer-named group collects. These follow their registry names, so the key is derived
+  // rather than tabulated and a new floor type needs no table edit.
+  "vocab.floor_type.tile": "Tile",                // floor texture: ceramic/stone tiles with grout lines
+  "vocab.floor_type.wood": "Wood",                // floor texture: planks with visible grain
+  "vocab.floor_type.marble": "Marble",            // floor texture: veined polished stone
+  "vocab.floor_type.concrete": "Concrete",        // floor texture: poured/polished concrete
+  "vocab.floor_type.carpet_low": "Carpet Low",     // floor texture: short-pile carpet
+  "vocab.floor_type.carpet_high": "Carpet High",   // floor texture: deep/long-pile carpet
+  "vocab.floor_type.granite_light": "Granite",    // floor texture: light speckled granite
+  // The map view's animal picker and the theme preview's column headings. SPECIES ONLY —
+  // Mittens is a memorial pet, i.e. a proper noun, and resolves through the AnimalSVG
+  // registry's own label so she stays "Mittens" in every language (the 🌈 Rainbow Bridge
+  // group exists precisely to treat her as a name). A user-dropped animal rides the same
+  // fallback, which is why the registry label must stay reachable.
+  "vocab.animal.cat": "Cat",          // animal companion drawn on the map
+  "vocab.animal.dog": "Dog",          // animal companion drawn on the map
+  "vocab.animal.fox": "Fox",          // animal companion drawn on the map
+  "vocab.animal.parrot": "Parrot",    // animal companion drawn on the map
+  "vocab.animal.raccoon": "Raccoon",  // animal companion drawn on the map
+  "vocab.animal.snake": "Snake",      // animal companion drawn on the map; its registry entry declares no label, so this is the only name it has
   "vocab.maintenance_kind.maintenance": "Maintenance",  // upkeep card kind: a cleanable item
   "vocab.maintenance_kind.replacement": "Replacement",  // upkeep card kind: a replaceable consumable
   // Water-tank STATE, for docks that report presence/level as an enum instead of a fill

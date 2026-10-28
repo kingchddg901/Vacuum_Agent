@@ -790,6 +790,23 @@
       "not_installed": "Takılı değil",
       "low_water": "Az su",
       "not_available": "Kullanılamıyor"
+    },
+    "animal": {
+      "cat": "Kedi",
+      "dog": "Köpek",
+      "fox": "Tilki",
+      "parrot": "Papağan",
+      "raccoon": "Rakun",
+      "snake": "Yılan"
+    },
+    "floor_type": {
+      "tile": "Fayans",
+      "wood": "Ahşap",
+      "marble": "Mermer",
+      "concrete": "Beton",
+      "carpet_low": "Alçak Havlı Halı",
+      "carpet_high": "Yüksek Havlı Halı",
+      "granite_light": "Granit"
     }
   },
   "map": {
@@ -1051,15 +1068,6 @@
       "medium": "Orta güven"
     },
     "eyebrow": "Bağlamsal Önizleme",
-    "floor": {
-      "carpet_high": "Yüksek Havlı Halı",
-      "carpet_low": "Alçak Havlı Halı",
-      "concrete": "Beton",
-      "granite": "Granit",
-      "marble": "Mermer",
-      "tile": "Fayans",
-      "wood": "Ahşap"
-    },
     "foundations": {
       "chip": "Çip",
       "composite_desc": "Temeller birden fazla sistemi etkiler, bu nedenle önizleme kasıtlı olarak birkaç temsili yüzeyi bir araya getirir.",

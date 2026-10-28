@@ -790,6 +790,23 @@
       "not_installed": "Tidak terpasang",
       "low_water": "Air sedikit",
       "not_available": "Tidak tersedia"
+    },
+    "animal": {
+      "cat": "Kucing",
+      "dog": "Anjing",
+      "fox": "Rubah",
+      "parrot": "Burung beo",
+      "raccoon": "Rakun",
+      "snake": "Ular"
+    },
+    "floor_type": {
+      "tile": "Ubin",
+      "wood": "Kayu",
+      "marble": "Marmer",
+      "concrete": "Beton",
+      "carpet_low": "Karpet Rendah",
+      "carpet_high": "Karpet Tinggi",
+      "granite_light": "Granit"
     }
   },
   "map": {
@@ -1051,15 +1068,6 @@
       "medium": "Keyakinan sedang"
     },
     "eyebrow": "Pratinjau Kontekstual",
-    "floor": {
-      "carpet_high": "Karpet Tinggi",
-      "carpet_low": "Karpet Rendah",
-      "concrete": "Beton",
-      "granite": "Granit",
-      "marble": "Marmer",
-      "tile": "Ubin",
-      "wood": "Kayu"
-    },
     "foundations": {
       "chip": "Chip",
       "composite_desc": "Fondasi menyentuh beberapa sistem, jadi pratinjau ini sengaja memadukan beberapa permukaan representatif.",

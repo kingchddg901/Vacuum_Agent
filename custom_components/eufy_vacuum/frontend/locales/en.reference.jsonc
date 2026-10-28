@@ -230,6 +230,23 @@
       "cleaning_tray": "Cleaning Tray",
       "swivel_wheel": "Swivel Wheel"
     },
+    "floor_type": {
+      "tile": "Tile",  // floor texture: ceramic/stone tiles with grout lines
+      "wood": "Wood",  // floor texture: planks with visible grain
+      "marble": "Marble",  // floor texture: veined polished stone
+      "concrete": "Concrete",  // floor texture: poured/polished concrete
+      "carpet_low": "Carpet Low",  // floor texture: short-pile carpet
+      "carpet_high": "Carpet High",  // floor texture: deep/long-pile carpet
+      "granite_light": "Granite"  // floor texture: light speckled granite
+    },
+    "animal": {
+      "cat": "Cat",  // animal companion drawn on the map
+      "dog": "Dog",  // animal companion drawn on the map
+      "fox": "Fox",  // animal companion drawn on the map
+      "parrot": "Parrot",  // animal companion drawn on the map
+      "raccoon": "Raccoon",  // animal companion drawn on the map
+      "snake": "Snake"  // animal companion drawn on the map; its registry entry declares no label, so this is the only name it has
+    },
     "maintenance_kind": {
       "maintenance": "Maintenance",  // upkeep card kind: a cleanable item
       "replacement": "Replacement"  // upkeep card kind: a replaceable consumable
@@ -2515,15 +2532,6 @@
       "medium": "Medium confidence"  // theme-editor demo confidence badge (Medium); previews badge color only
     },
     "eyebrow": "Contextual Preview",  // small overline 'Contextual Preview' above the theme preview pane
-    "floor": {
-      "carpet_high": "Carpet High",
-      "carpet_low": "Carpet Low",
-      "concrete": "Concrete",
-      "granite": "Granite",  // swatch label for the granite floor texture (maps to granite_light key)
-      "marble": "Marble",
-      "tile": "Tile",  // swatch label for the tile floor texture in the preview grid
-      "wood": "Wood"  // swatch label for the wood floor texture in the preview grid
-    },
     "foundations": {
       "chip": "Chip",  // plain sample chip labeled 'Chip' in the foundations preview; demo swatch
       "composite_desc": "Foundations touch multiple systems, so the preview intentionally mixes a few representative surfaces.",

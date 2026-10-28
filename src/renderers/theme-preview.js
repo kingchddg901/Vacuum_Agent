@@ -11,6 +11,8 @@
  */
 
 import { THEME_PREVIEW_REGISTRY } from "./theme-preview-registry.js";
+import { animalDisplayName } from "../theme-tokens/animals.js";
+import { floorTypeDisplayName } from "../theme-tokens/floor-scope.js";
 
 /**
  * Mix theme preview renderer methods onto the given prototype.
@@ -276,18 +278,24 @@ export function applyThemePreviewRenderers(proto) {
     ]);
   };
 
-  proto._renderThemePreviewFloorTextures = function () {
-    const FLOOR_TYPES = [
-      { key: "tile",          name: this.t("theme_preview.floor.tile")        },
-      { key: "wood",          name: this.t("theme_preview.floor.wood")        },
-      { key: "marble",        name: this.t("theme_preview.floor.marble")      },
-      { key: "concrete",      name: this.t("theme_preview.floor.concrete")    },
-      { key: "carpet_low",    name: this.t("theme_preview.floor.carpet_low")  },
-      { key: "carpet_high",   name: this.t("theme_preview.floor.carpet_high") },
-      { key: "granite_light", name: this.t("theme_preview.floor.granite")     },
-    ];
+  // The ORDER is curated — roughly hard to soft — and is a look decision, so it stays a
+  // written list rather than becoming the registry's alphabetical sort. What is no longer
+  // written here is each type's i18n KEY: `granite_light` used to reach for
+  // `theme_preview.floor.granite`, the one entry whose key did not follow from its name, and
+  // the theme editor's own floor select had no lookup at all. Both resolve through
+  // floorTypeDisplayName now, so the two surfaces cannot disagree. [FTL-2] fails if the
+  // registry grows a type this list omits — a curated order cannot be complete by
+  // construction, so completeness is gated instead.
+  const FLOOR_PREVIEW_ORDER = [
+    "tile", "wood", "marble", "concrete", "carpet_low", "carpet_high", "granite_light",
+  ];
 
-    const cards = FLOOR_TYPES.map(({ key, name }) => this._renderFloorPreviewCard(key, name)).join("");
+  proto._renderThemePreviewFloorTextures = function () {
+    // tVocabRaw: the name is handed to renderRoomCard, which escapes it.
+    const cards = FLOOR_PREVIEW_ORDER
+      .map((key) => this._renderFloorPreviewCard(
+        key, floorTypeDisplayName(key, (f, v, fb) => this.tVocabRaw(f, v, fb))))
+      .join("");
 
     return `<div class="evcc-theme-preview-ftx-card-grid" inert>${cards}</div>`;
   };
@@ -305,13 +313,20 @@ export function applyThemePreviewRenderers(proto) {
     }, null);
   };
 
-  proto._renderThemePreviewFloorTextureTile     = function () { return this._renderFloorPreviewCard("tile",          this.t("theme_preview.floor.tile"));        };
-  proto._renderThemePreviewFloorTextureWood     = function () { return this._renderFloorPreviewCard("wood",          this.t("theme_preview.floor.wood"));        };
-  proto._renderThemePreviewFloorTextureMarble   = function () { return this._renderFloorPreviewCard("marble",        this.t("theme_preview.floor.marble"));      };
-  proto._renderThemePreviewFloorTextureConcrete = function () { return this._renderFloorPreviewCard("concrete",      this.t("theme_preview.floor.concrete"));    };
-  proto._renderThemePreviewFloorTextureCarpetLow  = function () { return this._renderFloorPreviewCard("carpet_low",  this.t("theme_preview.floor.carpet_low"));  };
-  proto._renderThemePreviewFloorTextureCarpetHigh = function () { return this._renderFloorPreviewCard("carpet_high", this.t("theme_preview.floor.carpet_high")); };
-  proto._renderThemePreviewFloorTextureGranite  = function () { return this._renderFloorPreviewCard("granite_light", this.t("theme_preview.floor.granite"));    };
+  // One per floor type, for the per-token preview panes. The name resolves through
+  // floorTypeDisplayName like every other floor-name surface, so none of these restates a
+  // key — which is how `granite_light` came to reach for `theme_preview.floor.granite`.
+  const _floorCard = (key) => function () {
+    return this._renderFloorPreviewCard(
+      key, floorTypeDisplayName(key, (f, v, fb) => this.tVocabRaw(f, v, fb)));
+  };
+  proto._renderThemePreviewFloorTextureTile       = _floorCard("tile");
+  proto._renderThemePreviewFloorTextureWood       = _floorCard("wood");
+  proto._renderThemePreviewFloorTextureMarble     = _floorCard("marble");
+  proto._renderThemePreviewFloorTextureConcrete   = _floorCard("concrete");
+  proto._renderThemePreviewFloorTextureCarpetLow  = _floorCard("carpet_low");
+  proto._renderThemePreviewFloorTextureCarpetHigh = _floorCard("carpet_high");
+  proto._renderThemePreviewFloorTextureGranite    = _floorCard("granite_light");
 
   proto._renderThemePreviewQueueOrdering = function () {
     // A RELATIONSHIP subject - order, gap, columns. You cannot show the space
@@ -423,7 +438,13 @@ export function applyThemePreviewRenderers(proto) {
       <div class="evcc-theme-preview-animal-row evcc-theme-preview-animal-row--header">
         <div class="evcc-theme-preview-animal-rowlabel"></div>
         ${animals.map((a) => `
-          <div class="evcc-theme-preview-animal-collabel">${this.escapeHtml(a)}</div>
+          <div class="evcc-theme-preview-animal-collabel">${this.escapeHtml(
+            // This printed the bare registry id, so the column read "cat" where the map
+            // view's picker for the same animal read "Cat" — and both in English in all 17
+            // locales. tVocabRaw, because this sink escapes.
+            animalDisplayName(a, window.AnimalSVG?.get?.(a)?.label,
+              (f, v, fb) => this.tVocabRaw(f, v, fb)),
+          )}</div>
         `).join("")}
       </div>
     `;

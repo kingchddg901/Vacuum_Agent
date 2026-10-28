@@ -790,6 +790,23 @@
       "not_installed": "غير مُثبَّت",
       "low_water": "ماء منخفض",
       "not_available": "غير متوفر"
+    },
+    "animal": {
+      "cat": "قط",
+      "dog": "كلب",
+      "fox": "ثعلب",
+      "parrot": "ببغاء",
+      "raccoon": "راكون",
+      "snake": "ثعبان"
+    },
+    "floor_type": {
+      "tile": "بلاط",
+      "wood": "خشب",
+      "marble": "رخام",
+      "concrete": "خرسانة",
+      "carpet_low": "سجاد خفيف",
+      "carpet_high": "سجاد كثيف",
+      "granite_light": "غرانيت"
     }
   },
   "map": {
@@ -1215,15 +1232,6 @@
       "medium": "ثقة متوسطة"
     },
     "eyebrow": "معاينة سياقية",
-    "floor": {
-      "carpet_high": "سجاد كثيف",
-      "carpet_low": "سجاد خفيف",
-      "concrete": "خرسانة",
-      "granite": "غرانيت",
-      "marble": "رخام",
-      "tile": "بلاط",
-      "wood": "خشب"
-    },
     "foundations": {
       "chip": "شريحة",
       "composite_desc": "الأساسيات تمسّ أنظمة متعددة، لذا تمزج المعاينة عمدًا بين بعض الأسطح التمثيلية.",

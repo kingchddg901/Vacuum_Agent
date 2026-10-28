@@ -1716,15 +1716,6 @@
       "medium": "Affidabilità media"
     },
     "eyebrow": "Anteprima contestuale",
-    "floor": {
-      "carpet_high": "Moquette alta",
-      "carpet_low": "Moquette bassa",
-      "concrete": "Cemento",
-      "granite": "Granito",
-      "marble": "Marmo",
-      "tile": "Piastrella",
-      "wood": "Legno"
-    },
     "foundations": {
       "chip": "Chip",
       "composite_desc": "Le fondamenta toccano più sistemi, quindi l'anteprima mescola intenzionalmente alcune superfici rappresentative.",
@@ -2676,6 +2667,23 @@
       "not_installed": "Non installato",
       "low_water": "Poca acqua",
       "not_available": "Non disponibile"
+    },
+    "animal": {
+      "cat": "Gatto",
+      "dog": "Cane",
+      "fox": "Volpe",
+      "parrot": "Pappagallo",
+      "raccoon": "Procione",
+      "snake": "Serpente"
+    },
+    "floor_type": {
+      "tile": "Piastrella",
+      "wood": "Legno",
+      "marble": "Marmo",
+      "concrete": "Cemento",
+      "carpet_low": "Moquette bassa",
+      "carpet_high": "Moquette alta",
+      "granite_light": "Granito"
     }
   },
   "order_modal": {

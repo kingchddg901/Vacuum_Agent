@@ -1713,15 +1713,6 @@
       "medium": "Mittlere Zuverlässigkeit"
     },
     "eyebrow": "Kontextbezogene Vorschau",
-    "floor": {
-      "carpet_high": "Teppich Hoch",
-      "carpet_low": "Teppich Niedrig",
-      "concrete": "Beton",
-      "granite": "Granit",
-      "marble": "Marmor",
-      "tile": "Fliese",
-      "wood": "Holz"
-    },
     "foundations": {
       "chip": "Chip",
       "composite_desc": "Grundlagen berühren mehrere Systeme, daher mischt die Vorschau bewusst einige repräsentative Oberflächen.",
@@ -2673,6 +2664,23 @@
       "not_installed": "Nicht eingesetzt",
       "low_water": "Wenig Wasser",
       "not_available": "Nicht verfügbar"
+    },
+    "animal": {
+      "cat": "Katze",
+      "dog": "Hund",
+      "fox": "Fuchs",
+      "parrot": "Papagei",
+      "raccoon": "Waschbär",
+      "snake": "Schlange"
+    },
+    "floor_type": {
+      "tile": "Fliese",
+      "wood": "Holz",
+      "marble": "Marmor",
+      "concrete": "Beton",
+      "carpet_low": "Teppich Niedrig",
+      "carpet_high": "Teppich Hoch",
+      "granite_light": "Granit"
     }
   },
   "order_modal": {

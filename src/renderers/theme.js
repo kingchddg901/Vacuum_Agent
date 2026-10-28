@@ -14,7 +14,7 @@ import {
   THEME_TOKEN_REGISTRY,
   THEME_GROUPS,
 } from "../theme-tokens/index.js";
-import { floorTypeNames } from "../theme-tokens/floor-scope.js";
+import { floorTypeNames, floorTypeDisplayName } from "../theme-tokens/floor-scope.js";
 import { flattenThemeBuckets } from "../theme-tokens/flatten.js";
 import { FONT_STACK_PRESETS, runtimeFontPresets } from "../styles/fonts.js";
 import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
@@ -1348,7 +1348,13 @@ ${fontPresets}
             data-theme-floor-scope
             title="${this.t("theme.floor_scope_title")}"
           >
-            ${floorTypeNames().map((name) => `<option value="${name}">${name}</option>`).join("")}
+            ${/* The option TEXT printed the raw registry name — "carpet-high",
+                  "granite-light" — in every language, beside a theme preview showing the
+                  same seven translated. The `value` must stay the raw name: bindings/theme.js
+                  reads it back to scope the export. */""}
+            ${floorTypeNames().map((name) => `<option value="${this.escapeHtml(name)}">${
+              floorTypeDisplayName(name, (f, v, fb) => this.tVocab(f, v, fb))
+            }</option>`).join("")}
           </select>
 
           <button

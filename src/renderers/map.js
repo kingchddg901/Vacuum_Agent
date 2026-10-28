@@ -10,6 +10,7 @@
  */
 
 import { roomFillCss, normalizeHex } from "../cards/map-room-color.js";
+import { animalDisplayName } from "../theme-tokens/animals.js";
 
 /* =========================================================
    VACUUM STATE → ANIMAL POSE
@@ -732,9 +733,15 @@ export function applyMapRenderers(proto) {
             const list    = window.AnimalSVG?.list?.() ?? ["cat","dog","fox","raccoon","parrot","snake"];
             const current = state.mapAnimalSelection?.() ?? "cat";
             const opt = (a) => {
-              const def   = window.AnimalSVG?.get?.(a);
-              const label = def?.label ?? (a.charAt(0).toUpperCase() + a.slice(1).replace(/_/g, " "));
-              return `<option value="${a}"${current === a ? " selected" : ""}>${label}</option>`;
+              // tVocab (the ESCAPING twin) and then interpolated RAW: this option text had
+              // no lookup at all, so the picker read English in all 17 locales — and the
+              // registry's label reached innerHTML unescaped, which matters because an
+              // animal can be dropped in by the user. vocab() escapes BOTH arms, so the
+              // same change closes that. `value` is escaped for the same reason: the id
+              // comes from the served index.json, not from us.
+              const label = animalDisplayName(a, window.AnimalSVG?.get?.(a)?.label,
+                (f, v, fb) => this.tVocab(f, v, fb));
+              return `<option value="${this.escapeHtml(a)}"${current === a ? " selected" : ""}>${label}</option>`;
             };
             const memorial = list.filter((a) => window.AnimalSVG?.get?.(a)?.memorial);
             const regular  = list.filter((a) => !window.AnimalSVG?.get?.(a)?.memorial);

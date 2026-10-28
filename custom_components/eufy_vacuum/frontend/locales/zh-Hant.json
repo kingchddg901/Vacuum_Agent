@@ -790,6 +790,23 @@
       "not_installed": "未安裝",
       "low_water": "水量低",
       "not_available": "不可用"
+    },
+    "animal": {
+      "cat": "貓",
+      "dog": "狗",
+      "fox": "狐狸",
+      "parrot": "鸚鵡",
+      "raccoon": "浣熊",
+      "snake": "蛇"
+    },
+    "floor_type": {
+      "tile": "磁磚",
+      "wood": "木質",
+      "marble": "大理石",
+      "concrete": "水泥",
+      "carpet_low": "短毛地毯",
+      "carpet_high": "長毛地毯",
+      "granite_light": "花崗岩"
     }
   },
   "map": {
@@ -1210,15 +1227,6 @@
       "medium": "中可信度"
     },
     "eyebrow": "情境預覽",
-    "floor": {
-      "carpet_high": "長毛地毯",
-      "carpet_low": "短毛地毯",
-      "concrete": "水泥",
-      "granite": "花崗岩",
-      "marble": "大理石",
-      "tile": "磁磚",
-      "wood": "木質"
-    },
     "foundations": {
       "chip": "標籤",
       "composite_desc": "基礎樣式會影響多個系統，因此此預覽刻意混合幾個代表性的表面。",

@@ -1728,15 +1728,6 @@
       "medium": "Confiança média"
     },
     "eyebrow": "Pré-visualização contextual",
-    "floor": {
-      "carpet_high": "Alcatifa alta",
-      "carpet_low": "Alcatifa baixa",
-      "concrete": "Betão",
-      "granite": "Granito",
-      "marble": "Mármore",
-      "tile": "Azulejo",
-      "wood": "Madeira"
-    },
     "foundations": {
       "chip": "Chip",
       "composite_desc": "As fundações tocam em vários sistemas, por isso a pré-visualização mistura intencionalmente algumas superfícies representativas.",
@@ -2688,6 +2679,23 @@
       "not_installed": "Não instalado",
       "low_water": "Pouca água",
       "not_available": "Não disponível"
+    },
+    "animal": {
+      "cat": "Gato",
+      "dog": "Cão",
+      "fox": "Raposa",
+      "parrot": "Papagaio",
+      "raccoon": "Guaxinim",
+      "snake": "Cobra"
+    },
+    "floor_type": {
+      "tile": "Azulejo",
+      "wood": "Madeira",
+      "marble": "Mármore",
+      "concrete": "Betão",
+      "carpet_low": "Alcatifa baixa",
+      "carpet_high": "Alcatifa alta",
+      "granite_light": "Granito"
     }
   },
   "order_modal": {

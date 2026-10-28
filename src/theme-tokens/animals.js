@@ -71,6 +71,43 @@ export function memorialSubGroupLabel(animalName) {
   return `${MEMORIAL_PARENT_GROUP} — ${display}`;
 }
 
+/**
+ * The display NAME of one animal, localized, with the registry's own label behind it.
+ *
+ * Lives here because this module already owns "how an animal's name is spelled for a
+ * human" — the two group-label functions above prettify a registry id the same way — and
+ * because it had been done TWICE with the two copies disagreeing: the map view's picker
+ * used the registry label and fell back to a prettified id, while the theme preview's
+ * column heading printed the bare lowercase id ("cat"), so one surface said "Cat" and the
+ * other said "cat" for the same animal, both in English in all 17 locales.
+ *
+ * `vocab.animal.*` carries the six SPECIES. It deliberately does NOT carry Mittens, who is
+ * a memorial pet — a proper noun, and the thing the 🌈 Rainbow Bridge group exists to
+ * respect — so she resolves through the registry label and stays "Mittens" in every
+ * language. Same exemption `font.opendyslexic` holds: it is a name, not a word. A
+ * user-dropped animal is covered by the same fallback, which is why the registry label must
+ * remain reachable rather than being replaced by a key lookup.
+ *
+ * @param {string} animalName - the registry id (`cat`, `mittens`, …).
+ * @param {string} [registryLabel] - `AnimalSVG.get(name).label`, if the roster is loaded.
+ * @param {(field: string, value: string, fallback: string) => string} [tVocabFn] - the
+ *   caller's tVocab twin, picked by ITS sink: the escaping one for a raw interpolation,
+ *   the raw one where the renderer escapes downstream.
+ * @returns {string} the animal's name, localized where it is a species.
+ */
+export function animalDisplayName(animalName, registryLabel = null, tVocabFn = null) {
+  const safe = String(animalName ?? "").trim();
+  // Title Case on every word, not just the first. The map view's copy of this uppercased
+  // only the leading character, so a two-word id would have read "Sea otter" there while
+  // floorTypeDisplayName and _formatBaseStationLabel both title-case — a divergence with no
+  // live input today, which is exactly the kind that ships when the copies are merged.
+  const prettified = safe
+    ? safe.replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+    : "";
+  const fallback = String(registryLabel ?? "").trim() || prettified;
+  return typeof tVocabFn === "function" ? tVocabFn("animal", safe, fallback) : fallback;
+}
+
 /* =========================================================
    PARENT GROUP — global tokens (shape never depends on animal list)
    ========================================================= */

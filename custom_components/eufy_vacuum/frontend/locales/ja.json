@@ -790,6 +790,23 @@
       "not_installed": "未装着",
       "low_water": "水が少ない",
       "not_available": "利用不可"
+    },
+    "animal": {
+      "cat": "ネコ",
+      "dog": "イヌ",
+      "fox": "キツネ",
+      "parrot": "オウム",
+      "raccoon": "アライグマ",
+      "snake": "ヘビ"
+    },
+    "floor_type": {
+      "tile": "タイル",
+      "wood": "ウッド",
+      "marble": "大理石",
+      "concrete": "コンクリート",
+      "carpet_low": "低パイルカーペット",
+      "carpet_high": "高パイルカーペット",
+      "granite_light": "御影石"
     }
   },
   "map": {
@@ -1210,15 +1227,6 @@
       "medium": "中信頼度"
     },
     "eyebrow": "コンテキストプレビュー",
-    "floor": {
-      "carpet_high": "高パイルカーペット",
-      "carpet_low": "低パイルカーペット",
-      "concrete": "コンクリート",
-      "granite": "御影石",
-      "marble": "大理石",
-      "tile": "タイル",
-      "wood": "ウッド"
-    },
     "foundations": {
       "chip": "チップ",
       "composite_desc": "基盤は複数のシステムに関わるため、このプレビューでは代表的なサーフェスをいくつか意図的に組み合わせています。",

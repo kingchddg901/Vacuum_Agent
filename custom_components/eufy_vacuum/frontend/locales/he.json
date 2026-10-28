@@ -790,6 +790,23 @@
       "not_installed": "לא מותקן",
       "low_water": "מעט מים",
       "not_available": "לא זמין"
+    },
+    "animal": {
+      "cat": "חתול",
+      "dog": "כלב",
+      "fox": "שועל",
+      "parrot": "תוכי",
+      "raccoon": "רקון",
+      "snake": "נחש"
+    },
+    "floor_type": {
+      "tile": "אריחים",
+      "wood": "עץ",
+      "marble": "שיש",
+      "concrete": "בטון",
+      "carpet_low": "שטיח נמוך",
+      "carpet_high": "שטיח גבוה",
+      "granite_light": "גרניט"
     }
   },
   "map": {
@@ -1213,15 +1230,6 @@
       "medium": "ביטחון בינוני"
     },
     "eyebrow": "תצוגה מקדימה לפי הקשר",
-    "floor": {
-      "carpet_high": "שטיח גבוה",
-      "carpet_low": "שטיח נמוך",
-      "concrete": "בטון",
-      "granite": "גרניט",
-      "marble": "שיש",
-      "tile": "אריחים",
-      "wood": "עץ"
-    },
     "foundations": {
       "chip": "צ׳יפ",
       "composite_desc": "היסודות נוגעים במערכות רבות, ולכן התצוגה המקדימה משלבת בכוונה כמה משטחים מייצגים.",

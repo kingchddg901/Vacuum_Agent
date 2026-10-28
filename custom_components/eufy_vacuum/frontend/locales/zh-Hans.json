@@ -790,6 +790,23 @@
       "not_installed": "未安装",
       "low_water": "水量低",
       "not_available": "不可用"
+    },
+    "animal": {
+      "cat": "猫",
+      "dog": "狗",
+      "fox": "狐狸",
+      "parrot": "鹦鹉",
+      "raccoon": "浣熊",
+      "snake": "蛇"
+    },
+    "floor_type": {
+      "tile": "瓷砖",
+      "wood": "木地板",
+      "marble": "大理石",
+      "concrete": "水泥",
+      "carpet_low": "短绒地毯",
+      "carpet_high": "长绒地毯",
+      "granite_light": "花岗岩"
     }
   },
   "map": {
@@ -1210,15 +1227,6 @@
       "medium": "中置信度"
     },
     "eyebrow": "情境预览",
-    "floor": {
-      "carpet_high": "长绒地毯",
-      "carpet_low": "短绒地毯",
-      "concrete": "水泥",
-      "granite": "花岗岩",
-      "marble": "大理石",
-      "tile": "瓷砖",
-      "wood": "木地板"
-    },
     "foundations": {
       "chip": "标签",
       "composite_desc": "基础样式会影响多个系统，因此预览特意混合了几种有代表性的表面。",
