@@ -419,7 +419,10 @@
       "other": "Esecuzione incompleta: {count} stanze saltate. Apri Stanze per riprovare."
     },
     "phase_context_title": "Attualmente al passaggio {step} di {total}",
-    "phase_context_next": "Successivo: {step}"
+    "phase_context_next": "Successivo: {step}",
+    "estimate_error": {
+      "estimate_failed": "Non è stato possibile calcolare la stima per questa esecuzione."
+    }
   },
   "maintenance": {
     "attention_empty": "Al momento tutto sembra in salute.",
@@ -1102,7 +1105,9 @@
         "missing_room_references": "Tutti i collegamenti di accesso devono puntare a stanze della mappa attuale.",
         "multiple_inbound": "{target} ha già un collegamento in entrata da {claimant}. Ogni stanza può essere raggiunta da una sola stanza.",
         "cycle": "Questa configurazione di accesso creerebbe un ciclo nel grafo delle stanze.",
-        "no_dock_room": "Imposta una stanza della base prima di collegare le stanze. La stanza della base è l'origine dell'albero di accesso."
+        "no_dock_room": "Imposta una stanza della base prima di collegare le stanze. La stanza della base è l'origine dell'albero di accesso.",
+        "room_not_found": "Questa stanza non è più sulla mappa attiva. Riapri l'elenco delle stanze e riprova.",
+        "invalid_access_graph": "Questi collegamenti di accesso renderebbero il grafo delle stanze non valido, quindi non è stato salvato nulla."
       },
       "list_separator": ", ",
       "self_reference": "{room} non può concedere l'accesso a se stessa.",
@@ -1483,7 +1488,8 @@
       "device_label": "Device:",
       "queue_label": "Queue:",
       "empty_placeholder": "(empty)"
-    }
+    },
+    "order_advisory": "L'ordine di pulizia qui è indicativo: questo aspirapolvere pulisce le stanze nell'ordine salvato nella sua app — imposta lì una sequenza di pulizia per forzarlo — oppure ottimizza il percorso da sé."
   },
   "profile_card": {
     "configure": "Seleziona un aspirapolvere, una mappa e un profilo nell'editor della scheda.",
@@ -1633,7 +1639,9 @@
     "subtab_steps": "Passaggi di configurazione",
     "subtab_system": "Sistema",
     "adopt_room": "Aggiungi stanza",
-    "adopt_needs_active_map": "Passa l'aspirapolvere a questa mappa per aggiungerla"
+    "adopt_needs_active_map": "Passa l'aspirapolvere a questa mappa per aggiungerla",
+    "step_calibrate_map": "Calibra la mappa",
+    "step_set_dock_position": "Imposta la posizione della base"
   },
   "shell": {
     "setup_add_title": "Aggiungi il tuo aspirapolvere",

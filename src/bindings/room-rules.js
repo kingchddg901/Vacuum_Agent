@@ -9,6 +9,8 @@
  * ============================================================
  */
 
+import { resolveCodedLabel } from "../state/coded-label.js";
+
 /**
  * Mix room rules binding methods onto the given prototype.
  *
@@ -227,11 +229,28 @@ export function applyRoomRulesBindings(proto) {
           const result = await this.card._actions.saveRoomRules?.(room.id, updated);
 
           if (result?.ok === false || result?.updated === false) {
-            const message =
-              result?.reason_detail ??
-              result?.message ??
-              result?.reason ??
-              this.tRaw("bind_room_rules.backend_rejected_rule");
+            // THE CODE WAS ALREADY HERE, RANKED THIRD. `result.reason` sat below two
+            // English sentences, so a refusal reached the rule editor as the backend's
+            // prose in all 17 languages — the same precedence shape as the eight sinks in
+            // wave 1, one layer up from the renderer the census pointed at (the renderer
+            // only prints what this stores).
+            //
+            // `update_room_fields` emits three codes — room_not_found, no_dock_room,
+            // invalid_access_graph — which are the access-graph vocabulary, so they resolve
+            // through that family rather than a new one; `no_dock_room` was already keyed
+            // there. Card-specific wording first, exactly as accessIssueLabel orders it.
+            // RAW: the editor escapes what it is handed.
+            const message = resolveCodedLabel(
+              {
+                code: result?.reason,
+                message: result?.reason_detail ?? result?.message ?? "",
+              },
+              (key, vars) => this.tRaw(key, vars),
+              {
+                prefixes: ["room_access.issue.card.", "room_access.issue."],
+                genericKey: "bind_room_rules.backend_rejected_rule",
+              },
+            );
             state.setRoomRulesSaveError?.(message);
             this.card._scheduleRender();
             return;

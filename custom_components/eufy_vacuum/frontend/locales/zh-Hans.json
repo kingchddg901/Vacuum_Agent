@@ -1666,7 +1666,8 @@
       "device_label": "设备:",
       "queue_label": "队列:",
       "empty_placeholder": "(空)"
-    }
+    },
+    "order_advisory": "此处显示的清扫顺序仅供参考：本扫地机按其自带应用中保存的顺序清扫房间（如需强制，请在该应用中设置清扫顺序），否则会自行优化路径。"
   },
   "room_card": {
     "carpet_notice": "地毯房间 — 已隐藏拖地设置",
@@ -1872,7 +1873,9 @@
         "missing_room_references": "所有通行链接都必须指向当前地图上的房间。",
         "multiple_inbound": "{target} 已有来自 {claimant} 的入站链接。每个房间只能从一个房间到达。",
         "cycle": "此通行设置会在房间关系图中形成循环。",
-        "no_dock_room": "连接房间前请先设置基站房间。基站房间是通行关系树的起点。"
+        "no_dock_room": "连接房间前请先设置基站房间。基站房间是通行关系树的起点。",
+        "room_not_found": "该房间已不在当前地图上。请重新打开房间列表后再试。",
+        "invalid_access_graph": "这些通行连接会让房间关系图无效，因此未保存任何内容。"
       },
       "list_separator": "、",
       "self_reference": "{room} 无法向自身授予通行权限。",
@@ -2042,7 +2045,10 @@
       "other": "清扫未完成 — 跳过了 {count} 个房间。打开“房间”重试。"
     },
     "phase_context_title": "当前第 {step} 步，共 {total} 步",
-    "phase_context_next": "下一步：{step}"
+    "phase_context_next": "下一步：{step}",
+    "estimate_error": {
+      "estimate_failed": "无法为本次运行计算预估值。"
+    }
   },
   "maintenance": {
     "attention_empty": "目前一切正常。",
@@ -2361,7 +2367,9 @@
     "subtab_steps": "设置步骤",
     "subtab_system": "系统",
     "adopt_room": "添加房间",
-    "adopt_needs_active_map": "请将扫地机切换到此地图后再添加"
+    "adopt_needs_active_map": "请将扫地机切换到此地图后再添加",
+    "step_calibrate_map": "校准地图",
+    "step_set_dock_position": "设置基站位置"
   },
   "external_jobs": {
     "back": "返回",

@@ -1656,7 +1656,8 @@
       "device_label": "Device:",
       "queue_label": "Queue:",
       "empty_placeholder": "(empty)"
-    }
+    },
+    "order_advisory": "Urutan pembersihan di sini bersifat anjuran: robot ini membersihkan ruangan sesuai urutan yang tersimpan di aplikasinya sendiri — atur Sequence pembersihan di sana untuk memaksanya — atau mengoptimalkan jalurnya sendiri."
   },
   "learning": {
     "all_rooms_complete": "Semua ruangan selesai",
@@ -1773,7 +1774,10 @@
       "other": "Pembersihan tidak lengkap — {count} ruangan terlewat. Buka Ruangan untuk mencoba lagi."
     },
     "phase_context_title": "Sedang di langkah {step} dari {total}",
-    "phase_context_next": "Berikutnya: {step}"
+    "phase_context_next": "Berikutnya: {step}",
+    "estimate_error": {
+      "estimate_failed": "Perkiraan untuk proses ini tidak dapat dihitung."
+    }
   },
   "maintenance": {
     "attention_empty": "Saat ini semuanya terlihat sehat.",
@@ -2002,7 +2006,9 @@
     "subtab_steps": "Langkah penyiapan",
     "subtab_system": "Sistem",
     "adopt_room": "Tambah ruangan",
-    "adopt_needs_active_map": "Alihkan penyedot debu ke peta ini untuk menambahkannya"
+    "adopt_needs_active_map": "Alihkan penyedot debu ke peta ini untuk menambahkannya",
+    "step_calibrate_map": "Kalibrasi peta",
+    "step_set_dock_position": "Tetapkan posisi dok"
   },
   "theme": {
     "alpha_aria_label": "Opasitas {label}",
@@ -2585,7 +2591,9 @@
         "missing_room_references": "Semua tautan akses harus mengarah ke ruangan di peta saat ini.",
         "multiple_inbound": "{target} sudah memiliki tautan masuk dari {claimant}. Setiap ruangan hanya dapat dijangkau dari satu ruangan.",
         "cycle": "Pengaturan akses ini akan membentuk lingkaran dalam grafik ruangan.",
-        "no_dock_room": "Tetapkan ruangan dok sebelum menautkan ruangan. Ruangan dok adalah titik awal pohon akses."
+        "no_dock_room": "Tetapkan ruangan dok sebelum menautkan ruangan. Ruangan dok adalah titik awal pohon akses.",
+        "room_not_found": "Ruangan itu sudah tidak ada di peta aktif. Buka kembali daftar ruangan lalu coba lagi.",
+        "invalid_access_graph": "Tautan akses tersebut akan membuat graf ruangan tidak valid, jadi tidak ada yang disimpan."
       },
       "list_separator": ", ",
       "self_reference": "{room} tidak dapat memberikan akses ke dirinya sendiri.",

@@ -459,14 +459,39 @@ export function applyMaintenanceRenderers(proto) {
   proto._renderMaintenanceAttentionItem = function (item) {
     const name = this._maintenanceItemName(item);
     const status = this._maintenanceStatusText(item?.status ?? "warning", item?.status_label);
+    // `remaining_summary` and `usage_summary` are backend-COMPOSED English ("38% remaining",
+    // "12 hours used"), and this row printed them while `_maintenancePrimaryValue` /
+    // `_maintenanceSecondaryValue` — twenty lines of ladder in this same file, already used
+    // by the item CARDS — compose the same sentences from the numeric fields through
+    // `maintenance.percent_remaining` / `.hours_remaining` / `.used_since_reset`, which
+    // every pack already carries. So this needed no new key and no backend change: it
+    // needed the helpers that were already here.
+    //
+    // They come FIRST, not last. The backend sentence stays behind them for a payload that
+    // carries the prose but not the numbers.
+    // ⚠ THE HELPER'S LAST RESORT IS A PLACEHOLDER, so it must not outrank the backend's
+    // sentence. `_maintenancePrimaryValue` always answers — its final line is
+    // `maintenance.unknown_remaining_life` — so a bare `primary || backendChain` made the
+    // whole tail unreachable, and an item carrying only a backend `summary` would have read
+    // "Unknown remaining life" instead of the sentence. That is losing information, not
+    // localizing it. Caught by [UPK-1]'s prose-only case, not by reading.
+    //
+    // It already consults `remaining_summary` itself, before giving up, so demoting it
+    // costs nothing: what the tail still adds is `summary`/`message`/`description`/`detail`,
+    // which the helpers know nothing about.
+    //
+    // (`||` and `??` cannot be mixed unparenthesized — a SyntaxError, not a precedence
+    // subtlety, and the first draft of this line was one.)
+    const unknownLife = this.tRaw("maintenance.unknown_remaining_life");
+    const fromNumbers = this._maintenancePrimaryValue(item);
     const detail =
-      item?.remaining_summary ??
-      item?.usage_summary ??
-      item?.summary ??
-      item?.message ??
-      item?.description ??
-      item?.detail ??
-      "";
+      (fromNumbers && fromNumbers !== unknownLife ? fromNumbers : "") ||
+      this._maintenanceSecondaryValue(item) ||
+      (item?.summary ??
+        item?.message ??
+        item?.description ??
+        item?.detail ??
+        "");
 
     return `
       <button

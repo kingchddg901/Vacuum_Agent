@@ -1656,7 +1656,8 @@
       "device_label": "Device:",
       "queue_label": "Queue:",
       "empty_placeholder": "(empty)"
-    }
+    },
+    "order_advisory": "Buradaki temizlik sırası yalnızca bilgi amaçlıdır: bu robot odaları kendi uygulamasında kayıtlı sıraya göre temizler — sırayı zorunlu kılmak için orada bir temizlik dizisi ayarlayın — ya da yolu kendisi optimize eder."
   },
   "learning": {
     "all_rooms_complete": "Tüm odalar tamamlandı",
@@ -1773,7 +1774,10 @@
       "other": "Çalıştırma tamamlanmadı — {count} oda atlandı. Yeniden denemek için Odalar'ı açın."
     },
     "phase_context_title": "Şu anda {total} adımdan {step}. adım",
-    "phase_context_next": "Sonraki: {step}"
+    "phase_context_next": "Sonraki: {step}",
+    "estimate_error": {
+      "estimate_failed": "Bu çalıştırma için tahmin hesaplanamadı."
+    }
   },
   "maintenance": {
     "attention_empty": "Şu anda her şey sağlıklı görünüyor.",
@@ -2002,7 +2006,9 @@
     "subtab_steps": "Kurulum adımları",
     "subtab_system": "Sistem",
     "adopt_room": "Oda ekle",
-    "adopt_needs_active_map": "Eklemek için süpürgeyi bu haritaya geçirin"
+    "adopt_needs_active_map": "Eklemek için süpürgeyi bu haritaya geçirin",
+    "step_calibrate_map": "Haritayı kalibre et",
+    "step_set_dock_position": "İstasyon konumunu ayarla"
   },
   "theme": {
     "alpha_aria_label": "{label} opaklığı",
@@ -2585,7 +2591,9 @@
         "missing_room_references": "Tüm erişim bağlantıları geçerli haritadaki odalara işaret etmelidir.",
         "multiple_inbound": "{target} zaten {claimant} kaynağından gelen bir bağlantıya sahip. Her odaya yalnızca tek bir odadan ulaşılabilir.",
         "cycle": "Bu erişim ayarı oda grafiğinde bir döngü oluştururdu.",
-        "no_dock_room": "Odaları bağlamadan önce bir şarj istasyonu odası belirleyin. Şarj istasyonu odası erişim ağacının başlangıcıdır."
+        "no_dock_room": "Odaları bağlamadan önce bir şarj istasyonu odası belirleyin. Şarj istasyonu odası erişim ağacının başlangıcıdır.",
+        "room_not_found": "Bu oda artık etkin haritada değil. Oda listesini yeniden açıp tekrar deneyin.",
+        "invalid_access_graph": "Bu erişim bağlantıları oda grafiğini geçersiz bırakırdı, bu yüzden hiçbir şey kaydedilmedi."
       },
       "list_separator": ", ",
       "self_reference": "{room} kendisine erişim veremez.",

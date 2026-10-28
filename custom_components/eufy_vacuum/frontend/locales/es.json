@@ -421,7 +421,10 @@
       "other": "Ejecución incompleta: faltan {count} habitaciones. Abre Habitaciones para reintentar."
     },
     "phase_context_title": "Actualmente en el paso {step} de {total}",
-    "phase_context_next": "Siguiente: {step}"
+    "phase_context_next": "Siguiente: {step}",
+    "estimate_error": {
+      "estimate_failed": "No se pudo calcular la estimación para esta ejecución."
+    }
   },
   "maintenance": {
     "attention_empty": "Por ahora todo parece en buen estado.",
@@ -1112,7 +1115,9 @@
         "missing_room_references": "Todos los enlaces de acceso deben apuntar a habitaciones del mapa actual.",
         "multiple_inbound": "{target} ya tiene un enlace entrante desde {claimant}. Cada habitación solo puede alcanzarse desde una habitación.",
         "cycle": "Esta configuración de acceso crearía un bucle en el gráfico de habitaciones.",
-        "no_dock_room": "Marca una habitación de la base antes de enlazar habitaciones. La habitación de la base es el origen del árbol de acceso."
+        "no_dock_room": "Marca una habitación de la base antes de enlazar habitaciones. La habitación de la base es el origen del árbol de acceso.",
+        "room_not_found": "Esa habitación ya no está en el mapa activo. Vuelva a abrir la lista de habitaciones e inténtelo de nuevo.",
+        "invalid_access_graph": "Esos enlaces de acceso dejarían el grafo de habitaciones no válido, así que no se guardó nada."
       },
       "list_separator": ", ",
       "self_reference": "{room} no puede concederse acceso a sí misma.",
@@ -1496,7 +1501,8 @@
       "device_label": "Device:",
       "queue_label": "Queue:",
       "empty_placeholder": "(empty)"
-    }
+    },
+    "order_advisory": "El orden de limpieza aquí es orientativo: este robot limpia las habitaciones en el orden guardado en su propia aplicación —configure allí una secuencia de limpieza para imponerlo— o optimiza la ruta por su cuenta."
   },
   "profile_card": {
     "configure": "Selecciona un aspirador, un mapa y un perfil en el editor de la tarjeta.",
@@ -1646,7 +1652,9 @@
     "subtab_steps": "Pasos de configuración",
     "subtab_system": "Sistema",
     "adopt_room": "Añadir habitación",
-    "adopt_needs_active_map": "Cambia el aspirador a este mapa para añadirla"
+    "adopt_needs_active_map": "Cambia el aspirador a este mapa para añadirla",
+    "step_calibrate_map": "Calibrar el mapa",
+    "step_set_dock_position": "Fijar la posición de la base"
   },
   "shell": {
     "setup_add_title": "Añade tu aspirador",

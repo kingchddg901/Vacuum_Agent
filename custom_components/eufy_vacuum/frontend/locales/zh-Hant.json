@@ -1666,7 +1666,8 @@
       "device_label": "裝置:",
       "queue_label": "佇列:",
       "empty_placeholder": "(空)"
-    }
+    },
+    "order_advisory": "此處顯示的清掃順序僅供參考：本掃地機依其自家應用程式中儲存的順序清掃房間（如需強制，請在該應用程式中設定清掃順序），否則會自行最佳化路徑。"
   },
   "room_card": {
     "carpet_notice": "地毯房間 — 已隱藏拖地欄位",
@@ -1872,7 +1873,9 @@
         "missing_room_references": "所有通行連結都必須指向目前地圖上的房間。",
         "multiple_inbound": "{target} 已有來自 {claimant} 的傳入連結。每個房間只能從一個房間到達。",
         "cycle": "此通行設定會在房間關係圖中形成迴圈。",
-        "no_dock_room": "連接房間前請先設定基站房間。基站房間是通行關係樹的起點。"
+        "no_dock_room": "連接房間前請先設定基站房間。基站房間是通行關係樹的起點。",
+        "room_not_found": "該房間已不在目前地圖上。請重新開啟房間清單後再試。",
+        "invalid_access_graph": "這些通行連結會讓房間關係圖無效，因此未儲存任何內容。"
       },
       "list_separator": "、",
       "self_reference": "{room} 無法對自身授予通行權限。",
@@ -2042,7 +2045,10 @@
       "other": "清掃未完成 — 略過了 {count} 個房間。開啟「房間」重試。"
     },
     "phase_context_title": "目前第 {step} 步，共 {total} 步",
-    "phase_context_next": "下一步：{step}"
+    "phase_context_next": "下一步：{step}",
+    "estimate_error": {
+      "estimate_failed": "無法為本次執行計算預估值。"
+    }
   },
   "maintenance": {
     "attention_empty": "目前一切看起來良好。",
@@ -2361,7 +2367,9 @@
     "subtab_steps": "設定步驟",
     "subtab_system": "系統",
     "adopt_room": "新增房間",
-    "adopt_needs_active_map": "請將掃地機切換到此地圖後再新增"
+    "adopt_needs_active_map": "請將掃地機切換到此地圖後再新增",
+    "step_calibrate_map": "校正地圖",
+    "step_set_dock_position": "設定基站位置"
   },
   "external_jobs": {
     "back": "返回",

@@ -417,7 +417,10 @@
       "other": "Lauf unvollständig — {count} Räume ausgelassen. Zum Wiederholen Räume öffnen."
     },
     "phase_context_title": "Aktuell Schritt {step} von {total}",
-    "phase_context_next": "Weiter: {step}"
+    "phase_context_next": "Weiter: {step}",
+    "estimate_error": {
+      "estimate_failed": "Die Schätzung für diesen Durchlauf konnte nicht berechnet werden."
+    }
   },
   "maintenance": {
     "attention_empty": "Aktuell sieht alles gesund aus.",
@@ -1100,7 +1103,9 @@
         "missing_room_references": "Alle Zugangsverknüpfungen müssen auf Räume der aktuellen Karte verweisen.",
         "multiple_inbound": "{target} hat bereits eine eingehende Verknüpfung von {claimant}. Jeder Raum kann nur von einem Raum aus erreicht werden.",
         "cycle": "Diese Zugangseinstellung würde eine Schleife im Raumgraphen erzeugen.",
-        "no_dock_room": "Legen Sie einen Stationsraum fest, bevor Sie Räume verknüpfen. Der Stationsraum ist der Ursprung des Zugangsbaums."
+        "no_dock_room": "Legen Sie einen Stationsraum fest, bevor Sie Räume verknüpfen. Der Stationsraum ist der Ursprung des Zugangsbaums.",
+        "room_not_found": "Dieser Raum ist nicht mehr auf der aktiven Karte. Öffnen Sie die Raumliste erneut und versuchen Sie es noch einmal.",
+        "invalid_access_graph": "Diese Zugangsverknüpfungen würden den Raumgraphen ungültig machen — es wurde nichts gespeichert."
       },
       "list_separator": ", ",
       "self_reference": "{room} kann sich nicht selbst Zugang gewähren.",
@@ -1480,7 +1485,8 @@
       "device_label": "Device:",
       "queue_label": "Queue:",
       "empty_placeholder": "(empty)"
-    }
+    },
+    "order_advisory": "Die hier gezeigte Reihenfolge ist nur ein Hinweis: Dieser Saugroboter reinigt Räume in der Reihenfolge, die in seiner eigenen App gespeichert ist — legen Sie dort eine Reinigungssequenz fest, um sie zu erzwingen — oder er optimiert den Weg selbst."
   },
   "profile_card": {
     "configure": "Wähle Saugroboter, Karte und Profil im Karteneditor aus.",
@@ -1630,7 +1636,9 @@
     "subtab_steps": "Einrichtungsschritte",
     "subtab_system": "System",
     "adopt_room": "Raum hinzufügen",
-    "adopt_needs_active_map": "Wechsle den Saugroboter auf diese Karte, um ihn hinzuzufügen"
+    "adopt_needs_active_map": "Wechsle den Saugroboter auf diese Karte, um ihn hinzuzufügen",
+    "step_calibrate_map": "Karte kalibrieren",
+    "step_set_dock_position": "Dockposition festlegen"
   },
   "shell": {
     "setup_add_title": "Füge deinen Saugroboter hinzu",

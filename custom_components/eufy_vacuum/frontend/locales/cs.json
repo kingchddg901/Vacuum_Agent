@@ -1656,7 +1656,8 @@
       "device_label": "Device:",
       "queue_label": "Queue:",
       "empty_placeholder": "(empty)"
-    }
+    },
+    "order_advisory": "Pořadí úklidu je zde pouze orientační: tento robot uklízí místnosti v pořadí uloženém ve své vlastní aplikaci — nastavte tam sekvenci úklidu, chcete-li ho vynutit — nebo si trasu optimalizuje sám."
   },
   "learning": {
     "all_rooms_complete": "Všechny místnosti dokončeny",
@@ -1773,7 +1774,10 @@
       "other": "Úklid nedokončen — vynecháno {count} místností. Otevřete Místnosti a zkuste to znovu."
     },
     "phase_context_title": "Aktuálně krok {step} z {total}",
-    "phase_context_next": "Další: {step}"
+    "phase_context_next": "Další: {step}",
+    "estimate_error": {
+      "estimate_failed": "Odhad pro tento úklid se nepodařilo spočítat."
+    }
   },
   "maintenance": {
     "attention_empty": "Vše aktuálně vypadá v pořádku.",
@@ -2004,7 +2008,9 @@
     "subtab_steps": "Kroky nastavení",
     "subtab_system": "Systém",
     "adopt_room": "Přidat místnost",
-    "adopt_needs_active_map": "Přepněte vysavač na tuto mapu, abyste ji mohli přidat"
+    "adopt_needs_active_map": "Přepněte vysavač na tuto mapu, abyste ji mohli přidat",
+    "step_calibrate_map": "Kalibrovat mapu",
+    "step_set_dock_position": "Nastavit pozici doku"
   },
   "theme": {
     "alpha_aria_label": "Krytí {label}",
@@ -2587,7 +2593,9 @@
         "missing_room_references": "Všechna propojení přístupu musí odkazovat na místnosti na aktuální mapě.",
         "multiple_inbound": "{target} již má příchozí propojení z {claimant}. Každá místnost může být dosažitelná jen z jedné místnosti.",
         "cycle": "Toto nastavení přístupu by vytvořilo smyčku v grafu místností.",
-        "no_dock_room": "Než začnete propojovat místnosti, nastavte místnost s dokem. Místnost s dokem je počátek stromu přístupu."
+        "no_dock_room": "Než začnete propojovat místnosti, nastavte místnost s dokem. Místnost s dokem je počátek stromu přístupu.",
+        "room_not_found": "Tato místnost už na aktivní mapě není. Otevřete znovu seznam místností a zkuste to ještě raz.",
+        "invalid_access_graph": "Tyto přístupové odkazy by nechaly graf místností neplatný, takže se nic neuložilo."
       },
       "list_separator": ", ",
       "self_reference": "Místnost {room} nemůže udělit přístup sama sobě.",

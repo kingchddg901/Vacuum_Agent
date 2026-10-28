@@ -104,10 +104,7 @@ export function applyBaseStationRenderers(proto) {
               <div>
                 <div class="evcc-base-station-panel-title">${this.t("base_station.station_status_title")}</div>
                 <div class="evcc-base-station-panel-subtitle">
-                  ${this.escapeHtml(
-                    upkeep.attention_summary ||
-                    this.t("base_station.station_status_subtitle")
-                  )}
+                  ${this._baseStationAttentionSubtitle(upkeep)}
                 </div>
               </div>
             </div>
@@ -346,6 +343,43 @@ export function applyBaseStationRenderers(proto) {
    * @param {*} value - Raw water level (numeric percent or string key).
    * @returns {string} Formatted water level string.
    */
+  /**
+   * The Station Status panel's subtitle: how many upkeep items need attention.
+   *
+   * Composed from `attention_count`, which is the same thing the Upkeep tab's own header
+   * already does with the same two keys — this panel printed `upkeep.attention_summary`,
+   * the backend's English sentence, in all 17 languages. The keys live in the
+   * `maintenance.*` namespace and are reused rather than duplicated: the concept belongs
+   * to upkeep whichever view shows it, and a second copy would be two more keys to keep in
+   * step for no gain.
+   *
+   * ABSENT IS NOT ZERO, and that rule is inherited rather than rediscovered: `Number(null)`
+   * is 0 and 0 IS finite, so a `?? 0` here would render a confident "No upkeep items need
+   * attention" on a payload that never said so. [C6-6] caught exactly that in the Upkeep
+   * tab's copy.
+   *
+   * THE TWO BRANCHES ARE ESCAPED SEPARATELY, and that is the second defect this replaces.
+   * The expression was `escapeHtml(attention_summary || t("…subtitle"))` — one escape over
+   * both arms — so the localized fallback was escaped twice. Live, not theoretical:
+   * measured across all 17 packs, `it` is the one whose subtitle carries an apostrophe
+   * ("dell'attività"), and it rendered as `dell&#39;attività` on screen.
+   *
+   * @param {object} upkeep - the maintenance snapshot.
+   * @returns {string} HTML-safe subtitle, for RAW interpolation.
+   */
+  proto._baseStationAttentionSubtitle = function (upkeep) {
+    const countRaw = upkeep?.attention_count != null ? Number(upkeep.attention_count) : NaN;
+    if (Number.isFinite(countRaw)) {
+      // t() output is already escaped — interpolated raw by the caller.
+      return countRaw > 0
+        ? this.t("maintenance.attention_summary", { count: countRaw })
+        : this.t("maintenance.attention_summary_none");
+    }
+    // Backend-sourced, so escaped HERE, at the untrusted source.
+    const fromBackend = this.escapeHtml(upkeep?.attention_summary ?? "");
+    return fromBackend || this.t("base_station.station_status_subtitle");
+  };
+
   proto._formatBaseStationWaterLevel = function (value, backendLabel = null) {
     // `hasValue` is LOAD-BEARING, and this is the SHORTER COPY of a guard the maintenance
     // renderer already carries with its own note: Number(null) is 0 and Number.isFinite(0)

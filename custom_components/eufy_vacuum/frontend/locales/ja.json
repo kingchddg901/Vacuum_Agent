@@ -1666,7 +1666,8 @@
       "device_label": "デバイス:",
       "queue_label": "キュー:",
       "empty_placeholder": "(なし)"
-    }
+    },
+    "order_advisory": "ここに表示される順序は目安です。この掃除機は自身のアプリに保存された順序で部屋を掃除します（強制するにはアプリで清掃シーケンスを設定してください）。設定がなければ自分で経路を最適化します。"
   },
   "room_card": {
     "carpet_notice": "カーペットの部屋 — 水拭き項目は非表示",
@@ -1872,7 +1873,9 @@
         "missing_room_references": "すべてのアクセスリンクは現在のマップ上の部屋を指す必要があります。",
         "multiple_inbound": "{target} には既に {claimant} からの受信リンクがあります。各部屋には 1 つの部屋からのみ到達できます。",
         "cycle": "このアクセス設定は部屋グラフにループを作成します。",
-        "no_dock_room": "部屋を接続する前にドック部屋を設定してください。ドック部屋はアクセスツリーの起点です。"
+        "no_dock_room": "部屋を接続する前にドック部屋を設定してください。ドック部屋はアクセスツリーの起点です。",
+        "room_not_found": "その部屋はアクティブなマップにはもうありません。部屋の一覧を開き直してやり直してください。",
+        "invalid_access_graph": "これらのアクセス接続では部屋のグラフが無効になるため、保存されませんでした。"
       },
       "list_separator": "、",
       "self_reference": "{room} は自分自身にアクセスを許可できません。",
@@ -2042,7 +2045,10 @@
       "other": "掃除が未完了です — {count} 部屋がスキップされました。「部屋」を開いて再試行してください。"
     },
     "phase_context_title": "現在 {total} ステップ中 {step} 番目",
-    "phase_context_next": "次: {step}"
+    "phase_context_next": "次: {step}",
+    "estimate_error": {
+      "estimate_failed": "この実行の推定値を算出できませんでした。"
+    }
   },
   "maintenance": {
     "attention_empty": "現在すべて正常です。",
@@ -2361,7 +2367,9 @@
     "subtab_steps": "セットアップ手順",
     "subtab_system": "システム",
     "adopt_room": "部屋を追加",
-    "adopt_needs_active_map": "追加するには掃除機をこのマップに切り替えてください"
+    "adopt_needs_active_map": "追加するには掃除機をこのマップに切り替えてください",
+    "step_calibrate_map": "マップを調整",
+    "step_set_dock_position": "ドックの位置を設定"
   },
   "external_jobs": {
     "back": "戻る",

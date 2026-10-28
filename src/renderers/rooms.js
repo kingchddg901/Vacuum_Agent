@@ -662,9 +662,17 @@ proto.renderRoomsActionBar = function (
       ${orderAdvisory ? `
         <div class="evcc-rooms-order-advisory">
           <div class="evcc-rooms-order-advisory-text">
+            ${/* The advisory is ONE fixed sentence with no parameters
+                  (planning/run_plan.py::_order_advisory returns it or None), so its
+                  PRESENCE is the whole signal and there was never a code to add — the card
+                  simply printed the backend's English. [OA-1] pins that it is still one
+                  sentence, because presence-keying is only valid while that holds.
+                  No key-echo fallback here: translate() resolves locale -> base -> en and
+                  en.js ships this key, so a "did it resolve?" branch could never run. A
+                  dead branch is worse than none — the first draft of this line had one. */""}
             ${strictOrder
               ? this.t("rooms.strict_order_on_text")
-              : this.escapeHtml(orderAdvisory)}
+              : (orderAdvisory ? this.t("rooms.order_advisory") : "")}
           </div>
           <button
             type="button"

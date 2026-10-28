@@ -1666,7 +1666,8 @@
       "device_label": "장치:",
       "queue_label": "대기열:",
       "empty_placeholder": "(비어 있음)"
-    }
+    },
+    "order_advisory": "여기 표시된 청소 순서는 참고용입니다. 이 로봇은 자체 앱에 저장된 순서로 방을 청소합니다. 순서를 지정하려면 앱에서 청소 시퀀스를 설정하세요. 설정이 없으면 경로를 스스로 최적화합니다."
   },
   "room_card": {
     "carpet_notice": "카펫 방 — 물걸레 항목 숨김",
@@ -1872,7 +1873,9 @@
         "missing_room_references": "모든 접근 연결은 현재 지도의 방을 가리켜야 합니다.",
         "multiple_inbound": "{target}에는 이미 {claimant}에서의 인바운드 연결이 있습니다. 각 방은 하나의 방에서만 도달할 수 있습니다.",
         "cycle": "이 접근 설정은 방 그래프에 순환을 만듭니다.",
-        "no_dock_room": "방을 연결하기 전에 도크 방을 지정하세요. 도크 방은 접근 트리의 시작점입니다."
+        "no_dock_room": "방을 연결하기 전에 도크 방을 지정하세요. 도크 방은 접근 트리의 시작점입니다.",
+        "room_not_found": "해당 방은 활성 지도에 더 이상 없습니다. 방 목록을 다시 열고 시도하세요.",
+        "invalid_access_graph": "이 접근 연결은 방 그래프를 유효하지 않게 만들기 때문에 아무것도 저장되지 않았습니다."
       },
       "list_separator": ", ",
       "self_reference": "{room}은(는) 자기 자신에게 접근을 허용할 수 없습니다.",
@@ -2042,7 +2045,10 @@
       "other": "청소가 완료되지 않았습니다 — {count}개 방을 건너뛰었습니다. ‘방’을 열어 다시 시도하세요."
     },
     "phase_context_title": "현재 {total}단계 중 {step}단계",
-    "phase_context_next": "다음: {step}"
+    "phase_context_next": "다음: {step}",
+    "estimate_error": {
+      "estimate_failed": "이 실행의 예상치를 계산할 수 없습니다."
+    }
   },
   "maintenance": {
     "attention_empty": "현재 모두 정상입니다.",
@@ -2361,7 +2367,9 @@
     "subtab_steps": "설정 단계",
     "subtab_system": "시스템",
     "adopt_room": "방 추가",
-    "adopt_needs_active_map": "추가하려면 청소기를 이 지도로 전환하세요"
+    "adopt_needs_active_map": "추가하려면 청소기를 이 지도로 전환하세요",
+    "step_calibrate_map": "지도 보정",
+    "step_set_dock_position": "도크 위치 설정"
   },
   "external_jobs": {
     "back": "뒤로",

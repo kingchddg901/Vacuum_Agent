@@ -417,7 +417,10 @@
       "other": "Run onvolledig — {count} kamers overgeslagen. Open Kamers om opnieuw te proberen."
     },
     "phase_context_title": "Momenteel bij stap {step} van {total}",
-    "phase_context_next": "Volgende: {step}"
+    "phase_context_next": "Volgende: {step}",
+    "estimate_error": {
+      "estimate_failed": "De schatting voor deze run kon niet worden berekend."
+    }
   },
   "maintenance": {
     "attention_empty": "Alles ziet er momenteel gezond uit.",
@@ -1100,7 +1103,9 @@
         "missing_room_references": "Alle toegangskoppelingen moeten naar kamers op de huidige kaart verwijzen.",
         "multiple_inbound": "{target} heeft al een inkomende koppeling van {claimant}. Elke kamer kan maar vanuit één kamer worden bereikt.",
         "cycle": "Deze toegangsinstelling zou een lus in de kamergraaf maken.",
-        "no_dock_room": "Stel een dockkamer in voordat je kamers koppelt. De dockkamer is de oorsprong van de toegangsboom."
+        "no_dock_room": "Stel een dockkamer in voordat je kamers koppelt. De dockkamer is de oorsprong van de toegangsboom.",
+        "room_not_found": "Die kamer staat niet meer op de actieve kaart. Open de kamerlijst opnieuw en probeer het nog eens.",
+        "invalid_access_graph": "Die toegangskoppelingen zouden de kamergraaf ongeldig maken, dus er is niets opgeslagen."
       },
       "list_separator": ", ",
       "self_reference": "{room} kan zichzelf geen toegang verlenen.",
@@ -1480,7 +1485,8 @@
       "device_label": "Device:",
       "queue_label": "Queue:",
       "empty_placeholder": "(empty)"
-    }
+    },
+    "order_advisory": "De volgorde hier is adviserend: deze robot maakt kamers schoon in de volgorde die in zijn eigen app is opgeslagen — stel daar een schoonmaakreeks in om die af te dwingen — of optimaliseert de route zelf."
   },
   "profile_card": {
     "configure": "Selecteer een stofzuiger, kaart en profiel in de editor.",
@@ -1630,7 +1636,9 @@
     "subtab_steps": "Installatiestappen",
     "subtab_system": "Systeem",
     "adopt_room": "Kamer toevoegen",
-    "adopt_needs_active_map": "Zet de stofzuiger op deze kaart om hem toe te voegen"
+    "adopt_needs_active_map": "Zet de stofzuiger op deze kaart om hem toe te voegen",
+    "step_calibrate_map": "Kaart kalibreren",
+    "step_set_dock_position": "Dockpositie instellen"
   },
   "shell": {
     "setup_add_title": "Voeg je stofzuiger toe",

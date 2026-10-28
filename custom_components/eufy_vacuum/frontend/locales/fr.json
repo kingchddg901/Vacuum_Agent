@@ -421,7 +421,10 @@
       "other": "Nettoyage incomplet — {count} pièces manquées. Ouvrez Pièces pour réessayer."
     },
     "phase_context_title": "Étape {step} sur {total} en cours",
-    "phase_context_next": "Suivant : {step}"
+    "phase_context_next": "Suivant : {step}",
+    "estimate_error": {
+      "estimate_failed": "L'estimation n'a pas pu être calculée pour ce lancement."
+    }
   },
   "maintenance": {
     "attention_empty": "Tout semble en bon état pour le moment.",
@@ -1112,7 +1115,9 @@
         "missing_room_references": "Tous les liens d'accès doivent pointer vers des pièces de la carte actuelle.",
         "multiple_inbound": "{target} a déjà un lien entrant depuis {claimant}. Chaque pièce ne peut être atteinte que depuis une seule pièce.",
         "cycle": "Cette configuration d'accès créerait une boucle dans le graphe des pièces.",
-        "no_dock_room": "Désignez une pièce de la station avant de relier des pièces. La pièce de la station est l'origine de l'arbre d'accès."
+        "no_dock_room": "Désignez une pièce de la station avant de relier des pièces. La pièce de la station est l'origine de l'arbre d'accès.",
+        "room_not_found": "Cette pièce n'est plus sur la carte active. Rouvrez la liste des pièces et réessayez.",
+        "invalid_access_graph": "Ces liens d'accès rendraient le graphe des pièces invalide : rien n'a été enregistré."
       },
       "list_separator": ", ",
       "self_reference": "{room} ne peut pas s'accorder l'accès à elle-même.",
@@ -1496,7 +1501,8 @@
       "device_label": "Device:",
       "queue_label": "Queue:",
       "empty_placeholder": "(empty)"
-    }
+    },
+    "order_advisory": "L'ordre de nettoyage indiqué ici est indicatif : cet aspirateur nettoie les pièces dans l'ordre enregistré dans sa propre application — définissez-y une séquence de nettoyage pour l'imposer — ou optimise le trajet lui-même."
   },
   "profile_card": {
     "configure": "Sélectionnez un aspirateur, une carte et un profil dans l'éditeur de la carte.",
@@ -1646,7 +1652,9 @@
     "subtab_steps": "Étapes de configuration",
     "subtab_system": "Système",
     "adopt_room": "Ajouter la pièce",
-    "adopt_needs_active_map": "Basculez l'aspirateur sur cette carte pour l'ajouter"
+    "adopt_needs_active_map": "Basculez l'aspirateur sur cette carte pour l'ajouter",
+    "step_calibrate_map": "Calibrer la carte",
+    "step_set_dock_position": "Définir la position de la station"
   },
   "shell": {
     "setup_add_title": "Ajoutez votre aspirateur",

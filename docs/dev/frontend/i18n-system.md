@@ -454,10 +454,77 @@ contract gate, run after every wave. Four sections:
 > pending + 0 new**, and 941 is also the whole snapshot — every accepted pair is still
 > English-identical, so there is nothing stale in it at all.
 
+- **E. Script sanity** — two shapes of *wrong* that need no dictionary, so unlike
+  section D they are **failures in both modes**: neither is ever an editorial
+  choice. (1) a CJK character in a non-CJK pack, (2) a high-frequency English
+  function word inside a translated sentence, and (3) a value that is entirely
+  Latin script in a non-Latin pack. Markup, its attribute values and `{placeholders}`
+  are stripped first, and a pair section D has already accepted is skipped — one
+  adjudication file, read by two sections.
+
+> **Why section E exists, and what it cannot see.** Both of its first two cases were made
+> for real while landing the 2.5.3 census, by assembling a sentence from two drafts and
+> then *re-reading* it: a Czech string ending in the English "again", and a CJK word
+> (`配置`) inside a Spanish one. Re-reading 374 strings found neither; four lines of scan
+> found both. It also reaches a case **section D structurally cannot** — `zh-Hant`
+> `theme.tab_tokens` is "Token" against an English "Tokens", so it is Latin-script but not
+> English-*identical*, and the ratchet never looks at it.
+>
+> Three of its checks needed narrowing before they were usable, each found by running it
+> rather than by thinking about it: the fullwidth-forms block (`U+FF00–FFEF`) is **out** of
+> the CJK range, because `＋` and `－` are deliberate wide glyphs on the map's resize
+> buttons; markup must be stripped, because `map.seg_cv_unavailable` carries a docs URL
+> containing *making-your-own-maps* and every one of the 17 correctly-translated packs
+> reported an English "your"; and the word test matches **whole tokens**, because
+> `/[a-z]{3,}/` found "and" inside the Turkish *olağandışı*.
+>
+> **Its floor:** it says nothing about a plausible-but-wrong word in a Latin-script pack,
+> which is exactly section D's blind spot too. Between them the two sections cover script
+> mixing and byte-identity; neither covers meaning.
+>
+> Its residue over all 49,699 shipped values is **two**, both `zh-Hant`, both recorded in
+> `latin_in_non_latin` — a separate object from `accepted` because they are not
+> English-identical and filing them there would assert something untrue.
+
 **`--strict-coverage`** is release-gate mode: NEW English-identical values and
 any untranslated key become **failures** instead of a printed list (the
 "@100%" claim is an enforced invariant at release time). A plain `check:i18n`
-run stays permissive — an en-first mid-wave tree is a legitimate state.
+run stays permissive — an en-first mid-wave tree is a legitimate state. Sections A, B
+and E fail in both modes.
+
+## Classify a localization gap by what is BESIDE it, not by what it prints
+
+The single most expensive mistake in the 2.5.3 census was a triage one. Fifty-five sinks
+were bucketed by the **symptom** — "this prints a backend English sentence" — which
+produced a bucket of eight labelled *needs backend reason-codes, the separate larger job*.
+Measured against the producers, seven of the eight were card-side and three needed **no new
+key at all**:
+
+| what it printed | what was actually beside it |
+|---|---|
+| the Base Station's attention summary | `attention_count`, and the Upkeep tab already composing the same two keys from it |
+| an upkeep row's remaining/usage detail | `_maintenancePrimaryValue` / `_maintenanceSecondaryValue`, twenty lines away in the same file |
+| the learning panel's water warning | `water_warning_reason`, already used one line up to pick the notice's colour |
+| the rule editor's save refusal | `result.reason`, in hand and ranked **third**, below two English strings |
+| the setup wizard's step heading | the step `id`, with a resolver already trying `setup.step_<id>` |
+
+So the question that sorts a sink is never "where does this English come from?" — it is
+**"what else is in this payload, and does the card already know how to say it?"** A sink
+whose code, helper or key is already present is the same one-line precedence fix as the
+rest of the census; only a sink with genuinely nothing beside it is backend work. In this
+census exactly one qualified: a thrown service exception in `renderers/setup.js`, which has
+no code because the throw site is HA's, and inventing one means wrapping every service
+call. That one is **documented as not localizable** rather than left looking missed:
+
+> **The one string in the Setup view that stays English on purpose.**
+> `renderers/setup.js`'s transient `error` line renders `String(error)` raw, and that is
+> correct. It is not a backend `ActionResult` with a `reason` beside it — it is whatever the
+> HA service call *threw*, so there is no code to key on and no closed set to enumerate.
+> The card's own refusal strings on that surface already route through `setup.failed_*`
+> keys; this line is the residue, and it is a diagnostic rather than UI copy. Giving it a
+> code would mean wrapping every service call in a translating shim, trading a localized
+> sentence for a less accurate one. If it ever needs to read in another language, the fix
+> belongs at the throw site.
 
 The **intake gate** has its own real-Chromium adversarial suite
 (`scripts/sanitize-locale.test.mjs`) — jsdom would test a *different* parser than

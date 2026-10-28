@@ -421,7 +421,10 @@
       "other": "Execução incompleta — {count} divisões ignoradas. Abra Divisões para tentar novamente."
     },
     "phase_context_title": "Atualmente na etapa {step} de {total}",
-    "phase_context_next": "Próximo: {step}"
+    "phase_context_next": "Próximo: {step}",
+    "estimate_error": {
+      "estimate_failed": "Não foi possível calcular a estimativa para esta execução."
+    }
   },
   "maintenance": {
     "attention_empty": "Tudo parece estar saudável de momento.",
@@ -1112,7 +1115,9 @@
         "missing_room_references": "Todas as ligações de acesso têm de apontar para divisões do mapa atual.",
         "multiple_inbound": "{target} já tem uma ligação de entrada de {claimant}. Cada divisão só pode ser alcançada a partir de uma divisão.",
         "cycle": "Esta configuração de acesso criaria um ciclo no grafo das divisões.",
-        "no_dock_room": "Defina uma divisão da base antes de ligar divisões. A divisão da base é a origem da árvore de acesso."
+        "no_dock_room": "Defina uma divisão da base antes de ligar divisões. A divisão da base é a origem da árvore de acesso.",
+        "room_not_found": "Essa divisão já não está no mapa ativo. Reabra a lista de divisões e tente novamente.",
+        "invalid_access_graph": "Essas ligações de acesso deixariam o grafo de divisões inválido, pelo que nada foi guardado."
       },
       "list_separator": ", ",
       "self_reference": "{room} não pode conceder acesso a si própria.",
@@ -1495,7 +1500,8 @@
       "device_label": "Device:",
       "queue_label": "Queue:",
       "empty_placeholder": "(empty)"
-    }
+    },
+    "order_advisory": "A ordem de limpeza aqui é indicativa: este robô limpa as divisões na ordem guardada na sua própria aplicação — defina lá uma sequência de limpeza para a impor — ou otimiza o percurso por si."
   },
   "profile_card": {
     "configure": "Selecione um aspirador, um mapa e um perfil no editor do cartão.",
@@ -1645,7 +1651,9 @@
     "subtab_steps": "Passos de configuração",
     "subtab_system": "Sistema",
     "adopt_room": "Adicionar divisão",
-    "adopt_needs_active_map": "Mude o aspirador para este mapa para a adicionar"
+    "adopt_needs_active_map": "Mude o aspirador para este mapa para a adicionar",
+    "step_calibrate_map": "Calibrar o mapa",
+    "step_set_dock_position": "Definir a posição da base"
   },
   "shell": {
     "setup_add_title": "Adicione o seu aspirador",

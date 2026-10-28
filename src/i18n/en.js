@@ -490,6 +490,10 @@ export const en = {
   "learning.done_by": "done by {time}",  // projected whole-job finish clock time: 'done by {time}'
   "learning.estimate_queue_first": "Queue rooms first to see an estimate",
   "learning.estimate_unavailable_message": "Estimate unavailable.",
+  // The estimator's error CODES. `no_payload` keeps its own actionable sentence
+  // (learning.estimate_queue_first) and is not in this family; this is for the rest, which
+  // used to reach the user as the backend's English `message` with the code discarded.
+  "learning.estimate_error.estimate_failed": "The estimate could not be worked out for this run.",  // the estimator raised while building the figure
   "learning.estimate_unavailable_title": "Estimate unavailable",
   "learning.estimated_job_time": "Estimated Job Time",
   // EST-PHASE-1: shown INSTEAD of "Queue rooms first" while a stepped run is in
@@ -1244,6 +1248,11 @@ export const en = {
   // missing_room means "references a room that is gone", the card's means "the
   // room you are editing is gone"; the two multiple_inbound sentences also
   // interpolate different params. Scoped so neither renders the other's sentence. ---
+  // Two codes `update_room_fields` refuses with that this family did not carry. They are
+  // access-graph vocabulary, so they live here rather than in a new room-rules family —
+  // `no_dock_room` was already keyed above, which is what made the family the right home.
+  "room_access.issue.card.room_not_found": "That room is no longer on the active map. Reopen the room list and try again.",
+  "room_access.issue.card.invalid_access_graph": "Those access links would leave the room graph invalid, so nothing was saved.",
   "room_access.issue.card.missing_room": "This room no longer exists on the active map.",
   "room_access.issue.card.self_reference": "A room cannot grant access to itself.",
   "room_access.issue.card.duplicate_edges": "Each access link can only appear once.",
@@ -1629,6 +1638,7 @@ export const en = {
   "rooms.start_cleaning": "Start Cleaning",
   "rooms.strict_order_on_label": "Strict order: ON",
   "rooms.strict_order_on_text": "Strict order ON — rooms will clean one at a time in the order shown (slower: a dock trip between rooms).",
+  "rooms.order_advisory": "Cleaning order here is advisory: this vacuum cleans rooms in the order saved in its own app — set a cleaning Sequence there to enforce it — or optimises the path itself.",  // Shown when the brand ignores the dispatched room order (Roborock app_segment_clean). The backend sends one fixed sentence and its PRESENCE is the signal, so there is no code to key on; [OA-1] fails if it ever sends a second one.
   "rooms.trouble_note_title": "This room was missed in {pct}% of recent runs. Consider checking for obstacles or map accuracy.",
   "rooms.trust_learning": "Learning",  // estimate-confidence badge: still learning, not the Learning feature/tab
   "rooms.trust_reliable": "Reliable",  // estimate-confidence badge: time estimate is trustworthy
@@ -1714,6 +1724,13 @@ export const en = {
   "setup.step_add_vacuum": "Add vacuum",  // setup wizard step 1 heading
   "setup.step_import_active_map": "Import active map",  // setup wizard step 2 heading
   "setup.step_save_rooms": "Configure rooms",  // setup wizard step 3 heading (save/configure rooms)
+  // FORWARD-COMPAT, not a fix: `SETUP_STEP_IDS` (setup/drift.py) declares five steps and no
+  // adapter ships these two yet, so nothing is English on screen today. They are keyed
+  // because the renderer's fallback to `step.label` is the only thing that would catch an
+  // adapter declaring one, and that fallback is the backend's English. [SSK-1] fails if the
+  // ID set ever grows past the keys again.
+  "setup.step_calibrate_map": "Calibrate map",  // setup wizard step: align the imported map with the robot's own
+  "setup.step_set_dock_position": "Set dock position",  // setup wizard step: mark where the dock sits on the map
   // Floor-type option labels (the room floor-type picker; FLOOR_TYPE_OPTIONS in
   // setup.js). Keyed by floor value, rendered via t().
   "setup.floor_hardwood": "Hardwood",  // floor type

@@ -672,6 +672,101 @@ if (STRICT) {
   }
 }
 
+// ============================================================
+// E. SCRIPT SANITY — the two mistakes a human translator does not make
+// ============================================================
+//
+// Section D asks whether a value is English-identical. It cannot see a value that is
+// WRONG but not English, and the doc records that as its floor. Two shapes of wrong are
+// mechanically checkable without a dictionary, and both were made for real while landing
+// the 2.5.3 census waves — by assembling a sentence from two drafts, then re-reading it:
+//
+//   cs  "… a zkuste to again."      an English word left inside a Czech sentence
+//   es  "—配置 una secuencia …"      a CJK word inside a Spanish sentence
+//
+// Re-reading 374 strings did not find either. This does, in four lines, and it is the
+// reason the section exists rather than a style preference.
+//
+// ITS FLOOR, stated: it says nothing about a plausible-but-wrong word in a Latin pack,
+// which is the same blind spot section D has. It covers script mixing and a short list of
+// high-frequency English function words — not vocabulary, not grammar, not register.
+console.log("\nE. Script sanity");
+// Ideographs, kana and hangul only. The FULLWIDTH FORMS block (U+FF00–FFEF) is deliberately
+// OUT: it holds ＋ and －, which the map's resize buttons use as wide glyphs in every pack.
+// Including it flagged 9 keys x 17 packs on the first run.
+const CJK_RE = /[㐀-䶿一-鿿぀-ヿ가-힯]/;
+const CJK_PACKS = new Set(["ja", "ko", "zh-Hans", "zh-Hant"]);
+const NON_LATIN_PACKS = new Set(["ar", "he", "ja", "ko", "ru", "zh-Hans", "zh-Hant"]);
+// Deliberately short and high-frequency. A long list flags cognates and loanwords, which
+// are section D's business and were adjudicated by hand there.
+const ENGLISH_WORDS = new Set([
+  "again", "and", "with", "from", "this", "that", "your", "please", "before",
+  "after", "could", "would", "should", "there", "where", "which", "cannot",
+  "until", "while", "about", "these", "those",
+]);
+const LATIN_RE = /\p{Script=Latin}/u;
+const NON_LATIN_LETTER_RE = /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Cyrillic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+// Authored markup, its ATTRIBUTE VALUES, and placeholders all come out before any script
+// test. Both matter and both were found by measurement, not foresight:
+//   - `map.seg_cv_unavailable` carries a docs URL containing "making-your-own-maps", so
+//     every one of the 17 packs reported an English "your" — a correctly translated string.
+//   - `common.percent_value` is "{percent}%", which has no letters at all and read as
+//     "entirely Latin" until the placeholder was stripped.
+const bareText = (s) => s
+  .replace(/<[^>]*>/g, " ")
+  .replace(/\{[^}]*\}/g, " ")
+  .replace(/[^\p{L}]/gu, " ");
+const latinExempt = ratchet.latin_in_non_latin ?? {};
+const scriptProblems = [];
+let scriptChecked = 0;
+for (const { code, clean } of shippedClean) {
+  for (const [key, value] of Object.entries(clean)) {
+    const texts = typeof value === "string" ? [value] : Object.values(value ?? {});
+    for (const text of texts) {
+      if (typeof text !== "string" || !text) continue;
+      scriptChecked += 1;
+      const bare = bareText(text);
+
+      if (!CJK_PACKS.has(code) && CJK_RE.test(text)) {
+        scriptProblems.push(`${code}: ${key} — CJK character in a non-CJK pack: ${JSON.stringify(text).slice(0, 70)}`);
+      }
+
+      // Skip a pair section D has already ruled legitimately English — an English word
+      // inside a sentence that is MEANT to be English is not news. WHOLE TOKENS, not a
+      // substring match: `/[a-z]{3,}/` found "and" inside the Turkish "olağandışı".
+      if (!inList(ratchet.accepted, key, code)) {
+        for (const word of bare.toLowerCase().split(/\s+/)) {
+          if (ENGLISH_WORDS.has(word)) {
+            scriptProblems.push(`${code}: ${key} — English word "${word}" inside the sentence`);
+          }
+        }
+      }
+
+      // A non-Latin pack whose value carries Latin letters and NO letter of its own script.
+      // This is the committed form of the one-off rule that found 7 real leaks in 2.5.2, and
+      // it reaches a case section D cannot: `zh-Hant theme.tab_tokens` is "Token" against an
+      // English "Tokens", so it is not byte-identical and section D never looks at it.
+      if (NON_LATIN_PACKS.has(code)
+          && !inList(ratchet.accepted, key, code)
+          && !inList(latinExempt, key, code)
+          && bare.trim() && LATIN_RE.test(bare) && !NON_LATIN_LETTER_RE.test(bare)) {
+        scriptProblems.push(`${code}: ${key} — value is entirely Latin script: ${JSON.stringify(text).slice(0, 70)}`);
+      }
+    }
+  }
+}
+console.log(`  ${scriptChecked} value(s) scanned across ${shippedClean.length} pack(s)`);
+if (scriptProblems.length === 0) {
+  console.log("  ✓ no script mixing, no stray English word, no all-Latin value in a non-Latin pack");
+} else {
+  // A FAILURE in both modes. Unlike an English-identical value, none of these three is ever
+  // an editorial choice, so there is nothing to adjudicate at the moment of the run — a new
+  // one means either a mistake or an entry owed to the exemption list, both of which want a
+  // human. ITS FLOOR: it says nothing about a plausible-but-WRONG word in a Latin-script
+  // pack, which is the same blind spot section D has and covers none of.
+  for (const p of scriptProblems) fail(`script sanity — ${p}`);
+}
+
 /* ========================================================= */
 console.log("");
 if (failures > 0) {

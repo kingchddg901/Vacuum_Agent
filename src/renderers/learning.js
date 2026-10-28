@@ -10,6 +10,8 @@
  * ============================================================
  */
 
+import { resolveCodedLabel } from "../state/coded-label.js";
+
 /**
  * Mix learning renderer methods onto the given prototype.
  *
@@ -266,9 +268,24 @@ export function applyLearningRenderers(proto) {
             <div class="evcc-learning-panel-title">${this.t("learning.estimate_unavailable_title")}</div>
           </div>
           <div class="evcc-learning-empty-message">
+            ${/* `no_payload` keeps its own sentence — it is actionable ("queue a run
+                  first") in a way a generic failure is not. Everything else resolved to
+                  the backend's English `message`/`error_detail`, with the CODE discarded;
+                  it goes through the resolver now, with that message demoted to the
+                  fallback and `genericKey` catching a payload that carries neither. */""}
             ${estimate.error === "no_payload"
               ? this.t("learning.estimate_queue_first")
-              : this.escapeHtml(estimate.message || estimate.error_detail) || this.t("learning.estimate_unavailable_message")}
+              : this.escapeHtml(resolveCodedLabel(
+                  {
+                    code: estimate.error,
+                    message: estimate.message || estimate.error_detail || "",
+                  },
+                  (key, vars) => this.tRaw(key, vars),
+                  {
+                    prefixes: ["learning.estimate_error."],
+                    genericKey: "learning.estimate_unavailable_message",
+                  },
+                ))}
           </div>
         </div>
       `;
@@ -327,7 +344,18 @@ export function applyLearningRenderers(proto) {
 
         ${startStatus?.water_warning_message && Number(waterEstimate?.mopping_room_count ?? 0) > 0 ? `
           <div class="evcc-learning-notice ${startStatus?.water_warning_reason === "not_enough_clean_water" ? "evcc-learning-notice--battery" : "evcc-learning-notice--stale"}">
-            ${this.escapeHtml(startStatus.water_warning_message)}
+            ${/* The CODE was already in hand and already being used — one line up, to pick
+                  the notice's colour — while the SENTENCE beside it printed the backend's
+                  English. Both codes (not_enough_clean_water, low_clean_water_margin) are
+                  keyed under `rooms.block_reason.*`, which is where they belong: the
+                  producer is get_start_status's own water pre-check, and these are the same
+                  two values it puts in `reason` on the warning path. Reusing that family
+                  rather than minting a learning-scoped twin keeps one sentence per code. */""}
+            ${this.escapeHtml(resolveCodedLabel(
+              { code: startStatus?.water_warning_reason, message: startStatus.water_warning_message },
+              (key, vars) => this.tRaw(key, vars),
+              { prefixes: ["rooms.block_reason."] },
+            ))}
           </div>
         ` : ""}
 

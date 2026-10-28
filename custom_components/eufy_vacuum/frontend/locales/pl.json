@@ -1656,7 +1656,8 @@
       "device_label": "Device:",
       "queue_label": "Queue:",
       "empty_placeholder": "(empty)"
-    }
+    },
+    "order_advisory": "Pokazana tu kolejność jest tylko wskazówką: ten robot sprząta pomieszczenia w kolejności zapisanej w swojej aplikacji — ustaw tam sekwencję sprzątania, aby ją wymusić — albo sam optymalizuje trasę."
   },
   "learning": {
     "all_rooms_complete": "Wszystkie pokoje ukończone",
@@ -1773,7 +1774,10 @@
       "other": "Przebieg niekompletny — pominięto {count} pomieszczeń. Otwórz Pomieszczenia, aby ponowić."
     },
     "phase_context_title": "Aktualnie krok {step} z {total}",
-    "phase_context_next": "Następny: {step}"
+    "phase_context_next": "Następny: {step}",
+    "estimate_error": {
+      "estimate_failed": "Nie udało się obliczyć szacunku dla tego przebiegu."
+    }
   },
   "maintenance": {
     "attention_empty": "Obecnie wszystko wygląda prawidłowo.",
@@ -2005,7 +2009,9 @@
     "subtab_steps": "Kroki konfiguracji",
     "subtab_system": "System",
     "adopt_room": "Dodaj pomieszczenie",
-    "adopt_needs_active_map": "Przełącz odkurzacz na tę mapę, aby je dodać"
+    "adopt_needs_active_map": "Przełącz odkurzacz na tę mapę, aby je dodać",
+    "step_calibrate_map": "Skalibruj mapę",
+    "step_set_dock_position": "Ustaw pozycję stacji"
   },
   "theme": {
     "alpha_aria_label": "Krycie {label}",
@@ -2588,7 +2594,9 @@
         "missing_room_references": "Wszystkie powiązania dostępu muszą wskazywać pokoje na bieżącej mapie.",
         "multiple_inbound": "{target} ma już powiązanie przychodzące z {claimant}. Każdy pokój może być osiągalny tylko z jednego pokoju.",
         "cycle": "Ta konfiguracja dostępu utworzyłaby pętlę w grafie pokoi.",
-        "no_dock_room": "Ustaw pokój ze stacją dokującą, zanim połączysz pomieszczenia. Pokój ze stacją jest początkiem drzewa dostępu."
+        "no_dock_room": "Ustaw pokój ze stacją dokującą, zanim połączysz pomieszczenia. Pokój ze stacją jest początkiem drzewa dostępu.",
+        "room_not_found": "Tego pomieszczenia nie ma już na aktywnej mapie. Otwórz ponownie listę pomieszczeń i spróbuj jeszcze raz.",
+        "invalid_access_graph": "Te połączenia dostępu uczyniłyby graf pomieszczeń nieprawidłowym, więc nic nie zapisano."
       },
       "list_separator": ", ",
       "self_reference": "Pokój {room} nie może przyznać dostępu samemu sobie.",

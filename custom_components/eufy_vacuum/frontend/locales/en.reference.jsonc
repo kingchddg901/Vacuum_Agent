@@ -950,6 +950,8 @@
     "step_add_vacuum": "Add vacuum",  // setup wizard step 1 heading
     "step_import_active_map": "Import active map",  // setup wizard step 2 heading
     "step_save_rooms": "Configure rooms",  // setup wizard step 3 heading (save/configure rooms)
+    "step_calibrate_map": "Calibrate map",  // setup wizard step: align the imported map with the robot's own
+    "step_set_dock_position": "Set dock position",  // setup wizard step: mark where the dock sits on the map
     "floor_hardwood": "Hardwood",  // floor type
     "floor_laminate": "Laminate",  // floor type
     "floor_tile": "Tile",  // floor type
@@ -1295,6 +1297,9 @@
     "done_by": "done by {time}",  // projected whole-job finish clock time: 'done by {time}'
     "estimate_queue_first": "Queue rooms first to see an estimate",
     "estimate_unavailable_message": "Estimate unavailable.",
+    "estimate_error": {
+      "estimate_failed": "The estimate could not be worked out for this run."  // the estimator raised while building the figure
+    },
     "estimate_unavailable_title": "Estimate unavailable",
     "estimated_job_time": "Estimated Job Time",
     "phase_context_title": "Currently on step {step} of {total}",
@@ -1993,6 +1998,7 @@
     "start_cleaning": "Start Cleaning",
     "strict_order_on_label": "Strict order: ON",
     "strict_order_on_text": "Strict order ON — rooms will clean one at a time in the order shown (slower: a dock trip between rooms).",
+    "order_advisory": "Cleaning order here is advisory: this vacuum cleans rooms in the order saved in its own app — set a cleaning Sequence there to enforce it — or optimises the path itself.",  // Shown when the brand ignores the dispatched room order (Roborock app_segment_clean). The backend sends one fixed sentence and its PRESENCE is the signal, so there is no code to key on; [OA-1] fails if it ever sends a second one.
     "trouble_note_title": "This room was missed in {pct}% of recent runs. Consider checking for obstacles or map accuracy.",
     "trust_learning": "Learning",  // estimate-confidence badge: still learning, not the Learning feature/tab
     "trust_reliable": "Reliable",  // estimate-confidence badge: time estimate is trustworthy
@@ -2147,6 +2153,8 @@
     "issue": {
       "card": {
         "no_dock_room": "Set a dock room before linking rooms. The dock room is the origin of the access tree.",
+        "room_not_found": "That room is no longer on the active map. Reopen the room list and try again.",
+        "invalid_access_graph": "Those access links would leave the room graph invalid, so nothing was saved.",
         "missing_room": "This room no longer exists on the active map.",
         "self_reference": "A room cannot grant access to itself.",
         "duplicate_edges": "Each access link can only appear once.",

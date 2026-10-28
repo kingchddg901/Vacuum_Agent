@@ -37,6 +37,17 @@ Architecture reference: [31 — The Setup Layer](../../dev/31-setup-layer.md)
 - **Delete** — map deletion teardown and its remove summary.
 - **Entry wiring** (`SD`) — `run_discovery_pass` and the manager-side setup
   helpers reachable without a full boot.
+- **Step-heading keys** (`SSK`, `tests/unit/test_card_sentence_contracts.py`) — every
+  `SETUP_STEP_IDS` member has a `setup.step_<id>` key in the card's catalogue. The wizard
+  resolves that key and falls back to the backend's `step.label` on a miss, which is an
+  English label in every language. Three of the five were keyed and two were not; **no
+  adapter ships those two**, so nothing was English on screen — which is exactly why
+  nobody would notice the day one started. `[SSK-3]` narrows to the ids adapters actually
+  declare, read from the adapter sources rather than restated, so a failure there is live
+  rather than forward-looking. That file also carries `[OA-*]`, which belongs to planning:
+  `_order_advisory` must keep returning exactly ONE sentence, because the card keys on its
+  presence and renders its own wording — a second sentence would silently render as the
+  first.
 
 ---
 
