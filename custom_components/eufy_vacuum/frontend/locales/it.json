@@ -1278,7 +1278,35 @@
     "op_missing": "manca",
     "effect_exclude": "Escludi stanza",
     "effect_exclude_reason": "Escludi - {reason}",
-    "effect_modify": "Modifica impostazioni"
+    "effect_modify": "Modifica impostazioni",
+    "operator_group": {
+      "state": "Stato",
+      "existence": "Esistenza",
+      "equality": "Uguaglianza",
+      "numeric": "Numerico",
+      "list": "Elenco"
+    },
+    "operator": {
+      "is_on": "È ACCESO",
+      "is_off": "È SPENTO",
+      "exists": "Esiste",
+      "missing": "Assente",
+      "equals": "Uguale a",
+      "not_equals": "Diverso da",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "Nell'elenco",
+      "not_in": "Fuori dall'elenco"
+    },
+    "entity_category": {
+      "boolean": "Acceso/spento",
+      "enum": "Scelta",
+      "numeric": "Numero",
+      "text": "Testo",
+      "unknown": "Sconosciuto"
+    }
   },
   "rooms": {
     "access_not_set": "Accesso non impostato",

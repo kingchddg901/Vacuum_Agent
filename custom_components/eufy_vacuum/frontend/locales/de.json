@@ -1276,7 +1276,35 @@
     "op_missing": "fehlt",
     "effect_exclude": "Raum ausschließen",
     "effect_exclude_reason": "Ausschließen - {reason}",
-    "effect_modify": "Einstellungen ändern"
+    "effect_modify": "Einstellungen ändern",
+    "operator_group": {
+      "state": "Zustand",
+      "existence": "Vorhandensein",
+      "equality": "Gleichheit",
+      "numeric": "Numerisch",
+      "list": "Liste"
+    },
+    "operator": {
+      "is_on": "Ist EIN",
+      "is_off": "Ist AUS",
+      "exists": "Vorhanden",
+      "missing": "Fehlt",
+      "equals": "Gleich",
+      "not_equals": "Ungleich",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "In Liste",
+      "not_in": "Nicht in Liste"
+    },
+    "entity_category": {
+      "boolean": "Ein/Aus",
+      "enum": "Auswahl",
+      "numeric": "Zahl",
+      "text": "Text",
+      "unknown": "Unbekannt"
+    }
   },
   "rooms": {
     "access_not_set": "Zugang nicht festgelegt",

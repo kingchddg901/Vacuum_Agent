@@ -1818,7 +1818,35 @@
     "op_missing": "不存在",
     "effect_exclude": "排除房间",
     "effect_exclude_reason": "排除 - {reason}",
-    "effect_modify": "修改设置"
+    "effect_modify": "修改设置",
+    "operator_group": {
+      "state": "状态",
+      "existence": "存在",
+      "equality": "相等",
+      "numeric": "数值",
+      "list": "列表"
+    },
+    "operator": {
+      "is_on": "为开",
+      "is_off": "为关",
+      "exists": "存在",
+      "missing": "缺失",
+      "equals": "等于",
+      "not_equals": "不等于",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "在列表中",
+      "not_in": "不在列表中"
+    },
+    "entity_category": {
+      "boolean": "开/关",
+      "enum": "选项",
+      "numeric": "数字",
+      "text": "文本",
+      "unknown": "未知"
+    }
   },
   "room_access": {
     "accessed_from_help": "授予此房间访问权限的房间。只读 — 需在另一房间的编辑器中设置。",

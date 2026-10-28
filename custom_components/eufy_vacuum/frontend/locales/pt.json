@@ -1288,7 +1288,35 @@
     "op_missing": "está em falta",
     "effect_exclude": "Excluir divisão",
     "effect_exclude_reason": "Excluir - {reason}",
-    "effect_modify": "Modificar definições"
+    "effect_modify": "Modificar definições",
+    "operator_group": {
+      "state": "Estado",
+      "existence": "Existência",
+      "equality": "Igualdade",
+      "numeric": "Numérico",
+      "list": "Lista"
+    },
+    "operator": {
+      "is_on": "Está LIGADO",
+      "is_off": "Está DESLIGADO",
+      "exists": "Existe",
+      "missing": "Ausente",
+      "equals": "Igual a",
+      "not_equals": "Diferente de",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "Na lista",
+      "not_in": "Fora da lista"
+    },
+    "entity_category": {
+      "boolean": "Ligado/desligado",
+      "enum": "Escolha",
+      "numeric": "Número",
+      "text": "Texto",
+      "unknown": "Desconhecido"
+    }
   },
   "rooms": {
     "access_not_set": "Acesso não definido",

@@ -1878,7 +1878,35 @@
     "op_missing": "غير موجود",
     "effect_exclude": "استبعاد الغرفة",
     "effect_exclude_reason": "استبعاد - {reason}",
-    "effect_modify": "تعديل الإعدادات"
+    "effect_modify": "تعديل الإعدادات",
+    "operator_group": {
+      "state": "الحالة",
+      "existence": "الوجود",
+      "equality": "التساوي",
+      "numeric": "رقمي",
+      "list": "قائمة"
+    },
+    "operator": {
+      "is_on": "قيد التشغيل",
+      "is_off": "متوقف",
+      "exists": "موجود",
+      "missing": "غير موجود",
+      "equals": "يساوي",
+      "not_equals": "لا يساوي",
+      "gt": "أكبر من",
+      "gte": "أكبر من أو يساوي",
+      "lt": "أصغر من",
+      "lte": "أصغر من أو يساوي",
+      "in": "في القائمة",
+      "not_in": "ليس في القائمة"
+    },
+    "entity_category": {
+      "boolean": "تشغيل/إيقاف",
+      "enum": "اختيار",
+      "numeric": "رقم",
+      "text": "نص",
+      "unknown": "غير معروف"
+    }
   },
   "room_access": {
     "accessed_from_help": "الغرفة التي تمنح الوصول إلى هذه الغرفة. للقراءة فقط — يتم تعيينها من محرّر الغرفة الأخرى.",

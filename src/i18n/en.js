@@ -1403,6 +1403,39 @@ export const en = {
   "room_rules.entity_help_current": "Current: {state}",
   "room_rules.entity_help_options": { one: "{count} option", other: "{count} options" },  // plural
   "room_rules.entity_help_type": "Type: {category}",
+  // --- the rule editor's CARD-LOCAL vocabularies. Nothing here comes from the backend,
+  // which is why these 22 were the last English strings in the editor: there was no
+  // `*_label` field to notice and no vocabulary to look them up in. The state layer still
+  // returns its English alongside the code (state/room-rules.js), as resolveCodedLabel's
+  // fallback, so an operator added without a key reads rather than showing a dotted key.
+  "room_rules.operator_group.state": "State",            // operator group: on/off conditions
+  "room_rules.operator_group.existence": "Existence",    // operator group: whether the entity reports anything at all
+  "room_rules.operator_group.equality": "Equality",      // operator group: equals / does not equal
+  "room_rules.operator_group.numeric": "Numeric",        // operator group: the comparison operators
+  "room_rules.operator_group.list": "List",              // operator group: is / is not one of several values
+  "room_rules.operator.is_on": "Is ON",                  // rule operator: the entity is on. Keep the ON/OFF pair visually parallel.
+  "room_rules.operator.is_off": "Is OFF",                // rule operator: the entity is off
+  "room_rules.operator.exists": "Exists",                // rule operator: the entity reports a value
+  "room_rules.operator.missing": "Missing",              // rule operator: the entity reports nothing (unavailable, or not present)
+  "room_rules.operator.equals": "Equals",                // rule operator: the value matches exactly
+  "room_rules.operator.not_equals": "Not equals",        // rule operator: the value does not match
+  // The four comparison operators. English keeps the SYMBOL, and the key exists for the
+  // RTL packs: a bare ">" is ambiguous in a right-to-left layout, so ar and he carry words.
+  // A locale that wants the symbol should keep it — it is correct in most scripts.
+  "room_rules.operator.gt": ">",                         // rule operator: greater than
+  "room_rules.operator.gte": "≥",                        // rule operator: greater than or equal to
+  "room_rules.operator.lt": "<",                         // rule operator: less than
+  "room_rules.operator.lte": "≤",                        // rule operator: less than or equal to
+  "room_rules.operator.in": "In list",                   // rule operator: the value is one of several
+  "room_rules.operator.not_in": "Not in list",           // rule operator: the value is none of several
+  // The entity's TYPE, as shown in the help line under the picker. These are the card's own
+  // derived categories, not Home Assistant domains — so they describe the SHAPE of the
+  // value a rule can compare, which is what the user needs to know to pick an operator.
+  "room_rules.entity_category.boolean": "On/off",        // entity type: a two-state entity (binary_sensor, switch, input_boolean)
+  "room_rules.entity_category.enum": "Choice",           // entity type: one of a fixed list of options (select, input_select)
+  "room_rules.entity_category.numeric": "Number",        // entity type: a numeric value
+  "room_rules.entity_category.text": "Text",             // entity type: a free-text state
+  "room_rules.entity_category.unknown": "Unknown",       // entity type: the card could not tell — every operator is offered
   "room_rules.entity_help_unavailable": "This entity is not currently available in Home Assistant.",
   "room_rules.entity_help_unit": "Unit: {unit}",
   "room_rules.entity_id": "Entity ID",

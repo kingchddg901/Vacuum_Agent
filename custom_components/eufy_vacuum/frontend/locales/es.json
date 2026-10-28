@@ -1288,7 +1288,35 @@
     "op_missing": "no existe",
     "effect_exclude": "Excluir habitación",
     "effect_exclude_reason": "Excluir - {reason}",
-    "effect_modify": "Modificar ajustes"
+    "effect_modify": "Modificar ajustes",
+    "operator_group": {
+      "state": "Estado",
+      "existence": "Existencia",
+      "equality": "Igualdad",
+      "numeric": "Numérico",
+      "list": "Lista"
+    },
+    "operator": {
+      "is_on": "Está ENCENDIDO",
+      "is_off": "Está APAGADO",
+      "exists": "Existe",
+      "missing": "Falta",
+      "equals": "Igual a",
+      "not_equals": "Distinto de",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "En la lista",
+      "not_in": "Fuera de la lista"
+    },
+    "entity_category": {
+      "boolean": "Encendido/apagado",
+      "enum": "Opción",
+      "numeric": "Número",
+      "text": "Texto",
+      "unknown": "Desconocido"
+    }
   },
   "rooms": {
     "access_not_set": "Acceso no configurado",

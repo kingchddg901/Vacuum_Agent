@@ -1818,7 +1818,35 @@
     "op_missing": "が存在しない",
     "effect_exclude": "部屋を除外",
     "effect_exclude_reason": "除外 - {reason}",
-    "effect_modify": "設定を変更"
+    "effect_modify": "設定を変更",
+    "operator_group": {
+      "state": "状態",
+      "existence": "存在",
+      "equality": "一致",
+      "numeric": "数値",
+      "list": "リスト"
+    },
+    "operator": {
+      "is_on": "オンである",
+      "is_off": "オフである",
+      "exists": "存在する",
+      "missing": "存在しない",
+      "equals": "等しい",
+      "not_equals": "等しくない",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "リストに含まれる",
+      "not_in": "リストに含まれない"
+    },
+    "entity_category": {
+      "boolean": "オン/オフ",
+      "enum": "選択",
+      "numeric": "数値",
+      "text": "テキスト",
+      "unknown": "不明"
+    }
   },
   "room_access": {
     "accessed_from_help": "この部屋へのアクセスを許可する部屋です。読み取り専用 — 相手の部屋のエディターから設定します。",

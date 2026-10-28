@@ -1818,7 +1818,35 @@
     "op_missing": "없음",
     "effect_exclude": "방 제외",
     "effect_exclude_reason": "제외 - {reason}",
-    "effect_modify": "설정 변경"
+    "effect_modify": "설정 변경",
+    "operator_group": {
+      "state": "상태",
+      "existence": "존재",
+      "equality": "일치",
+      "numeric": "숫자",
+      "list": "목록"
+    },
+    "operator": {
+      "is_on": "켜짐",
+      "is_off": "꺼짐",
+      "exists": "있음",
+      "missing": "없음",
+      "equals": "같음",
+      "not_equals": "다름",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "목록에 있음",
+      "not_in": "목록에 없음"
+    },
+    "entity_category": {
+      "boolean": "켜짐/꺼짐",
+      "enum": "선택",
+      "numeric": "숫자",
+      "text": "텍스트",
+      "unknown": "알 수 없음"
+    }
   },
   "room_access": {
     "accessed_from_help": "이 방으로의 접근을 허용하는 방입니다. 읽기 전용 — 다른 방의 편집기에서 설정합니다.",

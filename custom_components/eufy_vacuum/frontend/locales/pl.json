@@ -2135,7 +2135,35 @@
     "op_missing": "brak",
     "effect_exclude": "Wyklucz pomieszczenie",
     "effect_exclude_reason": "Wyklucz - {reason}",
-    "effect_modify": "Zmień ustawienia"
+    "effect_modify": "Zmień ustawienia",
+    "operator_group": {
+      "state": "Stan",
+      "existence": "Istnienie",
+      "equality": "Równość",
+      "numeric": "Liczbowe",
+      "list": "Lista"
+    },
+    "operator": {
+      "is_on": "Jest WŁĄCZONE",
+      "is_off": "Jest WYŁĄCZONE",
+      "exists": "Istnieje",
+      "missing": "Brak",
+      "equals": "Równe",
+      "not_equals": "Różne od",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "Na liście",
+      "not_in": "Nie na liście"
+    },
+    "entity_category": {
+      "boolean": "Wł./wył.",
+      "enum": "Wybór",
+      "numeric": "Liczba",
+      "text": "Tekst",
+      "unknown": "Nieznany"
+    }
   },
   "external_jobs": {
     "back": "Wstecz",

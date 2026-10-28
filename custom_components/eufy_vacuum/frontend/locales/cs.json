@@ -2134,7 +2134,35 @@
     "op_missing": "chybí",
     "effect_exclude": "Vyloučit místnost",
     "effect_exclude_reason": "Vyloučit - {reason}",
-    "effect_modify": "Upravit nastavení"
+    "effect_modify": "Upravit nastavení",
+    "operator_group": {
+      "state": "Stav",
+      "existence": "Existence",
+      "equality": "Rovnost",
+      "numeric": "Číselné",
+      "list": "Seznam"
+    },
+    "operator": {
+      "is_on": "Je ZAPNUTO",
+      "is_off": "Je VYPNUTO",
+      "exists": "Existuje",
+      "missing": "Chybí",
+      "equals": "Rovná se",
+      "not_equals": "Nerovná se",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "V seznamu",
+      "not_in": "Není v seznamu"
+    },
+    "entity_category": {
+      "boolean": "Zap/Vyp",
+      "enum": "Volba",
+      "numeric": "Číslo",
+      "text": "Text",
+      "unknown": "Neznámý"
+    }
   },
   "external_jobs": {
     "back": "Zpět",

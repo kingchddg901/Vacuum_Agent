@@ -1356,7 +1356,35 @@
     "op_missing": "отсутствует",
     "effect_exclude": "Исключить комнату",
     "effect_exclude_reason": "Исключить - {reason}",
-    "effect_modify": "Изменить настройки"
+    "effect_modify": "Изменить настройки",
+    "operator_group": {
+      "state": "Состояние",
+      "existence": "Наличие",
+      "equality": "Равенство",
+      "numeric": "Числовые",
+      "list": "Список"
+    },
+    "operator": {
+      "is_on": "Включено",
+      "is_off": "Выключено",
+      "exists": "Существует",
+      "missing": "Отсутствует",
+      "equals": "Равно",
+      "not_equals": "Не равно",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "В списке",
+      "not_in": "Не в списке"
+    },
+    "entity_category": {
+      "boolean": "Вкл./выкл.",
+      "enum": "Выбор",
+      "numeric": "Число",
+      "text": "Текст",
+      "unknown": "Неизвестно"
+    }
   },
   "rooms": {
     "access_not_set": "Доступ не задан",

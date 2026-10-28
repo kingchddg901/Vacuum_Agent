@@ -1276,7 +1276,35 @@
     "op_missing": "ontbreekt",
     "effect_exclude": "Kamer uitsluiten",
     "effect_exclude_reason": "Uitsluiten - {reason}",
-    "effect_modify": "Instellingen aanpassen"
+    "effect_modify": "Instellingen aanpassen",
+    "operator_group": {
+      "state": "Status",
+      "existence": "Aanwezigheid",
+      "equality": "Gelijkheid",
+      "numeric": "Numeriek",
+      "list": "Lijst"
+    },
+    "operator": {
+      "is_on": "Is AAN",
+      "is_off": "Is UIT",
+      "exists": "Bestaat",
+      "missing": "Ontbreekt",
+      "equals": "Gelijk aan",
+      "not_equals": "Niet gelijk aan",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "In lijst",
+      "not_in": "Niet in lijst"
+    },
+    "entity_category": {
+      "boolean": "Aan/uit",
+      "enum": "Keuze",
+      "numeric": "Getal",
+      "text": "Tekst",
+      "unknown": "Onbekend"
+    }
   },
   "rooms": {
     "access_not_set": "Toegang niet ingesteld",

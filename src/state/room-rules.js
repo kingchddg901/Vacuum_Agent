@@ -494,8 +494,17 @@ export function applyRoomRulesState(proto) {
     const descriptor = this.ruleEntityDescriptor(draftOrEntityId);
     const allowed = new Set(descriptor.operators ?? ALL_OPERATORS);
 
+    // Each group carries a CODE as well as its English label. The label is kept, not
+    // replaced: it becomes the renderer's fallback through resolveCodedLabel, so a group
+    // added here without a key still reads rather than printing `room_rules.operator_group.x`.
+    //
+    // This is the shape `state/rooms.js`'s block reasons already use — the STATE layer stays
+    // i18n-free and returns codes, the RENDERER localizes. These five labels and the twelve
+    // operator ones were the only strings in the card that reached the user from the state
+    // layer with no key anywhere, which is why they were English in all 17 languages.
     const groups = [
       {
+        code: "state",
         label: "State",
         operators: [
           { value: "is_on", label: "Is ON" },
@@ -503,6 +512,7 @@ export function applyRoomRulesState(proto) {
         ],
       },
       {
+        code: "existence",
         label: "Existence",
         operators: [
           { value: "exists", label: "Exists" },
@@ -510,6 +520,7 @@ export function applyRoomRulesState(proto) {
         ],
       },
       {
+        code: "equality",
         label: "Equality",
         operators: [
           { value: "equals", label: "Equals" },
@@ -517,8 +528,13 @@ export function applyRoomRulesState(proto) {
         ],
       },
       {
+        code: "numeric",
         label: "Numeric",
         operators: [
+          // The four comparison operators are keyed too, and not because English needs
+          // translating: a bare `>` is ambiguous in an RTL layout, so ar and he carry words
+          // ("أكبر من", "גדול מ-") while the fifteen LTR packs keep the symbol. That
+          // difference is what earns these four their keys.
           { value: "gt", label: ">" },
           { value: "gte", label: "≥" },
           { value: "lt", label: "<" },
@@ -526,6 +542,7 @@ export function applyRoomRulesState(proto) {
         ],
       },
       {
+        code: "list",
         label: "List",
         operators: [
           { value: "in", label: "In list" },

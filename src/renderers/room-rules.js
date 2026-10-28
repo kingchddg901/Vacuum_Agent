@@ -10,6 +10,8 @@
  * ============================================================
  */
 
+import { resolveCodedLabel } from "../state/coded-label.js";
+
 const NO_VALUE_OPERATORS = new Set(["is_on", "is_off", "exists", "missing"]);
 
 // Option lists for modifier setting-overrides are read from the
@@ -37,6 +39,32 @@ const NO_VALUE_OPERATORS = new Set(["is_on", "is_off", "exists", "missing"]);
 // 3-pass modifier RULE, and the binding SILENTLY DROPS a 3 rather than refusing
 // it. Closing that is a code change, not a comment; this note exists so the
 // contract above is not read as already true of clean_passes.
+
+/**
+ * One coded-label resolution for the rule editor's three CARD-LOCAL vocabularies — the
+ * operator groups, the operators, and the entity category.
+ *
+ * Nothing here comes from the backend, which is why these were the last English strings in
+ * the editor: there was no `*_label` field to notice and no vocabulary to look them up in.
+ * The resolver is the same one the start block reasons use, so the fallback behaviour is
+ * identical — a code with no key reads as the state layer's own English rather than as a
+ * dotted key, which is what keeps a newly added operator from rendering as garbage.
+ *
+ * `tRaw`, because all three sinks escape.
+ *
+ * @param {object} host - the renderer instance (for tRaw).
+ * @param {string} prefix - the key namespace, e.g. `room_rules.operator.`.
+ * @param {*} code - the stable code.
+ * @param {*} message - the state layer's English, used when the code has no key.
+ * @returns {string} unescaped, localized label.
+ */
+function ruleCodedLabel(host, prefix, code, message) {
+  return resolveCodedLabel(
+    { code, message: message == null ? "" : String(message) },
+    (key, vars) => host.tRaw(key, vars),
+    { prefixes: [prefix] },
+  );
+}
 
 /**
  * Mix room rules renderer methods onto the given prototype.
@@ -260,7 +288,9 @@ export function applyRoomRulesRenderers(proto) {
             <div class="evcc-field-label">${this.t("room_rules.condition")}</div>
             ${operatorGroups.map((group) => `
               <div class="evcc-rule-operator-group">
-                <div class="evcc-rule-operator-group-label">${this.escapeHtml(group.label)}</div>
+                <div class="evcc-rule-operator-group-label">${this.escapeHtml(
+                  ruleCodedLabel(this, "room_rules.operator_group.", group.code, group.label),
+                )}</div>
                 <div class="evcc-chips">
                   ${group.operators.map((operator) => `
                     <button
@@ -268,7 +298,9 @@ export function applyRoomRulesRenderers(proto) {
                       class="evcc-chip ${draft.operator === operator.value ? "active" : ""}"
                       data-rule-field="operator"
                       data-rule-value="${this.escapeHtml(operator.value)}"
-                    >${this.escapeHtml(operator.label)}</button>
+                    >${this.escapeHtml(
+                      ruleCodedLabel(this, "room_rules.operator.", operator.value, operator.label),
+                    )}</button>
                   `).join("")}
                 </div>
               </div>
@@ -344,7 +376,16 @@ export function applyRoomRulesRenderers(proto) {
 
     const bits = [
       `${this.escapeHtml(descriptor.entityLabel)}`,
-      this.t("room_rules.entity_help_type", { category: this.escapeHtml(descriptor.category) }),
+      // `descriptor.category` is a CARD-derived code (boolean / enum / numeric / text /
+      // unknown, from ruleEntityDescriptor) and it was interpolated straight into the
+      // sentence — so the help line read "Type: boolean" in every language, next to a
+      // "Type:" that was translated. The bits are joined RAW below, so each one must be
+      // escaped exactly once: tRaw inside, escapeHtml here.
+      this.t("room_rules.entity_help_type", {
+        category: this.escapeHtml(
+          ruleCodedLabel(this, "room_rules.entity_category.", descriptor.category, descriptor.category),
+        ),
+      }),
     ];
 
     if (descriptor.currentState != null) {

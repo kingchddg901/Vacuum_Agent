@@ -2132,7 +2132,35 @@
     "op_missing": "eksik",
     "effect_exclude": "Odayı hariç tut",
     "effect_exclude_reason": "Hariç tut - {reason}",
-    "effect_modify": "Ayarları değiştir"
+    "effect_modify": "Ayarları değiştir",
+    "operator_group": {
+      "state": "Durum",
+      "existence": "Varlık",
+      "equality": "Eşitlik",
+      "numeric": "Sayısal",
+      "list": "Liste"
+    },
+    "operator": {
+      "is_on": "AÇIK",
+      "is_off": "KAPALI",
+      "exists": "Var",
+      "missing": "Yok",
+      "equals": "Eşit",
+      "not_equals": "Eşit değil",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "Listede",
+      "not_in": "Listede değil"
+    },
+    "entity_category": {
+      "boolean": "Açık/kapalı",
+      "enum": "Seçim",
+      "numeric": "Sayı",
+      "text": "Metin",
+      "unknown": "Bilinmiyor"
+    }
   },
   "external_jobs": {
     "back": "Geri",

@@ -1854,7 +1854,35 @@
     "op_missing": "חסר",
     "effect_exclude": "החרגת החדר",
     "effect_exclude_reason": "החרגה - {reason}",
-    "effect_modify": "שינוי הגדרות"
+    "effect_modify": "שינוי הגדרות",
+    "operator_group": {
+      "state": "מצב",
+      "existence": "קיום",
+      "equality": "שוויון",
+      "numeric": "מספרי",
+      "list": "רשימה"
+    },
+    "operator": {
+      "is_on": "דלוק",
+      "is_off": "כבוי",
+      "exists": "קיים",
+      "missing": "חסר",
+      "equals": "שווה ל-",
+      "not_equals": "שונה מ-",
+      "gt": "גדול מ-",
+      "gte": "גדול או שווה ל-",
+      "lt": "קטן מ-",
+      "lte": "קטן או שווה ל-",
+      "in": "ברשימה",
+      "not_in": "לא ברשימה"
+    },
+    "entity_category": {
+      "boolean": "דלוק/כבוי",
+      "enum": "בחירה",
+      "numeric": "מספר",
+      "text": "טקסט",
+      "unknown": "לא ידוע"
+    }
   },
   "room_access": {
     "accessed_from_help": "החדר שמעניק גישה לחדר זה. לקריאה בלבד — נקבע מעורך החדר האחר.",

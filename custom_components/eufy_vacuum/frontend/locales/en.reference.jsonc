@@ -2324,6 +2324,34 @@
     "entity_help_current": "Current: {state}",
     "entity_help_options": {"one":"{count} option","other":"{count} options"},  // plural
     "entity_help_type": "Type: {category}",
+    "operator_group": {
+      "state": "State",  // operator group: on/off conditions
+      "existence": "Existence",  // operator group: whether the entity reports anything at all
+      "equality": "Equality",  // operator group: equals / does not equal
+      "numeric": "Numeric",  // operator group: the comparison operators
+      "list": "List"  // operator group: is / is not one of several values
+    },
+    "operator": {
+      "is_on": "Is ON",  // rule operator: the entity is on. Keep the ON/OFF pair visually parallel.
+      "is_off": "Is OFF",  // rule operator: the entity is off
+      "exists": "Exists",  // rule operator: the entity reports a value
+      "missing": "Missing",  // rule operator: the entity reports nothing (unavailable, or not present)
+      "equals": "Equals",  // rule operator: the value matches exactly
+      "not_equals": "Not equals",  // rule operator: the value does not match
+      "gt": ">",  // rule operator: greater than
+      "gte": "≥",  // rule operator: greater than or equal to
+      "lt": "<",  // rule operator: less than
+      "lte": "≤",  // rule operator: less than or equal to
+      "in": "In list",  // rule operator: the value is one of several
+      "not_in": "Not in list"  // rule operator: the value is none of several
+    },
+    "entity_category": {
+      "boolean": "On/off",  // entity type: a two-state entity (binary_sensor, switch, input_boolean)
+      "enum": "Choice",  // entity type: one of a fixed list of options (select, input_select)
+      "numeric": "Number",  // entity type: a numeric value
+      "text": "Text",  // entity type: a free-text state
+      "unknown": "Unknown"  // entity type: the card could not tell — every operator is offered
+    },
     "entity_help_unavailable": "This entity is not currently available in Home Assistant.",
     "entity_help_unit": "Unit: {unit}",
     "entity_id": "Entity ID",

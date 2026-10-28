@@ -2132,7 +2132,35 @@
     "op_missing": "tidak ada",
     "effect_exclude": "Kecualikan ruangan",
     "effect_exclude_reason": "Kecualikan - {reason}",
-    "effect_modify": "Ubah pengaturan"
+    "effect_modify": "Ubah pengaturan",
+    "operator_group": {
+      "state": "Status",
+      "existence": "Keberadaan",
+      "equality": "Kesamaan",
+      "numeric": "Numerik",
+      "list": "Daftar"
+    },
+    "operator": {
+      "is_on": "Menyala",
+      "is_off": "Mati",
+      "exists": "Ada",
+      "missing": "Tidak ada",
+      "equals": "Sama dengan",
+      "not_equals": "Tidak sama dengan",
+      "gt": ">",
+      "gte": "≥",
+      "lt": "<",
+      "lte": "≤",
+      "in": "Dalam daftar",
+      "not_in": "Tidak dalam daftar"
+    },
+    "entity_category": {
+      "boolean": "Nyala/mati",
+      "enum": "Pilihan",
+      "numeric": "Angka",
+      "text": "Teks",
+      "unknown": "Tidak Diketahui"
+    }
   },
   "external_jobs": {
     "back": "Kembali",
