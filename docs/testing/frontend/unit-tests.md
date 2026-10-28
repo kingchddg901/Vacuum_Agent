@@ -5,10 +5,25 @@ hit-testing, state accessors, validation engines, colour/theme resolution — ru
 with Node's built-in test runner, no browser and no build.
 
 - **Run them all:** `npm run test:units` (`node --test "src/**/*.test.mjs"`).
+  ⚠ **Use the npm script, not a hand-typed glob.** The quotes are load-bearing: they hand
+  `**` to *node*, which expands it recursively. Unquoted in Bash, `**` matches ONE level
+  and silently drops the top-level files (`src/focus-restore.test.mjs`,
+  `src/header-battery.test.mjs`) — 1215 cases instead of 1222, with no warning that
+  anything was skipped.
 - **Run one file:** `node --test src/state/rooms-logic.test.mjs`.
 - **1047 cases across 103 files**, currently all green. Node ≥ 21 (native glob).
   (The `node --test` summary line is the authority for these numbers — rerun
   `npm run test:units` rather than trusting this doc's total.)
+
+> ⚠ **THIS SUITE IS NOT WHAT CI's NODE JOB RUNS — it is one of its two commands.** The
+> other is `node --test scripts/*.test.mjs harness/lib/*.test.mjs`, which carries the
+> Chromium-driven intake sanitisers **and `check-screenshot-freshness`**. A green run here
+> is not a green `node-tests.yml`: in 2.5.3 a push went out on a green `src/**` and landed
+> red on the freshness gate, which lives in `scripts/`. Run both before pushing.
+>
+> And remember the third track: a change that only re-words a string is still a **visual**
+> change, so `card-visual.yml` gates it against committed baselines. See
+> [render-harness § Visual baselines](render-harness.md#visual-baselines--the-docker-workflow).
 
 This is one of three separate frontend test tracks — see [the three tracks](#the-three-tracks).
 
