@@ -26,7 +26,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -134,9 +134,29 @@ test("[FTL-5] every floor-name surface resolves through the helper", () => {
 
 /* ------------------------------------------------------------------------- animals */
 
-/** The served roster, read from disk rather than from a list restated here. */
+/**
+ * The shipped roster, read from the animals/ DIRECTORY.
+ *
+ * ⚠ NOT `animals/index.json`. That file is a RUNTIME ARTIFACT — `manifest.js` says the
+ * integration "generates animals/index.json at startup from whatever .js files exist", and
+ * `.gitignore:58` ignores it. So it exists on a box that has booted Home Assistant and
+ * nowhere else: a first version of this read it, passed here, and failed CI with ENOENT.
+ *
+ * `harness/tests/gallery-completeness.spec.mjs` had already hit this and written the reason
+ * down. Reading that note first would have saved the red build — which is what
+ * "scan the docs before scoping" is for.
+ *
+ * The directory is not a workaround for the missing file, it is the better read: the
+ * generator at `__init__.py:201-203` is `sorted(f for f in os.listdir(animals_dir) if
+ * f.endswith(".js"))`, so this applies the same rule to the same directory and agrees with
+ * it by construction — including on a species added since the last HA restart, which a
+ * stale index.json would miss. And it is tracked, so CI can see it.
+ */
 function registryAnimals() {
-  return JSON.parse(readFileSync(join(ANIMALS, "index.json"), "utf8")).map((f) => f.replace(/\.js$/, ""));
+  return readdirSync(ANIMALS)
+    .filter((f) => f.endsWith(".js"))
+    .map((f) => f.replace(/\.js$/, ""))
+    .sort();
 }
 /**
  * One animal's declared label, read from the SERVED roster file.
