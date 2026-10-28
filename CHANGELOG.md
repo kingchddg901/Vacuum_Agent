@@ -8,6 +8,38 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.5.2] - 2026-10-27
+
+**Two vacuums of the same brand stopped sharing one map.** With more than one Eufy robot, the second showed the first one's floorplan, room list, dock anchor and live position — it tracked the *other* robot around the house while sitting on its own dock. Reported with 284 logged samples by [@mbedworth](https://github.com/mbedworth) ([#77](https://github.com/kingchddg901/Vacuum_Agent/issues/77)), whose diagnosis named the exact functions at fault. **Roborock had the same defect in two of its four map reads**, found while checking the claim that it didn't; both brands are fixed here. Separately, the Base Station panel's Lifecycle and Task rows have been English in all 17 translated languages since they shipped.
+
+> **Backend *and* frontend release.** Restart Home Assistant **and** hard-refresh the dashboard after updating. Neither one alone is enough.
+>
+> **It takes two vacuums of the same brand to have affected you.** A single robot of any brand was never affected, and neither was a mixed fleet of one each. Dreame was never affected at all — it already resolved its map through the vacuum's own device.
+>
+> **Neither fix is confirmed on hardware.** Both are covered by unit and integration tests, including the two-coordinator case from the report. This project's development setup has one vacuum of each brand and therefore cannot reproduce either fault. If you run two robots of one brand, please say whether this fixes it on [#77](https://github.com/kingchddg901/Vacuum_Agent/issues/77).
+
+### Fixed
+
+- **Eufy: a second vacuum showed the first one's map.** Vacuum Agent reads the Eufy integration's in-memory map rather than its saved file, because it is fresher and costs no disk read. Six of those reads knew which vacuum they were answering for and threw that away, then searched a store that holds **every** Eufy vacuum on the system and took the first one it found. With two robots, every one of those reads answered with the same one: rooms, the room outlines, the raster, the dock anchor, the live robot position and the current-room attribution. The saved-file path behind it was always per-vacuum correct, which is why nothing errored — the wrong answer simply arrived first. All six now resolve the asking vacuum's own serial, the same identifier the saved-file path has always used. ([#77](https://github.com/kingchddg901/Vacuum_Agent/issues/77))
+
+  This was never limited to sharing one account, despite the report's title: the Eufy integration keeps all its vacuums in one place regardless of how many config entries you have, so two Eufy robots collided either way.
+
+- **Roborock: the same fault in the live position and the room raster.** Found by the pre-release audit of this very changelog, which refuted a sentence claiming Roborock had always been per-vacuum. Two of its four map reads passed no vacuum at all and took the first Roborock they found in a container holding every robot on the account. The other two identified the vacuum by its live-map image entity but could still fall through to that shared container if the image had no map yet. All four now resolve the vacuum's own `duid`. Nobody reported this one, so if you run two Roborocks and have been squinting at the robot dot, that is a plausible explanation.
+
+- **What happens now when a map genuinely isn't there.** A vacuum whose own coordinator is found but has no map loaded yet reports nothing from memory and falls back to its own saved file, rather than silently inheriting its neighbour's. If a vacuum's identifier can't be matched to a coordinator at all — an unusual shape, or a config entry mid-reload — the old shared lookup is still used, deliberately, so that a setup which works today cannot lose its map to this change.
+
+- **The Base Station's Lifecycle and Task rows were English in every language.** The Station Status panel's "Dock Status" row was translated; the two rows directly beneath it were not, in all 17 languages, because they printed the backend's English label instead of looking up the translated word that sits right beside it. Both now read in your language. The English wording improves slightly as a side effect — the Lifecycle row shows "Mid-Job Service" and "Job Running" where it previously showed the raw machine-generated "Mid Job Service".
+
+- **Seven values that were still English in a non-Latin-script language.** `Max` stayed Latin in Japanese across the suction scale, the Dreame suction override and the battery table — while every neighbouring value in those lists was already Japanese, and Korean, both Chinese variants, Russian, Arabic and Hebrew had all translated it. Likewise "EVCC Shell" in Arabic and Russian, "easing" in Hebrew, and "Chip" in Traditional Chinese. In every case the same language pack already translated that exact word elsewhere, so these were leaks rather than deliberate loanwords: Japanese now reads 最大, and the others follow the wording their own pack already used.
+
+### Internal
+
+- **The multi-vacuum guard existed, was tested, and was never called.** The Eufy map locator has carried a `device_id` filter with the right behaviour — and a test — since it was written; no caller ever passed it, and the developer docs recorded exactly that under "common wrong assumptions" while the defect was live in the field. It is now wired, alongside the narrower fix one layer up.
+
+- **One policy, declared per brand.** Both collectors now narrow their candidate roots through a single function. Which attribute carries the device id is declared by each adapter — `device_id` for Eufy, `duid` for Roborock — because they genuinely differ; core never guesses it. The two Eufy layers share the comparison itself but not the attribute list: the second still uses the default, and a test fails if the declaration ever stops matching it, so a rename is caught at the edit rather than in the field.
+
+- **A gate for untranslated keys.** `check:i18n`'s default mode reports how many keys fall back to English and passes anyway, and nothing in CI ran the strict mode, so a key added without translations reached users with nothing red. A new test asserts zero untranslated keys across all 17 packs, and proves it can fail by running the same check against two injected defects before trusting the clean result. Every new check in this release was aimed at a known-bad input first — including one that caught five newly-added call sites no test covered, which was the same mistake the release was fixing.
+
 ## [2.5.1] - 2026-10-26
 
 **Roborock: the dock controls now know what the dock is doing.** All four of them were asking a question this brand cannot answer. Stop Dry has been greyed out on every Roborock dock that can dry since the dock controls shipped in 2.2.4 — the card said "Stop dry is only useful while the dock is actively drying" at the exact moment it *was* drying. Wash Mop, Dry Mop and Empty Dust had the same fault pointing the other way: all three offered themselves as ready while the dock was already washing, drying or emptying. The drying half was found and fixed by @louisa-uno ([#76](https://github.com/kingchddg901/Vacuum_Agent/pull/76)); the other three turned out to be the same hole.
