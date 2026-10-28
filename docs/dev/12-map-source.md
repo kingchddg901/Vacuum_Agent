@@ -197,11 +197,26 @@ therefore passed **only when the scoping actually matched**; handing it down aft
 would turn "this provider exposes no id" into `device_not_found`, i.e. absent, for installs that
 work today.
 
-> **Why it reached users.** This needs two Eufy vacuums. The development box has three — one
-> Eufy, one Roborock, one Dreame — so it cannot reproduce it at all, and no amount of testing
-> there would have surfaced it. Both sibling collectors took a per-vacuum discriminator from
-> the start (`roborock_candidates(image_entity_id=)`, `dreame_coordinator(vacuum_entity_id)`);
-> the Eufy one was the only one that did not.
+> **Why it reached users.** This needs two vacuums of one brand. The development box has
+> three — one Eufy, one Roborock, one Dreame — so it cannot reproduce it at all, and no
+> amount of testing there would have surfaced it.
+
+**Roborock had the same defect, and a release note claiming otherwise is how it was found.**
+The 2.5.2 pre-release audit refuted a sentence asserting both sibling collectors had been
+per-vacuum from the start. `dreame_coordinator` is: it resolves through the device registry.
+`roborock_candidates` takes an `image_entity_id`, but **two of its four callers passed
+none** — `_read_mapdata_pose` and `async_get_map_render_data` — so the live pose and the room
+raster walked a duid-keyed container of every Roborock on the account and took the first hit.
+The two that did pass one still had the shared roots behind it to fall through to.
+
+Both brands now go through `_scope_roots_to_device`, the policy written once: `device_id_attrs`
+is declared per brand (`device_id` for Eufy, `duid` for Roborock) and matched against that
+brand's own registry identifier. Roborock's image-entity root is already resolved from the
+asking vacuum, so it is kept alongside the match rather than replaced by it; the shared roots
+are dropped either way.
+
+No Roborock user has reported this, and it is unconfirmed on hardware for the same reason the
+Eufy half is — one vacuum per brand here.
 
 ---
 

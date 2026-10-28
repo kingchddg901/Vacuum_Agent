@@ -109,18 +109,48 @@ class MapSourceCoordinator:
         """
         from ..mapping import map_source_runtime as _msr
 
-        source_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("map_state_source")
-        device_id = None
-        attrs = None
-        if isinstance(source_cfg, dict):
-            domain = source_cfg.get("identifier_domain")
-            if domain:
-                device_id = _msr.device_identifier_value(
-                    self._manager.hass, vacuum_entity_id, domain
-                )
-            attrs = source_cfg.get("device_id_attrs")
+        device_id, attrs = self._device_scope(vacuum_entity_id)
         return _msr.eufy_inmem_candidates(
             self._manager.hass, cfg, device_id=device_id, device_id_attrs=attrs,
+        )
+
+    def _device_scope(self, vacuum_entity_id: str) -> tuple[str | None, Any]:
+        """``(device_id, device_id_attrs)`` for this vacuum, from its own adapter.
+
+        Brand-neutral on purpose: Eufy matches a coordinator's ``device_id`` against the
+        ``(robovac_mqtt, <serial>)`` registry identifier, Roborock its ``duid`` against
+        ``(roborock, <duid>)``. Same question, same answer, one resolver -- the declaration
+        names the attr, core never guesses it.
+        """
+        from ..mapping import map_source_runtime as _msr
+
+        source_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("map_state_source")
+        if not isinstance(source_cfg, dict):
+            return None, None
+        domain = source_cfg.get("identifier_domain")
+        device_id = (
+            _msr.device_identifier_value(self._manager.hass, vacuum_entity_id, domain)
+            if domain else None
+        )
+        return device_id, source_cfg.get("device_id_attrs")
+
+    def _roborock_candidates(
+        self, vacuum_entity_id: str, source_cfg: dict[str, Any],
+        *, image_entity_id: str | None = None,
+    ) -> list[tuple[str, str, Any]]:
+        """Roborock candidate roots, SCOPED to this vacuum (issue #77).
+
+        Two of the four Roborock reads -- the live pose and the room raster -- passed no
+        image entity at all, so they walked `entry.runtime_data`, a duid-keyed container of
+        every Roborock on the account, and took the first hit. The other two passed one but
+        still had the shared roots behind it to fall through to.
+        """
+        from ..mapping import map_source_runtime as _msr
+
+        device_id, attrs = self._device_scope(vacuum_entity_id)
+        return _msr.roborock_candidates(
+            self._manager.hass, source_cfg, image_entity_id=image_entity_id,
+            device_id=device_id, device_id_attrs=attrs,
         )
 
     @staticmethod
@@ -289,8 +319,8 @@ class MapSourceCoordinator:
                     )
             elif backend == "memory":
                 # In-memory introspection (no IO) — safe to run on the loop.
-                candidates = _msr.roborock_candidates(
-                    self._manager.hass, source_cfg, image_entity_id=live_img
+                candidates = self._roborock_candidates(
+                    vacuum_entity_id, source_cfg, image_entity_id=live_img,
                 )
                 result = _msr.roborock_result_from_candidates(candidates, present=present)
                 if result.get("diagnostics") is not None:
@@ -522,8 +552,8 @@ class MapSourceCoordinator:
                 live_img = self._manager._resolve_live_map_image_entity(
                     vacuum_entity_id=vacuum_entity_id, map_id=map_id, adapter_cfg=adapter_cfg,
                 )
-                candidates = _msr.roborock_candidates(
-                    self._manager.hass, source_cfg, image_entity_id=live_img,
+                candidates = self._roborock_candidates(
+                    vacuum_entity_id, source_cfg, image_entity_id=live_img,
                 )
                 for cand in candidates or []:
                     root = cand[2] if isinstance(cand, (list, tuple)) and len(cand) >= 3 else cand
@@ -694,7 +724,7 @@ class MapSourceCoordinator:
         Never raises."""
         from ..mapping import map_source_runtime as _msr
 
-        candidates = _msr.roborock_candidates(self._manager.hass, source_cfg)
+        candidates = self._roborock_candidates(vacuum_entity_id, source_cfg)
         pose = _msr.mapdata_live_pose_from_candidates(candidates)
         _LOGGER.debug(
             "live_pose[%s] parsed_mapdata: present=%s reason=%s pose_at=%s",
@@ -864,7 +894,7 @@ class MapSourceCoordinator:
             and isinstance(source_cfg, dict)
             and source_cfg.get("backend") == "memory"
         ):
-            candidates = _msr.roborock_candidates(self._manager.hass, source_cfg)
+            candidates = self._roborock_candidates(vacuum_entity_id, source_cfg)
             return _msr.roborock_render_data_from_candidates(
                 candidates, self._roborock_render_room_names(vacuum_entity_id)
             )

@@ -1332,6 +1332,14 @@ def register_roborock_adapter_for_vacuum(
             "identifier_domain": "roborock",
             "hass_data_domain": "roborock",
             "present_requires_live_map_image": True,
+            # WHICH vacuum's coordinator (issue #77, the Roborock half). `entry.runtime_data`
+            # is a RoborockCoordinators container keyed by duid and holding every vacuum on
+            # the account, so the two map reads that pass no image entity -- the live pose and
+            # the room raster -- took whichever one the walk reached first. `duid` is the
+            # coordinator's own property AND the ("roborock", <duid>) registry identifier
+            # `identifier_domain` above already resolves, so core matches one against the
+            # other. Undeclared => the unscoped roots, i.e. the pre-2.5.2 behaviour.
+            "device_id_attrs": ["duid"],
             # LIVE POSE. The parsed MapData carries `vacuum_position` already in the RENDERED
             # frame (vacuum-map-parser projects it through the same ImageDimensions.to_img the
             # room bboxes use), so there is nothing to load and nothing to calibrate — the

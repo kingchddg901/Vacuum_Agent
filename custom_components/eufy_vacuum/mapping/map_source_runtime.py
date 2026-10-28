@@ -1720,6 +1720,42 @@ def _device_id_matches(obj: Any, attrs: Sequence[str], want: str) -> bool:
     return False
 
 
+def _scope_roots_to_device(
+    roots: list[tuple[str, str, Any]],
+    device_id: str | None,
+    attrs: Sequence[str] | None,
+    *,
+    keep: tuple[str, ...] = (),
+) -> list[tuple[str, str, Any]]:
+    """Narrow candidate roots to the one coordinator belonging to ``device_id``.
+
+    THE POLICY, written once for every brand (issue #77). A provider keeps all of its
+    vacuums in one place -- Eufy as ``hass.data[domain][entry_id]["coordinators"]``, Roborock
+    as ``entry.runtime_data``'s duid-keyed container -- and the introspectors downstream stop
+    at the FIRST object carrying the attrs they want. Unscoped, that is the same object for
+    every vacuum on the system.
+
+    The match REPLACES the shared roots rather than preceding them. Leaving them behind would
+    mean a vacuum whose own map is briefly absent falls through and silently inherits its
+    neighbour's; absent is the correct answer there, and each brand's per-vacuum storage read
+    answers correctly anyway. ``keep`` names origins that are ALREADY per-vacuum (Roborock's
+    live-map image entity) and so survive alongside the match.
+
+    No id, or no root carrying a matching one, returns ``roots`` untouched: a single-vacuum
+    install, and any provider whose shape stops exposing the attr, behave exactly as before.
+    """
+    if not device_id:
+        return roots
+    kept = [r for r in roots if r[0] in keep]
+    for _origin, _key, root in roots:
+        found = _device_id_holder(root, device_id, attrs or _DEFAULT_DEVICE_ID_ATTRS)
+        if found is not None:
+            # Labelled so the existing diagnostics breadcrumb names the vacuum that was
+            # selected, with no new plumbing.
+            return kept + [("device", str(device_id), found[0])]
+    return roots
+
+
 def _device_id_holder(root: Any, device_id: str, attrs: Sequence[str]) -> tuple[Any, str] | None:
     """Find the object under ``root`` whose device-id attr equals ``device_id``.
 
@@ -1780,16 +1816,7 @@ def eufy_inmem_candidates(
         if rd is not None:
             roots.append(("runtime_data", entry.entry_id, rd))
 
-    if not device_id:
-        return roots
-    attrs = tuple(device_id_attrs or ()) or ("device_id",)
-    for _origin, _key, root in roots:
-        found = _device_id_holder(root, device_id, attrs)
-        if found is not None:
-            # Labelled so the existing diagnostics breadcrumb ("candidates", "pose_at")
-            # names the vacuum that was selected, with no new plumbing.
-            return [("device", str(device_id), found[0])]
-    return roots
+    return _scope_roots_to_device(roots, device_id, device_id_attrs)
 
 
 def eufy_live_pose_from_candidates(
@@ -1977,6 +2004,8 @@ def roborock_candidates(
     source_cfg: dict[str, Any],
     *,
     image_entity_id: str | None = None,
+    device_id: str | None = None,
+    device_id_attrs: Sequence[str] | None = None,
 ) -> list[tuple[str, str, Any]]:
     """Collect candidate Roborock map roots to introspect.
 
@@ -2003,4 +2032,9 @@ def roborock_candidates(
         bucket = (hass.data or {}).get(domain)
         if bucket is not None:
             out.append(("hass_data", domain, bucket))
-    return out
+    # PER-VACUUM (issue #77, the Roborock half). `entry.runtime_data` is a duid-keyed
+    # container of EVERY Roborock coordinator on the account, and two of the four callers
+    # pass no image entity at all, so the pose and raster reads took whichever vacuum the
+    # walk reached first. `image_entity` is already resolved from the asking vacuum, so it
+    # is kept alongside the match rather than replaced by it.
+    return _scope_roots_to_device(out, device_id, device_id_attrs, keep=("image_entity",))

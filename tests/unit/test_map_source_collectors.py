@@ -679,3 +679,147 @@ def test_msc5i_the_eufy_adapter_declares_the_id_attrs():
         assert "device_id_attrs" not in nested_keys, (
             f"device_id_attrs duplicated into {name} — it is read from the parent block"
         )
+
+
+# ---------------------------------------------------------------------------
+# [MSC-6] roborock_candidates — PER-VACUUM scoping (issue #77, the Roborock half)
+#
+# Found by the 2.5.2 pre-release audit, which refuted the release note claiming Roborock
+# "located its map per-vacuum since the feature shipped". Two of its four reads --
+# _read_mapdata_pose and async_get_map_render_data -- passed no image entity, so they walked
+# `entry.runtime_data` and took the first hit. The core integration shape (verified against
+# homeassistant/components/roborock at the version this project targets):
+#
+#     entry.runtime_data = RoborockCoordinators()      # ._coordinators = {duid: coordinator}
+#     coordinator.duid -> str                          # also the (roborock, <duid>) identifier
+# ---------------------------------------------------------------------------
+
+_RB_IDS = {"hass_data_domain": "roborock", "device_id_attrs": ["duid"]}
+
+
+class _RbCoord:
+    """A Roborock coordinator stand-in: duid + a map object the introspectors look for."""
+
+    def __init__(self, duid, rooms):
+        self._duid = duid
+        self.map_data = type("MapData", (), {"rooms": rooms, "image": object()})()
+
+    @property
+    def duid(self):          # a PROPERTY on the real class too
+        return self._duid
+
+
+class _RbCoordinators:
+    """RoborockCoordinators stand-in — duid-keyed, holds every vacuum on the account."""
+
+    def __init__(self, coords):
+        self._coordinators = {c.duid: c for c in coords}
+
+
+def _rb(hass, **kw):
+    """Call roborock_candidates the way MapSourceCoordinator does.
+
+    `device_id_attrs` is a KWARG the coordinator reads off the adapter declaration and
+    passes in; the collector never reads it back out of `source_cfg`. Writing that out once
+    here because getting it wrong looks exactly like the scoping failing to match -- it
+    falls back to the unscoped roots, silently, which is the behaviour under test.
+    """
+    return roborock_candidates(hass, _RB_IDS, device_id_attrs=_RB_IDS["device_id_attrs"], **kw)
+
+
+def _two_roborocks():
+    a = _RbCoord("duid_A", ["room_a"])
+    b = _RbCoord("duid_B", ["room_b"])
+    hass = _Hass(entries=[_Entry("rb_entry", runtime_data=_RbCoordinators([a, b]))])
+    return hass, a, b
+
+
+def test_msc6_unscoped_roborock_reproduces_the_bug():
+    """[MSC-6] THE DEFECT, pinned for Roborock too: with no duid the walk reaches whichever
+    coordinator comes first, for every vacuum. This is the pre-fix behaviour AND the
+    fallback, so a single-Roborock install must keep it exactly."""
+    hass, _a, _b = _two_roborocks()
+    out = _rb(hass)
+    assert [(o, k) for o, k, _ in out] == [("runtime_data", "rb_entry")]
+
+
+def test_msc6b_each_duid_selects_its_own_coordinator():
+    """[MSC-6b] THE FIX: the duid picks that vacuum's coordinator and nothing else."""
+    hass, a, b = _two_roborocks()
+    for want in (a, b):
+        out = _rb(hass, device_id=want.duid)
+        assert [(o, k) for o, k, _ in out] == [("device", want.duid)]
+        assert out[0][2] is want
+
+
+def test_msc6c_the_image_entity_root_survives_the_narrowing():
+    """[MSC-6c] the one asymmetry with Eufy. Roborock's live-map IMAGE entity is already
+    resolved from the asking vacuum, so it is per-vacuum by construction and must be KEPT
+    alongside the match -- the two reads that pass one rely on it being tried first. Only
+    the shared roots are dropped."""
+    hass, a, _b = _two_roborocks()
+    img = object()
+    hass.data["image_component_stub"] = img
+
+    class _Comp:
+        @staticmethod
+        def get_entity(_eid):
+            return img
+
+    hass.data["entity_components"] = {"image": _Comp()}
+    out = _rb(hass, image_entity_id="image.ivy_map", device_id=a.duid)
+    origins = [o for o, _, _ in out]
+    assert origins == ["image_entity", "device"], origins
+    assert out[0][2] is img and out[1][2] is a
+    assert "runtime_data" not in origins and "hass_data" not in origins
+
+
+def test_msc6d_unknown_duid_degrades_to_the_unscoped_roots():
+    """[MSC-6d] a duid matching nothing falls back rather than returning empty — losing the
+    map is a worse failure than the one being fixed."""
+    hass, _a, _b = _two_roborocks()
+    out = _rb(hass, device_id="duid_NOT_HERE")
+    assert [(o, k) for o, k, _ in out] == [("runtime_data", "rb_entry")]
+
+
+def test_msc6e_the_roborock_adapter_declares_its_id_attr():
+    """[MSC-6e] and the declaration exists. Roborock keys on `duid`, not `device_id` — the
+    whole reason the attr is declared per brand rather than assumed by core."""
+    import ast
+    from pathlib import Path
+    import custom_components.eufy_vacuum.adapters.roborock.adapter as _a
+
+    tree = ast.parse(Path(_a.__file__).read_text(encoding="utf-8"))
+    blocks = [
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.Dict)
+        and {k.value for k in n.keys if isinstance(k, ast.Constant)} >= {"identifier_domain", "hass_data_domain"}
+    ]
+    assert blocks, "no map_state_source-shaped dict in the roborock adapter"
+    pairs = dict(zip([k.value for k in blocks[0].keys], blocks[0].values))
+    assert "device_id_attrs" in pairs, "roborock map_state_source.device_id_attrs is not declared"
+    assert [e.value for e in pairs["device_id_attrs"].elts] == ["duid"]
+
+
+def test_msc6f_the_coordinator_threads_the_duid_into_roborock_candidates():
+    """[MSC-6f] REACHABILITY, the lesson from the Eufy half: a correct collector buys
+    nothing if the call sites don't pass the vacuum. Record what the coordinator sends."""
+    from custom_components.eufy_vacuum.mapping import map_source_coordinator as _c
+    from custom_components.eufy_vacuum.mapping import map_source_runtime as _r
+
+    declared = {"identifier_domain": "roborock", "hass_data_domain": "roborock",
+                "device_id_attrs": ["duid"]}
+    seen = {}
+    orig = (_c._get_adapter_config, _r.device_identifier_value, _r.roborock_candidates)
+    _c._get_adapter_config = lambda vid: {"map_state_source": declared}
+    _r.device_identifier_value = lambda hass, vid, domain: "duid_A" if domain == "roborock" else None
+    _r.roborock_candidates = lambda hass, cfg, **kw: seen.update(kw) or []
+    try:
+        coord = _c.MapSourceCoordinator(manager=type("M", (), {"hass": object()})())
+        coord._roborock_candidates("vacuum.ivy", declared, image_entity_id="image.ivy_map")
+    finally:
+        _c._get_adapter_config, _r.device_identifier_value, _r.roborock_candidates = orig
+
+    assert seen.get("device_id") == "duid_A", f"duid not threaded: {seen}"
+    assert list(seen.get("device_id_attrs") or []) == ["duid"], f"declared attrs not threaded: {seen}"
+    assert seen.get("image_entity_id") == "image.ivy_map", "the image entity must still be passed"
