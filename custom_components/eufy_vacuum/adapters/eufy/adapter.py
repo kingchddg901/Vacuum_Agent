@@ -784,6 +784,16 @@ def register_eufy_adapter_for_vacuum(
             "backend": "storage",
             "identifier_domain": "robovac_mqtt",
             "store_key": "robovac_mqtt.{device_id}",
+            # WHICH vacuum's coordinator, for the in-memory reads below (issue #77). The
+            # provider holds every vacuum in one bucket -- hass.data[domain][entry_id]
+            # ["coordinators"] is a LIST, and it spans config entries -- so the attr-matching
+            # introspectors would otherwise stop at whichever vacuum was set up first and
+            # answer with it for all of them. These name the coordinator's own id attr; core
+            # matches it against the (robovac_mqtt, <serial>) registry identifier that
+            # store_key already fills from, so the memory and storage paths cannot disagree
+            # about which vacuum they are reading. Undeclared => core falls back to the
+            # unscoped roots, i.e. the pre-2.5.2 behaviour, which is correct for one vacuum.
+            "device_id_attrs": ["device_id"],
             "store_version": 1,
             "present_requires_live_map_image": True,
             # IN-MEMORY live pose (the moving overlays, fresh ~2s). The .storage robot
@@ -827,7 +837,8 @@ def register_eufy_adapter_for_vacuum(
                 "trail_pixel_attrs": ["_robot_trail", "robot_trail"],
                 "heading_attrs": ["_robot_angle", "robot_angle", "_robot_heading"],
             },
-            # anchor: CN2ARB50  fork memory transport — hass_data_domain + mapdata attrs, remapped if the fork renames one
+            # anchor: CN2ARB50  fork memory transport — hass_data_domain + mapdata attrs + the
+            # parent block's device_id_attrs, each remapped if the fork renames one
             # IN-MEMORY MapData source (the SAME EufyCleanCoordinator the live pose reads also
             # holds `_map_data`, a full MapData object: room_pixels/raw_pixels bytes + dims +
             # room_outline_* + room_names + virtual_walls/forbidden_zones/ban_mop_zones). It is

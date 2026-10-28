@@ -23,6 +23,7 @@ import hashlib
 import json
 import logging
 from collections import deque
+from collections.abc import Sequence
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -1693,17 +1694,83 @@ def _has_named_attr(obj: Any, attrs: Any) -> bool:
     return False
 
 
+#: The id attr a provider is assumed to expose when nothing declares otherwise. Both
+#: device-scoping layers default to this, and [MSC-5i] pins the Eufy declaration to it --
+#: declare something else and that test goes red, which is the signal to thread the names
+#: into `eufy_mapdata_obj_from_candidates` too rather than let the layers disagree.
+_DEFAULT_DEVICE_ID_ATTRS: tuple[str, ...] = ("device_id",)
+
+
+def _device_id_matches(obj: Any, attrs: Sequence[str], want: str) -> bool:
+    """Does ``obj`` claim this device id? The ONE definition, used by both scoping layers.
+
+    Compared as stripped strings, not by identity of type: a provider free to hand back an
+    int serial (or one with whitespace) would otherwise match at the candidate layer and be
+    refused at the MapData layer, which resolves to ``device_not_found`` -- absent -- for a
+    vacuum whose map is right there. A raising property getter is a non-match, never a
+    raise: these walks run ON THE EVENT LOOP inside the dashboard snapshot.
+    """
+    for a in attrs or _DEFAULT_DEVICE_ID_ATTRS:
+        try:
+            v = getattr(obj, a, None)
+        except Exception:  # noqa: BLE001 - a raising descriptor must not escape the walk
+            continue
+        if v is not None and str(v).strip() == want:
+            return True
+    return False
+
+
+def _device_id_holder(root: Any, device_id: str, attrs: Sequence[str]) -> tuple[Any, str] | None:
+    """Find the object under ``root`` whose device-id attr equals ``device_id``.
+
+    Bounded BFS, same guards as every other walk here. A raising property getter on a
+    provider internal degrades that node to a non-match rather than aborting the search.
+    """
+    want = str(device_id).strip()
+    try:
+        holder, path = _walk(root, lambda o: _device_id_matches(o, attrs, want))
+    except Exception:  # noqa: BLE001 - the walk itself must not escape
+        return None
+    return None if holder is None else (holder, path)
+
+
 def eufy_inmem_candidates(
-    hass: HomeAssistant, source_cfg: dict[str, Any]
+    hass: HomeAssistant,
+    source_cfg: dict[str, Any],
+    *,
+    device_id: str | None = None,
+    device_id_attrs: Sequence[str] | None = None,
 ) -> list[tuple[str, str, Any]]:
-    """Candidate roots holding the fork's in-memory coordinator (hass.data + runtime_data)."""
+    """Candidate roots holding the fork's in-memory coordinator (hass.data + runtime_data).
+
+    PER-VACUUM when ``device_id`` is given. The provider keys one bucket by CONFIG ENTRY and
+    holds a LIST of coordinators under each — ``hass.data[domain][entry_id]["coordinators"]``
+    — so the unscoped roots below contain every vacuum on the system, not just the one being
+    asked about. The introspectors that consume these roots stop at the FIRST object carrying
+    the attrs they want, which with two Eufy vacuums is whichever was set up first, for every
+    caller. That is issue #77: the second vacuum showed the first one's pose, rooms and
+    raster. Note it does NOT require a shared account — the bucket spans config entries too.
+
+    So when the caller resolves the vacuum's serial, we locate THAT coordinator and return it
+    ALONE. Returning it merely first would not be enough: the introspectors fall through on a
+    miss, so a vacuum whose map is briefly absent would silently inherit its neighbour's.
+    Absent is the correct answer there, and the storage path behind this is per-vacuum keyed
+    (``eufy_store_path`` → ``robovac_mqtt.<serial>``) and answers correctly.
+
+    Falls back to the unscoped roots when no serial is given, or when none of them carries a
+    matching device id — so a single-vacuum install, and any provider whose shape stops
+    exposing the attr, behave exactly as before.
+
+    Mirrors ``roborock_candidates``, which has taken a per-vacuum discriminator
+    (``image_entity_id``) since both collectors were written.
+    """
     domain = source_cfg.get("hass_data_domain")
-    out: list[tuple[str, str, Any]] = []
+    roots: list[tuple[str, str, Any]] = []
     if not domain:
-        return out
+        return roots
     bucket = (hass.data or {}).get(domain)
     if bucket is not None:
-        out.append(("hass_data", domain, bucket))
+        roots.append(("hass_data", domain, bucket))
     try:
         entries = hass.config_entries.async_entries(domain)
     except Exception:  # pragma: no cover - defensive over HA internals
@@ -1711,8 +1778,18 @@ def eufy_inmem_candidates(
     for entry in entries:
         rd = getattr(entry, "runtime_data", None)
         if rd is not None:
-            out.append(("runtime_data", entry.entry_id, rd))
-    return out
+            roots.append(("runtime_data", entry.entry_id, rd))
+
+    if not device_id:
+        return roots
+    attrs = tuple(device_id_attrs or ()) or ("device_id",)
+    for _origin, _key, root in roots:
+        found = _device_id_holder(root, device_id, attrs)
+        if found is not None:
+            # Labelled so the existing diagnostics breadcrumb ("candidates", "pose_at")
+            # names the vacuum that was selected, with no new plumbing.
+            return [("device", str(device_id), found[0])]
+    return roots
 
 
 def eufy_live_pose_from_candidates(
@@ -1821,7 +1898,12 @@ def eufy_mapdata_obj_from_candidates(
 
     def _holds_mapdata(o: Any) -> bool:
         # Cheap predicate: an object exposing a MapData with a bytes raster (no convert).
-        if device_id is not None and getattr(o, "device_id", None) != device_id:
+        # Same predicate as the candidate-layer scoping, deliberately: two spellings of
+        # "does this object belong to this vacuum" is how one layer matches and the next
+        # refuses, which reads to the user as a vanished map rather than as a bug.
+        if device_id is not None and not _device_id_matches(
+            o, _DEFAULT_DEVICE_ID_ATTRS, str(device_id).strip()
+        ):
             return False
         for a in names:
             v = getattr(o, a, None)
@@ -1864,6 +1946,7 @@ def eufy_mapdata_from_candidates(
     *,
     mapdata_attrs: Any,
     field_attrs: Any = None,
+    device_id: str | None = None,
 ) -> dict[str, Any]:
     """Find the fork's in-memory ``MapData`` and CONVERT it to the .storage map_data DICT shape
     (so the existing decoders consume it unchanged). Thin wrapper over
@@ -1876,7 +1959,7 @@ def eufy_mapdata_from_candidates(
 
     fa = field_attrs if isinstance(field_attrs, dict) else {}
     found = eufy_mapdata_obj_from_candidates(
-        candidates, mapdata_attrs=mapdata_attrs, field_attrs=fa
+        candidates, mapdata_attrs=mapdata_attrs, field_attrs=fa, device_id=device_id,
     )
     if not found.get("present"):
         return found

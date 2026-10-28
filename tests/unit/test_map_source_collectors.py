@@ -421,3 +421,261 @@ def test_msc4b_route1_emits_no_deprecation_report(hass):
 
     assert got is wanted
     assert reports == [], f"deprecated property read on the dreame hop: {reports}"
+
+
+# ---------------------------------------------------------------------------
+# [MSC-5] eufy_inmem_candidates — PER-VACUUM scoping (issue #77)
+#
+# Two Eufy vacuums made every in-memory read answer with the first one. The bucket the
+# collector returns is `hass.data[domain][entry_id]["coordinators"]` — a LIST per entry,
+# and the bucket spans ENTRIES — so the attr-matching introspectors downstream stopped at
+# whichever coordinator came first and used it for every vacuum: pose, rooms and raster.
+#
+# The shape below is the provider's real one, read from robovac_mqtt/__init__.py:
+#     hass.data.setdefault(DOMAIN, {})
+#     hass.data[DOMAIN][entry.entry_id] = {"coordinators": coordinators}
+# and the id attr is EufyCleanCoordinator.device_id (the serial), which is also the
+# (robovac_mqtt, <serial>) device-registry identifier eufy_store_path already keys on.
+# ---------------------------------------------------------------------------
+
+from custom_components.eufy_vacuum.mapping.map_source_runtime import (  # noqa: E402
+    eufy_live_pose_from_candidates,
+)
+
+_EUFY_IDS = {"hass_data_domain": "robovac_mqtt", "device_id_attrs": ["device_id"]}
+
+
+class _EufyCoord:
+    """An EufyCleanCoordinator stand-in: a serial plus the two pose attrs the
+    introspector matches on (PRESENCE, not value — the fork nulls the robot pixel
+    while docked, which is why _is_pose_holder tests for the attrs existing)."""
+
+    def __init__(self, device_id, robot, dock):
+        self.device_id = device_id
+        self._robot_pixel = robot
+        self._dock_pixel = dock
+
+
+def _two_vacuums_one_entry():
+    """HAL and Cogsworth on ONE config entry — the reporter's setup."""
+    hal = _EufyCoord("SERIAL_HAL", (10, 10), (1, 1))
+    cogs = _EufyCoord("SERIAL_COGS", (90, 90), (99, 99))
+    bucket = {"entry_1": {"coordinators": [hal, cogs]}}
+    return _Hass(data={"robovac_mqtt": bucket}), hal, cogs
+
+
+def _two_vacuums_two_entries():
+    """The same two vacuums on SEPARATE config entries. The issue title says one
+    account; the bucket is keyed by entry and the collector returns the WHOLE bucket,
+    so the collision never depended on sharing one."""
+    hal = _EufyCoord("SERIAL_HAL", (10, 10), (1, 1))
+    cogs = _EufyCoord("SERIAL_COGS", (90, 90), (99, 99))
+    bucket = {"entry_1": {"coordinators": [hal]}, "entry_2": {"coordinators": [cogs]}}
+    return _Hass(data={"robovac_mqtt": bucket}), hal, cogs
+
+
+def _pixel(cands):
+    """The reader normalises a pixel tuple to a LIST, so compare like with like."""
+    return _pose(cands).get("robot_pixel")
+
+
+def _pose(cands):
+    return eufy_live_pose_from_candidates(
+        cands, robot_attrs=["_robot_pixel"], dock_attrs=["_dock_pixel"],
+    )
+
+
+def test_msc5_unscoped_reproduces_the_bug():
+    """[MSC-5] THE DEFECT, pinned: with no serial both vacuums resolve to the FIRST
+    coordinator. This is the pre-fix behaviour and the fallback path, so it must stay
+    exactly as it was for single-vacuum installs — asserted, not merely tolerated."""
+    hass, hal, cogs = _two_vacuums_one_entry()
+    out = eufy_inmem_candidates(hass, _EUFY_IDS)              # no device_id
+    assert [(o, k) for o, k, _ in out] == [("hass_data", "robovac_mqtt")]
+    # The introspector walks that one root and stops at HAL — for every caller.
+    assert _pixel(out) == list(hal._robot_pixel)
+    assert _pixel(out) != list(cogs._robot_pixel)
+
+
+def test_msc5b_each_serial_selects_its_own_coordinator():
+    """[MSC-5b] THE FIX: each serial resolves to its own coordinator, one entry."""
+    hass, hal, cogs = _two_vacuums_one_entry()
+    for want in (hal, cogs):
+        out = eufy_inmem_candidates(hass, _EUFY_IDS, device_id=want.device_id)
+        assert len(out) == 1
+        origin, key, root = out[0]
+        assert (origin, key) == ("device", want.device_id)
+        assert root is want
+        assert _pixel(out) == list(want._robot_pixel)
+
+
+def test_msc5c_scoping_works_across_config_entries():
+    """[MSC-5c] and across SEPARATE entries — the defect never needed one account."""
+    hass, hal, cogs = _two_vacuums_two_entries()
+    # Unscoped: the whole bucket, so the walk still finds HAL for both.
+    assert _pixel(eufy_inmem_candidates(hass, _EUFY_IDS)) == list(hal._robot_pixel)
+    for want in (hal, cogs):
+        out = eufy_inmem_candidates(hass, _EUFY_IDS, device_id=want.device_id)
+        assert out[0][2] is want
+        assert _pixel(out) == list(want._robot_pixel)
+
+
+def test_msc5d_scoped_root_REPLACES_the_shared_roots():
+    """[MSC-5d] the design decision, pinned. Returning the scoped root merely FIRST would
+    leave the shared bucket behind it, and the introspectors fall through on a miss — so a
+    vacuum whose own map is briefly absent would silently inherit its neighbour's. The
+    scoped root must be the ONLY one, making a miss resolve to absent (the storage path
+    behind it is per-vacuum keyed and answers correctly)."""
+    hal = _EufyCoord("SERIAL_HAL", (10, 10), (1, 1))
+    blind = _EufyCoord("SERIAL_BLIND", None, None)
+    del blind._robot_pixel, blind._dock_pixel          # this vacuum's map is not loaded yet
+    hass = _Hass(data={"robovac_mqtt": {"e": {"coordinators": [hal, blind]}}})
+
+    out = eufy_inmem_candidates(hass, _EUFY_IDS, device_id="SERIAL_BLIND")
+    assert [o for o, _, _ in out] == ["device"], "the shared bucket must not ride along"
+    got = _pose(out)
+    assert got["present"] is False and got["reason"] == "no_pose"
+    assert got.get("robot_pixel") != list(hal._robot_pixel), "must never answer with the neighbour"
+
+
+def test_msc5e_unknown_serial_degrades_to_the_unscoped_roots():
+    """[MSC-5e] a serial that matches nothing (provider renamed the attr, registry
+    mismatch) degrades to today's roots rather than to an empty list — a single-vacuum
+    install must not lose its map because the match failed."""
+    hass, hal, _ = _two_vacuums_one_entry()
+    out = eufy_inmem_candidates(hass, _EUFY_IDS, device_id="SERIAL_NOT_HERE")
+    assert [(o, k) for o, k, _ in out] == [("hass_data", "robovac_mqtt")]
+    assert _pixel(out) == list(hal._robot_pixel)
+
+
+def test_msc5f_declared_attr_names_are_honoured():
+    """[MSC-5f] the id attr is DECLARED, not hardcoded — a provider that calls it
+    something else is a config change, not a core change."""
+    class _Odd:
+        def __init__(self):
+            self.serial_no = "SERIAL_ODD"
+            self._robot_pixel, self._dock_pixel = (5, 5), (0, 0)
+
+    odd = _Odd()
+    hass = _Hass(data={"robovac_mqtt": {"e": {"coordinators": [_EufyCoord("OTHER", (1, 1), (2, 2)), odd]}}})
+    assert eufy_inmem_candidates(hass, _EUFY_IDS, device_id="SERIAL_ODD") != [("device", "SERIAL_ODD", odd)]
+    out = eufy_inmem_candidates(
+        hass, _EUFY_IDS, device_id="SERIAL_ODD", device_id_attrs=["serial_no"],
+    )
+    assert out[0][2] is odd
+
+
+def test_msc5g_raising_id_attr_degrades_to_a_non_match():
+    """[MSC-5g] a provider property that raises must not abort the search — the other
+    coordinators still get matched. These walks run ON THE EVENT LOOP inside the
+    dashboard snapshot, so a raise here would take the whole snapshot down."""
+    class _Boom:
+        @property
+        def device_id(self):
+            raise RuntimeError("provider internals")
+
+    hal = _EufyCoord("SERIAL_HAL", (10, 10), (1, 1))
+    hass = _Hass(data={"robovac_mqtt": {"e": {"coordinators": [_Boom(), hal]}}})
+    out = eufy_inmem_candidates(hass, _EUFY_IDS, device_id="SERIAL_HAL")
+    assert out[0][2] is hal
+
+
+def test_msc5h_the_coordinator_threads_the_serial_and_the_declared_attrs():
+    """[MSC-5h] REACHABILITY. eufy_inmem_candidates being correct buys nothing if the six
+    call sites don't hand it the vacuum — which is precisely the shape of the original
+    defect (`_read_inmem_pose` took `vacuum_entity_id` and used it only in a log line).
+
+    So: record what MapSourceCoordinator._inmem_candidates actually passes. Record rather
+    than raise — the pose path wraps its body in `except Exception`, so a raising stub
+    there is swallowed and proves nothing (docs/dev/12-map-source.md §1).
+    """
+    from custom_components.eufy_vacuum.mapping import map_source_coordinator as _c
+    from custom_components.eufy_vacuum.mapping import map_source_runtime as _r
+
+    declared = {
+        "identifier_domain": "robovac_mqtt",
+        "device_id_attrs": ["device_id"],
+        "memory": {"hass_data_domain": "robovac_mqtt"},
+    }
+    seen = {}
+
+    orig_cfg, orig_dev, orig_cand = (
+        _c._get_adapter_config, _r.device_identifier_value, _r.eufy_inmem_candidates,
+    )
+    _c._get_adapter_config = lambda vid: {"map_state_source": declared}
+    _r.device_identifier_value = lambda hass, vid, domain: (
+        "SERIAL_HAL" if domain == "robovac_mqtt" else None
+    )
+    _r.eufy_inmem_candidates = lambda hass, cfg, **kw: seen.update(cfg=cfg, **kw) or []
+    try:
+        coord = _c.MapSourceCoordinator(manager=type("M", (), {"hass": object()})())
+        coord._inmem_candidates("vacuum.hal", declared["memory"])
+    finally:
+        _c._get_adapter_config, _r.device_identifier_value, _r.eufy_inmem_candidates = (
+            orig_cfg, orig_dev, orig_cand,
+        )
+
+    assert seen.get("device_id") == "SERIAL_HAL", f"serial not threaded: {seen}"
+    assert list(seen.get("device_id_attrs") or []) == ["device_id"], (
+        f"the adapter's declared device_id_attrs never reached the collector: {seen}"
+    )
+
+
+def test_msc5i_the_eufy_adapter_declares_the_id_attrs():
+    """[MSC-5i] and the declaration exists where the coordinator reads it. Without it the
+    threading above is live but carries None, every install keeps the unscoped fallback,
+    and nothing goes red — a green suite over an unfixed bug.
+
+    The config is assembled inside ``register_eufy_adapter_for_vacuum`` (needs hass + a
+    live entity), so this reads the declaration from the adapter SOURCE. That is not a
+    proxy here: the thing under test IS a literal in that file, so the literal is the
+    artefact, not a stand-in for behaviour. [MSC-5h] covers the behaviour.
+    """
+    import ast
+    from pathlib import Path
+    import custom_components.eufy_vacuum.adapters.eufy.adapter as _a
+
+    tree = ast.parse(Path(_a.__file__).read_text(encoding="utf-8"))
+    blocks = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Dict)
+        and any(
+            isinstance(k, ast.Constant) and k.value == "identifier_domain"
+            for k in node.keys
+        )
+    ]
+    assert blocks, "no map_state_source-shaped dict found in the eufy adapter"
+    block = blocks[0]
+    keys = {k.value for k in block.keys if isinstance(k, ast.Constant)}
+    assert "device_id_attrs" in keys, (
+        "map_state_source.device_id_attrs is not declared — the six in-memory reads "
+        "would silently fall back to the unscoped, cross-vacuum roots (issue #77)"
+    )
+
+    attrs = dict(zip([k.value for k in block.keys], block.values))["device_id_attrs"]
+    assert [e.value for e in attrs.elts] == ["device_id"], (
+        "the declared attr must match EufyCleanCoordinator.device_id, which is also the "
+        "(robovac_mqtt, <serial>) registry identifier store_key already fills from. "
+        "It must ALSO equal map_source_runtime._DEFAULT_DEVICE_ID_ATTRS: the SECOND "
+        "scoping layer (eufy_mapdata_obj_from_candidates device_id filter) uses that "
+        "default and is not handed the declared names, so declaring anything else makes "
+        "layer 1 match and layer 2 refuse -- device_not_found, i.e. a vanished map. If "
+        "you are changing this, thread device_id_attrs into that locator too."
+    )
+    from custom_components.eufy_vacuum.mapping.map_source_runtime import (
+        _DEFAULT_DEVICE_ID_ATTRS,
+    )
+    assert tuple(e.value for e in attrs.elts) == _DEFAULT_DEVICE_ID_ATTRS, (
+        "the declaration and the second layer's default have diverged"
+    )
+
+    # One declaration, read from the parent — not duplicated into the two nested blocks
+    # the six reads pass as `cfg`, which would be a replica with nothing reconciling it.
+    for name in ("memory", "live_pose"):
+        nested = dict(zip([k.value for k in block.keys], block.values)).get(name)
+        if nested is None:
+            continue
+        nested_keys = {k.value for k in nested.keys if isinstance(k, ast.Constant)}
+        assert "device_id_attrs" not in nested_keys, (
+            f"device_id_attrs duplicated into {name} — it is read from the parent block"
+        )

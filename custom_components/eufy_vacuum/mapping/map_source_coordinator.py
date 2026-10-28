@@ -92,6 +92,56 @@ class MapSourceCoordinator:
         self._mem_rooms_cache: dict[str, dict[str, Any]] = {}
         self._live_pose_geom_cache: dict[str, dict[str, Any]] = {}
 
+    def _inmem_candidates(
+        self, vacuum_entity_id: str, cfg: dict[str, Any]
+    ) -> list[tuple[str, str, Any]]:
+        """Candidate roots for the in-memory read, SCOPED to this vacuum (issue #77).
+
+        The six in-memory reads below all had ``vacuum_entity_id`` in hand and dropped it,
+        so every one of them walked a provider bucket holding EVERY Eufy vacuum and took the
+        first match -- the same coordinator for all of them. Resolving the serial is written
+        once, here, rather than six times: the question is "which coordinator is this
+        vacuum's", and it has one answer.
+
+        The serial is the same device-registry identifier the storage path already keys on
+        (``eufy_store_path`` -> ``robovac_mqtt.<serial>``), via the same helper, so the two
+        paths cannot disagree about which vacuum they are reading.
+        """
+        from ..mapping import map_source_runtime as _msr
+
+        source_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("map_state_source")
+        device_id = None
+        attrs = None
+        if isinstance(source_cfg, dict):
+            domain = source_cfg.get("identifier_domain")
+            if domain:
+                device_id = _msr.device_identifier_value(
+                    self._manager.hass, vacuum_entity_id, domain
+                )
+            attrs = source_cfg.get("device_id_attrs")
+        return _msr.eufy_inmem_candidates(
+            self._manager.hass, cfg, device_id=device_id, device_id_attrs=attrs,
+        )
+
+    @staticmethod
+    def _scoped_device_id(candidates: list[tuple[str, str, Any]]) -> str | None:
+        """The serial a candidate list was SCOPED to, or None when it fell back.
+
+        ``eufy_mapdata_obj_from_candidates`` has carried a correct, tested ``device_id``
+        filter since RP-026 ([MSR-2o]) and no production call site ever passed it --
+        docs/dev/12-map-source.md listed exactly that under "common wrong assumptions"
+        while issue #77 was open in the field. Wiring it is a second, independent check on
+        the same object the scoping already picked.
+
+        It is passed ONLY when the scoping actually matched. Handing it down after a
+        fallback would turn "this provider does not expose a device id" into
+        ``device_not_found`` -- absent -- for single-vacuum installs that work today, which
+        is the one regression this whole change must not cause.
+        """
+        if candidates and candidates[0][0] == "device":
+            return candidates[0][1]
+        return None
+
     def _commit_result(
         self,
         vacuum_entity_id: str,
@@ -482,9 +532,9 @@ class MapSourceCoordinator:
                         return md
             elif backend == "storage" and isinstance(source_cfg.get("memory"), dict):
                 mem_cfg = source_cfg["memory"]
-                candidates = _msr.eufy_inmem_candidates(self._manager.hass, mem_cfg)
+                candidates = self._inmem_candidates(vacuum_entity_id, mem_cfg)
                 found = _msr.eufy_mapdata_obj_from_candidates(
-                    candidates,
+                    candidates, device_id=self._scoped_device_id(candidates),
                     mapdata_attrs=mem_cfg.get("mapdata_attrs"),
                     field_attrs=mem_cfg.get("field_attrs"),
                 )
@@ -529,12 +579,13 @@ class MapSourceCoordinator:
 
         mem_cfg = source_cfg.get("memory") or {}
         if present:
-            candidates = _msr.eufy_inmem_candidates(self._manager.hass, mem_cfg)
+            candidates = self._inmem_candidates(vacuum_entity_id, mem_cfg)
             # CHEAP locate: the raw MapData object + a version from the raw raster bytes, WITHOUT
             # the ~180 KB base64 conversion — so an unchanged map skips both the convert and the
             # per-room scan (only the BFS + a sha1 of the raw bytes run each refresh).
             mem = _msr.eufy_mapdata_obj_from_candidates(
-                candidates, mapdata_attrs=mem_cfg.get("mapdata_attrs"),
+                candidates, device_id=self._scoped_device_id(candidates),
+                mapdata_attrs=mem_cfg.get("mapdata_attrs"),
                 field_attrs=mem_cfg.get("field_attrs"),
             )
         else:
@@ -593,7 +644,7 @@ class MapSourceCoordinator:
         attr path isn't found — the deploy-and-discover signal). Never raises."""
         from ..mapping import map_source_runtime as _msr
 
-        candidates = _msr.eufy_inmem_candidates(self._manager.hass, live_cfg)
+        candidates = self._inmem_candidates(vacuum_entity_id, live_cfg)
         pose = _msr.eufy_live_pose_from_candidates(
             candidates,
             robot_attrs=live_cfg.get("robot_pixel_attrs"),
@@ -726,9 +777,10 @@ class MapSourceCoordinator:
             return {"present": False, "reason": "memory_not_configured"}
 
         # In-memory MapData (loop-safe).
-        candidates = _msr.eufy_inmem_candidates(self._manager.hass, mem_cfg)
+        candidates = self._inmem_candidates(vacuum_entity_id, mem_cfg)
         mem = _msr.eufy_mapdata_from_candidates(
-            candidates, mapdata_attrs=mem_cfg.get("mapdata_attrs"),
+            candidates, device_id=self._scoped_device_id(candidates),
+            mapdata_attrs=mem_cfg.get("mapdata_attrs"),
             field_attrs=mem_cfg.get("field_attrs"),
         )
         # .storage map_data (off-loop read).
@@ -850,9 +902,10 @@ class MapSourceCoordinator:
         from ..mapping.map_source import render_data_from_storage
         mem_cfg = source_cfg.get("memory")
         if isinstance(mem_cfg, dict):
-            candidates = _msr.eufy_inmem_candidates(self._manager.hass, mem_cfg)
+            candidates = self._inmem_candidates(vacuum_entity_id, mem_cfg)
             mem = _msr.eufy_mapdata_from_candidates(
-                candidates, mapdata_attrs=mem_cfg.get("mapdata_attrs"),
+                candidates, device_id=self._scoped_device_id(candidates),
+                mapdata_attrs=mem_cfg.get("mapdata_attrs"),
                 field_attrs=mem_cfg.get("field_attrs"),
             )
             if mem.get("present"):
@@ -894,9 +947,10 @@ class MapSourceCoordinator:
             # Memory-PRIMARY: the fork's in-memory _map_data (same dict shape, fresher).
             mem_cfg = source_cfg.get("memory")
             if isinstance(mem_cfg, dict):
-                candidates = _msr.eufy_inmem_candidates(self._manager.hass, mem_cfg)
+                candidates = self._inmem_candidates(vacuum_entity_id, mem_cfg)
                 mem = _msr.eufy_mapdata_from_candidates(
-                    candidates, mapdata_attrs=mem_cfg.get("mapdata_attrs"),
+                    candidates, device_id=self._scoped_device_id(candidates),
+                    mapdata_attrs=mem_cfg.get("mapdata_attrs"),
                     field_attrs=mem_cfg.get("field_attrs"),
                 )
                 if mem.get("present") and isinstance(mem.get("map_data"), dict):

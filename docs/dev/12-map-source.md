@@ -160,7 +160,52 @@ non-pair robot pixel with a valid dock resolves the robot to the dock.
 
 ---
 
-## 6. Common wrong assumptions
+## 6. Which vacuum is this? (the in-memory reads)
+
+The `.storage` read has been per-vacuum since the feature landed: `eufy_store_path` resolves
+the device-registry serial and opens `robovac_mqtt.<serial>`. The in-memory reads added the
+same day — a faster path in front of it — did not inherit that, and for four months every one
+of them answered from whichever coordinator the walk reached first.
+
+**The provider holds every vacuum in one place.** `hass.data["robovac_mqtt"][entry_id]` is
+`{"coordinators": [...]}` — a LIST per entry, and the bucket spans entries. So the unscoped
+roots contain the whole house, and the introspectors downstream stop at the first object
+carrying the attrs they want. With two Eufy vacuums the second showed the first's pose, rooms,
+raster and render data. **It never required a shared account**; the issue title says one, but
+the bucket is keyed by entry and the collector returned all of it.
+
+`map_state_source.device_id_attrs` names the coordinator's own id attr. Core matches it against
+the same registry serial `store_key` already fills from, so the memory and storage paths cannot
+disagree about which vacuum they are reading.
+
+Two independent checks, deliberately:
+
+| layer | what it does |
+|---|---|
+| `eufy_inmem_candidates(..., device_id=)` | returns the matching coordinator **alone** |
+| `eufy_mapdata_obj_from_candidates(..., device_id=)` | re-checks that the raster holder carries the same id |
+
+**The scoped root REPLACES the shared roots rather than preceding them.** The introspectors fall
+through on a miss, so leaving the bucket behind the scoped root would mean a vacuum whose own
+map is briefly absent silently inherits its neighbour's. Absent is the correct answer there, and
+the per-vacuum storage path behind it answers correctly anyway.
+
+**The fallback is load-bearing in the other direction.** No serial, or no coordinator carrying a
+matching one, degrades to the old unscoped roots — so a single-vacuum install, and any provider
+whose shape stops exposing the attr, behave exactly as before. The second-layer `device_id` is
+therefore passed **only when the scoping actually matched**; handing it down after a fallback
+would turn "this provider exposes no id" into `device_not_found`, i.e. absent, for installs that
+work today.
+
+> **Why it reached users.** This needs two Eufy vacuums. The development box has three — one
+> Eufy, one Roborock, one Dreame — so it cannot reproduce it at all, and no amount of testing
+> there would have surfaced it. Both sibling collectors took a per-vacuum discriminator from
+> the start (`roborock_candidates(image_entity_id=)`, `dreame_coordinator(vacuum_entity_id)`);
+> the Eufy one was the only one that did not.
+
+---
+
+## 7. Common wrong assumptions
 
 | assumption | actually |
 |---|---|
@@ -168,7 +213,7 @@ non-pair robot pixel with a valid dock resolves the robot to the dock.
 | functions marked pure and "never raises" are safe on the event loop | purity is not loop-safety. This unit contains an `O(width × height)` pure function |
 | the `present_requires_live_map_image` gate means the live map is working | it tests presence in the **state machine**. An `unavailable` entity still has a State object and passes |
 | an mtime cache hit re-applies the current pose, so a moving robot is never frozen | true of the **return value**, false of the **cache** — the hit branch mutates a shallow copy |
-| the multi-vacuum cross-contamination guard is closed | the `device_id` parameter exists and works; **no production call site passes it** |
+| ~~the multi-vacuum cross-contamination guard is closed~~ | **CLOSED 2026-10-27** (issue #77). It was true for four months: the `device_id` filter on `eufy_mapdata_obj_from_candidates` was correct and tested ([MSR-2o]) and **no call site passed it**, so the row sat here describing a live field defect as a curiosity. See §6 |
 | the render format `room_pixels_v1` is Eufy-specific, or the legacy `eufy_room_pixels_v1` key is dead | it is the card's **brand-agnostic** decoder name (both brands emit it), renamed to drop the brand word; the coordinator still **dual-accepts** the legacy `eufy_room_pixels_v1` for one release so a stored config isn't stranded |
 | the render-data candidate walk tries every root until one yields a usable render | it short-circuits on a partial success — an absent-marker dict is not `None` |
 

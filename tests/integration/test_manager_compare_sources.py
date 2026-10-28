@@ -55,11 +55,16 @@ def _register_source(hass, *, source_cfg):
 
 def _patch_helpers(monkeypatch, *, hass, mem_result,
                    store_path="/x/.storage/robovac_mqtt.SER",
-                   store_json=None, compare_sentinel=None, register=True):
+                   store_json=None, compare_sentinel=None, register=True,
+                   candidates=None):
     """Stub the four runtime locators + compare_map_data the method imports at call time.
 
     - ``eufy_inmem_candidates`` returns an opaque token (the method passes it straight
       through to ``eufy_mapdata_from_candidates`` — we just assert it was threaded).
+      Its ``device_id``/``device_id_attrs`` kwargs (issue #77, per-vacuum scoping) are
+      RECORDED rather than ignored: a stub that silently swallowed them would let a
+      caller stop passing the vacuum without anything here going red — which is the
+      exact shape of the original defect.
     - ``eufy_mapdata_from_candidates`` returns ``mem_result`` (the in-memory verdict).
     - ``eufy_store_path`` returns ``store_path`` (None disables the .storage read).
     - ``load_store_json`` returns ``store_json`` (the raw Store wrapper, off-loop).
@@ -74,14 +79,17 @@ def _patch_helpers(monkeypatch, *, hass, mem_result,
         _register_source(hass, source_cfg={"backend": "storage", "memory": _MEM_CFG})
     threaded: dict = {}
 
-    def _candidates(hass, mem_cfg):
+    def _candidates(hass, mem_cfg, *, device_id=None, device_id_attrs=None):
         threaded["candidates_mem_cfg"] = mem_cfg
-        return ["CAND"]
+        threaded["candidates_device_id"] = device_id
+        threaded["candidates_device_id_attrs"] = device_id_attrs
+        return ["CAND"] if candidates is None else candidates
 
-    def _mapdata(candidates, *, mapdata_attrs=None, field_attrs=None):
+    def _mapdata(candidates, *, mapdata_attrs=None, field_attrs=None, device_id=None):
         threaded["mapdata_candidates"] = candidates
         threaded["mapdata_attrs"] = mapdata_attrs
         threaded["field_attrs"] = field_attrs
+        threaded["mapdata_device_id"] = device_id
         return mem_result
 
     def _store_path(hass, vacuum_entity_id, source_cfg):
@@ -276,10 +284,10 @@ async def test_compare_runs_against_real_compare_map_data(hass, manager, monkeyp
     store_md = {"room_pixels": raster, "room_names": {"1": "Kitchen"}, **geom}
 
     # Patch only the locators/IO; leave compare_map_data REAL (compare_sentinel=None never used).
-    monkeypatch.setattr(_msr, "eufy_inmem_candidates", lambda hass, cfg: ["C"])
+    monkeypatch.setattr(_msr, "eufy_inmem_candidates", lambda hass, cfg, **kw: ["C"])
     monkeypatch.setattr(
         _msr, "eufy_mapdata_from_candidates",
-        lambda candidates, *, mapdata_attrs=None, field_attrs=None: {
+        lambda candidates, *, mapdata_attrs=None, field_attrs=None, device_id=None: {
             "present": True, "map_data": mem_md, "diagnostics": None},
     )
     monkeypatch.setattr(_msr, "eufy_store_path", lambda *a, **k: "/x/.storage/k")
@@ -319,3 +327,50 @@ async def test_memory_absent_storage_present_no_compare(hass, manager, monkeypat
     assert out["diagnostics"] == {"candidates": []}
     assert "compare" not in out                 # but compare needs BOTH sides
     assert "compare_args" not in threaded
+
+
+async def test_scoped_candidates_thread_the_serial_into_the_mapdata_read(
+    hass, manager, monkeypatch
+):
+    """[CMS-9] issue #77, SECOND LAYER. Once eufy_inmem_candidates has matched a vacuum it
+    returns ``[("device", <serial>, holder)]``, and the MapData locator's own ``device_id``
+    filter -- correct and tested since RP-026 ([MSR-2o]), and never once called with it --
+    must receive that serial.
+
+    ABLATION: drop ``device_id=self._scoped_device_id(candidates)`` from the five in-memory
+    MapData reads and this goes red. Nothing else in the suite does: verified by removing
+    all five, at which point 151 tests still passed. That silence is the whole reason the
+    parameter sat unwired through four releases.
+    """
+    scoped = [("device", "SERIAL_HAL", object())]
+    threaded = _patch_helpers(
+        monkeypatch, hass=hass, mem_result={"present": False, "reason": "x"},
+        store_path=None, candidates=scoped,
+    )
+
+    await manager.async_compare_map_sources(vacuum_entity_id=_VAC)
+
+    assert threaded["mapdata_candidates"] is scoped
+    assert threaded["mapdata_device_id"] == "SERIAL_HAL", (
+        "the scoped serial never reached the MapData locator -- its device_id filter is "
+        "inert again, which is exactly the state issue #77 was reported from"
+    )
+
+
+async def test_unscoped_candidates_pass_no_serial_down(hass, manager, monkeypatch):
+    """[CMS-10] and the other direction, which is the regression guard. When the scoping
+    FELL BACK (no serial, or no coordinator carrying a matching one) the locator must get
+    ``None``, not a serial -- handing one down after a fallback turns "this provider
+    exposes no device id" into ``device_not_found``, i.e. absent, for the single-vacuum
+    installs that work today."""
+    threaded = _patch_helpers(
+        monkeypatch, hass=hass, mem_result={"present": False, "reason": "x"},
+        store_path=None, candidates=[("hass_data", "robovac_mqtt", {"b": 1})],
+    )
+
+    await manager.async_compare_map_sources(vacuum_entity_id=_VAC)
+
+    assert threaded["mapdata_device_id"] is None, (
+        "an unscoped candidate list must not carry a serial down -- that would make a "
+        "working single-vacuum install resolve to device_not_found"
+    )
