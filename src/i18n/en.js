@@ -1467,6 +1467,26 @@ export const en = {
   "rooms.block_reason.confirmation_required": "Confirmation is required before starting this reduced run.",  // start warning: the reduced-run confirm flow.
   "rooms.block_reason.job_paused": "A tracked job is paused. Resume or cancel it before starting a new one.",  // start blocked: a paused job owns the vacuum.
   "rooms.block_reason.onboarding_required": "Finish setting up this map before starting a clean.",  // start blocked: onboarding (e.g. floor types) is incomplete.
+  // --- the BACKEND's start-protection codes. Everything above is either card-local
+  // (state/rooms.js) or an access-graph refusal; these twelve come from
+  // jobs/job_monitor.py::build_start_blocker_from_lifecycle and
+  // core/manager.py::get_start_status, and NOT ONE of them had a key — so the resolver
+  // worked, found nothing, and fell through to the backend's English sentence every time.
+  // The English here is the card's own wording, not a transcription of the backend's: the
+  // backend's `message` stays as the last-resort fallback for a code a release has never
+  // heard of, and a few of its phrasings are developer-facing (see invalid_payload).
+  "rooms.block_reason.no_target_map": "Select a target map first.",  // start blocked: no map is selected to clean
+  "rooms.block_reason.map_mismatch": "The selected map is not the one the vacuum is currently using.",  // start blocked: selected map != the vacuum's active map
+  "rooms.block_reason.no_rooms_selected": "Select at least one room first.",  // start blocked: the queue is empty
+  "rooms.block_reason.invalid_payload": "There is nothing to clean in this run.",  // start blocked: no phase of the plan cleans anything. The backend calls this an invalid payload, which is a developer's description of a run whose rooms are all blocked or disabled — this says what the user can act on.
+  "rooms.block_reason.mid_job_service": "The dock is servicing the current job. Cleaning continues when it finishes.",  // start blocked: mid-job dock service (emptying, washing) is in progress
+  "rooms.block_reason.active_job_running": "A room clean is already running.",  // start blocked: a tracked job owns the vacuum. Distinct from already_cleaning above, which is the card's own read of the vacuum's state.
+  "rooms.block_reason.vacuum_busy": "The vacuum is busy and cannot start a room clean yet.",  // start blocked: the vacuum is occupied by something other than a tracked job
+  "rooms.block_reason.dock_drying": "The dock is drying its mop pads. A clean can still start.",  // start WARNING, not a block — drying is not a job and can last hours
+  "rooms.block_reason.all_selected_rooms_blocked": "Every selected room is currently blocked.",  // start blocked: rooms are selected but each one is blocked by a rule or by access
+  "rooms.block_reason.not_enough_clean_water": "There is not enough clean water to finish the selected rooms.",  // start WARNING: the water estimate falls short of the planned job
+  "rooms.block_reason.low_clean_water_margin": "This run will leave very little clean water.",  // start WARNING: the job fits, but only just
+  "rooms.block_reason.blocked": "Start is blocked.",  // start blocked: the preflight's own generic fallback — same sentence as start_blocked above, which is the CARD's generic. Two codes, two producers, one wording.
   "rooms.block_reason.rule_blocked": "Blocked by a room rule.",  // per-room preflight reason CODE: a blocker rule matched but carries no user reason text
   "rooms.block_reason.access_blocked": "Blocked - the route to this room passes through a blocked room.",  // per-room preflight reason CODE: the room is unreachable because a room on its access path is blocked
   "rooms.blocked_fallback": "Blocked",

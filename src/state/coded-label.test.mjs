@@ -217,6 +217,66 @@ test("[CL-9] LIVE: a preflight warning code no longer renders as a raw identifie
   }
 });
 
+/**
+ * The backend's own start-protection codes, with the English sentence it sends alongside
+ * each one. The MESSAGE is what the user saw: the resolver worked, found no key, and fell
+ * through to it — in all 17 languages, for every one of these.
+ */
+const BACKEND_BLOCK_REASONS = [
+  ["no_target_map", "Select a target map first."],
+  ["map_mismatch", "The selected map does not match the vacuum's active map."],
+  ["no_rooms_selected", "Select at least one room first."],
+  ["invalid_payload", "Room-clean payload is missing or invalid."],
+  ["mid_job_service", "System is servicing the active job before cleaning continues."],
+  ["active_job_running", "A room-clean job is currently active."],
+  ["vacuum_busy", "Vacuum is busy and cannot start a new room job."],
+  ["dock_drying", "Dock is currently drying pads, but start is allowed."],
+  ["all_selected_rooms_blocked", "All selected rooms are currently blocked."],
+  ["blocked", "Start is blocked."],
+  ["not_enough_clean_water", "Not enough clean water is estimated to complete the selected job."],
+  ["low_clean_water_margin", "This job is estimated to leave very little clean water remaining."],
+];
+
+test("[CL-11] LIVE: the BACKEND's start-protection codes resolve to the card's sentence", () => {
+  // Fourteen `rooms.block_reason.*` keys existed before 2.5.3 and all fourteen were either
+  // card-local (state/rooms.js) or access-graph. Not one of these twelve had a key, so the
+  // backend's `message` won every time — and because the fallback is deliberate and
+  // correct, nothing anywhere went red.
+  // ⚠ NO `message` IS PASSED, and that is the whole design of this case. A first draft
+  // passed one and asserted the result differed from it — which fails on the four codes
+  // whose card wording deliberately MATCHES the backend's, because that wording was already
+  // good user-facing English and the key's job there is translation, not rewording. Without
+  // a message, a fall-through returns the CODE, so "not the code" means "the key resolved".
+  for (const [code] of BACKEND_BLOCK_REASONS) {
+    const label = resolveCodedLabel({ code }, BLOCK, {
+      prefixes: ["rooms.block_reason."],
+    });
+    assert.notEqual(label, code, `${code} has no key — it still renders as its own identifier`);
+    assert.ok(!label.includes("rooms.block_reason"), `${code} leaked a bare key`);
+    assert.ok(!label.includes("_"), `${code} -> ${label} still looks like a code`);
+  }
+  // tests/unit/test_block_reason_keys.py is the other half: it derives the code set by
+  // CALLING the producer, so a new branch cannot be added without a key. This half checks
+  // the join those keys sit in.
+});
+
+test("[CL-12] LIVE: and they are TRANSLATED, not merely present", () => {
+  // The whole point. A key that exists in en.js and nowhere else resolves to English and
+  // passes [CL-11] — so this reads a shipped non-English pack and requires the sentence to
+  // differ from the English one.
+  const de = packT("de");
+  for (const [code, message] of BACKEND_BLOCK_REASONS) {
+    const label = resolveCodedLabel({ code, message }, de, {
+      prefixes: ["rooms.block_reason."],
+    });
+    const english = resolveCodedLabel({ code, message }, BLOCK, {
+      prefixes: ["rooms.block_reason."],
+    });
+    assert.notEqual(label, message, `${code}: de fell through to the backend's English`);
+    assert.notEqual(label, english, `${code}: de holds the English sentence`);
+  }
+});
+
 test("[CL-10] LIVE: an unknown warning code still says something", () => {
   const label = resolveCodedLabel({ code: "reason_from_a_newer_backend" }, BLOCK, {
     prefixes: ["rooms.block_reason."],

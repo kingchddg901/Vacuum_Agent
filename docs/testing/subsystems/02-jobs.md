@@ -111,6 +111,26 @@ The whole module is pure, so coverage is near-total:
   lifecycle state plus the pre-checks (no map, map mismatch, empty queue,
   invalid payload) and the canned-message fallback.
 
+### `tests/unit/test_block_reason_keys.py` — a refusal the user can read (prefix `BRK`)
+
+A cross-language gate, because the two halves of this contract are in two languages: the
+backend emits a reason CODE, the card resolves it through `rooms.block_reason.<code>`, and
+the backend's English `message` is the last-resort fallback so a code a card release has
+never heard of still renders. That fallback is deliberate and correct, and it is why
+nothing went red while **none of the twelve codes this module and `get_start_status` emit
+had a key at all** — the resolver ran, missed, and printed English in all 17 languages.
+
+| case | what it holds |
+|---|---|
+| `BRK-1` | every reason `build_start_blocker_from_lifecycle` **returns** has a key. The set is EXECUTED, not listed: one call per branch, collecting what comes back. A hand-written list is a second copy of the ladder, and the census's own list of this sink's codes was already missing `blocked` — that is what the drift looks like before anyone notices. |
+| `BRK-2` | the mutation control, over the same function |
+| `BRK-3` | every reason literal in `get_start_status`, including the water pair, which reach `reason` through `water_reason or …` on the warning path. Scanned from that ONE function's source via `inspect.getsource`, not the module, which carries unrelated `reason` dicts (`override_off`, `no_dock_room`, …). |
+| `BRK-4` | the `_INFLIGHT_LIFECYCLE_STATES` are keyed — `_job_in_flight_reason` forwards the lifecycle STATE as the reason code, so each needs a block-reason *sentence*; the `vocab.lifecycle_state` word is the wrong register for a refusal |
+| `BRK-5` | the branches are actually distinct, and the blocked/warning split holds (`dock_drying` is a warning, `ready` is neither) — a gate over a ladder that always answers the same thing proves nothing |
+
+The card half is `[CL-11/12]` in `src/state/coded-label.test.mjs`: this file proves the keys
+exist for every code the producer can emit, that one proves the join renders them.
+
 ### `active_job.py` — active-job tracking (prefixes `AJ` unit, `AJI` integration)
 `active_job.py` is a 3,211-line file that is mostly the `ActiveJobTracker` class
 (starting line 231), bound to the manager and hass. Two layers:
