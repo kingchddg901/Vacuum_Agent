@@ -455,6 +455,9 @@
     "phase_context_title": "Сейчас шаг {step} из {total}",
     "phase_context_next": "Далее: {step}",
     "estimate_error": {
+      "learning_unavailable": "Обучение недоступно, поэтому оценить этот запуск нельзя.",
+      "battery_unavailable": "Не удалось прочитать уровень заряда, поэтому оценить этот запуск нельзя.",
+      "estimate_unavailable": "Оценка для этого запуска пока недоступна.",
       "estimate_failed": "Не удалось рассчитать оценку для этого запуска."
     }
   },

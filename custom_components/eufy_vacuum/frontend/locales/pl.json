@@ -1776,6 +1776,9 @@
     "phase_context_title": "Aktualnie krok {step} z {total}",
     "phase_context_next": "Następny: {step}",
     "estimate_error": {
+      "learning_unavailable": "Uczenie się jest niedostępne, więc nie można oszacować tego przebiegu.",
+      "battery_unavailable": "Brak odczytu poziomu baterii, więc nie można oszacować tego przebiegu.",
+      "estimate_unavailable": "Szacunek dla tego przebiegu nie jest jeszcze dostępny.",
       "estimate_failed": "Nie udało się obliczyć szacunku dla tego przebiegu."
     }
   },

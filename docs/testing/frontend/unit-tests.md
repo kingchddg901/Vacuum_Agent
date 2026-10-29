@@ -312,6 +312,19 @@ The frontend has three separate test tracks, none of them pytest:
    content only and nothing in that job writes either file, so their presence in CI *is*
    the proof.
 
+   `backend-sentence-vocab.test.mjs` `[EST-3]` is worth singling out for the same reason in
+   reverse. It drives the pre-job estimate panel's **renderer**, where `[EST-1]` beside it
+   re-implements the renderer's `resolveCodedLabel` call — and that is exactly why `[EST-1]`
+   stayed green while three codes rendered the backend's English in all 17 packs. The panel's
+   branch is entered by `estimate.error || estimate.available === false` and those three
+   arrive under `reason`, a field the renderer did not read, so `code` was undefined and
+   `coded-label.js` ranks `message` above its `genericKey`. Measured by reverting
+   `code: estimate.error || estimate.reason`: `[EST-3]` goes red, `[EST-1]` passes. **A test
+   of a resolver cannot see a wrong argument at the call site** — the census found five
+   helpers that were right with callers that were not, and this is the sixth. Its producer
+   half is `tests/unit/test_estimate_reason_keys.py` (`ERK-*`, documented in
+   [subsystems/06 — Learning](../subsystems/06-learning.md)).
+
    `scripts/check-animal-pr.test.mjs` `[APR-8/9/10]` cover the other end of the same
    change. `animals/index.json` is the one file under `animal-svg/` a community animal PR
    may touch, and it has to be: adding an animal necessarily updates the roster, so a gate

@@ -423,6 +423,9 @@
     "phase_context_title": "Actualmente en el paso {step} de {total}",
     "phase_context_next": "Siguiente: {step}",
     "estimate_error": {
+      "learning_unavailable": "El aprendizaje no está disponible, por lo que no se puede estimar esta ejecución.",
+      "battery_unavailable": "No se puede leer el nivel de batería, por lo que no se puede estimar esta ejecución.",
+      "estimate_unavailable": "Todavía no hay una estimación disponible para esta ejecución.",
       "estimate_failed": "No se pudo calcular la estimación para esta ejecución."
     }
   },

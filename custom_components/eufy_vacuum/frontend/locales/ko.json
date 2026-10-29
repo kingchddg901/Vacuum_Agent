@@ -2047,6 +2047,9 @@
     "phase_context_title": "현재 {total}단계 중 {step}단계",
     "phase_context_next": "다음: {step}",
     "estimate_error": {
+      "learning_unavailable": "학습을 사용할 수 없어 이 실행의 예상치를 계산할 수 없습니다.",
+      "battery_unavailable": "배터리 잔량을 읽을 수 없어 이 실행의 예상치를 계산할 수 없습니다.",
+      "estimate_unavailable": "이 실행의 예상치를 아직 사용할 수 없습니다.",
       "estimate_failed": "이 실행의 예상치를 계산할 수 없습니다."
     }
   },

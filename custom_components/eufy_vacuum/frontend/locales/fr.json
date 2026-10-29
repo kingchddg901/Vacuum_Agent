@@ -423,6 +423,9 @@
     "phase_context_title": "Étape {step} sur {total} en cours",
     "phase_context_next": "Suivant : {step}",
     "estimate_error": {
+      "learning_unavailable": "L'apprentissage est indisponible, ce lancement ne peut donc pas être estimé.",
+      "battery_unavailable": "Impossible de lire le niveau de batterie, ce lancement ne peut donc pas être estimé.",
+      "estimate_unavailable": "Aucune estimation n'est encore disponible pour ce lancement.",
       "estimate_failed": "L'estimation n'a pas pu être calculée pour ce lancement."
     }
   },

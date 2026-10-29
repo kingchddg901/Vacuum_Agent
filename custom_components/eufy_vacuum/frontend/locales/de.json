@@ -419,6 +419,9 @@
     "phase_context_title": "Aktuell Schritt {step} von {total}",
     "phase_context_next": "Weiter: {step}",
     "estimate_error": {
+      "learning_unavailable": "Lernen ist nicht verfügbar, daher ist für diesen Durchlauf keine Schätzung möglich.",
+      "battery_unavailable": "Der Akkustand kann nicht gelesen werden, daher ist für diesen Durchlauf keine Schätzung möglich.",
+      "estimate_unavailable": "Für diesen Durchlauf ist noch keine Schätzung verfügbar.",
       "estimate_failed": "Die Schätzung für diesen Durchlauf konnte nicht berechnet werden."
     }
   },

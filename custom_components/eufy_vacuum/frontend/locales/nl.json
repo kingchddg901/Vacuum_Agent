@@ -419,6 +419,9 @@
     "phase_context_title": "Momenteel bij stap {step} van {total}",
     "phase_context_next": "Volgende: {step}",
     "estimate_error": {
+      "learning_unavailable": "Leren is niet beschikbaar, dus deze run kan niet worden geschat.",
+      "battery_unavailable": "Het accuniveau kan niet worden gelezen, dus deze run kan niet worden geschat.",
+      "estimate_unavailable": "Er is nog geen schatting beschikbaar voor deze run.",
       "estimate_failed": "De schatting voor deze run kon niet worden berekend."
     }
   },

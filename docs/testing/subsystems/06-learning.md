@@ -131,6 +131,37 @@ non-numeric fallback. Grouped by function (no ID prefix).
 - **Estimator surface** (LE-18..LE-23): `estimate` error payload vs full result,
   `next_room`, `reanchor_timeline` offset/marking.
 
+### `tests/unit/test_estimate_reason_keys.py` — an unavailable estimate the user can read (prefix `ERK`)
+
+A cross-language gate, and the second instance of the shape `BRK` covers for start refusals
+([02 — Jobs](02-jobs.md)): the backend sends a machine code, the card resolves it through
+`learning.estimate_error.<code>`, and the backend's English `message` is the last-resort
+fallback. Here the defect was not an empty vocabulary but **the wrong FIELD**. The panel's
+branch is entered by `estimate.error || estimate.available === false`, and the three codes
+arriving on the second path are carried by `reason` — which the renderer did not read, so
+`code` was undefined for all of them and `coded-label.js` ranks `message` above its
+`genericKey`. All three rendered the backend's English in all 17 packs.
+
+The previous release added a key to this family for `estimate_failed`, and **that key's presence is why the
+sink read as covered**: it is emitted per ROOM by `manager.py`'s `room_entries` loop, which
+no surface renders, so it can never reach this panel. It is kept as the seam for when one
+does, and `ERK-5` pins that it must not be read as coverage.
+
+| case | what it holds |
+|---|---|
+| `ERK-1` | every reason `get_planned_job_estimate` can emit has a key (`ready` excepted — the available case renders a figure, not a sentence). The function needs a live hass so it cannot be executed the way `BRK-1` executes its ladder; it is sliced from its own `def` and walked as an **AST**, because the third code is the literal default inside `str(estimate.get("reason", "estimate_unavailable"))` — a shape no `"reason": "..."` pattern matches. The equivalent miss has happened here before: the census's start-blocker list was missing `blocked`, the default of `preflight.get("reason", "blocked")`. |
+| `ERK-2` | the mutation control for that detector — and it earned its place: the first version of the walk descended into `.get("reason", …)` collecting *every* argument, so it harvested the key name and demanded a `learning.estimate_error.reason` key |
+| `ERK-3` | the inner estimator declares no `reason` of its own, which is **what makes the default the whole set** rather than an open one. If it ever declares one, that value reaches the panel through the `.get` and is invisible to `ERK-1`, which slices the manager — so this fails and says to re-enumerate. |
+| `ERK-4` | the estimator's `error` set is exactly `{no_payload}` — each passes straight through `get_planned_job_estimate`'s `**estimate` spread onto `estimate.error` — and `no_payload` is deliberately NOT in this family: it keeps `learning.estimate_queue_first`, the one case with something for the user to DO |
+| `ERK-5` | `estimate_failed` stays keyed, still has a producer, and is not emitted by this panel's producer |
+
+The card half is `[EST-3]` in `src/renderers/backend-sentence-vocab.test.mjs`, and it drives
+the **renderer** rather than re-implementing its resolver call. That distinction is the whole
+reason it exists: `[EST-1]` re-implements the call, and **stays green against the shipped
+bug** — measured by reverting `code: estimate.error || estimate.reason` to `code:
+estimate.error`, which turns `[EST-3]` red and leaves `[EST-1]` passing. A test of a resolver
+cannot see a wrong argument at the call site.
+
 ### `history_store.py` — file-backed store + helpers
 `_vacuum_slug`, path construction, JSON read/write round-trips, completed-job
 build/save/load, jobs-index payloads, accuracy/room/job stats load, the

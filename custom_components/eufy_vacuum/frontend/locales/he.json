@@ -2116,6 +2116,9 @@
     "phase_context_title": "כעת בשלב {step} מתוך {total}",
     "phase_context_next": "הבא: {step}",
     "estimate_error": {
+      "learning_unavailable": "הלמידה אינה זמינה, ולכן לא ניתן לחשב הערכה לריצה זו.",
+      "battery_unavailable": "לא ניתן לקרוא את רמת הסוללה, ולכן לא ניתן לחשב הערכה לריצה זו.",
+      "estimate_unavailable": "אין עדיין הערכה זמינה לריצה זו.",
       "estimate_failed": "לא היה אפשר לחשב את ההערכה להרצה הזו."
     }
   },

@@ -2047,6 +2047,9 @@
     "phase_context_title": "目前第 {step} 步，共 {total} 步",
     "phase_context_next": "下一步：{step}",
     "estimate_error": {
+      "learning_unavailable": "學習功能無法使用，因此無法為本次執行計算預估值。",
+      "battery_unavailable": "無法讀取電量，因此無法為本次執行計算預估值。",
+      "estimate_unavailable": "本次執行目前尚無可用的預估。",
       "estimate_failed": "無法為本次執行計算預估值。"
     }
   },

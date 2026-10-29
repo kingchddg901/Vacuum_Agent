@@ -272,12 +272,30 @@ export function applyLearningRenderers(proto) {
                   first") in a way a generic failure is not. Everything else resolved to
                   the backend's English `message`/`error_detail`, with the CODE discarded;
                   it goes through the resolver now, with that message demoted to the
-                  fallback and `genericKey` catching a payload that carries neither. */""}
+                  fallback and `genericKey` catching a payload that carries neither.
+
+                  `error || reason`, AND THE SECOND HALF IS THE WHOLE POINT. This branch is
+                  entered by `estimate.error` OR `available === false`, and the three codes
+                  that actually arrive on the second path are carried by `reason`, not
+                  `error`: core/manager.get_planned_job_estimate returns
+                  `reason: "learning_unavailable" | "battery_unavailable"` from its two early
+                  guards, and otherwise
+                  `"ready" if available else str(estimate.get("reason", "estimate_unavailable"))`
+                  — where the inner estimator declares no `reason` at all, so that default is
+                  the only value it can take. Reading `error` alone left `code` undefined for
+                  all three, and coded-label.js ranks `message` above `genericKey`, so the
+                  backend's English sentence rendered in all 17 packs. `error` still leads:
+                  it is the more specific field, and a zone-only queue can carry
+                  `error: no_payload` with `reason: "ready"`.
+
+                  `estimate_failed` is in this family but cannot arrive HERE: its producer is
+                  learning/manager.py's per-room `room_entries` loop, and no surface renders
+                  those yet. It is kept as the seam for when one does. */""}
             ${estimate.error === "no_payload"
               ? this.t("learning.estimate_queue_first")
               : this.escapeHtml(resolveCodedLabel(
                   {
-                    code: estimate.error,
+                    code: estimate.error || estimate.reason,
                     message: estimate.message || estimate.error_detail || "",
                   },
                   (key, vars) => this.tRaw(key, vars),

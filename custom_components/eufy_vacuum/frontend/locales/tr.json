@@ -1776,6 +1776,9 @@
     "phase_context_title": "Şu anda {total} adımdan {step}. adım",
     "phase_context_next": "Sonraki: {step}",
     "estimate_error": {
+      "learning_unavailable": "Öğrenme kullanılamıyor, bu nedenle bu çalıştırma tahmin edilemiyor.",
+      "battery_unavailable": "Pil seviyesi okunamıyor, bu nedenle bu çalıştırma tahmin edilemiyor.",
+      "estimate_unavailable": "Bu çalıştırma için henüz bir tahmin mevcut değil.",
       "estimate_failed": "Bu çalıştırma için tahmin hesaplanamadı."
     }
   },

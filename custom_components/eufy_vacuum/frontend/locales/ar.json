@@ -2162,6 +2162,9 @@
     "phase_context_title": "الخطوة {step} من {total} حاليًا",
     "phase_context_next": "التالي: {step}",
     "estimate_error": {
+      "learning_unavailable": "التعلّم غير متاح، لذا لا يمكن حساب التقدير لهذه المهمة.",
+      "battery_unavailable": "تعذّرت قراءة مستوى البطارية، لذا لا يمكن حساب التقدير لهذه المهمة.",
+      "estimate_unavailable": "لا يوجد تقدير متاح لهذه المهمة بعد.",
       "estimate_failed": "لم يتمكن النظام من حساب التقدير لهذه المهمة."
     }
   },

@@ -490,10 +490,25 @@ export const en = {
   "learning.done_by": "done by {time}",  // projected whole-job finish clock time: 'done by {time}'
   "learning.estimate_queue_first": "Queue rooms first to see an estimate",
   "learning.estimate_unavailable_message": "Estimate unavailable.",
-  // The estimator's error CODES. `no_payload` keeps its own actionable sentence
+  // The estimate panel's unavailable CODES. `no_payload` keeps its own actionable sentence
   // (learning.estimate_queue_first) and is not in this family; this is for the rest, which
   // used to reach the user as the backend's English `message` with the code discarded.
-  "learning.estimate_error.estimate_failed": "The estimate could not be worked out for this run.",  // the estimator raised while building the figure
+  //
+  // ENUMERATED FROM THE PRODUCERS, not from the field name. The panel's branch is entered
+  // by `error` OR `available === false`, and the three codes below arrive on the second
+  // path under `reason` — which the renderer did not read, so all three rendered the
+  // backend's English in every pack. core/manager.get_planned_job_estimate is the only
+  // producer: two early guards, then `str(estimate.get("reason", "estimate_unavailable"))`
+  // over an inner estimator that declares no `reason`, which is what makes that default the
+  // third and last value rather than an open set.
+  "learning.estimate_error.learning_unavailable": "Learning is unavailable, so this run cannot be estimated.",  // backend: "Learning system is unavailable."
+  "learning.estimate_error.battery_unavailable": "The battery level cannot be read, so this run cannot be estimated.",  // backend: "Battery level is unavailable." — an unreadable battery is refused rather than treated as 0%
+  "learning.estimate_error.estimate_unavailable": "No estimate is available for this run yet.",  // backend: "Planned estimate unavailable." — the estimator gave no figure and no reason of its own
+  // NOT REACHABLE ON THAT PANEL, and kept deliberately: `estimate_failed` is emitted per
+  // ROOM by learning/manager.py's room_entries loop, and no surface renders those entries
+  // yet. The key is the prepared seam for when one does — so do not read its presence as
+  // evidence that the panel's codes were covered. They were not.
+  "learning.estimate_error.estimate_failed": "The estimate could not be worked out for this run.",  // per-ROOM: the estimator raised while building one room's figure
   "learning.estimate_unavailable_title": "Estimate unavailable",
   "learning.estimated_job_time": "Estimated Job Time",
   // EST-PHASE-1: shown INSTEAD of "Queue rooms first" while a stepped run is in

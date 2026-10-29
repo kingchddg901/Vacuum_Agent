@@ -2047,6 +2047,9 @@
     "phase_context_title": "当前第 {step} 步，共 {total} 步",
     "phase_context_next": "下一步：{step}",
     "estimate_error": {
+      "learning_unavailable": "学习不可用，因此无法为本次运行计算预估值。",
+      "battery_unavailable": "无法读取电池电量，因此无法为本次运行计算预估值。",
+      "estimate_unavailable": "本次运行尚无可用的预估。",
       "estimate_failed": "无法为本次运行计算预估值。"
     }
   },

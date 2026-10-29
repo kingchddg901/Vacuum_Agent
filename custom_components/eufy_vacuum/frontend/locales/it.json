@@ -421,6 +421,9 @@
     "phase_context_title": "Attualmente al passaggio {step} di {total}",
     "phase_context_next": "Successivo: {step}",
     "estimate_error": {
+      "learning_unavailable": "L'apprendimento non è disponibile, quindi non è possibile stimare questa esecuzione.",
+      "battery_unavailable": "Il livello della batteria non è leggibile, quindi non è possibile stimare questa esecuzione.",
+      "estimate_unavailable": "Nessuna stima ancora disponibile per questa esecuzione.",
       "estimate_failed": "Non è stato possibile calcolare la stima per questa esecuzione."
     }
   },

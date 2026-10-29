@@ -2047,6 +2047,9 @@
     "phase_context_title": "現在 {total} ステップ中 {step} 番目",
     "phase_context_next": "次: {step}",
     "estimate_error": {
+      "learning_unavailable": "学習が利用できないため、この実行の予測を算出できません。",
+      "battery_unavailable": "バッテリー残量を読み取れないため、この実行の予測を算出できません。",
+      "estimate_unavailable": "この実行の予測はまだ利用できません。",
       "estimate_failed": "この実行の推定値を算出できませんでした。"
     }
   },

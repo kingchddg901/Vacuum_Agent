@@ -1776,6 +1776,9 @@
     "phase_context_title": "Sedang di langkah {step} dari {total}",
     "phase_context_next": "Berikutnya: {step}",
     "estimate_error": {
+      "learning_unavailable": "Pembelajaran tidak tersedia, jadi proses ini tidak dapat diperkirakan.",
+      "battery_unavailable": "Tingkat baterai tidak dapat dibaca, jadi proses ini tidak dapat diperkirakan.",
+      "estimate_unavailable": "Belum ada perkiraan yang tersedia untuk proses ini.",
       "estimate_failed": "Perkiraan untuk proses ini tidak dapat dihitung."
     }
   },

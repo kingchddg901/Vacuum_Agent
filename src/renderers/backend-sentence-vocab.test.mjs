@@ -26,6 +26,8 @@
 //   [WAT-1] the water notice resolves its code; the backend sentence is demoted
 //   [EST-1] the estimate panel resolves `estimate_failed`, keeps `no_payload`'s own line
 //   [EST-2] …and a payload with neither code nor message still says something
+//   [EST-3] the RENDERER localizes the three codes the backend sends as `reason` — the
+//           case [EST-1] cannot see, because it re-implements the resolver call
 //   [REF-1] the three refusal codes resolve through the access-issue family
 //   [REF-2] and the binding passes those prefixes
 //   [OA-1] the rooms advisory renders the CARD's sentence, not the backend's
@@ -196,6 +198,64 @@ test("[EST-2] a payload with neither code nor message still says something", () 
     { prefixes: ["learning.estimate_error."], genericKey: "learning.estimate_unavailable_message" });
   assert.equal(out, DE["learning.estimate_unavailable_message"]);
   assert.ok(!out.includes("learning."), "never a bare key");
+});
+
+test("[EST-3] the panel localizes the codes the backend sends as `reason`", () => {
+  const h = makeHost();
+  // THIS DRIVES THE RENDERER, not a copy of its resolver call, and that is the whole point.
+  // [EST-1] above re-implements the expression — so it passed while the renderer read
+  // `code: estimate.error` alone and these three rendered English in all 17 packs. A test
+  // of the resolver cannot see a wrong argument at the call site; the census found five
+  // helpers that were right with callers that were not.
+  //
+  // Pre-run there is no live queue, so the phase-context line is empty and the unavailable
+  // copy is what renders. That is the state all three of these arise in.
+  h.renderLearningPhaseContext = () => "";
+
+  // Field for field from core/manager.get_planned_job_estimate: the two early guards, and
+  // the `str(estimate.get("reason", "estimate_unavailable"))` default over an inner
+  // estimator that declares no reason of its own.
+  const REAL = [
+    ["learning_unavailable", "Learning system is unavailable."],
+    ["battery_unavailable", "Battery level is unavailable."],
+    ["estimate_unavailable", "Planned estimate unavailable."],
+  ];
+  for (const [reason, message] of REAL) {
+    const html = h.renderLearningPreJobPanel({
+      dashboardPlannedJobEstimate: () => ({ available: false, reason, message }),
+      learningEstimate: () => null,
+    });
+    const key = `learning.estimate_error.${reason}`;
+    const want = h.escapeHtml(translate("de", key, undefined, { raw: true }));
+    // PRESENT **and** different, in that order. `notEqual` alone was a vacuity hole the
+    // ablation found: a MISSING pack value is `undefined`, which trivially differs from the
+    // English, and `translate` then falls back to English — so the test went green while
+    // asserting English against English. `assert.ok` is what makes the absence red.
+    assert.ok(DE[key], `${key} is missing from the de pack — this would assert English at itself`);
+    assert.notEqual(DE[key], enCatalog[key],
+      `${key} is not translated in de — the pack must carry it, or this asserts English`);
+    assert.ok(html.includes(want), `${reason}: expected the localized sentence, got: ${html.slice(0, 300)}`);
+    assert.ok(!html.includes(message),
+      `${reason}: the backend's English sentence reached the panel`);
+  }
+
+  // `no_payload` still takes its own actionable line, through the renderer this time.
+  const queued = h.renderLearningPreJobPanel({
+    dashboardPlannedJobEstimate: () => ({ error: "no_payload", error_detail: "No resolved rooms found." }),
+    learningEstimate: () => null,
+  });
+  assert.ok(queued.includes(h.escapeHtml(translate("de", "learning.estimate_queue_first", undefined, { raw: true }))));
+  assert.ok(!queued.includes("No resolved rooms found."), "the backend's detail must stay behind");
+
+  // And the deliberate fallback survives: a reason from a newer backend keeps its sentence
+  // rather than going blank or printing a bare key. Removing that would trade a localized
+  // panel for an empty one.
+  const future = h.renderLearningPreJobPanel({
+    dashboardPlannedJobEstimate: () => ({ available: false, reason: "thermal_throttled", message: "Backend prose." }),
+    learningEstimate: () => null,
+  });
+  assert.ok(future.includes("Backend prose."), "an unknown reason must still say something");
+  assert.ok(!future.includes("learning.estimate_error."), "never a bare key");
 });
 
 /* --------------------------------------------------------------- save refusal */
