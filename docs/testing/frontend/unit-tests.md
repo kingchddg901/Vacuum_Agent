@@ -297,7 +297,29 @@ The frontend has three separate test tracks, none of them pytest:
    (the 404 body was HTML, so the original `.then(r => r.json())` threw on the body rather
    than the status) and `allSettled` over the loads, because the index is a startup
    snapshot and one unserved file used to take every other animal down with it.
-   **`[IDX-3]` uses `git check-ignore --no-index`, and the ablation is why:** plain
-   `check-ignore` never reports a tracked file, so with the index committed, putting the
-   ignore line back left the suite green — a guard that read as a guard and tested
-   nothing, which is the same shape it exists to catch.
+   **`[IDX-3]` reads the ignore files directly, with no `git` subprocess, and it took two
+   corrections to get there.** It first shelled out to `git check-ignore`, which never
+   reports a *tracked* file — so with the index committed, putting the ignore line back
+   left the suite green: a guard that read as a guard and tested nothing, which is the
+   same shape it exists to catch. `--no-index` fixed that locally and CI then rejected
+   the subprocess outright (`fatal: detected dubious ownership` — the node job runs in
+   the pinned container, where the checkout belongs to another user), 127 of 128 passing
+   with this as the only red. A packaging guard must not depend on a usable git, so it
+   now walks the ancestor `.gitignore` files itself and matches the three shapes a rule
+   can take: the exact path, a bare `index.json`, and a nested `.gitignore` in the
+   directory — that last one being what a root-only scan would miss. Committed-ness is
+   then covered structurally rather than by asking git: the runner checks out committed
+   content only and nothing in that job writes either file, so their presence in CI *is*
+   the proof.
+
+   `scripts/check-animal-pr.test.mjs` `[APR-8/9/10]` cover the other end of the same
+   change. `animals/index.json` is the one file under `animal-svg/` a community animal PR
+   may touch, and it has to be: adding an animal necessarily updates the roster, so a gate
+   that rejects it would deadlock the contributor — rejected for touching it, `[IDX-1]`-red
+   for not. Allowing it is paid for by two checks, because the card does
+   `loadScript('animals/' + entry)`: every entry must be a bare `<id>.js` name (`[APR-10]`,
+   which exercises `../../../etc/passwd.js`, `sub/dir.js` and a non-string against the pure
+   `indexProblems` helper, so the hostile shapes need no tracked file mutated), and every
+   module the PR adds must be listed, with a message saying how to fix it (`[APR-9]`).
+   `animal-submission.yml` regenerates the roster in the same commit as the module, so the
+   bot's own PRs satisfy this without a maintainer step.

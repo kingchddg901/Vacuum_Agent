@@ -14,7 +14,12 @@
  * For every changed descriptor: validate (community vs first-party), confirm the
  * committed SVG is already sanitised, and require the committed animals/<id>.js
  * to be its faithful codegen. Framework files (animal-svg.js, manifest.js, …)
- * may not change. A changed .js with no descriptor is an orphan. Whether a
+ * may not change — with ONE exception, animals/index.json, the served roster: it
+ * is tracked (it has to be in the release zip) so adding an animal necessarily
+ * updates it, and a PR that cannot touch it cannot be made to pass. Allowing it
+ * comes with two checks, because the card loads `animals/<entry>` for each entry:
+ * every entry must be a bare `<id>.js` name, and every animal the PR adds must be
+ * listed. A changed .js with no descriptor is an orphan. Whether a
  * first-party/reserved change is *legitimate* is the maintainer's call on merge;
  * this gate guarantees no arbitrary code (every .js is codegen of a sanitised
  * descriptor) + no framework edits.
@@ -35,11 +40,55 @@ const SRC_RE = /^custom_components\/eufy_vacuum\/frontend\/animal-svg\/src\/([a-
 const ANIMAL_JS_RE = /^custom_components\/eufy_vacuum\/frontend\/animal-svg\/animals\/([a-z0-9-]+)\.js$/;
 const ANIMAL_SVG_DIR = "custom_components/eufy_vacuum/frontend/animal-svg/";
 
+// The served roster. It is TRACKED (it has to be in the release zip, or the card's
+// fetch of it 404s until the next HA restart — see .gitignore's note), and adding an
+// animal therefore means updating it. So a PR must be ALLOWED to touch this one file
+// under animal-svg/, where everything else is framework and off-limits.
+//
+// Allowing it is only safe with the two checks below, because the card does
+// `loadScript('animals/' + entry)` over whatever this file says: an entry containing a
+// path separator would load an arbitrary served file. Entries must be bare `<id>.js`
+// names, and every animal the PR adds must actually be listed.
+const ANIMAL_INDEX = ANIMAL_SVG_DIR + "animals/index.json";
+const INDEX_ENTRY_RE = /^[a-z0-9-]+\.js$/;
+
 // Compare codegen against the committed module by CONTENT, not line endings:
 // codegen emits LF, but a Windows checkout (no .gitattributes) may hold the
 // committed .js as CRLF. Stripping CR keeps the tamper-check honest there —
 // real tampering changes content, which survives this normalization.
 const codeEq = (a, b) => a.replace(/\r/g, "").trim() === b.replace(/\r/g, "").trim();
+
+/**
+ * Problems with the served roster's CONTENT. Pure and exported so the hostile cases can
+ * be tested directly — the caller reads the real file from disk, and a test that had to
+ * mutate a tracked file to reach these branches would not get written.
+ *
+ * @param {unknown} listed     parsed animals/index.json
+ * @param {string[]} requiredIds animal ids the PR adds, which the index must name
+ * @returns {string[]}
+ */
+export function indexProblems(listed, requiredIds = []) {
+  if (!Array.isArray(listed)) {
+    return ["animals/index.json must be a JSON array of `<id>.js` filenames."];
+  }
+  const problems = [];
+  const bad = listed.filter((e) => typeof e !== "string" || !INDEX_ENTRY_RE.test(e));
+  if (bad.length) {
+    problems.push(
+      `animals/index.json has entries that are not bare \`<id>.js\` names: ` +
+      `${bad.map((e) => JSON.stringify(e)).join(", ")} — the card loads each as ` +
+      `\`animals/<entry>\`, so a path there would load an arbitrary served file.`);
+  }
+  for (const id of requiredIds) {
+    if (!listed.includes(`${id}.js`)) {
+      problems.push(
+        `animals/${id}.js is not listed in animals/index.json — regenerate it (the sorted ` +
+        `list of \`*.js\` in that directory) and commit it, or the card will not load this ` +
+        `animal until Home Assistant restarts.`);
+    }
+  }
+  return problems;
+}
 
 /**
  * @param {string[]} changed  file paths the PR changes (repo-relative, /-separated)
@@ -59,10 +108,26 @@ export async function checkAnimalPr(changed) {
       changedJsIds.add(f.match(ANIMAL_JS_RE)[1]);
       continue;
     }
-    if (GALLERY_RE.test(f) || SRC_RE.test(f)) continue;
+    if (GALLERY_RE.test(f) || SRC_RE.test(f) || f === ANIMAL_INDEX) continue;
     if (f.startsWith(ANIMAL_SVG_DIR)) {
       problems.push(`PR modifies the animal-svg framework (not allowed for an animal submission): ${f}`);
     }
+  }
+
+  // 1b. The served roster must stay loadable, and must list what the PR adds.
+  //     Checked against the file ON DISK rather than the changed-file list, so it holds
+  //     whether or not the PR touched it — a module added without the index being
+  //     updated is the deadlock this exists to make actionable: the card would not load
+  //     the new animal until the next HA restart, and `served-indexes.test.mjs` [IDX-1]
+  //     would fail the PR with no hint of what to do about it.
+  if (changedJsIds.size || files.includes(ANIMAL_INDEX)) {
+    let listed = null;
+    try {
+      listed = JSON.parse(readFileSync(resolve(ANIMALS_DIR, "index.json"), "utf8"));
+    } catch (e) {
+      problems.push(`animals/index.json is missing or unreadable (${e.message}) — it is tracked and must stay valid JSON.`);
+    }
+    if (listed !== null) problems.push(...indexProblems(listed, [...changedJsIds]));
   }
 
   // 2. Validate + sanitise-check + tamper-check each changed descriptor.

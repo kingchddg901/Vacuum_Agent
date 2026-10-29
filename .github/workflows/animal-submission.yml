@@ -62,9 +62,18 @@ jobs:
 
             fs.mkdirSync("gallery/animals", { recursive: true });
             fs.writeFileSync(`gallery/animals/${result.slug}.json`, JSON.stringify(result.envelope, null, 2) + "\n");
+            const animalsDir = "custom_components/eufy_vacuum/frontend/animal-svg/animals";
+            fs.writeFileSync(`${animalsDir}/${result.slug}.js`, result.moduleJs);
+
+            // Refresh the served roster in the same commit. It is TRACKED because it has
+            // to be in the release zip — an ignored one 404'd after every card-only HACS
+            // update and the mascot stayed absent until the next restart. Home Assistant
+            // rewrites it at startup, but a PR that adds a module and leaves it stale
+            // fails served-indexes.test.mjs [IDX-1], and the contributor cannot fix that
+            // themselves. Same rule as __init__.py's generator: sorted *.js, nothing else.
             fs.writeFileSync(
-              `custom_components/eufy_vacuum/frontend/animal-svg/animals/${result.slug}.js`,
-              result.moduleJs,
+              `${animalsDir}/index.json`,
+              JSON.stringify(fs.readdirSync(animalsDir).filter((f) => f.endsWith(".js")).sort()),
             );
             fs.writeFileSync(path.join(process.env.RUNNER_TEMP, "animal-report.md"), result.report);
             core.setOutput("ok", "true");
@@ -100,6 +109,11 @@ jobs:
             const previewBranch = "gallery-previews";
             const jsonPath = `gallery/animals/${slug}.json`;
             const jsPath = `custom_components/eufy_vacuum/frontend/animal-svg/animals/${slug}.js`;
+            // The served roster, refreshed by the intake step above. It must land in the
+            // SAME commit as the module: a module with a stale index fails
+            // served-indexes.test.mjs [IDX-1] on the PR, and the contributor has no way
+            // to fix that from their side.
+            const indexPath = "custom_components/eufy_vacuum/frontend/animal-svg/animals/index.json";
             try {
               const base = (await github.rest.repos.get({ owner, repo })).data.default_branch;
               const sha = (await github.rest.git.getRef({ owner, repo, ref: `heads/${base}` })).data.object.sha;
@@ -112,8 +126,8 @@ jobs:
                 await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha });
               }
 
-              // Create or update both artifacts on the branch.
-              for (const p of [jsonPath, jsPath]) {
+              // Create or update every artifact on the branch.
+              for (const p of [jsonPath, jsPath, indexPath]) {
                 let fileSha;
                 try { fileSha = (await github.rest.repos.getContent({ owner, repo, path: p, ref: branch })).data.sha; } catch {}
                 await github.rest.repos.createOrUpdateFileContents({

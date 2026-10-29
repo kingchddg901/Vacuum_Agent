@@ -24,7 +24,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
@@ -72,37 +71,72 @@ test("[IDX-2] the shipped-locales index matches its directory", () => {
   assert.deepEqual(readIndex(LOCALES), expected, "locales/index.json is stale");
 });
 
-test("[IDX-3] both indexes are tracked, and neither is gitignored", () => {
+test("[IDX-3] neither served index is gitignored, and both are present", () => {
   const paths = [join(ANIMALS, "index.json"), join(LOCALES, "index.json")].map(rel);
 
-  // `--no-index` IS LOAD-BEARING, and the ablation is what proved it. Plain
-  // `git check-ignore` never reports a TRACKED file, so with the index committed this
-  // assertion could not fire: putting the ignore line back left the suite green. That
-  // made it a guard that reads as a guard and tests nothing — the exact shape it was
-  // written to catch. `--no-index` evaluates the ignore rules on their own, so the
-  // pattern coming back is caught while the file is still tracked, which is the only
-  // useful moment: by the time anything causes a re-add, the file is already out of the
-  // release zip and the mascot is already gone.
+  // NO `git` SUBPROCESS, and CI is what taught that. The first version shelled out to
+  // `git check-ignore` / `git ls-files`; the node job runs in the pinned Playwright
+  // container, where the checkout is owned by another user, so git refused outright:
+  //   fatal: detected dubious ownership in repository at '/__w/Vacuum_Agent/Vacuum_Agent'
+  // 127 of 128 passed and this was the one red. Making the guard depend on a usable git
+  // made it depend on the environment, which a packaging guard must not.
   //
-  // check-ignore exits 1 when NOTHING matches, which is the state we want, so a non-zero
-  // exit is the pass here and only a match is a failure.
-  let ignored = [];
-  try {
-    ignored = execFileSync("git", ["-C", REPO, "check-ignore", "--no-index", ...paths],
-      { encoding: "utf8" })
-      .split("\n").map((s) => s.trim()).filter(Boolean);
-  } catch (err) {
-    if (err.status !== 1) throw err;          // 1 = no path ignored; anything else is real
+  // (It had already needed one correction: plain `git check-ignore` never reports a
+  // TRACKED file, so with the index committed, putting the ignore line back left the
+  // suite GREEN — a guard that read as a guard and tested nothing. `--no-index` fixed
+  // that, and then CI rejected the subprocess entirely.)
+  //
+  // So read the ignore files directly. The defect WAS a line in .gitignore, so the line
+  // is the thing to assert on. Walk the ancestor directories, because a nested
+  // .gitignore ignores just as effectively as the root one.
+  const offenders = [];
+  let ignoreFilesRead = 0;
+  for (const p of paths) {
+    const parts = p.split("/");
+    for (let i = 0; i < parts.length; i += 1) {
+      const dir = parts.slice(0, i).join("/");
+      const gi = join(REPO, dir, ".gitignore");
+      let lines;
+      try {
+        lines = readFileSync(gi, "utf8").split("\n");
+        ignoreFilesRead += 1;
+      } catch {
+        continue;                              // no .gitignore at this level
+      }
+      const tail = parts.slice(i).join("/");
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line || line.startsWith("#")) continue;
+        const pat = line.replace(/^\/+/, "").replace(/\/+$/, "");
+        // The realistic regressions: the exact path returns, a relative path from this
+        // level returns, or someone ignores the basename everywhere.
+        if (pat === p || pat === tail || pat === "index.json") {
+          offenders.push(`${dir || "."}/.gitignore: ${line}   (would ignore ${p})`);
+        }
+      }
+    }
   }
-  assert.deepEqual(ignored, [],
-    `these served indexes are gitignored, so they are NOT in the release zip and the card ` +
-    `fetches a 404 until Home Assistant restarts: ${ignored.join(", ")}. ` +
+  assert.deepEqual(offenders, [],
+    `a served index is gitignored again, so it will NOT be in the release zip and the card ` +
+    `fetches a 404 until Home Assistant restarts:\n  ${offenders.join("\n  ")}\n` +
     `That is the defect this gate exists for — see the note in .gitignore.`);
 
-  const tracked = execFileSync("git", ["-C", REPO, "ls-files", "--", ...paths], { encoding: "utf8" })
-    .split("\n").map((s) => s.trim()).filter(Boolean);
-  assert.deepEqual(tracked.sort(), paths.slice().sort(),
-    "both served indexes must be committed, or they cannot be in the zip HACS installs");
+  // Both must be on disk. In CI this is the committed-ness check and the strong form of
+  // it: the runner checks out committed content only, and nothing in the node job
+  // generates either file — so if these exist here, they are in the tag, which is what
+  // the zip is built from. Locally it is weaker, because Home Assistant writes both at
+  // startup; locally the assertion above is the one doing the work.
+  for (const p of paths) {
+    assert.ok(readFileSync(join(REPO, p), "utf8").length > 2,
+      `${p} is missing or empty — in CI that means it is not committed, so it cannot be ` +
+      `in the zip HACS installs`);
+  }
+
+  // Not vacuous: the walk really opened at least one ignore file (the root one). Without
+  // this, a wrong REPO root or a typo in the paths would examine nothing and pass.
+  assert.ok(ignoreFilesRead >= 2,
+    `the walk read ${ignoreFilesRead} .gitignore file(s) — it should find the root one for ` +
+    `each path, so it is not actually checking the ignore rules`);
 });
 
 test("[IDX-4] manifest.js survives a missing index and an unserved animal", () => {

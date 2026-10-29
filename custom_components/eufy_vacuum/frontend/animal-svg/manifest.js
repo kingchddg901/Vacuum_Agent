@@ -51,7 +51,17 @@ await loadScript('animal-svg.js');
 const index = await fetch(new URL('animals/index.json', BASE).href)
   .then(r => (r.ok ? r.json() : null))
   .catch(() => null);
-const animalFiles = Array.isArray(index) ? index.filter(f => typeof f === 'string') : [];
+// Bare `<id>.js` names only. Each entry is interpolated into `animals/<entry>` below, so
+// an entry carrying a path separator would load an arbitrary served file — and this index
+// is one of the few paths a community animal PR is allowed to touch, which is precisely
+// why the shape is enforced here as well as in that PR gate.
+const animalFiles = Array.isArray(index)
+  ? index.filter(f => typeof f === 'string' && /^[a-z0-9-]+\.js$/.test(f))
+  : [];
+if (Array.isArray(index) && index.length !== animalFiles.length) {
+  console.warn('[animal-svg] ignored ' + (index.length - animalFiles.length) +
+    ' index entr(y/ies) that are not bare "<id>.js" names');
+}
 if (!animalFiles.length) {
   console.warn('[animal-svg] animals/index.json missing, empty or unreadable — no animals loaded');
 }
