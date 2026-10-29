@@ -1300,7 +1300,7 @@
     "estimate_error": {
       "learning_unavailable": "Learning is unavailable, so this run cannot be estimated.",  // backend: "Learning system is unavailable."
       "battery_unavailable": "The battery level cannot be read, so this run cannot be estimated.",  // backend: "Battery level is unavailable." — an unreadable battery is refused rather than treated as 0%
-      "estimate_unavailable": "No estimate is available for this run yet.",  // backend: "Planned estimate unavailable." — the estimator gave no figure and no reason of its own
+      "estimate_unavailable": "No estimate is available for this run yet.",  // backend: "Planned estimate unavailable."
       "estimate_failed": "The estimate could not be worked out for this run."  // per-ROOM: the estimator raised while building one room's figure
     },
     "estimate_unavailable_title": "Estimate unavailable",

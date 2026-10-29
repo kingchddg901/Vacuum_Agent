@@ -32,6 +32,12 @@ Coverage targets
         family: it has its own actionable sentence.
 [ERK-5] ``estimate_failed`` is kept although this producer cannot emit it, and its presence
         must not be read as covering the panel.
+[ERK-6] ``estimate_unavailable`` is PREPARED, not a fixed defect. Its literal is real, which
+        is why [ERK-1] requires a key for it — but no path reaches it today, and I described
+        it as a third live defect on the strength of the literal alone. Enumerating a
+        producer's literals is not the same as establishing reachability; conflating the two
+        is exactly what made ``estimate_failed`` look like coverage. This pins each clause of
+        the unreachability argument so the key going live is visible rather than silent.
 """
 
 from __future__ import annotations
@@ -218,3 +224,68 @@ def test_erk_5_estimate_failed_is_kept_but_proves_nothing() -> None:
     # And the panel's own producer cannot emit it, which is the whole point.
     assert "estimate_failed" not in _reasons_in(core_manager.EufyVacuumManager.get_planned_job_estimate)
     assert "estimate_failed" not in _errors_in(core_manager.EufyVacuumManager.get_planned_job_estimate)
+
+
+def test_erk_6_estimate_unavailable_is_prepared_not_live() -> None:
+    """[ERK-6] the reachability half, which enumerating the literals does not give you.
+
+    ``estimate_unavailable`` is a real literal in `get_planned_job_estimate` — [ERK-1]
+    requires a key for it and should. But no path reaches it today, and the key was briefly
+    described as a third fixed defect on the strength of the literal alone. That is the same
+    conflation that made ``estimate_failed`` look like coverage, so it gets a gate rather
+    than a comment.
+
+    The argument, which this pins so it cannot rot silently:
+      * `available = can_run_now or has_zone_time`, and the manager reads
+        ``bool(estimate.get("can_run_now", False))``;
+      * EVERY return of `estimator.estimate` sets `can_run_now`, so that default never fires;
+      * the only return that sets it False also carries ``error: "no_payload"``;
+      * and the panel short-circuits `no_payload` to its own actionable sentence BEFORE the
+        resolver, so `reason` is never consulted on that path.
+
+    If any clause stops holding, the key becomes live and this fails — which is the useful
+    moment to know, because the sentence is then being shown to someone.
+    """
+    tree = ast.parse(inspect.getsource(learning_estimator))
+    fns = [n for n in ast.walk(tree)
+           if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "estimate"]
+    assert len(fns) == 1
+
+    returns = [n for n in ast.walk(fns[0]) if isinstance(n, ast.Return)]
+    dict_returns = [r for r in returns if isinstance(r.value, ast.Dict)]
+    assert len(dict_returns) == len(returns) >= 2, (
+        f"`estimator.estimate` has {len(returns)} return(s), {len(dict_returns)} of them dict "
+        "literals — a non-literal return cannot be read here, so re-establish by hand whether "
+        "`can_run_now` is always set before trusting this gate"
+    )
+
+    for r in dict_returns:
+        keys = {k.value for k, _ in zip(r.value.keys, r.value.values)
+                if isinstance(k, ast.Constant)}
+        assert "can_run_now" in keys, (
+            f"the return at line {r.lineno} does not set `can_run_now`, so the manager's "
+            "`.get(\"can_run_now\", False)` now defaults to False — `available` can be false "
+            "with no error, and learning.estimate_error.estimate_unavailable IS NOW LIVE. "
+            "Check it reads well and say so in en.js."
+        )
+        false_can_run = any(
+            isinstance(k, ast.Constant) and k.value == "can_run_now"
+            and isinstance(v, ast.Constant) and v.value is False
+            for k, v in zip(r.value.keys, r.value.values)
+        )
+        if false_can_run:
+            errors = {v.value for k, v in zip(r.value.keys, r.value.values)
+                      if isinstance(k, ast.Constant) and k.value == "error"
+                      and isinstance(v, ast.Constant)}
+            assert errors == {"no_payload"}, (
+                f"the return at line {r.lineno} sets can_run_now False with error={errors or 'none'}. "
+                "Anything other than exactly no_payload reaches the panel with `available` false "
+                "and no short-circuit, so learning.estimate_error.estimate_unavailable IS NOW LIVE."
+            )
+
+    # The short-circuit itself, which is the last clause of the argument.
+    renderer = (REPO / "src" / "renderers" / "learning.js").read_text(encoding="utf-8")
+    assert 'estimate.error === "no_payload"' in renderer, (
+        "the renderer no longer short-circuits no_payload before the resolver — that path now "
+        "reaches `reason`, so estimate_unavailable is live"
+    )

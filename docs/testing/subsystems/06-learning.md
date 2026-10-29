@@ -140,7 +140,8 @@ fallback. Here the defect was not an empty vocabulary but **the wrong FIELD**. T
 branch is entered by `estimate.error || estimate.available === false`, and the three codes
 arriving on the second path are carried by `reason` — which the renderer did not read, so
 `code` was undefined for all of them and `coded-label.js` ranks `message` above its
-`genericKey`. All three rendered the backend's English in all 17 packs.
+`genericKey`. Two of the three rendered the backend's English in all 17 packs; the third is a
+PREPARED key rather than a fixed defect — see `ERK-6`.
 
 The previous release added a key to this family for `estimate_failed`, and **that key's presence is why the
 sink read as covered**: it is emitted per ROOM by `manager.py`'s `room_entries` loop, which
@@ -154,6 +155,7 @@ does, and `ERK-5` pins that it must not be read as coverage.
 | `ERK-3` | the inner estimator declares no `reason` of its own, which is **what makes the default the whole set** rather than an open one. If it ever declares one, that value reaches the panel through the `.get` and is invisible to `ERK-1`, which slices the manager — so this fails and says to re-enumerate. |
 | `ERK-4` | the estimator's `error` set is exactly `{no_payload}` — each passes straight through `get_planned_job_estimate`'s `**estimate` spread onto `estimate.error` — and `no_payload` is deliberately NOT in this family: it keeps `learning.estimate_queue_first`, the one case with something for the user to DO |
 | `ERK-5` | `estimate_failed` stays keyed, still has a producer, and is not emitted by this panel's producer |
+| `ERK-6` | `estimate_unavailable` is PREPARED, not live. Its literal is real, so `ERK-1` requires a key — but `available` can only go false through the one estimator return that *also* sets `error: "no_payload"`, which the renderer short-circuits before the resolver. Every clause of that argument is pinned: each return sets `can_run_now`, the False one carries exactly `no_payload`, and the short-circuit exists. **Enumerating a producer's literals is not the same as establishing reachability** — I called this a third fixed defect on the strength of the literal alone, which is the identical conflation that made `estimate_failed` read as coverage one release earlier. |
 
 The card half is `[EST-3]` in `src/renderers/backend-sentence-vocab.test.mjs`, and it drives
 the **renderer** rather than re-implementing its resolver call. That distinction is the whole

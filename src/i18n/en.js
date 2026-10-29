@@ -495,15 +495,26 @@ export const en = {
   // used to reach the user as the backend's English `message` with the code discarded.
   //
   // ENUMERATED FROM THE PRODUCERS, not from the field name. The panel's branch is entered
-  // by `error` OR `available === false`, and the three codes below arrive on the second
-  // path under `reason` — which the renderer did not read, so all three rendered the
-  // backend's English in every pack. core/manager.get_planned_job_estimate is the only
-  // producer: two early guards, then `str(estimate.get("reason", "estimate_unavailable"))`
-  // over an inner estimator that declares no `reason`, which is what makes that default the
-  // third and last value rather than an open set.
+  // by `error` OR `available === false`, and the codes below arrive on the second path under
+  // `reason` — which the renderer did not read, so they rendered the backend's English in
+  // every pack. core/manager.get_planned_job_estimate is the only producer: two early
+  // guards, then `str(estimate.get("reason", "estimate_unavailable"))` over an inner
+  // estimator that declares no `reason`, which is what closes the set at three literals.
+  //
+  // ENUMERATING THE LITERALS IS NOT THE SAME AS ESTABLISHING REACHABILITY, and conflating
+  // the two is how `estimate_failed` came to look like coverage. Of the three, TWO were live
+  // defects — the early guards below — and the third is prepared; see its own note.
   "learning.estimate_error.learning_unavailable": "Learning is unavailable, so this run cannot be estimated.",  // backend: "Learning system is unavailable."
   "learning.estimate_error.battery_unavailable": "The battery level cannot be read, so this run cannot be estimated.",  // backend: "Battery level is unavailable." — an unreadable battery is refused rather than treated as 0%
-  "learning.estimate_error.estimate_unavailable": "No estimate is available for this run yet.",  // backend: "Planned estimate unavailable." — the estimator gave no figure and no reason of its own
+  // PREPARED, NOT A FIXED DEFECT — and saying so here because the two above WERE live, and a
+  // reader who assumes all three were is about to repeat the mistake below. The literal is
+  // real: `get_planned_job_estimate` falls back to it. But it is unreachable today, measured
+  // across both of `estimator.estimate`'s return paths: each sets `can_run_now`, so the
+  // manager's `.get("can_run_now", False)` never defaults, and the only return that sets it
+  // False also carries `error: "no_payload"` — which the panel short-circuits to
+  // `learning.estimate_queue_first` before the resolver runs. It becomes live the moment the
+  // estimator refuses for any other reason. [ERK-6] fails when that happens.
+  "learning.estimate_error.estimate_unavailable": "No estimate is available for this run yet.",  // backend: "Planned estimate unavailable."
   // NOT REACHABLE ON THAT PANEL, and kept deliberately: `estimate_failed` is emitted per
   // ROOM by learning/manager.py's room_entries loop, and no surface renders those entries
   // yet. The key is the prepared seam for when one does — so do not read its presence as
