@@ -408,11 +408,12 @@ contract gate, run after every wave. Four sections:
   product term) or untranslated leakage, and telling them apart needs a human
   exactly once. `scripts/i18n-accepted-english.json` is the reviewed snapshot
   (`accepted`: key → locale list or `"*"`; `pending`: provisionally tolerated
-  but listed so entries can't rot invisibly — `accepted` holds **215 keys / 941
+  but listed so entries can't rot invisibly — `accepted` holds **221 keys / 1005
   (key, locale) pairs** at 2.5.3, `pending` 2: `vocab.obstacle_type.cable`
   (`es`) and `vocab.obstacle_type.pedestal` (`es`, `pt`). ⚠ The file's own `_meta`
-  still asserts "pending is now empty" under a dated 2026-08-04 note — the data file
-  misdescribes itself, so read the `pending` object, never the prose beside it). Only
+  asserts "pending is now empty" under a dated 2026-08-04 note, which was true that day
+  and has been wrong since 2026-08-06; a 2026-10-28 note further down now says so, but the
+  rule stands — read the `pending` object, never the prose beside it). Only
   **NEW** English-identical values not in the snapshot are flagged; comparison is
   language-blind by design (no dictionaries; plural objects compared by
   key-sorted serialization). **Don't re-derive the counts — the section prints its
@@ -434,10 +435,10 @@ contract gate, run after every wave. Four sections:
 > `ja` hit was decisive because *every* sibling in its field was Japanese and all six
 > other non-Latin locales had translated that same key.
 >
-> **Its detection floor:** of the 941 accepted pairs, **846 are in Latin-script locales**
+> **Its detection floor:** of the 1005 accepted pairs, **890 are in Latin-script locales**
 > and the rule is blind to every one of them — a cognate and an untranslated word are
 > byte-identical to it. It also says nothing at all about a value that is wrong but not
-> English. It covers the remaining 95.
+> English. It covers the remaining 115.
 >
 > ⚠ **One new entry deliberately breaks the Latin-script-only invariant** the paragraph
 > above leaves behind: `vocab.fan_speed.boost_iq` / `.boostiq` are accepted for `"*"`,
@@ -450,9 +451,14 @@ contract gate, run after every wave. Four sections:
 > the section now **prints that reconciliation itself** rather than leaving it to hand
 > arithmetic, which got it wrong twice (a string-only probe skipped the plural-object keys
 > and invented three phantom "stale acceptances"; the snapshot's own pair count was then
-> read as the identical count). At 2.5.3 the line reads **944 pairs = 941 accepted + 3
-> pending + 0 new**, and 941 is also the whole snapshot — every accepted pair is still
+> read as the identical count). At 2.5.3 the line reads **1008 pairs = 1005 accepted + 3
+> pending + 0 new**, and 1005 is also the whole snapshot — every accepted pair is still
 > English-identical, so there is nothing stale in it at all.
+>
+> ⚠ These four figures were last correct at the FIRST commit of the 2.5.3 census and were
+> wrong by the time it was tagged — caught by the release audit, in the same paragraph that
+> says hand arithmetic got it wrong twice. Re-derive them from the file and the gate's own
+> printed line whenever this section is touched; do not carry them forward by hand.
 
 - **E. Script sanity** — two shapes of *wrong* that need no dictionary, so unlike
   section D they are **failures in both modes**: neither is ever an editorial
@@ -467,8 +473,9 @@ contract gate, run after every wave. Four sections:
 > then *re-reading* it: a Czech string ending in the English "again", and a CJK word
 > (`配置`) inside a Spanish one. Re-reading 374 strings found neither; four lines of scan
 > found both. It also reaches a case **section D structurally cannot** — `zh-Hant`
-> `theme.tab_tokens` is "Token" against an English "Tokens", so it is Latin-script but not
-> English-*identical*, and the ratchet never looks at it.
+> `theme.tab_tokens` was "Token" against an English "Tokens", so it was Latin-script but not
+> English-*identical*, and the ratchet never looked at it. Section E is what surfaced it,
+> and it was then ruled a defect rather than a loanword: that pack now reads 令牌.
 >
 > Three of its checks needed narrowing before they were usable, each found by running it
 > rather than by thinking about it: the fullwidth-forms block (`U+FF00–FFEF`) is **out** of
@@ -482,9 +489,11 @@ contract gate, run after every wave. Four sections:
 > which is exactly section D's blind spot too. Between them the two sections cover script
 > mixing and byte-identity; neither covers meaning.
 >
-> Its residue over all 49,699 shipped values is **two**, both `zh-Hant`, both recorded in
-> `latin_in_non_latin` — a separate object from `accepted` because they are not
-> English-identical and filing them there would assert something untrue.
+> Its residue over all 49,699 shipped values is **one** — `external_jobs.empty_app_branded`
+> in `zh-Hant`, where "App" is ordinary written Chinese in Taiwan — recorded in
+> `latin_in_non_latin`, a separate object from `accepted` because it is not
+> English-identical and filing it there would assert something untrue. It was two until
+> `theme.tab_tokens` was settled on 2026-10-28.
 
 **`--strict-coverage`** is release-gate mode: NEW English-identical values and
 any untranslated key become **failures** instead of a printed list (the

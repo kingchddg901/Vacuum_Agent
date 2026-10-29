@@ -804,8 +804,8 @@
       "wood": "Ahşap",
       "marble": "Mermer",
       "concrete": "Beton",
-      "carpet_low": "Alçak Havlı Halı",
-      "carpet_high": "Yüksek Havlı Halı",
+      "carpet_low": "Kısa Havlı Halı",
+      "carpet_high": "Uzun Havlı Halı",
       "granite_light": "Granit"
     },
     "estimate_source": {

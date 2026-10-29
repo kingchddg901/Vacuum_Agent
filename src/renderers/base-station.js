@@ -338,12 +338,6 @@ export function applyBaseStationRenderers(proto) {
   };
 
   /**
-   * Format a water level value: numeric → "N%", non-numeric → title-cased label.
-   *
-   * @param {*} value - Raw water level (numeric percent or string key).
-   * @returns {string} Formatted water level string.
-   */
-  /**
    * The Station Status panel's subtitle: how many upkeep items need attention.
    *
    * Composed from `attention_count`, which is the same thing the Upkeep tab's own header
@@ -360,9 +354,19 @@ export function applyBaseStationRenderers(proto) {
    *
    * THE TWO BRANCHES ARE ESCAPED SEPARATELY, and that is the second defect this replaces.
    * The expression was `escapeHtml(attention_summary || t("…subtitle"))` — one escape over
-   * both arms — so the localized fallback was escaped twice. Live, not theoretical:
-   * measured across all 17 packs, `it` is the one whose subtitle carries an apostrophe
-   * ("dell'attività"), and it rendered as `dell&#39;attività` on screen.
+   * both arms — so the localized fallback was escaped twice. Measured across all 17 packs,
+   * `it` is the one whose subtitle carries an apostrophe ("dell'attività"), and it rendered
+   * as `dell&#39;attività`.
+   *
+   * ON THE FALLBACK ARM ONLY, which bounds when it showed: `get_upkeep_snapshot` has a
+   * single return and always sets `attention_summary` to a non-empty sentence
+   * (maintenance/manager.py), and core/manager.py puts that snapshot in every dashboard
+   * payload — so the `||` takes its FIRST arm whenever there is data, and that arm printed
+   * the backend's English. The garbled Italian was the no-data frame: after a page load,
+   * before the first snapshot arrives, which is where a card last left on this tab starts.
+   * An earlier version of this note called it "live, not theoretical", which overstated a
+   * transient into a steady state; the room card's projected-water tooltip is the one that
+   * had the same defect on its LIVE path (fr, he).
    *
    * @param {object} upkeep - the maintenance snapshot.
    * @returns {string} HTML-safe subtitle, for RAW interpolation.
@@ -380,6 +384,13 @@ export function applyBaseStationRenderers(proto) {
     return fromBackend || this.t("base_station.station_status_subtitle");
   };
 
+  /**
+   * Format a water level value: numeric → "N%", non-numeric → the vocabulary word.
+   *
+   * @param {*} value - Raw water level (numeric percent or string code).
+   * @param {*} [backendLabel] - the backend's English label, used only as the fallback.
+   * @returns {string} Formatted water level string.
+   */
   proto._formatBaseStationWaterLevel = function (value, backendLabel = null) {
     // `hasValue` is LOAD-BEARING, and this is the SHORTER COPY of a guard the maintenance
     // renderer already carries with its own note: Number(null) is 0 and Number.isFinite(0)

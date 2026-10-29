@@ -146,14 +146,6 @@ export function chipRow(label, fieldKey, options, currentVal, tVocabFn, idPrefix
 }
 
 /**
- * Build a single-value SLIDER for a continuous axis (Dreame wetness 1..32), the
- * sibling of `chipRow` for a brand that declares `*_range` rather than `*_options`.
- * The stored field value is a numeric STRING; the binding commits `input.value`.
- * `range` is `{min,max,step,labels:{min_label,mid_label,max_label}}`. An unset value
- * starts the thumb at the midpoint rather than at 0. `idPrefix` namespaces the
- * data-attrs so a card with many rooms routes the input back to the right one.
- */
-/**
  * The band WORD for a continuous value — a single live label that shifts across the
  * range (Dreame wetness: Slightly Dry -> Moist -> Wet) rather than showing all three
  * endpoints at once. Thirds of [min,max]; used by the render (initial) and the slider
@@ -167,6 +159,15 @@ export function sliderWord(val, min, max, labels) {
   return l.mid_label ?? "";
 }
 
+/**
+ * Build a single-value SLIDER for a continuous axis (Dreame wetness 1..32), the
+ * sibling of `chipRow` for a brand that declares `*_range` rather than `*_options`.
+ * The stored field value is a numeric STRING; the binding commits `input.value`.
+ * `range` is `{min,max,step,labels:{min_label,mid_label,max_label}}`. An unset value
+ * starts the thumb at the midpoint rather than at 0. `tVocabFn` is slot 5 and `idPrefix`
+ * slot 6 — that order matters, because a stale caller passing a room id into the
+ * translator slot loses `data-scope` and commits every slider to the wrong room.
+ */
 export function sliderRow(label, fieldKey, range, currentVal, tVocabFn, idPrefix = "") {
   if (!range) return "";
   const pre = idPrefix ? `data-scope="${esc(idPrefix)}" ` : "";

@@ -2729,8 +2729,8 @@
       "wood": "Legno",
       "marble": "Marmo",
       "concrete": "Cemento",
-      "carpet_low": "Moquette bassa",
-      "carpet_high": "Moquette alta",
+      "carpet_low": "Tappeto basso",
+      "carpet_high": "Tappeto alto",
       "granite_light": "Granito"
     },
     "estimate_source": {

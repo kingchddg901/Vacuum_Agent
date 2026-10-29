@@ -1206,8 +1206,8 @@
       "battery_mid_label": "中",
       "battery_warn_hint": "15–25%",
       "battery_warn_label": "警告",
-      "parent_note": "此<em>父</em>群組中的 Token 會套用至<strong>每一種</strong>動物。五個眼睛顏色 Token（<code>--evcc-animal-eye-*</code>）驅動各列；全域調色盤 Token（<code>--evcc-animal-fur</code>、<code>--evcc-animal-pupil</code> 等）驅動每個身體。使用下方各動物的子群組，可針對單一動物覆寫設定。",
-      "subgroup_note": "此子群組中的 Token（前綴為 <code>--evcc-animal-{animal}-…</code>）僅覆寫 {animal} 的全域動物夥伴 Token。將任一 Token 留空即可繼承父層值（若未設定佈景主題值，則沿用 {animal} 內建的預設值）。"
+      "parent_note": "此<em>父</em>群組中的令牌會套用至<strong>每一種</strong>動物。五個眼睛顏色令牌（<code>--evcc-animal-eye-*</code>）驅動各列；全域調色盤令牌（<code>--evcc-animal-fur</code>、<code>--evcc-animal-pupil</code> 等）驅動每個身體。使用下方各動物的子群組，可針對單一動物覆寫設定。",
+      "subgroup_note": "此子群組中的令牌（前綴為 <code>--evcc-animal-{animal}-…</code>）僅覆寫 {animal} 的全域動物夥伴令牌。將任一令牌留空即可繼承父層值（若未設定佈景主題值，則沿用 {animal} 內建的預設值）。"
     },
     "borders": {
       "border_strength": "邊框強度",
@@ -1246,11 +1246,11 @@
     },
     "group": {
       "animal": {
-        "desc": "在全部五個電量狀態區間中顯示一隻代表性動物。此群組中的眼睛顏色與全域調色盤 Token 會套用至每一種動物。",
+        "desc": "在全部五個電量狀態區間中顯示一隻代表性動物。此群組中的眼睛顏色與全域調色盤令牌會套用至每一種動物。",
         "title": "動物夥伴預覽"
       },
       "animal_sub": {
-        "desc": "{animal} 涵蓋全部五個電量狀態區間。此子群組中的 Token（前綴為 --evcc-animal-{animal}-）僅覆寫 {animal} 的全域動物夥伴調色盤與眼睛狀態顏色。",
+        "desc": "{animal} 涵蓋全部五個電量狀態區間。此子群組中的令牌（前綴為 --evcc-animal-{animal}-）僅覆寫 {animal} 的全域動物夥伴調色盤與眼睛狀態顏色。",
         "title": "{animal} 預覽"
       },
       "borders": {
@@ -1262,7 +1262,7 @@
         "title": "Chip 預覽"
       },
       "floor": {
-        "desc": "即時色樣會顯示每種材質疊加在卡片表面的效果。透明度、縮放與色調 Token 會即時更新。",
+        "desc": "即時色樣會顯示每種材質疊加在卡片表面的效果。透明度、縮放與色調令牌會即時更新。",
         "title": "地板紋理預覽"
       },
       "floor_carpet_high": {
@@ -1389,7 +1389,7 @@
       "panel_desc": "面板表面與巢狀輸入框可預覽分層立體感。",
       "panel_input": "面板 + 輸入框",
       "raised_card": "浮起卡片",
-      "search_tokens": "搜尋 Token…"
+      "search_tokens": "搜尋令牌…"
     }
   },
   "theme": {
@@ -1413,7 +1413,7 @@
     "filters_count": "篩選（{count}）",
     "floor_scope_title": "要匯出為可分享預設集的地板類型",
     "gallery_link_title": "瀏覽佈景主題藝廊（於新分頁開啟）",
-    "group_no_match": "{title} 中沒有符合「{query}」的 Token。",
+    "group_no_match": "{title} 中沒有符合「{query}」的令牌。",
     "group_search_placeholder": "搜尋 {title}…",
     "import": "匯入",
     "import_title": "從剪貼簿貼上佈景主題 JSON",
@@ -1437,7 +1437,7 @@
     "mode_this_device_only": "僅此裝置",
     "mode_use_everywhere": "套用至所有裝置",
     "modified_only": "僅已修改",
-    "no_tokens_match_filters": "沒有 Token 符合目前的佈景主題篩選條件。",
+    "no_tokens_match_filters": "沒有令牌符合目前的佈景主題篩選條件。",
     "preset_active": "使用中",
     "presets_empty": "沒有可用的佈景主題。",
     "presets_no_match": "沒有佈景主題符合這些篩選條件。",
@@ -1445,7 +1445,7 @@
     "save_changes": "儲存變更",
     "search_toggle": "搜尋與篩選",
     "search_themes_placeholder": "搜尋佈景主題…",
-    "search_tokens_placeholder": "搜尋 Token…",
+    "search_tokens_placeholder": "搜尋令牌…",
     "tab_palette": "調色盤",
     "tab_themes": "佈景主題",
     "tab_tokens": "令牌",
@@ -1474,7 +1474,7 @@
     "invalid_json": "這不是有效的 JSON——請檢查貼上的文字。",
     "no_active_theme_download": "沒有可下載的使用中佈景主題。",
     "no_active_theme_export": "沒有可匯出的使用中佈景主題。",
-    "no_customised_floor_settings": "此佈景主題沒有可匯出的自訂「{type}」地板設定。請先調整並儲存 {type} 的 Token。",
+    "no_customised_floor_settings": "此佈景主題沒有可匯出的自訂「{type}」地板設定。請先調整並儲存 {type} 的令牌。",
     "no_recognised_floor_types": "{sourceLabel} 沒有此版本可辨識的地板類型",
     "paste_theme_first": "請先貼上佈景主題匯出內容。",
     "pick_floor_type_export": "請選擇要匯出的地板類型。",
@@ -2655,7 +2655,7 @@
     "invalid_payload": "該匯入檔案的格式無法被此卡片識別。",
     "missing_theme": "該匯入檔案不包含主題資料。",
     "missing_name": "匯入的主題需要一個名稱。",
-    "invalid_tokens": "匯入主題的權杖（token）值格式不正確。",
+    "invalid_tokens": "匯入主題的令牌（token）值格式不正確。",
     "invalid_colors": "匯入主題的顏色值格式不正確。",
     "invalid_alpha": "匯入主題的透明度（alpha）值格式不正確。",
     "missing_vacuum": "此卡片未選擇任何掃地機器人。",

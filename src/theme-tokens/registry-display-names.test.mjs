@@ -23,6 +23,9 @@
 //   [ANM-2] a memorial pet keeps its registry label — it is a name, not a word
 //   [ANM-3] the registry label wins over a prettified id, and over nothing at all
 //   [ANM-4] both renderers resolve one animal to ONE name (they used to disagree)
+//   [DIV-1] one noun reads one way per PACK too — the older vocab.theme_group.* family
+//           names the same animals and textures, so every surviving divergence between
+//           the two families is declared with a reason or it is a defect
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -162,14 +165,20 @@ function registryAnimals() {
  * One animal's declared label, read from the SERVED roster file.
  *
  * Not JSON.parse: these are JS modules that call `AnimalSVG.register(...)`, the generated
- * ones wrapping a JSON-ish block and `snake.js` being hand-written procedural code with no
- * label at all. And not the `src/*.json` descriptors either — only five of the seven have
- * one, and none of those carries a `label`. The served file IS the roster the browser
- * reads, so it is the thing to read.
+ * ones wrapping a JSON-ish block. And not the `src/*.json` descriptors either — only five
+ * of the seven have one, and none of those carries a `label`. The served file IS the roster
+ * the browser reads, so it is the thing to read.
+ *
+ * MATCH BOTH DECLARATION STYLES, and that is the whole point of this function's history.
+ * The six generated entries write `"label": "Cat"`; `snake.js` is hand-written and writes
+ * `label: 'Snake'` — unquoted key, single-quoted value. A regex requiring double quotes on
+ * both saw six labels and reported the seventh as absent, so [ANM-3] asserted that the
+ * snake declares no label and [ANM-4] asserted that the roster exercises the no-label leg.
+ * Both passed, and both were describing the blind spot rather than the roster.
  */
 function registryLabel(id) {
   const src = readFileSync(join(ANIMALS, `${id}.js`), "utf8");
-  const m = src.match(/"label":\s*"([^"]*)"/);
+  const m = src.match(/["']?label["']?\s*:\s*["']([^"']*)["']/);
   return m ? m[1] : null;
 }
 
@@ -197,10 +206,13 @@ test("[ANM-2] a memorial pet keeps its registry label in every language", () => 
 test("[ANM-3] the registry label wins over a prettified id, and over nothing", () => {
   // A user-dropped animal rides this leg, which is why the label must stay reachable.
   assert.equal(animalDisplayName("sea_otter", "Sea Otter", tVocabFor("de")), "Sea Otter");
-  // No label on record: the id is prettified rather than printed bare.
+  // No label on record: the id is prettified rather than printed bare. A user-dropped
+  // animal is the real case here — every SHIPPED entry declares a label ([ANM-4]), so this
+  // leg has no exemplar in the roster and is only reachable synthetically.
   assert.equal(animalDisplayName("sea_otter", null, tVocabFor("de")), "Sea Otter");
-  // `snake` declares no label in its own registry entry, so the key is its only name.
-  assert.equal(registryLabel("snake"), null);
+  // `snake` DOES declare a label ("Snake", single-quoted) — the key still outranks it.
+  assert.equal(registryLabel("snake"), "Snake");
+  assert.equal(animalDisplayName("snake", registryLabel("snake"), tVocabFor("de")), DE["vocab.animal.snake"]);
   assert.equal(animalDisplayName("snake", null, tVocabFor("de")), DE["vocab.animal.snake"]);
   assert.equal(animalDisplayName("", null, tVocabFor("de")), "");
 });
@@ -225,10 +237,16 @@ test("[ANM-4] neither renderer keeps its own copy of the name logic", () => {
       `${name}: a local prettifier is back — that is how the two drifted apart`,
     );
   }
-  // And the roster really does exercise both legs, or the assertions above are about nothing.
+  // EVERY shipped entry declares a label, which is the invariant worth holding: a new
+  // animal added without one falls to the prettified id on whichever surface has no key
+  // for it yet. This replaces an assertion that the roster also exercised the NO-label
+  // leg — it does not, and it never did; `registryLabel`'s regex could not see the one
+  // entry that writes its label differently. That leg is covered synthetically in [ANM-3],
+  // where it belongs, because its real case is a user-dropped animal rather than a shipped one.
   const ids = registryAnimals();
-  assert.ok(ids.some((a) => registryLabel(a)), "some animal must declare a label");
-  assert.ok(ids.some((a) => !registryLabel(a)), "and some must not, or the fallback is untested");
+  const unlabelled = ids.filter((a) => !registryLabel(a));
+  assert.deepEqual(unlabelled, [],
+    `every roster entry must declare a label; these do not: ${unlabelled.join(", ")}`);
 });
 
 test("[ANM-5] a registry label cannot break out of the map picker's option", () => {
@@ -247,4 +265,96 @@ test("[ANM-5] a registry label cannot break out of the map picker's option", () 
   const out = animalDisplayName("sea_otter", hostile, escaping);
   assert.ok(!out.includes("<script"), "a dropped label must not reach innerHTML as markup");
   assert.ok(!out.includes('">'), "and must not close the attribute it sits in");
+});
+
+/* ------------------------------------------------- one noun, two key families */
+
+/**
+ * Nouns that BOTH key families name, and therefore can read two ways in one pack.
+ *
+ * The newer families label the theme tab's floor-scope SELECT, the map's animal picker
+ * and the preview's animal column heading; `vocab.theme_group.*` labels the theme
+ * editor's GROUP HEADINGS for the same nouns, in the same tab. Nothing forces the two
+ * to agree, and nothing noticed when they did not: the values were translated
+ * independently, a pack at a time.
+ *
+ * `granite_light` against `..._granite` is the one irregular pair, and it is irregular
+ * in en.js too — the key named for the texture versus the key named for the group.
+ */
+const NOUN_PAIRS = [
+  ...["cat", "dog", "fox", "parrot", "raccoon", "snake"].map((n) =>
+    [`vocab.animal.${n}`, `vocab.theme_group.animal_companion_${n}`]),
+  ...["tile", "wood", "marble", "concrete", "carpet_low", "carpet_high"].map((n) =>
+    [`vocab.floor_type.${n}`, `vocab.theme_group.floor_textures_${n}`]),
+  ["vocab.floor_type.granite_light", "vocab.theme_group.floor_textures_granite"],
+];
+
+/**
+ * Divergences judged DELIBERATE, one entry per `<pack> <new key>`. Reviewed per language
+ * in 2.5.3; two kinds, both left exactly as they are:
+ *
+ *   INFLECTION — one word in two grammatical forms, which a select option and a category
+ *     heading legitimately take differently (de "Teppich Hoch" / "Teppich niedrig",
+ *     cs "Dlažba" / "Dlaždice", id "Burung beo" / "Burung Beo").
+ *   THE NEWER VALUE IS THE BETTER ONE — so the edit belongs on the OLDER key, which is a
+ *     string users already read, and not in the release that happened to notice
+ *     (ko "라쿤" for the raccoon rather than "너구리", which is the raccoon DOG).
+ *
+ * Anything NOT listed is a defect: two different WORDS for one thing on one screen. That
+ * is what this release fixed in he/ru (a transliteration beside the pack's own word) and
+ * in it/ru/tr (two nouns for one carpet, plus an English word order).
+ *
+ * A stale entry is a failure too. Converge a pair and its line here must go, or the list
+ * becomes a record of what was once true — which is how the ratchet files rot.
+ */
+const DELIBERATE = new Set([
+  "ar vocab.animal.cat", "ru vocab.animal.cat",
+  "ko vocab.animal.dog", "ru vocab.animal.dog",
+  "id vocab.animal.parrot", "ko vocab.animal.raccoon",
+  "cs vocab.floor_type.tile", "he vocab.floor_type.tile",
+  "it vocab.floor_type.tile", "pl vocab.floor_type.tile",
+  "ko vocab.floor_type.wood",
+  "ar vocab.floor_type.carpet_low", "cs vocab.floor_type.carpet_low",
+  "de vocab.floor_type.carpet_low", "es vocab.floor_type.carpet_low",
+  "pt vocab.floor_type.carpet_low",
+  "ar vocab.floor_type.carpet_high", "cs vocab.floor_type.carpet_high",
+  "de vocab.floor_type.carpet_high", "es vocab.floor_type.carpet_high",
+  "pt vocab.floor_type.carpet_high",
+]);
+
+test("[DIV-1] one noun reads one way per pack, unless the divergence is declared", () => {
+  const codes = readdirSync(LOCALES)
+    .filter((f) => f.endsWith(".json") && f !== "index.json")
+    .map((f) => f.replace(/\.json$/, ""))
+    .sort();
+
+  const actual = new Set();
+  let compared = 0;
+  for (const code of codes) {
+    const flat = loadPack(code);
+    for (const [newKey, olderKey] of NOUN_PAIRS) {
+      const a = flat[newKey];
+      const b = flat[olderKey];
+      if (a === undefined || b === undefined) continue;
+      compared += 1;
+      if (a !== b) actual.add(`${code} ${newKey}`);
+    }
+  }
+
+  // NOT VACUOUS, and this guard is the point: if flattenLocale stopped resolving either
+  // family, every pair would be skipped, `actual` would be empty and the assertions below
+  // would pass over nothing at all.
+  assert.ok(codes.length >= 15, `only ${codes.length} packs found — the roster looks wrong`);
+  assert.ok(NOUN_PAIRS.length >= 13, "the pair list has shrunk; a noun stopped being checked");
+  assert.ok(compared >= codes.length * 10,
+    `only ${compared} pairs resolved across ${codes.length} packs — the keys are not being read`);
+
+  const undeclared = [...actual].filter((x) => !DELIBERATE.has(x)).sort();
+  assert.deepEqual(undeclared, [],
+    `two different words for one noun, in one tab: ${undeclared.join(", ")} — ` +
+    "align the NEW key to the word the pack already ships, or declare it in DELIBERATE with why");
+
+  const stale = [...DELIBERATE].filter((x) => !actual.has(x)).sort();
+  assert.deepEqual(stale, [],
+    `declared deliberate but no longer divergent: ${stale.join(", ")} — remove the entries`);
 });

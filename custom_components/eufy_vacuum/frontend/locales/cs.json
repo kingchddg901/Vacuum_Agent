@@ -2594,7 +2594,7 @@
         "multiple_inbound": "{target} již má příchozí propojení z {claimant}. Každá místnost může být dosažitelná jen z jedné místnosti.",
         "cycle": "Toto nastavení přístupu by vytvořilo smyčku v grafu místností.",
         "no_dock_room": "Než začnete propojovat místnosti, nastavte místnost s dokem. Místnost s dokem je počátek stromu přístupu.",
-        "room_not_found": "Tato místnost už na aktivní mapě není. Otevřete znovu seznam místností a zkuste to ještě raz.",
+        "room_not_found": "Tato místnost už na aktivní mapě není. Otevřete znovu seznam místností a zkuste to ještě jednou.",
         "invalid_access_graph": "Tyto přístupové odkazy by nechaly graf místností neplatný, takže se nic neuložilo."
       },
       "list_separator": ", ",

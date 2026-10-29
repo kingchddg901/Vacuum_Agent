@@ -2816,7 +2816,7 @@
       "dog": "Пёс",
       "fox": "Лиса",
       "parrot": "Попугай",
-      "raccoon": "Ракун",
+      "raccoon": "Енот",
       "snake": "Змея"
     },
     "floor_type": {
@@ -2824,8 +2824,8 @@
       "wood": "Дерево",
       "marble": "Мрамор",
       "concrete": "Бетон",
-      "carpet_low": "Ковёр низкий",
-      "carpet_high": "Ковёр высокий",
+      "carpet_low": "Короткий ворс",
+      "carpet_high": "Длинный ворс",
       "granite_light": "Гранит"
     },
     "estimate_source": {

@@ -1175,12 +1175,6 @@ export function applyMaintenanceRenderers(proto) {
   };
 
   /**
-   * Derive the primary display value for an item card (percent, hours, or raw remaining).
-   *
-   * @param {object} item - Maintenance or replacement item.
-   * @returns {string} Human-readable primary value string.
-   */
-  /**
    * Derive a "due in N days" estimate for a maintenance item by
    * projecting forward at the average daily usage observed since the
    * last reset.
@@ -1208,6 +1202,12 @@ export function applyMaintenanceRenderers(proto) {
     return maintenanceDueInBucket(item, Date.now(), (key, vars) => this.t(key, vars));
   };
 
+  /**
+   * Derive the primary display value for an item card (percent, hours, or raw remaining).
+   *
+   * @param {object} item - Maintenance or replacement item.
+   * @returns {string} Human-readable primary value string.
+   */
   proto._maintenancePrimaryValue = function (item) {
     // Prefer the STRUCTURED fields (percent/hours) so the value localizes with
     // the card's language. The backend's pre-formatted English `remaining_summary`
@@ -1365,30 +1365,6 @@ export function applyMaintenanceRenderers(proto) {
   };
 
   /**
-   * Convert a status key to a human-readable label, handling known special cases.
-   *
-   * @param {string|null} status - Raw status key.
-   * @returns {string} Display label.
-   */
-  /**
-   * CENSUS-6. Resolve a maintenance status CODE-FIRST, with the backend's
-   * English `*_status_label` as the fallback.
-   *
-   * Every call site used to read `status_label ?? _formatMaintenanceStatus(code)`
-   * — label first — so a server-baked English string won over a translation the
-   * card already had, in all 18 locales. Exactly the precedence inversion
-   * A5-AG-2 found in startBlockedReason: the machine value was present and
-   * discarded one operator earlier.
-   *
-   * The label is KEPT as the fallback rather than dropped. It is what makes a
-   * status this card release has never heard of still render — a newer backend
-   * can add one without the card going blank.
-   *
-   * @param {string|null|undefined} status - the stable status code.
-   * @param {string|null|undefined} label  - the backend's English label.
-   * @returns {string}
-   */
-  /**
    * The station-water READING as one localized string — the single answer to
    * "what does this dock's clean-water level say?", shared by the Upkeep stat row and the
    * Station Water card so the two cannot disagree.
@@ -1421,6 +1397,24 @@ export function applyMaintenanceRenderers(proto) {
     return backendLabel || this.t("maintenance.value_unknown");
   };
 
+  /**
+   * CENSUS-6. Resolve a maintenance status CODE-FIRST, with the backend's
+   * English `*_status_label` as the fallback.
+   *
+   * Every call site used to read `status_label ?? _formatMaintenanceStatus(code)`
+   * — label first — so a server-baked English string won over a translation the
+   * card already had, in all 18 locales. Exactly the precedence inversion
+   * A5-AG-2 found in startBlockedReason: the machine value was present and
+   * discarded one operator earlier.
+   *
+   * The label is KEPT as the fallback rather than dropped. It is what makes a
+   * status this card release has never heard of still render — a newer backend
+   * can add one without the card going blank.
+   *
+   * @param {string|null|undefined} status - the stable status code.
+   * @param {string|null|undefined} label  - the backend's English label.
+   * @returns {string}
+   */
   proto._maintenanceStatusText = function (status, label) {
     const normalized = String(status ?? "").trim().toLowerCase();
     if (normalized) {
@@ -1435,6 +1429,12 @@ export function applyMaintenanceRenderers(proto) {
     return this._formatMaintenanceStatus(normalized || "unknown");
   };
 
+  /**
+   * Convert a status key to a human-readable label, handling known special cases.
+   *
+   * @param {string|null} status - Raw status key.
+   * @returns {string} Display label.
+   */
   proto._formatMaintenanceStatus = function (status) {
     const normalized = String(status ?? "").trim().toLowerCase();
 
