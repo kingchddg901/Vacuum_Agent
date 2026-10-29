@@ -36,7 +36,8 @@ animal-svg/
 │   ├── parrot.js
 │   ├── snake.js
 │   ├── mittens.js    memorial tribute (see "Memorial animals")
-│   └── index.json    auto-generated at HA startup; enumerates the *.js above
+│   └── index.json    enumerates the *.js above; rewritten at HA startup, and TRACKED
+│                     so it ships in the release zip (see "Why the index is committed")
 ├── src/             declarative descriptors (cat.json, dog.json, …) that compile to animals/*.js
 └── demo.html         open in a browser to verify everything works
 ```
@@ -295,6 +296,37 @@ is for maintainers and your own install.
 Each animal is its own self-registering file in `animals/`. The integration
 generates `animals/index.json` at every HA startup by scanning that directory,
 so `manifest.js` never needs to be edited.
+
+### Why the index is committed
+
+`animals/index.json` is **tracked**, even though the integration rewrites it on every
+startup. That looks redundant and is not: `hacs.json` sets `zip_release`, so HACS
+installs the release **asset** — a zip of the tag — and replaces the integration folder
+with it. A file that is not in the tag is not in the zip. The index was gitignored until
+2026-10-29, so after a card-only update the card's fetch of it returned 404, the rejection
+was swallowed, and **the map's mascot was absent until the next Home Assistant restart** —
+in a release whose notes said no restart was needed. `frontend/locales/index.json` is the
+same shape, written by the same function on the same startup, and has always been tracked,
+which is why the locale packs arrived immediately. The asymmetry was the bug, not the
+tracking.
+
+Two consequences:
+
+* **Adding or removing a SHIPPED animal means committing the regenerated index.** Start HA
+  once (or write the sorted `.js` listing yourself) and commit the result.
+  `scripts/served-indexes.test.mjs` `[IDX-1]` fails if the committed index and the
+  directory disagree, so this is caught rather than remembered.
+* **Dropping an animal into your own install is unchanged.** HA rewrites the index at the
+  next restart, exactly as before; nothing needs committing. Your local checkout will show
+  `index.json` as modified afterwards, which is the same thing the locales index has always
+  done.
+
+`manifest.js` tolerates the two ways the index and the directory can disagree: it checks
+`response.ok` before parsing (the 404 arrived as HTML, so parsing the *body* threw rather
+than the status being read), and it loads the animals with `Promise.allSettled`, because
+the index is a snapshot taken at startup — delete an animal's `.js` and the committed index
+still names it until HA restarts, and under `Promise.all` that one rejected load took every
+other animal down with it.
 
 To add one:
 

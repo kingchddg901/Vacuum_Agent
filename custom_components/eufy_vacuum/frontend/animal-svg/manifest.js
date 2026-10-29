@@ -36,6 +36,33 @@ async function loadScript(src) {
 // 1. Load the element + registry first.
 await loadScript('animal-svg.js');
 
-// 2. Load every animal listed in the auto-generated index.
-const animalFiles = await fetch(new URL('animals/index.json', BASE).href).then(r => r.json());
-await Promise.all(animalFiles.map(f => loadScript('animals/' + f)));
+// 2. Load every animal listed in the index.
+//
+// `animals/index.json` is generated at HA startup from whatever .js files are in
+// that directory — that is what makes a drop-in animal work without editing this
+// file — AND it is tracked and shipped, so it is present the moment a card-only
+// update lands rather than after the next restart. It was gitignored until
+// 2026-10-29, so a HACS update replaced the folder without it, this fetch got a
+// 404 whose body is not JSON, the rejection was swallowed upstream, and the map's
+// mascot was simply absent until HA restarted. See the note in .gitignore.
+//
+// `r.ok` is checked rather than parsing whatever came back, because the failure to
+// handle was a 404 served as HTML.
+const index = await fetch(new URL('animals/index.json', BASE).href)
+  .then(r => (r.ok ? r.json() : null))
+  .catch(() => null);
+const animalFiles = Array.isArray(index) ? index.filter(f => typeof f === 'string') : [];
+if (!animalFiles.length) {
+  console.warn('[animal-svg] animals/index.json missing, empty or unreadable — no animals loaded');
+}
+
+// allSettled, NOT all. The index is a snapshot of the directory taken at startup,
+// so the two can disagree: delete an animal's .js and the shipped index still names
+// it until HA restarts. Under Promise.all that one rejected load took down every
+// other animal with it, turning a missing file into a missing mascot.
+const settled = await Promise.allSettled(animalFiles.map(f => loadScript('animals/' + f)));
+const failed = animalFiles.filter((_, i) => settled[i].status === 'rejected');
+if (failed.length) {
+  console.warn('[animal-svg] did not load: ' + failed.join(', ') +
+    ' (listed in animals/index.json but not served) — the rest loaded');
+}

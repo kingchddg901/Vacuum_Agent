@@ -77,13 +77,19 @@ test("the AnimalSVG stub lists exactly the animals that ship", async ({ page }) 
   // Compared against what SHIPS rather than a second hardcoded list here — a gate
   // that mirrors the mirror would drift in exactly the same way.
   //
-  // Read from the animals/ DIRECTORY, not animals/index.json. That index is a runtime
-  // artifact: manifest.js says the integration "generates animals/index.json at
-  // startup from whatever .js files exist", and .gitignore:58 ignores it. So the file
-  // exists on a box that has booted HA and nowhere else — this test could never pass
-  // on a runner, and nothing noticed because gallery-completeness was not wired into
-  // CI at all. The directory is the same source of truth the startup scan uses, and
-  // it is tracked.
+  // Read from the animals/ DIRECTORY, not animals/index.json. The directory is the
+  // source of truth the startup scan itself reads; the index is its mirror.
+  //
+  // The original reason was stronger and is now out of date: the index was GITIGNORED,
+  // so it existed only on a box that had booted HA, and a test reading it could never
+  // pass on a runner — which nothing noticed, because gallery-completeness was not
+  // wired into CI at all. That ignore rule turned out to be the defect behind a dead
+  // mascot after every card-only HACS update, and the index is tracked as of
+  // 2026-10-29. So reading it here would no longer fail on a runner — but the
+  // directory is still the right side of the mirror to read, because a test that
+  // compares the gallery against the index would pass while BOTH drifted from what
+  // actually ships. `scripts/served-indexes.test.mjs` [IDX-1] is what holds the index
+  // to the directory now, and this test deliberately does not depend on it.
   const shipped = readdirSync(
     join(HERE, "../../custom_components/eufy_vacuum/frontend/animal-svg/animals"),
   ).filter((f) => f.endsWith(".js")).map((f) => f.replace(/\.js$/, "")).sort();

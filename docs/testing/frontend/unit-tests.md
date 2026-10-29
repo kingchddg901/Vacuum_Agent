@@ -281,3 +281,23 @@ The frontend has three separate test tracks, none of them pytest:
    browser gates) and `scripts/hash-dir.test.mjs` (the cache-bust token: HD-1 line
    endings must not move it, HD-2/HD-6 a binary file's `0D 0A` must not be folded —
    every shipped texture PNG contains that byte pair). All run in `node-tests.yml`.
+
+   `scripts/served-indexes.test.mjs` (`IDX-*`) belongs to this track and guards a
+   *packaging* contract rather than logic. `__init__.py`'s `_prepare_static_dirs` writes
+   an `index.json` beside the animal modules and another beside the shipped locale packs
+   at every HA startup, and the card fetches both at runtime to know what to load.
+   `animals/index.json` was gitignored while `locales/index.json` was not, although one
+   function writes both from the same rule — so after a card-only HACS update, which
+   replaces the folder with a zip of the tag, the animals index was simply absent: the
+   fetch 404'd, the rejection was swallowed, and the map's mascot did not appear until the
+   next restart. Nothing was red, and a card-only release said no restart was needed.
+   `[IDX-1/2]` hold each index against its directory by the generator's own rule,
+   `[IDX-3]` holds that both are tracked and that neither is ignored again, and `[IDX-4]`
+   pins the two ways `manifest.js` now survives the disagreement — `r.ok` before parsing
+   (the 404 body was HTML, so the original `.then(r => r.json())` threw on the body rather
+   than the status) and `allSettled` over the loads, because the index is a startup
+   snapshot and one unserved file used to take every other animal down with it.
+   **`[IDX-3]` uses `git check-ignore --no-index`, and the ablation is why:** plain
+   `check-ignore` never reports a tracked file, so with the index committed, putting the
+   ignore line back left the suite green — a guard that read as a guard and tested
+   nothing, which is the same shape it exists to catch.

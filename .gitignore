@@ -54,8 +54,22 @@ desktop.ini
 # Staging / dev artifacts
 mapping_staging/
 
-# Auto-generated at HA startup by __init__.py — not a source file
-custom_components/eufy_vacuum/frontend/animal-svg/animals/index.json
+# animals/index.json USED TO BE IGNORED HERE, and that was the defect.
+#
+# It is written at HA startup by __init__.py's _prepare_static_dirs, so "not a
+# source file" looked right. But hacs.json sets zip_release, so HACS installs the
+# release ASSET and replaces the integration folder with it — and the asset is a
+# zip of the tag, which an ignored file is not in. The card fetches this index at
+# runtime (animal-svg/manifest.js), so after a card-only update the map's mascot
+# did not load until the next Home Assistant restart, which is exactly what a
+# card-only release tells you is unnecessary.
+#
+# frontend/locales/index.json is the same shape, written by the same function on
+# the same startup, and has always been TRACKED — which is why the locale packs
+# arrive immediately and the animals did not. The asymmetry was the bug.
+#
+# Both are gated against the directories they index by scripts/served-indexes.test.mjs,
+# including a check that neither is ignored again.
 
 # Commit-message scratch files (used by `git commit -F` for long messages)
 .commit_msg*
