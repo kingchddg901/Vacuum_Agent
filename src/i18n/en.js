@@ -1883,7 +1883,7 @@ export const en = {
   "theme.search_tokens_placeholder": "Search tokens...",
   "theme.tab_palette": "Palette",
   "theme.tab_themes": "Themes",
-  "theme.tab_tokens": "Tokens",  // sub-tab name: the CSS design-token editor list (jargon, keep as 'tokens')
+  "theme.tab_tokens": "Tokens",  // sub-tab name: the CSS design-token editor list. TRANSLATE it: it is a visible sub-tab chip and the collapsed-search section label, and "tokens" here is this project's jargon for a NAMED THEME VALUE — render that sense (a design/style token), not the authentication one. de/es/nl/pt keep "Tokens" as a loanword (accepted, section D); every other pack translates or declines it.
   "theme.tag_add_placeholder": "add a tag…",
   "theme.tag_done_title": "Done editing tags",
   "theme.tag_edit_title": "Edit tags",

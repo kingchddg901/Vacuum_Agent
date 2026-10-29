@@ -1419,10 +1419,7 @@
     ]
   },
   "latin_in_non_latin": {
-    "_note": "Section E only. A value that is ENTIRELY LATIN SCRIPT in a non-Latin pack and is correct that way. Separate from `accepted` on purpose: these are not English-IDENTICAL (zh-Hant has 'Token' against an English 'Tokens'), so section D never sees them, and filing them under `accepted` would claim something untrue. Both entries below are jargon or a loanword the pack legitimately keeps.",
-    "theme.tab_tokens": [
-      "zh-Hant"
-    ],
+    "_note": "Section E only. A value that is ENTIRELY LATIN SCRIPT in a non-Latin pack and is correct that way. Separate from `accepted` on purpose: these are not English-IDENTICAL, so section D never sees them, and filing them under `accepted` would claim something untrue. `theme.tab_tokens` was removed 2026-10-28 on Chris's ruling that tokens SHOULD translate (it is a visible sub-tab label, and 16 of 17 packs already translated it); zh-Hant now reads 令牌. The remaining entry is a proper noun inside an app-branded empty state, which no pack should translate.",
     "external_jobs.empty_app_branded": [
       "zh-Hant"
     ]
