@@ -267,14 +267,19 @@ time.
 | --- | --- |
 | `NR-14` | an unchanged value is not re-sent — four flaps over two rooms wanting the same speed add nothing after the first push — and **absence never skips**: no entity, `unavailable` with a matching attribute still attached, and a live entity with no such attribute all push |
 | `NR-15` | the optional `state_attribute` names where "the value now" is read from (default: the service's own `value_key`), and the sequenced/awaited path shares the builder, so it skips too |
+| `NR-16` | the two cases the report asked for by name — alternating rooms with **different** settings push every time (per-room control survives the fix), and a **failed** command is not remembered as applied: the attribute never moved, so the next pointer change retries it |
 
 **`NR-14`'s absence half is the one to read.** The fail-safe direction here is the
 redundant call, not the skipped one: a skip inferred from a value that is not
 there is how a room gets cleaned at the *previous* room's suction, which is a
 worse defect than the chime. The three shapes are three separate code paths and
-only one of them is `None`. All four tests were ablated — removing the skip,
-treating absence as a match, ignoring `state_attribute`, and skipping
-unconditionally each turn the expected ones red.
+only one of them is `None`. Ablated five ways, every expected test red and the
+file clean after restore: removing the skip, treating absence as a match,
+ignoring `state_attribute`, skipping unconditionally — and replacing the state
+read with a **send-side cache**, which is the obvious alternative implementation
+and is what `NR-16`'s failed-command half exists to reject. A cache cannot tell a
+command that was applied from one that raised; the device's own attribute can,
+because it never moved.
 
 The read is trustworthy for our own pushes rather than racy: both apply paths
 call the service with `blocking=True`, and HA's Roborock vacuum refreshes its

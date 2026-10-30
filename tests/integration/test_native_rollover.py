@@ -35,6 +35,9 @@ Coverage targets
         Absence — no entity, unavailable, no such attribute — never skips.
 [NR-15] the `state_attribute` override picks where "the value now" is read from,
         and the sequenced (awaited) path shares the builder, so it skips too.
+[NR-16] the two regression cases ISSUE #78 named: rooms with DIFFERENT settings
+        still push every time, and a FAILED command is not remembered as applied
+        (the attribute never moved, so the next pointer change retries).
 """
 
 from __future__ import annotations
@@ -537,3 +540,48 @@ async def test_nr15_awaited_path_skips_too(hass, manager):
     hass.states.async_set(_VAC, "cleaning", {"fan_speed": "quiet"})
     await tracker.apply_per_room_live_settings_awaited(_VAC, room, 16)
     assert calls == [{"entity_id": _VAC, "fan_speed": "max"}]
+
+
+async def test_nr16_different_settings_and_failed_command(hass, manager):
+    """[NR-16] the two cases ISSUE #78 asked about by name.
+
+    1. ROOMS WITH DIFFERENT SETTINGS still push every time. RED IF THE SKIP
+       OVER-REACHES - made unconditional, or keyed on "we already sent
+       something" rather than on what the device reports. This is the half that
+       proves per-room control survives the fix.
+    2. A FAILED COMMAND IS NOT REMEMBERED AS APPLIED. The guard reads the
+       device's own attribute, so a push that raised leaves the value unchanged
+       and the next pointer change retries it. RED IF THE GUARD WERE A SEND-SIDE
+       CACHE, which is the obvious alternative implementation and would swallow
+       the retry.
+    """
+    clear_registry()
+    _live_fan_adapter()
+    calls = _live_fan_calls(hass)
+    tracker = ActiveJobTracker(manager)
+    rooms = [
+        {"room_id": 16, "slug": "kitchen", "fan_speed": "max"},
+        {"room_id": 17, "slug": "dining_room", "fan_speed": "quiet"},
+    ]
+
+    # 1. The device follows each push, which is what the coordinator refresh does
+    #    on the real integration.
+    hass.states.async_set(_VAC, "cleaning", {"fan_speed": "balanced"})
+    for room_id in (16, 17, 16, 17):
+        await tracker.apply_per_room_live_settings_awaited(_VAC, rooms, room_id)
+        pushed = next(r["fan_speed"] for r in rooms if r["room_id"] == room_id)
+        hass.states.async_set(_VAC, "cleaning", {"fan_speed": pushed})
+    assert [c["fan_speed"] for c in calls] == ["max", "quiet", "max", "quiet"]
+
+    # 2. The command raises and the attribute never moves -> try again.
+    attempts: list[str] = []
+
+    async def _boom(call):
+        attempts.append(call.data["fan_speed"])
+        raise RuntimeError("device refused")
+
+    hass.services.async_register("vacuum", "set_fan_speed", _boom)
+    hass.states.async_set(_VAC, "cleaning", {"fan_speed": "balanced"})
+    await tracker.apply_per_room_live_settings_awaited(_VAC, [rooms[0]], 16)
+    await tracker.apply_per_room_live_settings_awaited(_VAC, [rooms[0]], 16)
+    assert attempts == ["max", "max"]
