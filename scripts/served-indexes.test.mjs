@@ -19,6 +19,9 @@
  *   [IDX-3] NEITHER index is gitignored and both are tracked — the regression itself
  *   [IDX-4] manifest.js survives an index that is missing, or that names a file
  *           which is not served
+ *   [IDX-5] the submission bot writes the roster in the GENERATOR'S BYTE SHAPE --
+ *           json.dump separates with ", " and a bare JSON.stringify does not, so the
+ *           two writers would fight over the file from the first merged animal on
  *
  * Pure (no browser). Run: node --test scripts/served-indexes.test.mjs
  */
@@ -158,4 +161,35 @@ test("[IDX-4] manifest.js survives a missing index and an unserved animal", () =
   // And it must still say something when it gives up, rather than failing silently:
   // the original rejection was swallowed by the caller and left no trace at all.
   assert.match(code, /console\.warn\(/, "a roster that does not load must say so");
+});
+
+test("[IDX-5] the submission bot writes the roster in the generator's own byte shape", () => {
+  // Two writers, one file. `__init__.py` uses `json.dump`, whose default separators are
+  // ", " — so the generator emits `["cat.js", "dog.js"]`. The animal-submission workflow
+  // writes the same list from Node, where a bare JSON.stringify emits `["cat.js","dog.js"]`.
+  // Same list, different bytes, and nothing in this repo parses workflow YAML, so there is
+  // no other place this can be caught.
+  //
+  // What the divergence costs: the bot commits the compact form, then every Home Assistant
+  // start and every Python-suite run rewrites it to the spaced form, so the maintainer's
+  // tree goes dirty on this path from the first merged community animal onward and the next
+  // submission flips it back. 6e009258's "running async_setup left the index byte-identical"
+  // stops holding the moment a community animal lands.
+  const workflow = readFileSync(
+    resolve(HERE, "..", ".github", "workflows", "animal-submission.yml"), "utf8");
+
+  // RED IF THE WORKFLOW GOES BACK TO A BARE STRINGIFY. Matched on the roster write only:
+  // JSON.stringify elsewhere in that workflow is none of this test's business.
+  const write = workflow.match(/fs\.writeFileSync\(\s*`\$\{animalsDir\}\/index\.json`[\s\S]{0,400}?\);/);
+  assert.ok(write, "could not find the roster write in animal-submission.yml");
+  assert.match(write[0], /\.split\(","\)\s*\.join\(", "\)/,
+    "the roster write must re-space the JSON to match json.dump's ', ' separators");
+
+  // RED IF THE COMMITTED FILE IS EVER THE COMPACT FORM. This is the assertion that bites
+  // on the artifact rather than on the source, so a future writer that gets it wrong some
+  // other way is still caught.
+  const raw = readFileSync(join(FRONTEND, "animal-svg", "animals", "index.json"), "utf8");
+  const names = JSON.parse(raw);
+  assert.equal(raw.trim(), "[" + names.map((n) => JSON.stringify(n)).join(", ") + "]",
+    "animals/index.json must be stored exactly as json.dump writes it: entries joined by ', '");
 });

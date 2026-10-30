@@ -71,9 +71,23 @@ jobs:
             // rewrites it at startup, but a PR that adds a module and leaves it stale
             // fails served-indexes.test.mjs [IDX-1], and the contributor cannot fix that
             // themselves. Same rule as __init__.py's generator: sorted *.js, nothing else.
+            //
+            // SAME BYTES, not just the same list. __init__.py writes it with `json.dump`,
+            // whose default separators are ", " and which therefore emits
+            //   ["cat.js", "dog.js"]
+            // while a bare JSON.stringify emits ["cat.js","dog.js"]. Committing the compact
+            // form would mean every Home Assistant start and every Python-suite run rewrote
+            // the file the bot had just committed, so the maintainer's tree would go dirty on
+            // this path from the first merged community animal onward and the next PR would
+            // flip the bytes back. Ids are validated against ^[a-z][a-z0-9-]{1,30}$, so no
+            // filename can contain a comma and this join cannot corrupt an entry.
+            // [IDX-5] in scripts/served-indexes.test.mjs holds this line to that shape,
+            // because nothing in this repo parses workflow YAML.
             fs.writeFileSync(
               `${animalsDir}/index.json`,
-              JSON.stringify(fs.readdirSync(animalsDir).filter((f) => f.endsWith(".js")).sort()),
+              JSON.stringify(fs.readdirSync(animalsDir).filter((f) => f.endsWith(".js")).sort())
+                .split(",")
+                .join(", "),
             );
             fs.writeFileSync(path.join(process.env.RUNNER_TEMP, "animal-report.md"), result.report);
             core.setOutput("ok", "true");

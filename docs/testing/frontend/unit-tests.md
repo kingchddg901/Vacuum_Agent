@@ -297,6 +297,17 @@ The frontend has three separate test tracks, none of them pytest:
    (the 404 body was HTML, so the original `.then(r => r.json())` threw on the body rather
    than the status) and `allSettled` over the loads, because the index is a startup
    snapshot and one unserved file used to take every other animal down with it.
+   `[IDX-5]` holds the roster's BYTE SHAPE, because two different writers produce it:
+   `__init__.py` uses `json.dump`, whose default separators are `", "`, while the
+   animal-submission workflow writes the same list from Node, where a bare
+   `JSON.stringify` emits no spaces. Same list, different bytes — and the cost is not
+   cosmetic: the bot commits the compact form, then every HA start and every Python-suite
+   run rewrites it to the spaced form, so the maintainer's tree goes dirty on that path
+   from the first merged community animal onward and the next submission flips it back.
+   It asserts on BOTH sides — the workflow's write (red if it stops re-spacing) and the
+   committed artifact (red if the file is ever stored compact), so a future writer that
+   gets it wrong some other way is still caught. **Nothing in this repo parses workflow
+   YAML**, which is why the source half is a text assertion rather than a behavioural one.
    **`[IDX-3]` reads the ignore files directly, with no `git` subprocess, and it took two
    corrections to get there.** It first shelled out to `git check-ignore`, which never
    reports a *tracked* file — so with the index committed, putting the ignore line back
