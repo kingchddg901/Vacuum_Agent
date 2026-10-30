@@ -247,7 +247,12 @@ context in [24 — The Roborock Adapter](../dev/24-roborock-adapter.md).
   per-room watchdog (a path-optimizing device may ignore a clean dispatched the
   instant it docks; the watchdog re-dispatches).
 - `dispatch.per_room_live_settings` — mid-run per-room fan via a side service
-  call (Roborock `set_fan_speed` as the robot enters each room).
+  call (Roborock `set_fan_speed` as the robot enters each room). **The push is
+  idempotent**: an entry whose target entity already reports the value is not
+  sent, because the pointer driving it is non-monotonic wherever
+  `rooms_unique_per_job` is False (ISSUE #78). Optional `state_attribute` names
+  the attribute that reports the value now; it defaults to the service's own
+  `value_key`, and absence never causes a skip.
 - `dispatch.passes_is_global` — collapse per-room passes to one batch scalar for
   the whole run (e.g. `app_segment_clean`'s `repeat`).
 - `dispatch.resolve_live_ids_by_slug` — re-resolve each target room's name slug

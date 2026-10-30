@@ -247,6 +247,44 @@ live), AJS-10 (the `live_transition.enabled=False` kill-switch), AJS-11 (the
 wash-plateau baseline), plus a multipass no-over-roll case — and the charging
 delegates.
 
+### Per-room LIVE settings, and why they must be idempotent (`NR-14`/`NR-15`, integration)
+
+`tests/integration/test_native_rollover.py` covers the native current_room
+rollover end to end (`NR-1`..`NR-13`) plus the side-service push that rides it:
+`_per_room_live_setting_calls` turns one `dispatch.per_room_live_settings` entry
+into a service call as the robot enters each room (Roborock `set_fan_speed`).
+
+**The pointer that drives that push is not monotonic.** `rooms_unique_per_job` is
+False on Roborock, which deliberately makes the native signal a live pointer
+only: a room already seen is NOT filtered out, and a revisit completes nothing
+(`complete_room_id=None`), so the device is free to report A → B → A → B and
+every change is a full rollover. ISSUE #78 is what that costs when one effect on
+that path is not idempotent — the fan push re-sent an unchanged value on every
+flap, and a robot that acknowledges `SET_CUSTOM_MODE` with a tone chimed each
+time.
+
+| id | what it holds |
+| --- | --- |
+| `NR-14` | an unchanged value is not re-sent — four flaps over two rooms wanting the same speed add nothing after the first push — and **absence never skips**: no entity, `unavailable` with a matching attribute still attached, and a live entity with no such attribute all push |
+| `NR-15` | the optional `state_attribute` names where "the value now" is read from (default: the service's own `value_key`), and the sequenced/awaited path shares the builder, so it skips too |
+
+**`NR-14`'s absence half is the one to read.** The fail-safe direction here is the
+redundant call, not the skipped one: a skip inferred from a value that is not
+there is how a room gets cleaned at the *previous* room's suction, which is a
+worse defect than the chime. The three shapes are three separate code paths and
+only one of them is `None`. All four tests were ablated — removing the skip,
+treating absence as a match, ignoring `state_attribute`, and skipping
+unconditionally each turn the expected ones red.
+
+The read is trustworthy for our own pushes rather than racy: both apply paths
+call the service with `blocking=True`, and HA's Roborock vacuum refreshes its
+coordinator at the end of every `send()`
+(`RoborockCoordinatedEntityV1.send`), so the attribute reflects our push before
+the next pointer change arrives. An **external** change (the vendor app) is only
+as fresh as that brand's own polling — inside that window a room wanting exactly
+the stale reading is left alone, which is stated as the contract rather than
+papered over with a freshness clock.
+
 ## Known gaps
 
 `active_job.py` (93%) is considered **done** for this subsystem. The spatial

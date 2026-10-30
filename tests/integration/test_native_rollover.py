@@ -29,6 +29,12 @@ Coverage targets
         highest weight it displaces a real one under the expected_rooms-1 cap,
         shifting every label after it to the next queue entry (the reported "+1").
         the previous room.
+[NR-14] ISSUE #78: the live push is IDEMPOTENT because the pointer is not. A value
+        the target already reports is not re-sent, so a non-monotonic pointer
+        (rooms_unique_per_job False) stops re-issuing set_fan_speed on every flap.
+        Absence — no entity, unavailable, no such attribute — never skips.
+[NR-15] the `state_attribute` override picks where "the value now" is read from,
+        and the sequenced (awaited) path shares the builder, so it skips too.
 """
 
 from __future__ import annotations
@@ -402,3 +408,132 @@ def test_nr13_a_brand_with_no_wash_mode_entity_is_unchanged(manager):
     tracker = ActiveJobTracker(manager)
 
     assert "wash_plateau" in tracker._live_transition_config(_VAC)["rollover_kinds"]
+
+
+# ---------------------------------------------------------------------------
+# ISSUE #78 - the live push must be idempotent, because the pointer is not
+# ---------------------------------------------------------------------------
+
+def _live_fan_calls(hass) -> list[dict]:
+    """Register vacuum.set_fan_speed and return the list it appends into."""
+    calls: list[dict] = []
+
+    async def _set_fan(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("vacuum", "set_fan_speed", _set_fan)
+    return calls
+
+
+async def test_nr14_unchanged_value_is_not_resent(hass, manager):
+    """[NR-14] ISSUE #78: a value the target already reports is NOT re-sent.
+
+    RED IF THE SKIP IS REMOVED. `rooms_unique_per_job: False` lets the native
+    pointer walk A->B->A->B, each change reaches this builder, and without the
+    guard every one of them emits an identical set_fan_speed - which is what a
+    robot that acknowledges SET_CUSTOM_MODE audibly chimes at.
+    """
+    clear_registry()
+    _live_fan_adapter()
+    calls = _live_fan_calls(hass)
+    tracker = ActiveJobTracker(manager)
+    rooms = [
+        {"room_id": 16, "slug": "kitchen", "fan_speed": "max"},
+        {"room_id": 17, "slug": "dining_room", "fan_speed": "max"},
+    ]
+
+    # Device on an unrelated speed -> entering the first room is a real change.
+    hass.states.async_set(_VAC, "cleaning", {"fan_speed": "balanced"})
+    tracker.apply_per_room_live_settings(_VAC, rooms, 16)
+    await hass.async_block_till_done()
+    assert calls == [{"entity_id": _VAC, "fan_speed": "max"}]
+
+    # It now reports what we pushed. Four pointer flaps over two rooms that both
+    # want that same value add NOTHING.
+    hass.states.async_set(_VAC, "cleaning", {"fan_speed": "max"})
+    for room_id in (17, 16, 17, 16):
+        tracker.apply_per_room_live_settings(_VAC, rooms, room_id)
+    await hass.async_block_till_done()
+    assert calls == [{"entity_id": _VAC, "fan_speed": "max"}]
+
+
+async def test_nr14_absence_never_skips(hass, manager):
+    """[NR-14] absence is never a skip - no entity, unavailable, or no such
+    attribute each still push.
+
+    RED IF THE DEFAULT INVERTS. The fail-safe direction is the redundant call:
+    a skip inferred from a value that is not there is how a room ends up cleaned
+    at the previous room's suction. Three shapes of absence, because they are
+    three different code paths and only one of them is `None`.
+    """
+    clear_registry()
+    _live_fan_adapter()
+    calls = _live_fan_calls(hass)
+    tracker = ActiveJobTracker(manager)
+    room = [{"room_id": 16, "fan_speed": "max"}]
+
+    # 1. no state object at all.
+    hass.states.async_remove(_VAC)
+    assert hass.states.get(_VAC) is None
+    tracker.apply_per_room_live_settings(_VAC, room, 16)
+    # 2. unavailable, with a matching attribute still attached to the old state.
+    hass.states.async_set(_VAC, "unavailable", {"fan_speed": "max"})
+    tracker.apply_per_room_live_settings(_VAC, room, 16)
+    # 3. live, but reports no fan_speed at all.
+    hass.states.async_set(_VAC, "cleaning", {"battery_level": 55})
+    tracker.apply_per_room_live_settings(_VAC, room, 16)
+
+    await hass.async_block_till_done()
+    assert calls == [{"entity_id": _VAC, "fan_speed": "max"}] * 3
+
+
+async def test_nr15_state_attribute_override(hass, manager):
+    """[NR-15] `state_attribute` names where the current value is read from; the
+    default is the service's own value_key.
+
+    RED IF THE OVERRIDE IS IGNORED: falling back to value_key reads `fan_speed`
+    ('quiet'), sees a difference and pushes. The two attributes carry different
+    values on purpose, so this cannot pass by reading the wrong one.
+    """
+    clear_registry()
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code", "entities": {},
+        "dispatch": {"per_room_live_settings": [
+            {"field": "fan_speed",
+             "state_attribute": "suction_now",
+             "service": {"domain": "vacuum", "service": "set_fan_speed",
+                         "value_key": "fan_speed"}},
+        ]},
+    })
+    calls = _live_fan_calls(hass)
+    tracker = ActiveJobTracker(manager)
+
+    hass.states.async_set(
+        _VAC, "cleaning", {"suction_now": "max", "fan_speed": "quiet"}
+    )
+    tracker.apply_per_room_live_settings(_VAC, [{"room_id": 16, "fan_speed": "max"}], 16)
+    await hass.async_block_till_done()
+    assert calls == []
+
+
+async def test_nr15_awaited_path_skips_too(hass, manager):
+    """[NR-15] the sequenced (pre-dispatch) path shares the builder, so it skips
+    too - then still sends when the value really differs.
+
+    RED IF THE GUARD SITS IN THE FIRE-AND-FORGET WRAPPER. Two apply paths read
+    one builder; a guard written into `apply_per_room_live_settings` alone leaves
+    the strict-order path re-sending once per phase.
+    """
+    clear_registry()
+    _live_fan_adapter()
+    calls = _live_fan_calls(hass)
+    tracker = ActiveJobTracker(manager)
+    room = [{"room_id": 16, "fan_speed": "max"}]
+
+    hass.states.async_set(_VAC, "cleaning", {"fan_speed": "max"})
+    await tracker.apply_per_room_live_settings_awaited(_VAC, room, 16)
+    assert calls == []
+
+    hass.states.async_set(_VAC, "cleaning", {"fan_speed": "quiet"})
+    await tracker.apply_per_room_live_settings_awaited(_VAC, room, 16)
+    assert calls == [{"entity_id": _VAC, "fan_speed": "max"}]

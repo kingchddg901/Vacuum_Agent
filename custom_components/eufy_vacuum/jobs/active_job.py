@@ -1951,6 +1951,13 @@ class ActiveJobTracker:
         accepts, so the Eufy-shaped default ("Max") is never sent to a
         lowercase-only Roborock ``set_fan_speed``. Empty for brands that declare
         none (e.g. Eufy, whose per-room settings ride the dispatch payload).
+
+        An entry whose target entity ALREADY reports the value is skipped
+        (ISSUE #78): the pointer driving this is non-monotonic wherever
+        ``rooms_unique_per_job`` is False, so a revisited room would otherwise
+        re-send an unchanged value on every flap. The current value is read from
+        the entry's optional ``state_attribute`` (default: the service's own
+        ``value_key``) on the entity the call TARGETS. Absence never skips.
         """
         config = _get_adapter_config(vacuum_entity_id) or {}
         entries = config.get("dispatch", {}).get("per_room_live_settings") or []
@@ -1998,6 +2005,48 @@ class ActiveJobTracker:
                     continue
 
             target_entity = service.get("target_entity_id") or vacuum_entity_id
+
+            # ISSUE #78 — DON'T RE-SEND A VALUE THE TARGET ALREADY REPORTS.
+            # The native current_room pointer is not monotonic on every brand:
+            # `rooms_unique_per_job: False` (Roborock) deliberately lets it move
+            # back to a room already seen, so A->B->A->B is four rollovers and
+            # every one of them lands here. Everything else a rollover triggers is
+            # already idempotent on that brand -- a revisit completes nothing,
+            # because _maybe_roll_current_room_by_native_signal passes
+            # complete_room_id=None -- and this push was the one effect on that
+            # path that was not, so a robot that acknowledges SET_CUSTOM_MODE
+            # audibly chimed on every flap with nothing changing.
+            #
+            # Skip ONLY on a positive match against a value that is really there.
+            # A missing entity, an unavailable/unknown one, or an absent attribute
+            # all fall through and send: absence must never silence a real change,
+            # because the fail-safe direction is the redundant call, not the
+            # skipped one.
+            #
+            # The read is CURRENT for our own pushes, which is what makes this
+            # reliable rather than racy: both apply paths call the service with
+            # blocking=True, and HA's Roborock vacuum refreshes its coordinator at
+            # the end of every send() (RoborockCoordinatedEntityV1.send), so the
+            # attribute reflects our push before the next pointer change arrives.
+            # An EXTERNAL change (the vendor app) is only as fresh as that brand's
+            # own polling, so inside that window a room wanting exactly the stale
+            # reading is left alone. That is the contract, stated rather than
+            # worked around -- a freshness clock here would be a magic number.
+            state_attribute = entry.get("state_attribute") or value_key
+            state = self._manager.hass.states.get(target_entity)
+            reported = (
+                state.attributes.get(state_attribute)
+                if state is not None
+                and state.state not in ("unavailable", "unknown")
+                else None
+            )
+            if reported is not None and str(reported) == str(wire_value):
+                _LOGGER.debug(
+                    "per-room live setting %s.%s skipped for %s: %s already %r",
+                    domain, service_name, target_entity, state_attribute, reported,
+                )
+                continue
+
             calls.append({
                 "domain": domain,
                 "service": service_name,

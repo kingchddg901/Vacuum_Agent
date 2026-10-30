@@ -516,7 +516,7 @@ Job dispatch configuration.
 | `rooms_field` | `str` | no |  | Field name for the rooms list in the payload. Example: 'rooms' for Eufy, 'segments' for Roborock. |
 | `resolve_live_ids_by_slug` | `bool` | no |  | When True, the framework re-resolves each target room's name slug to its CURRENT segment id from a fresh discovery refresh (get_maps) right before sending, rewriting the wire id list. For brands whose segment ids renumber on re-segment (Roborock) so a stored id never cleans the wrong room. A target whose slug is absent from the current map is skipped; an unavailable source falls back to the stored ids. Default: False (use stored ids). |
 | `settings_write` | `dict` | no |  | A single BULK per-room settings write pushed pre-dispatch while the robot is parked, for brands whose per-room settings are PERSISTENT DEVICE STATE the clean payload cannot carry (Dreame: vacuum_set_custom_cleaning — the saved store WINS, so vacuum_clean_segment's own suction/water/repeats are decorative). The THIRD pre-dispatch shape: distinct from global_pre_calls (one global scalar/run) and per_room_live_settings (one per-room ENTITY write per room, mid-run) — this is ONE service call carrying index-aligned arrays over the queued rooms. Shape: {'domain', 'service', 'segment_id_field' (default 'segment_id'), 'fields': [{'canonical' (room field, e.g. 'fan_speed'), 'wire' (service field, e.g. 'suction_level'), optional 'value_map' (canonical->wire; an unmapped value takes the filler, never a stray string on an int wire), optional 'filler' (value for an empty room field; default 0), optional 'clamp' [min,max], optional 'gate_room_suffix' — emit the field ONLY when select.<obj>_room_<first_id>_<suffix> is registered (capability by entity presence; a UI-unavailable but registered entity still counts)}]}. Best-effort but LOUD: a failed write logs at ERROR and the run proceeds on the device's stored settings (no wet-mop hazard, so it does not abort). Executed by dispatch/manager.py::_run_settings_write. Absent = no settings write (every brand but Dreame). |
-| `per_room_live_settings` | `list[dict]` | no |  | Per-room device settings pushed LIVE as the robot enters each room (driven by the native current_room rollover —  live_transition.native_transition_source), for brands where a setting takes effect mid-run on the room being cleaned (Roborock: vacuum.set_fan_speed). True per-room control without per-room re-dispatch — the device keeps one path-optimized run. Each entry: {'field' (canonical room field, e.g. 'fan_speed'), 'service' ({'domain','service','value_key', optional 'target_entity_id'}), optional 'value_map', optional 'options_key' (a vocabulary list name — the value is pushed only when it's one of those options, skipping the framework's Eufy-shaped default on a brand whose vocabulary differs)}. The value is the entered room's resolved per-room value. Best-effort + fire-and-forget. Absent = no live per-room settings. Distinct from global_pre_calls (one value/run, pre-dispatch) — use this when the device honors mid-run per-room changes. |
+| `per_room_live_settings` | `list[dict]` | no |  | Per-room device settings pushed LIVE as the robot enters each room (driven by the native current_room rollover —  live_transition.native_transition_source), for brands where a setting takes effect mid-run on the room being cleaned (Roborock: vacuum.set_fan_speed). True per-room control without per-room re-dispatch — the device keeps one path-optimized run. Each entry: {'field' (canonical room field, e.g. 'fan_speed'), 'service' ({'domain','service','value_key', optional 'target_entity_id'}), optional 'value_map', optional 'options_key' (a vocabulary list name — the value is pushed only when it's one of those options, skipping the framework's Eufy-shaped default on a brand whose vocabulary differs), optional 'state_attribute' (the attribute on the TARGET entity that reports the value now; default: the service's own 'value_key')}. The value is the entered room's resolved per-room value. IDEMPOTENT: an entry whose target already reports the value is NOT sent (ISSUE #78 — the native pointer is non-monotonic wherever rooms_unique_per_job is False, so a revisited room re-entered this path on every flap and a robot that acknowledges the command audibly chimed each time). Skipped only on a POSITIVE match: a missing or unavailable entity, or an absent attribute, still sends. Best-effort + fire-and-forget. Absent = no live per-room settings. Distinct from global_pre_calls (one value/run, pre-dispatch) — use this when the device honors mid-run per-room changes. |
 | `global_pre_calls` | `list[dict]` | no |  | Global device settings pushed before a dispatch, for brands that expose a setting only globally. Each entry picks the value from the dispatched rooms' canonical field by max-wins over 'rank' (strongest request applies — mirrors the batch-passes max rule), maps it via optional 'value_map', and calls 'service'. Rooms whose value isn't in 'rank' are ignored; if none rank, the setting is left untouched. For a SEQUENCED job it re-runs PER PHASE from that phase's own rooms (phase_runner._dispatch_active_phase), so a vacuum group then a mop group each apply their own value; for an atomic job it fires once at start. Best-effort for ordinary entries: a failed pre-call logs and continues. NOT best-effort when mixed_mode_water_policy is 'safest' — that entry RAISES and aborts the dispatch on a missing target or a rejected select, because pushing safe water before a batch with dry rooms is what stops them being wet-mopped. Absent = no pre-call. Use per_room_live_settings instead when the device honors mid-run per-room changes. |
 | `global_pre_calls.field` | `str` | yes |  | Canonical per-room field to read (e.g. 'fan_speed', 'water_level'). |
 | `global_pre_calls.rank` | `list[str]` | yes |  | Allowed values in ASCENDING order; max-wins picks the highest present across the selected rooms. Doubles as the valid-value set (unrecognized room values are ignored). Example fan: ['gentle','quiet','balanced','turbo','max']. |
@@ -566,7 +566,7 @@ Explicit capability flag declarations. Override or supplement the entity-presenc
 | `supports_room_profiles` | `bool` | no |  | Whether the card shows the reusable room-PROFILES section. Default True. Set False for brands with a single editable per-room field (Roborock: fan only), where a profile would be degenerate — the editor hides the section. |
 | `honors_clean_order` | `bool` | no |  | Whether the device cleans rooms in the dispatched queue order. Default True (Eufy send_command). Set False for brands that path-optimize and ignore the order (Roborock app_segment_clean, unless an order is set in the vacuum's app) — the card surfaces an 'order is advisory' note at run start. |
 
-*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1700`.
+*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1709`.
 
 *Read in 5 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/dispatch/manager.py`, `custom_components/eufy_vacuum/jobs/active_job.py`, `custom_components/eufy_vacuum/room_entities.py`
 
@@ -584,7 +584,7 @@ Live room-rollover orchestration. Controls how the framework advances the curren
 | `rollover_kinds` | `list[str]` | no |  | Which counter-boundary kinds advance the room for counter-driven brands (Eufy): subset of wash_plateau/transit/area_jump. Ignored when native_transition_source is set. |
 | `native_transition_source` | `bool` | no |  | When True, rollover FOLLOWS the brand's native live-room signal (entities.active_cleaning_target — a room NAME, e.g. Roborock current_room) instead of the counter/timing heuristic: the signal is matched to a job TARGET room by name slug (transit rooms not in the job are ignored), the previous confirmed target is completed when the signal moves, and current is set directly to the new target (order-agnostic — the device path-optimizes). Assumes rooms_unique_per_job. Default: False (Eufy counter/timing path, untouched). |
 
-*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1806`.
+*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1815`.
 
 *Read in 1 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/jobs/active_job.py`
 
@@ -594,7 +594,7 @@ type `list` - optional
 
 task_status strings meaning the robot docked MID-run and will resume (mop wash / dust empty / recharge-resume). The external-run finalizer holds the run open while task_status is one of these instead of closing it at the dock, so a vacuum->mop run stays one multi-segment record.
 
-*Declared by:* eufy, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1850`.
+*Declared by:* eufy, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1859`.
 
 *Read in 2 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/jobs/active_job.py`, `custom_components/eufy_vacuum/learning/brand_facts.py`
 
@@ -610,7 +610,7 @@ External (app-started) run capture options.
 |---|---|---|---|---|
 | `queue_from_active_segments` | `bool` | no |  | TRUE when the live-map camera exposes the run's queue snapshot on its `active_segments` attribute (Dreame): the rooms the user selected AND the tap ORDER, persisted post-dock. Read at finalize as the GROUND-TRUTH queue for the external record — drives `queued_room_ids` + `not_reached_room_ids` (queued but never accrued swept area), independent of the pose inference. Default: False — a brand with no such snapshot keeps the pose-only path. |
 
-*Declared by:* dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1861`.
+*Declared by:* dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1870`.
 
 *Read in 1 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/learning/external_run.py`
 
@@ -622,7 +622,7 @@ type `dict` - optional
 
 Global select entities that reflect the current room's per-room settings while a job runs. Used to recover per-room settings for app-started (external) jobs, which the integration did not dispatch. Maps a canonical setting key (clean_mode/fan_speed/water_level/clean_intensity/mop_intensity) to {entity_id, value_map}, where value_map (optional) normalizes raw firmware strings to canonical.
 
-*Declared by:* eufy. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1885`.
+*Declared by:* eufy. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1894`.
 
 *Read in 2 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/jobs/active_job.py`
 
@@ -648,7 +648,7 @@ Maintenance component catalog. Keyed by component ID. Defines which components t
 | `icon` | `str` | yes |  | MDI icon string. |
 | `maintenance_only` | `bool` | no |  | When True, surface the component only as a Maintenance item (integration-tracked interval), never as a Replacement row. For cleanables with no service-life replacement curve (e.g. the cleaning tray). Absent = False. |
 
-*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1900`.
+*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:1909`.
 
 *Read in 5 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/button.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/maintenance/manager.py`, `custom_components/eufy_vacuum/number.py`, `custom_components/eufy_vacuum/sensor/__init__.py`
 
@@ -668,7 +668,7 @@ Per-model upkeep guide catalog. Display data only — pure strings, no logic. Th
 | `model_key_regimes` | `dict[str, str]` | no |  | KEY ROUTING. Maps device model code to a REGIME id — the guide equivalent of model_guide_families, but derived from measured hardware rather than authored per model. Dreame's id is readable back to the three fields that produced it. Example: {'dreame.vacuum.r2469a': 'pad\|wash+empty\|yes'}. |
 | `key_guides` | `dict[str, dict[str, dict]]` | no |  | KEY ROUTING. Two-level dict: regime_id → component_key → {'steps': list[str], 'notes': list[str]}, where every list item is an i18n KEY, not text. Component keys must match the CANONICAL maintenance_components keys, exactly as guide_library's do — a key guide under a component with no maintenance_components row never reaches a screen, and one under a name the brand does not use produces a second card for an object that already has one. The regime also GATES guide-only cleanables: a maintenance_only component with no sensor is shown only when the model's regime lists it. No frequency field — a key guide states none. |
 
-*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2013`.
+*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2022`.
 
 *Read in 2 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/upkeep_keys.py`, `custom_components/eufy_vacuum/maintenance/manager.py`
 
@@ -690,7 +690,7 @@ Per-model physical water-tank dimensions. Each entry maps a device model code to
 | `water_rates` | `dict[str, float]` | no |  | Per-water-level flow rate in ml/min, keyed by the LOWERCASED canonical water level ('off'/'low'/'medium'/'high'). Overrides the framework's generic rate table when estimating a run's water use. Omit to use the generic table. Read by planning/run_plan.py. |
 | `low_clean_water_margin_ml` | `float` | no |  | Dock clean-tank remaining, in ml, at or below which the run plan raises the 'low clean water' margin warning. Default 300.0 (Eufy dock tuning) -- the one water key that truly defaults rather than falling back to flow-rate-only. Read in planning/run_plan.py::estimate_job_water_usage (the water block). |
 
-*Declared by:* eufy. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2079`.
+*Declared by:* eufy. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2088`.
 
 *Read in 1 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/planning/run_plan.py`
 
@@ -702,7 +702,7 @@ type `dict` - optional
 
 Pluggable MAP segmenter engine selection + tuning (doc 22 §13a). Engine name and tuning keys are validated at registration by registry._validate_adapter. Absent => the framework default engine.
 
-*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2181`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:398`.
+*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2190`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:398`.
 
 *Read in 4 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/diagnostics.py`, `custom_components/eufy_vacuum/mapping/mapping_services.py`
 
@@ -712,7 +712,7 @@ type `dict` - optional
 
 Read the provider's own map segmentation instead of segmenting an image (doc 22 §13a.2). Absent => no provider-side room source.
 
-*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2191`.
+*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2200`.
 
 *Read in 5 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/diagnostics.py`, `custom_components/eufy_vacuum/dispatch/manager.py`, `custom_components/eufy_vacuum/listeners/pose_sampler.py`, `custom_components/eufy_vacuum/listeners/stall_capture.py`, `custom_components/eufy_vacuum/mapping/map_source_coordinator.py`
 
@@ -722,7 +722,7 @@ type `dict` - optional
 
 Go-to (cruise-to-a-point) service declaration: service_domain / service_name and x_field / y_field for the device-mm coordinate. Consumed by dispatch/manager.py::dispatch_goto; gated by capabilities.supports_path_control. Interior not validated (opaque, like map_state_source).
 
-*Declared by:* dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2200`.
+*Declared by:* dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2209`.
 
 *Read in 1 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/dispatch/manager.py`
 
@@ -732,7 +732,7 @@ type `dict` - optional
 
 DEDICATED zone-clean service declaration (a brand whose zone clean is its own service rather than a send_command verb — Dreame's vacuum_clean_zone): service_domain / service_name, zone_field / repeats_field, zone_coords, zone_passes_max. Consumed by dispatch/manager.py::dispatch_zone_clean; gated by capabilities.supports_zone_clean. Brands whose zone rides a send_command verb use dispatch.zone_command instead. Interior not validated (opaque, like goto).
 
-*Declared by:* dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2211`.
+*Declared by:* dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2220`.
 
 *Read in 2 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/dispatch/manager.py`
 
@@ -742,7 +742,7 @@ type `dict` - optional
 
 VA-owned client-side map render declaration (doc 22 §13a.3). Presence is the gate for supports_va_render — presence only; the interior is not validated. The gate is one line in core/manager.py::get_dashboard_snapshot (`supports_va_render = isinstance(_adapter_cfg.get("map_render"), dict)`), exported in that same snapshot dict. ⚠ was: "core/manager.py ~:4055", a line pointer that no longer lands on the gate. What :4055 held when that pointer was written is not recoverable without the sha it was written against, so this note does NOT say — an earlier draft of this correction guessed, and guessed wrong. Cite the function, not the line.
 
-*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2224`.
+*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2233`.
 
 *Read in 2 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/mapping/map_source_coordinator.py`
 
@@ -752,7 +752,7 @@ type `dict` - optional
 
 DEVICE-side clean order — the order the robot itself will clean rooms in, which on a path-optimising brand overrides its own optimisation. Absent (or enabled False) => the brand has no such concept: no read, and no clean-order sensor is created. `read.via` names the acquisition strategy and is the REPOINT SEAM (today only 'v1_debug_log'); an unimplemented via reads as unavailable, never as an empty order. Consumed by clean_order/manager.py.
 
-*Declared by:* roborock. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2241`.
+*Declared by:* roborock. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2250`.
 
 *Read in 1 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/clean_order/manager.py`
 
@@ -762,7 +762,7 @@ type `dict` - optional
 
 Pluggable JOB/run segmenter engine + threshold tuning (doc 22 §13a.1). NOTE: an absent block does NOT mean 'no segmentation' — the resolver falls back to the Eufy counter engine, not to noop. A brand that emits no counter signal must declare an explicit engine.
 
-*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2254`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:430`.
+*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2263`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:430`.
 
 *Read in 4 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/jobs/active_job.py`, `custom_components/eufy_vacuum/jobs/phase_runner.py`, `custom_components/eufy_vacuum/learning/brand_facts.py`
 
@@ -772,7 +772,7 @@ type `dict` - optional
 
 Pluggable room-attribution engine (doc 22 §13a.4) — decides which room a captured run segment belongs to. Absent => the Eufy anchor-winding engine, which a brand with no pose/anchor signal cannot satisfy.
 
-*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2265`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:460`.
+*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2274`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:460`.
 
 *Read in 4 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/learning/brand_facts.py`, `custom_components/eufy_vacuum/listeners/pose_sampler.py`, `custom_components/eufy_vacuum/mapping/map_source_coordinator.py`
 
@@ -782,7 +782,7 @@ type `dict` - **required**
 
 Adapter-declared room profile catalog / overrides (doc 22 §13d). REQUIRED: registration fails without it, and an empty dict fails too -- a brand with zero profile vocabulary can resolve nothing. Enforced in full by registry._validate_adapter.
 
-*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2275`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:507`.
+*Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2284`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:507`.
 
 *Read in 7 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/profiles/manager.py`, `custom_components/eufy_vacuum/queue/queue_engine.py`, `custom_components/eufy_vacuum/rooms/room_defaults.py`, `custom_components/eufy_vacuum/rooms/vocabulary_migration.py`, `custom_components/eufy_vacuum/sensor/profile.py`
 
@@ -792,7 +792,7 @@ type `dict` - optional
 
 Anomaly-detection thresholds for run sanity checks (doc 22 §13c).
 
-*Declared by:* eufy. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2302`.
+*Declared by:* eufy. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2311`.
 
 *Read in 1 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/jobs/active_job.py`
 
@@ -810,7 +810,7 @@ Bounds for the mop-wash cadence control, in minutes (doc 22 §17a). planning/run
 | `min` | `float` | no |  |  |
 | `max` | `float` | no |  |  |
 
-*Declared by:* eufy. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2310`.
+*Declared by:* eufy. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2319`.
 
 *Read in 1 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/planning/run_plan.py`
 
@@ -820,7 +820,7 @@ type `str` - optional
 
 Unit of the vacuum's bare-number cleaning-time counter — "min" or "s" (doc 22 §14d). Roborock reports minutes; Eufy reports seconds. Omitted => the framework default. This is the ONE BrandFacts property only Roborock declares, so it is the seam most likely to be missed by an Eufy-anchored test.
 
-*Declared by:* roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2325`.
+*Declared by:* roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2334`.
 
 *Read in 3 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/jobs/active_job.py`, `custom_components/eufy_vacuum/learning/brand_facts.py`, `custom_components/eufy_vacuum/listeners/job_metrics.py`
 
@@ -830,7 +830,7 @@ type `str` - optional
 
 Coarse hardware family (e.g. "x10", "s6") used to select model-specific behavior and maintenance catalogs. Shipped by the Eufy adapter and consumed by capability detection; previously undeclared in both the schema and doc 22.
 
-*Declared by:* eufy, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2336`.
+*Declared by:* eufy, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2345`.
 
 *Read in 1 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/core/manager.py`
 
@@ -840,6 +840,6 @@ type `dict` - optional
 
 Explicit capability declarations fed INTO runtime detection (core/capabilities.detect_capabilities). Distinct from the `capabilities` block above, which is the adapter's own declared capability set — the two share key names but are different dictionaries with different consumers. ⚠ A HINT IS NOT UNIFORMLY AUTHORITATIVE, AND THIS SAID IT WAS UNTIL 2026-08-24 (A4). detect_capabilities applies TWO rules, and which one a key gets is not visible from here. AUTHORITATIVE (`_hint_wins` — a declared False is binding): supports_water_control, supports_edge_mopping, supports_passes, supports_custom_room_config, supports_room_clean, supports_zone_clean, supports_goto. PERMISSIVE (hint OR live entity presence — a declared False is OVERRIDDEN when the entity resolves): supports_mop_features, supports_mop_wash, supports_mop_dry, supports_empty_dust, supports_path_control, has_attribute_rooms. So a porter declaring `supports_mop_wash: False` for a brand that categorically cannot wash a mop is silently overridden the moment a wash-mop button resolves by name-token match on any sibling entity. THE SPLIT IS BY DESIGN, not a defect: the code's own comment reserves `_hint_wins` for 'capabilities a brand can categorically NOT do'. What was wrong is only this description claiming the strong rule for all twelve. If a permissive key needs to become binding for your brand, move it into the `_hint_wins` set rather than declaring False and expecting it to hold.
 
-*Declared by:* eufy, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2346`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:533`.
+*Declared by:* eufy, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2355`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:533`.
 
 *Read in 2 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/core/manager.py`
