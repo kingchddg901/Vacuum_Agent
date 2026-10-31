@@ -1,6 +1,6 @@
 # Adapter configuration reference (generated)
 
-Generated from `custom_components/eufy_vacuum/adapters/config_schema.py` (`ADAPTER_CONFIG_SCHEMA`, `validate_against_schema`), `custom_components/eufy_vacuum/adapters/registry.py` (`_validate_adapter`) and the two shipped adapters. Every fact below is derived from source; nothing is transcribed from the hand-written reference.
+Generated from `custom_components/eufy_vacuum/adapters/config_schema.py` (`ADAPTER_CONFIG_SCHEMA`, `validate_against_schema`), `custom_components/eufy_vacuum/adapters/registry.py` (`_validate_adapter`) and the three shipped adapters. Every fact below is derived from source; nothing is transcribed from the hand-written reference.
 
 ## What this contract is
 

@@ -252,9 +252,11 @@ reconcile run for external **and** dispatched runs on **both** Eufy
 (`live_pose`) and Roborock (`native_current_room`).
 
 ### `job_segmenter_engines.py` — pluggable job-segmenter seam
-The `JobSegmenter` registry + the `eufy_counter_v1` engine: byte-identical
+The `JobSegmenter` registry + the `counter_plateau_v1` engine: byte-identical
 delegation to `counter_segmentation` (the fidelity battery), `DEFAULT_TUNING`
-mirroring the module constants, and the Eufy-fallback for an absent/unknown engine.
+mirroring the module constants, and the counter-plateau fallback — not noop — for an
+absent/unknown engine. The legacy `eufy_counter_v1` id is dual-accepted and has its own
+registry-row assertion.
 
 ### `room_attribution_engines.py` — pluggable room-attribution seam
 The sibling of the job-segmenter seam (it owns *which managed room* a segment is,

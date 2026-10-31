@@ -394,8 +394,8 @@ nothing would read it: the presence of `stop_dry_mop` in the declaration *is* th
 a field no consumer reads is a preference, not a contract.
 
 Covered by `[DC-1]`..`[DC-5]`. `[DC-3]` is the no-regression guard — an entry naming neither domain
-nor service must still resolve a button, or the rename broke the two brands that already had dock
-support.
+nor service must still resolve a button, or the rename broke the brands that already had dock
+support — two when it landed, all three now that Roborock declares its dock controls.
 
 ## 5. Common wrong assumptions
 

@@ -82,9 +82,14 @@ is exactly the case a user cannot act on.
 
 ## 5. Which strings are the brand's, and which are not
 
-The not-error set is **brand vocabulary**, read from the adapter, and the two shipped brands
-genuinely disagree: one declares a sentinel the other deliberately excludes, because on that brand
-the word could legitimately appear inside a real error state. The framework's own
+The not-error set is **brand vocabulary**, read from the adapter, and all three shipped brands
+declare a different one: each carries its own brand's idle word — Eufy `normal`, Dreame
+`no_error` — and none carries a sibling's. Roborock's omission of `normal` is the worked example,
+and the reason matters more than the omission: it is **hygiene**, not containment. An earlier
+reading held that the word could legitimately appear inside a real error state on that brand;
+`adapters/roborock/vocabulary.py::NOT_ERROR_SENTINELS` records that the matching rule does not
+support that premise, and warns that a porter copying the containment reasoning to a third brand
+would over-narrow their own sentinel set. The framework's own
 `core/error_tracker.py::_NOT_ERROR` is a last-resort fallback for when no adapter is registered, not
 the default answer.
 

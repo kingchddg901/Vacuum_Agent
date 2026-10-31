@@ -3,8 +3,9 @@
 **Scope.** What a brand must declare to be driven by this integration, what happens on each
 omission, and — the part that surprises people — **which of those rules actually run for you.**
 
-The two shipped brands implement this contract, and each has its own document: [23 — The Eufy
-Adapter](23-eufy-adapter.md) and [24 — The Roborock Adapter](24-roborock-adapter.md).
+The three shipped brands implement this contract, and each has its own document: [23 — The Eufy
+Adapter](23-eufy-adapter.md), [24 — The Roborock Adapter](24-roborock-adapter.md) and
+[24a — The Dreame Adapter](24a-dreame-adapter.md).
 
 **The per-field schema is generated, not written.** Every block, every key, its type, whether it is
 required and what an omission degrades to — that table is produced from
@@ -22,7 +23,7 @@ There is no single gate. There are two, written in different styles, enforcing d
 
 | | `config_schema.py::validate_adapter_config` | `registry.py::_validate_adapter` |
 |---|---|---|
-| what it is | a recursive walk of a 33-block data literal | a hand-written rule list |
+| what it is | a recursive walk of every block in `ADAPTER_CONFIG_SCHEMA` | a hand-written rule list |
 | checks | required keys, container type, enum membership, nested fields, **unknown-key rejection** | engine names resolve, tuning validators pass, `capability_hints` membership, `dispatch.template` registered, `setup.steps` ids |
 | **runs on** | **the config-save service only** | **both paths** |
 
@@ -43,7 +44,7 @@ the tree invokes it.
 - everything the registry does find is a log line
 
 The rationale is real: a code-adapter regression would otherwise take every install's startup
-down, and a warning degrades where a raise would brick. The cost is that **the two shipped brands
+down, and a warning degrades where a raise would brick. The cost is that **all three shipped brands
 are held to this contract by `tests/adapters/test_adapter_contract.py` and by nothing else at
 runtime.**
 
@@ -81,8 +82,9 @@ rules; the rest is unguarded.
 Almost every permissive default resolves to a concrete **Eufy** answer rather than to a refusal.
 That is the single largest brand-neutrality liability in the tree, and it is partly instrumented:
 `registry.py::_EUFY_FALLBACK_BLOCKS` makes three of them audible at registration — `mapping` →
-`cv_image_v1`, `job_segmenter` → `eufy_counter_v1`, `room_attribution` → `swept_area_winding_v1`.
-Those warnings are silent today because both shipped brands declare all three.
+`cv_image_v1`, `job_segmenter` → `counter_plateau_v1`, `room_attribution` → `swept_area_winding_v1`.
+Those warnings are silent today because all three shipped brands declare all three blocks —
+Dreame explicitly as the noop variants, which is a declaration and not an omission.
 
 Not instrumented: an absent or unknown `dispatch.template` resolves to `_FALLBACK_TEMPLATE =
 "eufy_room_clean"`, and the wire field names fall back to Eufy strings (`map_id`, `rooms`, `id`,
@@ -126,8 +128,8 @@ that registers an engine.
 
 ✅ **CORRECTED 2026-08-23.** `const.py` and `adapters/eufy/vocabulary.py` both stated that a brand declaring
 `active_vacuum_states` "would be REJECTED at validation". True on the config path; silently
-ACCEPTED on the code path, per §1 — and both shipped brands are code-declared, so the
-guarantee never applied to either of them. Both comments now name the path the rejection
+ACCEPTED on the code path, per §1 — and every shipped brand is code-declared, so the
+guarantee never applied to any of them. Both comments now name the path the rejection
 holds on, and name `tests/adapters/test_adapter_contract.py` as what actually binds a code
 adapter.
 

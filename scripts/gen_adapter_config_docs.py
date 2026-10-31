@@ -28,9 +28,11 @@ SOURCES (five, not one -- this is the finding that shaped the script):
      Conflating them is what produces three different "flag counts" for one set.
   4. adapters/registry.py       _validate_adapter() -- registration-time checks
      that exist for some blocks and not others. Not visible from the schema.
-  5. the two shipped adapters   eufy/adapter.py, roborock/adapter.py -- which
+  5. the shipped adapters      every row of the ADAPTER_PY table below -- which
      declared keys anything actually ships. A key nobody declares is a contract
-     with no witness.
+     with no witness. The count is NOT written down anywhere in the prose this
+     emits: it is rendered from len(ADAPTERS), because that prose still said "two"
+     from the third brand shipping (2026-09-13) to 2026-10-30.
 
 THE GENERATOR DECLARES ITS BLIND SPOTS (design note 4.2). Everything that could
 not be resolved statically is counted and listed. Silence is the failure mode.
@@ -458,7 +460,7 @@ else:
 
 
 # ---------------------------------------------------------------------------
-# 6. what the two shipped adapters actually declare
+# 6. what the shipped adapters actually declare
 # ---------------------------------------------------------------------------
 @dataclass
 class AdapterDecl:
@@ -470,6 +472,12 @@ class AdapterDecl:
 
 
 ADAPTERS: list[AdapterDecl] = []
+
+
+def NUMWORD(n: int) -> str:
+    """Spell a small count for prose. A rendered count cannot go stale; a typed one did."""
+    return ("zero", "one", "two", "three", "four", "five", "six",
+            "seven", "eight", "nine", "ten")[n] if 0 <= n <= 10 else str(n)
 
 
 def dict_pairs(node: ast.expr, tree: ast.Module, where: str, label: str) -> dict[str, str]:
@@ -1224,7 +1232,7 @@ def render_config_reference() -> str:
     A("# Adapter configuration reference (generated)")
     A("")
     A(f"Generated from `{rel(CFG_PY)}` (`ADAPTER_CONFIG_SCHEMA`, `validate_against_schema`), "
-      f"`{rel(REG_PY)}` (`_validate_adapter`) and the two shipped adapters. Every fact below is "
+      f"`{rel(REG_PY)}` (`_validate_adapter`) and the {NUMWORD(len(ADAPTERS))} shipped adapters. Every fact below is "
       "derived from source; nothing is transcribed from the hand-written reference.")
     A("")
     mod_doc = ast.get_docstring(CFG_TREE) or ""
@@ -1434,7 +1442,7 @@ def render_capability_reference() -> str:
         for f_ in DETECT_AVAILABLE:
             A(f"| `{f_}` | `{cell(DETECT_RETURN[f_])}` |")
         A("")
-    A("## What the two shipped adapters declare")
+    A(f"## What the {NUMWORD(len(ADAPTERS))} shipped adapters declare")
     A("")
     A("| Flag | " + " | ".join(f"{a.brand} `capabilities`" for a in ADAPTERS) + " | "
       + " | ".join(f"{a.brand} `capability_hints`" for a in ADAPTERS) + " |")

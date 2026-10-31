@@ -229,7 +229,7 @@ Eufy half is — one vacuum per brand here.
 | the `present_requires_live_map_image` gate means the live map is working | it tests presence in the **state machine**. An `unavailable` entity still has a State object and passes |
 | an mtime cache hit re-applies the current pose, so a moving robot is never frozen | true of the **return value**, false of the **cache** — the hit branch mutates a shallow copy |
 | ~~the multi-vacuum cross-contamination guard is closed~~ | **CLOSED 2026-10-27** (issue #77). It was true for four months: the `device_id` filter on `eufy_mapdata_obj_from_candidates` was correct and tested ([MSR-2o]) and **no call site passed it**, so the row sat here describing a live field defect as a curiosity. See §6 |
-| the render format `room_pixels_v1` is Eufy-specific, or the legacy `eufy_room_pixels_v1` key is dead | it is the card's **brand-agnostic** decoder name (both brands emit it), renamed to drop the brand word; the coordinator still **dual-accepts** the legacy `eufy_room_pixels_v1` for one release so a stored config isn't stranded |
+| the render format `room_pixels_v1` is Eufy-specific, or the legacy `eufy_room_pixels_v1` key is dead | it is the card's **brand-agnostic** decoder name (all three brands emit it — Eufy and Dreame declare it in `map_render`, Roborock builds it in `mapping/roborock_raw_map.py::roborock_render_data`), renamed to drop the brand word; the coordinator still **dual-accepts** the legacy `eufy_room_pixels_v1` for one release so a stored config isn't stranded |
 | the render-data candidate walk tries every root until one yields a usable render | it short-circuits on a partial success — an absent-marker dict is not `None` |
 
 ---

@@ -178,7 +178,7 @@ history; but they are also not rebuildable, because nothing keeps what they summ
 | assumption | reality |
 |---|---|
 | the schema is in `async_load` | a live install carries 24; grepping for writers finds only 20 — §2 |
-| `map_id` is a stable device id | it is a display NAME on one of the two shipped brands — §5 |
+| `map_id` is a stable device id | it is a display NAME on Roborock, the one brand that keys its map cache by the name — §5 |
 | ids are integers in storage | JSON has no integer keys; every id is stringified at the boundary — §3 |
 | the store and the tree are two halves of one thing | different write shapes, different lifetimes, and only one is deleted with the integration — §1 |
 | a phase is a new kind of job | children are ordinary job records; the parents and breaks are new record *kinds* — §4 |

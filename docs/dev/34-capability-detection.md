@@ -3,8 +3,8 @@
 **Scope.** How the framework decides what a vacuum can do: the two kinds of adapter hint and why
 they are not the same rule, and the diagnostic vocabulary that records not only which entity won a
 role but how and why the alternatives lost. What a brand declares is
-[22 — The Adapter Contract](22-adapter-contract.md); the two shipped answers are
-[23](23-eufy-adapter.md) and [24](24-roborock-adapter.md).
+[22 — The Adapter Contract](22-adapter-contract.md); the three shipped answers are
+[23](23-eufy-adapter.md), [24](24-roborock-adapter.md) and [24a](24a-dreame-adapter.md).
 
 `core/capabilities.py::detect_capabilities` holds no brand knowledge. Everything vacuum-specific —
 the entity candidates, the model family, the hints, the maintenance catalog — arrives as arguments

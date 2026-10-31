@@ -769,7 +769,7 @@ brand-agnostic — see [06 — learning](06-learning.md)):
 | Engine seam (under `learning/`) | Test file | Layer |
 |---------------------------------|-----------|-------|
 | `room_attribution_engines.py` (`SweptAreaWindingAttributor`) | `test_room_attribution.py` | adapter |
-| `job_segmenter_engines.py` (`EufyCounterSegmenter`) | `test_job_segmenter_config.py` | adapter |
+| `job_segmenter_engines.py` (`CounterPlateauSegmenter`) | `test_job_segmenter_config.py` | adapter |
 
 (Adapter-config *services* are in [17 — services](17-services.md) via
 `test_services_adapter_config.py`.)
@@ -834,8 +834,8 @@ brand-agnostic — see [06 — learning](06-learning.md)):
   `SweptAreaWindingAttributor` (`learning/room_attribution_engines.py`) against
   the 3 adversarial external-run fixtures (the 9/9 dwell + spread + winding +
   swept-area attribution, dock-trap exclusion included). `test_job_segmenter_config.py`
-  asserts the Eufy adapter declares `job_segmenter.engine = "eufy_counter_v1"`,
-  that its `job_segmenter.tuning` equals `EufyCounterSegmenter.DEFAULT_TUNING`
+  asserts the Eufy adapter declares `job_segmenter.engine = "counter_plateau_v1"`,
+  that its `job_segmenter.tuning` equals `CounterPlateauSegmenter.DEFAULT_TUNING`
   (no threshold drift after the move out of `live_transition`), and that the
   declared engine resolves and validates clean.
 - **Brand-aware diagnostics self_check** (`DIAG-*`, integration,

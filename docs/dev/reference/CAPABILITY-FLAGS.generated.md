@@ -111,7 +111,7 @@ currently in the state machine and usable now.
 | `task_status_available` | `bool(task_status_entity)` |
 | `work_mode_available` | `bool(work_mode_entity)` |
 
-## What the two shipped adapters declare
+## What the three shipped adapters declare
 
 | Flag | eufy `capabilities` | roborock `capabilities` | dreame `capabilities` | eufy `capability_hints` | roborock `capability_hints` | dreame `capability_hints` |
 |---|---|---|---|---|---|---|

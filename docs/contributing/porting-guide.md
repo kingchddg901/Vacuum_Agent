@@ -6,9 +6,12 @@ Ecovacs, Dreame, etc.).
 
 Read [01 — Architecture Overview](../dev/01-architecture-overview.md) and
 [22 — The Adapter Contract](../dev/22-adapter-contract.md) first — this guide is the workflow,
-those are the reference, and the per-field schema is generated from the code itself (doc 22 says
-where). The two shipped brands are worked examples: [23 — The Eufy
-Adapter](../dev/23-eufy-adapter.md) and [24 — The Roborock Adapter](../dev/24-roborock-adapter.md).
+those are the reference. The per-field schema is not written at all: [`ADAPTER-CONFIG.generated.md`](../dev/reference/ADAPTER-CONFIG.generated.md) is
+generated from `adapters/config_schema.py`, which makes it the complete block list and the
+one page here that cannot go stale. The three shipped brands are worked examples: [23 — The Eufy
+Adapter](../dev/23-eufy-adapter.md), [24 — The Roborock
+Adapter](../dev/24-roborock-adapter.md) and [24a — The Dreame
+Adapter](../dev/24a-dreame-adapter.md).
 
 ---
 
@@ -35,8 +38,9 @@ architecture:
 | register a new dispatch engine (`queue/dispatch_engines.py`, §4) | make core branch on your brand |
 | register a new map segmenter (`mapping/segmenter_engines.py`, §8) | add a brand name or brand value to a core comparison |
 | register a new job segmenter (`learning/job_segmenter_engines.py`, §9) | change a shared default so your brand fits |
+| register a new room attributor (`learning/room_attribution_engines.py`, §6a) | name a brand-agnostic engine after your brand (`eufy_cv_v1` became `cv_image_v1`, `eufy_counter_v1` became `counter_plateau_v1`, for exactly that reason) |
 
-Those four files are **plugin registries**, not core semantics. Adding an entry
+Those five files are **plugin registries**, not core semantics. Adding an entry
 is registration — the same act as the `BRAND_REGISTRARS` row, and no more a core
 edit than declaring a config field is. What makes core "untouched" is that *no
 existing behaviour changes when your brand arrives*: nothing above the adapter
@@ -65,9 +69,11 @@ An adapter is a small package mirroring `adapters/eufy/`. The table below is the
 **Eufy reference — the maximal surface**, not a required checklist: most files
 are optional. A divergent brand ships only what it needs — Roborock, for example,
 is `adapter.py` / `const.py` / `entities.py` / `vocabulary.py` /
-`model_catalog.py` / `maintenance_components.py` plus its upkeep guide library
-(`upkeep_catalog.py`, `roborock_upkeep_guides.py`, `upkeep_guides_i18n/`) — no
-`buttons` / `lifecycle` / `water_config` / `segmentor`. See the
+`model_catalog.py` / `maintenance_components.py` / `dock.py` plus its upkeep tables
+(`upkeep_catalog.py`, `upkeep_regimes.py`, `upkeep_keys.py`) — no
+`buttons` / `lifecycle` / `water_config` / `segmentor`, and no `room_profiles.py`
+(it declares that block inline in `adapter.py`). Dreame is leaner still: no
+`dock.py`, no `segmentor`, and all three engine seams declared explicitly off. See the
 [24 — The Roborock Adapter](../dev/24-roborock-adapter.md) §2 for that minimal-surface
 example.
 
@@ -78,8 +84,18 @@ example.
 | `vocabulary.py` | Brand state-string vocabulary sets. |
 | `lifecycle.py` | Brand lifecycle signal helpers. |
 | `buttons.py` | Dock-action and replacement-reset button candidate/token lists (the single source `adapter.py` builds `dock_events.action_controls` and `maintenance_components[*].reset_button` from). |
-| `maintenance_components.py`, `upkeep_catalog.py`, `eufy_upkeep_guides.py` (+ `upkeep_guides_i18n/`), `water_config.py`, `model_catalog.py`, `constants.py` | Static per-model catalogs, upkeep guides, and tuned constants. |
+| `room_profiles.py` | The brand's room-profile vocabulary — the one block that resolves nothing when it is missing (§10). |
+| `maintenance_components.py`, `upkeep_catalog.py`, `upkeep_regimes.py`, `upkeep_keys.py`, `water_config.py`, `model_catalog.py`, `const.py`, `constants.py` | Static per-model catalogs, the model-regime table the upkeep cards are derived from, and tuned constants. |
 | `segmentor.py` | (Optional) brand CV map segmentor. |
+
+**Upkeep text is no longer authored per brand.** A brand declares a MODEL REGIME table
+(`upkeep_regimes.py` — mop type, dock tier, tanks, one row per model) and
+`upkeep_keys.py` derives the card from it at import. That replaced the hand-authored
+per-product-line guide families and their language packs, so a new model is one row
+rather than new prose plus eighteen translations: the keys it derives come from the
+shared, already-translated set. Do not author a `<brand>_upkeep_guides.py` or an
+`upkeep_guides_i18n/` — those are gone, and the regime table is the authority rather
+than a cache of the answer.
 
 The config dict it builds must match the schema in
 `adapters/config_schema.py`. Registration is one call:
@@ -89,19 +105,35 @@ from custom_components.eufy_vacuum.adapters.registry import register_adapter_con
 register_adapter_config(vacuum_entity_id, config)
 ```
 
-`async_setup_entry` calls your adapter's `register_*_for_vacuum` per managed
-vacuum. `registry._validate_adapter(config)` runs at registration and returns a
-list of issue strings (logged as warnings); a declared `dispatch.template` that
-doesn't resolve to a registered engine, or a bad `mapping.segmenter_engine`, is
-flagged here.
+`async_setup_entry` resolves the brand through `adapters/brands.py::resolve_brand` —
+the vacuum entity's ENTITY-registry `platform` against the `platforms` each
+`BRAND_REGISTRARS` row declares, first win takes it, **no default arm** — and calls that
+row's `register_*_for_vacuum` per managed vacuum. A row may also carry `prepare`:
+optional blocking initialisation, always run through HA's executor and never on the
+event loop. Roborock uses it to load its dock truth table.
+
+`registry._validate_adapter(config)` runs at registration and returns a list of issue
+strings; a declared `dispatch.template` that doesn't resolve to a registered engine, or
+a bad `mapping.segmenter_engine`, is flagged here.
+
+> ⚠ **For a code adapter those issues are WARNINGS, and registration still succeeds.**
+> `register_adapter_config` hard-raises on them only when `source == "config"` (a
+> user-saved config). Your brand declares `source: "code"`, so every issue — including
+> an absent `room_profiles` block — is logged and the adapter registers anyway. The
+> schema walk (`config_schema.py::validate_adapter_config`, which is what rejects
+> unknown keys) has exactly one caller, the config-save service, and never sees a code
+> adapter at all. Nothing at runtime holds your brand to this contract;
+> `tests/adapters/test_adapter_contract.py` does — see §12. This asymmetry is
+> [22 — The Adapter Contract](../dev/22-adapter-contract.md) §1, and the first row of
+> its §7 table of wrong assumptions.
 
 ---
 
 ## 3. The config blocks you fill in
 
-These are the real "coupling points" — all data, no code in core. Every field
-is documented in [22 — The Adapter Contract](../dev/22-adapter-contract.md);
-this is the orientation.
+These are the real "coupling points" — all data, no code in core. Every field is in the
+generated [`ADAPTER-CONFIG.generated.md`](../dev/reference/ADAPTER-CONFIG.generated.md); doc 22 covers what a schema cannot say — which rules actually run,
+and what an omission means in practice. This is the orientation.
 
 | Block | Required | What it carries |
 |---|---|---|
@@ -113,8 +145,18 @@ this is the orientation.
 | `discovery` | no | how the room list is exposed (§7) |
 | `mapping` | no | pluggable **map** segmenter — image → room polygons (§8) |
 | `job_segmenter` + `live_transition` | no | pluggable **job/run** segmenter — counter stream → per-room boundaries — plus live-rollover orchestration (§9) |
-| `room_profiles` | **YES — registration fails without it** | your brand's room-profile vocabulary (§10). Core carries no catalog, so an adapter declaring none cannot resolve a room. It was nominally optional until 2026-08-07, and omitting it inherited the framework catalog — which was EUFY'S — so rooms were created with another brand's words and applied nothing. See §10. |
+| `room_profiles` | **YES by contract — but a code adapter is only WARNED** | your brand's room-profile vocabulary (§10). Core carries no catalog, so an adapter declaring none cannot resolve a room — and per the warning in §2 the hard raise fires only for a user-saved config, so for your brand the absence surfaces at the first clean, not at startup. The conformance suite is the gate that catches it. It was nominally optional until 2026-08-07, and omitting it inherited the framework catalog — which was EUFY'S — so rooms were created with another brand's words and applied nothing. See §10. |
 | `dock_events`, `post_job_wash_amendment`, `error_tracking`, `maintenance_components`, `upkeep_catalog`, `water_model_configs` | no | dock/error/maintenance catalogs — graceful degradation when absent |
+
+The schema carries thirty-six top-level blocks, so the table above is a tour of the
+load-bearing ones rather than the list. Optional blocks this guide does not walk, each degrading to nothing when
+absent: `charging` (low-battery mid-job return), `setup` (which onboarding steps run),
+`settings_selects` (global selects mirroring the current room's per-room values),
+`external_run` and `external_mid_run_statuses`, `device_clean_order` (§6a), `anomaly`,
+`wash_frequency_bounds`, `cleaning_time_unit`, `model_family`, `display_name` / `brand`,
+and `capability_hints` — declarations fed *into* capability detection, a different
+dictionary from `capabilities` with a different consumer, validated at registration
+against a frozenset in `core/capabilities.py`.
 
 ---
 
@@ -148,28 +190,57 @@ value maps — no new code. Roborock (`app_segment_clean`):
 # → {"command": "app_segment_clean", "params": [{"segments": [16, 17], "repeat": 2}]}
 ```
 
-Dreame (`vacuum_clean_segment`, parallel arrays via a `room_fields` transpose):
+Dreame (`vacuum_clean_segment`) is the **columns** shape, and it is worth reading in
+two parts because the shipped adapter does not use the obvious half of it.
+
+The `dreame_room_clean` engine transposes each declared `room_fields` entry into a
+full-length aligned array (`field_name: None` is how you omit a field the brand does not
+accept), and a `value_map` keys on the CANONICAL value, lower-case, never on the label
+the card shows:
+
+```python
+"room_fields": {
+    "fan_speed": {"field_name": "suction_level",
+                  # canonical token -> wire int. Dreame's own labels for these four are
+                  # Quiet / Standard / Intense / Max — the label is not the key.
+                  "value_map": {"quiet": 0, "standard": 1, "strong": 2, "turbo": 3}},
+},
+```
+
+**The shipped Dreame adapter does not use that transpose, and the reason is worth
+reading before you copy either shape.** Its clean call carries room ids only, and every
+per-room setting rides a separate bulk service call declared in `dispatch.settings_write`
+— one `vacuum_set_custom_cleaning` with index-aligned int arrays over the queued rooms,
+each field optionally gated on the per-room entity existing (`gate_room_suffix`), with a
+`filler` for a room whose canonical value is empty:
 
 ```python
 "dispatch": {
     "template": "dreame_room_clean",
     "service_domain": "dreame_vacuum", "service_name": "vacuum_clean_segment",
-    "rooms_field": "segments", "clean_passes_field": "repeats",
-    "room_fields": {
-        "fan_speed":   {"field_name": "suction_level",
-                        "value_map": {"Quiet": 0, "Standard": 1, "Strong": 2, "Turbo": 3}},
-        "water_level": {"field_name": "water_volume",
-                        "value_map": {"Low": 1, "Medium": 2, "High": 3}},
-        "clean_mode": {"field_name": None}, "clean_intensity": {"field_name": None},
-        "edge_mopping": {"field_name": None}, "path_type": {"field_name": None},
+    "command": None,          # see below — declared, NOT omitted
+    "rooms_field": "segments",
+    "clean_passes_field": None,   # passes ride settings_write; the wire param is ignored
+    "passes_max": 3, "passes_is_global": False,
+    "settings_write": {
+        "domain": "dreame_vacuum", "service": "vacuum_set_custom_cleaning",
+        "segment_id_field": "segment_id",
+        "fields": [
+            {"canonical": "fan_speed", "wire": "suction_level",
+             "value_map": vocabulary.FAN_SPEED_WIRE_MAP, "required": True, "filler": 0},
+            {"canonical": "water_level", "wire": "wetness_level", "clamp": [1, 32],
+             "filler": 16, "gate_room_suffix": "wetness_level", "gate_domain": "number"},
+            ...
+        ],
     },
 },
-# → {"segments": [3, 2], "suction_level": [0, 3], "water_volume": [1, 3], "repeats": [1, 2]}
 ```
 
 The send-site envelope is also config-driven: a `command` produces the wrapped
-`{command, params}` shape (Eufy/Roborock); omitting it merges the payload into
-the service data directly (Dreame).
+`{command, params}` shape (Eufy/Roborock). A brand whose service takes its payload
+directly must declare **`"command": None`** — omitting the key is not the same thing, and
+is a bug that has already shipped: the default is `command="room_clean"`, so an omitted
+key sent Eufy's wrapped envelope to a Dreame service that has no command field at all.
 
 **If your wire shape is genuinely new**, add an engine in
 `queue/dispatch_engines.py` (subclass the closest one, override `build_payload`)
@@ -215,16 +286,28 @@ Declare feature flags in the `capabilities` block:
 `supports_empty_dust`, `supports_robot_position`, `supports_station_water`.
 They gate payload fields, dock actions, and card UI.
 
-There are also **behavioral flags** an entity probe can't see —
+There are also **behavioural flags** an entity probe can't see —
 `honors_clean_order`, `supports_room_profiles`, `rooms_unique_per_job`,
-`position_lock_reliable` — plus `supports_base_station` / `supports_map_bounds`,
-which are capability-gated DEFAULTS (the framework shows the matching card tabs
-unless the brand sets them False; they are not always set as adapter literals).
-All default to True / unchanged, so Eufy omits them. A path-optimizing brand (the
-Roborock S6) sets `honors_clean_order=False` (which gates the strict-order opt-in
+`position_lock_reliable` — and the zone sub-vocabulary (`supports_zone_clean`,
+`supports_zone_repeat`, `zone_max`, plus `zone_max_side_m` / `zone_min_side_m` for a
+side-length brand or `zone_max_area_m2` / `zone_min_area_m2` for an area brand: the two
+shipped zone brands express the limit in DIFFERENT units, so no consumer may assume one
+shape). All default to True / unchanged, so Eufy omits them. A path-optimizing brand
+(the Roborock S6) sets `honors_clean_order=False` (which gates the strict-order opt-in
 and the run-start "order is advisory" note) and `supports_room_profiles=False`.
-The full 15-flag table is in
-[22 — The Adapter Contract](../dev/22-adapter-contract.md) §14.
+
+`supports_base_station` and `supports_map_bounds` are **not** declarable here. They are
+derived per vacuum in `core/manager.py::get_dashboard_snapshot` — from
+`dock_events.enabled` and from whether `mapping.segmenter_engine` names a real segmenter
+— and shipped in the dashboard snapshot the card gates its tabs on.
+
+The complete table is generated, not written:
+[`CAPABILITY-FLAGS.generated.md`](../dev/reference/CAPABILITY-FLAGS.generated.md) carries
+all 22 declarable keys, which of them a `capability_hint` can also feed, and which exist
+only in detection output. Two it declares that this guide does not otherwise walk:
+`supports_goto` (§6a) and `supports_cleaning_path` — the pass-density axis the card calls
+Cleaning Path, which a brand declares only when it can DERIVE it, because absent means
+"nobody established this" and that is a third state the card must not collapse to False.
 
 The Eufy adapter auto-populates these by calling
 `core/capabilities.py::detect_capabilities()` (Eufy-specific: entity-presence
@@ -239,9 +322,8 @@ way the flags' *meaning* is brand-agnostic — only detection is brand-specific.
 
 The Roborock adapter exercised several config seams Eufy never touches. A
 divergent brand can opt into the same behavior by declaring these — each is a
-config knob, not core code. One line each here; the field schemas live in
-[22 — The Adapter Contract](../dev/22-adapter-contract.md) and the worked
-context in [24 — The Roborock Adapter](../dev/24-roborock-adapter.md).
+config knob, not core code. One line each here; the field schemas are in [`ADAPTER-CONFIG.generated.md`](../dev/reference/ADAPTER-CONFIG.generated.md)
+and the worked context in [24 — The Roborock Adapter](../dev/24-roborock-adapter.md).
 
 - `dispatch.phase_timing` — settle/verify/retry timing for the **strict-order**
   per-room watchdog (a path-optimizing device may ignore a clean dispatched the
@@ -280,12 +362,26 @@ context in [24 — The Roborock Adapter](../dev/24-roborock-adapter.md).
 - `room_attribution` — a pluggable engine that recovers **which** managed rooms an
   **external** (undispatched) run cleaned, from a per-tick pose time-series. A
   different axis from the job/run segmenter (§9): that one owns time/area
-  boundaries, this one owns room identity. Eufy declares `swept_area_winding_v1`;
-  absent/unknown falls back to it (not noop).
+  boundaries, this one owns room identity. Eufy and Roborock both declare
+  `swept_area_winding_v1`; Dreame declares `noop_room_attribution` because it reports
+  native per-room progress. Absent or unknown falls back to the winding engine, not to
+  noop — so a brand that wants no attribution must say so.
 - `dispatch.zone_command` + `capabilities.supports_zone_clean` — ad-hoc free-form
   **zone cleaning** (draw a box on the live map, clean that rectangle). The verb
-  is the `send_command` command name (`manager.dispatch_zone_clean` reads it);
-  absence means zone cleaning is unsupported for the brand.
+  is the `send_command` command name (`dispatch/manager.py::dispatch_zone_clean` reads
+  it); absence means zone cleaning is unsupported for the brand. A brand whose zone
+  clean is its OWN service rather than a `send_command` verb declares the top-level
+  **`zone`** block instead (service_domain / service_name, zone_field / repeats_field,
+  zone_coords, zone_passes_max) — Dreame's `vacuum_clean_zone`. Same capability flag,
+  same consumer, two declaration shapes.
+- `goto` + `capabilities.supports_goto` — **cruise to a point** (service_domain /
+  service_name plus `x_field` / `y_field` for the device-mm coordinate), read by
+  `dispatch/manager.py::dispatch_goto`.
+- `device_clean_order` — the order the ROBOT itself will clean in, which on a
+  path-optimising brand overrides its own optimisation. Absent (or `enabled: False`)
+  means the brand has no such concept: no read, and no clean-order sensor is created.
+  `read.via` names the acquisition strategy and is the repoint seam; an unimplemented
+  `via` reads as unavailable, never as an empty order.
 
 A divergent brand can thus opt into: the **strict-order** per-run sequenced
 clean, the **live-map backdrop**, a VA-owned **provider-map source** with live
@@ -365,8 +461,9 @@ learning can attribute time/area to each room. It lives in
 — a brand registers an engine under a string name and selects it via
 `job_segmenter.engine` in the adapter config.
 
-The Eufy engine (`eufy_counter_v1`) detects per-room boundaries by watching the
-`cleaning_time` / `cleaning_area` counters plateau and jump (Eufy exposes no
+The counter-plateau engine (`counter_plateau_v1`, the Eufy default) detects per-room
+boundaries by watching the `cleaning_time` / `cleaning_area` counters plateau and
+jump (Eufy exposes no
 native per-room transition events; coordinates drift). A lidar brand that emits
 a native "now cleaning room N" signal implements `find_candidates` by reading
 those events instead and returns the **same** boundary/segment shape, so the
@@ -384,7 +481,7 @@ These are the cross-engine union; consumers read only these fields.
 
 | Method | Brand owns? | Purpose |
 |---|---|---|
-| `engine_name` | yes | the registry key (e.g. `"eufy_counter_v1"`) |
+| `engine_name` | yes | the registry key (e.g. `"counter_plateau_v1"`) |
 | `validate_tuning(tuning)` | yes | return issue strings (`[]` = valid); run at registration |
 | `find_candidates(samples, *, tuning)` | yes | **every** boundary in the stream, in cleaning order — no discards |
 | `build_segments(samples, active, *, tuning)` | yes | the ordered per-room `JobSegment`s for a chosen boundary set |
@@ -398,17 +495,28 @@ the external-review wizard's count/toggle logic stays uniform across brands. The
 engine owns only the two brand-specific stages (`find_candidates`,
 `build_segments`) plus the `segment_legacy` composition.
 
-**Eufy `kind` literals stay at the call sites, not in the engine.** The Eufy
-kind vocabulary (`"wash_plateau"` / `"transit"` / `"area_jump"` / `"weak"`) is
-produced by `find_candidates` and referenced by the Eufy-specific call sites (the
-live `rollover_kinds` list and the legacy `{"wash_plateau", "area_jump"}` filter).
-A brand with a different kind vocabulary supplies its own engine **and** its own
-kind literals at those sites — there is no kind indirection to configure.
+**Kind literals stay at the call sites, not in the engine.** The counter engine's kind
+vocabulary (`"wash_plateau"` / `"transit"` / `"area_jump"` / `"weak"` /
+`"recharge_dock"`) is produced by `find_candidates` and referenced by the Eufy-specific
+call sites (the live `rollover_kinds` list and the legacy
+`{"wash_plateau", "area_jump"}` filter). A brand with a different kind vocabulary
+supplies its own engine **and** its own kind literals at those sites — there is no kind
+indirection to configure.
 
-**Eufy fallback, not noop (mind the asymmetry with §8).** Unlike the map seam,
-`get_job_segmenter_engine(name)` falls back to the **Eufy** engine for an absent
+Note the third state in that vocabulary, because a new engine will want it.
+`"weak"` is reported and *selectable* (a short delayed step, flat area — most likely a
+multi-pass turn, not a boundary unless the user splits it), while `"recharge_dock"` (a
+gap past `stall_wall_s` with the battery RISING — the robot ran flat, docked, charged
+and resumed the same room) is reported so the dock trip stays visible but sits in
+`_NEVER_BOUNDARY_KINDS` and is filtered out of every selection mode, including an
+explicit `active_ids` toggle. Reported, selectable, and never-a-boundary are three
+different answers, and a kind that would satisfy `wash_plateau` in full needs checking
+BEFORE it.
+
+**Counter-plateau fallback, not noop (mind the asymmetry with §8).** Unlike the map
+seam, `get_job_segmenter_engine(name)` falls back to `counter_plateau_v1` for an absent
 or unknown name — like the dispatch seam, *not* a noop — because the historical
-no-adapter default is Eufy counter segmentation and live rollover + history must
+no-adapter default is counter segmentation and live rollover + history must
 keep working byte-for-byte. A `noop_job_fallback` engine is registered for a
 future brand that genuinely emits no segmentable signal, but you must declare it
 explicitly; it is never the silent default. An *unknown* (non-empty) name logs a
@@ -419,7 +527,7 @@ block; `live_transition` carries only the live-rollover orchestration knobs:
 
 ```python
 "job_segmenter": {
-    "engine": "eufy_counter_v1",
+    "engine": "counter_plateau_v1",
     # The SINGLE in-code source of the gap/area/cadence thresholds — live
     # rollover, external-run ingest, AND learned history all read these.
     "tuning": {
@@ -445,9 +553,10 @@ block; `live_transition` carries only the live-rollover orchestration knobs:
 A brand whose device reports its live room directly (e.g. Roborock's
 `_current_room` sensor) sets `native_transition_source: True`; the framework then
 follows that signal — name-slug matched, order-agnostic, transit rooms ignored —
-instead of the counter/timing heuristic. See the
+instead of the counter/timing heuristic. Both Roborock and Dreame declare it; Eufy is
+the only shipped brand left on the counter heuristic. The worked examples are
 [24 — The Roborock Adapter](../dev/24-roborock-adapter.md) and
-[22 — The Adapter Contract](../dev/22-adapter-contract.md) §13b.
+[24a — The Dreame Adapter](../dev/24a-dreame-adapter.md).
 
 > **Threshold home moved.** The six gap/area/cadence/stall thresholds
 > (`gap_delayed_s`, `gap_transit_s`, `gap_plateau_s`, `area_jump_m2`,
@@ -464,12 +573,20 @@ engine's own `validate_tuning`.
 `{"engine": "noop_job_fallback"}` to opt out explicitly (every stage returns
 `[]`); learning then accumulates no per-room boundaries for that brand.
 
-**Byte-identical by delegation (Eufy).** `EufyCounterSegmenter` delegates
+**Byte-identical by delegation.** `CounterPlateauSegmenter` delegates
 verbatim to the existing `counter_segmentation` primitives, and its
 `DEFAULT_TUNING` is defined *by reference* to that module's constants — so the
 Eufy path is byte-for-byte identical to the pre-engine code, and drift is a
 compile-time impossibility rather than a vigilance task. Copy this engine as the
 shape reference for a new brand.
+
+> **The engine was renamed, and the old id is not for new code.** It was
+> `eufy_counter_v1` (class `EufyCounterSegmenter`) until 2026-08-30, when Dreame became
+> the second brand to reach for it and a brand-named key in a brand-agnostic registry
+> stopped being tenable. `counter_plateau_v1` is the name; the legacy id is dual-accepted
+> so a stored config is not stranded, and is slated for removal. Declare the new one.
+> The same rename took the map segmenter from `eufy_cv_v1` to `cv_image_v1` (§8) and the
+> room attributor from `eufy_anchor_winding_v1` to `swept_area_winding_v1` (§6a).
 
 ---
 
@@ -621,17 +738,18 @@ Each step is independently testable.
 4. **Set `capabilities`** flags for the hardware. Set `discovery` for how rooms
    are listed. Set `mapping.segmenter_engine` to `noop_fallback` unless you wrote
    a map segmentor (§8).
-5. **Decide the job/run segmenter (§9).** If you can reuse the Eufy
-   counter-plateau engine, declare `job_segmenter.{engine: "eufy_counter_v1",
+5. **Decide the job/run segmenter (§9).** If you can reuse the shared
+   counter-plateau engine, declare `job_segmenter.{engine: "counter_plateau_v1",
    tuning}` and the `live_transition` orchestration knobs. If your brand emits
    native room-transition events, write a `JobSegmenter` engine (`find_candidates`
    plus `build_segments` plus `validate_tuning`, returning the
    `JobBoundaryCandidate` / `JobSegment` shape — `select_active` is
    framework-provided), register it in
    `_JOB_SEGMENTER_ENGINES`, and name it here. To opt out, declare
-   `noop_job_fallback`. *(Optional — an absent block falls back to the Eufy
-   engine.)* Declare a `room_profiles` catalog (§10) — see §10 for why this is not really optional — to override the
-   default profile vocabulary.
+   `noop_job_fallback`. *(Optional — an absent block falls back to
+   `counter_plateau_v1`.)* Declare a `room_profiles` catalog (§10) — required by the
+   contract, and warned-not-raised for a code adapter, so §12 is what catches its
+   absence.
 6. **Build the config dict** in `adapters/<brand>/adapter.py` and register it
    from `async_setup_entry`.
 7. **Add the brand to `ADAPTER_BUILDERS`** and run the conformance suite (§12) —
