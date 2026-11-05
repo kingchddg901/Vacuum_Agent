@@ -40,7 +40,9 @@ only.
 
 ### Added
 
-- **The integration now declares its category, so the new Marketplace can list it under Cleaning.** Home Assistant 2026.11 replaces HACS with a built-in Marketplace that can browse by category, and an integration without one only turns up in a search. Vacuum Agent declares `appliances_cleaning.cleaning`, which is the category Home Assistant's own list describes as covering robot vacuums and mops.
+- **The integration now declares its category.** Home Assistant 2026.11 added a `categories` key to the integration manifest, and the Marketplace catalogue carries it in its data. Vacuum Agent declares `appliances_cleaning.cleaning`, which is the category Home Assistant's own list describes as covering robot vacuums and mops.
+
+  **This is metadata today, not a feature you can see.** The Marketplace's browse view groups by status, type and source — not by category — so declaring one changes nothing a user of 2026.11 can click. It is recorded in the catalogue for whenever that surface arrives, and it keeps the HACS validation action quiet, which warns on a missing category and fails on an unknown one. An earlier version of this entry claimed the Marketplace could list the integration under Cleaning. That was wrong and is corrected here.
 
 ### Internal
 
