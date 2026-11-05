@@ -420,7 +420,7 @@ export function applyRoomRulesRenderers(proto) {
             class="evcc-rule-entity-search-result ${String(draft?.entity_id ?? "") === String(result.entity_id) ? "active" : ""}"
             data-rule-entity-select="${this.escapeHtml(String(result.entity_id))}"
           >
-            <span class="evcc-rule-entity-search-title">${this.escapeHtml(result.friendly_name || result.entity_id)}</span>
+            <span class="evcc-rule-entity-search-title">${this.escapeHtml(result.display_name || result.entity_id)}</span>
             <span class="evcc-rule-entity-search-meta">
               ${this.escapeHtml(result.entity_id)}
               ${result.state != null ? ` • ${this.escapeHtml(String(result.state))}` : ""}

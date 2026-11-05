@@ -28,6 +28,7 @@
  */
 
 import { resolveCodedLabel } from "../state/coded-label.js";
+import { entityDisplayName } from "../state/entity-display-name.js";
 
 const FLOOR_TYPE_OPTIONS = [
   { value: "hardwood",         label: "Hardwood"         },
@@ -831,7 +832,7 @@ export function applySetupRenderers(proto) {
                   ${loading ? "disabled" : ""}>
             <option value=""${liveMapCurrent ? "" : " selected"}>${this.t("setup.auto_adapter_default")}</option>
             ${mapCandidateIds.map((id) => {
-              const friendly = card._hass.states[id]?.attributes?.friendly_name ?? id;
+              const friendly = entityDisplayName(card._hass, id) || id;
               const sel = id === liveMapCurrent ? " selected" : "";
               return `<option value="${this.escapeHtml(id)}"${sel}>${this.escapeHtml(String(friendly))} (${this.escapeHtml(id)})</option>`;
             }).join("")}
@@ -856,7 +857,7 @@ export function applySetupRenderers(proto) {
     const unmanagedIds = allVacuumIds.filter((id) => !managedIds.has(id)).sort();
 
     const addOtherRowsHtml = unmanagedIds.map((id) => {
-      const friendly = card._hass.states[id]?.attributes?.friendly_name ?? id;
+      const friendly = entityDisplayName(card._hass, id) || id;
       return `
         <div class="evcc-setup-add-other-row">
           <div class="evcc-setup-add-other-info">

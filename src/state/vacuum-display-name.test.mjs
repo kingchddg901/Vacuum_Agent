@@ -6,6 +6,8 @@
 //   [VDN-3] a blank/whitespace title falls through too
 //   [VDN-4] no snapshot yet (first paint) still renders friendly_name
 //   [VDN-5] nothing at all degrades to the formatted object id
+//   [VDN-6] a title is trimmed, not passed through with its padding
+//   [VDN-7] HA's COMPOSED name (2026.11) beats the attribute — and the title still beats both
 //
 // WHY. `panel_title` is settable per vacuum via `setup_set_panel_title`, and the SIDEBAR has
 // always honoured it — but the dashboard snapshot never carried it, so this header showed the
@@ -26,14 +28,37 @@ import assert from "node:assert/strict";
 
 import { applyCoreState } from "./core.js";
 
-/** A state object with just the three surfaces vacuumDisplayName reads. */
-function makeState({ panelTitle, friendlyName, objectId = "alfred" } = {}) {
+/**
+ * A card with just the surfaces vacuumDisplayName reads.
+ *
+ * The name no longer comes from a stubbed `vacuumAttrs()` — it is resolved through
+ * `entityDisplayName`, which reads the real `hass.states` entry. So the fixture builds a
+ * real state object: stubbing the accessor would have tested a path production no longer
+ * takes, which is the whole failure mode this file is meant to catch.
+ */
+function makeState({ panelTitle, friendlyName, objectId = "alfred", formatEntityName } = {}) {
   const proto = {};
   applyCoreState(proto);
   const s = Object.create(proto);
+  const entityId = `vacuum.${objectId}`;
+
+  s.config = { vacuum_entity_id: entityId };
+  s.hass = {
+    states:
+      friendlyName == null
+        ? {}
+        : {
+            [entityId]: {
+              entity_id: entityId,
+              state: "docked",
+              attributes: { friendly_name: friendlyName },
+            },
+          },
+  };
+  if (formatEntityName) s.hass.formatEntityName = formatEntityName;
+
   s.dashboardSnapshot = () =>
     panelTitle === undefined ? null : { panel_title: panelTitle };
-  s.vacuumAttrs = () => (friendlyName == null ? {} : { friendly_name: friendlyName });
   s.vacuumObjectId = () => objectId;
   return s;
 }
@@ -77,4 +102,29 @@ test("[VDN-5] with neither, the object id is formatted rather than shown raw", (
 test("[VDN-6] a title is trimmed, not passed through with its padding", () => {
   const s = makeState({ panelTitle: "  Upstairs  ", friendlyName: "Eufy Alfred" });
   assert.equal(s.vacuumDisplayName(), "Upstairs");
+});
+
+test("[VDN-7] HA's composed name beats the attribute, and the title beats the composed name", () => {
+  // 2026.11: the built-in cards show device-then-entity, so an untitled vacuum must follow.
+  const composed = () => "Hallway Alfred";
+
+  const untitled = makeState({
+    panelTitle: null,
+    friendlyName: "Alfred",
+    formatEntityName: composed,
+  });
+  assert.equal(untitled.vacuumDisplayName(), "Hallway Alfred");
+
+  // THE INPUT THAT MAKES THIS RED: route vacuumDisplayName back to `friendly_name` and the
+  // header reads "Alfred" while every built-in card beside it reads "Hallway Alfred".
+  const titled = makeState({
+    panelTitle: "Downstairs",
+    friendlyName: "Alfred",
+    formatEntityName: composed,
+  });
+  assert.equal(
+    titled.vacuumDisplayName(),
+    "Downstairs",
+    "the one name the user chose still outranks anything HA composes"
+  );
 });

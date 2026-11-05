@@ -7,6 +7,9 @@
     "panel_custom",
     "recorder"
   ],
+  "categories": [
+    "appliances_cleaning.cleaning"
+  ],
   "codeowners": [
     "@kingchddg901"
   ],

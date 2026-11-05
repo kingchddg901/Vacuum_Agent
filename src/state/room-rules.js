@@ -170,6 +170,8 @@ function scoreEntitySearch(entityId, friendlyName, query) {
   return 0;
 }
 
+import { entityDisplayName } from "./entity-display-name.js";
+
 export function applyRoomRulesState(proto) {
 
   /* =========================================================
@@ -469,7 +471,10 @@ export function applyRoomRulesState(proto) {
     return {
       entityId: normalizedId,
       entityExists: !!entityState,
-      entityLabel: String((attrs.friendly_name ?? normalizedId) || "Entity"),
+      entityLabel:
+        entityDisplayName(this.hass, normalizedId, entityState) ||
+        String(normalizedId || "") ||
+        "Entity",
       currentState: stateValue,
       category,
       operators,
@@ -570,13 +575,16 @@ export function applyRoomRulesState(proto) {
 
     const entries = Object.entries(this.hass?.states ?? {})
       .map(([entityId, entityState]) => {
-        const friendlyName = String(entityState?.attributes?.friendly_name ?? "").trim();
-        const score = scoreEntitySearch(entityId, friendlyName, normalizedQuery);
+        // The name the user SEES elsewhere is the name they will type, so the search and
+        // the row both run off HA's composed name rather than the raw attribute. The field
+        // is `display_name` and not `friendly_name` because it is no longer that attribute.
+        const displayName = entityDisplayName(this.hass, entityId, entityState);
+        const score = scoreEntitySearch(entityId, displayName, normalizedQuery);
         if (score <= 0) return null;
 
         return {
           entity_id: entityId,
-          friendly_name: friendlyName,
+          display_name: displayName,
           state: entityState?.state ?? null,
           domain: entityId.split(".")[0] ?? "",
           score,

@@ -27,6 +27,7 @@ import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone
 import { dashboardSuggestion } from "./card-suggestions.js";
 import { canZoneRepeat } from "./zone-repeat.js";
 import { deriveSequenceRowState, findCleanOrderSensor, findOverrideSwitch } from "../state/sequence-override.js";
+import { entityDisplayName } from "../state/entity-display-name.js";
 
 const CARD_NAME   = "vacuum-agent-dashboard";
 const CARD_EDITOR = "vacuum-agent-dashboard-editor";
@@ -435,7 +436,9 @@ class EufyDashboardCard extends HTMLElement {
 
     const vid = this._vacuumId();
     const vacuumState = this._hass?.states?.[vid];
-    const title = this._config.title ?? vacuumState?.attributes?.friendly_name ?? vid;
+    // The card's own title wins — it is the one name the user set here. Otherwise ask HA,
+    // so this header agrees with every built-in card on the dashboard (2026.11 naming).
+    const title = this._config.title ?? (entityDisplayName(this._hass, vid, vacuumState) || vid);
     const rooms = this._roomsForActiveMap();
     // Room selection is the live switch state (shared with the map → they sync).
     const onCount = rooms.filter((r) => r.state === "on").length;

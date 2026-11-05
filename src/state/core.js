@@ -1,6 +1,7 @@
 // Foundational HA entity/state access helpers shared by every other state module.
 
 import { ENTITY, INVALID_STATES, vacuumObjectId } from "../constants.js";
+import { entityDisplayName } from "./entity-display-name.js";
 
 export function applyCoreState(proto) {
 
@@ -212,7 +213,7 @@ export function applyCoreState(proto) {
   /**
    * User-friendly vacuum name.
    *
-   * PRIORITY: the user's own panel title → `friendly_name` → formatted object_id.
+   * PRIORITY: the user's own panel title → the name HA shows → formatted object_id.
    *
    * The panel title comes FIRST because it is the only one of the three the user chose.
    * It is settable per vacuum (`setup_set_panel_title`), the sidebar has always honoured
@@ -221,8 +222,14 @@ export function applyCoreState(proto) {
    * integration named the entity. A setting that can be written and never read.
    *
    * The snapshot ships it RAW: null when unset, never the sidebar's "Vacuum Agent"
-   * fallback. So an untitled vacuum falls through to `friendly_name` exactly as before
+   * fallback. So an untitled vacuum falls through to HA's own name exactly as before
    * rather than every card reading "Vacuum Agent".
+   *
+   * The middle step USED to read `friendly_name` directly. From 2026.11 that attribute
+   * no longer matches what the built-in cards show, so the question is delegated to
+   * `entityDisplayName`, which asks HA on a modern core and reads the attribute below
+   * the 2026.4 floor. Its "" means "HA has no name for this", which is what lets the
+   * object-id branch below stay reachable.
    *
    * @returns {string}
    */
@@ -230,8 +237,9 @@ export function applyCoreState(proto) {
     const panelTitle = String(this.dashboardSnapshot?.()?.panel_title ?? "").trim();
     if (panelTitle) return panelTitle;
 
-    const attrs = this.vacuumAttrs();
-    if (attrs?.friendly_name) return String(attrs.friendly_name).trim();
+    const entityId = this.vacuumEntityId();
+    const name = entityDisplayName(this.hass, entityId, this.entity(entityId));
+    if (name) return name;
 
     const objectId = this.vacuumObjectId();
     if (!objectId) return "Vacuum";

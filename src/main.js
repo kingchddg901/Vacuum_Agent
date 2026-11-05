@@ -465,7 +465,16 @@ class EufyVacuumCommandCenter extends HTMLElement {
           display: block;
           width: 100%;
           min-height: 100%;
-          background: var(--primary-background-color, #111);
+          /* HA 2026.11 paints the theme background ONCE behind every panel, and a
+             custom panel that paints --primary-background-color on its own host covers
+             it. The upstream advice is to drop the declaration — but that assumes core
+             >= 2026.11, and hacs.json declares a 2025.6.0 floor. Measured: at the floor
+             (frontend 208e8633, 2025-05-26) home-assistant-main.ts carries NO background
+             rule at all, so dropping it outright would leave this placeholder unpainted
+             on every core from the floor through 2026.10 — light text on nothing.
+             Reading the new token FIRST honours a theme's panel background where one
+             exists and falls back to exactly today's value where it does not. */
+          background: var(--ha-panel-background, var(--primary-background-color, #111));
           color: var(--primary-text-color, #e6e6e6);
           font-family: var(--paper-font-body1_-_font-family, system-ui, sans-serif);
         }
