@@ -8,6 +8,46 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.6.0] - 2026-11-04
+
+**Home Assistant 2026.11 changed how every entity's name is displayed, and HACS became the built-in Marketplace.** This release makes the card agree with the rest of your dashboard on what things are called, stops the fresh-install screen painting over your theme's panel background, and tells the new Marketplace what kind of integration this is.
+
+> **Hard-refresh the dashboard after updating** (Ctrl+Shift+R). No Python ships differently in this release, but the card does. Restart Home Assistant once as well if the sidebar panel still looks unchanged after a refresh — that re-registers the panel against the new bundle, and it is also what makes the new Marketplace category below take effect.
+>
+> **Some names may read differently, and that is Home Assistant's change rather than ours.** From 2026.11, Home Assistant builds an entity's displayed name from its context — the device it belongs to, then the entity's own name — instead of using one stored attribute. Built-in cards did this from the day you updated; this card did not, so it could show a different name to the tile card sitting beside it. Now they agree.
+>
+> **If a name reads twice, that is the fix working, not failing.** Home Assistant's own release notes give the example of an entity named "Off-peak consumption" on a "Power meter" device now reading "Power meter Off-peak consumption". A vacuum whose device and entity carry the same word will read it twice for the same reason, exactly as a built-in card shows it. Home Assistant's answer is the **Main entity of the device** switch in that entity's settings, which collapses it back to the device name alone.
+>
+> **Your own names still win, in both places that have one.** A panel title set on the vacuum outranks anything Home Assistant composes in the **sidebar panel's** header. On a **dashboard card**, the equivalent is the card's own `title` option — the card header has never read the panel title, and still does not.
+>
+> **Coming from HACS?** Nothing to do. Home Assistant migrates HACS to the Marketplace on the first start after updating to 2026.11; downloads, custom repositories and update entities carry over. Vacuum Agent is in the same catalogue, installs from the same zip asset, and updates the same way.
+
+### Fixed
+
+- **The card showed a different name for an entity than every built-in card beside it.** Home Assistant 2026.11 composes a displayed name from an entity's context rather than reading the `friendly_name` attribute, and keeps that attribute populated only for backward compatibility. A card still reading it therefore disagrees with the tile card, the entity rows and the more-info dialog on the same dashboard. Home Assistant sent updates to the authors of dozens of popular custom cards ahead of the release; this card was not among them.
+
+  Six places that display an entity's name now ask Home Assistant for it: the sidebar panel's header, the dashboard card's header, the rule editor's entity label and its search results, and the setup panel's live-map camera picker and add-another-vacuum list. They ask without specifying a composition, so Home Assistant's own default applies — the parent device, the device, then the entity — which means the card tracks any future change to that default instead of freezing today's shape, and picks up child devices for free when an integration adopts them.
+
+  The helper that answers this arrived in Home Assistant 2026.4, and this integration supports 2025.6.0 and newer, so the `friendly_name` attribute remains the answer on every version below that. That fallback is not defensive decoration — it is the live path for a large share of installations, and it is tested by deleting the newer helper outright rather than by assuming it is there.
+
+- **The fresh-install setup screen painted over your theme's panel background.** Home Assistant 2026.11 paints the theme background once behind every panel, so a custom panel that paints its own covers it — which matters for any theme setting a panel background rather than a flat colour. This affects the screen shown before a vacuum is configured, and only that screen. It now reads Home Assistant's new panel-background variable first and falls back to the previous value, because on every version below 2026.11 nothing else paints behind the panel and removing the declaration outright — which is what Home Assistant's own guidance says to do — would have left that screen unpainted on four releases' worth of supported cores.
+
+### Changed
+
+- **The rule editor's entity search now matches on the name you actually see.** Searching for an entity to build a room rule scored and displayed the raw `friendly_name`. It now uses the same composed name shown everywhere else, so typing a device's name finds the entities belonging to it — which it did not do before.
+
+- **Adapter authors: the porting guide and the adapter contract have been brought back in line with the code.** The guide was written when two brands shipped and now says three. It also corrects several things a porter would have got wrong by following it: a code adapter's registration issues are warnings rather than a hard failure, a brand must declare `"command": None` rather than omitting it, upkeep text is derived from the regime tables rather than per-brand guide libraries, and two engine names lost their brand prefix — `eufy_cv_v1` is `cv_image_v1` and `eufy_counter_v1` is `counter_plateau_v1`. The brand count in the generated adapter-config reference is now rendered from the registry rather than typed, so it cannot go stale again.
+
+### Added
+
+- **The integration now declares its category, so the new Marketplace can list it under Cleaning.** Home Assistant 2026.11 replaces HACS with a built-in Marketplace that can browse by category, and an integration without one only turns up in a search. Vacuum Agent declares `appliances_cleaning.cleaning`, which is the category Home Assistant's own list describes as covering robot vacuums and mops.
+
+### Internal
+
+- **One question, one answer, every surface.** The six call sites above route through a single resolver rather than each reaching for an attribute. It answers `""` when Home Assistant has no name, which is what lets each caller keep its own last resort — the panel header formats the object id, a picker row shows the raw entity id.
+
+- **The fallback is tested by removing it.** `[EDN-2]` deletes `formatEntityName` from the hass object, which is the exact shape of every core from the 2025.6.0 floor through 2026.3, and asserts the attribute still answers. `[EDN-3]` pins the call's arity, because passing an explicit composition would silently drop the parent-device segment. Each of the seven new cases was ablated and confirmed to go red before being trusted.
+
 ## [2.5.4] - 2026-10-29
 
 **One report from the field, and two things found by reading our own release notes.** A Roborock was being told to change to the fan speed it was already set to every time it crossed a room boundary — reported as repeated chimes by **@dobrynski** ([#78](https://github.com/kingchddg901/Vacuum_Agent/issues/78)), whose report named the three lines of code responsible and was right about all three. The map's animal companion, which is on by default, has been silently missing after every HACS install and update until the next Home Assistant restart, because the one file it needs has never been part of a release. And the pre-job estimate panel's two "no estimate" sentences have been reading English in all 17 translated languages.
