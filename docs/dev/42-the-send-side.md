@@ -41,6 +41,51 @@ that then failed, leaving the vacuum reconfigured with no clean to show for it.
 
 The rule generalises: **push device state only after everything that can refuse has refused.**
 
+### A re-send is suppressed only when we made it redundant ourselves
+
+The method runs **twice over a phased job** — once at job start, once per phase — so a
+strict-order run pushed an identical value at every room start. A robot that acknowledges the
+write chimes each time, which is how it was reported (#78/#79).
+
+What suppresses the re-send is **our own earlier push, not the reported state**, and that
+difference is the design:
+
+| | per-room suction skip | global pre-call skip |
+|---|---|---|
+| the question | does the target report this value? | did *we* put it there, this job? |
+| the evidence | the entity's reported value | a blocking push of ours that did not raise |
+| cost of being wrong | a redundant call | a wet mop on a dry floor |
+
+The reported value cannot carry the second cost. Home Assistant's Roborock mop-intensity select
+registers no push listener — unlike its vacuum — so its state moves only on a coordinator poll
+(15–60s, and longer while a failing refresh is being suppressed, during which it still reports as
+available). `off` is also the *modal* reading, precisely because this code puts it there. A
+vendor-app change inside that window therefore reads as agreement, and suppressing on it would
+withhold the one call protecting the dry floor — reproducing §4's incident exactly.
+
+Three things to know before changing it:
+
+- **The first push of every job is unconditional**, including when the device already reports the
+  value. That is the chime a non-phased run still produces, and it stays: it is the one push whose
+  redundancy cannot be established without trusting a reading that may be stale.
+- **A disagreeing reading vetoes the skip**, so an external change the poll has since caught
+  re-arms the push. An *absent* reading — missing entity, `unavailable`, `unknown`, blank — is no
+  information: it cannot veto, and on its own it never creates a skip.
+- **The skip sits after the missing/disabled refusal, deliberately.** A skip is not a failure and
+  must never abort; placed earlier it would re-open §4's silence.
+
+Two details that look cosmetic and are not. The comparison is **case-normalised on both sides**:
+`rank` is lowercased when it is read while a select keeps its own option case, so a bare `==`
+would be live on a lowercase-option device and dead on a capitalised one. And where the value is
+read from follows the **service domain** — a select's value is its state, a vacuum's fan speed is
+an attribute — because a select publishes no `option` attribute at all, so the per-room helper's
+read, copied verbatim, would produce a guard that cannot fire. Both are pinned by tests that go
+red under the opposite choice (`[GPC-19]`, `[GPC-22a/b]`).
+
+The log is two-sided from here on: a skip logs and a send logs. One-sided, an empty debug log read
+identically for "nothing happened" and "everything sent", which is what made the first report of
+this hard to diagnose.
+
 ---
 
 ## 3. A mixed batch takes the safest water, not the strongest
@@ -135,6 +180,7 @@ retyping a tuple.
 | the safe-water floor is the minimum declared level | a dry room declares none; the rule targets the rank's lowest value directly — §3 |
 | a call wrapped in `except` is guarded | HA logs a missing target rather than raising, so the abort never ran — §4 |
 | pre-calls never abort a run | true of the plain entries, false of the safest-water entry — §4 |
+| a value the device already reports is not re-sent | only when *we* sent it this job; a reported value alone never suppresses the push — §2 |
 | two identical-looking tuples should be merged | these answer different questions and merging breaks zone handling — §5 |
 
 ---

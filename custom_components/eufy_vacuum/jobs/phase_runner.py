@@ -2220,9 +2220,33 @@ class PhaseRunner:
                   attempt=attempt, sent=bool(zones))
             return
 
+        # `job["resolved_rooms"]` IS THIS PHASE'S OWN ROOMS -- and nothing at this call
+        # site says so, because the mechanism lives in two other files. At job start
+        # `payload_state = phases[0]` (planning/run_plan.py::_build_effective_start_plan;
+        # the contract is stated one function away, in _build_dispatch_phases's docstring
+        # -- "phases[0] is a drop-in for the old payload_state"), so the record a
+        # strict-order job is CREATED with already carries phase 0's single room; on
+        # every advance, `advanced["resolved_rooms"] = next_resolved` rewrites it
+        # from the next phase (queue/queue_engine.py::advance_active_job_phase). The
+        # active-job record is swapped to BE the phase, which is why reading the JOB here
+        # is correct and `phases[idx]["resolved_rooms"]` is not needed.
+        #
+        # DON'T "FIX" THIS TO READ THE PHASE DIRECTLY, and don't reason about it from its
+        # sibling `queue_room_ids`: THAT field is whole-run at phase 0, which is exactly
+        # why the timing capture in this file reads `phases[idx]` explicitly and says so.
+        # One field's scope does not transfer to the other's. Assume it does and this line
+        # reads as a defect that pushes the whole run's water at every room start -- which
+        # would make the docstring above, adapters/roborock/adapter.py's phasing comment,
+        # and b007e079's commit message all wrong in the same direction. They are not.
         await self._manager._run_global_pre_calls(
             vacuum_entity_id=vacuum_entity_id,
             resolved_rooms=list(job.get("resolved_rooms", [])),
+            # MID-JOB: job start already pushed, blocking and without raising, so an
+            # identical value here is a re-send we can prove redundant — which is the
+            # chime a strict-order run produced at every room start (#78/#79). A value
+            # that DIFFERS from the one we pushed still goes out, and so does any value
+            # if the target has since reported something else.
+            reuse_pushed_values=True,
         )
         await self._manager.active_job.apply_per_room_live_settings_awaited(
             vacuum_entity_id,

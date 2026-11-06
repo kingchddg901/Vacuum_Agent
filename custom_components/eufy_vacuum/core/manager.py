@@ -7212,14 +7212,20 @@ class EufyVacuumManager:
         *,
         vacuum_entity_id: str,
         resolved_rooms: list[dict[str, Any]],
+        reuse_pushed_values: bool = False,
     ) -> None:
         """Push global device settings (fan/mop) before dispatch — delegates to
         DispatchManager. Kept on the manager because start_selected_rooms,
         jobs/phase_runner.py, and the dispatch tests reference
-        manager._run_global_pre_calls. See dispatch/manager.py."""
+        manager._run_global_pre_calls. See dispatch/manager.py.
+
+        ``reuse_pushed_values`` is forwarded unchanged: False (the default) forgets
+        what this vacuum pushed before, so the first push of a job is unconditional;
+        the phase runner passes True to suppress ITS OWN identical re-sends mid-job."""
         return await self.dispatch._run_global_pre_calls(
             vacuum_entity_id=vacuum_entity_id,
             resolved_rooms=resolved_rooms,
+            reuse_pushed_values=reuse_pushed_values,
         )
 
     async def _run_settings_write(
@@ -7444,6 +7450,11 @@ class EufyVacuumManager:
         await self._run_global_pre_calls(
             vacuum_entity_id=vacuum_entity_id,
             resolved_rooms=list(payload_state.get("resolved_rooms", [])),
+            # EXPLICIT, not defaulted: this is a NEW job, so whatever a previous job
+            # pushed is no evidence about what the device holds now — the vendor app
+            # may have moved it in between. The first push of every job goes out
+            # unconditionally (#78/#79).
+            reuse_pushed_values=False,
         )
 
         await self._dispatch_clean_payload(

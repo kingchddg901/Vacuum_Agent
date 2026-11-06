@@ -2032,6 +2032,16 @@ class ActiveJobTracker:
             # own polling, so inside that window a room wanting exactly the stale
             # reading is left alone. That is the contract, stated rather than
             # worked around -- a freshness clock here would be a magic number.
+            #
+            # THE GLOBAL PRE-CALL HAS THE SAME SYMPTOM AND DELIBERATELY DOES NOT SHARE
+            # THIS PREDICATE (dispatch/manager.py::_run_global_pre_calls, #78/#79). It
+            # answers a DIFFERENT question -- "did WE put that value there, this job?"
+            # rather than "does the target report it?" -- because its cost of being
+            # wrong is a wet mop on a floor the user set to vacuum-only, not a
+            # redundant call. DON'T UNIFY THEM: docs/dev/42-the-send-side.md section 5
+            # is this repo's own ruling on near-identical duplicates that answer
+            # different questions, and 00c-replicas.md holds the sets that genuinely
+            # are copies. This pair is not one of them.
             state_attribute = entry.get("state_attribute") or value_key
             state = self._manager.hass.states.get(target_entity)
             reported = (

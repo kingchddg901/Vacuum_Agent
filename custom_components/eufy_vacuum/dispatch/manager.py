@@ -34,6 +34,14 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 
+# Domains whose CURRENT VALUE lives in the entity STATE rather than an attribute.
+# A platform fact, not a brand fact, so core decides it and no adapter declares it:
+# Home Assistant's select platform publishes `options` as its only attribute and
+# returns `current_option` as the state. Asking a select for an `option` ATTRIBUTE
+# reads None every time, which is how a verbatim copy of the per-room suction skip
+# would produce a guard that cannot fire.
+_STATE_VALUED_DOMAINS = frozenset({"select"})
+
 #: Vacuum states that mean a clean is over and the robot has settled — the moment to
 #: restore the globals a zone precall changed. "returning" is NOT terminal (still moving).
 _ZONE_DONE_STATES: frozenset[str] = frozenset({"docked", "idle"})
@@ -68,6 +76,12 @@ class DispatchManager:
 
     def __init__(self, *, manager: "EufyVacuumManager") -> None:
         self._manager = manager
+        # ISSUE #78/#79 — what THIS job has already pushed, per global pre-call target.
+        # Key `(vacuum_entity_id, target_entity, value_key)` -> the normalised wire value
+        # of a push that completed without raising. In memory only; never persisted, so a
+        # restart forgets it and the next push is unconditional. Cleared per vacuum unless
+        # the caller passes `reuse_pushed_values=True` (the phase runner, mid-job).
+        self._pushed_pre_call_values: dict[tuple[str, str, str], str] = {}
 
     async def _dispatch_clean_payload(
         self,
@@ -698,11 +712,51 @@ class DispatchManager:
             )
         return {**payload, rooms_field: new_segments}
 
+    def _reported_pre_call_value(
+        self,
+        *,
+        target_entity: str,
+        domain: str | None,
+        service: dict[str, Any],
+        value_key: str,
+    ) -> str | None:
+        """Return the target's currently reported value, normalised, or ``None``.
+
+        ``None`` means NOTHING USABLE TO COMPARE AGAINST — a missing entity, an
+        ``unavailable``/``unknown`` one, an absent attribute, or a blank reading.
+        Callers must read it as "no information", never as agreement.
+
+        WHERE THE VALUE LIVES IS A PLATFORM FACT, decided here by service domain
+        (``_STATE_VALUED_DOMAINS``) rather than declared per adapter; an entry may
+        still name a ``state_attribute`` explicitly to override.
+
+        NORMALISED ON BOTH SIDES, deliberately. ``rank`` is lowercased when it is
+        read above, while a select's own option tokens keep their case, and the
+        off-fallback sends the select's own capitalisation back on purpose
+        (DQ-ACT-7). A case-sensitive comparison would therefore be live on a
+        lowercase-option device and DEAD on a capitalised one — install-dependent
+        silence, which is the same defect DQ-ACT-7 exists to prevent.
+        """
+        state = self._manager.hass.states.get(target_entity)
+        if state is None or state.state in ("unavailable", "unknown"):
+            return None
+        state_attribute = service.get("state_attribute")
+        if state_attribute:
+            raw = state.attributes.get(state_attribute)
+        elif domain in _STATE_VALUED_DOMAINS:
+            raw = state.state
+        else:
+            raw = state.attributes.get(value_key)
+        if raw is None:
+            return None
+        return str(raw).strip().casefold() or None
+
     async def _run_global_pre_calls(
         self,
         *,
         vacuum_entity_id: str,
         resolved_rooms: list[dict[str, Any]],
+        reuse_pushed_values: bool = False,
     ) -> None:
         """Push global device settings (fan/mop) before an atomic dispatch.
 
@@ -743,6 +797,19 @@ class DispatchManager:
              "value_map": {canonical: wire, ...},           # optional, identity if absent
              "mixed_mode_water_policy": "safest"}           # optional; mixed-batch safe-water
         """
+        if not reuse_pushed_values:
+            # A NEW JOB knows nothing about what the device is holding: the previous job
+            # ended an unknown time ago and the vendor app may have moved the setting
+            # since. Forget this vacuum's pushes so the FIRST push of every job is
+            # unconditional. Default-off is the fail-safe polarity — a caller that
+            # forgets the flag keeps today's behaviour instead of inheriting a stale
+            # permission to skip.
+            self._pushed_pre_call_values = {
+                key: val
+                for key, val in self._pushed_pre_call_values.items()
+                if key[0] != vacuum_entity_id
+            }
+
         cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
         for entry in cfg.get("global_pre_calls") or []:
             field = entry.get("field")
@@ -912,6 +979,65 @@ class DispatchManager:
                 _LOGGER.warning("%s; leaving it as the device has it", _msg)
                 continue
 
+            # ISSUE #78/#79 — DON'T RE-SEND WHAT WE OURSELVES ALREADY SENT THIS JOB.
+            #
+            # This runs once at job start AND once per phase, so a strict-order run
+            # re-sent an identical value at every room start. A robot that
+            # acknowledges the write chimes each time, which is how it was reported.
+            #
+            # THE EVIDENCE IS OUR OWN PUSH, NOT THE REPORTED STATE, and that is the
+            # whole design. The per-room suction skip (jobs/active_job.py, same issue)
+            # trusts the reported value and states the cost of being wrong there: a
+            # redundant call. Here the cost of being wrong is a WET MOP on a floor the
+            # user set to vacuum-only — the harm #51 closed — and the asymmetry is
+            # stated at adapters/roborock/adapter.py: over-watering a dry room is
+            # damage, over-scrubbing only costs time. The reported value cannot carry
+            # that weight. HA's Roborock mop-intensity select registers no push
+            # listener (unlike its vacuum), so its state moves only on a coordinator
+            # poll — 15-60s, and longer while a failing refresh is being suppressed,
+            # during which it still reports as available. `off` is the modal reading
+            # precisely because we put it there, so a vendor-app change inside that
+            # window reads as agreement and would suppress the one call protecting the
+            # dry floor.
+            #
+            # Our own push does carry it: the call below is blocking, and the Roborock
+            # entity refreshes its coordinator at the end of every send, so a value we
+            # placed that did not raise is known to be on the device. Hence: skip only
+            # a value THIS job already pushed to THIS target, and let a reading that
+            # DISAGREES veto even that, so an external change the poll has since caught
+            # re-arms the push. A reading that is merely ABSENT (missing, unavailable,
+            # unknown, blank) is no information: it cannot veto, and on its own it can
+            # never create a skip.
+            #
+            # THE FIRST PUSH OF EVERY JOB IS THEREFORE UNCONDITIONAL — including when
+            # the device already reports the value. That is the chime a non-phased run
+            # produces, and it stays: it is the one push whose redundancy cannot be
+            # established without trusting a reading that may be stale.
+            #
+            # PLACED AFTER THE EXISTENCE/DISABLED REFUSAL ABOVE, ON PURPOSE. #51's
+            # guarantee is that an unapplied safe-water push ABORTS rather than passing
+            # silently, and a skip reached before that check would re-open it. A skip is
+            # not a failure and must never abort: it never enters the `try`, so neither
+            # abort path below can see it.
+            _pushed_key = (vacuum_entity_id, target_entity, value_key)
+            _wire_norm = str(wire_value).strip().casefold()
+            _reported = self._reported_pre_call_value(
+                target_entity=target_entity,
+                domain=domain,
+                service=service,
+                value_key=value_key,
+            )
+            if (
+                self._pushed_pre_call_values.get(_pushed_key) == _wire_norm
+                and not (_reported is not None and _reported != _wire_norm)
+            ):
+                _LOGGER.debug(
+                    "global pre-call %s.%s skipped for %s: this job already pushed "
+                    "%r and the target reports %r",
+                    domain, service_name, target_entity, wire_value, _reported,
+                )
+                continue
+
             try:
                 await self._manager.hass.services.async_call(
                     domain,
@@ -934,6 +1060,18 @@ class DispatchManager:
                 _LOGGER.exception(
                     "global pre-call %s.%s failed for %s",
                     domain, service_name, vacuum_entity_id,
+                )
+            else:
+                # RECORDED ONLY ON A PUSH THAT LANDED. Written in the `else`, so a call
+                # that raised leaves no evidence and the next phase pushes again — a
+                # failed push must never read as a value the device holds. The log is
+                # TWO-SIDED from here on: a skip logs, and a send logs. One-sided, an
+                # empty debug log reads the same for "nothing happened" and "everything
+                # sent", which is what made the first report of this hard to diagnose.
+                self._pushed_pre_call_values[_pushed_key] = _wire_norm
+                _LOGGER.debug(
+                    "global pre-call %s.%s sent %r to %s",
+                    domain, service_name, wire_value, target_entity,
                 )
 
     async def _run_settings_write(

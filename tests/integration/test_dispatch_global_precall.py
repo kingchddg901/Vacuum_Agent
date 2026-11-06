@@ -40,6 +40,30 @@ Mixed-batch safe water (mixed_mode_water_policy="safest"):
         so one brand's broken select cannot abort a run it was never protecting.
 [GPC-14] a missing target WITHOUT the safest marker warns and continues -- the
         best-effort half of the [GPC-6d] refusal.
+
+Idempotence (issues #78/#79) -- this entry runs once at job start AND once per phase,
+so a strict-order run re-sent an identical value at every room start and a robot that
+acknowledges the write chimed each time. The evidence for suppressing a re-send is OUR
+OWN earlier push, never the reported state: see dispatch/manager.py for why the state
+cannot carry that weight on the water entry.
+[GPC-15] a mid-job re-send of the SAME value to the SAME target is suppressed (one send
+        across two calls).
+[GPC-16] a NEW job re-sends it, even though the previous job pushed the same value --
+        `reuse_pushed_values` defaults to False, which is the fail-safe polarity.
+[GPC-17] a target that has since reported something ELSE vetoes the skip and re-sends,
+        so an external change the poll has caught re-arms the push.
+[GPC-18] absence is no information: (a) an `unavailable` target does NOT veto our own
+        evidence, and (b) a reported value alone, with no push of ours behind it, NEVER
+        suppresses the first push. (b) is the wet-mop protection -- it is the whole
+        reason this is a provenance check and not a state check.
+[GPC-19] DQ-ACT-7: the comparison is case-normalised on BOTH sides, so it is not alive
+        on a lowercase-option device and dead on a capitalised one.
+[GPC-20] a push that RAISED leaves no evidence, so the next phase pushes again.
+[GPC-21] the skip never pre-empts the [GPC-6d]/#51 existence refusal: a recorded push
+        plus a target that has since vanished still ABORTS.
+[GPC-22] where the value is read from follows the service DOMAIN -- a select's value is
+        its state, a vacuum's fan speed is an attribute. Both halves, because reading
+        the wrong one is silent.
 """
 
 from __future__ import annotations
@@ -546,3 +570,279 @@ async def test_gpc6f_a_disabled_target_says_so_instead_of_does_not_exist(hass, m
     )
     assert "Re-enable it" in msg, "say what to do about it"
     assert sel == [], "the refusal still refuses"
+
+
+# ---------------------------------------------------------------------------
+# Idempotence (issues #78/#79). A user on an S6 MaxV heard a chime at every room
+# start of a strict-order run: this entry fires at job start AND once per phase,
+# and re-sent an identical value each time.
+#
+# Every test below asserts across TWO calls, because one call can never show the
+# defect -- which is why the 18 tests above all stayed green when the skip landed.
+# ---------------------------------------------------------------------------
+
+
+async def test_mid_job_resend_of_the_same_value_is_suppressed(hass, manager):
+    """[GPC-15] the chime. One send across two calls in the same job.
+
+    ABLATION: delete the `_pushed_pre_call_values.get(...)` skip in
+    dispatch/manager.py and this goes red with two identical sends -- which is the
+    behaviour the reporter heard.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)
+    rooms = [{"clean_mode": "vacuum", "water_level": "off"}]
+
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+    assert sel == [{"entity_id": _MOP, "option": "off"}], "job start always pushes"
+
+    # The phase runner's call: same job, same value, same target.
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC, resolved_rooms=rooms, reuse_pushed_values=True,
+    )
+    assert len(sel) == 1, f"the re-send should have been suppressed, got {sel!r}"
+
+
+async def test_a_new_job_re_sends_even_a_value_the_last_job_pushed(hass, manager):
+    """[GPC-16] `reuse_pushed_values=False` is the fail-safe default.
+
+    A new job knows nothing about what the device holds: the vendor app may have
+    moved the select since the last run ended. So the first push of every job goes
+    out unconditionally, and a caller that forgets the flag gets that behaviour
+    rather than inheriting a stale permission to skip.
+
+    ABLATION: make the reset unconditional on `reuse_pushed_values` (or drop the
+    per-vacuum clear) and this goes red with one send.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)
+    rooms = [{"clean_mode": "vacuum", "water_level": "off"}]
+
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+    # A SECOND JOB -- the default, not reuse_pushed_values=True.
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+
+    assert len(sel) == 2, (
+        "a new job must re-assert the safe water; skipping it would trust a reading "
+        f"that may be a poll interval out of date. got {sel!r}"
+    )
+
+
+async def test_a_target_reporting_something_else_vetoes_the_skip(hass, manager):
+    """[GPC-17] an external change the poll HAS caught re-arms the push.
+
+    This is the half of the design that limits the damage of trusting our own push:
+    the record says we set `off`, the select now says `high`, so something moved it
+    and the push goes out again.
+
+    ABLATION: drop the `_reported != _wire_norm` clause and this goes red -- the
+    mid-run re-assertion of safe water disappears with it.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)
+    rooms = [{"clean_mode": "vacuum", "water_level": "off"}]
+
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+    # The vendor app raised it mid-job and the coordinator polled it.
+    hass.states.async_set(_MOP, "high", {"options": ["off", "low", "medium", "high"]})
+
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC, resolved_rooms=rooms, reuse_pushed_values=True,
+    )
+    assert len(sel) == 2, f"a disagreeing reading must re-arm the push, got {sel!r}"
+
+
+async def test_an_unavailable_target_does_not_veto_our_own_evidence(hass, manager):
+    """[GPC-18a] absence is no information, so it cannot veto.
+
+    We pushed `off` and the call did not raise, so the device took it. The select
+    then going `unavailable` tells us nothing newer -- and re-pushing to an
+    unavailable select would RAISE, which on this entry aborts a clean that is
+    already running.
+
+    ABLATION: treat a None reading as a disagreement and this goes red.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)
+    rooms = [{"clean_mode": "vacuum", "water_level": "off"}]
+
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+    hass.states.async_set(_MOP, "unavailable")
+
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC, resolved_rooms=rooms, reuse_pushed_values=True,
+    )
+    assert len(sel) == 1, f"absence must not re-arm or veto, got {sel!r}"
+
+
+async def test_a_reported_value_alone_never_suppresses_the_first_push(hass, manager):
+    """[GPC-18b] THE WET-MOP PROTECTION. The whole reason this is a provenance check.
+
+    The select already reports `off` and the batch is all-dry, so the value we are
+    about to send is the value it claims to hold -- and the push still goes out,
+    because that reading can be a poll interval out of date. HA's Roborock
+    mop-intensity select registers no push listener, so a vendor-app change does not
+    reach it until the next coordinator cycle; `off` is also the modal reading,
+    precisely because this code puts it there. Suppressing on that reading alone
+    reproduces #51: the run proceeds with whatever water the vendor app last set,
+    and the dry rooms get wet-mopped with no warning and no abort.
+
+    ABLATION: add a state-only skip (`if _reported == _wire_norm: continue`) and this
+    goes red. That ablation is exactly the fix shape this issue was first written up
+    with, which is why the test is here and not in a comment.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)      # seeds the select to "off" -- what we would send
+    assert hass.states.get(_MOP).state == "off", "the premise of this test"
+
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[{"clean_mode": "vacuum", "water_level": "off"}],
+        # Even WITH permission to reuse, there is nothing of ours to reuse.
+        reuse_pushed_values=True,
+    )
+    assert sel == [{"entity_id": _MOP, "option": "off"}], (
+        "a value only the state machine claims is not evidence the device holds it"
+    )
+
+
+async def test_the_comparison_is_case_normalised_on_both_sides(hass, manager):
+    """[GPC-19] DQ-ACT-7: a bare `==` is dead on a capitalised-option install.
+
+    `rank` is lowercased when it is read, while a select keeps its own option case,
+    so the maintainer's lowercase S6 would have shown a working skip while a
+    capitalised-option device silently kept chiming.
+
+    ABLATION: drop `.casefold()` from either side and this goes red with two sends.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)
+    # A device whose select advertises capitalised options and reports one.
+    hass.states.async_set(_MOP, "Off", {"options": ["Off", "Low", "Medium", "High"]})
+    rooms = [{"clean_mode": "vacuum", "water_level": "off"}]
+
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC, resolved_rooms=rooms, reuse_pushed_values=True,
+    )
+    assert len(sel) == 1, (
+        f"'Off' and 'off' are the same rung; a case-sensitive read makes the skip "
+        f"install-dependent. got {sel!r}"
+    )
+
+
+async def test_a_push_that_raised_leaves_no_evidence(hass, manager):
+    """[GPC-20] a failed push must never read as a value the device holds.
+
+    Recorded in the `else` of the try, so only a call that returned without raising
+    counts. Were it recorded before or regardless of the outcome, a rejected write
+    would suppress every later attempt and leave the device on the vendor app's
+    water for the rest of the run.
+
+    ABLATION: move the record above the `await` (or into a `finally`) and this goes
+    red with one attempt.
+    """
+    _register(hass)                  # best-effort: a raise is swallowed, not aborted
+    _fan, _sel = _capture(hass)
+
+    attempts: list[dict] = []
+
+    async def _boom_once_then_record(call):
+        attempts.append(dict(call.data))
+        if len(attempts) == 1:
+            raise RuntimeError("device rejected the option")
+
+    hass.services.async_register("select", "select_option", _boom_once_then_record)
+    rooms = [{"fan_speed": "balanced", "water_level": "off"}]
+
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC, resolved_rooms=rooms, reuse_pushed_values=True,
+    )
+    assert len(attempts) == 2, (
+        f"the first push raised, so the second must still be attempted. got {attempts!r}"
+    )
+
+
+async def test_the_skip_never_pre_empts_the_missing_target_refusal(hass, manager):
+    """[GPC-21] #51's guarantee survives the skip, and ORDERING is what preserves it.
+
+    A recorded push is not a licence to stop checking that the target is still there.
+    If the select has vanished since (a re-import, a rename, a disabled entity) the
+    safest entry must abort exactly as [GPC-6d] requires -- an unapplied safe-water
+    push aborts rather than passing silently.
+
+    ABLATION: move the skip block ABOVE the existence check in dispatch/manager.py
+    and this goes red: the recorded value matches, nothing vetoes it (a missing
+    entity reads as None), so the dispatch proceeds with no water push and no abort.
+    That is #51 re-opened.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)
+    rooms = [{"clean_mode": "vacuum", "water_level": "off"}]
+
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+    assert len(sel) == 1
+    hass.states.async_remove(_MOP)       # the target is gone
+
+    with pytest.raises(HomeAssistantError, match="dispatch aborted"):
+        await manager._run_global_pre_calls(
+            vacuum_entity_id=_VAC, resolved_rooms=rooms, reuse_pushed_values=True,
+        )
+    assert len(sel) == 1, "no further push went out"
+
+
+async def test_a_selects_value_is_read_from_its_state(hass, manager):
+    """[GPC-22a] a select publishes `options` and nothing else; its value IS the state.
+
+    A verbatim copy of the per-room suction skip reads
+    `state.attributes.get(value_key)` -- `attributes["option"]` on a select, which
+    does not exist. It would read None forever: no veto, no skip ever created, a
+    guard that cannot fire and a chime unfixed.
+
+    The select here carries a BOGUS `option` attribute that disagrees with its state,
+    so the two read locations give opposite answers and the test can tell them apart.
+
+    ABLATION: read the attribute for every domain and this goes red with two sends.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass)
+    hass.states.async_set(
+        _MOP, "off",
+        {"options": ["off", "low", "medium", "high"], "option": "high"},
+    )
+    rooms = [{"clean_mode": "vacuum", "water_level": "off"}]
+
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC, resolved_rooms=rooms, reuse_pushed_values=True,
+    )
+    assert len(sel) == 1, (
+        f"the state says off and only a non-existent attribute says high. got {sel!r}"
+    )
+
+
+async def test_a_vacuums_fan_speed_is_read_from_its_attribute(hass, manager):
+    """[GPC-22b] the other half: a non-select target keeps its value in an attribute.
+
+    Reading the STATE of a vacuum gets `cleaning`/`docked`, never a suction word, so
+    getting this backwards is silent -- it never matches, so it never creates a wrong
+    skip, it just quietly stops the guard working on that domain. The vacuum here
+    reports a state that EQUALS the wire value and an attribute that does not, so the
+    two read locations disagree.
+
+    ABLATION: read the state for every domain and this goes red with one send.
+    """
+    _register(hass, pre_calls=[_PRE_CALLS[0]])      # the fan entry alone
+    fan, _sel = _capture(hass)
+    hass.states.async_set(_VAC, "max", {"fan_speed": "quiet"})
+    rooms = [{"fan_speed": "max"}]
+
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC, resolved_rooms=rooms, reuse_pushed_values=True,
+    )
+    assert len(fan) == 2, (
+        f"the fan_speed attribute says quiet, so the push must go out. Only the "
+        f"vacuum's STATE coincidentally reads 'max'. got {fan!r}"
+    )
