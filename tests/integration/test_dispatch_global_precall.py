@@ -64,6 +64,8 @@ cannot carry that weight on the water entry.
 [GPC-22] where the value is read from follows the service DOMAIN -- a select's value is
         its state, a vacuum's fan speed is an attribute. Both halves, because reading
         the wrong one is silent.
+[GPC-22c] an entry may DECLARE the attribute to read, overriding the domain default.
+        Nothing shipped reaches it, so without this test the branch is only present.
 """
 
 from __future__ import annotations
@@ -845,4 +847,50 @@ async def test_a_vacuums_fan_speed_is_read_from_its_attribute(hass, manager):
     assert len(fan) == 2, (
         f"the fan_speed attribute says quiet, so the push must go out. Only the "
         f"vacuum's STATE coincidentally reads 'max'. got {fan!r}"
+    )
+
+
+async def test_a_declared_state_attribute_overrides_the_domain_default(hass, manager):
+    """[GPC-22c] an entry may name the attribute to read, overriding the domain default.
+
+    Without this the reader has two paths -- state for a select, `value_key` as an
+    attribute otherwise -- and a target that keeps its value somewhere else has no way
+    to say so. The override existed from the start and NOTHING reached it: no shipped
+    adapter declares `state_attribute` on a global pre-call, and the other tests here
+    all take one of the two defaults. Coverage found it as one uncovered line, which is
+    exactly how a prepared key reads as covered when it is only ever present.
+
+    The vacuum below disagrees with itself ON PURPOSE: `suction` holds the value we
+    pushed, `fan_speed` (the `value_key` default) holds something else. Only reading
+    the declared attribute can suppress the re-send.
+
+    ABLATION: delete the `if state_attribute:` branch in `_reported_pre_call_value`
+    and this goes red with two sends -- the reader falls back to `fan_speed`, sees a
+    disagreement, and pushes again.
+    """
+    entry = {
+        "field": "fan_speed",
+        "rank": ["gentle", "quiet", "balanced", "turbo", "max"],
+        "service": {
+            "domain": "vacuum", "service": "set_fan_speed", "value_key": "fan_speed",
+            # The declared override: not the state (this is not a select), and not
+            # `value_key` either.
+            "state_attribute": "suction",
+        },
+    }
+    _register(hass, pre_calls=[entry])
+    fan, _sel = _capture(hass)
+    hass.states.async_set(_VAC, "docked", {"suction": "max", "fan_speed": "quiet"})
+    rooms = [{"fan_speed": "max"}]
+
+    await manager._run_global_pre_calls(vacuum_entity_id=_VAC, resolved_rooms=rooms)
+    assert fan == [{"entity_id": _VAC, "fan_speed": "max"}], "job start always pushes"
+
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC, resolved_rooms=rooms, reuse_pushed_values=True,
+    )
+    assert len(fan) == 1, (
+        f"the declared attribute `suction` reports 'max', which is what we pushed, so "
+        f"the re-send is redundant. Only `fan_speed` disagrees, and it is not what the "
+        f"entry asked us to read. got {fan!r}"
     )
