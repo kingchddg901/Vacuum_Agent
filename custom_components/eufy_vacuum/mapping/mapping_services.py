@@ -1301,8 +1301,10 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
         tuning["simplify_epsilon"] = simplify_epsilon
     if assist_path:
         tuning["assist_image_path"] = assist_path
-    if image_variant is not None:
-        tuning["image_variant"] = image_variant
+    # No `is not None` guard: image_variant and image_path are assigned together in the
+    # same loop iteration before the break, and the function returns early when image_path
+    # is falsy -- so the false edge was unreachable. Coverage found it as a partial branch.
+    tuning["image_variant"] = image_variant
     if assist_path:
         tuning["assist_variant"] = "light"
 
@@ -2538,28 +2540,25 @@ async def _handle_set_map_overlay_visibility(
     """
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    # Resolve map_id when omitted: active map, then the first stored map.
-    map_id = call.data.get("map_id")
-    if not map_id:
-        from ..rooms.room_discovery import get_active_map_id
-        try:
-            map_id = get_active_map_id(hass, vacuum_entity_id)
-        except Exception:  # noqa: BLE001
-            map_id = None
-    if not map_id:
-        vac_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {})
-        map_id = next(iter(vac_maps), None)
-    if not map_id:
-        return {
-            "saved": False,
-            "error": "no_map",
-            "message": f"No map found for '{vacuum_entity_id}'; pass map_id explicitly.",
-        }
-    map_bucket = ensure_map_bucket(
-        data=manager.data,
-        vacuum_entity_id=vacuum_entity_id,
-        map_id=map_id,
+    # RP-028/SERVIC-1 + RP-032: THIS HANDLER MINTED PHANTOM BUCKETS.
+    #
+    # It held its own copy of resolution steps 1-3 and then called `ensure_map_bucket`,
+    # whose `setdefault` CREATES the address. A caller-supplied map_id matching nothing
+    # therefore wrote a durable bucket into .storage, saved it, and answered
+    # `saved: true` -- the exact phantom-bucket defect `require_map_bucket`'s docstring
+    # forbids for "every mapping SERVICE handler that WRITES against a caller-supplied
+    # map_id". The shared resolver was extracted FROM this handler's shape, so it kept
+    # steps 1-3 and never gained step 5, the refusal.
+    #
+    # The refusal key moves `error` -> `reason` with the migration, matching the other
+    # RP-032 handlers. Checked before changing it: no consumer reads this response's
+    # keys -- src/bindings/map.js only catches a thrown error -- so nothing breaks.
+    resolved = await _resolve_write_map_bucket(
+        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=call.data.get("map_id"),
     )
+    if resolved.refusal is not None:
+        return {"saved": False, **resolved.refusal}
+    map_id, map_bucket = resolved.map_id, resolved.map_bucket
     if call.data.get("reset"):
         map_bucket.pop("overlay_visibility", None)
     else:
@@ -2830,9 +2829,18 @@ async def _handle_rename_saved_zone(hass: HomeAssistant, call: ServiceCall) -> d
         return {"saved": False, "reason": "missing_name"}
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `_handle_create_saved_zone`
+    # ten lines up already does this; rename used `ensure_map_bucket` instead, so a typo'd
+    # map_id wrote a durable phantom bucket AND then answered `zone_not_found` -- a refusal
+    # naming the wrong cause, with a bucket left behind that no map will ever reconcile.
+    map_bucket = require_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_saved_zones(map_bucket)
     zone = (map_bucket.get("saved_zones") or {}).get(zone_id)
     if not isinstance(zone, dict):

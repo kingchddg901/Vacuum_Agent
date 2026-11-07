@@ -11,6 +11,8 @@ Coverage targets
 [MSV-16] set_map_overlay_visibility persists only the user's deltas (not the resolved map), merges them over the defaults at read time, merges successive partial calls, rejects unknown layers, and resets cleanly back to defaults.
 [MSV-17] get_map_render_data is registered and degrades gracefully with present=False / reason=not_configured when the adapter declares no map_render block.
 [MSV-18] delete_map_image clears dangling custom_layouts references (backdrop, home art, room art) to the deleted variant (RP-016).
+[MSV-16b] set_map_overlay_visibility REFUSES an unknown map_id instead of minting a phantom durable bucket for it (RP-028/SERVIC-1).
+[MSV-19] rename_saved_zone refuses an unknown map_id the same way its create_saved_zone sibling already did.
 """
 
 from __future__ import annotations
@@ -78,8 +80,14 @@ async def test_set_live_map_rotation_unknown_map_refuses(hass, mapping_services)
 
 async def test_set_map_overlay_visibility(hass, mapping_services):
     """[MSV-16] set_map_overlay_visibility stores only the user's deltas, merges them
-    over the defaults at read time, rejects unknown layers, and resets cleanly."""
+    over the defaults at read time, rejects unknown layers, and resets cleanly.
+
+    RE-POINTED: this used to pass WITHOUT seeding the bucket, because the handler called
+    `ensure_map_bucket` and minted the address on the way through. That was the defect
+    (RP-028/SERVIC-1), so the bucket is seeded here first -- the same change [MSV-15]
+    already carries for set_live_map_rotation, and for the same reason."""
     manager = mapping_services
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
     result = await _call(hass, ms.SERVICE_SET_MAP_OVERLAY_VISIBILITY,
                          {"vacuum_entity_id": _VAC, "map_id": _MAP,
                           "visibility": {"no_go": True, "dock": False}})
@@ -189,3 +197,50 @@ async def test_delete_map_image_clears_layout_references(hass, mapping_services)
     assert layouts["L1"]["rooms"]["3"]["art_variant"] is None
     assert layouts["L2"]["backdrop_variant"] == "custom_L2"  # untouched
 
+
+async def test_msv16b_overlay_visibility_unknown_map_refuses(hass, mapping_services):
+    """[MSV-16b] RP-028/SERVIC-1: a caller-addressed write must refuse an unknown map.
+
+    THE DEFECT THIS CLOSES: the handler held its own copy of the map-resolution ladder
+    and finished it with `ensure_map_bucket`, whose `setdefault` CREATES the address. A
+    typo'd map_id therefore wrote a durable bucket into .storage, persisted it, and
+    returned `saved: true`. `require_map_bucket`'s docstring forbids exactly that for
+    "every mapping SERVICE handler that WRITES against a caller-supplied map_id".
+
+    ABLATION: restore `ensure_map_bucket` in the handler and this goes red twice over --
+    `saved` comes back True, and the phantom bucket assertion below finds a bucket.
+    """
+    manager = mapping_services
+    result = await _call(hass, ms.SERVICE_SET_MAP_OVERLAY_VISIBILITY,
+                         {"vacuum_entity_id": _VAC, "map_id": "never_seeded",
+                          "visibility": {"no_go": True}})
+    assert result["saved"] is False
+    assert result["reason"] == "map_not_found", (
+        "the key is `reason`, matching the other RP-032 handlers -- it used to be `error`"
+    )
+    assert "never_seeded" not in manager.data.get("maps", {}).get(_VAC, {}), (
+        "a refused write must leave NOTHING behind; this is the phantom bucket itself"
+    )
+
+
+async def test_msv19_rename_saved_zone_unknown_map_refuses(hass, mapping_services):
+    """[MSV-19] the same defect, ten lines from the handler that already did it right.
+
+    `_handle_create_saved_zone` used `require_map_bucket` and refused `map_not_found`.
+    `_handle_rename_saved_zone` used `ensure_map_bucket` -- so a typo'd map_id minted a
+    durable bucket AND then answered `zone_not_found`, a refusal naming the wrong cause
+    with a bucket left behind that no map will ever reconcile.
+
+    ABLATION: restore `ensure_map_bucket` and this goes red on the reason (zone_not_found
+    instead of map_not_found) and on the phantom bucket.
+    """
+    manager = mapping_services
+    result = await _call(hass, ms.SERVICE_RENAME_SAVED_ZONE,
+                         {"vacuum_entity_id": _VAC, "map_id": "never_seeded",
+                          "zone_id": "z1", "name": "Hallway"})
+    assert result["saved"] is False
+    assert result["reason"] == "map_not_found", (
+        "an unknown MAP must not be reported as an unknown ZONE"
+    )
+    assert "known_maps" in result, "name what the caller could have meant"
+    assert "never_seeded" not in manager.data.get("maps", {}).get(_VAC, {})
