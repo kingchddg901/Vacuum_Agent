@@ -97,6 +97,9 @@ Coverage targets
 [CXR-9]  confirm_external_run: a MALFORMED room_stats.json still graduates -- the
          ValueError half at SITE 2, the copy whose except body is a bare `pass`.
          Completes the predicate across all three of its copies.
+[CXR-10]  confirm_external_run: a bare `null` / an empty object still graduates --
+         SITE 2's `or {}` half, which CXR-8 (a null room_baselines) cannot reach.
+         Completes the degenerate-payload matrix across all three read sites.
 """
 
 from __future__ import annotations
@@ -1656,4 +1659,65 @@ def test_confirm_survives_a_malformed_room_stats_file(manager):
         "no band means cold_start, not a block -- an unreadable file must not look "
         "like a learned area the segment disagrees with"
     )
+    assert (paths.jobs_dir / f"ext-{pending_id}.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# [CXR-10] -- the last cell of the degenerate-payload matrix.
+#
+#                        null      {}        {"room_baselines": null}
+#   SITE 1  finalize     EXT-FIN-5 EXT-FIN-5 EXT-FIN-5
+#   SITE 2  confirm      CXR-10    CXR-10    CXR-8
+#   SITE 3  re-segment   RXR-6     RXR-6     RXR-6
+#
+# CXR-8 drives the TRAILING `or []` at confirm, because confirm is the one site that
+# iterates the value directly. It cannot reach the `or {}` half: its payload parses
+# to a dict, so `(json.load(handle) or {})` is never exercised. These two inputs are
+# what reach it.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "payload, label",
+    [
+        (None, "a bare JSON null"),
+        ({}, "an empty object"),
+    ],
+    ids=["json_null", "empty_object"],
+)
+def test_confirm_survives_a_degenerate_room_stats_payload(manager, payload, label):
+    """[CXR-10] SITE 2's `or {}` half.
+
+    Both payloads are valid JSON, so `except (OSError, ValueError)` does not catch
+    them. A bare `null` without the `or {}` is `None.get(...)` -- an AttributeError
+    the except does not name, so it escapes confirm_external_run and the review
+    wizard fails on a file it only wanted to read.
+
+    HONEST SCOPE, as with [EXT-FIN-5] and [RXR-6]: only the `null` case can bite.
+    The empty object reaches `.get("room_baselines", [])`, whose default already
+    covers it, so `empty_object` is a coverage case rather than a guard proof -- it
+    is here because a `room_stats.json` of `{}` is a real shape (a rebuild that
+    found nothing to learn) and the matrix above should have no blank cells.
+
+    Unlike [CXR-7], no band is found for `kitchen` here, so the identity gate returns
+    cold_start and the run graduates rather than blocking.
+    """
+    pending_id = "job_cxr10_degenerate"
+    _write_pending(manager, _VAC, pending_id)
+    _write_room_stats(manager, _VAC, payload)
+
+    store = LearningHistoryStore(manager.hass)
+    paths = store.get_paths(vacuum_entity_id=_VAC)
+
+    result = manager.confirm_external_run(
+        _VAC, _MAP, pending_id,
+        room_assignments=[{"segment_orders": [0], "room_id": 1, "override": False}],
+        rooms=_CONFIRM_ROOMS,
+        rebuild_stats=False,
+    )
+
+    assert result["ok"] is True, (
+        f"{label} must read as no bands, not break the confirm; got {result!r}"
+    )
+    assert not result.get("blocked")
     assert (paths.jobs_dir / f"ext-{pending_id}.json").exists()

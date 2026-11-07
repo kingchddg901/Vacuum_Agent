@@ -403,6 +403,21 @@ Three facts worth keeping, all measured 2026-11-07:
   each record that asymmetry in their docstrings and prove it by ablation — removing
   their trailing `or []` reddens **nothing**, a declared-empty result rather than a
   discovered one — while `CXR-8` is the site where that same guard does bite.
+
+  The degenerate-payload matrix, all three payloads being valid JSON that the
+  `except` therefore cannot catch:
+
+  | | `null` | `{}` | `{"room_baselines": null}` |
+  |---|---|---|---|
+  | finalize | `EXT-FIN-5` | `EXT-FIN-5` | `EXT-FIN-5` |
+  | confirm | `CXR-10` | `CXR-10` | `CXR-8` |
+  | re-segment | `RXR-6` | `RXR-6` | `RXR-6` |
+
+  `CXR-8` sits in its own cell because confirm is the one site that iterates the
+  value, so only there does a null `room_baselines` reach a `for` statement; it
+  cannot reach the `or {}` half, whose payload parses to a dict. Of the cells, only
+  the `null` column can bite — `{}` is covered by `.get`'s own default, so it is a
+  coverage case and each docstring says so rather than claiming a proof.
 - **The `ValueError` half had never run at any of the three sites**, and the reason
   was the fixture shape rather than anyone's intent: the suite's only
   `room_stats.json` writer serialised through `json.dumps`, which cannot emit bytes
