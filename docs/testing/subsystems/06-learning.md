@@ -258,9 +258,13 @@ the index once when the new marker keys `origin` / `has_attribution_disagreement
 `area_over_attributed` are missing) rides the same snapshot seam. Separately,
 `tests/integration/test_manager_external_finalize.py` drives the external grace-timer
 finalize end-to-end (`EXT-FIN-1`), the W5c pose-only stand-up record when the counter
-segmenter finds nothing (`EXT-FIN-2`), and the slot-clears-on-build-error guard
-(`EXT-FIN-3`, the zombie-`external`-slot protection), plus the confirm/re-segment
-paths that graduate a reviewed run.
+segmenter finds nothing (`EXT-FIN-2`), the slot-clears-on-build-error guard
+(`EXT-FIN-3`, the zombie-`external`-slot protection), and the learned-baseline read
+on that path — present bands reaching the segmenter (`EXT-FIN-4`) and a degenerate
+`room_stats.json` degrading instead of raising (`EXT-FIN-5`) — plus the
+confirm/re-segment paths that graduate a reviewed run. See
+[The learned-baseline read](#the-learned-baseline-read-and-why-the-three-sites-differ)
+for why the three read sites filter differently.
 
 ### `external_ingest.py` — app-started capture + dispatched reconcile
 Detection of runs started outside HA, the pending-record build + persistence, the
@@ -361,6 +365,55 @@ graduation that must not fail an already-written job — the pending cleanup
 baselines reach the re-segmenter (`RXR-5`, against `RXR-3`'s absent-file
 fallback), and a non-cleaning span with equal endpoints skipped instead of booked
 as a 0 s return trip (`ERO-3`).
+
+#### The learned-baseline read, and why the three sites differ
+
+All three external-run entry points read `learned/room_stats.json` →
+`room_baselines`, and **they do not read it the same way** — which looks like the
+classic shorter-copy divergence and is not:
+
+| Site | Hands the callee | Filters by `map_id`? |
+|------|------------------|----------------------|
+| `_finalize_external_run` → `build_pending_record` | the raw list + a `map_id` | no — the callee does |
+| `resegment_external_run` → `resegment_pending_record` | the raw list + a `map_id` | no — the callee does |
+| `confirm_external_run` → `build_graduated_job` | `bands_by_slug`, keyed by slug alone | **yes, it must** |
+
+The first two route through `external_ingest.py::_baseline_area_by_slug`, which
+drops every foreign-map entry itself, so a filter at those call sites would merely
+duplicate that predicate. Confirm collapses the map dimension *before* the call —
+`bands_by_slug` is keyed by slug only — so filtering there is load-bearing:
+without it the build is last-entry-wins across maps and no code downstream can
+recover the right band. `CXR-7` pins that by consequence rather than by spying:
+two bands share a slug, the foreign-map one is written second and would block the
+confirm, so the filter is the only reason the run graduates.
+
+Three facts worth keeping, all measured 2026-11-07:
+
+- **`map_id` is an `int` on disk** (`stats_rebuilder.py` emits it through
+  `_safe_int`) while the live map id is the string `"6"`. Every comparison coerces
+  both sides with `str()`; `EXT-FIN-4` asserts the int arrives unconverted so a
+  fixture cannot quietly agree with a reader that dropped the coercion.
+- **The guards are not symmetric.** `(json.load(handle) or {})` is load-bearing at
+  all three sites — a bare `null` is valid JSON, so `except (OSError, ValueError)`
+  does not catch it, and `None.get(...)` would raise `AttributeError` out of the
+  executor. The *trailing* `or []` is only load-bearing at confirm, which iterates
+  the value directly; the other two pass it to a callee that already opens with
+  `for entry in baselines or []`. `EXT-FIN-5` and `CXR-8` say which is which, and
+  `EXT-FIN-5`'s docstring records that one of its three payloads is a coverage
+  case rather than a guard proof.
+- **Finalize's successful read had never run.** `EXT-FIN-1`'s own note said the
+  absent-file `except` was "exercised for free" — no test had a `room_stats.json`
+  on disk while a finalize went through, so the read itself was unexecuted until
+  `EXT-FIN-4`. The spy on the real `build_pending_record` is what makes it bite:
+  hardcoding `baselines=[]` leaves `EXT-FIN-1` green and only `EXT-FIN-4` red.
+
+> **`config_dir` is per-test, not shared.** `RXR-3` used to unlink
+> `room_stats.json` before asserting its absence, on the stated grounds that phac's
+> `config_dir` is shared across tests. It is not: `tests/conftest.py` overrides
+> `hass_config_dir` with a function-scoped `str(tmp_path)`, and a probe confirmed
+> two tests in one module see different directories. The unlink was a guaranteed
+> no-op guarding a hazard that does not exist; it is gone, and the assertion stays
+> as a precondition that would go red if module-scoped seeding were ever added.
 
 ### `zone_learning.py` — saved-zone TIME learning (pure, `ZL-1..ZL-10`)
 A deliberately tiny parallel to room learning: a saved zone has a stable

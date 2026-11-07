@@ -71,6 +71,20 @@ Coverage targets
          through to resegment_pending_record. RXR-3 covers the absent-file except.
 [ERO-3]  return overhead: a non-cleaning span whose two timestamps are EQUAL is a
          zero-length interval and is skipped, not booked as a 0 s row.
+[EXT-FIN-4]  _finalize_external_run: a room_stats.json that IS present passes its
+         room_baselines through to build_pending_record. EXT-FIN-1 covers the
+         absent-file except; this is the other half, and the only thing that
+         executes the successful read at all.
+[EXT-FIN-5]  _finalize_external_run: a DEGENERATE room_stats.json (a bare `null`,
+         an empty object, a null room_baselines) still finalizes -- the `or {}`
+         guard stands in for the missing dict instead of raising AttributeError
+         out of the executor job.
+[CXR-7]  confirm_external_run: the bands_by_slug map_id filter DROPS a band whose
+         slug matches but whose map does not -- the one branch arm in this file's
+         module that measurement still showed unexercised (600->599 never taken).
+[CXR-8]  confirm_external_run: a null `room_baselines` is tolerated -- the trailing
+         `or []` is what stops `for entry in None` raising TypeError out of a read
+         path whose except names only OSError and ValueError.
 """
 
 from __future__ import annotations
@@ -496,26 +510,58 @@ def _write_pending(manager, vacuum_entity_id: str, pending_job_id: str) -> dict:
     return rec
 
 
-def _write_room_band(manager, vacuum_entity_id: str, *, slug: str, avg_area_m2: float) -> None:
-    """Seed a mature learned room_stats.json band for ``slug`` on map _MAP
-    (>= 4 samples, tight stddev) so gate_segment_identity enforces it — used to
-    drive the no-override block path (confirm reads bands by slug, 2804-2811)."""
+def _write_room_stats(manager, vacuum_entity_id: str, payload) -> None:
+    """Write ``payload`` to the learned room_stats.json, verbatim.
+
+    The ONE place this suite resolves that path, so the three external-run read
+    sites (_finalize_external_run, confirm_external_run, resegment_external_run)
+    are all fed the same way. ``payload`` is written as given -- including a bare
+    ``None`` or a null ``room_baselines`` -- because the degenerate-payload tests
+    exist precisely to drive the `or {}` / `or []` guards those reads carry.
+
+    The real writer is history_store.py::save_room_stats, which mkdirs via
+    ensure_dirs; the three read sites call get_paths, which does NOT, so the mkdir
+    here is load-bearing rather than belt-and-braces.
+    """
     store = LearningHistoryStore(manager.hass)
     learned_dir = store.get_paths(vacuum_entity_id=vacuum_entity_id).learned_dir
     learned_dir.mkdir(parents=True, exist_ok=True)
     (learned_dir / "room_stats.json").write_text(
-        json.dumps({
-            "room_baselines": [
-                {
-                    "map_id": int(_MAP),
-                    "room_slug": slug,
-                    "avg_area_m2": avg_area_m2,
-                    "area_sample_count": 10,
-                    "area_m2_stddev": 1.0,
-                }
-            ]
-        }),
-        encoding="utf-8",
+        json.dumps(payload), encoding="utf-8"
+    )
+
+
+def _band(*, slug: str, avg_area_m2: float, map_id: int | None = None) -> dict:
+    """One room_baselines entry, carrying the five keys the external-run path reads.
+
+    Key names and types come from the producer's sole construction site,
+    learning/stats_rebuilder.py (the `output_baselines.append({...})` literal) --
+    note `map_id` is an INT on disk, never a string, which is why the read sites
+    coerce with str() on both sides before comparing.
+
+    This is NOT the full on-disk shape: the producer emits ~35 keys per entry. It
+    carries the ones this code path actually consumes -- map_id and room_slug for
+    the lookup, and avg_area_m2 / area_sample_count / area_m2_stddev for
+    gate_segment_identity -- with area_sample_count at 10 so the gate enforces the
+    band instead of returning cold_start.
+    """
+    return {
+        "map_id": int(_MAP) if map_id is None else map_id,
+        "room_slug": slug,
+        "avg_area_m2": avg_area_m2,
+        "area_sample_count": 10,
+        "area_m2_stddev": 1.0,
+    }
+
+
+def _write_room_band(manager, vacuum_entity_id: str, *, slug: str, avg_area_m2: float) -> None:
+    """Seed a mature learned room_stats.json band for ``slug`` on map _MAP
+    (>= 4 samples, tight stddev) so gate_segment_identity enforces it — used to
+    drive the no-override block path (confirm reads bands by slug, 2804-2811)."""
+    _write_room_stats(
+        manager,
+        vacuum_entity_id,
+        {"room_baselines": [_band(slug=slug, avg_area_m2=avg_area_m2)]},
     )
 
 
@@ -701,14 +747,23 @@ def test_resegment_success_with_no_room_stats_on_disk(manager):
     rec = _write_pending(manager, _VAC, pending_id)
     path = _reseg_pending_path(manager, _VAC, pending_id)
 
-    # The branch under test fires when the learned-bands file is absent. The phac
-    # config_dir is SHARED across tests (see the confirm block + the suite's other
-    # external tests), so a sibling test may have seeded room_stats.json; remove it
-    # here so line 2930's except is the path taken deterministically regardless of
-    # test order.
+    # The branch under test fires when the learned-bands file is absent.
+    #
+    # This block used to unlink room_stats.json first, on the stated grounds that
+    # "the phac config_dir is SHARED across tests". MEASURED 2026-11-07: it is not.
+    # tests/conftest.py overrides phac's `hass_config_dir` with a function-scoped
+    # `str(tmp_path)`, and phac feeds that straight to the hass fixture
+    # (plugins.py, `config_dir=hass_config_dir`), so every test gets its own
+    # directory -- a probe confirmed two tests in one module see different
+    # config_dirs and neither can see the other's files.
+    #
+    # So the unlink was a guaranteed no-op guarding an ordering hazard that does not
+    # exist, and it is gone. The assertion stays, upgraded from a repair to a
+    # PRECONDITION: absence is by construction, and if anyone ever does introduce
+    # module- or session-scoped seeding, this goes red and says so instead of being
+    # silently papered over.
     store = LearningHistoryStore(manager.hass)
     learned_dir = store.get_paths(vacuum_entity_id=_VAC).learned_dir
-    (learned_dir / "room_stats.json").unlink(missing_ok=True)
     assert not (learned_dir / "room_stats.json").exists()
 
     result = manager.resegment_external_run(
@@ -1175,3 +1230,226 @@ async def test_return_overhead_skips_a_zero_length_span(manager, monkeypatch):
     assert out == {"return_overhead_s": 0, "return_intervals": []}, (
         "a zero-length docked span is not a return trip"
     )
+
+
+# ---------------------------------------------------------------------------
+# [EXT-FIN-4/5] + [CXR-7/8] -- the learned-BASELINE read, from the 2026-11-07
+# coverage pass. Three sites read learned/room_stats.json -> room_baselines:
+#
+#   SITE 1  _finalize_external_run   -> build_pending_record(baselines=...)
+#   SITE 2  confirm_external_run     -> build_graduated_job(bands_by_slug=...)
+#   SITE 3  resegment_external_run   -> resegment_pending_record(baselines=...)
+#
+# Measured before this batch: SITE 1's successful read had NEVER run. No test had a
+# room_stats.json on disk while a finalize went through -- EXT-FIN-1's own index
+# entry says so out loud ("the missing-baselines except branch is exercised for
+# free"). SITE 3 already had both halves (RXR-3 absent, RXR-5 present); SITE 2 had
+# the present-file arm via CXR-3 but never the map_id filter's other arm.
+#
+# THE DIVERGENCE BETWEEN THE SITES IS DELIBERATE, recorded here because it reads
+# exactly like the shorter-copy bug and is not one. SITES 1 and 3 hand the RAW LIST
+# plus a map_id to the callee, which scopes it itself: both route through
+# external_ingest.py::_baseline_area_by_slug, whose
+# `if str(entry.get("map_id")) != str(map_id): continue` drops every foreign-map
+# entry. SITE 2 hands over a dict ALREADY COLLAPSED to slug keys
+# (`bands_by_slug: dict[str, dict]`), so the map dimension must be filtered BEFORE
+# the call or it is unrecoverable -- last-entry-wins across maps. Hence the filter
+# lives at the call site for SITE 2 only. No leak; [CXR-7] pins it.
+#
+# map_id IS AN INT ON DISK -- the producer, learning/stats_rebuilder.py, emits it
+# through _safe_int -- while the live map_id is the string "6". That is why every
+# comparison coerces both sides with str(). _band() keeps the int deliberately, so
+# a fixture cannot quietly agree with a reader that dropped the coercion.
+# ---------------------------------------------------------------------------
+
+
+async def _drive_grace_finalize(manager, hass) -> list[dict]:
+    """Run a capture through the grace timer into _finalize_external_run.
+
+    The EXT-FIN-1 recipe, factored out so the baseline tests differ from it in
+    nothing but what is on disk. Returns the EVENT_EXTERNAL_RUN_PENDING payloads --
+    an empty list means the finalize did not complete, which is how the
+    degenerate-payload cases tell "fell back to no baselines" apart from "raised
+    inside the executor job".
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=2)
+    register_adapter_config(_VAC, _EXT_ADAPTER)
+
+    events: list[dict] = []
+    unsub = hass.bus.async_listen(
+        EVENT_EXTERNAL_RUN_PENDING, lambda ev: events.append(dict(ev.data))
+    )
+    try:
+        manager.start_external_capture(vacuum_entity_id=_VAC, map_id=_MAP)
+        slot = manager.data["active_jobs"][_VAC][_MAP]
+        slot["counter_samples"] = [dict(x) for x in _COUNTER_SAMPLES]
+        slot["settings_samples"] = [dict(x) for x in _SETTINGS_SAMPLES]
+        slot["started_at"] = _BASE.isoformat()
+
+        hass.states.async_set(_VAC, "docked")
+        hass.states.async_set("sensor.alfred_task", "Charging")
+
+        assert await manager.maybe_handle_external_run(vacuum_entity_id=_VAC) is False
+        async_fire_time_changed(
+            hass, dt_util.utcnow() + timedelta(seconds=EXTERNAL_FINALIZE_GRACE_S + 1)
+        )
+        await hass.async_block_till_done()
+    finally:
+        unsub()
+    return events
+
+
+async def test_finalize_passes_present_room_baselines_to_the_segmenter(
+    manager, hass, monkeypatch
+):
+    """[EXT-FIN-4] the half of SITE 1's baseline read that nothing had executed.
+
+    EXT-FIN-1 runs the same finalize with NO room_stats.json, so it takes the
+    `except (OSError, ValueError)` arm and never evaluates the read itself. Seeding
+    the file is what makes the successful read run; the spy on the real
+    build_pending_record is what proves the bands ARRIVE rather than merely that a
+    file was opened. Replacing the read with a hardcoded `baselines=[]` leaves
+    EXT-FIN-1 green and only this red.
+
+    The slug is `room_1` because setup_map names its rooms that way -- a band for a
+    slug no room carries would be dropped downstream and prove nothing.
+    """
+    import custom_components.eufy_vacuum.learning.external_ingest as _ingest
+
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _write_room_band(manager, _VAC, slug="room_1", avg_area_m2=9.5)
+
+    seen = {}
+    real = _ingest.build_pending_record
+
+    def _spy(**kwargs):
+        seen["baselines"] = kwargs.get("baselines")
+        return real(**kwargs)
+
+    monkeypatch.setattr(_ingest, "build_pending_record", _spy)
+
+    events = await _drive_grace_finalize(manager, hass)
+
+    assert len(events) == 1, "the finalize must still run to completion"
+    assert seen.get("baselines"), (
+        "the room_stats.json on disk must reach build_pending_record"
+    )
+    assert [b["room_slug"] for b in seen["baselines"]] == ["room_1"]
+    assert seen["baselines"][0]["avg_area_m2"] == 9.5
+    assert seen["baselines"][0]["map_id"] == int(_MAP), (
+        "the int map_id must arrive unconverted -- the reader coerces, the file does not"
+    )
+
+
+@pytest.mark.parametrize(
+    "payload, label",
+    [
+        (None, "a bare JSON null"),
+        ({}, "an empty object"),
+        ({"room_baselines": None}, "a null room_baselines"),
+    ],
+    # Explicit, space-free ids: the default would interpolate the label and give a
+    # node id like `[None-a bare JSON null]`, which no `pytest path::id` invocation
+    # can be pasted from and which a whitespace-splitting log parser truncates.
+    ids=["json_null", "empty_object", "null_room_baselines"],
+)
+async def test_finalize_survives_a_degenerate_room_stats_payload(
+    manager, hass, payload, label
+):
+    """[EXT-FIN-5] a readable but degenerate room_stats.json must not break finalize.
+
+    All three payloads are valid JSON, so `except (OSError, ValueError)` does NOT
+    catch them -- they have to be handled by the expression itself,
+    `(json.load(handle) or {}).get("room_baselines", []) or []`. A bare `null`
+    without the `or {}` is `None.get(...)`: an AttributeError raised inside the
+    executor job, and the pending record never written. An app-started run lost to
+    a one-line file.
+
+    HONEST SCOPE -- only the `or {}` half bites at this site. The trailing `or []`
+    is redundant here, because the callee's own _baseline_area_by_slug opens with
+    `for entry in baselines or []` and tolerates a None itself. That makes
+    `{"room_baselines": None}` a coverage case rather than a guard proof for SITE 1.
+    [CXR-8] is where that same guard is load-bearing, because SITE 2 iterates the
+    value directly instead of passing it on.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _write_room_stats(manager, _VAC, payload)
+
+    events = await _drive_grace_finalize(manager, hass)
+
+    assert len(events) == 1, f"{label} must degrade to no baselines, not break finalize"
+    assert events[0]["record_path"], "the pending record must still be written"
+
+
+def test_confirm_drops_a_band_from_another_map(manager):
+    """[CXR-7] the bands_by_slug map_id filter -- the arm never taken.
+
+    Two bands share the slug `kitchen`. The map-6 band matches the assignment's
+    6.0 m2 segment, so the identity gate passes and the run graduates. The map-7
+    band is CXR-3's blocking band (50 m2) and is written SECOND on purpose:
+    bands_by_slug is built by plain assignment, so without the
+    `if str(entry.get("map_id")) == str(map_id)` filter the later entry wins and the
+    gate blocks on a band belonging to a different map.
+
+    The verdict is therefore its own discriminator -- ok True with the filter,
+    blocked without it -- so no spy is needed. That also makes this a test of the
+    real user-visible consequence: another map's learned area refusing a correct
+    confirm on this one.
+    """
+    pending_id = "job_cxr7_foreign_map"
+    _write_pending(manager, _VAC, pending_id)
+    _write_room_stats(manager, _VAC, {"room_baselines": [
+        _band(slug="kitchen", avg_area_m2=6.0),             # map 6 -- matches
+        _band(slug="kitchen", avg_area_m2=50.0, map_id=7),  # map 7 -- would block
+    ]})
+
+    store = LearningHistoryStore(manager.hass)
+    paths = store.get_paths(vacuum_entity_id=_VAC)
+
+    result = manager.confirm_external_run(
+        _VAC, _MAP, pending_id,
+        room_assignments=[{"segment_orders": [0], "room_id": 1, "override": False}],
+        rooms=_CONFIRM_ROOMS,
+        rebuild_stats=False,
+    )
+
+    assert result["ok"] is True, (
+        f"the map-7 band must not be consulted for map {_MAP}; got {result!r}"
+    )
+    assert not result.get("blocked")
+    assert (paths.jobs_dir / f"ext-{pending_id}.json").exists(), (
+        "a passing identity gate must graduate the run"
+    )
+
+
+def test_confirm_tolerates_a_null_room_baselines(manager):
+    """[CXR-8] the trailing `or []` at SITE 2 is load-bearing, unlike at SITE 1.
+
+    SITE 2 iterates the value directly -- `for entry in (...).get("room_baselines",
+    []) or []` -- so a null reaches the `for` itself. Without the `or []` that is
+    `for entry in None`, a TypeError, and the read's `except (OSError, ValueError)`
+    does not name TypeError: it escapes confirm_external_run entirely, and the
+    user's review wizard fails on a file it only wanted to read.
+
+    With the guard the bands are simply empty, no band is found for `kitchen`, the
+    identity gate returns cold_start instead of blocking, and the run graduates.
+    """
+    pending_id = "job_cxr8_null_bands"
+    _write_pending(manager, _VAC, pending_id)
+    _write_room_stats(manager, _VAC, {"room_baselines": None})
+
+    store = LearningHistoryStore(manager.hass)
+    paths = store.get_paths(vacuum_entity_id=_VAC)
+
+    result = manager.confirm_external_run(
+        _VAC, _MAP, pending_id,
+        room_assignments=[{"segment_orders": [0], "room_id": 1, "override": False}],
+        rooms=_CONFIRM_ROOMS,
+        rebuild_stats=False,
+    )
+
+    assert result["ok"] is True, (
+        f"a null room_baselines must read as no bands; got {result!r}"
+    )
+    assert (paths.jobs_dir / f"ext-{pending_id}.json").exists()
