@@ -138,6 +138,24 @@ where both a missing target and a failed call raise and abort by design.
 The two live in one loop and read alike. When quoting the best-effort line, check which entry it is
 being applied to.
 
+### The same guard, missed a second time: the zone restore
+
+`_dispatch_zone_with_global_precall` flips a gate switch OFF so the device's globals become
+settable, sets them, and restores the prior values at zone completion. The forward path is safe
+because it **reads back** and refuses on a mismatch. The restore path had no read-back and two
+`except Exception` handlers wrapped directly around `hass.services.async_call` -- so on an install
+whose entities have been renamed or re-imported, the restore no-opped, nothing raised, and the
+user's prior settings were dropped with no error. The gate half is worse: the globals stay
+**un-regated** until someone flips the switch by hand, and nothing says so.
+
+That is §4's defect exactly, found a second time in the same file, and found by following an
+*uncovered log line* -- the only statement in each handler, which is what made the handlers
+visible at all. Both now check the target exists first and warn, naming the entity and the
+consequence. They stay best-effort: a missing target is reported and skipped, never raised,
+because losing the restore must not also lose the run.
+
+Covered by `[ZC-DR-7]` and `[ZC-DR-8]`, each red when its guard is removed.
+
 ---
 
 ## 5. Two vocabularies that look identical and must not be merged
@@ -179,6 +197,7 @@ retyping a tuple.
 | a mixed batch takes the strongest setting | water takes the safest; suction still takes the strongest — §3 |
 | the safe-water floor is the minimum declared level | a dry room declares none; the rule targets the rank's lowest value directly — §3 |
 | a call wrapped in `except` is guarded | HA logs a missing target rather than raising, so the abort never ran — §4 |
+| the zone restore puts the device back | only if the entities still exist; a missing one was silent until it was made to warn — §4 |
 | pre-calls never abort a run | true of the plain entries, false of the safest-water entry — §4 |
 | a value the device already reports is not re-sent | only when *we* sent it this job; a reported value alone never suppresses the push — §2 |
 | two identical-looking tuples should be merged | these answer different questions and merging breaks zone handling — §5 |

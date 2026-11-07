@@ -58,12 +58,27 @@ Covered by `tests/unit/test_services_repair_renamed_vacuum.py`. Two targets carr
 | `access_graph.py` | 34 | 88% | `test_services_access_graph.py` | clean |
 | `clean_order.py` | 42 | 96% | `test_services_clean_order.py` | spec'd |
 | `_common.py` | 54 | 94% | `test_services_common.py`, `test_services_misc.py`, `test_services_unmanaged_vacuum.py` | clean |
-| `stall_capture.py` | 43 | 37% | — | - |
+| `stall_capture.py` | 43 | 100% | `test_services_stall_capture.py` | spec'd |
 | `debug.py` | 8 | 100% | `test_services_misc.py` | clean |
 
 ---
 
 ## What's tested
+
+- **Two services, two audiences, and every refusal was an unexercised `raise` (`SSC-1..8`)** —
+  `test_services_stall_capture.py`. `stall_capture.py` shipped registered and documented with
+  **25 of 43 statements and 0 of 6 branches** reached: the managed-vacuum gate, the no-active-map
+  refusal and the not-currently-cleaning refusal had never run, which is the same shape as the
+  abort that could never fire in issue #51. The handlers are closures inside `register()`, so the
+  tests pull them off the registration list rather than importing a callable — which exercises the
+  real registration path as a side effect (`SSC-8` asserts both carry `supports_response="only"`,
+  since a caller that cannot read the response cannot use either). `SSC-3` deliberately **pins a
+  known divergence** rather than asserting it is correct: `setdefault` mutates `manager.data`
+  before the authorization decision, so a refused call leaves `data["vacuums"] = {}` behind (C12,
+  still open). It is pinned so the repair lands with a red test instead of silently. **Ablated:**
+  seven substitutions — dropping each guard, the flag write, the room-name fallback, the canonical
+  event name and `supports_response` — each reddened exactly its own test, restores byte-identical.
+
 
 - **A service exists because something CALLS it (`SNP-5`)** — `test_services_snapshots.py`.
   `get_maintenance_source_candidates` sat on the manager for a day with **zero callers**: no

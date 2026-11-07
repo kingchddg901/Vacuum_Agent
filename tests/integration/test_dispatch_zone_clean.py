@@ -713,3 +713,94 @@ async def test_dreame_zone_global_precall_restores_at_completion(hass, manager, 
     hass.states.async_set("vacuum.alfred", "docked")
     await hass.async_block_till_done()
     assert "switch_on" in [c[0] for c in calls]                  # restored at completion
+
+
+async def test_dreame_zone_restore_reports_a_vanished_setting_entity(
+    hass, manager, monkeypatch, caplog
+):
+    """[ZC-DR-7] a setting entity gone by restore time is REPORTED, not dropped in silence.
+
+    THE #51 SHAPE, ON THE RESTORE SIDE. `hass.services.async_call` does not raise when
+    the entity does not exist -- it collects the id and logs its own warning -- so the
+    `except Exception` wrapped around the restore could never see the likeliest failure
+    on a localized or renamed install. The forward path is covered by the read-back,
+    which refuses on a mismatch; nothing reads back the RESTORE, so the user's prior
+    setting was discarded with no error and no log of ours.
+
+    Losing one restore must not lose the rest: the gate is still put back.
+
+    ABLATION: delete the `hass.states.get(p["eid"]) is None` guard in `_restore` and this
+    goes red -- no warning is emitted, and the only trace is HA's own missing-entity
+    warning, which names nothing about what was not restored.
+    """
+    _register_dreame(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    hass.states.async_set("switch.alfred_customized_cleaning", "on")
+    hass.states.async_set("select.alfred_suction_level", "standard")   # the prior to restore
+    hass.states.async_set("vacuum.alfred", "docked")
+    calls = _wire_precall(hass)
+
+    await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]], settings={"suction": "strong"},
+    )
+    calls.clear()
+    caplog.clear()
+
+    # The select disappears while the robot runs -- a re-import, a rename, an integration
+    # reload. Its prior ("standard") was snapshotted at dispatch, so the restore will try.
+    hass.states.async_remove("select.alfred_suction_level")
+
+    hass.states.async_set("vacuum.alfred", "cleaning")
+    await hass.async_block_till_done()
+    hass.states.async_set("vacuum.alfred", "docked")
+    await hass.async_block_till_done()
+
+    msgs = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any("no longer exists" in m and "select.alfred_suction_level" in m for m in msgs), (
+        f"a vanished restore target must say so and name itself. warnings seen: {msgs}"
+    )
+    assert any("NOT restored" in m for m in msgs), "say what was lost, not just that something was"
+    assert "switch_on" in [c[0] for c in calls], (
+        "one missing setting must not abandon the rest of the restore -- the gate still goes back"
+    )
+
+
+async def test_dreame_zone_restore_reports_a_vanished_gate(hass, manager, monkeypatch, caplog):
+    """[ZC-DR-8] a vanished GATE is the worse half, and it was equally silent.
+
+    The gate is flipped OFF to make the globals settable and flipped back ON at
+    completion. If it has gone by then, `switch.turn_on` no-ops, nothing raises, and the
+    device is left with its globals PERMANENTLY un-regated -- per-room cleans keep using
+    the zone's settings until someone notices and flips it by hand. That outcome deserves
+    a warning that says so.
+
+    ABLATION: delete the `hass.states.get(gate_eid) is None` guard and this goes red --
+    the handler is reached, nothing raises, and no warning of ours is written.
+    """
+    _register_dreame(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    hass.states.async_set("switch.alfred_customized_cleaning", "on")
+    hass.states.async_set("vacuum.alfred", "docked")
+    calls = _wire_precall(hass)
+
+    await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]], settings={"suction": "strong"},
+    )
+    calls.clear()
+    caplog.clear()
+
+    hass.states.async_remove("switch.alfred_customized_cleaning")
+
+    hass.states.async_set("vacuum.alfred", "cleaning")
+    await hass.async_block_till_done()
+    hass.states.async_set("vacuum.alfred", "docked")
+    await hass.async_block_till_done()
+
+    msgs = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any(
+        "no longer exists" in m and "switch.alfred_customized_cleaning" in m for m in msgs
+    ), f"a vanished gate must say so and name itself. warnings seen: {msgs}"
+    assert any("left OFF" in m for m in msgs), (
+        "name the CONSEQUENCE -- the globals stay un-regated, which is what the user has to fix"
+    )
+    assert "switch_on" not in [c[0] for c in calls], "nothing is sent to an entity that is gone"

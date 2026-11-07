@@ -229,13 +229,39 @@ class DispatchManager:
 
         async def _restore() -> None:
             # Globals FIRST (while still ungated), then the gate LAST (re-gates them).
+            #
+            # A MISSING TARGET MUST SAY SO -- the #51 shape, restore side. Neither
+            # `except` below could ever see the most likely failure on a localized or
+            # renamed install, because `hass.services.async_call` does NOT raise when
+            # the entity does not exist: it collects the id and logs a warning of its
+            # own. [GPC-6d] proves exactly that for this same call. So the restore
+            # no-opped, `except Exception` never ran, and the user's prior settings were
+            # dropped in silence -- the forward path is covered by the read-back below,
+            # but nothing reads back the RESTORE.
+            #
+            # Still best-effort: a missing target is reported and skipped, never raised.
+            # Losing the restore must not also lose the run.
             for p in plan:
                 if p.get("prior") is not None:
+                    if hass.states.get(p["eid"]) is None:
+                        _LOGGER.warning(
+                            "zone restore: %s no longer exists -- %r was NOT restored, so the "
+                            "device keeps the zone's %s setting",
+                            p["eid"], p["prior"], p["key"],
+                        )
+                        continue
                     try:
                         await _apply(p["dom"], p["svc"], p["eid"], p["vf"], p["prior"])
                     except Exception:  # noqa: BLE001 - best-effort restore
                         _LOGGER.warning("zone restore: %s -> %r failed", p["eid"], p["prior"], exc_info=True)
             if gate_prior == "on":
+                if hass.states.get(gate_eid) is None:
+                    _LOGGER.warning(
+                        "zone restore: %s no longer exists -- the settings gate was left OFF, so "
+                        "the device's globals stay un-regated until it is switched back on",
+                        gate_eid,
+                    )
+                    return
                 try:
                     await hass.services.async_call("switch", "turn_on", {"entity_id": gate_eid}, blocking=True)
                 except Exception:  # noqa: BLE001
