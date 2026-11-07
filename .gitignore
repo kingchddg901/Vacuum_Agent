@@ -9,7 +9,7 @@ __pycache__/
 # Test / coverage artifacts
 .coverage
 .coverage.*
-coverage.json
+coverage*.json
 htmlcov/
 htmlcov_scratch/
 .pytest_cache/

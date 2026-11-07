@@ -92,7 +92,7 @@ or swap `eufy-vacuum-test` for `python:3.14-slim` and prefix the command with
 | Run one test by name | `-k test_name_substring` |
 | Stop at first failure | `-x` |
 | Short tracebacks | `--tb=short` |
-| Coverage for specific modules only | `--cov=custom_components/eufy_vacuum/learning/manager --cov-report=term-missing` |
+| Coverage for specific modules only | see [Narrowing coverage to one module](#narrowing-coverage-to-one-module) — a command-line `--cov` cannot do it |
 | Disable pytest cache (clean container) | `-p no:cacheprovider` |
 
 `--no-cov` is worth using during iteration — coverage instrumentation slows the
@@ -107,7 +107,10 @@ only — no HTML report is written. The `addopts` in `pytest.ini` enable just
 explicitly: pass `--cov-report=html:htmlcov_scratch` for a disposable report, or
 `--cov-report=html:htmlcov` for the canonical regen. (Keeping `htmlcov/`
 explicit-only means an incidental or sub-agent coverage run can never clobber it.)
-Both `htmlcov/` and the `.coverage` data file are gitignored.
+Both `htmlcov/` and the `.coverage` data file are gitignored, as is any
+`coverage*.json`. That pattern was `coverage.json` *exactly* until 2026-11-07, so an
+ad-hoc `--cov-report=json:coverage_mymodule.json` left a multi-MB untracked file
+sitting one `git add -A` from the repo.
 
 ### Refreshing the numbers in these docs
 
@@ -133,9 +136,62 @@ file, those lines show as missed and the percentage drops. To get the true
 number for a module, run **all** files that exercise it:
 
 ```
-scripts\test.bat tests/integration/test_learning_services.py tests/unit/test_learning_job_finalizer.py ^
-  --cov=custom_components/eufy_vacuum/learning/job_finalizer --cov-report=term-missing
+scripts\test.bat tests/integration/test_learning_services.py tests/unit/test_learning_job_finalizer.py
 ```
+
+The default `term-missing` table is already per-file, so the row for
+`learning/job_finalizer.py` is the number you want — you do not need a `--cov` flag
+to single it out, and as the next section explains, one would not work anyway.
+
+### Narrowing coverage to one module
+
+**A command-line `--cov` does not narrow anything.** The flag is `action="append"`,
+so it ADDS a source to the one `pytest.ini` already sets — measured 2026-11-07, the
+table still listed 205 files. `.coveragerc` sets `source` as well, so there are two
+package-wide sources to displace, not one.
+
+Three forms, and what each actually does — all measured:
+
+| Form | Effect |
+|------|--------|
+| `--cov=custom_components/eufy_vacuum/learning` | valid (a directory) |
+| `--cov=.../learning/external_run.py` | runs, but collects nothing: *"No data to report"* — a single file is not a usable source |
+| `--cov=custom_components.eufy_vacuum.learning.external_run` | **refused at startup.** Dotted sources reload NumPy and redden 46 unrelated tests |
+
+That last one is the trap, and `tests/conftest.py` now refuses it with an explanation
+instead of letting it produce a screenful of unrelated failures. Coverage resolves a
+source with **no path separator** by importing it
+(`importlib.util.find_spec`), which imports the package tree mid-session. NumPy is
+then imported a second time — it says so itself, *"The NumPy module was reloaded"* —
+and its compiled reduce still compares against the `_NoValue` sentinel it cached on
+the first import, so every `ndarray.sum()` raises
+`TypeError: float() argument must be a string or a real number, not '_NoValueType'`.
+
+The casualties are the numpy-backed mapping and segmentor tests, which have nothing
+to do with the module being measured — that mismatch is what makes the trap expensive.
+The Python-level sentinel stays self-consistent across the reload
+(`numpy._NoValue is numpy._globals._NoValue` holds either way), so the obvious probe
+for a duplicate module reports nothing wrong. Mechanism recorded at
+`tests/conftest.py::offending_cov_sources`, pinned by
+`tests/unit/test_cov_source_guard.py`
+(COVG-1..8).
+
+A slash-bearing source is never refused, even when it is wrong: the two forms above
+that collect nothing are a documentation problem, not something to fail a run over.
+
+To genuinely measure one subtree, drop **both** package-wide sources:
+
+```
+docker run --rm -v "<repo>:/workspace" -w /workspace eufy-vacuum-test \
+  python -m pytest tests/integration/test_manager_external_finalize.py \
+  -o addopts="" --cov-config=/dev/null --cov-branch \
+  --cov=custom_components/eufy_vacuum/learning --cov-report=term-missing
+```
+
+`-o addopts=""` drops the `pytest.ini` source and `--cov-config=/dev/null` drops
+`.coveragerc`'s. Measured: 5040 statements instead of 29985, with a per-file row for
+every module under `learning/`. Usually not worth the trouble — the whole-package
+table is already per-file, and `coverage.json` carries the same data per module.
 
 ## The image-processing stack (numpy / scipy / Pillow)
 

@@ -52,7 +52,12 @@ def _run(path: str, cov_modules: list[str]) -> tuple[bool, int, dict[str, set[in
         "python", "-m", "pytest", path, "-p", "no:cacheprovider", "-q",
         "--cov-branch", f"--cov-report=json:{cov_json}",
     ]
-    cmd += [f"--cov={m}" for m in cov_modules]
+    # _norm, not the raw arg: this script accepts a DOTTED module (its own --cov help
+    # says so), and handing a dotted source to coverage makes it import the package
+    # tree, which reloads NumPy and reddens 46 unrelated tests. _norm already turns
+    # dotted into a '/'-stem for the matching below, and a '/'-bearing source is never
+    # imported. See tests/conftest.py::offending_cov_sources for the measured mechanism.
+    cmd += [f"--cov={_norm(m)}" for m in cov_modules]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     text = proc.stdout + proc.stderr
     green = proc.returncode == 0 and " failed" not in text and " error" not in text

@@ -14,6 +14,8 @@ built-in `hass` fixture — no extra work needed here.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -157,3 +159,118 @@ def mock_options_entry() -> MockConfigEntry:
         },
         version=1,
     )
+
+
+# ---------------------------------------------------------------------------
+# THE --cov SOURCE GUARD
+#
+# No `anchor:` declaration here on purpose: scripts/doc_anchor.py's SOURCE_ROOTS are
+# custom_components/ scripts/ src/ harness/ -- tests/ can CITE an anchor but cannot
+# DECLARE one, so an anchor minted for this note would be inert and the checker
+# reports it as "defined nowhere" the moment a doc cites it. Cited by symbol instead.
+#
+# A DOTTED `--cov` source silently corrupts NumPy, and the damage shows up as
+# ordinary-looking test failures a long way from the cause. Measured 2026-11-07:
+#
+#   pytest tests --no-cov                                       -> 5338 passed, 0 failed
+#   pytest tests                        (pytest.ini addopts)     -> 5338 passed, 0 failed
+#   pytest tests --cov=custom_components/eufy_vacuum/learning    -> clean (directory)
+#   pytest tests --cov=.../learning/external_run.py              -> clean (file)
+#   pytest tests --cov=custom_components.eufy_vacuum.learning.external_run
+#                                                                -> 46 FAILED
+#
+# so coverage itself is innocent and the DOTTED form is the whole trigger. The
+# chain: coverage resolves a non-path source by calling
+# `importlib.util.find_spec()` on it (coverage/inorout.py::file_and_path_for_module),
+# which imports the parent package tree mid-session. NumPy is then imported a
+# SECOND time -- numpy says so itself, "The NumPy module was reloaded (imported a
+# second time)" -- and its compiled reduce still compares `initial` against the
+# sentinel object it cached on the FIRST import. The reload replaced that object,
+# so `np._NoValue` is no longer recognised and numpy tries to coerce it:
+#
+#   TypeError: float() argument must be a string or a real number, not '_NoValueType'
+#
+# Every `ndarray.sum()` raises, which is why the casualties are the numpy-backed
+# mapping/segmentor tests and not anything to do with the module being measured.
+# The Python-level sentinel stays SELF-CONSISTENT across the reload
+# (`numpy._NoValue is numpy._globals._NoValue` is True either way), so the
+# obvious probe for a duplicate module reports nothing wrong -- which is why this
+# note records the mechanism instead of leaving it to be re-derived.
+#
+# WHAT THE GUARD DELIBERATELY DOES NOT FLAG. Only a source with NO path separator
+# can reach `find_spec`, so that is the whole rule: a slash-bearing source is left
+# alone however wrong it is. Two such wrong-but-harmless forms exist in the repo's
+# own history, and an earlier draft of this guard rejected both -- which would have
+# broken the documented recipes rather than the trap:
+#   --cov=custom_components/eufy_vacuum/learning/manager   (no .py; path does not
+#       exist, so it collects nothing -- a silent no-op, not a numpy reload)
+#   --cov=.../external_run.py                              (a FILE is accepted as a
+#       source but collects nothing: "No data to report")
+# Neither is worth refusing at the gate; both are a docs problem, and
+# docs/testing/02-running-tests.md now carries the recipe that actually narrows.
+#
+# AND NOTE WHY NARROWING NEEDS MORE THAN `--cov`: the flag is `action="append"`, so a
+# command-line source ADDS to the addopts one instead of replacing it -- measured, the
+# table still listed 205 files. Narrowing takes `-o addopts=""` to drop the package
+# source AND `--cov-config=/dev/null` to drop .coveragerc's `source =`, which is the
+# recipe the docs now give. Otherwise just read the per-file row out of the
+# whole-package term-missing table, which is already per-file.
+# ---------------------------------------------------------------------------
+
+_COV_GUARD_MESSAGE = """--cov source(s) look like module names, not paths: {bad}
+
+Coverage resolves a source with no path separator by importing it, which reloads
+NumPy. Every ndarray.sum() then raises
+    TypeError: float() argument must be a string or a real number, not '_NoValueType'
+and 46 tests go red -- none of them related to the module you were measuring.
+
+A command-line --cov cannot narrow the report anyway: the flag APPENDS to the one
+pytest.ini already sets, so the table still covers the whole package. Either read
+the per-file row out of that table (it is already per-file), or narrow properly:
+
+    pytest <tests> -o addopts="" --cov-config=/dev/null --cov-branch         --cov=custom_components/eufy_vacuum/learning --cov-report=term-missing
+
+See tests/conftest.py::offending_cov_sources for the measured mechanism."""
+
+
+def offending_cov_sources(sources, *, path_exists):
+    """Return the `--cov` sources that are module names rather than paths.
+
+    `path_exists` is injected so this is testable without touching the disk; the
+    hook below supplies one that tries the source both as given and relative to
+    the rootdir, because the addopts source is rootdir-relative and pytest may be
+    invoked from anywhere.
+
+    A bare `--cov` (no value) arrives as True and is not a source at all.
+
+    The rule is the separator, not existence: only a separator-free source reaches
+    `find_spec`, so a slash-bearing one is never flagged however wrong it is. See
+    the note above for the two wrong-but-harmless path forms this protects.
+    """
+    bad = []
+    for source in sources or ():
+        if source is True:
+            continue
+        text = str(source)
+        if "/" in text or "\\" in text:
+            continue
+        if path_exists(text):
+            continue
+        bad.append(text)
+    return bad
+
+
+def pytest_configure(config):
+    """Refuse a dotted `--cov` source before any test runs.
+
+    See the note above offending_cov_sources for the measured mechanism.
+    """
+    sources = getattr(config.option, "cov_source", None)
+    root = Path(getattr(config, "rootpath", "."))
+
+    def _exists(text):
+        return Path(text).exists() or (root / text).exists()
+
+    bad = offending_cov_sources(sources, path_exists=_exists)
+    if bad:
+        raise pytest.UsageError(_COV_GUARD_MESSAGE.format(bad=", ".join(bad)))
