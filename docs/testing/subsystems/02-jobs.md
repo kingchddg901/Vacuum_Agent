@@ -97,6 +97,39 @@ The 2026-08-17 walk concluded that *"not one of the 22 families was a defect in 
 code — every one was a defect in something that already had a rule, a guard, a table or a
 declaration."* This one had no rule, no guard, no test and no anchor.
 
+**`[SWT-6]`–`[SWT-9]` cover the error trigger's WIRING** (added 2026-11-07). `jobs/stuck_watch.py`
+is exercised as pure logic in `tests/unit/test_stuck_watch.py`; what had no test was the
+manager's half — the latch that turns one error episode into ONE notification, and the rule
+that an open error OWNS a run.
+
+- **`[SWT-6]` the dedup latch.** The tick runs every 5 seconds and an error stays open until
+  someone physically frees the robot — minutes, often longer. Without `_stuck_err_open` the
+  user is notified on every tick for the whole episode, which is worse than not notifying,
+  because they stop reading them. Four ticks, one event.
+- **`[SWT-7]` the latch must CLEAR.** The half that decides whether the feature works *twice*:
+  if the latch only ever sets, the first episode of a run is the only one the user ever hears
+  about. Open → recover → open again, two events.
+- **`[SWT-8]` an open error mutes the area gate.** The function states this as a rule rather
+  than an accident of two timeouts: *"The error trigger owns this run."* A robot reporting an
+  error has also stopped covering floor, so both triggers would otherwise notice one event and
+  report it twice. Asserted in both directions, so the test cannot be satisfied by a mute that
+  swallows the detector.
+- **`[SWT-9]` the payload.** One event serves every trigger, so `trigger` is what lets a
+  consumer say "the robot reported a problem" rather than "it stopped covering floor". The
+  room name is what makes the notification actionable.
+
+Ablated five ways. One worth recording: removing the dedup latch reddens **`SWT-6` only**, not
+`SWT-7` — because `SWT-7` ticks once per state and never twice with the error open. The two
+tests own different halves (dedup vs clear), which the ablation established and an expectation
+of "both" got wrong.
+
+**A correction to the coverage triage**, since it was classified independently. The
+2026-11-07 pass listed the tick's `if not active_job` early return as TESTABLE. It is not —
+`[SWT-2]` above already shows it is unreachable. Same root cause as the
+`isinstance(active_job_state, dict)` guards in `learning/history_store.py`:
+`jobs/active_job.py::_normalize_active_job` coerces anything to a dict, so every
+"what if it is absent" branch downstream of it is dead. Two findings, one fact.
+
 ### `job_monitor.py` — start-gate evaluation (prefix `JM`, 31 tests)
 The whole module is pure, so coverage is near-total:
 - **`_norm`** — sentinel collapsing (`unknown`/`unavailable`/`none` → `""`).

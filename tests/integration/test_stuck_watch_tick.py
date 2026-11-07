@@ -192,3 +192,166 @@ async def test_a_cleaning_phase_does_NOT_exempt_the_stall_watch(manager, hass):
         "discriminating and the detector is muted for every phase"
     )
 
+
+# --- SWT-6..9 — the ERROR trigger's wiring, from the 2026-11-07 coverage triage ----
+#
+# `jobs/stuck_watch.error_episode_is_open` is covered as pure logic in
+# tests/unit/test_stuck_watch.py. What had no test is the manager's half: the latch
+# that makes one error episode produce ONE notification instead of one every five
+# seconds, and the rule that the error trigger OWNS a run so the area gate stays
+# quiet. [SWT-1] reaches the body but asserts only that it ran.
+#
+# A note on the triage itself: it listed the tick's `if not active_job` early return
+# as TESTABLE. It is not — [SWT-2] above already establishes that `get_active_job`
+# never returns falsy, so that guard is unreachable. Same root cause as the
+# `isinstance(active_job_state, dict)` guards in learning/history_store.py:
+# jobs/active_job.py's `_normalize_active_job` coerces anything to a dict, so every
+# "what if it is absent" branch downstream is dead. Recorded here because the two
+# findings were classified independently and are one fact.
+
+
+_STUCK_LATCH = {"current_code": "S1", "current_message": "Robot is stuck"}
+
+
+def _install_tracker(manager, latch):
+    """Put an error tracker in hass.data the way async_setup_entry does.
+
+    `latch` is re-read on every tick, so the test mutates the holder rather than
+    re-installing: that is what lets one episode be opened, closed and reopened.
+    """
+    from custom_components.eufy_vacuum.const import DATA_ERROR_TRACKER, DOMAIN
+
+    holder = {"latch": latch}
+
+    class _Tracker:
+        def get_active_run_latch(self, _vacuum_entity_id):
+            return holder["latch"]
+
+    manager.hass.data.setdefault(DOMAIN, {})[DATA_ERROR_TRACKER] = _Tracker()
+    return holder
+
+
+def _capture_stalls(hass):
+    from custom_components.eufy_vacuum.const import EVENT_STALL_DETECTED
+
+    seen: list[dict] = []
+    hass.bus.async_listen(EVENT_STALL_DETECTED, lambda e: seen.append(dict(e.data)))
+    return seen
+
+
+async def test_an_error_episode_fires_once_not_every_tick(manager, hass):
+    """[SWT-6] the dedup latch, which is the whole reason this is not a notification storm.
+
+    The tick runs every 5 seconds and the error stays open until the user goes and
+    frees the robot — minutes, often longer. Without `_stuck_err_open` the user is
+    notified on every tick for the whole episode, which is worse than not notifying
+    at all because they stop reading them.
+    """
+    job = _seed_active_job(manager)
+    job["has_observed_active_lifecycle"] = True
+    hass.states.async_set(_VAC, "cleaning", {})
+    _install_tracker(manager, dict(_STUCK_LATCH))
+    seen = _capture_stalls(hass)
+
+    first = manager.apply_stuck_watch_tick(vacuum_entity_id=_VAC, map_id=_MAP)
+    await hass.async_block_till_done()
+    assert first["fired"] == "error", f"the open episode must fire once; got {first!r}"
+    assert len(seen) == 1
+
+    for _ in range(3):
+        again = manager.apply_stuck_watch_tick(vacuum_entity_id=_VAC, map_id=_MAP)
+        await hass.async_block_till_done()
+        assert again["fired"] is None, (
+            f"the SAME episode fired again: {again!r} — the user gets one of these "
+            "every five seconds until they free the robot"
+        )
+    assert len(seen) == 1, f"one episode, one event; saw {len(seen)}"
+
+
+async def test_a_recovered_error_rearms_the_latch(manager, hass):
+    """[SWT-7] the latch must CLEAR, or a second real stall is silent.
+
+    The other half of SWT-6 and the one that actually decides whether the feature
+    works twice: if the latch only ever sets, the first episode of a run is the only
+    one the user ever hears about.
+    """
+    job = _seed_active_job(manager)
+    job["has_observed_active_lifecycle"] = True
+    hass.states.async_set(_VAC, "cleaning", {})
+    holder = _install_tracker(manager, dict(_STUCK_LATCH))
+    seen = _capture_stalls(hass)
+
+    assert manager.apply_stuck_watch_tick(vacuum_entity_id=_VAC, map_id=_MAP)["fired"] == "error"
+    await hass.async_block_till_done()
+
+    # The user frees the robot; the tracker reports the episode recovered.
+    holder["latch"] = dict(_STUCK_LATCH, recovered=True)
+    closed = manager.apply_stuck_watch_tick(vacuum_entity_id=_VAC, map_id=_MAP)
+    await hass.async_block_till_done()
+    assert closed["fired"] is None
+    stored = manager.data["active_jobs"][_VAC][_MAP]
+    assert stored.get("_stuck_err_open") is False, (
+        "a recovered episode must clear the latch, or the next stall is swallowed"
+    )
+
+    # It gets stuck again, in the same run.
+    holder["latch"] = dict(_STUCK_LATCH, current_code="S2")
+    second = manager.apply_stuck_watch_tick(vacuum_entity_id=_VAC, map_id=_MAP)
+    await hass.async_block_till_done()
+    assert second["fired"] == "error", "a NEW episode in the same run must fire again"
+    assert len(seen) == 2
+
+
+async def test_an_open_error_owns_the_run_and_mutes_the_area_gate(manager, hass):
+    """[SWT-8] one physical stall must not produce two notifications.
+
+    The function's own docstring states this as a rule rather than an accident of two
+    timeouts: "The error trigger owns this run." A robot that reports an error has
+    also stopped covering floor, so both triggers would otherwise notice the same
+    event and the user would be told twice about one problem.
+    """
+    job = _seed_active_job(manager)
+    job["has_observed_active_lifecycle"] = True
+    hass.states.async_set(_VAC, "cleaning", {})
+    _install_tracker(manager, dict(_STUCK_LATCH))
+
+    excluded = manager._stuck_watch_excluded(
+        vacuum_entity_id=_VAC, active_job=job, err_open=True
+    )
+    assert excluded is True, "an open error episode must exempt the area gate"
+
+    # and the same job WITHOUT the error edge is not exempt — otherwise the
+    # assertion above is satisfied by a mute that swallows the detector entirely.
+    assert manager._stuck_watch_excluded(
+        vacuum_entity_id=_VAC, active_job=job, err_open=False
+    ) is False
+
+
+async def test_the_stall_event_names_the_room_and_the_trigger(manager, hass):
+    """[SWT-9] the payload is what the notification is written from.
+
+    One event serves every trigger, so `trigger` is what lets a consumer say "the
+    robot reported a problem" rather than "it stopped covering floor" — those need
+    different words. The room name is what makes the message actionable; without it
+    the user is told the robot is stuck somewhere.
+    """
+    job = _seed_active_job(manager)
+    job["has_observed_active_lifecycle"] = True
+    job["current_room_id"] = 1
+    hass.states.async_set(_VAC, "cleaning", {})
+    _install_tracker(manager, dict(_STUCK_LATCH))
+    seen = _capture_stalls(hass)
+
+    manager.apply_stuck_watch_tick(vacuum_entity_id=_VAC, map_id=_MAP)
+    await hass.async_block_till_done()
+
+    assert len(seen) == 1
+    payload = seen[0]
+    assert payload["vacuum_entity_id"] == _VAC
+    assert payload["map_id"] == str(_MAP)
+    assert payload["trigger"] == "error", "the consumer chooses its wording from this"
+    assert payload["room_id"] == 1
+    assert payload["room_name"], "a stall with no room name is not actionable"
+    # the trigger-specific detail is merged in, not nested
+    assert payload["error_code"] == "S1"
+    assert payload["error_message"] == "Robot is stuck"
