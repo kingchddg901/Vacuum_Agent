@@ -91,6 +91,12 @@ Coverage targets
 [RXR-7]  resegment_external_run: a MALFORMED room_stats.json re-segments anyway --
          the ValueError half of `except (OSError, ValueError)`, which until now had
          never run at ANY of the three read sites. RXR-3 covers the OSError half.
+[EXT-FIN-6]  _finalize_external_run: a MALFORMED room_stats.json still finalizes --
+         the ValueError half at SITE 1. The arm matters more here than at the other
+         two, because this read runs inside an executor job.
+[CXR-9]  confirm_external_run: a MALFORMED room_stats.json still graduates -- the
+         ValueError half at SITE 2, the copy whose except body is a bare `pass`.
+         Completes the predicate across all three of its copies.
 """
 
 from __future__ import annotations
@@ -1562,3 +1568,92 @@ def test_resegment_survives_a_malformed_room_stats_file(manager):
     assert result["ok"] is True, (
         f"a corrupt room_stats.json must read as no baselines; got {result!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# [EXT-FIN-6] + [CXR-9] -- the ValueError half at the other two read sites.
+#
+# [RXR-7] established the arm at SITE 3 and recorded WHY it had never run anywhere:
+# the suite's only room_stats.json writer serialised through json.dumps, so bytes
+# that fail to parse were unreachable by construction. With _write_room_stats_text
+# in place the same input now reaches all three.
+#
+# The three excepts are the SAME predicate with THREE DIFFERENT BODIES, which is why
+# finishing the set is worth two more tests rather than being left at one proven
+# copy:
+#   SITE 1  `except (OSError, ValueError): baselines = []`   (inside an executor job)
+#   SITE 2  `except (OSError, ValueError): pass`             (bare swallow)
+#   SITE 3  `except (OSError, ValueError): baselines = []`   -- [RXR-7]
+# A body that differs is a consequence that differs: SITE 2's `pass` leaves
+# bands_by_slug at {}, so confirm degrades to cold_start rather than to "no learned
+# area", and SITE 1's raise would escape through async_add_executor_job.
+# ---------------------------------------------------------------------------
+
+# A truncated object: present, readable, and not parseable. json.load raises
+# JSONDecodeError, a ValueError subclass -- which is the only reason naming
+# ValueError in the except tuple keeps a corrupt learned-stats file from breaking
+# the path that reads it.
+_MALFORMED_ROOM_STATS = '{"room_baselines": [{"map_id": 6, "room_slug": "kitchen"'
+
+
+async def test_finalize_survives_a_malformed_room_stats_file(manager, hass):
+    """[EXT-FIN-6] SITE 1's ValueError half, which runs inside an executor job.
+
+    The read lives in `_build_and_write`, handed to
+    `hass.async_add_executor_job`. An uncaught JSONDecodeError there does not just
+    lose the baselines -- it escapes the executor job, so the pending record is
+    never written and EVENT_EXTERNAL_RUN_PENDING never fires. The whole app-started
+    run is lost, and the user's only clue is a corrupt file they never knowingly
+    touched.
+
+    Asserting the EVENT rather than the baselines is deliberate: with the guard the
+    bands are empty, which is indistinguishable from EXT-FIN-1's absent-file case on
+    the baselines alone. The event is what separates "degraded" from "raised".
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _write_room_stats_text(manager, _VAC, _MALFORMED_ROOM_STATS)
+
+    events = await _drive_grace_finalize(manager, hass)
+
+    assert len(events) == 1, (
+        "a corrupt room_stats.json must not cost the run its pending record"
+    )
+    assert events[0]["record_path"]
+    assert events[0]["segment_count"] >= 1
+
+
+def test_confirm_survives_a_malformed_room_stats_file(manager):
+    """[CXR-9] SITE 2's ValueError half -- the copy whose body is a bare `pass`.
+
+    Same input, different consequence. Here the swallow leaves `bands_by_slug` at
+    {}, so no band is found for `kitchen`, gate_segment_identity returns cold_start
+    instead of blocking, and the run graduates. Without ValueError in the tuple the
+    JSONDecodeError escapes confirm_external_run outright and the review wizard
+    fails on a file it only wanted to read.
+
+    With [RXR-7] and [EXT-FIN-6] this closes the predicate at all three of its
+    copies -- worth doing explicitly because the bodies differ, so proving one copy
+    does not establish the others' behaviour, only that the exception is named.
+    """
+    pending_id = "job_cxr9_malformed"
+    _write_pending(manager, _VAC, pending_id)
+    _write_room_stats_text(manager, _VAC, _MALFORMED_ROOM_STATS)
+
+    store = LearningHistoryStore(manager.hass)
+    paths = store.get_paths(vacuum_entity_id=_VAC)
+
+    result = manager.confirm_external_run(
+        _VAC, _MAP, pending_id,
+        room_assignments=[{"segment_orders": [0], "room_id": 1, "override": False}],
+        rooms=_CONFIRM_ROOMS,
+        rebuild_stats=False,
+    )
+
+    assert result["ok"] is True, (
+        f"a corrupt room_stats.json must read as no bands; got {result!r}"
+    )
+    assert not result.get("blocked"), (
+        "no band means cold_start, not a block -- an unreadable file must not look "
+        "like a learned area the segment disagrees with"
+    )
+    assert (paths.jobs_dir / f"ext-{pending_id}.json").exists()

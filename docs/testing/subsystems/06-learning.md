@@ -261,7 +261,8 @@ finalize end-to-end (`EXT-FIN-1`), the W5c pose-only stand-up record when the co
 segmenter finds nothing (`EXT-FIN-2`), the slot-clears-on-build-error guard
 (`EXT-FIN-3`, the zombie-`external`-slot protection), and the learned-baseline read
 on that path — present bands reaching the segmenter (`EXT-FIN-4`) and a degenerate
-`room_stats.json` degrading instead of raising (`EXT-FIN-5`) — plus the
+(`EXT-FIN-5`) or outright corrupt (`EXT-FIN-6`) `room_stats.json` degrading instead
+of raising out of the executor job — plus the
 confirm/re-segment paths that graduate a reviewed run. See
 [The learned-baseline read](#the-learned-baseline-read-and-why-the-three-sites-differ)
 for why the three read sites filter differently.
@@ -405,13 +406,31 @@ Three facts worth keeping, all measured 2026-11-07:
 - **The `ValueError` half had never run at any of the three sites**, and the reason
   was the fixture shape rather than anyone's intent: the suite's only
   `room_stats.json` writer serialised through `json.dumps`, which cannot emit bytes
-  that fail to parse. `_write_room_stats_text` writes raw text so the arm is
-  reachable at all, and the payload helper now delegates to it. `RXR-7` drives it
-  with a truncated file — the corruption the real writer's temp-file-plus-`os.replace`
-  exists to prevent, which is exactly what the `except` is the belt for when
-  something outside the integration truncates it anyway. `RXR-3` covers the
-  `OSError` half. **Still open:** the `ValueError` half at finalize and confirm, and
-  the degenerate-payload cases at confirm beyond `CXR-8`'s null.
+  that fail to parse. The arm was unreachable *by construction*, so no amount of
+  care writing tests against that helper would have found it.
+  `_write_room_stats_text` writes raw text so it is reachable at all, and the
+  payload helper now delegates to it. All three sites are driven with a truncated
+  file — `RXR-7`, `EXT-FIN-6`, `CXR-9` — against `RXR-3`'s `OSError` half.
+
+  It took three tests rather than one because **the predicate has three copies with
+  three different bodies**, and a differing body is a differing consequence:
+
+  | Site | Except body | What a corrupt file costs |
+  |------|-------------|---------------------------|
+  | finalize | `baselines = []` | the read is inside an `async_add_executor_job`, so an escape loses the **whole pending record** and the event — the app-started run is gone |
+  | confirm | `pass` | `bands_by_slug` stays `{}`, so the gate reads **cold_start** rather than blocking |
+  | re-segment | `baselines = []` | the re-segment proceeds with no learned areas |
+
+  Proving one copy establishes only that the exception is *named* somewhere, not
+  what each site does next. Ablation confirms they are independent: stripping
+  `ValueError` from any one site reddens exactly that site's test and nothing else.
+
+  `EXT-FIN-6` asserts the **event**, not the baselines, and that choice is
+  load-bearing — with the guard intact the bands are empty, which on the baselines
+  alone is indistinguishable from `EXT-FIN-1`'s absent-file case. The event is what
+  separates "degraded" from "raised".
+
+  **Still open:** confirm's degenerate-payload cases beyond `CXR-8`'s null.
 - **Finalize's successful read had never run.** `EXT-FIN-1`'s own note said the
   absent-file `except` was "exercised for free" — no test had a `room_stats.json`
   on disk while a finalize went through, so the read itself was unexecuted until
