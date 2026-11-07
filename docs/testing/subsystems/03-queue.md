@@ -3,7 +3,7 @@
 The queue subsystem turns the enabled-room set into an ordered clean queue: it
 resolves room order, applies per-room overrides, and produces the
 `queue_room_ids` / `queue_rooms` payload the job pipeline consumes -- and, for a
-STEPPED queue, interleaves breaks into that order. Covered by **109 tests across
+STEPPED queue, interleaves breaks into that order. Covered by **114 tests across
 5 files** (counted 2026-11-07; the previous "78 across 3" predated both
 `test_dispatch_settings_write.py` and `test_manager_queue_breaks.py`, which the
 body already described and listed respectively).
@@ -44,6 +44,36 @@ Architecture reference: [05 — While a Run Is Live](../../dev/05-run-live.md)
   empty/unmapped fields, gate-entity gating, the `[1,3]`/`[1,32]` clamps, ordering
   before the global pre-calls, and best-effort-loud failure (logs, never raises).
   No-op for every brand that does not declare `dispatch.settings_write`.
+
+  **The malformed-declaration guards (`SW-14..SW-18`)** cover the other half: a
+  mistake in an adapter's own `settings_write` block rather than bad device data.
+  They earn tests rather than pragmas because the block is hand-authored (ours today,
+  a contributor's tomorrow) and the damage is not local — the call carries
+  index-aligned arrays into an object selector that rejects the **whole call** if one
+  column is the wrong type or length, so a guard that let a bad column through would
+  not degrade one field, it would lose the entire per-room write for the run. Each
+  guard therefore drops exactly one column or refuses the call outright:
+
+  | | guard | on a bad declaration |
+  |---|---|---|
+  | `SW-14` | no `domain`/`service` | refuse before building anything |
+  | `SW-15` | a non-numeric `room_id` | abort + ERROR — the segment column *is* the alignment, so there is no per-room degradation available |
+  | `SW-16` | a field with no `wire` | skip it, and keep emitting the ones after it |
+  | `SW-17` | a `wire` with no `canonical` and no `constant` | omit the column; a filler is a real value the device would store |
+  | `SW-18` | a clamped value that will not coerce | filler for *that room only*, so one typo cannot cost the others their write |
+
+> **`SW-14` cannot be written as `calls == []`**, and the first draft was exactly
+> that. Delete the `domain`/`service` guard and `async_call(None, None, ...)` raises,
+> which the function's own best-effort-loud `except` swallows into an ERROR log — so
+> no call is recorded either way and the assertion passes with the guard gone. It also
+> asserts that log is **absent**, which is the only thing separating "refused cleanly"
+> from "attempted it and swallowed the failure". Ablation is what surfaced this.
+
+> **The `SW-` prefix is shared by three unrelated files** — this one (`SW-1..SW-9b`),
+> `test_setup_workflow.py` (`SW-10..SW-13`) and `test_stuck_watch.py`
+> (`SW-10..SW-11`), the latter two already colliding with each other. The new ids
+> start at `SW-14`, the lowest free repo-wide, rather than adding a third claim on
+> `SW-10`; that is why the numbering here jumps.
 
 ---
 

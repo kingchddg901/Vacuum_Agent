@@ -22,6 +22,29 @@ Coverage
 [SW-8] ordering: settings_write runs before the global pre-calls and the dispatch.
 [SW-9] wetness_level: numeric water_level "16"/"26" -> ints; clamp [1,32]; gated on the
        NUMBER entity (gate_domain), omitted when that entity is absent.
+
+WHY THE NUMBERING JUMPS FROM SW-9b TO SW-14, since it looks like a mistake: the
+`SW-` prefix is shared by THREE unrelated files -- this one (SW-1..SW-9b),
+tests/integration/test_setup_workflow.py (SW-10..SW-13) and
+tests/unit/test_stuck_watch.py (SW-10..SW-11), the last two of which already collide
+with each other. SW-14 is the lowest number free repo-wide, so the new ids start
+there rather than adding a third claim on SW-10.
+
+The MALFORMED-DECLARATION guards. Every one of these protects against a mistake in
+an adapter's own ``dispatch.settings_write`` block, not against device data -- and
+they matter because this call carries index-aligned arrays into an object selector
+that rejects the WHOLE call if any one column is the wrong type or length. A guard
+that let a bad column through would not degrade one field; it would lose the entire
+per-room write for the run.
+
+[SW-14] a settings_write block with no ``domain``/``service`` -> no call at all.
+[SW-15] a resolved room whose room_id is not numeric -> ERROR log and no call; the
+        arrays cannot be aligned to a segment list that does not exist.
+[SW-16] a field with no ``wire`` is skipped, and the rest still emit.
+[SW-17] a field with a ``wire`` but neither ``canonical`` nor ``constant`` is
+        skipped -- it names a column with nothing to put in it.
+[SW-18] a clamped field whose value will not coerce takes the filler, so a typo in
+        one room cannot poison the column.
 """
 
 from __future__ import annotations
@@ -51,14 +74,20 @@ _FIELDS = [
 ]
 
 
-def _register(hass, *, fields=_FIELDS, settings_write=True):
+def _register(hass, *, fields=_FIELDS, settings_write=True, sw_override=None):
+    """Register the Dreame-shaped adapter.
+
+    ``sw_override`` REPLACES the whole settings_write block, for the malformed-
+    declaration tests ([SW-14]) that need a block missing ``domain``/``service``.
+    Default None keeps the well-formed block every other test here relies on.
+    """
     dispatch = {
         "template": "dreame_room_clean", "service_domain": "dreame_vacuum",
         "service_name": "vacuum_clean_segment", "command": None,
         "rooms_field": "segments", "clean_passes_field": None,
     }
     if settings_write:
-        dispatch["settings_write"] = {
+        dispatch["settings_write"] = sw_override if sw_override is not None else {
             "domain": "dreame_vacuum", "service": "vacuum_set_custom_cleaning",
             "segment_id_field": "segment_id", "fields": fields,
         }
@@ -265,3 +294,155 @@ def test_settings_write_runs_before_pre_calls_and_dispatch():
     assert pre_calls_at < dispatch_at, (
         "pre-calls (and the settings write before them) must precede dispatch"
     )
+
+
+# ---------------------------------------------------------------------------
+# [SW-10..SW-14] -- the malformed-declaration guards, from the 2026-11-07 coverage
+# pass. Measured missed before this batch: 1142, 1146-1152, 1160, 1171, 1202-1203.
+#
+# All five are reached by an adapter DECLARATION mistake rather than by device data,
+# which is why they are worth tests rather than pragmas: a declaration is authored by
+# hand (ours today, a contributor's tomorrow), and the failure it causes is not local.
+# The comment in the code says it plainly -- an unmapped value must never become "a
+# stray string on an int-typed wire (the object selector would reject the whole
+# call)". So each guard's job is to drop ONE column or refuse the call outright,
+# never to emit a malformed one.
+# ---------------------------------------------------------------------------
+
+
+async def test_settings_write_without_domain_or_service_makes_no_call(hass, manager, caplog):
+    """[SW-14] a settings_write block that names no service is a no-op.
+
+    Reachable by declaring the block and forgetting a key -- the shape a half-written
+    adapter port has. The guard must refuse BEFORE building any arrays, because the
+    alternative is an async_call with domain=None.
+
+    `calls == []` ALONE CANNOT TEST THIS, and that is the whole point of the second
+    assertion. Delete the guard and `async_call(None, None, ...)` raises, which the
+    function's own best-effort-loud `except Exception` at the end swallows into an
+    ERROR log -- so no call is recorded either way and the first assertion passes
+    with the guard gone. Only the absence of that log separates "refused cleanly
+    before building anything" from "attempted it and swallowed the failure".
+    """
+    _register(hass, sw_override={
+        # domain and service deliberately absent.
+        "segment_id_field": "segment_id", "fields": _FIELDS,
+    })
+    calls = _capture(hass)
+
+    with caplog.at_level("ERROR"):
+        await manager._run_settings_write(
+            vacuum_entity_id=_VAC,
+            resolved_rooms=[{"room_id": 1, "fan_speed": "quiet", "clean_passes": 1}],
+        )
+
+    assert calls == []
+    assert "settings_write" not in caplog.text, (
+        "the block must be refused before the call, not attempted and swallowed"
+    )
+
+
+async def test_non_numeric_room_id_is_refused_loudly(hass, manager, caplog):
+    """[SW-15] a room whose id will not coerce aborts the write, and says so.
+
+    The segment column IS the alignment for every other column, so one unusable
+    room_id makes the entire call meaningless -- there is no per-room degradation
+    available. It aborts, and LOUDLY: the run proceeds on the device's stored
+    settings, which is a real behaviour change the user would otherwise have no
+    record of.
+    """
+    _register(hass)
+    calls = _capture(hass)
+
+    with caplog.at_level("ERROR"):
+        await manager._run_settings_write(
+            vacuum_entity_id=_VAC,
+            resolved_rooms=[
+                {"room_id": 1, "fan_speed": "quiet", "clean_passes": 1},
+                {"room_id": "kitchen", "fan_speed": "turbo", "clean_passes": 2},
+            ],
+        )
+
+    assert calls == [], "one unusable room_id must abort the whole write"
+    assert "numeric room_id" in caplog.text, "the abort must be loud, not silent"
+
+
+async def test_a_field_with_no_wire_is_skipped(hass, manager):
+    """[SW-16] no ``wire`` means no column name, so there is nothing to emit.
+
+    The field is dropped and its SIBLINGS still emit -- asserted, because a guard
+    that bailed out of the loop instead of continuing would silently drop every
+    field declared after the bad one.
+    """
+    _register(hass, fields=[
+        {"canonical": "fan_speed", "wire": "suction_level",
+         "value_map": dv.FAN_SPEED_WIRE_MAP, "filler": 0},
+        {"canonical": "clean_passes", "filler": 1},          # no wire
+        {"canonical": "clean_passes", "wire": "repeats", "filler": 1},
+    ])
+    calls = _capture(hass)
+
+    await manager._run_settings_write(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[{"room_id": 1, "fan_speed": "quiet", "clean_passes": 2}],
+    )
+
+    assert calls == [{
+        "entity_id": _VAC, "segment_id": [1],
+        "suction_level": [0],
+        "repeats": [2],          # the field AFTER the bad one still emitted
+    }]
+
+
+async def test_a_field_with_no_canonical_or_constant_is_skipped(hass, manager):
+    """[SW-17] a wire with nothing to put in it is skipped, not filled.
+
+    Distinct from [SW-16]: here the column is NAMED but has no source -- no
+    ``canonical`` to read per room and no ``constant`` to repeat. Emitting it with
+    fillers would be worse than omitting it, because a filler is a real value the
+    device would store for every room.
+    """
+    _register(hass, fields=[
+        {"wire": "cleaning_mode", "filler": 0},              # named, no source
+        {"canonical": "clean_passes", "wire": "repeats", "filler": 1},
+    ])
+    calls = _capture(hass)
+
+    await manager._run_settings_write(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[{"room_id": 1, "clean_passes": 2}],
+    )
+
+    assert calls == [{"entity_id": _VAC, "segment_id": [1], "repeats": [2]}]
+    assert "cleaning_mode" not in calls[0], (
+        "a column with no source must be absent, not filled with the filler"
+    )
+
+
+async def test_an_uncoercible_clamped_value_takes_the_filler(hass, manager):
+    """[SW-18] a value that will not int() falls back to the filler, per room.
+
+    [SW-6] covers the clamp's arithmetic on values that DO coerce. This covers the
+    arm underneath it. The degradation is deliberately per-room rather than
+    per-call: one room with a typo'd setting must not cost the other rooms their
+    write, so the column stays aligned and only that entry becomes the filler.
+    """
+    _register(hass, fields=[
+        {"canonical": "clean_passes", "wire": "repeats",
+         "filler": 1, "clamp": [1, 3]},
+    ])
+    calls = _capture(hass)
+
+    await manager._run_settings_write(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[
+            {"room_id": 1, "clean_passes": 2},        # coerces, in range
+            {"room_id": 2, "clean_passes": "lots"},   # will not coerce -> filler
+            {"room_id": 3, "clean_passes": 9},        # coerces, clamped down
+        ],
+    )
+
+    assert calls == [{
+        "entity_id": _VAC, "segment_id": [1, 2, 3],
+        "repeats": [2, 1, 3],
+    }], "the bad room takes the filler; the others keep their own values"
