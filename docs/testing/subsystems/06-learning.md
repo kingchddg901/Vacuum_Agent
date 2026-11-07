@@ -398,9 +398,20 @@ Three facts worth keeping, all measured 2026-11-07:
   does not catch it, and `None.get(...)` would raise `AttributeError` out of the
   executor. The *trailing* `or []` is only load-bearing at confirm, which iterates
   the value directly; the other two pass it to a callee that already opens with
-  `for entry in baselines or []`. `EXT-FIN-5` and `CXR-8` say which is which, and
-  `EXT-FIN-5`'s docstring records that one of its three payloads is a coverage
-  case rather than a guard proof.
+  `for entry in baselines or []`. `EXT-FIN-5` (finalize) and `RXR-6` (re-segment)
+  each record that asymmetry in their docstrings and prove it by ablation — removing
+  their trailing `or []` reddens **nothing**, a declared-empty result rather than a
+  discovered one — while `CXR-8` is the site where that same guard does bite.
+- **The `ValueError` half had never run at any of the three sites**, and the reason
+  was the fixture shape rather than anyone's intent: the suite's only
+  `room_stats.json` writer serialised through `json.dumps`, which cannot emit bytes
+  that fail to parse. `_write_room_stats_text` writes raw text so the arm is
+  reachable at all, and the payload helper now delegates to it. `RXR-7` drives it
+  with a truncated file — the corruption the real writer's temp-file-plus-`os.replace`
+  exists to prevent, which is exactly what the `except` is the belt for when
+  something outside the integration truncates it anyway. `RXR-3` covers the
+  `OSError` half. **Still open:** the `ValueError` half at finalize and confirm, and
+  the degenerate-payload cases at confirm beyond `CXR-8`'s null.
 - **Finalize's successful read had never run.** `EXT-FIN-1`'s own note said the
   absent-file `except` was "exercised for free" — no test had a `room_stats.json`
   on disk while a finalize went through, so the read itself was unexecuted until

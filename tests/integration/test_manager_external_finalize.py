@@ -85,6 +85,12 @@ Coverage targets
 [CXR-8]  confirm_external_run: a null `room_baselines` is tolerated -- the trailing
          `or []` is what stops `for entry in None` raising TypeError out of a read
          path whose except names only OSError and ValueError.
+[RXR-6]  resegment_external_run: a DEGENERATE but valid-JSON room_stats.json still
+         re-segments. The SITE 3 twin of EXT-FIN-5, and it carries the same honest
+         caveat: only the `or {}` half can bite here.
+[RXR-7]  resegment_external_run: a MALFORMED room_stats.json re-segments anyway --
+         the ValueError half of `except (OSError, ValueError)`, which until now had
+         never run at ANY of the three read sites. RXR-3 covers the OSError half.
 """
 
 from __future__ import annotations
@@ -510,14 +516,17 @@ def _write_pending(manager, vacuum_entity_id: str, pending_job_id: str) -> dict:
     return rec
 
 
-def _write_room_stats(manager, vacuum_entity_id: str, payload) -> None:
-    """Write ``payload`` to the learned room_stats.json, verbatim.
+def _write_room_stats_text(manager, vacuum_entity_id: str, text: str) -> None:
+    """Write RAW BYTES to the learned room_stats.json.
 
     The ONE place this suite resolves that path, so the three external-run read
     sites (_finalize_external_run, confirm_external_run, resegment_external_run)
-    are all fed the same way. ``payload`` is written as given -- including a bare
-    ``None`` or a null ``room_baselines`` -- because the degenerate-payload tests
-    exist precisely to drive the `or {}` / `or []` guards those reads carry.
+    are all fed the same way.
+
+    Raw text rather than a payload because the ValueError half of each site's
+    `except (OSError, ValueError)` can only be reached by bytes that are not valid
+    JSON -- json.dumps cannot produce them, so a payload-only helper leaves that
+    arm unreachable by construction.
 
     The real writer is history_store.py::save_room_stats, which mkdirs via
     ensure_dirs; the three read sites call get_paths, which does NOT, so the mkdir
@@ -526,9 +535,19 @@ def _write_room_stats(manager, vacuum_entity_id: str, payload) -> None:
     store = LearningHistoryStore(manager.hass)
     learned_dir = store.get_paths(vacuum_entity_id=vacuum_entity_id).learned_dir
     learned_dir.mkdir(parents=True, exist_ok=True)
-    (learned_dir / "room_stats.json").write_text(
-        json.dumps(payload), encoding="utf-8"
-    )
+    (learned_dir / "room_stats.json").write_text(text, encoding="utf-8")
+
+
+def _write_room_stats(manager, vacuum_entity_id: str, payload) -> None:
+    """Write ``payload`` to the learned room_stats.json, verbatim.
+
+    Written as given -- including a bare ``None`` or a null ``room_baselines`` --
+    because the degenerate-payload tests exist precisely to drive the `or {}` /
+    `or []` guards those reads carry. All three stay VALID JSON, which is the point:
+    `except (OSError, ValueError)` does not catch them, so the expression itself
+    has to.
+    """
+    _write_room_stats_text(manager, vacuum_entity_id, json.dumps(payload))
 
 
 def _band(*, slug: str, avg_area_m2: float, map_id: int | None = None) -> dict:
@@ -1453,3 +1472,93 @@ def test_confirm_tolerates_a_null_room_baselines(manager):
         f"a null room_baselines must read as no bands; got {result!r}"
     )
     assert (paths.jobs_dir / f"ext-{pending_id}.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# [RXR-6/7] -- SITE 3's remaining baseline arms, named as open when EXT-FIN-4/5 and
+# CXR-7/8 landed. RXR-3 covers the absent file (OSError) and RXR-5 the present one;
+# these two are what is left:
+#
+#   RXR-6  valid JSON that is DEGENERATE   -> the `or {}` / `or []` expression guards
+#   RXR-7  bytes that are not JSON at all  -> the ValueError half of the except
+#
+# RXR-7 is the more interesting of the pair: the ValueError half had never executed
+# at ANY of the three sites, because the suite's only room_stats.json writer went
+# through json.dumps and so could not produce bytes that fail to parse. That is a
+# fixture shape foreclosing a code path, not a gap in intent -- hence
+# _write_room_stats_text, with the payload helper now delegating to it.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "payload, label",
+    [
+        (None, "a bare JSON null"),
+        ({}, "an empty object"),
+        ({"room_baselines": None}, "a null room_baselines"),
+    ],
+    ids=["json_null", "empty_object", "null_room_baselines"],
+)
+def test_resegment_survives_a_degenerate_room_stats_payload(manager, payload, label):
+    """[RXR-6] the SITE 3 twin of [EXT-FIN-5].
+
+    All three payloads are valid JSON, so `except (OSError, ValueError)` does not
+    catch them -- the expression
+    `(json.load(handle) or {}).get("room_baselines", []) or []` has to. A bare
+    `null` without the `or {}` is `None.get(...)`, an AttributeError that the except
+    does not name, so it escapes resegment_external_run and the review wizard fails
+    on a file it only wanted to read.
+
+    HONEST SCOPE, the same asymmetry [EXT-FIN-5] records: only the `or {}` half
+    bites at this site. The trailing `or []` is redundant here because the callee,
+    external_ingest.py::resegment_pending_record, reaches
+    _baseline_area_by_slug, which opens with `for entry in baselines or []` and
+    tolerates a None itself. Measured: removing SITE 3's trailing `or []` reddens
+    NOTHING. [CXR-8] is the site where that guard is load-bearing, because confirm
+    iterates the value instead of passing it on.
+    """
+    pending_id = "job_rxr6_degenerate"
+    rec = _write_pending(manager, _VAC, pending_id)
+    _write_room_stats(manager, _VAC, payload)
+
+    result = manager.resegment_external_run(
+        _VAC, _MAP, pending_id,
+        expected_rooms=rec["segment_count"], active_boundaries=None, rooms={},
+    )
+
+    assert result["ok"] is True, (
+        f"{label} must degrade to no baselines, not break the re-segment; got {result!r}"
+    )
+
+
+def test_resegment_survives_a_malformed_room_stats_file(manager):
+    """[RXR-7] the ValueError half of the except -- unexercised at all three sites.
+
+    RXR-3 drives the OSError half by deleting the file. This drives the other half
+    with bytes that are present and readable but not parseable: `json.load` raises
+    JSONDecodeError, a ValueError subclass, which is why naming ValueError in the
+    except is what keeps a corrupt learned-stats file from breaking re-segmentation.
+
+    Why it had never run: the suite's only room_stats.json writer serialised through
+    json.dumps, so it could not emit invalid JSON. The fixture shape, not the test
+    intent, was what made this arm unreachable -- which is the reason
+    _write_room_stats_text exists.
+
+    A truncated file is the realistic corruption, not a contrived one. The real
+    writer (history_store.py::write_json) writes to a temp file and os.replace()s it
+    precisely so a half-written file is never observed; this is what that atomicity
+    protects against, and the except is the belt for when something outside the
+    integration truncates it anyway.
+    """
+    pending_id = "job_rxr7_malformed"
+    rec = _write_pending(manager, _VAC, pending_id)
+    _write_room_stats_text(manager, _VAC, '{"room_baselines": [{"map_id": 6,')
+
+    result = manager.resegment_external_run(
+        _VAC, _MAP, pending_id,
+        expected_rooms=rec["segment_count"], active_boundaries=None, rooms={},
+    )
+
+    assert result["ok"] is True, (
+        f"a corrupt room_stats.json must read as no baselines; got {result!r}"
+    )
