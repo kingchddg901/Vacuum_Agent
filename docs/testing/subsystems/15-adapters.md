@@ -148,6 +148,29 @@ HA entity state. A gate that screams at those gets ignored. Syntactic alone cann
 canonical key from a brand's word. `VI-3` pins both classes with a positive and a
 negative row each, so the detector stays proven while `VI-1` sits green.
 
+`BVL-1` is the second half, added 2026-11-07, and it exists because `VI-1` can only
+see a brand WORD in core — not the sites DISAGREEING. `clean_intensity` is part of the
+learned-room match key and `learning/manager.py` builds that key in five places. Two
+of them defaulted the field to `"standard"` while the other three used `""`, so a room
+that never had an intensity was recorded under one bucket and looked up in another —
+and `"standard"` is a word Eufy itself RETIRED, which `rooms/vocabulary_migration.py`
+exists to repair, so core was re-injecting what the migration removes. All five now
+default to `""`: core holds no brand word for an absent setting ([`IN40W49E`](../../dev/00b-invariants.md)).
+
+The same defect had already been fixed once, in a renderer —
+`profiles/room_profiles.py::default_setting_values` records it: `"standard"` was
+*"right for two brands by luck and wrong for Eufy"*. Presentation was repaired and
+learning was missed, which is `f/eufy_ism_leak_layers` with the layers reversed.
+
+> **Why NOT the brand's declared default**, which was the other candidate and the one
+> that sounds more correct. `default_setting_values` would supply it (eufy declares
+> `Quick`), but these sites are MATCH KEYS and the reader has no room data to derive
+> from, so it answers `""`. Writing a declared value while reading `""` buckets a room
+> that never had an intensity together with rooms explicitly set to the brand's
+> default — a permanent mismatch penalty manufactured out of a fix. `BVL-1`'s own
+> ablation confirms it: hardcoding eufy's declared `Quick` at one site reddens both
+> `VI-1` and `BVL-1`.
+
 `CORE_OWNED` is the load-bearing declaration: the written statement of what the framework
 owns (the canonical water estimator keys `off/low/medium/high`, the canonical
 `clean_mode` and `path_type` values, and `""` for "nobody said"). Growing it to silence

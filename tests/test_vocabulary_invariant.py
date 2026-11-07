@@ -72,29 +72,16 @@ CORE_OWNED = frozenset({
 })
 
 #: Shrink-only ratchet. A row is a leak that EXISTS and is tolerated, never a licence to
-#: add one. It was EMPTY from 2026-08-07 to 2026-11-07, and that emptiness was partly
-#: an artefact: the corpus below only covered two of the three shipped brands, so a
-#: leak of a DREAME word could not be reported however plainly core bound it. Widening
-#: the corpus surfaced the row that follows. VI-3 still proves the detector works, and
-#: VI-4 holds every row to describing a LIVE leak, so this is named debt rather than a
-#: suppression.
-#:
-#: THE OPEN DECISION, deliberately not taken here. `clean_intensity` is a
-#: PROVIDER_FIELDS member and only Dreame declares it at all (standard / intensive /
-#: deep); eufy and roborock ship no such ladder. Core defaults the field to
-#: "standard" at two sites in learning/manager.py, and the value is NOT discarded --
-#: `_ROOM_SETTING_KEYS` carries it into the learned room key, where
-#: estimator.py scores a mismatch at _INTENSITY_MISMATCH_PENALTY. Three remedies,
-#: and which one is right is a ruling about what core owns:
-#:   1. read the default from the adapter's declaration, as the VI-1 message says;
-#:   2. declare "standard" a framework canonical in CORE_OWNED -- note that
-#:      "medium"/"high"/"low" are already there and are the same character of
-#:      generic word, but the VI-1 message warns that growing this list to silence a
-#:      finding is how the gate stops working;
-#:   3. leave it, and keep this row.
-KNOWN_VOCABULARY_LEAKS: dict[str, set[str]] = {
-    "learning/manager.py": {"standard"},
-}
+#: add one. EMPTY, and the emptiness is EARNED rather than an artefact -- which it was
+#: not until 2026-11-07. The corpus below covered two of three shipped brands, so a
+#: leak of a DREAME word could not be reported however plainly core bound it; widening
+#: it surfaced one row (learning/manager.py binding clean_intensity to "standard" at
+#: two sites), and the same day that row was PAID OFF rather than kept: both sites now
+#: default to "" because core has no word for an absent setting, and "standard" was a
+#: RETIRED Eufy value being written into the learned room key on every brand. VI-3
+#: proves the detector still works in this state and VI-4 holds any future row to
+#: describing a LIVE leak, so an empty ledger is evidence here, not absence.
+KNOWN_VOCABULARY_LEAKS: dict[str, set[str]] = {}
 
 
 def _declared_brand_values() -> set[str]:
@@ -308,4 +295,86 @@ def test_vi_4_the_ledger_is_empty_and_that_is_a_claim():
     assert not stale, (
         "Ledger entries that no longer describe a real leak:\n  " + "\n  ".join(stale)
         + "\n\nDelete them. The debt is paid and the ledger should not outlive it."
+    )
+
+
+def test_bvl_1_cores_clean_intensity_defaults_all_AGREE():
+    """[BVL-1] Every core default for `clean_intensity` is the same, and it is `""`.
+
+    A NEW ID SERIES, deliberately. This file's VI-1..VI-4 collide with
+    `tests/unit/test_vacuum_identity.py`, which owns VI-1..VI-8 for an unrelated
+    subject; VI-5 is already taken there. Renumbering that file's ids is a
+    separate decision, so this starts BVL (brand-vocabulary-leak) rather than
+    making the clash three-way.
+
+    VI-1 catches a BRAND WORD coming back. It cannot catch the other failure this
+    field has, which is the sites DISAGREEING with each other.
+
+    `clean_intensity` is part of the learned-room MATCH KEY. `learning/manager.py`
+    builds that key in three places -- the accuracy projection, the estimate
+    projection, and the lookup that reads learned stats -- and a key is only a key if
+    every site spells the absent case identically. Until 2026-11-07 the lookup
+    defaulted to `""` while the two projections defaulted to `"standard"`, which was
+    both a retired Eufy word (VI-1's concern) and a WRITER/READER DISAGREEMENT: a room
+    that never had an intensity was recorded under one bucket and looked up in another.
+
+    The tempting repair is the one this test exists to stop. "Read the default from the
+    adapter's declaration" is the right instinct for a brand word in core, and
+    `profiles/room_profiles.py::default_setting_values` would supply it -- eufy
+    declares `Quick`. Applied to these sites it would re-open the disagreement from the
+    other side, because the lookup has no room data to derive from and correctly
+    answers `""`: a room with no intensity set is a DIFFERENT bucket from one
+    explicitly set to the brand's default, and conflating them manufactures a
+    permanent mismatch penalty out of a fix.
+
+    So the rule is agreement, and the agreed value is the one that holds no brand's
+    word at all (IN40W49E -- undeclared resolves EMPTY).
+
+    AST-based because this IS a source-consistency property: there is no single runtime
+    call that observes all three sites. Same instrument as `vocabulary_bindings` above.
+    The count is asserted first, so a refactor that moves these sites fails loudly here
+    instead of turning the comparison into a pass over nothing.
+    """
+    path = os.path.join(CORE, "learning", "manager.py")
+    tree = ast.parse(open(path, encoding="utf-8").read())
+
+    defaults: list[tuple[int, object]] = []
+    for node in ast.walk(tree):
+        # `room.get("clean_intensity", <default>)` / `protected.get(...)` -- the
+        # two-argument .get is how every one of these sites spells the default.
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        if not (isinstance(fn, ast.Attribute) and fn.attr == "get"):
+            continue
+        if len(node.args) != 2:
+            continue
+        key = node.args[0]
+        if not (isinstance(key, ast.Constant) and key.value == "clean_intensity"):
+            continue
+        d = node.args[1]
+        defaults.append((node.lineno, d.value if isinstance(d, ast.Constant) else ast.dump(d)))
+
+    # PINNED AT THE MEASURED COUNT, not a loose floor. The first draft said `>= 3`
+    # and did NOT bite when a site was reshaped out of the extraction's reach: there
+    # are FIVE, so four still cleared three. A floor that cannot notice a site
+    # leaving is the same vacuity it was written to prevent. Measured 2026-11-07:
+    # lines 1406, 2018, 2019, 2830, 2943 -- two of which (1406, 2830) are the sites
+    # this change corrected; the other three were already "".
+    assert len(defaults) == 5, (
+        f"expected exactly 5 clean_intensity defaults in learning/manager.py, found "
+        f"{len(defaults)}: {defaults}. If a site was legitimately added or removed, "
+        f"update this count DELIBERATELY -- it is here so that a site slipping out "
+        f"of the extraction's reach cannot make the agreement check pass over a subset."
+    )
+
+    disagreeing = {v for _ln, v in defaults}
+    assert disagreeing == {""}, (
+        "core's clean_intensity defaults must all be the empty string, and they must "
+        "AGREE -- this field is part of the learned-room match key.\n"
+        + "\n".join(f"  learning/manager.py:{ln} -> {v!r}" for ln, v in sorted(defaults))
+        + "\n\nA writer and a reader that disagree on the absent case put a room into "
+          "one bucket and look it up in another. Reading the brand's DECLARED default "
+          "here does not fix that, it re-opens it from the other side: see this test's "
+          "docstring."
     )

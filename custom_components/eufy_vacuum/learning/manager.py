@@ -1387,8 +1387,23 @@ class LearningManager:
                         room.get("clean_passes", room.get("clean_times", 1)), 1
                     ),
                     "is_carpet": bool(room.get("carpet", False)) or str(room.get("floor_type", "")).startswith("carpet"),
+                    # "" and never a word: core has none for an absent setting, and
+                    # `"standard"` -- what sat here -- was doubly wrong. It is a Eufy
+                    # word, and one Eufy itself RETIRED, so a room missing the field
+                    # was recorded under a value no device accepts. The estimate path
+                    # below was fixed this way; this projection and the one in
+                    # estimate_from_manager were missed, and they write the LEARNED
+                    # ROOM KEY, so core was re-injecting the value
+                    # rooms/vocabulary_migration.py exists to repair.
+                    #
+                    # NOT the brand's declared default either, though that was the
+                    # other candidate (BrandFacts could expose it; eufy declares
+                    # `Quick`). These dicts are MATCH KEYS and the reader defaults to
+                    # "", so writing a declared value here would bucket a room that
+                    # never had an intensity with rooms explicitly set to the brand's
+                    # default -- a mismatch penalty manufactured out of a fix.
                     "clean_intensity": str(
-                        room.get("clean_intensity", "standard")
+                        room.get("clean_intensity", "")
                     ).strip().lower(),
                     "edge_mopping": bool(room.get("edge_mopping", False)),
                     "map_id": map_id_int,
@@ -2808,7 +2823,11 @@ class LearningManager:
                     "slug": str(room.get("slug", "")).strip().lower(),
                     "clean_mode": str(room.get("clean_mode", "vacuum")).strip().lower(),
                     "clean_passes": _safe_int(room.get("clean_passes", 1), 1),
-                    "clean_intensity": str(room.get("clean_intensity", "standard")).strip().lower(),
+                    # "" for the same reason as the accuracy projection above and the
+                    # estimate path below: this dict is the learned-room MATCH KEY, so
+                    # core must hold no brand word in it. `"standard"` was a retired
+                    # Eufy value being written on every brand.
+                    "clean_intensity": str(room.get("clean_intensity", "")).strip().lower(),
                     "carpet": bool(room.get("carpet", False)) or str(room.get("floor_type", "")).startswith("carpet"),
                     # Part of the learned room key (schema 6) — the estimator reads it via
                     # _find_room_match, whose `edge_mopping: bool = False` default silently
