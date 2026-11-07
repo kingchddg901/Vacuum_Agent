@@ -183,6 +183,41 @@ Ablated five ways. Removing the `_apply` inside `_restore` reddens all four — 
 because that line is what every one of them is ultimately about, so a test staying green under
 it would be the suspicious result. The four narrow arms each redden exactly one.
 
+### `dispatch_goto`'s five refusals
+
+The same principle one method over, and the reason it is spelled out again: the send line in
+`dispatch_goto` carries the identical `THIS LINE MOVES A ROBOT` note, and the method's docstring
+says it "REFUSES rather than dispatch when the map is absent or the affine can't be validated —
+a wrong inverse drives the robot to the WRONG place."
+
+| guard | refuses when |
+|---|---|
+| `GOTO-DR-2` | the adapter declares no `goto` service |
+| `GOTO-DR-3` | `supports_path_control: false`, even with the service declared |
+| `GOTO-DR-4` | the point is not a 2-element `[nx, ny]` |
+| `GOTO-DR-5` | there is no live map to place the tap in |
+| `GOTO-DR-6` | the map yields no usable projection |
+
+Each asserts the `ValueError` **and that no service call was made**, and the second is the one
+that carries the weight: a guard which raised *after* dispatching would satisfy a raise-only
+test while the robot was already moving. `GOTO-DR-1` (the happy path) is their control — without
+it, a blanket `raise` at the top of the method would pass all five.
+
+`GOTO-DR-3` is worth reading on its own: the `goto` block and `supports_path_control` are both
+adapter-declared and can disagree, so the test registers the service *and* declares the
+capability false. The capability wins.
+
+Nothing is stubbed for `GOTO-DR-6`. A map with `rooms = None` yields `[]` correspondences
+(`DGT-3`), which is not `None`, so it passes the absent-map guard and reaches the projection
+guard, where the real `normalized_point_to_mm` answers `None` for `[]` (`ZPT-2`). Driving the
+real function was preferred over patching it, since the predicate already has its own tests and
+only the wiring was uncovered.
+
+Ablated five ways, each scoped to exactly its own test. One note for the next person: `if corr
+is None:` appears in **both** `dispatch_zone_clean` (12-space indent) and `dispatch_goto`
+(8-space), and the 8-space form is a *substring* of the 12-space line — so a `.count()`-based
+anchor sees two and must not be used. That one is addressed by line index.
+
 ---
 
 ## 5. Two vocabularies that look identical and must not be merged

@@ -38,6 +38,16 @@ back, and the two failure arms around it.
 [ZC-DR-10] a re-apply that RAISES is warned, and the rest of the restore still runs.
 [ZC-DR-11] a gate re-enable that RAISES is warned rather than escaping a state callback.
 [ZC-DR-12] a non-ValueError during the bulk set restores the priors AND re-raises.
+
+dispatch_goto's five REFUSALS (GOTO-DR-2..6). GOTO-DR-1 is the happy path and doubles
+as their control. Each refusal asserts the ValueError AND that no service call was
+made -- the second is the one that matters, because a guard that raises after
+dispatching would pass a raise-only assertion while the robot was already moving.
+[GOTO-DR-2] the adapter declares no goto service.
+[GOTO-DR-3] supports_path_control: false.
+[GOTO-DR-4] the point is not a 2-element [nx, ny].
+[GOTO-DR-5] no live map to place the point on.
+[GOTO-DR-6] the map yields no usable projection.
 """
 
 from __future__ import annotations
@@ -982,3 +992,136 @@ async def test_dreame_zone_set_failure_restores_then_reraises(hass, manager, mon
         "the suction prior must be put back before the failure propagates"
     )
     assert "switch_on" in kinds, "and the gate re-enabled, so the device is usable again"
+
+
+# ---------------------------------------------------------------------------
+# [GOTO-DR-2..6] dispatch_goto's refusals.
+#
+# The other half of what the 2026-11-07 coverage triage called this module's real
+# defect risk. dispatch/manager.py's own comment on the send line reads "THIS LINE
+# MOVES A ROBOT", and the method's docstring says it "REFUSES rather than dispatch
+# when the map is absent or the affine can't be validated -- a wrong inverse drives
+# the robot to the WRONG place". Every guard below sits in front of that line, so
+# each test asserts the refusal AND that nothing was sent.
+#
+# No patching of normalized_point_to_mm: GOTO-DR-6 drives the real function to None
+# through ZC-9's `rooms = None` map, which yields [] correspondences (DGT-3) -- not
+# None, so it passes the absent-map guard and reaches the projection guard (ZPT-2
+# pins that [] gives None).
+# ---------------------------------------------------------------------------
+
+
+def _register_goto(hass, *, goto=True, path_control=True):
+    """GOTO-DR-1's adapter, with the two declarations under test switchable."""
+    cfg = {
+        "adapter_id": "dreame", "source": "code",
+        "dispatch": {"service_domain": "dreame_vacuum",
+                     "service_name": "vacuum_clean_segment", "command": None},
+        "map_state_source": {"backend": "camera_attrs", "map_frame_offset_mm": [500, 0]},
+        "capabilities": {"supports_path_control": path_control},
+    }
+    if goto:
+        cfg["goto"] = {"service_domain": "dreame_vacuum", "service_name": "vacuum_goto",
+                       "x_field": "x", "y_field": "y"}
+    register_adapter_config(_VAC, cfg)
+
+
+def _capture_goto(hass):
+    calls: list[dict] = []
+
+    async def _svc(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("dreame_vacuum", "vacuum_goto", _svc)
+    return calls
+
+
+async def test_goto_without_a_declared_service_refuses(hass, manager, monkeypatch):
+    """[GOTO-DR-2] a brand whose provider has no go-to must not be guessed at.
+
+    The service is registered here on purpose: the refusal has to come from the
+    ADAPTER declaration, not from the service happening to be absent.
+    """
+    _register_goto(hass, goto=False)
+    calls = _capture_goto(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+
+    with pytest.raises(ValueError, match="declares no goto service"):
+        await manager.dispatch_goto(vacuum_entity_id=_VAC, point=[0.4, 0.4])
+    assert calls == [], "nothing may be sent when the brand has no go-to"
+
+
+async def test_goto_with_path_control_unsupported_refuses(hass, manager, monkeypatch):
+    """[GOTO-DR-3] a declared goto service does not override a declared capability.
+
+    Both are adapter-declared and they can disagree; the capability wins, so a brand
+    that ships the service but cannot actually cruise is refused rather than sent.
+    """
+    _register_goto(hass, path_control=False)
+    calls = _capture_goto(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+
+    with pytest.raises(ValueError, match="path control"):
+        await manager.dispatch_goto(vacuum_entity_id=_VAC, point=[0.4, 0.4])
+    assert calls == []
+
+
+@pytest.mark.parametrize("bad_point", [
+    [0.5],                 # one coordinate
+    [],                    # none
+    [0.1, 0.2, 0.3],       # three
+    "0.4,0.4",             # a string that LOOKS like a point
+    None,
+    {"x": 0.4, "y": 0.4},  # the right data, wrong shape
+], ids=["one", "empty", "three", "string", "none", "dict"])
+async def test_goto_rejects_a_malformed_point(hass, manager, monkeypatch, bad_point):
+    """[GOTO-DR-4] the point comes from a card tap, so its shape is not guaranteed.
+
+    The string and dict cases are the interesting ones: both carry plausible
+    coordinates in the wrong container, and an unpack-based guard would either raise
+    something unhelpful or, for a 2-char string, silently succeed.
+    """
+    _register_goto(hass)
+    calls = _capture_goto(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+
+    with pytest.raises(ValueError, match=r"needs a \[nx, ny\] point"):
+        await manager.dispatch_goto(vacuum_entity_id=_VAC, point=bad_point)
+    assert calls == []
+
+
+async def test_goto_without_a_live_map_refuses(hass, manager, monkeypatch):
+    """[GOTO-DR-5] with no live map there is no frame to place the tap in.
+
+    The normalized point only means something relative to the image the user tapped,
+    so without it there is nothing to convert and a sent point would be a guess.
+    """
+    _register_goto(hass)
+    calls = _capture_goto(hass)
+    _stub_map_source(manager, monkeypatch, None)
+
+    with pytest.raises(ValueError, match="no live map available"):
+        await manager.dispatch_goto(vacuum_entity_id=_VAC, point=[0.4, 0.4])
+    assert calls == []
+
+
+async def test_goto_with_an_unusable_projection_refuses(hass, manager, monkeypatch):
+    """[GOTO-DR-6] a map that cannot be fitted is refused, not approximated.
+
+    This is the guard the method's docstring is about -- "a wrong inverse drives the
+    robot to the WRONG place". The map object EXISTS here, so the absent-map guard
+    above does not fire: `rooms = None` yields [] correspondences, and the real
+    normalized_point_to_mm answers None for [] (ZPT-2). Nothing is stubbed.
+    """
+    _register_goto(hass)
+    calls = _capture_goto(hass)
+
+    class _NoRooms:
+        image = _FakeImage()
+        rooms = None
+
+    _stub_map_source(manager, monkeypatch, _NoRooms())
+
+    with pytest.raises(ValueError, match="projection failed validation|wrong place"):
+        await manager.dispatch_goto(vacuum_entity_id=_VAC, point=[0.4, 0.4])
+    assert calls == [], "a point that could not be placed must never be sent"
