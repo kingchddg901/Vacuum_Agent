@@ -209,6 +209,32 @@ the level it rose from; a real peak-before-reset does not), so the multi-room
 group path's legitimate resets survive (`SOPT-19` the deglitch, `SOPT-20` the
 real-peak guard).
 
+That rebase is also what lets `_first` (inside `_segment_group_room_timing`) call
+`float()` with **no** handler: every value it sees has already been replaced by a
+float or `None`, so the `except (TypeError, ValueError)` it used to carry was
+unreachable and is gone. `SOPT-21` pins the invariant rather than leaving it as a
+comment — if the producer ever stops sanitising, that test goes red and names
+`_first` as the caller that would start raising. The same test asserts `battery`
+is passed through **raw**, which is why the sibling `_vals` keeps its handler: it
+is the one caller invoked with a non-counter key.
+
+The strict-order **refusal** path (`_run_advanced_phase`'s `HomeAssistantError`
+branch) records the refused phase's rooms on the stored job as `skipped_rooms`.
+It read `phases[i]["queue_room_ids"]`, which `GenericRoomIdsEngine.build_phases`
+never emits — a phase carries only `vacuum_entity_id`/`map_id`/`payload`/
+`resolved_rooms`/`room_count` — so nothing was ever recorded while the warning
+beside it said "marking its room(s) skipped". It now reads through
+`history_store::phase_room_ids` (`resolved_rooms` first), whose own docstring
+records this same defect being fixed for the parent-row site. `SOPT-22` covers
+the recording and `SOPT-23` the dedupe, which keys on `(room_id, phase_index)`
+rather than the whole entry — the entry carries `at`, so an identity comparison
+only ever deduped inside a single timestamp tick.
+
+> `SOPT-22`/`SOPT-23` build their phase fixture from what `build_phases` actually
+> emits, **not** from this file's older `_phase()` helper, which carries a
+> `queue_room_ids` production phases do not have. Built on that helper the tests
+> pass against the unfixed code and prove nothing.
+
 ---
 
 ## How it's tested

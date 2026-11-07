@@ -29,6 +29,17 @@ split evenly with an exact-sum-preserving distribution, allocated=True, allocati
 [SOPT-12] segmented rows are rebased off the slice's own baseline, not the segmenter's count-from-zero.
 [SOPT-13] gate 1 — a brand declaring honors_clean_order=False is apportioned, never segmented.
 [SOPT-14] gate 2 — an unbroken stream (no observable boundary) falls back to apportioning.
+[SOPT-15] the counters reset per PHASE, and the two do not reset together (hardware).
+[SOPT-16] an unknown floor is NOT zero — assuming zero re-credits a whole run.
+[SOPT-17] `counter_samples` is the run's ONE buffer and is never re-based in place.
+[SOPT-18] a counter dipping by a hundredth did not reset (jitter is not a reset).
+[SOPT-19] Dreame re-publishes a stale pre-reset `_cleaned_area` for ~1 s per phase.
+[SOPT-20] the deglitch must not touch a real segment peak before a legitimate reset.
+[SOPT-21] the producer sanitises BOTH counter keys to float-or-None — the invariant
+          that lets _first() call float() with no handler — while leaving `battery`
+          raw, which is why its sibling _vals() still needs one.
+[SOPT-22] a live-resolution REFUSAL records the phase's own rooms in skipped_rooms.
+[SOPT-23] a re-refusal of the same phase appends no duplicate skipped_rooms entry.
 """
 
 from __future__ import annotations
@@ -693,3 +704,138 @@ def test_a_real_peak_before_a_reset_is_not_mistaken_for_a_spike():
     )
     # 3 (room A) accumulated, then 2 more (room B) = 5, with the 3.0 peak intact.
     assert [s["cleaning_area"] for s in out] == [1.0, 2.0, 3.0, 3.0, 4.0, 5.0]
+
+
+def _build_phases_shaped(rid: int, slug: str) -> dict:
+    """A phase EXACTLY as ``GenericRoomIdsEngine.build_phases`` emits one.
+
+    Deliberately NOT the ``_phase()`` helper above. That one carries
+    ``queue_room_ids``, which build_phases (queue/dispatch_engines.py:298-305) does
+    NOT emit -- it emits only vacuum_entity_id/map_id/payload/resolved_rooms/room_count.
+    A refusal test built on ``_phase()`` passes against the pre-fix code and proves
+    nothing, because the whole defect was reading a field the real phase shape never
+    carries. The fixture has to come from the producer, not from the helper that
+    happened to already be here.
+    """
+    return {
+        "vacuum_entity_id": _VAC,
+        "map_id": str(_MAP),
+        "payload": {"segments": [rid]},
+        "resolved_rooms": [{"room_id": rid, "slug": slug}],
+        "room_count": 1,
+    }
+
+
+def test_progress_samples_sanitise_only_the_counter_keys(hass, manager):
+    """[SOPT-21] the invariant ``_first()`` relies on, pinned.
+
+    ``_first()`` calls ``float()`` with NO try/except, because every value it can
+    see was rebased by ``_phase_progress_samples``, which replaces both
+    ``_PHASE_COUNTER_KEYS`` with a float or None (catching a bad reading in its own
+    handler). If that stops being true this goes red and names the caller that
+    would begin raising.
+
+    The last assertion is the other half, and the reason its sibling ``_vals()``
+    KEEPS its handler: ``battery`` is not a counter key, so it is passed through
+    untouched and can still carry junk.
+    """
+    raw = [
+        {"t": "2026-01-01T00:00:10Z", "cleaning_time": "abc", "cleaning_area": "", "battery": "x"},
+        {"t": "2026-01-01T00:00:20Z", "cleaning_time": 60, "cleaning_area": 3.0, "battery": 88},
+        {"t": "2026-01-01T00:00:30Z", "cleaning_time": None, "cleaning_area": [], "battery": None},
+    ]
+    out = phase_runner_mod._phase_progress_samples(None, raw)
+    assert out, "the producer must not drop well-formed rows"
+    for row in out:
+        for key in phase_runner_mod._PHASE_COUNTER_KEYS:
+            assert key in row, f"{key} must always be SET after a rebase, never absent"
+            assert row[key] is None or isinstance(row[key], float), (
+                f"{key}={row[key]!r} is neither float nor None - _first() would raise"
+            )
+    assert out[0]["battery"] == "x", (
+        "battery is NOT rebased, which is exactly why _vals() keeps its float() guard"
+    )
+
+
+def _refusable_job() -> dict:
+    return {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "started_at": "2026-01-01T00:00:00Z", "ended_at": None,
+        "phases": [_build_phases_shaped(5, "kitchen"), _build_phases_shaped(8, "dining_room")],
+        "current_phase_index": 0,
+        "resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+    }
+
+
+async def _drive_one_refusal(manager, monkeypatch, *, phase_index=0):
+    """Run _run_advanced_phase once with live resolution refusing the dispatch."""
+    from homeassistant.exceptions import HomeAssistantError
+
+    # Patch the RESOLVER, not the _PHASE_* constants: those live in core/manager.py,
+    # not in this module, so setattr on phase_runner_mod raised AttributeError.
+    # One attempt is all the refusal path needs -- it returns from the handler.
+    monkeypatch.setattr(
+        manager, "_phase_timing",
+        lambda vacuum_entity_id: {
+            "settle_seconds": 0, "dock_settle_seconds": 0, "verify_seconds": 0,
+            "confirm_seconds": 0, "poll_seconds": 1, "max_attempts": 1,
+        },
+    )
+
+    async def _refuse(**_kw):
+        raise HomeAssistantError("room no longer exists on the current map")
+
+    async def _noop(**_kw):
+        return None
+
+    monkeypatch.setattr(manager.phase_runner, "_dispatch_active_phase", _refuse)
+    monkeypatch.setattr(manager.phase_runner, "maybe_advance_phase", _noop)
+    await manager.phase_runner._run_advanced_phase(
+        vacuum_entity_id=_VAC, map_id=_MAP, phase_index=phase_index, initial=False,
+    )
+
+
+async def test_refused_phase_records_its_rooms_as_skipped(hass, manager, monkeypatch):
+    """[SOPT-22] a live-resolution refusal records the phase's OWN rooms.
+
+    RED before the fix: the handler read ``phases[i].get("queue_room_ids", [])``,
+    which build_phases never emits, so the loop never ran and skipped_rooms came out
+    EMPTY -- while the warning one line above said "marking its room(s) skipped".
+    The log asserted an action the code did not perform.
+    """
+    _seed_job(manager, _refusable_job())
+    await _drive_one_refusal(manager, monkeypatch)
+
+    stored = manager.data["active_jobs"][_VAC][_MAP]
+    skipped = stored.get("skipped_rooms")
+    assert skipped, (
+        "a refusal must record the room the warning claims it skipped - this is the "
+        "defect: queue_room_ids is absent from a build_phases phase, so nothing was "
+        "ever recorded"
+    )
+    assert [e["room_id"] for e in skipped] == [5]
+    assert skipped[0]["phase_index"] == 0
+    assert skipped[0]["reason"] == "live_resolution_refused"
+    assert skipped[0]["at"], "the entry must carry when it happened"
+
+
+async def test_skipped_rooms_dedupes_across_timestamp_ticks(hass, manager, monkeypatch):
+    """[SOPT-23] a re-refusal of the same phase must not append a duplicate.
+
+    RED before the fix: the dedupe was ``if entry not in skipped``, comparing the
+    WHOLE dict -- including ``at``. Two refusals of the same phase one second apart
+    both appended, so the dedupe only ever worked inside a single timestamp tick.
+    Identity here is (room_id, phase_index), which is what it now compares.
+    """
+    clock = iter(["2026-01-01T00:00:01Z", "2026-01-01T00:00:02Z"])
+    monkeypatch.setattr(phase_runner_mod, "utc_now_iso", lambda: next(clock))
+
+    _seed_job(manager, _refusable_job())
+    await _drive_one_refusal(manager, monkeypatch)
+    await _drive_one_refusal(manager, monkeypatch)
+
+    skipped = manager.data["active_jobs"][_VAC][_MAP].get("skipped_rooms") or []
+    assert [e["room_id"] for e in skipped] == [5], (
+        f"same room, same phase, two different `at` values -> ONE entry; got {skipped}"
+    )
+    assert skipped[0]["at"] == "2026-01-01T00:00:01Z", "the FIRST refusal's time is kept"

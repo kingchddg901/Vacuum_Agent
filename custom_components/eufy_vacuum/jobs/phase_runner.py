@@ -1359,12 +1359,18 @@ class PhaseRunner:
         # floor `whole` did not share, so they no longer telescoped back to it -
         # and the room that owned the phase's opening quantum was zeroed outright.
         def _first(key: str) -> float | None:
+            # NO try/except around float() here, deliberately. `slice_samples` was
+            # rebased above by _phase_progress_samples, which overwrites both
+            # _PHASE_COUNTER_KEYS with totals[key] (always a float) or None -- it
+            # catches a non-numeric reading in its OWN handler. None is filtered
+            # below, so float() cannot raise and a handler here was unreachable.
+            # The invariant that makes this safe is pinned by [SOPT-21]: if the
+            # producer ever stops sanitising, that test goes red and names this.
+            # CONTRAST _vals(): it keeps its handler because it is also called with
+            # "battery", which is not a counter key and so is never rebased.
             for s in slice_samples:
                 if isinstance(s, dict) and s.get(key) is not None:
-                    try:
-                        return float(s[key])
-                    except (TypeError, ValueError):
-                        continue
+                    return float(s[key])
             return None
 
         base_ct = 0.0 if _first("cleaning_time") is not None else None
@@ -1636,14 +1642,42 @@ class PhaseRunner:
                             .get(str(map_id))
                         )
                         if isinstance(_stored, dict):
+                            # Read the phase's rooms through phase_room_ids, NOT
+                            # queue_room_ids. build_phases emits only vacuum_entity_id/
+                            # map_id/payload/resolved_rooms/room_count, so the old
+                            # `.get("queue_room_ids", [])` was ALWAYS [] on a strict-order
+                            # phase: nothing was ever recorded while the warning above
+                            # claimed "marking its room(s) skipped". phase_room_ids reads
+                            # resolved_rooms first, queue_room_ids second -- its docstring
+                            # records this SAME defect being fixed for the parent-row site
+                            # (room_count: 0 on a run that cleaned three rooms); this call
+                            # site was the one that fix missed.
+                            # Imported in-function to match this module's existing pattern
+                            # for ..learning imports (see the LearningHistoryStore import).
+                            from ..learning.history_store import phase_room_ids
+                            _phases = job.get("phases", [])
+                            _phase = (
+                                _phases[phase_index]
+                                if 0 <= phase_index < len(_phases) else None
+                            )
                             skipped = _stored.setdefault("skipped_rooms", [])
-                            for _rid in (job.get("phases", [])[phase_index].get("queue_room_ids", [])
-                                         if 0 <= phase_index < len(job.get("phases", [])) else []):
-                                entry = {"room_id": _rid, "phase_index": phase_index,
-                                         "reason": "live_resolution_refused",
-                                         "at": utc_now_iso()}
-                                if entry not in skipped:
-                                    skipped.append(entry)
+                            # Dedupe on (room_id, phase_index), NOT on the whole entry:
+                            # the entry carries `at`, so an identity comparison only ever
+                            # deduped within a single timestamp tick and a re-refusal one
+                            # second later appended a duplicate. [SOPT-23]
+                            _seen = {
+                                (e.get("room_id"), e.get("phase_index"))
+                                for e in skipped if isinstance(e, dict)
+                            }
+                            for _rid in phase_room_ids(_phase):
+                                if (_rid, phase_index) in _seen:
+                                    continue
+                                _seen.add((_rid, phase_index))
+                                skipped.append({
+                                    "room_id": _rid, "phase_index": phase_index,
+                                    "reason": "live_resolution_refused",
+                                    "at": utc_now_iso(),
+                                })
                         self._clear_phase_dispatch_pending(
                             vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
                         )
