@@ -110,6 +110,14 @@ Coverage targets
          costing the finalize its record.
 [EXT-FIN-7]  the footprints actually REACH build_pending_record through the grace
          finalize -- RFP-1 proves the mapping, this proves the wiring.
+[QRI-1]  _external_queued_room_ids: the adapter gate. A brand that does not declare
+         external_run.queue_from_active_segments gets None and never reads a camera.
+[QRI-2]  _external_queued_room_ids: the device's own tap ORDER is preserved, not
+         sorted -- the whole reason this snapshot beats inferring from swept area.
+[QRI-3]  _external_queued_room_ids: the attribute is DEVICE data, so every element
+         is untrusted -- non-numerics skipped, non-positives dropped, duplicates
+         deduped at first position, and an all-unusable list collapses to None.
+[QRI-4]  _external_queued_room_ids: no resolvable live-map camera -> None.
 """
 
 from __future__ import annotations
@@ -1303,7 +1311,7 @@ async def test_return_overhead_skips_a_zero_length_span(manager, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-async def _drive_grace_finalize(manager, hass) -> list[dict]:
+async def _drive_grace_finalize(manager, hass, adapter: dict | None = None) -> list[dict]:
     """Run a capture through the grace timer into _finalize_external_run.
 
     The EXT-FIN-1 recipe, factored out so the baseline tests differ from it in
@@ -1314,7 +1322,7 @@ async def _drive_grace_finalize(manager, hass) -> list[dict]:
     """
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     setup_map(manager, _VAC, _MAP, count=2)
-    register_adapter_config(_VAC, _EXT_ADAPTER)
+    register_adapter_config(_VAC, adapter or _EXT_ADAPTER)
 
     events: list[dict] = []
     unsub = hass.bus.async_listen(
@@ -1337,6 +1345,11 @@ async def _drive_grace_finalize(manager, hass) -> list[dict]:
         await hass.async_block_till_done()
     finally:
         unsub()
+        # The adapter registry is MODULE-level (register_adapter_config routes to a
+        # global coordinator), unlike config_dir which is per-test -- so without this
+        # the registration outlives the test and leaks into whatever runs next. Every
+        # other registering test in this file already unregisters in a finally.
+        unregister_adapter_config(_VAC)
     return events
 
 
@@ -1932,3 +1945,164 @@ async def test_finalize_passes_footprints_to_the_segmenter(manager, hass, monkey
     assert seen.get("footprint_by_id") == {1: 0.1}, (
         f"the footprints must reach build_pending_record; got {seen!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# [QRI-1..4] -- _external_queued_room_ids, the last untested block in this module.
+# Measured before this batch: lines 204-222 missed entirely, with only the adapter
+# gate's `return None` arm ever executed.
+#
+# What it reads is the live-map camera's `active_segments` attribute: the DEVICE's
+# own record of which rooms were selected and IN WHAT ORDER. That is ground truth
+# for an app-started run, where the alternative is inferring the cleaned set from
+# swept area. It drives `not_reached` on the external record.
+#
+# WHY EVERY GUARD IN HERE IS LIVE, unlike _room_footprints' above. The footprints
+# loop consumes a list built by our own producer, which is why two of its guards are
+# dead. This one consumes an ATTRIBUTE off a camera entity -- arbitrary data from
+# another integration, which may be absent, a dict, a list of strings, or carry
+# duplicates and zeroes. Nothing upstream normalises it, so `int()` really can raise,
+# `rid > 0` really can be false, and `rid not in ids` really can fire.
+#
+# Every test here goes through the REAL `_resolve_live_map_image_entity` via the
+# documented per-vacuum override (`data["vacuums"][vid]["live_map_image_entity"]`,
+# core/manager.py), which is existence-checked -- so the camera state must exist.
+# No monkeypatch of the resolver, which means these cover the wiring as well as the
+# parsing and there is no piece-vs-path split to make.
+# ---------------------------------------------------------------------------
+
+_QRI_CAM = "camera.alfred_map"
+
+# Sentinel for "set no attribute at all", distinct from every real attribute value
+# including None. Defined before the helper and the parametrize list that use it.
+_UNSET = object()
+
+# _EXT_ADAPTER plus the one flag that opens this path. Dreame is the shipped brand
+# that declares it; the fixture keeps the rest of _EXT_ADAPTER so the only variable
+# is the flag itself.
+_QRI_ADAPTER = {
+    **_EXT_ADAPTER,
+    "external_run": {"queue_from_active_segments": True},
+}
+
+
+def _arm_active_segments(manager, hass, value, *, cam: str = _QRI_CAM) -> None:
+    """Point the vacuum's live-map override at `cam` and give it `active_segments`.
+
+    The override is existence-checked by the resolver, so the state has to be set
+    before it will resolve -- an absent entity resolves to None and the method
+    returns before reading any attribute.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    manager.data["vacuums"][_VAC]["live_map_image_entity"] = cam
+    attrs = {} if value is _UNSET else {"active_segments": value}
+    hass.states.async_set(cam, "idle", attrs)
+
+
+async def test_queued_room_ids_is_gated_on_the_adapter_declaring_it(manager, hass):
+    """[QRI-1] the gate, and the control for everything below.
+
+    A brand with no `external_run.queue_from_active_segments` must get None without
+    reading a camera at all -- the pose-only path stays as it was. This is the arm
+    the old coverage already had; it is here as the control, because without it a
+    blanket `return None` would satisfy [QRI-3] and [QRI-4] too.
+    """
+    _arm_active_segments(manager, hass, [1, 2, 3])
+    register_adapter_config(_VAC, _EXT_ADAPTER)  # no external_run block
+    try:
+        assert manager.external_run._external_queued_room_ids(_VAC, _MAP) is None
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_queued_room_ids_preserves_the_device_tap_order(manager, hass):
+    """[QRI-2] ORDER, which is the entire point of reading this attribute.
+
+    The ids are deliberately NOT ascending: [3, 1, 2]. A sorted() anywhere in the
+    path, or a set-based dedupe, returns [1, 2, 3] and this is the only test that
+    can tell. Inferring the cleaned set from swept area gives you membership but
+    never the order the user tapped -- that is what this snapshot adds, so order is
+    the assertion, not a detail of it.
+    """
+    _arm_active_segments(manager, hass, [3, 1, 2])
+    register_adapter_config(_VAC, _QRI_ADAPTER)
+    try:
+        out = manager.external_run._external_queued_room_ids(_VAC, _MAP)
+    finally:
+        unregister_adapter_config(_VAC)
+
+    assert out == [3, 1, 2], f"the device's tap order must survive verbatim; got {out!r}"
+
+
+@pytest.mark.parametrize(
+    "attribute, expected, why",
+    [
+        ([1, "2", 3.0], [1, 2, 3], "numeric strings and floats coerce via int()"),
+        ([1, "kitchen", None, 2], [1, 2], "a non-numeric element is skipped, not fatal"),
+        ([0, -2, 3], [3], "zero and negative room ids are dropped"),
+        ([2, 1, 2, 3, 1], [2, 1, 3], "duplicates dedupe at FIRST occurrence"),
+        (["kitchen", None, 0], None, "an all-unusable list collapses to None"),
+        ([], None, "an empty list is None, not []"),
+        ({"1": True}, None, "a non-list attribute is refused outright"),
+        ("1,2,3", None, "a string is not a list -- and must not be iterated as one"),
+        (_UNSET, None, "no active_segments attribute at all"),
+    ],
+    ids=[
+        "coercible", "non_numeric_skipped", "non_positive_dropped",
+        "dedupe_first_position", "all_unusable", "empty_list",
+        "dict_attribute", "string_attribute", "attribute_absent",
+    ],
+)
+async def test_queued_room_ids_sanitises_untrusted_device_data(
+    manager, hass, attribute, expected, why
+):
+    """[QRI-3] every element of the attribute is untrusted device data.
+
+    `active_segments` comes off another integration's camera entity. Nothing between
+    it and this method normalises it, so each row here is a shape the device or that
+    integration can actually hand over.
+
+    Two rows are worth naming. `"1,2,3"` is a string: a string IS iterable, so
+    without the `isinstance(seg, list)` check it would iterate CHARACTERS and the
+    commas would be silently skipped by the int() guard, yielding [1, 2, 3] from
+    something that was never a list. And `[]` must come back as None rather than
+    [], because the caller distinguishes "no snapshot available" from "a snapshot
+    that selected nothing" -- the trailing `or None` is what makes that so.
+
+    `dedupe_first_position` is ALSO an order assertion, which the ablation made
+    explicit rather than my reading it off the table: [2, 1, 2, 3, 1] dedupes to
+    [2, 1, 3], so sorting the output reddens this row as well as [QRI-2]. Two rows
+    guard the tap order, not one.
+    """
+    _arm_active_segments(manager, hass, attribute)
+    register_adapter_config(_VAC, _QRI_ADAPTER)
+    try:
+        out = manager.external_run._external_queued_room_ids(_VAC, _MAP)
+    finally:
+        unregister_adapter_config(_VAC)
+
+    assert out == expected, f"{why}: expected {expected!r}, got {out!r}"
+
+
+async def test_queued_room_ids_returns_none_without_a_live_map_camera(manager, hass):
+    """[QRI-4] no resolvable camera -> None, before any attribute read.
+
+    The override points at an entity that does not exist, so the resolver's own
+    existence check returns None and `state_obj` is never fetched. This is the
+    ordinary case for a brand that declares the flag on an install where the live
+    map has not been set up -- it must be quiet, not an exception.
+
+    MEASURED, and not what I expected: the None this asserts flows through the SAME
+    `isinstance(seg, list)` refusal that [QRI-3]'s attribute_absent row does, by a
+    different route. `cam` None leaves `seg` None, and the element loop sits OUTSIDE
+    the try, so deleting that refusal makes this test RAISE rather than return None.
+    So this is not purely a resolver test -- it shares a guard with the table above,
+    which is why the ablation of that guard is declared to redden both.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    manager.data["vacuums"][_VAC]["live_map_image_entity"] = "camera.does_not_exist"
+    register_adapter_config(_VAC, _QRI_ADAPTER)
+    try:
+        assert manager.external_run._external_queued_room_ids(_VAC, _MAP) is None
+    finally:
+        unregister_adapter_config(_VAC)

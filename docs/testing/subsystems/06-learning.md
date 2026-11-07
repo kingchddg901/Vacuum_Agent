@@ -514,6 +514,48 @@ but dropped on the floor — or passed under the wrong keyword — go red there 
 `RFP-1` stays green. Ablation confirms the split: stubbing the finalize's call while
 leaving the method intact reddens `EXT-FIN-7` **alone**.
 
+#### `_external_queued_room_ids` — the device's own tap order (`QRI-1..4`)
+
+The live-map camera's `active_segments` attribute is the **device's** record of which
+rooms were selected and *in what order*. For an app-started run that is ground truth,
+where the alternative is inferring the cleaned set from swept area — which gives you
+membership but never the order the user tapped. It drives `not_reached` on the
+external record, and is gated on the adapter declaring
+`external_run.queue_from_active_segments` (Dreame), so a brand without such a
+snapshot keeps the pose-only path.
+
+**Every guard in here is live**, which is the opposite of `_room_footprints` above and
+for one reason: that loop consumes a list built by *our own* producer, so two of its
+guards are dead. This one consumes an **attribute off another integration's camera
+entity** — arbitrary data that may be absent, a dict, a string, or carry duplicates
+and zeroes, with nothing upstream normalising it. So `int()` really can raise,
+`rid > 0` really can be false, and the dedupe really can fire. `QRI-3` is a table of
+nine such shapes.
+
+Two of those rows are worth knowing about:
+
+- **`"1,2,3"` (a string).** A string *is* iterable, so without the
+  `isinstance(seg, list)` refusal the loop would walk **characters**, the commas
+  would be silently skipped by the `int()` guard, and the result would be `[1, 2, 3]`
+  from something that was never a list.
+- **`[]` must come back as `None`, not `[]`.** The caller distinguishes "no snapshot
+  available" from "a snapshot that selected nothing"; the trailing `or None` is what
+  makes that distinction, and `QRI-3` pins both halves.
+
+Every test here drives the **real** `_resolve_live_map_image_entity` through the
+documented per-vacuum override, which is existence-checked — so these cover the
+wiring as well as the parsing and there is no piece-vs-path split to make.
+
+Two things the ablation established that reading the table would not have:
+
+- `dedupe_first_position` is **also an order assertion** — `[2, 1, 2, 3, 1]` dedupes
+  to `[2, 1, 3]`, so sorting the output reddens it as well as `QRI-2`. Two rows guard
+  the tap order, not one.
+- `QRI-4` (no resolvable camera) is **not purely a resolver test**: `cam` being None
+  leaves `seg` None, and the element loop sits *outside* the `try`, so it reaches the
+  same `isinstance` refusal as the absent-attribute row by a different route. Delete
+  that refusal and `QRI-4` raises rather than returning None.
+
 ### `zone_learning.py` — saved-zone TIME learning (pure, `ZL-1..ZL-10`)
 A deliberately tiny parallel to room learning: a saved zone has a stable
 `zone_id`, a deterministic (never-learned) area, and cleans in one
