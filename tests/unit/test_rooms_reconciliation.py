@@ -32,6 +32,18 @@ Coverage targets
 [REC-16]  D16/C55: the 1-and-1 leftover pairing declares that it came from ELIMINATION,
           not from matching anything about the two rooms. A deleted room plus an
           unrelated added room produces this review having nothing to do with a rename.
+[REC-17]  REC-7/RP-019: a dismissal suppresses only the IDENTICAL plan. The same token
+          against a moved-on discovery must let the new reviews through.
+[REC-18]  a discovered entry with a non-coercible room_id, or with neither slug nor
+          name, is skipped rather than reviewed under a None id.
+[REC-19]  REC-3: the sole leftover stored room is carried onto the sole unmatched
+          discovered id (renamed AND renumbered), and `dropped` comes back EMPTY -
+          the third carry path this module's own docstring calls a false negative.
+[REC-20]  D5: a room carried under a CHANGED slug records old->new in slug_remap, which
+          is what re-keys its learning history.
+[REC-21]  a grants_access_to target that is not int-coercible is skipped, not mapped.
+[REC-22]  plan_migration skips the same unusable discovered entries as REC-18, so no
+          room is written under a 'None' key.
 """
 
 from __future__ import annotations
@@ -39,6 +51,7 @@ from __future__ import annotations
 import unicodedata
 
 from custom_components.eufy_vacuum.rooms.reconciliation import (
+    compute_plan_token,
     compute_reconciliation,
     plan_migration,
 )
@@ -444,3 +457,170 @@ def test_rec16_a_confident_review_is_not_marked_inferred():
     )
     assert [r["kind"] for r in result["reviews"]] == ["id_changed"]
     assert "inferred" not in result["reviews"][0]
+
+
+# ---------------------------------------------------------------------------
+# Gaps closed from the 2026-11-07 coverage classification. This module sat at
+# 79.7% with a 100% reachable ceiling -- every missed statement was in a pure
+# function, nothing needed hass or hardware.
+# ---------------------------------------------------------------------------
+
+
+def test_dismissal_suppresses_only_the_identical_plan():
+    """[REC-17] a dismissal must not become a permanent mute.
+
+    REC-7/RP-019: an identical review re-firing on every discovery pass is noise,
+    but a GENUINELY new shift still has to surface. The suppression is therefore
+    gated on the plan TOKEN, not on the dismissal existing. Both halves are
+    asserted here because the first alone passes if the token compare is deleted.
+    """
+    existing = {"16": {"room_id": 16, "slug": "kitchen", "name": "Kitchen"}}
+    discovered = [{"room_id": 20, "name": "Kitchen"}]
+
+    first = compute_reconciliation(discovered_rooms=discovered, existing_rooms=existing)
+    assert first["has_changes"] is True
+    assert [r["kind"] for r in first["reviews"]] == ["id_changed"]
+    token = compute_plan_token(reviews=first["reviews"], discovered_rooms=discovered)
+
+    # Same plan, already dismissed -> suppressed.
+    again = compute_reconciliation(
+        discovered_rooms=discovered, existing_rooms=existing,
+        dismissed_at="2026-01-01T00:00:00Z", dismissed_plan_token=token,
+    )
+    assert again == {"reviews": [], "has_changes": False, "dismissed": True}
+
+    # Discovery MOVED ON (20 -> 21). The stale token must not suppress the new plan.
+    moved = [{"room_id": 21, "name": "Kitchen"}]
+    after = compute_reconciliation(
+        discovered_rooms=moved, existing_rooms=existing,
+        dismissed_at="2026-01-01T00:00:00Z", dismissed_plan_token=token,
+    )
+    assert after["has_changes"] is True, "a new shift must surface despite the dismissal"
+    assert after.get("dismissed") is not True
+    assert after["reviews"][0]["new_id"] == 21
+
+
+def test_unusable_discovered_entries_are_skipped_not_reviewed():
+    """[REC-18] a non-coercible id, or neither slug nor name, is skipped.
+
+    Without the guard the first entry slug-matches `kitchen` and produces an
+    id_changed review whose new_id is None -- a review the user cannot act on, and
+    one that would carry settings onto a null id if confirmed. This is also the
+    only route that exercises `_coerce_int`'s except arm, reached the way the
+    module's own docstring describes (a stored/discovered room with a bad room_id)
+    rather than by calling the private helper.
+    """
+    existing = {"5": {"room_id": 5, "slug": "kitchen", "name": "Kitchen"}}
+    discovered = [
+        {"room_id": "x", "name": "Kitchen"},   # id not int-coercible
+        {"room_id": 9},                         # no name AND no slug
+        {"room_id": 5, "name": "Kitchen"},      # the real, unchanged one
+    ]
+
+    out = compute_reconciliation(discovered_rooms=discovered, existing_rooms=existing)
+    assert out["reviews"] == [], f"nothing to review here; got {out['reviews']}"
+    assert out["has_changes"] is False
+
+
+def test_sole_leftover_is_paired_with_sole_unmatched_and_not_dropped():
+    """[REC-19] REC-3: renamed AND renumbered in one re-map.
+
+    Such a room matches neither by slug nor by id, so without the pairing it is
+    reported dropped and its durable settings are lost. The fixture is the module
+    docstring's own worked example (stored {16: kitchen, 17: den}, discovered
+    [{16: kitchen}, {20: study}]), which it cites as the FALSE NEGATIVE in
+    `dropped`: den vanished from discovery, is carried onto 20, and `dropped`
+    comes back empty.
+
+    The grant assertion is the consequence that matters: the remap has to reach
+    the access graph, or kitchen keeps pointing at an id nothing holds.
+    """
+    existing = {
+        "16": {"room_id": 16, "slug": "kitchen", "name": "Kitchen",
+               "grants_access_to": [17]},
+        "17": {"room_id": 17, "slug": "den", "name": "Den", "clean_passes": 3},
+    }
+    discovered = [{"room_id": 16, "name": "Kitchen"}, {"room_id": 20, "name": "Study"}]
+
+    plan = plan_migration(discovered_rooms=discovered, existing_rooms=existing)
+
+    assert set(plan["rooms"]) == {"16", "20"}
+    carried = plan["rooms"]["20"]
+    assert carried["room_id"] == 20
+    assert carried["slug"] == "study"
+    assert carried["name"] == "Study"
+    assert carried["clean_passes"] == 3, "the durable setting is the point of the pairing"
+    assert plan["id_remap"] == {17: 20}
+    assert plan["dropped"] == [], "den was carried, not dropped"
+    assert plan["rooms"]["16"]["grants_access_to"] == [20], (
+        "the grant must follow the room to its new id"
+    )
+
+
+def test_a_changed_slug_is_recorded_in_slug_remap():
+    """[REC-20] D5: the learning history is keyed map::slug.
+
+    A room matched by ID after a rename is carried under the NEW slug, so without
+    this entry its past runs stay filed under a name nothing asks for again.
+    """
+    existing = {"5": {"room_id": 5, "slug": "den", "name": "Den"}}
+    discovered = [{"room_id": 5, "name": "Study"}]
+
+    plan = plan_migration(discovered_rooms=discovered, existing_rooms=existing)
+
+    assert plan["slug_remap"] == {"den": "study"}
+    assert plan["rooms"]["5"]["slug"] == "study"
+    assert plan["id_remap"] == {}, "the id did not move; only the name did"
+    assert plan["dropped"] == []
+
+
+def test_uncoercible_grant_targets_are_skipped():
+    """[REC-21] junk in a stored grant list must not reach the access graph.
+
+    This pins the OUTPUT CONTRACT and deliberately not the line it was aimed at.
+    The coverage classification flagged `if target_id is None: continue`
+    (reconciliation.py:486) as a gap worth a test. It is coverable but REDUNDANT:
+    `valid_new_ids` is built from `new_rooms` keys, which are always `str(int)`, so
+    None can never be a member — the `mapped in valid_new_ids` test two lines down
+    already rejects it. Measured: ablating that guard leaves this test GREEN, and so
+    does ablating line 480's `discard(None)`. So unlike its five siblings here this
+    one is NOT ablation-proven against a single-line change, and saying otherwise
+    would make it read as a guarantee it does not provide.
+
+    What it does defend is the contract against a REWRITE of the loop — an
+    unconditional append, or a `mapped is not None` short-circuit — and that contract
+    is user-visible: a None in `grants_access_to` is a dangling access-graph edge.
+    """
+    existing = {
+        "5": {"room_id": 5, "slug": "kitchen", "name": "Kitchen",
+              "grants_access_to": ["abc", None, 17, 17]},
+        "17": {"room_id": 17, "slug": "den", "name": "Den"},
+    }
+    discovered = [{"room_id": 5, "name": "Kitchen"}, {"room_id": 17, "name": "Den"}]
+
+    plan = plan_migration(discovered_rooms=discovered, existing_rooms=existing)
+
+    assert plan["rooms"]["5"]["grants_access_to"] == [17], (
+        "'abc' and None drop out; 17 survives once, de-duplicated"
+    )
+
+
+def test_migration_skips_the_same_unusable_entries():
+    """[REC-22] the sibling of REC-18, in the function that WRITES.
+
+    Detection skipping a bad entry while planning carried it would be the worse
+    failure: `new_rooms[str(None)]` creates a room under the literal key 'None',
+    and a slug of None is written into the stored bucket.
+    """
+    existing = {"5": {"room_id": 5, "slug": "kitchen", "name": "Kitchen"}}
+    discovered = [
+        {"room_id": "x", "name": "Kitchen"},
+        {"room_id": 9},
+        {"room_id": 5, "name": "Kitchen"},
+    ]
+
+    plan = plan_migration(discovered_rooms=discovered, existing_rooms=existing)
+
+    assert set(plan["rooms"]) == {"5"}, f"only the usable entry is written; got {sorted(plan['rooms'])}"
+    assert "None" not in plan["rooms"]
+    assert plan["dropped"] == []

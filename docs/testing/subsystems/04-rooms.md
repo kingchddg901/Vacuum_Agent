@@ -369,7 +369,7 @@ Rewritten against that, the ablation reddens.
 | `access_graph.py` | 462 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration | clean |
 | `room_crud.py` | 159 | 93% | `test_room_crud.py`, `test_manager_rooms.py` | integration | **bare x1** |
 | `room_discovery.py` | 167 | 93% | `test_room_discovery.py` | integration | clean |
-| `reconciliation.py` | 154 | 80% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration | **bare x1** |
+| `reconciliation.py` | 154 | 92% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration | **bare x1** |
 | `source_refresh.py` | 161 | 88% | `test_rooms_source_refresh.py` (unit) | unit | clean |
 | `room_manager.py` | 82 | 96% | `test_room_manager.py` (unit) | unit | clean |
 | `room_defaults.py` | 21 | 100% | `test_room_manager.py` (unit) + `test_adapter_contract.py` | unit | clean |
@@ -431,23 +431,39 @@ manager for pure CRUD and the real `manager` fixture where discovery needs live
 
 ## Known gaps
 
-`reconciliation.py` (78%) is currently the thin spot in this subsystem — well
-below the others. Its uncovered branches (missing lines 44-45, 93, 118, 123,
-175-177, 190-192, 226, 258, 262, 295-305, 317, plus the paired branch misses at
-those same sites) are concentrated in three real behavior arms, not defensive
-plumbing:
-- the `renamed_and_renumbered` single-unmatched-pair review (the
-  `len(unmatched_existing) == 1 and len(unmatched_discovered) == 1` branch
-  around line 175),
-- the matching single-pair settings **carry-forward** in `plan_migration`
-  (the `leftover_existing_slugs`/`unmatched_discovered` single-match branch
-  around line 295 — the old id's durable settings moving onto the new id),
-- and the dismissed-plan-token short-circuit (`dismissed_at is not None and
-  reviews and dismissed_plan_token is not None`, line 190).
-These are the natural next tests for this subsystem — run
-`--cov-report=term-missing` on `rooms/reconciliation.py` for the current line
-list before adding them, since the exact numbers will keep moving as the file
-changes.
+`reconciliation.py` was the thin spot in this subsystem at 80%. It is now **92%**
+(149 of 154 statements covered; 13 partial branches remain). The three behaviour
+arms this section used to name as "the natural next tests" are covered:
+
+- the single-pair settings **carry-forward** in `plan_migration` — the old id's
+  durable settings moving onto the new id when a room is renamed AND renumbered
+  (`REC-19`, built from this module's own docstring worked example: stored
+  `{16: kitchen, 17: den}`, discovered `[{16: kitchen}, {20: study}]`, `dropped`
+  empty),
+- the changed-slug `slug_remap` entry that re-keys a room's learning history
+  (`REC-20`),
+- and the dismissed-plan-token short-circuit (`REC-17`) — including the half that
+  carries the risk, namely that a MOVED-ON discovery must still surface rather
+  than stay muted by a stale token.
+
+Plus the skip arms for unusable discovered entries in both the detecting and the
+planning function (`REC-18`, `REC-22`), which are also the only route that
+exercises `_coerce_int`'s except.
+
+**What remains is deliberate, not a backlog.** The five uncovered statements are
+the `if not isinstance(room, dict): continue` guards (lines 133, 181, 203, 380,
+413) on stored and discovered values whose producers only ever write dicts. The
+only test that reaches them is a junk-input call proving the guard exists and
+nothing else. Statement coverage excluding them is **96.8%**, which is the honest
+ceiling here: the classification pass that produced these tests reported 100% in
+its headline figure and ~97% in its own reasoning, and the measurement matched
+the reasoning.
+
+> **Two `MIG-` namespaces exist and they overlap.** `tests/unit/test_rooms_reconciliation.py`
+> owns `MIG-1`–`MIG-6` (migration planning) while `tests/unit/test_vocabulary_migration.py`
+> owns its own `MIG-1`–`MIG-12`, and the `MIG` table earlier in this document is the
+> vocabulary set. The reconciliation additions above therefore use `REC-` rather than
+> extending `MIG-`; check both files before minting a new `MIG-` id.
 
 `access_graph.py` (94%) and `room_discovery.py` (93%) leave mostly
 type-coercion fallbacks and duplicated skip-bad-row branches — the `(TypeError,
