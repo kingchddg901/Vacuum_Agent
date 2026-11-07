@@ -78,8 +78,33 @@ FT2_TO_M2 = 0.09290304
 #: It IS recoverable: the recorder keeps attributes in `state_attributes`, joined
 #: from `states.attributes_id`, so the unit in force AT THE TIME OF EACH RUN can
 #: be read back per run rather than assumed once.
-_AREA_TO_M2 = {"m2": 1.0, "m²": 1.0, "ft2": FT2_TO_M2, "ft²": FT2_TO_M2}
-_TIME_TO_S = {"s": 1.0, "sec": 1.0, "min": 60.0, "h": 3600.0}
+# REPLICA RN0RGR1H -- primary: learning/utils.py::_AREA_TO_M2. THIS ONE is the
+# harvester's copy. It exists because this module is stdlib-only by necessity (it
+# opens a recorder SQLite file, and the shipped converter cannot be imported without
+# the whole Home Assistant dependency tree), so it must MIRROR that table exactly.
+# It did not: for months this knew 4 of the shipped 11 entries, and a sensor
+# reporting "sq ft" -- which production converts -- was scaled by 1.0 here, making
+# the archived figure 10.76x too small in the one direction nothing would question.
+# Pinned by RPL-6 (tests/replay/test_harness_replicas.py), which asserts equality.
+_AREA_TO_M2 = {
+    "m²": 1.0, "m2": 1.0,
+    "ft²": FT2_TO_M2, "ft2": FT2_TO_M2, "sq ft": FT2_TO_M2,
+    "in²": 0.00064516, "in2": 0.00064516,
+    "yd²": 0.83612736, "yd2": 0.83612736,
+    "cm²": 0.0001, "cm2": 0.0001,
+}
+# REPLICA RN2ZQ5NG -- primary: learning/job_finalizer.py::_duration_state_to_seconds.
+# THIS ONE is the harvester's copy, as a factor table rather than an if-chain. The
+# shipped side recognises three families and leaves everything else canonical; the
+# "s"/"sec"/"seconds" rows below are therefore redundant with _scale_for's fallback
+# and kept because stating the identity is clearer than relying on the default.
+# Pinned by RPL-7, which drives every alias either side knows through both.
+_TIME_TO_S = {
+    "ms": 0.001, "millisecond": 0.001, "milliseconds": 0.001,
+    "s": 1.0, "sec": 1.0, "secs": 1.0, "second": 1.0, "seconds": 1.0,
+    "min": 60.0, "mins": 60.0, "minute": 60.0, "minutes": 60.0,
+    "h": 3600.0, "hr": 3600.0, "hrs": 3600.0, "hour": 3600.0, "hours": 3600.0,
+}
 
 #: Entity-id suffixes worth carrying. Deliberately NOT every entity the device
 #: exposes: a full dump was 329 KB for a single 20-minute run, which across a

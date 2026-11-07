@@ -82,6 +82,7 @@ tests/
     test_harvest_units.py     # harvester unit handling (ft^2 / m^2 conversion)
     test_refocus.py           # lens sufficiency guards
     test_reverdict.py         # the re-judge harness derives verdicts, never restates them
+    test_harness_replicas.py  # the harnesses' three registered replica sets must agree
 ```
 
 (`eufy/test_discovery.py` is gone — model detection is no longer a separate
@@ -184,6 +185,23 @@ five declarations of one token), and one proves a *real* duplicate inside `tests
 still fires, so the exclusion cannot quietly become a blindfold. The precedent was
 already there on the frontend side: `harness/tests/i18n-rtl.spec.mjs` carries
 `REPLICA RNF6XB1P` and has always resolved, because `harness/` is a source root.
+
+**Two of these harnesses cannot follow the import-don't-restate rule at all**, and
+`test_harness_replicas.py` (`RPL-6`–`RPL-8`) is what holds them to agreement
+instead. `harvest.py` is deliberately stdlib-only — it opens a recorder SQLite
+file, and importing the shipped converters pulls the whole Home Assistant
+dependency tree in (measured: with `homeassistant` blocked, `learning/utils.py`,
+`learning/job_finalizer.py` and `counter_segmentation.py` all die on
+`voluptuous`), so its two unit tables are a replica set rather than a defect
+waiting for a helper. `reclassify.py` does import shipped code, but a payload
+SHAPE is not importable, so it reconstructs the counter sample by hand. All three
+are registered in [00c](../dev/00c-replicas.md) as `RN0RGR1H`, `RN2ZQ5NG` and
+`RNBTKYXY` — the first replica sets whose second member lives under `tests/`,
+which is what the declaration-root change above made recordable. Each test
+derives the shipped side mechanically (object identity, the function's own AST,
+the producer's own dict literal) rather than retyping it, because a retyped
+vocabulary would be a third copy that passes whenever it matches its author's
+belief.
 
 ## Coverage status
 

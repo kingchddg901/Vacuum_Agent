@@ -86,6 +86,13 @@ def _commanded_break_phase_seconds(phases: Any, started_at: str) -> int:
     return total
 
 
+# anchor: RN2ZQ5NG  DURATION normalization by the entity's own unit -- the replica
+# set. tests/replay/harvest.py::_TIME_TO_S re-states these families as a factor
+# table, because that harness is stdlib-only and cannot import this module (see
+# RN0RGR1H for the same constraint on the area table). The FALLBACK is part of the
+# rule: an unrecognised unit is treated as already canonical rather than guessed
+# at, and both sides must keep refusing to guess. RPL-7 drives every alias either
+# side knows through both and requires the same answer.
 def _duration_state_to_seconds(raw: Any, unit: Any, default: int | None = None) -> int | None:
     """Convert a Home Assistant duration state to seconds."""
     try:

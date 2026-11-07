@@ -48,15 +48,28 @@ def _num(value: Any) -> float | None:
 def build_samples(bundle: dict[str, Any], vacuum: str) -> list[dict[str, Any]]:
     """One sample per cleaning_time observation, carrying area/battery in force.
 
-    The tape is a flat event log, so area and battery are carried FORWARD from
-    their last observation rather than joined on timestamp — they tick on their
-    own cadence and almost never share an instant with a counter increment.
+    The tape is a flat event log, so area, battery and the vacuum's own state are
+    carried FORWARD from their last observation rather than joined on timestamp
+    — they tick on their own cadence and almost never share an instant with a
+    counter increment. That matches the shipped producer, which stamps the
+    vacuum's state AT THE TICK from a live read.
+
+    REPLICA RNBTKYXY — primary: jobs/active_job.py::_record_counter_sample.
+    THIS ONE is the tape-side copy. A payload SHAPE cannot be imported, so this
+    builder restates it, and it has to carry EVERY field the producer emits:
+    counter_segmentation._left_cleaning reads `vacuum_state` and answers None
+    — "no information" — for a window carrying none, which is its documented
+    pre-signal behaviour. Omitting the field therefore produced no false
+    verdicts; it ran the classifier in its degraded mode on every tape and never
+    exercised the arm the current build added, which for a harness whose whole
+    purpose is "re-judge with the CURRENT code" is the defect. Pinned by RPL-8.
     """
     counter = f"sensor.{vacuum}_cleaning_time"
     area_id = f"sensor.{vacuum}_cleaning_area"
     batt_id = f"sensor.{vacuum}_battery"
+    vac_id = f"vacuum.{vacuum}"
 
-    area = batt = None
+    area = batt = vac_state = None
     samples: list[dict[str, Any]] = []
     for ts, entity_id, state in sorted(bundle.get("events") or [], key=lambda e: e[0]):
         if entity_id == area_id:
@@ -67,6 +80,11 @@ def build_samples(bundle: dict[str, Any], vacuum: str) -> list[dict[str, Any]]:
             value = _num(state)
             if value is not None:
                 batt = value
+        elif entity_id == vac_id:
+            # Lowercased and stripped to match the producer exactly —
+            # _left_cleaning compares against a frozenset of lowercase
+            # off-floor states, so "Docked" would silently never match.
+            vac_state = None if state is None else str(state).strip().lower()
         elif entity_id == counter:
             value = _num(state)
             if value is None:
@@ -74,8 +92,14 @@ def build_samples(bundle: dict[str, Any], vacuum: str) -> list[dict[str, Any]]:
             samples.append({
                 "t": ts,
                 "cleaning_time": value,
-                "cleaning_area": area if area is not None else -1.0,
+                # NOT `area if area is not None else -1.0`. That -1.0 was
+                # _prepare_window's own default for an absent area, copied
+                # into the caller; passing None reaches the identical result,
+                # because that function applies the same default itself.
+                # A replica removed beats a replica registered.
+                "cleaning_area": area,
                 "battery": batt,
+                "vacuum_state": vac_state,
             })
     return samples
 

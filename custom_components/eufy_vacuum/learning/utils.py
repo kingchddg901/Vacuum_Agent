@@ -33,6 +33,14 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
 # (confirmed live: sensor.alfred_cleaning_area unit ft², sensor.ivy_cleaning_area unit m²). The
 # raw STATE value follows the unit, so a bare read silently MIXES units — inflating stored area
 # ~10.76x, breaking cross-brand comparison, and mis-firing swept_area_min_m2 on ft² values.
+# anchor: RN0RGR1H  the cleaning-area UNIT TABLE -- the replica set. The harvester
+# re-states it at tests/replay/harvest.py::_AREA_TO_M2, and that copy CANNOT be
+# replaced by an import: harvest.py is deliberately stdlib-only because it runs
+# against a recorder SQLite file, and importing this module pulls the whole Home
+# Assistant dependency tree in (MEASURED with homeassistant blocked: this module
+# dies on voluptuous). So the copy has to AGREE instead of going away.
+# `python scripts/doc_anchor.py --show RN0RGR1H` lists every site; RPL-6 compares
+# the two tables object-to-object, which is the half an anchor cannot do.
 _AREA_TO_M2 = {
     "m²": 1.0, "m2": 1.0,
     "ft²": 0.09290304, "ft2": 0.09290304, "sq ft": 0.09290304,

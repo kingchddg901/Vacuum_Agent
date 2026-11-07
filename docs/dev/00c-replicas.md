@@ -639,6 +639,79 @@ learning bucket built from it. Nothing raises; the numbers are just wrong.
 
 ---
 
+### `RN0RGR1H` — the cleaning-area UNIT TABLE · **2 copies**
+
+`learning/utils.py`'s `_AREA_TO_M2` (**primary**) and `tests/replay/harvest.py`'s copy of
+it, which converts each recorder reading by the unit that was in force for that row.
+
+**Why the copy cannot be removed — the only reason that matters here.** `harvest.py` is
+deliberately stdlib-only: it opens a recorder SQLite file directly, and importing the
+shipped converter pulls the whole Home Assistant dependency tree in. **Measured** with
+`homeassistant` blocked, `custom_components.eufy_vacuum.learning.utils` fails on
+`voluptuous`, and so do `learning.job_finalizer` and `counter_segmentation`. So this is a
+set rather than a defect waiting for a helper — the ladder's usual target is unreachable.
+
+**Mutation class, and it had already mutated.** The harvester knew 4 of the shipped 11
+entries, so a `cleaning_area` sensor reporting `sq ft` — a unit production converts — was
+scaled by 1.0 here. The archived figure came out 10.76× too small, in the one direction
+nothing questions, in the corpus every timing and attribution diagnosis is derived from.
+
+**Pinned by `RPL-6`** (`tests/replay/test_harness_replicas.py`), which compares the two
+tables object-to-object in both directions. An entry here that production lacks is the
+same defect pointing the other way.
+
+---
+
+### `RN2ZQ5NG` — DURATION normalization by the entity's own unit · **2 copies, 2 shapes**
+
+`learning/job_finalizer.py`'s `_duration_state_to_seconds` (**primary**, an if-chain over
+alias families) and `tests/replay/harvest.py`'s `_TIME_TO_S` (the same rule as a factor
+table). Same stdlib-only constraint as [`RN0RGR1H`](#rn0rgr1h--the-cleaning-area-unit-table--2-copies).
+
+**The FALLBACK is part of the rule, not an edge case.** Both sides refuse to guess: an
+unrecognised or absent unit is treated as already canonical. If one side started guessing,
+or raising, the corpus and the integration would disagree on exactly the readings nobody
+looked at — and the harvester exists to be the independent check on the integration.
+
+**Pinned by `RPL-7`**, which reads the shipped alias vocabulary out of that function's own
+AST (never retyped — a third copy of the vocabulary would pass for as long as the
+transcription matched the author's belief), takes the factors by CALLING it, and requires
+the same answer for every alias either side knows.
+
+---
+
+### `RNBTKYXY` — the COUNTER-SAMPLE payload · **2 copies**
+
+`jobs/active_job.py`'s `_record_counter_sample` (**primary**) and
+`tests/replay/reclassify.py`'s `build_samples`, which constructs the same five-field
+sample so the shipped segmenter can be replayed over a recorder tape.
+
+**A payload SHAPE is not importable**, which is why this is a set even though
+`reclassify.py` — unlike the harvester — does import shipped code.
+
+**Mutation class, and this one is subtle enough to be worth stating carefully.** The
+harness built four of the five keys; the missing one was `vacuum_state`, added to the
+producer on 2026-08-03. `counter_segmentation._left_cleaning` reads it and returns `None`
+— *"no information"* — for a window carrying none, which is its **documented pre-signal
+behaviour**: absence of evidence must not silently reclassify historical runs. So the
+harness produced **no false verdicts**. It ran the classifier in its degraded mode on
+every tape and never exercised the arm the current build added — which, for a tool whose
+entire purpose is *"re-judge with the CURRENT code"*, is the defect even though nothing
+printed was wrong.
+
+**Pinned by `RPL-8`**, which reads the key set out of the producer's own dict literal and
+requires the harness to build all of them, plus the carried-forward semantics that make
+the field usable (a dock that happens BETWEEN two counter ticks has to reach the later
+sample, or `_left_cleaning` can never see a dock trip).
+
+**A replica REMOVED in the same pass, recorded because the tidy-up instinct is to put it
+back.** `build_samples` also wrote `-1.0` by hand for a missing area — `_prepare_window`'s
+own default, copied into the caller. Passing `None` reaches the identical result, because
+that function applies the same default itself. One site is better than two agreeing sites,
+so that copy is gone rather than registered; `RPL-8` pins the behaviour.
+
+---
+
 ### `RND4MHSR` — map-id mismatch NORMALIZATION · **2 sites, one file**
 
 `jobs/job_monitor.py::evaluate_job_lifecycle` (**primary** — carries the reasoning) and

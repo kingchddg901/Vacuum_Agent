@@ -2420,6 +2420,15 @@ class ActiveJobTracker:
             # yet and a stale read here would defeat the whole point.
             state_obj = self._manager.hass.states.get(vacuum_entity_id)
             state = None if state_obj is None else state_obj.state
+        # anchor: RNBTKYXY  the COUNTER-SAMPLE payload -- the replica set. The tape
+        # harness tests/replay/reclassify.py::build_samples constructs this same
+        # shape so the shipped segmenter can be replayed over a recorder tape, and a
+        # payload SHAPE is not importable. Drop a field there and the classifier
+        # silently runs in a degraded mode: `vacuum_state` was missing for months,
+        # and counter_segmentation._left_cleaning answers None -- "no information" --
+        # for a window carrying none, which is its documented pre-signal behaviour.
+        # Nothing was false; the arm just never ran. RPL-8 reads these keys out of
+        # this literal and requires the harness to build all of them.
         samples = job.setdefault("counter_samples", [])
         samples.append(
             {
