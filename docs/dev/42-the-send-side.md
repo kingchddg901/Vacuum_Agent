@@ -218,6 +218,35 @@ is None:` appears in **both** `dispatch_zone_clean` (12-space indent) and `dispa
 (8-space), and the 8-space form is a *substring* of the 12-space line — so a `.count()`-based
 anchor sees two and must not be used. That one is addressed by line index.
 
+### The remaining zone bounds
+
+`ZC-20`–`ZC-24` close the rest of `dispatch_zone_clean`'s guards. Two are worth more than
+their line count:
+
+`ZC-21` — a **dedicated** zone service with **no** `global_precall`. Every existing
+dedicated-service test (`ZC-DR-*`) declares one, so the plain `else` — send the bare zone
+straight to the brand's own service — had never run, and it is the `THIS LINE MOVES A ROBOT`
+chokepoint for that branch. A brand with its own zone service and no global settings to pre-set
+takes this path; losing it means the robot is simply never sent.
+
+`ZC-20` — the shape guard's **order** is the point. The degenerate-area check on the very next
+line does `_x0, _y0, _x1, _y1 = _z`, so without the shape guard a 3- or 5-element rect raises a
+bare unpack `ValueError` naming nothing, and a 5-element rect would read as a rect with a stray
+extra value. `ZC-4` covers an empty list and `ZC-6` the near-zero area; this is the guard
+between them.
+
+The other three are narrower but each has a failure mode worth stating. `ZC-22`: a map that
+EXISTS but whose dimensions will not parse must refuse with the can't-validate message —
+without the `except`, `int("abc")` raises its own `ValueError`, which names nothing a user can
+act on (`ZC-16` covers the *absent* map, which is a different arm). `ZC-23`: the verb branch
+clamps a requested repeat into `[1, cap]`, so a 5-pass ask on a 2-pass brand ships 2 rather
+than whatever the device does with 5 — `ZC-19` covers the opposite arm, where repeats are
+declared unsupported. `ZC-24`: `_values_match` must treat a missing readback as a mismatch, or
+the read-back would pass precisely when the device told us nothing; it also pins that the
+string `'None'` does not match by way of `str(None)`.
+
+All five ablated, each scoped to exactly its own test.
+
 ---
 
 ## 5. Two vocabularies that look identical and must not be merged

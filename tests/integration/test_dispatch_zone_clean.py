@@ -48,6 +48,18 @@ dispatching would pass a raise-only assertion while the robot was already moving
 [GOTO-DR-4] the point is not a 2-element [nx, ny].
 [GOTO-DR-5] no live map to place the point on.
 [GOTO-DR-6] the map yields no usable projection.
+
+The remaining zone bounds (ZC-20..24), from the 2026-11-07 coverage triage.
+[ZC-20] a zone that is not a 4-element [x0,y0,x1,y1] is refused by SHAPE, before the
+        degenerate-area check that assumes it can unpack four values.
+[ZC-21] a DEDICATED zone service with NO global_precall dispatches directly -- the
+        other arm of the `if _gp:` branch, and a robot-moving line.
+[ZC-22] unparseable live-map dimensions refuse with the can't-validate message rather
+        than letting int()'s own ValueError escape.
+[ZC-23] the non-device_mm branch CLAMPS a repeat to the declared cap (ZC-19 covers the
+        other arm, where repeats are declared unsupported).
+[ZC-24] _values_match treats a missing readback as a mismatch, including the string
+        'None', so a setting that did not take is never read as taken.
 """
 
 from __future__ import annotations
@@ -1125,3 +1137,151 @@ async def test_goto_with_an_unusable_projection_refuses(hass, manager, monkeypat
     with pytest.raises(ValueError, match="projection failed validation|wrong place"):
         await manager.dispatch_goto(vacuum_entity_id=_VAC, point=[0.4, 0.4])
     assert calls == [], "a point that could not be placed must never be sent"
+
+
+# ---------------------------------------------------------------------------
+# [ZC-20..24] the remaining zone bounds.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("bad_zone", [
+    [0.1, 0.2, 0.3],            # three
+    [0.1, 0.2, 0.3, 0.4, 0.5],  # five
+    "0.1,0.2,0.3,0.4",          # a string that looks like a rect
+    {"x0": 0.1, "y0": 0.2, "x1": 0.3, "y1": 0.4},
+    None,
+    0.5,
+], ids=["three", "five", "string", "dict", "none", "scalar"])
+async def test_zone_rejects_a_malformed_rect(hass, manager, monkeypatch, bad_zone):
+    """[ZC-20] refused by SHAPE, before anything tries to unpack it.
+
+    ZC-4 covers an empty zones list and ZC-6 the degenerate (near-zero-area) rect.
+    This is the guard between them, and its order matters: the degenerate check on
+    the next line does `_x0, _y0, _x1, _y1 = _z`, so without this a 3- or 5-element
+    rect raises a bare unpack ValueError naming nothing, and a 5-element one would
+    otherwise look like a rect with a stray extra value.
+    """
+    _register_rb(hass)
+    calls = _capture_send(hass)
+    _stub_map_source(manager, monkeypatch, _FakeMapData())
+
+    with pytest.raises(ValueError, match=r"zone must be \[x0, y0, x1, y1\]"):
+        await manager.dispatch_zone_clean(vacuum_entity_id=_VAC, zones=[bad_zone])
+    assert calls == [], "a malformed rect must never reach the device"
+
+
+async def test_dedicated_zone_service_without_a_precall_dispatches_directly(
+    hass, manager, monkeypatch
+):
+    """[ZC-21] the other arm of `if _gp:`, and it MOVES A ROBOT.
+
+    Every existing dedicated-service test (ZC-DR-*) declares a global_precall, so the
+    plain else -- send the bare zone straight to the brand's own service -- had never
+    run. A brand with its own zone service and no global settings to pre-set takes
+    this path, and if it were lost the robot would simply never be sent.
+    """
+    register_adapter_config(_VAC, {
+        "adapter_id": "dreame", "source": "code",
+        "dispatch": {"service_domain": "dreame_vacuum",
+                     "service_name": "vacuum_clean_segment", "command": None},
+        # A dedicated zone block with NO global_precall -- the configuration gap.
+        "zone": {"service_domain": "dreame_vacuum", "service_name": "vacuum_clean_zone",
+                 "zone_coords": "device_mm", "zone_field": "zone",
+                 "repeats_field": "repeats", "zone_passes_max": 2},
+        "map_state_source": {"backend": "camera_attrs", "map_frame_offset_mm": [0, 0]},
+        "capabilities": {"supports_zone_clean": True},
+    })
+    calls: list[dict] = []
+
+    async def _svc(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("dreame_vacuum", "vacuum_clean_zone", _svc)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+
+    await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]],
+    )
+
+    assert len(calls) == 1, f"the bare zone must be sent exactly once; got {calls}"
+    assert "zone" in calls[0], f"the zone field must be on the wire; got {calls[0]}"
+
+
+async def test_unparseable_map_dimensions_refuse_with_the_right_message(
+    hass, manager, monkeypatch
+):
+    """[ZC-22] a garbled map dict is a refusal, not a raw int() error.
+
+    ZC-16 covers the ABSENT map (async_get_map_data_dict -> None). This is the map
+    that exists and whose dimensions will not parse, which reaches the same refusal
+    through the except arm. The message is the assertion: without the except,
+    int("abc") raises its own ValueError, which names nothing a user can act on and
+    would not match here.
+    """
+    _register_eufy_caps(hass)
+    calls = _capture_send(hass)
+
+    async def _garbled(**_kw):
+        return {"width": "abc", "height": 10, "resolution": "nope"}
+
+    monkeypatch.setattr(manager, "async_get_map_data_dict", _garbled, raising=False)
+
+    with pytest.raises(ValueError, match="no live map available to validate"):
+        await manager.dispatch_zone_clean(
+            vacuum_entity_id=_VAC, zones=[[0.1, 0.1, 0.8, 0.3]]
+        )
+    assert calls == []
+
+
+@pytest.mark.parametrize("requested,expected", [(5, 2), (2, 2), (1, 1), (0, 1)],
+                         ids=["over-cap", "at-cap", "one", "zero"])
+async def test_non_device_mm_branch_clamps_the_repeat(
+    hass, manager, monkeypatch, requested, expected
+):
+    """[ZC-23] a declared cap is enforced on the verb branch too.
+
+    ZC-19 covers the other arm -- repeats declared unsupported, normalized to 1. This
+    is the arm where the brand DOES support them and declares a cap: the request is
+    clamped into [1, cap], so a 5-pass ask on a 2-pass brand ships 2 rather than
+    whatever the device does with 5, and a 0 still ships a real pass.
+    """
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy", "source": "code",
+        "dispatch": dict(_EUFY_DISPATCH, zone_passes_max=2),
+        "capabilities": {"zone_max": 10},     # no supports_zone_repeat: false
+    })
+    calls = _capture_send(hass)
+
+    out = await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.1, 0.1, 0.8, 0.3]], clean_times=requested,
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["params"]["clean_times"] == expected, (
+        f"requested {requested} on a cap of 2 must ship {expected}; "
+        f"got {calls[0]['params']['clean_times']}"
+    )
+    assert out["clean_times"] == expected
+
+
+def test_values_match_treats_a_missing_readback_as_a_mismatch():
+    """[ZC-24] the readback's whole purpose is catching a setting that did not take.
+
+    A missing or unavailable entity reads as None, and that must never match -- if it
+    did, the readback would pass precisely when the device told us nothing, and the
+    zone would clean with unconfirmed settings.
+
+    The second assertion is the trap worth pinning: str(None) == 'None', so a device
+    that literally reports the string 'None' must still not match the wire value None
+    by way of string equality.
+    """
+    from custom_components.eufy_vacuum.dispatch.manager import _values_match
+
+    assert _values_match(None, 16) is False
+    assert _values_match(None, "None") is False
+    assert _values_match(None, None) is False
+    # and the tolerance it DOES provide is intact: a number entity reports a string
+    assert _values_match("16", 16) is True
+    assert _values_match("16.0", 16) is True
+    assert _values_match("strong", "strong") is True
+    assert _values_match("standard", "strong") is False
