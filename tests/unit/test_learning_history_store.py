@@ -1713,3 +1713,157 @@ def test_native_finalize_brand_is_false_without_an_entity():
     """
     assert _native_finalize_brand(None) is False
     assert _native_finalize_brand("") is False
+
+
+# ---------------------------------------------------------------------------
+# [HS-T6] / [HS-T7] -- the live:RECHARGE-ATTR-1 WIRING, the last four uncovered
+# statements of history_store.py (2209-2212, branch 2208->2209).
+#
+# The PREDICATE (monotone_shift_run / attribution_shift_blocks_learning) is already
+# covered in test_external_ingest_attribution.py with runs of 3/1/0. What was open is
+# the wiring inside build_completed_job_payload, and reaching it is not a matter of
+# handing the builder a room_timings list -- there is no parameter for one. The rows
+# have to be PRODUCED, by the counter segmenter plus the pose reconcile, which means
+# satisfying the whole chain:
+#
+#   1. NOT a phased job and NOT a native-finalize brand. The block lives inside the
+#      `else:` arm; a job carrying `phases` takes the earlier arm and never evaluates
+#      2208 at all. (Measured: adding `phases` makes the blocker vanish.)
+#   2. `pose_samples` truthy, since 2208 sits inside `if _pose_samples:`.
+#   3. THREE counter segments, because a run of 2 needs two shifted rows AND a
+#      successor row for the second one -- the last row can never contribute.
+#   4. segment_count == queue_count, so `transit_capture_valid` is True, so
+#      `positional_valid` is True. This is the subtle one: with positional_valid
+#      FALSE the reconcile takes its RESCUE arm instead, which rewrites room_id and
+#      writes `pose_correction: "rescued"` -- and never writes the
+#      `attribution_disagreement` the predicate reads. RESCUE and FLAG are mutually
+#      exclusive, so an "invalid capture" fixture cannot reach this code at all.
+#   5. every pose window must name the NEXT segment's room, which is what makes the
+#      slide monotone rather than three unrelated disagreements.
+#
+# `_ps`'s `ca` argument is passed on every sample deliberately: a pose stream with no
+# cleaning_area resolves to mode "anchor_only" and the reconcile leaves the rows
+# untouched, so omitting it yields a fixture that quietly proves nothing.
+# ---------------------------------------------------------------------------
+
+# _TWO_ROOM_SAMPLES plus a third plateau+burst, so the segmenter yields 3 segments.
+_THREE_ROOM_SAMPLES = _TWO_ROOM_SAMPLES + [
+    _cs(900, 270, 8), _cs(930, 300, 10),
+]
+
+_SHIFT_ROOMS = [
+    {"room_id": 5, "slug": "kitchen"},
+    {"room_id": 8, "slug": "dining_room"},
+    {"room_id": 9, "slug": "office"},
+]
+
+
+def _shift_build_args(pose: list[dict]) -> dict:
+    """Builder args for a 3-room dispatched run with `pose` as the pose stream.
+
+    Shared by [HS-T6] and [HS-T7] so the ONLY difference between them is which room
+    segment 0's pose window names -- which is the whole point of the pair.
+    """
+    return _make_build_args(
+        queue_state={
+            "vacuum_entity_id": "vacuum.alfred", "map_id": 6, "room_count": 3,
+            "queue_room_ids": [5, 8, 9], "queue_rooms": _SHIFT_ROOMS,
+        },
+        active_job_state={
+            "map_id": 6, "room_count": 3, "queue_room_ids": [5, 8, 9],
+            "queue_rooms": _SHIFT_ROOMS, "resolved_rooms": _SHIFT_ROOMS,
+            "paused_duration_seconds": 0, "recharge_seconds_accumulated": 0,
+            "counter_samples": _THREE_ROOM_SAMPLES,
+            "pose_samples": pose,
+        },
+    )
+
+
+def test_build_payload_attribution_shift_blocks_learning(tmp_path):
+    """[HS-T6] a monotone slide across three rooms disqualifies the run from learning.
+
+    Queue 5 -> 8 -> 9 with three counter segments, so segment_count == queue_count,
+    `positional_valid` is True, and every row takes the conservative FLAG branch. By
+    every other measure the run finalizes HEALTHY -- status completed,
+    transit_capture_valid True, each room_id still the positional one. That is the
+    signature the comment on this wiring describes: nothing looks wrong row by row.
+
+    But each row's pose names the NEXT row's room, which is what a dropped boundary
+    looks like after the fact: two rooms merged and every label behind the merge slid
+    onto its neighbour. Read one at a time these are three ambiguous rooms; read as a
+    sequence they are a property of the segmentation, so the numbers are attached to
+    the wrong rooms and none of them is safe to learn.
+
+    THE ASSERTION IS ON THE OUTCOME BLOCK, not on the disagreement rollup, and that
+    is load-bearing: `has_attribution_disagreement` is True in [HS-T7] too, so it
+    cannot separate "ambiguous" from "disqualified". Only used_for_learning and
+    learning_blockers can.
+    """
+    store = _make_store(tmp_path)
+    # Each window names the room the NEXT segment is positionally assigned.
+    # Segment windows, from the segmenter: 09:01:00-09:03:30, 09:09:00-09:09:30,
+    # 09:15:00-09:15:30. `_dominant_room` is a MODE over the window, not the first
+    # tick, so every tick in a window must agree for that window to name a room.
+    pose = [
+        _ps(70, 8, 1.0), _ps(120, 8, 3.0), _ps(200, 8, 6.0),   # seg 0 (queue 5) -> 8
+        _ps(545, 9, 6.5), _ps(560, 9, 7.5),                    # seg 1 (queue 8) -> 9
+        _ps(905, 7, 8.5), _ps(925, 7, 10.0),                   # seg 2 (queue 9) -> 7
+    ]
+
+    payload = store.build_completed_job_payload(**_shift_build_args(pose))
+    job, outcome = payload["job"], payload["outcome"]
+
+    # The preconditions the wiring rests on -- stated rather than assumed, because
+    # without them the assertions below could pass for the wrong reason.
+    assert len(job["room_timings"]) == 3, "three segments, or there is no run of 2"
+    assert [t["room_id"] for t in job["room_timings"]] == [5, 8, 9], (
+        "FLAG keeps the positional id; a rewritten id means the RESCUE arm ran"
+    )
+    assert job["transit_capture_valid"] is True, (
+        "positional_valid must be True, or the reconcile rescues instead of flagging"
+    )
+    assert [t.get("attribution_disagreement") for t in job["room_timings"]] == [
+        {"positional": 5, "pose": 8},
+        {"positional": 8, "pose": 9},
+        {"positional": 9, "pose": 7},
+    ]
+
+    # THE BITE: the slide disqualifies the run even though nothing else went wrong.
+    assert outcome["used_for_learning"] is False
+    assert outcome["learning_blockers"] == ["attribution_shift"]
+    assert outcome["status"] == "completed", "the finalizes-as-healthy signature"
+
+
+def test_build_payload_single_disagreement_still_learns(tmp_path):
+    """[HS-T7] ONE shifted row is border ambiguity, and must NOT block learning.
+
+    The discriminator for [HS-T6], and the behaviour the wiring's comment is explicit
+    about: the FLAG branch is deliberately conservative for one ambiguous room --
+    it keeps a working positional assignment and leaves learning inclusion alone.
+    Only a monotone slide across consecutive rooms is a dropped boundary.
+
+    Identical to [HS-T6] except segment 0's window agrees with its positional room,
+    which drops the run from 2 to 1. ALL THREE of its ticks are flipped, not just the
+    first: `_dominant_room` is a mode over the window, so flipping one tick of three
+    leaves room 8 dominant 2-to-1 and the run would still be 2 -- this test would
+    assert the opposite of what the code does and go red. (Measured; it is the
+    mistake the first draft of this fixture made.)
+
+    `has_attribution_disagreement` stays True here, which is exactly why [HS-T6]
+    asserts on the outcome block instead of on that flag.
+    """
+    store = _make_store(tmp_path)
+    pose = [
+        _ps(70, 5, 1.0), _ps(120, 5, 3.0), _ps(200, 5, 6.0),   # seg 0 AGREES (5)
+        _ps(545, 9, 6.5), _ps(560, 9, 7.5),                    # seg 1 -> 9, still shifted
+        _ps(905, 7, 8.5), _ps(925, 7, 10.0),                   # seg 2 -> 7, still shifted
+    ]
+
+    payload = store.build_completed_job_payload(**_shift_build_args(pose))
+    job, outcome = payload["job"], payload["outcome"]
+
+    assert job["has_attribution_disagreement"] is True, (
+        "there IS still a disagreement -- it just is not a slide"
+    )
+    assert outcome["used_for_learning"] is True
+    assert outcome["learning_blockers"] == []

@@ -199,14 +199,50 @@ the id-validation and finalize-edge gaps:
   undeclared phase appended in index order rather than dropped (`HS-19`), and
   `_native_finalize_brand` refusing an empty entity id (`HS-21`).
 
-**Of the 35 statements still uncovered, 16 are deliberate**: 15 are shape guards the
+**Of the 31 statements still uncovered, 16 are deliberate**: 15 are shape guards the
 coverage triage marked DEFENSIVE ("keep the guards; do not pad coverage with them" —
-no producer emits those shapes), and 2113 is a genuinely unreachable `else` arm.
-Four more (2209-2212) are the live:RECHARGE-ATTR-1 wiring: the predicate
-`monotone_shift_run` is already covered in `test_external_ingest_attribution.py`
-(runs of 3/1/0, both verdicts), so only the wiring is open, and reaching it honestly
-needs three counter segments with `segment_count == queue_count` so the FLAG rather
-than RESCUE branch is taken. The remaining ~15 are ordinary follow-up.
+no producer emits those shapes), and 2113 is a genuinely unreachable `else` arm. The
+remaining ~15 are ordinary follow-up.
+
+#### The live:RECHARGE-ATTR-1 wiring (`HS-T6`, `HS-T7`) — done
+
+The last four statements (2209-2212) are closed. The *predicate*
+(`monotone_shift_run`) was already covered in `test_external_ingest_attribution.py`
+with runs of 3/1/0; what was open was the wiring inside
+`build_completed_job_payload`, and reaching it is not a matter of handing the builder
+a `room_timings` list — **there is no parameter for one.** The rows have to be
+produced, by the counter segmenter plus the pose reconcile, which means satisfying
+the whole chain:
+
+1. **Not a phased job and not a native-finalize brand.** The block lives inside an
+   `else:` arm; a job carrying `phases` takes the earlier arm and never evaluates the
+   predicate at all. Measured: adding `phases` makes the blocker vanish.
+2. **`pose_samples` truthy** — the wiring sits inside `if _pose_samples:`.
+3. **Three counter segments.** A run of 2 needs two shifted rows *and* a successor for
+   the second, because the last row can never contribute to the run.
+4. **`segment_count == queue_count`**, so `transit_capture_valid` → `positional_valid`
+   is True. This is the subtle one, and the reason the note used to say "the FLAG
+   rather than RESCUE branch": with `positional_valid` **False** the reconcile takes
+   its RESCUE arm, which rewrites `room_id` and writes `pose_correction: "rescued"` —
+   and never writes the `attribution_disagreement` the predicate reads. The two arms
+   are **mutually exclusive**, so an "invalid capture" fixture cannot reach this code
+   at all. Ablation confirms it: forcing `positional_valid=False` reddens *both* tests.
+5. **Every pose window must name the next segment's room**, which is what makes the
+   slide monotone rather than three unrelated disagreements.
+
+`HS-T7` is the discriminator, not padding: one shifted row is ordinary border
+ambiguity, which the FLAG branch exists to leave alone, and
+`has_attribution_disagreement` is True in **both** tests — so only the outcome block
+separates "ambiguous" from "disqualified". That is why `HS-T6` asserts on
+`used_for_learning` / `learning_blockers` rather than on the disagreement rollup.
+
+> **`_dominant_room` is a mode over the window, not the first tick**, and the first
+> draft of `HS-T7` got this wrong: it flipped only the first of segment 0's three
+> ticks, which leaves the shifted room dominant 2-to-1, so the run stays at 2 and the
+> test would have asserted the opposite of what the code does. All three ticks are
+> flipped. Likewise `_ps`'s `ca` argument is passed on every sample on purpose — a
+> pose stream with no `cleaning_area` resolves to mode `anchor_only` and the reconcile
+> leaves the rows untouched, giving a fixture that quietly proves nothing.
 
 The read/write error arms that used to be on that list — 553-555, 600-603 and 766 —
 are **done**, as `TS-8..TS-10` in `test_rmw_tristate.py` where the note said they
