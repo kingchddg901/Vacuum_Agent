@@ -165,11 +165,25 @@ concludes must import the shipped functions, never restate them. It restated one
 — so the report printed "records the NEW rule blocks" while answering for a rule
 of its own. `RPL-3` *moves* the shipped constant and asserts the report moves with
 it; a test asserting "a run of 2 blocks" would merely have been a third copy of
-the number. Worth naming why no existing gate could catch this: the `RN` replica
-register ([00c](../dev/00c-replicas.md)) scans `SOURCE_ROOTS` —
-`custom_components`, `scripts`, `src`, `harness` — so a shipped constant copied
-into `tests/` has no anchorable second site and is invisible to
-`test_replica_ratchet.py` as well as to coverage.
+the number.
+
+**Why no existing gate could catch it — and what changed the same day.** The `RN`
+replica register ([00c](../dev/00c-replicas.md)) only records a set whose every
+member can be anchored at its own site, and `doc_anchor.py`'s declaration scan read
+`custom_components`, `scripts`, `src` and `harness` but **not** `tests` — which was
+in `REF_ROOTS` only. So a copy living in a test could be *cited* and never
+*declared*: an `# anchor:` there was inert, and the checker called the token
+"defined nowhere" the moment a document cited it. The register therefore could not
+describe this pair at all, and coverage saw a line that ran.
+
+`tests/` is a declaration root as of 2026-11-07, pinned by `ANC-5` in
+`tests/unit/test_generated_doc_gate.py`: one test proves a `tests/` declaration
+satisfies a citation of it, one proves the gate's own fixture strings stay data (it
+writes `# anchor:` markers into throwaway files, which would otherwise have become
+five declarations of one token), and one proves a *real* duplicate inside `tests/`
+still fires, so the exclusion cannot quietly become a blindfold. The precedent was
+already there on the frontend side: `harness/tests/i18n-rtl.spec.mjs` carries
+`REPLICA RNF6XB1P` and has always resolved, because `harness/` is a source root.
 
 ## Coverage status
 

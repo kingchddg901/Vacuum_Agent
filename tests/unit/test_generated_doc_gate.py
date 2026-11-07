@@ -31,6 +31,7 @@ a typo breaks.
   GDG-19  on the real tree every banner-bearing file has an owner; the map is registered
   GDG-20  a map-only entry declaring out_env/check_cmd is rejected
   ANC-4   the generated card bundles are NOT declaration sites
+  ANC-5   tests/ DECLARES anchors; the gate's own fixture file still does not
 """
 
 from __future__ import annotations
@@ -717,3 +718,125 @@ def test_gdg20_map_only_entry_rejects_gate_wiring():
 
     with pytest.raises(ValueError, match="map-only"):
         Generator(id="bad", cmd=("x",), files=("a.py",), gated=False, out_env="OUT")
+
+
+# ---------------------------------------------------------------------------
+# [ANC-5] tests/ is a DECLARATION root (2026-11-07), and the one file that
+# manufactures anchor fixtures still is not.
+#
+# WHY THIS MATTERS, AND WHAT IT COST. An RN replica set records a rule implemented
+# in more than one place on purpose, so that changing one copy sends you to the
+# others. A set is only recordable when every member can be anchored at its own
+# site -- and until this change a member living in tests/ could not be: tests/ was
+# in REF_ROOTS but not SOURCE_ROOTS, so an `# anchor:` there was INERT and the
+# checker called the token "defined nowhere" the moment a document cited it.
+#
+# `tests/replay/reverdict.py` then held a hand-copied `_SHIFT_BLOCK_MIN_RUN` inside
+# a file whose own docstring forbids restating shipped logic, and nothing could see
+# it: coverage saw a line that ran, and 00c could not name the pair.
+#
+# MEASURED BEFORE THE CHANGE, because a guard that newly activates over existing
+# data needs that data enumerated first. Adding tests/ to SOURCE_ROOTS turns
+# `CN9BGGJ6` from 1 declaration into 5 and `CNZZZZZZ` from 0 into 3 -- every new
+# one a FIXTURE STRING in this very file, which writes `# anchor: CN9BGGJ6` into
+# throwaway files to prove DUPLICATE detection works. Two hard errors manufactured
+# out of correct tests. Hence `_TOKENS_ARE_DATA`, and hence the second and third
+# tests below: the exclusion has to hold, and must not become a blindfold.
+# ---------------------------------------------------------------------------
+
+
+def _anchor_check(tmp_path, files):
+    """`doc_anchor.py --check` against a THROWAWAY root holding only ``files``.
+
+    Built on a throwaway tree rather than asserted against the real one for the same
+    reason [ANC-4] is: the real tree's answer moves with unrelated edits, and a gate
+    that can go green because someone else's file changed is not pinning anything.
+
+    ``files`` maps a repo-relative path to its content; parents are created. ``docs/``
+    is always created, because the prose-declaration scan globs it.
+
+    NOTE: [ANC-4]'s two tests predate this helper and inline the same subprocess
+    dance twice. Left alone deliberately -- they are proven, and rewriting a working
+    gate's tests to share a helper is a separate change from adding one.
+    """
+    import subprocess
+
+    for rel, content in files.items():
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+    (tmp_path / "docs").mkdir(exist_ok=True)
+
+    script = REPO / "scripts" / "doc_anchor.py"
+    src = script.read_text(encoding="utf-8").replace(
+        'ROOT = pathlib.Path(__file__).resolve().parent.parent',
+        f'ROOT = pathlib.Path(r"{tmp_path}")')
+    local = tmp_path / "doc_anchor_local.py"
+    local.write_text(src, encoding="utf-8")
+
+    proc = subprocess.run([sys.executable, str(local), "--check"],
+                          capture_output=True, text=True, timeout=120)
+    return proc.returncode, proc.stdout
+
+
+def test_anc5_a_test_file_can_declare_an_anchor(tmp_path):
+    """[ANC-5] An `# anchor:` in tests/ is a DECLARATION, not inert text.
+
+    RED BEFORE THE FIX: with tests/ absent from SOURCE_ROOTS the declaration is not
+    seen, so the document below cites a token that is defined nowhere and --check
+    reports BROKEN. That was the state on 2026-11-06, and it is why a note in
+    `tests/conftest.py` had to say an anchor there would be inert instead of simply
+    declaring one.
+    """
+    rc, out = _anchor_check(tmp_path, {
+        "tests/unit/test_thing.py": "# anchor: CNZZZZZZ  the tests-side copy\n",
+        "docs/x.md": "The copy lives at `tests/unit/test_thing.py#CNZZZZZZ`.\n",
+    })
+
+    assert "BROKEN" not in out, (
+        "a tests/ declaration must satisfy a citation of it, because tests/ is a "
+        "declaration root:\n" + out
+    )
+    assert rc == 0, out
+
+
+def test_anc5_the_gates_own_fixture_file_is_not_a_declaration_site(tmp_path):
+    """[ANC-5] This file's fixture strings stay DATA once tests/ counts.
+
+    The exact shape that broke: two `write_text("# anchor: ...")` calls plus one real
+    declaration elsewhere. Counted, that is three declarations of one token, i.e. a
+    DUPLICATE conjured out of correct tests. The file is named in `_TOKENS_ARE_DATA`,
+    which BOTH scans read -- they used to disagree, and nothing could notice while
+    tests/ went unscanned.
+    """
+    rc, out = _anchor_check(tmp_path, {
+        "tests/unit/test_generated_doc_gate.py": (
+            '(p / "a.py").write_text("# anchor: CNZZZZZZ  first")\n'
+            '(p / "b.py").write_text("# anchor: CNZZZZZZ  second")\n'
+        ),
+        "src/real.js": "// anchor: CNZZZZZZ  the one true declaration\nvar X = 1;\n",
+        "docs/x.md": "Declared at `src/real.js#CNZZZZZZ`.\n",
+    })
+
+    assert "DUPLICATE" not in out, (
+        "fixture strings in the gate's own test were counted as declarations:\n" + out
+    )
+    assert rc == 0, out
+
+
+def test_anc5_a_real_duplicate_inside_tests_still_fires(tmp_path):
+    """[ANC-5] RED IF THE EXCLUSION IS WIDENED INTO A BLINDFOLD.
+
+    The twin of [ANC-4]'s second test, for the new root. Skipping one fixture-bearing
+    file must not become skipping tests/, which would hand back the blind spot this
+    change exists to close -- and would do so while the test above still passed. Two
+    genuine declarations in two test files is a DUPLICATE like any other.
+    """
+    rc, out = _anchor_check(tmp_path, {
+        "tests/unit/test_a.py": "# anchor: CNZZZZZZ  one\n",
+        "tests/unit/test_b.py": "# anchor: CNZZZZZZ  two\n",
+    })
+
+    assert rc != 0 and "DUPLICATE" in out, (
+        "two real declarations inside tests/ must still be a DUPLICATE:\n" + out
+    )

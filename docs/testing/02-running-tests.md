@@ -172,7 +172,7 @@ to do with the module being measured — that mismatch is what makes the trap ex
 The Python-level sentinel stays self-consistent across the reload
 (`numpy._NoValue is numpy._globals._NoValue` holds either way), so the obvious probe
 for a duplicate module reports nothing wrong. Mechanism recorded at
-`tests/conftest.py::offending_cov_sources`, pinned by
+`tests/conftest.py#CNP337CY` (`offending_cov_sources`), pinned by
 `tests/unit/test_cov_source_guard.py`
 (COVG-1..8).
 

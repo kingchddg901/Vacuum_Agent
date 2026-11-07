@@ -43,9 +43,28 @@ other member.
 the declaration is unique.
 
 > ⚠ **The declaration must live in SOURCE, not here.** `doc_anchor.py` scans
-> `custom_components/`, `scripts/`, `src/` and `harness/` for declarations; documents can
-> only *reference*. This file is therefore an index over anchors that live in code — the
-> same relationship [00b](00b-invariants.md) has with its invariants.
+> `custom_components/`, `scripts/`, `src/`, `harness/` and `tests/` for declarations;
+> documents can only *reference*. This file is therefore an index over anchors that live
+> in code — the same relationship [00b](00b-invariants.md) has with its invariants.
+
+> **`tests/` counts as a declaration site, since 2026-11-07.** It did not before, and
+> that gap decided what this register could record: a set with a member in a test had an
+> unanchorable member, so it could not be a set here at all. Not hypothetical —
+> `tests/replay/reverdict.py` restated `_SHIFT_BLOCK_MIN_RUN` by hand inside a file whose
+> own docstring forbids restating shipped logic, and nothing could describe it. Coverage
+> saw a line that ran; this file could not name the pair.
+>
+> A test is a legitimate member of a replica set when it **re-states** a rule — a fixture
+> table copied from a shipped one, a harness that recomputes what it should import. A test
+> that merely **asserts** the shipped value is a FENCE, not a replica: move the constant
+> and it goes red, which is the behaviour you want, and it does not belong here.
+>
+> This was a **correction, not a new idea** — there was already a working example on
+> the other side of the language split. `RNF6XB1P` has its primary at
+> `harness/shoot-locales.mjs` and its replica at `harness/tests/i18n-rtl.spec.mjs`,
+> and that has always resolved, because `harness/` is a source root and
+> `harness/tests/` sits under it. A test was therefore already a legitimate member of
+> a set; the only thing missing was that a Python test under `tests/` could not be one.
 
 Mint with `python scripts/doc_anchor.py --mint RN`.
 

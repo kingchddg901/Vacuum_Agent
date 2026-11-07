@@ -86,7 +86,13 @@ def test_the_eight_the_tier_column_got_wrong():
         )
 
 
-# anchor: RNARRS0S
+# RNARRS0S is a TOMBSTONE -- docs/dev/00c-replicas.md deregistered it on 2026-09-12,
+# under a `####` heading the registry regex deliberately does not match, because the port
+# deleted BOTH of its original sites. The rule survives here as a MEASUREMENT, not as a
+# replica. So there is no `anchor:` marker, deliberately: tests/ became a doc_anchor
+# DECLARATION root on 2026-11-07, and a live marker would now ask RR-1 for the registry
+# entry 00c says must not exist -- and could never satisfy RR-3 anyway, which needs one
+# primary plus at least one REPLICA, where this rule has exactly one site.
 def test_twin_flat_cloths_are_not_a_roller():
     """[RUK-6] RNARRS0S, REHOUSED — the rule outlived both of its original sites.
 

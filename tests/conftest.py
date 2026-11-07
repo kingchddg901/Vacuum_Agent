@@ -164,10 +164,13 @@ def mock_options_entry() -> MockConfigEntry:
 # ---------------------------------------------------------------------------
 # THE --cov SOURCE GUARD
 #
-# No `anchor:` declaration here on purpose: scripts/doc_anchor.py's SOURCE_ROOTS are
-# custom_components/ scripts/ src/ harness/ -- tests/ can CITE an anchor but cannot
-# DECLARE one, so an anchor minted for this note would be inert and the checker
-# reports it as "defined nowhere" the moment a doc cites it. Cited by symbol instead.
+# anchor: CNP337CY  the --cov source guard
+#
+# This note is WHY tests/ is a doc_anchor declaration root. It used to read "no
+# `anchor:` declaration here on purpose", because tests/ could CITE an anchor but not
+# DECLARE one -- so a token minted for this reasoning was inert, and the checker called
+# it "defined nowhere" as soon as a document cited it. Fixed 2026-11-07 by adding tests/
+# to SOURCE_ROOTS; this is the first declaration to use it.
 #
 # A DOTTED `--cov` source silently corrupts NumPy, and the damage shows up as
 # ordinary-looking test failures a long way from the cause. Measured 2026-11-07:

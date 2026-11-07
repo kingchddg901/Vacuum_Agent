@@ -131,7 +131,30 @@ PREFIXES = {
 # from a glance at a screen. Left as-is rather than renaming a live class.
 PREFIX_LETTERS = "ABCDEFGHJKMNPQRSTVWXYZ"
 
-SOURCE_ROOTS = ("custom_components", "scripts", "src", "harness")
+# tests/ DECLARES, it does not only cite. A rule deliberately implemented in more than
+# one place -- an RN set -- can have a member that lives in a test: a fixture table
+# copied from a shipped one, a threshold a harness re-states, a payload a builder
+# reproduces by hand. Until 2026-11-07 such a member could not be anchored at its own
+# site, because tests/ was in REF_ROOTS but not here: an `# anchor:` there was INERT,
+# and the checker reported the token as "defined nowhere" the moment a document cited it.
+#
+# THAT GAP WAS LOAD-BEARING, not cosmetic. `tests/replay/reverdict.py` carried a
+# hand-copied `_SHIFT_BLOCK_MIN_RUN` inside a file whose own docstring forbids restating
+# shipped logic, and no gate could see it: coverage saw a line that ran, and the replica
+# register could not describe the set at all, because a set is only recordable when
+# every member is anchorable. RR-1/RR-2 now enforce in both directions over the wider
+# tree, which is what makes a tests/ member findable from the shipped one.
+#
+# THERE WAS ALREADY A WORKING EXAMPLE on the other side of the language split, and
+# it is the best argument that this is a correction rather than a new idea:
+# `harness/tests/i18n-rtl.spec.mjs` carries `REPLICA RNF6XB1P`, whose primary is
+# `harness/shoot-locales.mjs`. That has always resolved, because harness/ is a
+# source root and harness/tests/ sits under it. So a TEST was already a legitimate
+# replica member; the only thing missing was that Python tests under tests/ could
+# not be one. Note the exclusion below is therefore by BASENAME and never by
+# "tests" appearing in a path -- that predicate would drop those 18 harness specs
+# and take RNF6XB1P's only replica with them (measured; it reddens RR-3).
+SOURCE_ROOTS = ("custom_components", "scripts", "src", "harness", "tests")
 
 # GENERATED BUNDLES ARE NOT DECLARATION SITES. esbuild inlines every `src/**` module
 # into these, comments included, so each anchor declared in `src/styles/*.js` also
@@ -166,6 +189,26 @@ _GENERATED_BUNDLE_DIRS = (
     ("harness", "dist"),
 )
 DOC_ROOTS = ("docs",)
+
+# FILES WHOSE ANCHOR-SHAPED TOKENS ARE DATA, NOT ANCHORS -- ONE set, read by BOTH
+# scans. It is one set because the two had already drifted: `ref_files()` skipped the
+# gate's own test while `source_files()` did not, and that asymmetry was invisible for
+# exactly as long as tests/ was not a declaration root. The day it became one,
+# `test_generated_doc_gate.py` -- which WRITES `# anchor: CN9BGGJ6` into throwaway files
+# to prove DUPLICATE detection works -- turned one token into five declarations and
+# another into three: two hard errors manufactured out of correct tests. A tool's own
+# test has to contain the tool's input language; that is a property of the file, not an
+# excuse for it.
+#
+# WARNING -- KEYED ON BASENAME, which is why every entry is distinctive: rename one of
+# these files and the exclusion silently stops applying. For the catalog that means the
+# liveness check goes blind the same day, because its 177 bare tokens would all read as
+# citations and every BN would look cited.
+_TOKENS_ARE_DATA = frozenset({
+    "doc_anchor.py",               # its own docstring shows the FORM
+    "test_generated_doc_gate.py",  # manufactures anchor fixtures to test this tool
+    "BN-CATALOG.generated.md",     # a catalog OF anchors (scripts/gen_bn_catalog.py)
+})
 
 MARKER = "anchor:"
 TOKEN = r"(?:" + "|".join(PREFIXES) + r")[" + ALPHABET + r"]{%d}" % SUFFIX_LEN
@@ -202,8 +245,8 @@ def source_files() -> list[pathlib.Path]:
                 continue
             if any(p.parent.parts[-len(d):] == d for d in _GENERATED_BUNDLE_DIRS):
                 continue  # esbuild output - a COPY of a src/ declaration, not one
-            if p.name == "doc_anchor.py":
-                continue  # its docstring shows the FORM; those are not declarations
+            if p.name in _TOKENS_ARE_DATA:
+                continue  # see _TOKENS_ARE_DATA -- the same set the reference scan uses
             out.append(p)
     return out
 
@@ -274,16 +317,8 @@ def ref_files() -> list[pathlib.Path]:
                 continue
             if "__pycache__" in p.parts or "node_modules" in p.parts:
                 continue
-            if p.name == "doc_anchor.py":
-                continue
-            if p.name == "test_generated_doc_gate.py":
-                continue  # manufactures anchor fixtures; its tokens are data
-            if p.name == "BN-CATALOG.generated.md":
-                # A catalog OF anchors (scripts/gen_bn_catalog.py). Its 177 bare tokens
-                # are data, not references: counted, every BN would read as cited and
-                # the liveness check would be decorative. Rename the catalog and this
-                # exclusion must follow it, or liveness goes blind that day.
-                continue
+            if p.name in _TOKENS_ARE_DATA:
+                continue  # see _TOKENS_ARE_DATA -- the same set the declaration scan uses
             out.append(p)
     return out
 
