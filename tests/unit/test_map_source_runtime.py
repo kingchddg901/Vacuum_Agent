@@ -11,8 +11,14 @@ PURE given injected plain data — tested here without Home Assistant.
 [MSR-2h/i/j] live:RB-PROJ-1: projector health counts — a dead transform is
         distinguishable from legitimately empty layers; off-grid != error.
 [MSR-3] find_roomlike_collection / _walk: duck-typing, cycle-safety, attr denylist.
+[MSR-4] the DREAME camera-attribute fallback (_dreame_affine / dreame_camera_candidates /
+        dreame_result_from_candidates): the path map_source_coordinator takes whenever the
+        MapData read is not present. Fixtures derive from robin's real transform
+        (px = 682 + x*0.08, py = 845 - y*0.08, image 936x992, dock {-553,132}).
 """
 import base64
+
+import pytest
 
 from custom_components.eufy_vacuum.mapping.map_source_runtime import (
     eufy_live_pose_from_candidates,
@@ -26,6 +32,9 @@ from custom_components.eufy_vacuum.mapping.map_source_runtime import (
     mapdata_live_pose_from_candidates,
     overlays_from_mapdata,
     _mapdata_projector,
+    dreame_camera_candidates,
+    dreame_result_from_candidates,
+    _dreame_affine,
     robot_pose_from_mapdata,
     roborock_result_from_candidates,
     rooms_from_mapdata,
@@ -914,3 +923,401 @@ def test_out_of_grid_rejections_are_not_counted_as_errors():
     assert proj.errors == 0, "an off-grid point is not a broken transform"
     assert proj.out_of_grid == 1
     assert proj.calls == 2
+
+
+# ---------------------------------------------------------------------------
+# [MSR-4] The Dreame camera-attribute fallback.
+#
+# map_source_coordinator.py calls dreame_camera_candidates + dreame_result_from_candidates
+# whenever the MapData read does not yield a present result -- live code on every Dreame
+# install whose decoded map is unavailable. It had ZERO tests: 82 statements, none of them
+# ever executed, across three functions.
+#
+# THE NUMBERS BELOW ARE REAL, from robin (Chris's own Dreame, field report 2026-08-09):
+# the derived transform for that house is `px = 682 + x*0.08`, `py = 845 - y*0.08`, the
+# rendered image is 936x992, and the dock sat at vacuum {-553, 132}. Deriving the fixture
+# from the real producer is the point -- an invented affine would encode my assumption
+# about the frame rather than the device's.
+# ---------------------------------------------------------------------------
+
+# robin's transform, used to MANUFACTURE the calibration pairs the device would publish.
+def _px(x: float) -> float:
+    return 682.0 + x * 0.08
+
+
+def _py(y: float) -> float:
+    return 845.0 - y * 0.08
+
+
+def _cal(*vacuum_points):
+    """3 vacuum->pixel pairs in the shape the camera attribute carries."""
+    return [
+        {"vacuum": {"x": vx, "y": vy}, "map": {"x": _px(vx), "y": _py(vy)}}
+        for vx, vy in vacuum_points
+    ]
+
+
+_CAL_ROBIN = _cal((0, 0), (1000, 0), (0, 1000))   # non-collinear, det = 1e6
+
+
+class _FakeState:
+    def __init__(self, attributes):
+        self.attributes = attributes
+
+
+class _FakeHass:
+    """Only `states.get` is reached by dreame_camera_candidates."""
+
+    def __init__(self, states=None):
+        self._states = states or {}
+
+    @property
+    def states(self):
+        return self
+
+    def get(self, eid):
+        return self._states.get(eid)
+
+
+# A room as the device actually publishes it: the bbox fields the code reads, PLUS the
+# dozen it does not (LIVE-CAPABILITY-AUDIT lists cleaning_mode, floor_material, type...).
+# Carrying the extras is deliberate -- it proves the reader ignores them rather than
+# happening to work on a fixture trimmed to what it needs.
+_ROOM_REAL = {
+    "x0": -1000, "y0": -500, "x1": 1000, "y1": 1500,
+    "room_id": 3, "name": "Kitchen", "custom_name": "Kitchen",
+    "cleaning_mode": 2, "cleaning_route": 1, "cleaning_times": 1, "color_index": 0,
+    "floor_material": 1, "floor_material_direction": 0, "icon": "", "index": 0,
+    "order": 1, "suction_level": 2, "type": 3, "visibility": True,
+    "water_volume": 2, "wetness_level": 16, "x": 0, "y": 500,
+}
+
+
+def test_msr4a_dreame_affine_recovers_the_real_device_transform():
+    """[MSR-4a] three pairs define the affine, and it must reproduce robin's transform.
+
+    Cramer's rule is the kind of code that looks right and is off by a term. The bite is
+    a FOURTH point, not one of the three fitted: the dock, at the position the field
+    report verified by two unrelated routes.
+
+    ABLATION: swap any coefficient in `_coeffs` and this goes red at the dock.
+    """
+    proj = _dreame_affine(_CAL_ROBIN)
+    assert proj is not None
+    # The three fitted points come back exactly...
+    for vx, vy in ((0, 0), (1000, 0), (0, 1000)):
+        px, py = proj(vx, vy)
+        assert px == pytest.approx(_px(vx)) and py == pytest.approx(_py(vy))
+    # ...and so does a point the fit never saw: robin's dock at {-553, 132}.
+    px, py = proj(-553, 132)
+    assert px == pytest.approx(637.76) and py == pytest.approx(834.44)
+
+
+def test_msr4b_dreame_affine_refuses_fewer_than_three_pairs():
+    """[MSR-4b] two pairs cannot define an affine. ABLATION: drop the len() guard and
+    this raises IndexError instead of returning None, so the caller sees a crash rather
+    than `no_calibration`."""
+    assert _dreame_affine(_CAL_ROBIN[:2]) is None
+    assert _dreame_affine([]) is None
+    assert _dreame_affine(None) is None
+
+
+def test_msr4c_dreame_affine_refuses_collinear_points():
+    """[MSR-4c] three points on a line are a singular system — the determinant vanishes
+    and the 'solution' would be arbitrary.
+
+    ABLATION: remove the `abs(det) < 1e-9` guard and this raises ZeroDivisionError.
+    Shipping that means a degenerate calibration frame crashes a map refresh instead of
+    degrading to `no_calibration`.
+    """
+    assert _dreame_affine(_cal((0, 0), (1000, 1000), (2000, 2000))) is None
+
+
+def test_msr4d_dreame_affine_refuses_malformed_pairs():
+    """[MSR-4d] the attribute comes off a device; it is not trusted to be well-formed.
+    Four shapes, each hitting a different exception in the same guard."""
+    assert _dreame_affine([{"vacuum": {"x": 0, "y": 0}}] * 3) is None          # KeyError
+    assert _dreame_affine([{"vacuum": {"x": "a", "y": 0}, "map": {"x": 1, "y": 1}}] * 3) is None
+    assert _dreame_affine([None, None, None]) is None                          # TypeError
+    assert _dreame_affine("not a list") is None
+
+
+def test_msr4e_camera_candidates_without_an_image_entity():
+    """[MSR-4e] no declared image entity -> a named reason, not an exception."""
+    out = dreame_camera_candidates(_FakeHass(), {}, image_entity_id=None)
+    assert out["present"] is False and out["reason"] == "no_image_entity"
+    assert out["diagnostics"]["image_entity_id"] is None
+
+
+def test_msr4f_camera_candidates_when_the_entity_has_no_state():
+    """[MSR-4f] the entity is declared but absent from the state machine (not yet set up,
+    or removed). ABLATION: drop the `attrs is None` branch and this raises AttributeError
+    inside a map refresh."""
+    out = dreame_camera_candidates(_FakeHass(), {}, image_entity_id="camera.robin_map")
+    assert out["present"] is False and out["reason"] == "live_map_absent"
+    assert out["diagnostics"]["read"] == "image_entity_absent"
+
+
+def test_msr4g_camera_candidates_reads_the_live_map_when_it_carries_rooms():
+    """[MSR-4g] the straightforward path, and the diagnostics breadcrumb that names it."""
+    hass = _FakeHass({"camera.robin_map": _FakeState({
+        "rooms": {"3": _ROOM_REAL},
+        "calibration_points": _CAL_ROBIN,
+        "vacuum_position": {"x": 100, "y": 200, "a": 90},
+        "charger_position": {"x": -553, "y": 132, "a": 0},
+    })})
+    out = dreame_camera_candidates(hass, {"map_pixel_size": [936, 992]},
+                                   image_entity_id="camera.robin_map")
+    assert out["present"] is True
+    assert out["diagnostics"]["read"] == "live_map_rooms"
+    assert out["rooms_raw"] == {"3": _ROOM_REAL}
+    assert out["pixel_size"] == [936, 992]
+
+
+def test_msr4h_camera_candidates_falls_back_to_the_saved_map_for_geometry():
+    """[MSR-4h] THE REASON THIS FALLBACK EXISTS, and the subtle half of it.
+
+    `as_dict()` carries room GEOMETRY only for a saved/restored map; the live current-map
+    camera omits `rooms`. So geometry comes from `<entity>_1` -- but the ROBOT POSITION
+    must still come from the LIVE entity, because the saved map's copy is wherever the
+    robot was when that map was stored. The merge is deliberately one key wide.
+
+    ABLATION: drop the `vacuum_position` filter from the merge (take `saved` wholesale)
+    and this goes red with the stale position — the robot puck would be drawn at a
+    position from another session.
+    """
+    hass = _FakeHass({
+        "camera.robin_map": _FakeState({
+            "rooms": None,                                   # live map: no geometry
+            "calibration_points": _CAL_ROBIN,
+            "vacuum_position": {"x": 100, "y": 200, "a": 90},    # LIVE, current
+            "charger_position": {"x": -553, "y": 132, "a": 0},
+        }),
+        "camera.robin_map_1": _FakeState({
+            "rooms": {"3": _ROOM_REAL},                      # saved map: geometry
+            "calibration_points": _CAL_ROBIN,
+            "vacuum_position": {"x": -9999, "y": -9999, "a": 0},  # STALE, from storage
+            "charger_position": {"x": -553, "y": 132, "a": 0},
+        }),
+    })
+    out = dreame_camera_candidates(hass, {}, image_entity_id="camera.robin_map")
+    assert out["present"] is True
+    assert out["diagnostics"]["read"] == "saved_map_rooms"
+    assert out["rooms_raw"] == {"3": _ROOM_REAL}
+    assert out["robot"] == {"x": 100, "y": 200, "a": 90}, (
+        "the robot position must come from the LIVE camera, never the saved map's copy"
+    )
+
+
+def test_msr4i_result_absent_when_the_gate_is_closed():
+    """[MSR-4i] the presence gate wins over anything the candidates carry, and the
+    diagnostics breadcrumb survives into the absent marker so the log still says where
+    the read landed."""
+    cand = {"present": True, "reason": "whatever", "diagnostics": {"read": "live_map_rooms"}}
+    out = dreame_result_from_candidates(cand, present=False)
+    assert out["present"] is False
+    assert out["diagnostics"] == {"read": "live_map_rooms"}
+
+
+def test_msr4j_result_without_calibration_says_so():
+    """[MSR-4j] a map with geometry but no usable calibration cannot be projected, and the
+    reason has to distinguish that from an absent map — they need different fixes."""
+    out = dreame_result_from_candidates(
+        {"present": True, "rooms_raw": {"3": _ROOM_REAL}, "calibration": None,
+         "diagnostics": {}},
+        present=True,
+    )
+    assert out["present"] is False and out["reason"] == "no_calibration"
+
+
+def test_msr4k_result_projects_a_real_room_end_to_end():
+    """[MSR-4k] ONE REAL ARTIFACT, end to end — the test the per-field ones cannot replace.
+
+    Real calibration, a real room record with all its extra fields, real dock and robot
+    positions. Every number below is derived from robin's transform by hand, so a change
+    to the projection, the normalisation, the bbox sort or the metre conversion moves one
+    of them.
+
+    `map_pixel_size` is declared here. PRODUCTION DOES NOT DECLARE IT (the Dreame adapter
+    sets it None on purpose — "the MapData path uses dimensions.grid_size"), so the
+    normalised branch is the one a future tuning pass would switch on. [MSR-4m] covers the
+    path production actually takes.
+    """
+    cand = {
+        "present": True,
+        "calibration": _CAL_ROBIN,
+        "rooms_raw": {"3": _ROOM_REAL},
+        "robot": {"x": 100, "y": 200, "a": 90},
+        "dock": {"x": -553, "y": 132, "a": 0},
+        "pixel_size": [936, 992],
+        "diagnostics": {"read": "live_map_rooms"},
+    }
+    out = dreame_result_from_candidates(cand, present=True)
+
+    assert out["present"] is True and out["backend"] == "camera_attrs"
+    (room,) = out["rooms"]
+    assert room["number"] == 3 and room["name"] == "Kitchen"
+    assert room["approximate"] is True
+    # 2000 vacuum units across and 2000 up -> 2.0 m each way.
+    assert room["width_m"] == 2.0 and room["height_m"] == 2.0
+    # corners (602,885) and (762,725) in pixels, normalised by 936x992 and sorted.
+    assert room["bbox"] == pytest.approx(
+        [602 / 936, 725 / 992, 762 / 936, 885 / 992], abs=1e-9
+    )
+    assert out["robot_anchor"] == pytest.approx([690 / 936, 829 / 992], abs=1e-9)
+    assert out["dock_anchor"] == pytest.approx([637.76 / 936, 834.44 / 992], abs=1e-9)
+    assert out["calibration_points"] == _CAL_ROBIN
+    assert out["diagnostics"] == {"read": "live_map_rooms"}
+
+
+def test_msr4l_a_docked_robot_publishes_no_robot_anchor():
+    """[MSR-4l] `a == 32767` is Dreame's docked/unknown sentinel. Projecting it would put
+    the puck at a real-looking position derived from a non-position.
+
+    ABLATION: remove the sentinel check and this goes red with a robot_anchor present.
+    The dock anchor must still be emitted — the robot being docked says nothing about
+    where the dock is.
+    """
+    cand = {
+        "present": True, "calibration": _CAL_ROBIN, "rooms_raw": {"3": _ROOM_REAL},
+        "robot": {"x": 100, "y": 200, "a": 32767},
+        "dock": {"x": -553, "y": 132, "a": 0},
+        "pixel_size": [936, 992], "diagnostics": {},
+    }
+    out = dreame_result_from_candidates(cand, present=True)
+    assert "robot_anchor" not in out
+    assert "dock_anchor" in out
+
+
+def test_msr4m_without_a_declared_pixel_size_the_frame_stays_in_pixels():
+    """[MSR-4m] THE PATH PRODUCTION TAKES. The Dreame adapter declares
+    `map_pixel_size: None`, so `_norm` returns raw pixel coordinates rather than 0..1.
+
+    That is deliberate and documented at the declaration, not an oversight — but it means
+    consumers of this fallback see a different coordinate frame than the MapData path, and
+    nothing else states it. Pinning it here so a future change to the default is a
+    decision with a red test rather than a silent reframing.
+    """
+    cand = {
+        "present": True, "calibration": _CAL_ROBIN, "rooms_raw": {"3": _ROOM_REAL},
+        "robot": None, "dock": {"x": -553, "y": 132, "a": 0},
+        "pixel_size": None, "diagnostics": {},
+    }
+    out = dreame_result_from_candidates(cand, present=True)
+    (room,) = out["rooms"]
+    assert room["bbox"] == pytest.approx([602.0, 725.0, 762.0, 885.0], abs=1e-9), (
+        "unnormalised pixel frame, not 0..1 — see the adapter's map_pixel_size comment"
+    )
+    assert out["dock_anchor"] == pytest.approx([637.76, 834.44], abs=1e-9)
+
+
+def test_msr4n_malformed_rooms_are_skipped_not_fatal():
+    """[MSR-4n] four shapes the device can publish, none of which may take down a refresh.
+
+    A room missing one bbox edge, a non-dict entry, and a LIST of rooms rather than a dict
+    (the `enumerate` branch — which also supplies the room number when `room_id` is
+    absent). The good room still comes through, which is the real assertion: one bad
+    record must not cost the others.
+
+    MEASURED, because the obvious claim was wrong. Removing the
+    `if None in (x0, y0, x1, y1): continue` guard does NOT redden this test: that guard is
+    REDUNDANT. A None edge reaches `_norm`, `float(None)` raises TypeError, the except
+    returns None, and `if not c0 or not c1: continue` drops the room anyway. So this
+    asserts the OUTCOME -- a malformed room is skipped and the others survive -- while the
+    guard that actually delivers it is `_norm`'s except, pinned by [MSR-4p]. Do not read
+    the bbox-edge check as load-bearing; an ablation says it is belt-and-braces.
+    """
+    cand = {
+        "present": True, "calibration": _CAL_ROBIN, "pixel_size": None,
+        "robot": None, "dock": None, "diagnostics": {},
+        "rooms_raw": {
+            "1": {"x0": 0, "y0": 0, "x1": None, "y1": 10},   # missing an edge
+            "2": "not a dict",
+            "3": _ROOM_REAL,
+        },
+    }
+    out = dreame_result_from_candidates(cand, present=True)
+    assert [r["number"] for r in out["rooms"]] == [3]
+
+    # The list form: no room_id, so the index supplies the number and the name.
+    listed = dict(cand, rooms_raw=[{"x0": -1000, "y0": -500, "x1": 1000, "y1": 1500}])
+    out2 = dreame_result_from_candidates(listed, present=True)
+    (room,) = out2["rooms"]
+    assert room["number"] == 0 and room["name"] == "Room 0"
+
+
+def test_msr4o_geometry_present_but_no_projectable_rooms_is_absent():
+    """[MSR-4o] `build_map_source_result` treats an empty room list as NOT present, even
+    with present=True — a map whose every room failed to project is not a usable map, and
+    a consumer must hide rather than render an empty floor plan.
+
+    ABLATION: this is the contract of the shared builder; it goes red if the fallback
+    starts returning present=True with rooms=[].
+    """
+    cand = {
+        "present": True, "calibration": _CAL_ROBIN, "pixel_size": None,
+        "robot": None, "dock": None, "diagnostics": {"read": "live_map_rooms"},
+        "rooms_raw": {"1": {"x0": None, "y0": None, "x1": None, "y1": None}},
+    }
+    out = dreame_result_from_candidates(cand, present=True)
+    assert out["present"] is False
+    assert out["reason"] == "no_segmentation"
+
+
+def test_msr4p_non_numeric_coordinates_are_skipped_everywhere():
+    """[MSR-4p] the device publishes strings sometimes; none of them may crash a refresh.
+
+    One input exercises three guards at once, because they share `_norm`: a room corner
+    that will not float (the `except (TypeError, ValueError)` inside `_norm`), the
+    `continue` that drops a room whose corner did not project, and both `if p:` edges
+    that suppress an anchor rather than emit a None into the payload.
+
+    ABLATION: remove the except in `_norm` and this raises ValueError out of a map
+    refresh. Remove either `if p:` and the payload carries `robot_anchor: None`, which a
+    renderer would read as a position.
+    """
+    cand = {
+        "present": True, "calibration": _CAL_ROBIN, "pixel_size": None,
+        "diagnostics": {},
+        "rooms_raw": {
+            "1": {"x0": "abc", "y0": 0, "x1": 100, "y1": 100},   # corner will not float
+            "3": _ROOM_REAL,                                      # the good one survives
+        },
+        "robot": {"x": "nope", "y": 0, "a": 0},
+        "dock": {"x": None, "y": None, "a": 0},
+    }
+    out = dreame_result_from_candidates(cand, present=True)
+    assert [r["number"] for r in out["rooms"]] == [3], "one bad room must not cost the others"
+    assert "robot_anchor" not in out, "an unprojectable robot emits no anchor, not a null one"
+    assert "dock_anchor" not in out
+
+
+def test_msr4q_a_saved_map_without_rooms_is_not_mistaken_for_geometry():
+    """[MSR-4q] the `_1` entity exists but carries no rooms either — a saved map that was
+    never segmented. The fallback must leave the breadcrumb unset rather than claim
+    `saved_map_rooms`, and must NOT merge that entity's stale positions in.
+
+    ABLATION: drop the `saved.get("rooms")` half of the condition and this goes red —
+    `read` becomes "saved_map_rooms" over no geometry at all, and the stale robot
+    position replaces the live one.
+    """
+    hass = _FakeHass({
+        "camera.robin_map": _FakeState({
+            "rooms": None,
+            "calibration_points": _CAL_ROBIN,
+            "vacuum_position": {"x": 100, "y": 200, "a": 90},
+        }),
+        "camera.robin_map_1": _FakeState({
+            "rooms": None,                                    # saved map: also none
+            "vacuum_position": {"x": -9999, "y": -9999, "a": 0},
+        }),
+    })
+    out = dreame_camera_candidates(hass, {}, image_entity_id="camera.robin_map")
+    assert out["present"] is True
+    assert out["diagnostics"]["read"] is None, "no geometry was found, so claim none"
+    assert not out["rooms_raw"]
+    assert out["robot"] == {"x": 100, "y": 200, "a": 90}, "live position, untouched"
+
+    # And the downstream consequence: no rooms -> not present, with a named reason.
+    res = dreame_result_from_candidates(out, present=True)
+    assert res["present"] is False and res["reason"] == "no_segmentation"

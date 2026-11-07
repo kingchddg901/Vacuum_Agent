@@ -355,3 +355,35 @@ modules' bullets below still track close to what they described:
    `async_register_mapping_services` with a real hass + `tmp_path` config dir.
 4. Re-measure across **all** mapping test files together for the true per-module
    number.
+
+### [MSR-4] The Dreame camera-attribute fallback
+
+`map_source_coordinator` falls back to `dreame_camera_candidates` +
+`dreame_result_from_candidates` whenever the MapData read does not yield a present
+result. That is live code on every Dreame install whose decoded map is unavailable, and
+it shipped with **82 statements and zero tests** -- the largest single block of untested
+live behaviour the coverage audit found.
+
+**Fixtures derive from the real producer.** `robin`'s own transform, from the 2026-08-09
+field report: `px = 682 + x*0.08`, `py = 845 - y*0.08`, image 936x992, dock verified at
+vacuum `{-553, 132}`. The affine test fits three calibration pairs and then checks a
+FOURTH point -- the dock -- so a Cramer coefficient that is off by a term is caught by a
+position the fit never saw. An invented affine would have encoded an assumption about the
+frame instead of the device's.
+
+Two things the tests pin that nothing else states:
+
+- **The saved-map merge is one key wide.** Room geometry comes from `<entity>_1` because
+  the live camera omits `rooms`, but `vacuum_position` must still come from the LIVE
+  entity -- the saved map's copy is wherever the robot was when that map was stored.
+  Merging `saved` wholesale draws the robot at a position from another session.
+- **Production runs the unnormalised branch.** The Dreame adapter declares
+  `map_pixel_size: None` on purpose, so this fallback returns RAW PIXEL coordinates, not
+  0..1. That is deliberate and documented at the declaration, but it means this backend
+  reports a different frame than the MapData path. `[MSR-4m]` pins it so a future change
+  to the default is a decision with a red test rather than a silent reframing.
+
+**Ablated:** nine substitutions across the three functions; eight redden exactly their own
+test. The ninth is reported rather than hidden -- removing the `None in (x0,y0,x1,y1)`
+bbox guard reddens nothing, because `_norm`'s `except (TypeError, ValueError)` already
+drops the room. That guard is redundant, and `[MSR-4n]`'s docstring says so.
