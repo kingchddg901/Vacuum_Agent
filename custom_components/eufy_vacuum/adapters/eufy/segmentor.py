@@ -68,14 +68,10 @@ from ...mapping.segment_primitives import (
     _NDIMAGE,
     image_runtime_capabilities,
     bbox_from_stats as _bbox_from_stats,
-    rdp as _rdp,
-    polygon_area as _polygon_area,
-    normalize_polygon as _normalize_polygon,
     mask_to_polygon as _mask_to_polygon,
     mask_perimeter as _mask_perimeter,
     compactness as _compactness,
     aspect_ratio as _aspect_ratio,
-    mask_iou as _mask_iou,
     agreement_score as _agreement_score,
     component_overlap_ratio as _component_overlap_ratio,
     mask_left_right_counts as _mask_left_right_counts,
@@ -190,7 +186,6 @@ def _reclaim_localized_child_mask(
         return local_mask
 
     height, width = local_mask.shape
-    top = int(ys.min())
     bottom = int(ys.max())
     if bottom >= height - 2:
         return local_mask
@@ -300,7 +295,6 @@ def _split_component_via_erosion(component_mask: Any, min_area_pixels: int) -> l
         if seed_count < 2:
             continue
 
-        slices = _NDIMAGE.find_objects(seeds)
         grown_masks: list[Any] = []
         for label_index in range(1, seed_count + 1):
             seed_mask = seeds == label_index
@@ -1220,7 +1214,6 @@ def _detect_room_segments_pipeline(
             component_hsv = component_hsv_full[component_mask]
             mean_rgb = component_rgb.mean(axis=0) if len(component_rgb) else np.array([0.0, 0.0, 0.0])
             mean_saturation = float(component_hsv[:, 1].mean()) if len(component_hsv) else 0.0
-            mean_value = float(component_hsv[:, 2].mean()) if len(component_hsv) else 0.0
             color_bgr = [int(round(float(mean_rgb[2]))), int(round(float(mean_rgb[1]))), int(round(float(mean_rgb[0])))]
             component_global = np.zeros_like(room_mask, dtype=bool)
             component_global[y : y + h, x : x + w] = component_mask
@@ -1237,18 +1230,6 @@ def _detect_room_segments_pipeline(
                 issues.append("oversized_region")
             if compactness < 0.08 and area_percent < 0.02:
                 issues.append("fragmented_candidate")
-
-            keep_small, keep_reasons = _component_should_keep(
-                area=area,
-                area_percent=area_percent,
-                fill_ratio=fill_ratio,
-                compactness=compactness,
-                aspect_ratio=aspect_ratio,
-                agreement_score=agreement_score,
-                touches_border=touches_border,
-                min_area_pixels=int(max(min_area_pixels, 1)),
-                recovery_mode=False,
-            )
 
             suspicious_merge = (
                 area >= max(int(min_area_pixels * 4), 5200)
