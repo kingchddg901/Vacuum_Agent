@@ -298,6 +298,35 @@ covers the capture-open path. `EXTERNAL_FINALIZE_GRACE_S` /
 `EXTERNAL_GRACE_MAX_RECHECKS` (`constants.py`) size the grace window and its
 recheck cap.
 
+**The review-wizard server side**, same file: `CXR-*` (confirm), `DXR-*`
+(discard), `RXR-*` (re-segment), `GEP-*` (list pending), `ERO-*` (return
+overhead), and `PJI-*` for the `pending_job_id` validator all three share.
+
+`PJI-1` is the one to read first. The card echoes `pending_job_id` back on
+confirm / discard / re-segment, each of which interpolates it into a filesystem
+path before unlinking or rewriting — and `pathlib` does not normalise `..`, so
+`_is_valid_pending_job_id` is what stops an authenticated caller turning that
+into a delete/write primitive over an arbitrary `.json` path. It is parametrised
+over six malformed shapes against all three handlers.
+
+> **Its assertion is a surviving SENTINEL file, not the return value, and that
+> distinction is load-bearing.** A valid-but-missing id already returns
+> `{'ok': False, 'error': 'pending_not_found'}` from re-segment's own `except`
+> arm, byte-identical to the guard's refusal — so a test checking only the dict
+> stays green with the guard deleted. The sentinel in turn only works because the
+> helper creates `external_jobs/` first: the OS resolves path components left to
+> right, so with that directory absent the traversal fails on ENOENT before `..`
+> can cancel, and the assertion rides on a path that cannot resolve. Measured:
+> without the `mkdir`, deleting re-segment's guard reddened nothing.
+
+The rest close the error arms the happy-path tests leave open: a failed unlink
+reported rather than swallowed (`DXR-2`), the two best-effort swallows **after**
+graduation that must not fail an already-written job — the pending cleanup
+(`CXR-5`) and the stats rebuild (`CXR-6`) — a present `room_stats.json` whose
+baselines reach the re-segmenter (`RXR-5`, against `RXR-3`'s absent-file
+fallback), and a non-cleaning span with equal endpoints skipped instead of booked
+as a 0 s return trip (`ERO-3`).
+
 ### `zone_learning.py` — saved-zone TIME learning (pure, `ZL-1..ZL-10`)
 A deliberately tiny parallel to room learning: a saved zone has a stable
 `zone_id`, a deterministic (never-learned) area, and cleans in one

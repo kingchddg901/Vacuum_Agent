@@ -52,6 +52,25 @@ Coverage targets
          adapter's brand label.
 [GEP-2]  get_external_pending_runs: a vacuum with no external_jobs dir → count 0,
          pending [] and brand None (no crash, no adapter).
+[PJI-1]  the UNTRUSTED pending_job_id is rejected by all three handlers that
+         interpolate it into a path (confirm / discard / re-segment). Proven by a
+         SENTINEL file surviving, not by the return value: a valid-but-missing id
+         returns the same pending_not_found, so the dict alone cannot tell a guard
+         refusal from an absent record.
+[PJI-2]  the control -- a valid id still reaches the handler, so the guard is not
+         refusing everything (without this, PJI-1 passes on a blanket reject).
+[DXR-2]  discard: an unlink that raises OSError (a lock/permission error, not a
+         missing file) surfaces {'ok': False, 'error': str(err)} rather than
+         claiming success.
+[CXR-5]  confirm: the job is ALREADY graduated when the pending unlink runs, so an
+         OSError there must not fail the confirm -- ok stays True and the orphaned
+         pending file is the only trace.
+[CXR-6]  confirm: rebuild_stats=True with a rebuilder that RAISES still returns
+         ok True / rebuilt False. CXR-2b covers the success half of that branch.
+[RXR-5]  re-segment: a room_stats.json that IS present passes its room_baselines
+         through to resegment_pending_record. RXR-3 covers the absent-file except.
+[ERO-3]  return overhead: a non-cleaning span whose two timestamps are EQUAL is a
+         zero-length interval and is skipped, not booked as a 0 s row.
 """
 
 from __future__ import annotations
@@ -900,3 +919,259 @@ async def test_external_finalize_carries_the_error_latch_and_commits_it(manager,
         unsub()
         hass.data.get(DOMAIN, {}).pop(DATA_ERROR_TRACKER, None)
         unregister_adapter_config(_VAC)
+
+
+# ---------------------------------------------------------------------------
+# Gaps closed from the 2026-11-07 coverage classification. Its own reasoning named
+# the priority: "the traversal guard and the active_segments coercion are real
+# behaviours that currently have no regression test." The guard is a delete/write
+# primitive over arbitrary .json paths, so it goes first.
+# ---------------------------------------------------------------------------
+
+_MALFORMED_PENDING_IDS = [
+    "../victim",         # the traversal itself: <root>/external_jobs/../victim.json
+    "job_../victim",     # right prefix, but a separator still escapes
+    "job_x/../victim",   # separator mid-id
+    "",                  # empty
+    "job_",              # prefix with nothing after it
+    "notjob_1",          # plausible shape, wrong prefix
+]
+
+
+def _sentinel(manager, vacuum_entity_id: str):
+    """A file one level ABOVE external_jobs/, exactly where "../victim" lands.
+
+    `pathlib` does not normalise "..", so `root / "external_jobs" / "../victim.json"`
+    is `root/victim.json` once the OS resolves it. If the guard is gone, discard
+    unlinks this file and confirm/re-segment read it.
+
+    ⚠ `external_jobs/` MUST EXIST for that to be true, and this helper creates it for
+    exactly that reason. The OS resolves path components left to right, so with the
+    directory absent the open/unlink fails on ENOENT at the missing component before
+    ".." can cancel it — the traversal is unreachable and the sentinel can never be
+    touched. Measured: without the mkdir, deleting re-segment's guard reddened
+    NOTHING, because its assertion was riding on a path that could not resolve.
+    """
+    store = LearningHistoryStore(manager.hass)
+    root = store.get_paths(vacuum_entity_id=vacuum_entity_id).root
+    _external_jobs_dir(manager, vacuum_entity_id)  # the traversal's first component
+    victim = root / "victim.json"
+    victim.write_text(json.dumps({"keep": "me"}), encoding="utf-8")
+    return victim
+
+
+@pytest.mark.parametrize("bad_id", _MALFORMED_PENDING_IDS, ids=[
+    "traversal", "prefixed_traversal", "mid_id_separator", "empty", "bare_prefix", "wrong_prefix",
+])
+def test_malformed_pending_job_id_refused_by_all_three_handlers(manager, bad_id):
+    """[PJI-1] the id the card echoes back is untrusted on all three paths.
+
+    THE RETURN VALUE IS NOT SUFFICIENT PROOF and that is why the sentinel is here.
+    A valid-but-missing id already returns {'ok': False, 'error': 'pending_not_found'}
+    from re-segment's own except arm, byte-identical to the guard's refusal — so a
+    test asserting only the dict would stay green with the guard deleted. The
+    surviving file is the assertion that actually distinguishes them.
+
+    confirm is the one case the dict DOES discriminate: the guard returns two keys,
+    while the file-missing path adds `pending_job_id`. Both are asserted.
+    """
+    victim = _sentinel(manager, _VAC)
+
+    confirmed = manager.confirm_external_run(
+        _VAC, _MAP, bad_id, room_assignments=[], rooms={}, rebuild_stats=False,
+    )
+    assert confirmed == {"ok": False, "error": "pending_not_found"}, (
+        "the guard refuses with exactly two keys; the file-missing path at the open() "
+        "below it adds pending_job_id, so this dict says the guard fired"
+    )
+
+    discarded = manager.discard_external_run(_VAC, bad_id)
+    assert discarded == {"ok": False, "error": "pending_not_found"}
+
+    resegmented = manager.resegment_external_run(
+        _VAC, _MAP, bad_id, expected_rooms=2, active_boundaries=None, rooms={},
+    )
+    assert resegmented == {"ok": False, "error": "pending_not_found"}
+
+    assert victim.exists(), (
+        f"pending_job_id {bad_id!r} reached the filesystem - the guard is the only "
+        "thing standing between an authenticated caller and an unlink/rewrite of an "
+        "arbitrary .json path"
+    )
+    assert json.loads(victim.read_text(encoding="utf-8")) == {"keep": "me"}
+
+
+def test_a_valid_pending_job_id_still_reaches_the_handler(manager):
+    """[PJI-2] the control, and the reason PJI-1 means anything.
+
+    A guard that refused every id would pass all six cases above. This asserts the
+    accepting half: a well-formed id with a real record on disk is processed.
+    """
+    ext_dir = _external_jobs_dir(manager, _VAC)
+    pending = ext_dir / "job_pji2.json"
+    pending.write_text(json.dumps({"pending_job_id": "job_pji2"}), encoding="utf-8")
+
+    result = manager.discard_external_run(_VAC, "job_pji2")
+
+    assert result == {"ok": True, "pending_job_id": "job_pji2"}
+    assert not pending.exists()
+
+
+def test_discard_surfaces_an_unlink_oserror(manager, monkeypatch):
+    """[DXR-2] a failed delete must not report success.
+
+    DXR-1 covers the missing_ok case (a double-click is fine). This is the other
+    error class: the file is there and cannot be removed — a lock or a permission
+    problem — where claiming ok would leave the card showing a record the user
+    believes they discarded.
+    """
+    ext_dir = _external_jobs_dir(manager, _VAC)
+    pending = ext_dir / "job_dxr2.json"
+    pending.write_text(json.dumps({"pending_job_id": "job_dxr2"}), encoding="utf-8")
+
+    real_unlink = Path.unlink
+
+    def _refuse(self, *args, **kwargs):
+        if self.name == "job_dxr2.json":
+            raise PermissionError("locked by another process")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", _refuse)
+
+    result = manager.discard_external_run(_VAC, "job_dxr2")
+
+    assert result["ok"] is False
+    assert "locked by another process" in result["error"]
+    assert pending.exists(), "the record is still there, which is what the error reports"
+
+
+def test_confirm_tolerates_a_failed_pending_unlink(manager, monkeypatch):
+    """[CXR-5] the graduation already happened; the cleanup must not undo it.
+
+    save_completed_job runs BEFORE the pending unlink, so by the time the unlink can
+    fail the job is written and learning has it. Failing the confirm here would tell
+    the user the run was not graduated when it was, and a retry would be refused for
+    a job that already exists.
+    """
+    pending_id = "job_cxr5_unlink_fails"
+    _write_pending(manager, _VAC, pending_id)
+    store = LearningHistoryStore(manager.hass)
+    paths = store.get_paths(vacuum_entity_id=_VAC)
+    pending_path = paths.root / "external_jobs" / f"{pending_id}.json"
+
+    real_unlink = Path.unlink
+
+    def _refuse(self, *args, **kwargs):
+        if self.name == f"{pending_id}.json":
+            raise PermissionError("pending file is locked")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", _refuse)
+
+    result = manager.confirm_external_run(
+        _VAC, _MAP, pending_id,
+        room_assignments=[{"segment_orders": [0], "room_id": 1, "override": True}],
+        rooms=_CONFIRM_ROOMS,
+        rebuild_stats=False,
+    )
+
+    assert result["ok"] is True, "a cleanup failure must not fail an already-graduated run"
+    assert result["job_id"] == f"ext-{pending_id}"
+    job_path = paths.jobs_dir / f"{result['job_id']}.json"
+    assert job_path.exists(), "the graduated record is on disk"
+    assert pending_path.exists(), "the orphaned pending file is the only trace of the failure"
+
+
+def test_confirm_survives_a_raising_stats_rebuild(manager, monkeypatch):
+    """[CXR-6] the rebuild is best-effort, and the code says so.
+
+    CXR-2b drives the success half of this branch. Here rebuild_all raises: the job
+    is already graduated and the pending file already removed, so the confirm reports
+    ok with rebuilt False and the user is told to rerun the rebuild service rather
+    than being told the confirm failed.
+    """
+    import custom_components.eufy_vacuum.learning.stats_rebuilder as _sr
+
+    pending_id = "job_cxr6_rebuild_raises"
+    _write_pending(manager, _VAC, pending_id)
+
+    def _boom(self, **kwargs):
+        raise RuntimeError("aggregate rebuild blew up")
+
+    monkeypatch.setattr(_sr.LearningStatsRebuilder, "rebuild_all", _boom)
+
+    result = manager.confirm_external_run(
+        _VAC, _MAP, pending_id,
+        room_assignments=[{"segment_orders": [0], "room_id": 1, "override": True}],
+        rooms=_CONFIRM_ROOMS,
+        rebuild_stats=True,
+    )
+
+    assert result["ok"] is True, "the graduation stands even though the rebuild failed"
+    assert result["rebuilt"] is False
+    assert result["job_id"] == f"ext-{pending_id}"
+
+
+def test_resegment_passes_through_present_room_baselines(manager, monkeypatch):
+    """[RXR-5] the half of the baseline read RXR-3 cannot reach.
+
+    RXR-3 deletes room_stats.json so the except arm fires and baselines fall back to
+    []. This seeds the file instead and spies on the real
+    resegment_pending_record to assert the bands actually arrive — hardcoding
+    baselines=[] would leave RXR-3 green and only this red.
+    """
+    import custom_components.eufy_vacuum.learning.external_ingest as _ingest
+
+    pending_id = "job_rxr5_baselines"
+    rec = _write_pending(manager, _VAC, pending_id)
+    _write_room_band(manager, _VAC, slug="kitchen", avg_area_m2=12.5)
+
+    seen = {}
+    real = _ingest.resegment_pending_record
+
+    def _spy(**kwargs):
+        seen["baselines"] = kwargs.get("baselines")
+        return real(**kwargs)
+
+    monkeypatch.setattr(_ingest, "resegment_pending_record", _spy)
+
+    result = manager.resegment_external_run(
+        _VAC, _MAP, pending_id,
+        expected_rooms=rec["segment_count"], active_boundaries=None, rooms={},
+    )
+
+    assert result["ok"] is True
+    assert seen["baselines"], "the present room_stats.json must reach the re-segmenter"
+    assert [b["room_slug"] for b in seen["baselines"]] == ["kitchen"]
+    assert seen["baselines"][0]["avg_area_m2"] == 12.5
+
+
+async def test_return_overhead_skips_a_zero_length_span(manager, monkeypatch):
+    """[ERO-3] a non-cleaning span with equal endpoints is not an interval.
+
+    Recorder rows can share a `last_changed` — two state writes inside the same
+    instant. ERO-2 books a real 60 s dock; this asserts the degenerate case is
+    dropped rather than surfaced as a 0 s return-interval row, which would show the
+    user a return trip that never happened and add a zero divisor downstream.
+    """
+    t0 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    rows = [
+        _FakeState("cleaning", t0),
+        _FakeState("docked", t0 + timedelta(seconds=60)),
+        _FakeState("cleaning", t0 + timedelta(seconds=60)),   # same instant → zero length
+    ]
+
+    def _fake_state_changes(hass, start, end, entity_id):
+        assert entity_id == _VAC
+        return {_VAC: rows}
+
+    monkeypatch.setattr(_recorder, "get_instance", lambda hass: _InlineRecorder())
+    monkeypatch.setattr(_history, "state_changes_during_period", _fake_state_changes)
+
+    out = await manager._extract_return_overhead(
+        _VAC, t0.isoformat(), (t0 + timedelta(seconds=60)).isoformat(),
+    )
+
+    assert out == {"return_overhead_s": 0, "return_intervals": []}, (
+        "a zero-length docked span is not a return trip"
+    )
