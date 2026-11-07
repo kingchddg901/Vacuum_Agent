@@ -46,6 +46,7 @@ from custom_components.eufy_vacuum.mapping.map_source import (
     render_data_from_storage,
     resolve_overlay_visibility,
     rooms_from_room_pixels,
+    _CATCH_ALL_RID,
     _decimate_step,
 )
 
@@ -537,3 +538,53 @@ def test_render_data_from_storage():
     assert render_data_from_storage(md)["version"] == rd["version"]
     # no segmentation -> None (caller treats as absent)
     assert render_data_from_storage({"width": 10, "height": 10}) is None
+
+
+
+def test_rooms_from_room_pixels_emits_only_real_rids():
+    """[MS-21] the rid gate, pinned because other code's DEAD verdicts rest on it.
+
+    `rooms_from_room_pixels` admits a cell only through
+    `if not (0 < rid < _CATCH_ALL_RID): continue`, and emits that same rid as
+    `number`. Two consequences downstream depend on it, both in
+    learning/external_run.py::_room_footprints:
+
+      * its `rid > 0` guard can never be false, so that conjunct is dead;
+      * its `int(r.get("number"))` can never raise, so the inner
+        `except (TypeError, ValueError)` is dead too.
+
+    Those are recorded as DEAD in [RFP-1]/[RFP-2]'s notes. A DEAD verdict is only as
+    good as the premise it rests on, and a premise with no test is a comment -- so
+    this is the test that makes widening the gate (or emitting a derived `number`)
+    redden something instead of silently making a documented-dead guard live again.
+
+    The raster deliberately contains every excluded class: byte 0 (rid 0, the
+    background, which is also what an untouched cell is), the catch-all rid itself,
+    and one above it.
+    """
+    md = {
+        "width": 10, "height": 10, "resolution": 5,
+        "room_outline_width": 10, "room_outline_height": 10,
+        "origin_x": 0, "origin_y": 0,
+        "room_names": {},
+        # rid 1 is large enough to be real; the rest must all be filtered out.
+        "room_pixels": _raster(10, 10, [
+            (1, 0, 4, 0, 9),                 # 50 cells -> a genuine room
+            (_CATCH_ALL_RID, 5, 6, 0, 9),    # the catch-all boundary itself
+            (_CATCH_ALL_RID + 1, 7, 7, 0, 9),  # above the catch-all
+            (0, 8, 9, 0, 9),                 # rid 0 -- background, explicit
+        ]),
+    }
+
+    rooms = rooms_from_room_pixels(md)
+    numbers = sorted(r["number"] for r in rooms)
+
+    assert numbers == [1], f"only rids in 1..{_CATCH_ALL_RID - 1} may be emitted; got {numbers}"
+    # The two properties the downstream DEAD verdicts actually depend on:
+    for r in rooms:
+        assert isinstance(r["number"], int) and r["number"] > 0, (
+            "a non-positive or non-int number would make external_run's rid guard live"
+        )
+        assert isinstance(r["area_m2"], float), (
+            "a non-float area would make external_run's float() able to raise"
+        )

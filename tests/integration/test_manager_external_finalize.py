@@ -100,6 +100,16 @@ Coverage targets
 [CXR-10]  confirm_external_run: a bare `null` / an empty object still graduates --
          SITE 2's `or {}` half, which CXR-8 (a null room_baselines) cannot reach.
          Completes the degenerate-payload matrix across all three read sites.
+[RFP-1]  _room_footprints: a real room_pixels raster becomes {room id -> m2}. The
+         whole loop was untested -- only the `if not map_data` early return had
+         ever run.
+[RFP-2]  _room_footprints: a room too small to round to a non-zero area is DROPPED
+         while a larger sibling survives -- the `area > 0` conjunct, and the only
+         way to take that guard's false arc.
+[RFP-3]  _room_footprints: an exploding map accessor is swallowed to {} rather than
+         costing the finalize its record.
+[EXT-FIN-7]  the footprints actually REACH build_pending_record through the grace
+         finalize -- RFP-1 proves the mapping, this proves the wiring.
 """
 
 from __future__ import annotations
@@ -107,6 +117,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -124,6 +135,7 @@ from custom_components.eufy_vacuum.const import EVENT_EXTERNAL_RUN_PENDING
 from custom_components.eufy_vacuum.learning.constants import EXTERNAL_FINALIZE_GRACE_S
 from custom_components.eufy_vacuum.learning.external_ingest import build_pending_record
 from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
+from custom_components.eufy_vacuum.mapping.map_source import mapdata_dict_from_obj
 
 from .conftest import setup_map
 
@@ -1721,3 +1733,202 @@ def test_confirm_survives_a_degenerate_room_stats_payload(manager, payload, labe
     )
     assert not result.get("blocked")
     assert (paths.jobs_dir / f"ext-{pending_id}.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# [RFP-1..3] + [EXT-FIN-7] -- _room_footprints, which had NO tests at all. A grep
+# for it across tests/ returned nothing; measurement agreed, with only the
+# `if not map_data: return {}` early return covered and lines 420-434 missed.
+#
+# The footprints are the cold-start size fingerprint for the external-run shortlist
+# ranker: before any room has a learned area, how big a segment is, is what
+# discriminates which room it was. So an empty footprint map is not a cosmetic loss
+# -- it is the ranker falling back to nothing on exactly the runs it exists for.
+#
+# WHY THE FIXTURE GOES THROUGH THE PRODUCTION ENCODER. `mapdata_dict_from_obj` is
+# what the live memory path runs (map_source_coordinator -> eufy_mapdata_from_
+# candidates -> mapdata_dict_from_obj), so building the map_data with it means the
+# key set and the base64 come from production code and agree with the live dict by
+# construction. A hand-written dict would encode my assumption instead.
+#
+# AND WHY NOT COPY THE EXISTING RASTER FIXTURE. test_map_source.py's MS-1 map_data
+# has two 3x3 rooms. Nine cells at resolution 5 is 9 * 0.0025 = 0.0225 m2, which
+# `_area_m2` rounds to 1dp -> 0.0, so BOTH rooms fail the consumer's `area > 0` and
+# _room_footprints returns {}. The loop would execute, the test would pass, and the
+# only output it ever proved is the same empty dict the old coverage already had.
+# Measured through the real producer: at resolution 5 a room needs 20 cells to be
+# visible at all (19 -> 0.0, 20 -> 0.1).
+#
+# TWO GUARDS HERE ARE DEAD, and the docstrings say so rather than pretending:
+#   * `rid > 0` (the other half of the same `and`) cannot be false. The producer
+#     admits a room only through `if not (0 < rid < _CATCH_ALL_RID): continue`
+#     (mapping/map_source.py), and emits that same rid as `number`. Pinned on the
+#     producer side by [MS-21] so widening that gate reddens something.
+#   * the inner `except (TypeError, ValueError): continue` cannot fire, for two
+#     independent reasons: `number` is always an int and `area_m2` always a float
+#     from round(), AND the producer call sits OUTSIDE that try, so even a producer
+#     raise lands in the outer except instead. Reaching it needs the producer
+#     replaced, not a map_data fixture -- so no fixture here is shaped to look as
+#     though it covers that arm.
+# ---------------------------------------------------------------------------
+
+_FP_W, _FP_H, _FP_RES = 20, 10, 5
+
+
+def _fp_raster(blocks, w: int = _FP_W, h: int = _FP_H) -> bytes:
+    """Byte-per-cell room raster. `blocks` are (rid, x0, x1, y0, y1), inclusive.
+
+    The producer reads `rid = room_px[idx] >> 2`, so a cell belonging to room `rid`
+    is the byte `rid << 2`. Same encoding as tests/unit/test_map_source.py::_raster,
+    kept as bytes here because mapdata_dict_from_obj does the base64 itself.
+    """
+    buf = bytearray(w * h)
+    for rid, x0, x1, y0, y1 in blocks:
+        for yy in range(y0, y1 + 1):
+            for xx in range(x0, x1 + 1):
+                buf[yy * w + xx] = rid << 2
+    return bytes(buf)
+
+
+def _fp_map_data(blocks, names: dict | None = None) -> dict:
+    """A map_data dict built BY THE PRODUCTION ENCODER from a raster."""
+    md = mapdata_dict_from_obj(SimpleNamespace(
+        room_pixels=_fp_raster(blocks),
+        width=_FP_W, height=_FP_H, resolution=_FP_RES,
+        origin_x=0, origin_y=0,
+        room_outline_width=_FP_W, room_outline_height=_FP_H,
+        room_outline_origin_x=0, room_outline_origin_y=0,
+        room_names=names or {},
+    ))
+    assert md is not None, (
+        "the encoder refused this object -- fix the fixture, do not feed None"
+    )
+    return md
+
+
+def _stub_map_data(manager, monkeypatch, md):
+    """Replace the awaited map accessor. MUST be async.
+
+    A plain lambda raises TypeError on the `await`, which the method's own bare
+    `except Exception` swallows into {} -- so the test would still pass while
+    proving nothing. Same shape as test_dispatch_zone_clean.py::_stub_map_dims.
+    """
+    async def _md(**_kw):
+        return md
+    monkeypatch.setattr(manager, "async_get_map_data_dict", _md, raising=False)
+
+
+async def test_room_footprints_maps_the_raster_to_areas(manager, monkeypatch):
+    """[RFP-1] the loop nothing had executed.
+
+    Two rooms of 40 and 80 cells at resolution 5 -> 0.1 and 0.2 m2. The values are
+    chosen so the room id and its area are NUMERICALLY DISTINCT (1 vs 0.1, 2 vs
+    0.2): with a one-cell-per-id fixture, `out[rid] = area` and `out[area] = rid`
+    would produce the same dict, and the assertion could not tell them apart.
+
+    The third block is rid 32, `_CATCH_ALL_RID`. It is in the raster and must NOT
+    appear in the result -- the producer filters it, so this also shows the consumer
+    receives a pre-filtered list rather than doing that work itself.
+    """
+    md = _fp_map_data(
+        [
+            (1, 0, 3, 0, 9),      # 4 x 10 = 40 cells -> 0.1 m2
+            (2, 5, 12, 0, 9),     # 8 x 10 = 80 cells -> 0.2 m2
+            (32, 15, 19, 0, 9),   # the catch-all rid, filtered by the producer
+        ],
+        {"1": "Kitchen", "2": "Office"},
+    )
+    _stub_map_data(manager, monkeypatch, md)
+
+    out = await manager.external_run._room_footprints(_VAC)
+
+    assert out == {1: 0.1, 2: 0.2}, (
+        f"the raster must map to device-room-id -> m2; got {out!r}"
+    )
+    assert all(isinstance(k, int) for k in out), "keys are device room ids, not slugs"
+    assert 32 not in out, "the catch-all rid must not reach the footprint map"
+
+
+async def test_room_footprints_drops_a_room_too_small_to_measure(manager, monkeypatch):
+    """[RFP-2] the `area > 0` conjunct -- the only reachable half of that guard.
+
+    `_area_m2` rounds to one decimal place, so at resolution 5 (0.0025 m2 per cell)
+    a room under 20 cells comes out as exactly 0.0. The producer still emits it --
+    it applies no minimum-pixel filter -- so the consumer's `area > 0` is what keeps
+    a one-cell speckle out of the footprint fingerprint, where it would claim a real
+    room is 0 m2 and poison the ranker.
+
+    The surviving sibling is the point: asserting `{}` alone would also pass if the
+    loop were skipped entirely, so this asserts the GOOD room is still there and the
+    sliver is the only thing missing.
+
+    The other half of the same `and`, `rid > 0`, cannot be falsified -- see the note
+    above and [MS-21].
+    """
+    md = _fp_map_data([
+        (1, 0, 3, 0, 9),    # 40 cells -> 0.1 m2, survives
+        (3, 19, 19, 9, 9),  # 1 cell   -> 0.0025 -> rounds to 0.0, dropped
+    ])
+    _stub_map_data(manager, monkeypatch, md)
+
+    out = await manager.external_run._room_footprints(_VAC)
+
+    assert out == {1: 0.1}, (
+        f"a sub-threshold room must be dropped, not recorded as 0 m2; got {out!r}"
+    )
+    assert 3 not in out
+
+
+async def test_room_footprints_swallows_a_failing_map_read(manager, monkeypatch):
+    """[RFP-3] the footprint hiccup must never cost the run its record.
+
+    This pins a SWALLOW, not a reachable behaviour, and that is worth stating: the
+    layer below (`async_get_map_data_dict`) wraps its own body and documents that it
+    never raises, so production cannot reach this arm. The test patches away the very
+    boundary whose contract makes the except unnecessary.
+
+    It is still worth having. The comment on the except says "never let a footprint
+    hiccup break finalize", and that is a promise about the WHOLE finalize: footprints
+    are fetched before the pending record is built, so an escape here loses the record
+    and the event entirely. Without the except this test errors instead of returning
+    {} -- so the promise is checkable rather than merely asserted in a comment.
+    """
+    async def _boom(**_kw):
+        raise RuntimeError("map read exploded")
+
+    monkeypatch.setattr(manager, "async_get_map_data_dict", _boom, raising=False)
+
+    out = await manager.external_run._room_footprints(_VAC)
+
+    assert out == {}, f"a raising accessor must degrade to no footprints; got {out!r}"
+
+
+async def test_finalize_passes_footprints_to_the_segmenter(manager, hass, monkeypatch):
+    """[EXT-FIN-7] the WIRING, which [RFP-1] does not prove.
+
+    RFP-1 calls _room_footprints directly, so it establishes the mapping but not
+    that the result reaches anything. This drives the real grace finalize and spies
+    on build_pending_record, so a footprints call whose result were dropped on the
+    floor -- or passed under the wrong keyword -- goes red here while RFP-1 stays
+    green. The same split the session's other spy tests use: the piece, then the path.
+    """
+    import custom_components.eufy_vacuum.learning.external_ingest as _ingest
+
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _stub_map_data(manager, monkeypatch, _fp_map_data([(1, 0, 3, 0, 9)]))
+
+    seen = {}
+    real = _ingest.build_pending_record
+
+    def _spy(**kwargs):
+        seen["footprint_by_id"] = kwargs.get("footprint_by_id")
+        return real(**kwargs)
+
+    monkeypatch.setattr(_ingest, "build_pending_record", _spy)
+
+    events = await _drive_grace_finalize(manager, hass)
+
+    assert len(events) == 1, "the finalize must still complete"
+    assert seen.get("footprint_by_id") == {1: 0.1}, (
+        f"the footprints must reach build_pending_record; got {seen!r}"
+    )

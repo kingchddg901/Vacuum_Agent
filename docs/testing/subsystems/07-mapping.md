@@ -165,9 +165,15 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
 
 - **`map_source`** (`MS-*`, unit, `test_map_source.py`) — the pure core:
   `rooms_from_room_pixels` (per-room bbox+name, Y-flip, catch-all rid 32 filtered,
-  malformed/short buffers degrade to `[]`), `normalize_rendered` clamp+flip,
+  malformed/short buffers degrade to `[]`; the rid gate itself is pinned by `MS-21`,
+  because two guards in `learning/external_run.py::_room_footprints` are documented
+  DEAD on the strength of it — widening it reddens three tests across both layers),
+  `normalize_rendered` clamp+flip,
   `anchors_from_storage` (dock/robot normalize, non-numeric coords skipped),
-  per-room area (`pixel_count × (res_cm/100)²`), and `build_map_source_result`'s
+  per-room area (`pixel_count × (res_cm/100)²` — rounded to 1dp, so at the default
+  resolution 5 a room needs **20 cells** to come out non-zero; 19 → 0.0, 20 → 0.1,
+  measured, and `learning/external_run.py::_room_footprints` relies on that to drop
+  specks), and `build_map_source_result`'s
   presence gate (absent-with-reason vs populated, with `extra` overlay layers
   merged in). (`rooms_from_parsed_map`, a dead second Roborock-parser room
   extractor with a disputed coordinate frame, was removed -- #11:A3-EXT-5.)

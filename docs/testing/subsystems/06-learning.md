@@ -460,6 +460,60 @@ Three facts worth keeping, all measured 2026-11-07:
 > no-op guarding a hazard that does not exist; it is gone, and the assertion stays
 > as a precondition that would go red if module-scoped seeding were ever added.
 
+#### `_room_footprints` — the cold-start size fingerprint (`RFP-1..3`, `EXT-FIN-7`)
+
+The raster footprint map (`{device room id → m²}`) is what the external-run
+shortlist ranker falls back on *before any room has a learned area*: when nothing is
+learned yet, how big a segment is, is what says which room it was. So an empty
+footprint map is not cosmetic — it is the ranker having nothing to go on, on exactly
+the runs it exists for.
+
+**It had no tests at all.** A grep returned nothing, and measurement agreed: only
+`if not map_data: return {}` had ever run.
+
+Two things about the fixture are worth copying rather than re-deriving:
+
+- **It is built by the production encoder**, `mapdata_dict_from_obj` — the same call
+  the live memory path makes — so the key set and the base64 come from production
+  code and agree with the live dict by construction.
+- **Do not copy `MS-1`'s raster.** Its two rooms are 3×3 = 9 cells, and at
+  resolution 5 that is 9 × 0.0025 = 0.0225 m², which `_area_m2` rounds to **0.0** —
+  so both fail the consumer's `area > 0` and the result is `{}`. The loop would
+  execute, the test would pass, and the only output demonstrated is the same empty
+  dict the old coverage already had. Measured through the real producer: at
+  resolution 5 a room needs **20 cells** to be visible at all (19 → 0.0, 20 → 0.1).
+
+That rounding is also why `area > 0` is live and load-bearing. The producer applies
+no minimum-pixel filter, so without that guard a one-cell speckle enters the
+fingerprint claiming a real room is 0 m². `RFP-2` drives it with a sliver *alongside
+a surviving sibling*, because asserting `{}` alone would also pass if the loop were
+skipped entirely.
+
+**Two guards there are DEAD, and the docstrings say so instead of implying coverage:**
+
+| Guard | Why it cannot fire |
+|-------|--------------------|
+| `rid > 0` (the other half of the same `and`) | the producer admits a cell only through `0 < rid < _CATCH_ALL_RID` and emits that same rid as `number` |
+| the inner `except (TypeError, ValueError)` | `number` is always an `int` and `area_m2` always a `float` from `round()` — **and** the producer call sits *outside* that `try`, so even a producer raise lands in the outer `except` instead |
+
+A DEAD verdict is only as good as the premise under it, and a premise with no test is
+a comment — so `MS-21` pins that gate on the producer side. Widening it reddens three
+tests across both layers, `RFP-1` among them (it asserts the catch-all rid never
+reaches the footprint map).
+
+`RFP-3` pins the outer `except Exception` and is labelled as pinning a **swallow**
+rather than a reachable path: `async_get_map_data_dict` documents that it never
+raises, so the test patches away the very boundary whose contract makes the guard
+unnecessary. It earns its place because the comment on that except promises something
+about the *whole* finalize — footprints are fetched before the record is built, so an
+escape there loses the record and the event, not just the footprints.
+
+`EXT-FIN-7` is the path to `RFP-1`'s piece: it spies on the real
+`build_pending_record` through the grace finalize, so footprints computed correctly
+but dropped on the floor — or passed under the wrong keyword — go red there while
+`RFP-1` stays green. Ablation confirms the split: stubbing the finalize's call while
+leaving the method intact reddens `EXT-FIN-7` **alone**.
+
 ### `zone_learning.py` — saved-zone TIME learning (pure, `ZL-1..ZL-10`)
 A deliberately tiny parallel to room learning: a saved zone has a stable
 `zone_id`, a deterministic (never-learned) area, and cleans in one
