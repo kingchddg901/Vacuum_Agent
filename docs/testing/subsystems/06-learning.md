@@ -60,7 +60,7 @@ Mirrors the dispatch side, where `queue_engine` only writes `water_level` /
 |---------------|------:|----:|--------------|-------|-------|
 | `utils.py` | 120 | 94% | `tests/unit/test_learning_utils.py` | unit (pure) | clean |
 | `estimator.py` | 535 | 94% | `tests/unit/test_learning_estimator.py` | unit (pure + class) | **bare x1** |
-| `history_store.py` | 839 | 90% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) | **bare x1** |
+| `history_store.py` | 839 | 93% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) | **bare x1** |
 | `stats_rebuilder.py` | 501 | 95% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) | **bare x1** |
 | `job_finalizer.py` | 641 | 94% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration | **bare x8** |
 | `manager.py` | 965 | 94% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` + `tests/unit/test_profile_name_filter.py` | integration | clean |
@@ -174,6 +174,41 @@ of a stranded/force-finalized run is blocked from learning
 blocker, `used_for_learning` False), and the jobs-index build carries the 1.8.0
 marker keys (`origin`, `has_attribution_disagreement`, `area_over_attributed`) the
 self-heal detector keys on.
+
+**`HS-14`–`HS-21`** (added 2026-11-07, 90% → **93%**; 796 of 839 statements) close
+the id-validation and finalize-edge gaps:
+
+- **`HS-14`** — every path builder refuses a traversal id, while the *loaders*
+  translate it to `None`. That split is deliberate and `get_completed_job_path`'s
+  docstring explains why: the id reached it from `restore_learning_job` "as
+  caller-supplied input and was interpolated here unvalidated — pathlib does not
+  normalise '..', so a crafted id gave those services an arbitrary *.json overwrite
+  primitive." It also pins the regex's real boundary: `^[A-Za-z0-9._+-]+$` **admits
+  the dot**, so `".."` is a valid id yielding a file named `...json` *inside*
+  `jobs_dir`. The guard rejects traversal, not every odd id.
+- **`HS-17`** is the one with a consequence beyond a shape check. A job finalized
+  while still paused has to accrue that open pause: `paused_duration_seconds` only
+  accumulates on *resume*, and paused time is subtracted from cleaning time
+  downstream, so losing the final pause inflates the learned duration for every
+  room in the run.
+- **`HS-20`** pins `None` against `0` in the timing helpers. `_idle_seconds`
+  answering 0 for "I could not tell" is a measurement the caller would trust; it is
+  documented to fall back to the raw gap on `None`.
+- The rest: a corrupt phased parent loading as `None` (`HS-15`), the `0.0`
+  wall-clock fallback (`HS-16`), a parentless phase as a no-op (`HS-18`), an
+  undeclared phase appended in index order rather than dropped (`HS-19`), and
+  `_native_finalize_brand` refusing an empty entity id (`HS-21`).
+
+**Of the 43 statements still uncovered, 16 are deliberate**: 15 are shape guards the
+coverage triage marked DEFENSIVE ("keep the guards; do not pad coverage with them" —
+no producer emits those shapes), and 2113 is a genuinely unreachable `else` arm.
+Four more (2209-2212) are the live:RECHARGE-ATTR-1 wiring: the predicate
+`monotone_shift_run` is already covered in `test_external_ingest_attribution.py`
+(runs of 3/1/0, both verdicts), so only the wiring is open, and reaching it honestly
+needs three counter segments with `segment_count == queue_count` so the FLAG rather
+than RESCUE branch is taken. The remaining ~23 are ordinary follow-up; the
+read/write error arms among them (553-555, 600-603, 766) belong with the `TS-*`
+tri-state tests in `test_rmw_tristate.py`, not here.
 
 ### `stats_rebuilder.py` — pure builders + `LearningStatsRebuilder`
 `_room_key`, `_room_baseline_key`, `_stddev`, and the rebuild paths that turn

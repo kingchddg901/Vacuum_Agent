@@ -18,6 +18,10 @@ from custom_components.eufy_vacuum.learning.history_store import (
     LearningHistoryStore,
     _build_transit_blocks,
     _build_native_room_timings,
+    _counter_at,
+    _idle_seconds,
+    _iso_span_seconds,
+    _native_finalize_brand,
     _vacuum_slug,
 )
 
@@ -1520,3 +1524,192 @@ def test_d19_append_csv_row_has_no_production_caller():
         "cannot drift, and an incremental append makes it a second source of truth.\n  "
         + "\n  ".join(hits)
     )
+
+
+# ---------------------------------------------------------------------------
+# Gaps closed from the 2026-11-07 coverage classification (90.5%). It found no
+# DEFECT here. The 15 statements it marked DEFENSIVE are deliberately NOT tested:
+# its note reads "Keep the guards; do not pad coverage with them", because no
+# producer emits those shapes.
+# ---------------------------------------------------------------------------
+
+
+def test_invalid_ids_are_refused_by_every_path_builder(tmp_path):
+    """[HS-14] the id is untrusted on these paths, and it builds a filename.
+
+    get_completed_job_path's own docstring says it: the id arrived from
+    restore_learning_job "as caller-supplied input and was interpolated here
+    unvalidated -- pathlib does not normalise '..', so a crafted id gave those
+    services an arbitrary *.json overwrite primitive."
+
+    So the RAISERS are asserted to raise and the LOADERS to return None, which is
+    the split the code deliberately makes: a loader catches the ValueError because
+    an invalid id can never name a real job, while a writer refuses loudly.
+    """
+    store = _make_store(tmp_path)
+    vac = "vacuum.alfred"
+
+    # NOTE ".." is deliberately absent: _JOB_ID_RE is ^[A-Za-z0-9._+-]+$, which
+    # ADMITS the dot, so ".." is a valid id. It cannot traverse — with no separator
+    # it yields a file literally named "...json" inside jobs_dir — and that boundary
+    # is asserted below rather than assumed. Measured: including ".." here fails
+    # with DID NOT RAISE, which is the regex being right and the test being wrong.
+    for bad in ("../x", "a/b", "", "x/../y", "..%2Fy"):
+        with pytest.raises(ValueError):
+            store.get_completed_job_path(vacuum_entity_id=vac, job_id=bad)
+        with pytest.raises(ValueError):
+            store.phased_job_path(vacuum_entity_id=vac, phased_job_id=bad)
+        with pytest.raises(ValueError):
+            store.save_phase_record(vacuum_entity_id=vac, record_id=bad, payload={"a": 1})
+        # the loaders translate it to "not found" rather than propagating
+        assert store.load_completed_job(vacuum_entity_id=vac, job_id=bad) is None
+        assert store.load_phased_job(vacuum_entity_id=vac, phased_job_id=bad) is None
+
+    # save_phase_record must not have written anything for the refused ids.
+    phases_dir = store.ensure_dirs(vacuum_entity_id=vac).phases_dir
+    assert list(phases_dir.glob("*.json")) == [], "a refused id wrote a file"
+
+    # The CONTROL: a well-formed id is still accepted, so the guard is not a
+    # blanket refusal (without this the loop above passes on `return False`).
+    ok = store.get_completed_job_path(vacuum_entity_id=vac, job_id="job_2026-01-01T00-00-00")
+    assert ok.name == "job_2026-01-01T00-00-00.json"
+
+    # The regex's actual boundary, stated: a DOT-only id is admitted, and is safe
+    # because it carries no separator. ".." becomes the filename "...json" and
+    # stays inside jobs_dir — so the guard rejects TRAVERSAL, not every odd id.
+    dots = store.get_completed_job_path(vacuum_entity_id=vac, job_id="..")
+    jobs_dir = store.ensure_dirs(vacuum_entity_id=vac).jobs_dir
+    assert dots.name == "...json"
+    assert dots.parent == jobs_dir
+    assert jobs_dir in dots.resolve().parents or dots.resolve().parent == jobs_dir.resolve(), (
+        f"an admitted id must still resolve inside jobs_dir; got {dots.resolve()}"
+    )
+
+
+def test_corrupt_phased_parent_loads_as_none(tmp_path):
+    """[HS-15] a corrupt parent must not kill a run.
+
+    The except arm says so in words; this is the input that reaches it. json.loads
+    on '{' raises, and the caller needs None rather than a traceback mid-finalize.
+    """
+    store = _make_store(tmp_path)
+    vac = "vacuum.alfred"
+    path = store.phased_job_path(vacuum_entity_id=vac, phased_job_id="job_corrupt")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{", encoding="utf-8")
+
+    assert store.load_phased_job(vacuum_entity_id=vac, phased_job_id="job_corrupt") is None
+
+
+def test_unparseable_started_at_gives_zero_wall_clock(tmp_path):
+    """[HS-16] an unparseable edge gives 0.0, not a crash and not a negative.
+
+    wall_clock feeds the learning record, so the fallback has to be a real number.
+    """
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jwc",
+        started_at="", ended_at="2026-01-01T09:30:00+00:00",
+        battery_start=90, battery_end=70,
+        queue_state={}, payload_state={}, active_job_state={},
+    )
+    assert payload["job"]["wall_clock_duration_minutes"] == 0.0
+
+
+def test_job_finalized_while_paused_accrues_the_open_pause(tmp_path):
+    """[HS-17] the pause that was still OPEN at finalize must be counted.
+
+    paused_duration_seconds only accumulates on resume, so a job finalized while
+    paused would otherwise lose the whole final pause — and paused time is
+    subtracted from cleaning time downstream, so losing it inflates the learned
+    duration for every room in the run.
+    """
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jp",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:30:00+00:00",
+        battery_start=90, battery_end=70,
+        queue_state={}, payload_state={},
+        active_job_state={
+            "paused_at": "2026-01-01T09:20:00+00:00",   # still paused at finalize
+            "paused_duration_seconds": 0,               # nothing accrued yet
+        },
+    )
+    # 09:20 -> 09:30 is 600s, added to the 0 already banked.
+    assert payload["job"]["paused_duration_seconds"] == 600
+
+
+def test_phase_outcome_with_no_parent_returns_none(tmp_path):
+    """[HS-18] a phase whose parent was never opened is a no-op, not a crash."""
+    store = _make_store(tmp_path)
+    result = store.record_phase_outcome(
+        vacuum_entity_id="vacuum.alfred", phased_job_id="job_missing_parent",
+        phase_index=0, phase_type="room_group", outcome="completed", record_id="job_c0",
+    )
+    assert result is None
+
+
+def test_undeclared_phase_is_appended_in_index_order(tmp_path):
+    """[HS-19] a phase the plan omitted is adopted, not dropped.
+
+    The parent is an aggregate whose children are the source of truth, so a phase
+    that ran but was not planned still has to appear — silently discarding it loses
+    a real child's outcome from the parent. Index order matters because consumers
+    read `phases` positionally.
+    """
+    store = _make_store(tmp_path)
+    vac = "vacuum.alfred"
+    path = store.phased_job_path(vacuum_entity_id=vac, phased_job_id="job_parent")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "record_type": "phased_job", "phased_job_id": "job_parent",
+        "phases": [
+            {"index": 0, "type": "room_group", "outcome": "completed", "record_id": "c0"},
+            {"index": 2, "type": "room_group", "outcome": None, "record_id": None},
+        ],
+    }), encoding="utf-8")
+
+    parent = store.record_phase_outcome(
+        vacuum_entity_id=vac, phased_job_id="job_parent",
+        phase_index=1, phase_type="break", outcome="completed", record_id="c1",
+    )
+
+    assert parent is not None
+    indexes = [p["index"] for p in parent["phases"]]
+    assert indexes == [0, 1, 2], f"the undeclared phase is appended and sorted in; got {indexes}"
+    slot = next(p for p in parent["phases"] if p["index"] == 1)
+    assert slot["type"] == "break"
+    assert slot["outcome"] == "completed"
+    assert slot["record_id"] == "c1"
+
+
+def test_timing_helpers_return_none_not_zero_on_a_missing_edge(tmp_path):
+    """[HS-20] None and 0 are different answers here.
+
+    _idle_seconds returning 0 for "I could not tell" would report a run with no
+    idle time, which is a measurement the caller would then trust. The caller's
+    documented behaviour is to fall back to the raw gap when it gets None, so the
+    distinction has to survive.
+    """
+    t0 = "2026-01-01T09:00:00+00:00"
+    t1 = "2026-01-01T09:10:00+00:00"
+
+    # No counter stream at all -> unknowable, not zero.
+    assert _idle_seconds([], t0, t1) is None
+    # A missing edge stamp -> unknowable, even with a usable stream.
+    assert _idle_seconds([{"t": t0, "cleaning_time": 5}], t0, None) is None
+
+    # _counter_at with no stamp to look up
+    assert _counter_at([{"t": t0, "cleaning_time": 5}], "") is None
+    # _iso_span_seconds is the one that DOES answer 0 for a missing end
+    assert _iso_span_seconds(t0, None) == 0
+
+
+def test_native_finalize_brand_is_false_without_an_entity():
+    """[HS-21] no entity id means no brand, so no native finalize.
+
+    Guarded before the brand_facts_for lookup, which would otherwise be asked about
+    an empty id and decide the finalize path from whatever it returned.
+    """
+    assert _native_finalize_brand(None) is False
+    assert _native_finalize_brand("") is False
