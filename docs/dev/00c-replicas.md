@@ -639,6 +639,70 @@ learning bucket built from it. Nothing raises; the numbers are just wrong.
 
 ---
 
+### `RN7WK2CX` — the BRAND REGISTRY · **1 primary + 2 test-side replicas**
+
+`adapters/brands.py`'s `BRAND_REGISTRARS` (**primary**) and the two tables under `tests/`
+that restate the brand list:
+
+| | what it feeds |
+|---|---|
+| `tests/brand_catalogs.py::BRAND_BLOCKS` | the `brand` fixture, every vocabulary test, and the leak gate's corpus |
+| `tests/adapters/conftest.py::ADAPTER_BUILDERS` | the brand-agnostic contract suite |
+
+**Mutation class: SILENCE, never failure.** Neither table can fail when a brand is
+missing from it. A brand without a `BRAND_BLOCKS` row simply never appears in any
+parameterization; a brand without a builder never runs the contract suite — which is the
+one thing that suite exists to guarantee it does. Both read green over a shrinking
+fraction of the brands their own docstrings claim to cover.
+
+**It had already mutated, for eight weeks.** `dreame` shipped in `BRAND_REGISTRARS` on
+2026-09-13 and `BRAND_BLOCKS` never got its row, although that table's comment says
+*"adding a brand adapter should mean adding a row here and nothing else"*. The damage was
+not the untested brand so much as the **gate built on the same two blocks**:
+`test_vocabulary_invariant.py`'s corpus iterated a hardcoded `(EUFY_BLOCK,
+ROBOROCK_BLOCK)` tuple, so the brand-vocabulary-leak invariant — the enforcement of
+*core owns KEYS, never a brand's WORDS* — was structurally unable to report a Dreame word
+however plainly core bound it. The literal read as a deliberate floor (the file's own
+docstring calls two brands the minimum that can catch a leak), which is what let it
+survive a brand release.
+
+**Two copies were REMOVED rather than registered**, because one site always beats two
+agreeing sites:
+
+- the leak gate's corpus now **derives** from `BRAND_REGISTRARS`. A registered brand with
+  no `BRAND_BLOCKS` row now raises `KeyError` there — the loud failure the silent one was
+  hiding behind.
+- `tests/unit/test_profiles_room_profiles.py::_no_water` was a hand copy of
+  `profiles/room_profiles.py::no_water_value`, and said so in its own docstring
+  (*"Mirrors room_profiles._no_water_value"*). It mirrored it until it did not: Dreame's
+  water ladder is `slightly_dry / moist / wet` with **no "off" rung**, so it declares an
+  empty `floor_type_water_defaults`. The shipped function returns `""` for that on
+  purpose ([`IN40W49E`](00b-invariants.md) — undeclared resolves EMPTY, core never
+  guesses a brand's word); the copy indexed the carpet key and raised `KeyError`. Twelve
+  cases failed the instant Dreame joined the table, and **the copy was the bug, not the
+  row.** It calls the shipped function now.
+
+**Pinned by `DC-20`/`DC-21`** in `tests/adapters/test_declaration_contract.py`, which
+compare each table's brand set against the shipped registry in both directions, plus a
+floor test so an emptied registry cannot turn both equality assertions into identities.
+
+> **What the ratchet does NOT cover, measured on this set.** `RR-3` requires one
+> `anchor:` primary and **at least one** `REPLICA`, so a set with two markers that loses
+> one stays well-formed and nothing fires — verified by ablation, and it is the rule
+> working as written, not a bug. Removing *both* does fire it. So in a multi-member set
+> the markers are NAVIGATION, and the agreement is held by `DC-20`/`DC-21` instead. Do
+> not read a green ratchet as proof that every member still points home.
+
+**Left open, and it is a ruling rather than a cleanup.** Widening the corpus surfaced two
+core bindings of a Dreame-only word — `learning/manager.py` defaults `clean_intensity` to
+`"standard"` at two sites, and `clean_intensity` is a `PROVIDER_FIELDS` member only Dreame
+declares. The value is **not discarded**: `_ROOM_SETTING_KEYS` carries it into the learned
+room key and `estimator.py` scores a mismatch against it. It sits in
+`KNOWN_VOCABULARY_LEAKS` as named, shrink-only debt with the three remedies written out
+beside it; which one is right is a decision about what core owns, not a tidy-up.
+
+---
+
 ### `RN0RGR1H` — the cleaning-area UNIT TABLE · **2 copies**
 
 `learning/utils.py`'s `_AREA_TO_M2` (**primary**) and `tests/replay/harvest.py`'s copy of

@@ -47,7 +47,8 @@ import os
 
 import pytest
 
-from tests.brand_catalogs import EUFY_BLOCK, ROBOROCK_BLOCK
+from custom_components.eufy_vacuum.adapters.brands import BRAND_REGISTRARS
+from tests.brand_catalogs import BRAND_BLOCKS, EUFY_BLOCK, ROBOROCK_BLOCK
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CORE = os.path.join(REPO, "custom_components", "eufy_vacuum")
@@ -71,15 +72,49 @@ CORE_OWNED = frozenset({
 })
 
 #: Shrink-only ratchet. A row is a leak that EXISTS and is tolerated, never a licence to
-#: add one. Empty as of 2026-08-07; VI-3 proves the detector still works in that state,
-#: so an empty ledger is evidence rather than absence.
-KNOWN_VOCABULARY_LEAKS: dict[str, set[str]] = {}
+#: add one. It was EMPTY from 2026-08-07 to 2026-11-07, and that emptiness was partly
+#: an artefact: the corpus below only covered two of the three shipped brands, so a
+#: leak of a DREAME word could not be reported however plainly core bound it. Widening
+#: the corpus surfaced the row that follows. VI-3 still proves the detector works, and
+#: VI-4 holds every row to describing a LIVE leak, so this is named debt rather than a
+#: suppression.
+#:
+#: THE OPEN DECISION, deliberately not taken here. `clean_intensity` is a
+#: PROVIDER_FIELDS member and only Dreame declares it at all (standard / intensive /
+#: deep); eufy and roborock ship no such ladder. Core defaults the field to
+#: "standard" at two sites in learning/manager.py, and the value is NOT discarded --
+#: `_ROOM_SETTING_KEYS` carries it into the learned room key, where
+#: estimator.py scores a mismatch at _INTENSITY_MISMATCH_PENALTY. Three remedies,
+#: and which one is right is a ruling about what core owns:
+#:   1. read the default from the adapter's declaration, as the VI-1 message says;
+#:   2. declare "standard" a framework canonical in CORE_OWNED -- note that
+#:      "medium"/"high"/"low" are already there and are the same character of
+#:      generic word, but the VI-1 message warns that growing this list to silence a
+#:      finding is how the gate stops working;
+#:   3. leave it, and keep this row.
+KNOWN_VOCABULARY_LEAKS: dict[str, set[str]] = {
+    "learning/manager.py": {"standard"},
+}
 
 
 def _declared_brand_values() -> set[str]:
-    """Every string value the shipped adapters declare for a provider-owned field."""
+    """Every string value the shipped adapters declare for a provider-owned field.
+
+    THE CORPUS IS THIS GATE'S ENTIRE SENSITIVITY: a word absent from it cannot be
+    reported no matter where core binds it. It used to iterate a hardcoded
+    ``(EUFY_BLOCK, ROBOROCK_BLOCK)`` tuple, which was the minimum two brands the
+    file's docstring calls for -- and then dreame shipped on 2026-09-13 and the
+    tuple did not follow, so for eight weeks this gate was structurally blind to a
+    third of the vocabulary it exists to police. The literal read as a deliberate
+    floor, which is what made it survive.
+
+    So it is DERIVED from the shipped registry now, not restated. A brand in
+    ``BRAND_REGISTRARS`` with no ``BRAND_BLOCKS`` row raises KeyError here, which is
+    the loud failure the silent one was hiding behind.
+    """
     values: set[str] = set()
-    for block in (EUFY_BLOCK, ROBOROCK_BLOCK):
+    for brand_id in sorted({r.brand_id for r in BRAND_REGISTRARS}):
+        block = BRAND_BLOCKS[brand_id]
         for profile in block["builtins"].values():
             values |= {
                 str(v) for k, v in profile.items()

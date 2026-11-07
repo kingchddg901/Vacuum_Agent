@@ -244,6 +244,21 @@ added 2026-08-07) pins what happens when a brand DECLARES — or fails to.
 | `DC-3c` | wholly empty block | rejected — a brand with no vocabulary can resolve nothing |
 | `DC-4` | — | the same validator that rejects the bad ACCEPTS every shipped brand |
 | `DC-5` | — | end to end: the REGISTERED config is what resolution actually reads |
+| `DC-20` | — | `BRAND_BLOCKS` covers the shipped `BRAND_REGISTRARS`, both directions |
+| `DC-21` | — | `ADAPTER_BUILDERS` covers it too — a brand with no builder never runs this suite |
+
+`DC-20`/`DC-21` fence replica set [`RN7WK2CX`](../../dev/00c-replicas.md), and they
+exist because the failure mode is **silence, not failure**: a brand missing from either
+table does not break anything, it just never appears in a parameterization. Measured —
+`dreame` shipped in `BRAND_REGISTRARS` on 2026-09-13 and `BRAND_BLOCKS` never got its
+row, so for eight weeks the vocabulary suite and the `brand` fixture ran over two of
+three brands while their docstrings said every shipped one, and the brand-leak gate's
+corpus — built from the same two blocks — could not report a Dreame word at all. The
+row landed 2026-11-07, and adding it exposed a second copy: this suite's own
+`_no_water` helper duplicated `profiles/room_profiles.py::no_water_value` and raised
+`KeyError` for a brand that declares no carpet water default, where the shipped
+function correctly yields `""`. Dreame's water ladder has no `off` rung, so it is that
+brand. Twelve cases failed the instant the row existed; the copy was the bug.
 
 ### `roborock/test_live_water_ladder.py` — the mop ladder read off the device (#71)
 

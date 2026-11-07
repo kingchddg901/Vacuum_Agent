@@ -121,6 +121,17 @@ class BrandRegistrar:
 #:
 #: THERE IS NO DEFAULT ARM. A vacuum whose platform matches nothing is UNSUPPORTED and
 #: gets no adapter — see ``resolve_brand``. Support is a positive, declared statement.
+# anchor: RN7WK2CX  the BRAND REGISTRY -- the replica set. Three places under tests/
+# restate this list, and a brand missing from one of them does not fail, it goes
+# UNTESTED while the suite reads green:
+#   tests/brand_catalogs.py::BRAND_BLOCKS        the per-brand vocabulary catalogs
+#   tests/adapters/conftest.py::ADAPTER_BUILDERS the contract suite's parameterization
+# Measured on 2026-11-07: dreame shipped here on 2026-09-13 and BRAND_BLOCKS never
+# got its row, so for eight weeks the whole vocabulary suite, the `brand` fixture and
+# the brand-leak gate ran over two brands while their docstrings said every shipped
+# one. The gate's corpus is now DERIVED from this tuple rather than restating it.
+# `python scripts/doc_anchor.py --show RN7WK2CX` lists every site; DC-20/DC-21 fence
+# the two that remain.
 BRAND_REGISTRARS: tuple[BrandRegistrar, ...] = (
     BrandRegistrar(
         brand_id="roborock",

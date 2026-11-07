@@ -64,6 +64,7 @@ from custom_components.eufy_vacuum.profiles.room_profiles import (
     get_available_profiles,
     normalize_room_profile,
     resolve_profile_name_for_constraints,
+    no_water_value,
     resolve_room_profile_for_room,
 )
 
@@ -77,13 +78,22 @@ def _profile(brand: dict, name: str) -> dict:
 
 
 def _no_water(brand: dict) -> str:
-    """This brand's word for "no water" — its declared carpet water default.
+    """This brand's word for "no water" — THE SHIPPED FUNCTION, not a copy of it.
 
-    Carpet is the one surface the framework guarantees dry, so the brand's declaration
-    for it IS its no-water word. Mirrors ``room_profiles._no_water_value``; asserting
-    against a literal instead is how "Off" survived in core for so long.
+    This used to index ``floor_type_water_defaults["carpet_low_pile"]`` itself and
+    said so: *"Mirrors room_profiles._no_water_value"*. It mirrored it until it
+    did not. Dreame's water ladder is slightly_dry / moist / wet with no "off"
+    rung, so it declares an EMPTY ``floor_type_water_defaults``; the shipped
+    function returns ``""`` for that case on purpose (IN40W49E -- undeclared
+    resolves EMPTY, core never guesses a brand's word), while this copy raised
+    KeyError. Twelve cases in this file failed the moment Dreame joined
+    BRAND_BLOCKS, and the copy was the bug.
+
+    Calling the shipped function is also the only version that can be WRONG in the
+    same direction as production, which is the whole point of asserting against a
+    declaration rather than a literal.
     """
-    return brand["floor_type_water_defaults"]["carpet_low_pile"]
+    return no_water_value(brand)
 
 
 def test_coerce_clean_intensity_carries_no_vocabulary():

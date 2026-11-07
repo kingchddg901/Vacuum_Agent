@@ -36,6 +36,7 @@ from custom_components.eufy_vacuum.profiles.room_profiles import (
     resolve_room_profile_for_room,
 )
 
+from custom_components.eufy_vacuum.adapters.brands import BRAND_REGISTRARS
 from tests.brand_catalogs import BRAND_BLOCKS, EUFY_BLOCK, ROBOROCK_BLOCK, SYNTHETIC_BLOCK
 
 _VAC = "vacuum.contract_probe"
@@ -242,3 +243,86 @@ def test_a_registered_adapter_is_what_resolution_actually_reads():
         catalog=catalog,
     )
     assert resolved["fan_speed"] == SYNTHETIC_BLOCK["builtins"]["vacuum_deep"]["fan_speed"]
+
+
+# ---------------------------------------------------------------------------
+# [DC-20] / [DC-21] RN7WK2CX -- the two test-side brand registries must cover the
+# shipped one.
+#
+# Neither of these can FAIL when a brand is missing; they go SILENT. BRAND_BLOCKS
+# feeds the `brand` fixture, so a brand without a row simply never appears in any
+# parameterization, and ADAPTER_BUILDERS feeds the contract suite, which the
+# adapters conftest advertises as needing "no new test code required" per brand.
+# Both read green over a shrinking fraction of the brands they claim to cover.
+#
+# MEASURED, not hypothetical: dreame shipped in BRAND_REGISTRARS on 2026-09-13 and
+# BRAND_BLOCKS never got its row. For eight weeks the whole vocabulary suite ran
+# over two of three brands while its docstrings said every shipped one, and the
+# brand-leak gate's corpus -- built from the same two blocks -- was structurally
+# unable to report a Dreame word however plainly core bound it.
+#
+# The shipped registry is the primary and these are the replicas, so these two
+# tests are the fences the anchor cannot be. Synthetic is excluded on purpose: it
+# is an invented catalog belonging to no brand, which is the whole reason it exists.
+# ---------------------------------------------------------------------------
+
+
+def _shipped_brand_ids() -> set[str]:
+    """Every brand id the integration actually registers an adapter for."""
+    return {r.brand_id for r in BRAND_REGISTRARS}
+
+
+def test_dc20_every_shipped_brand_has_a_catalog_block():
+    """[DC-20] BRAND_BLOCKS covers the shipped registry, and claims nothing extra.
+
+    Equality on the real-brand set, in both directions. A row here for a brand the
+    integration does not register would parameterize every vocabulary test over a
+    catalog no user can have, which is the same defect pointing the other way.
+    """
+    real = set(BRAND_BLOCKS) - {"synthetic"}
+    shipped = _shipped_brand_ids()
+
+    assert real == shipped, (
+        "tests/brand_catalogs.py::BRAND_BLOCKS has drifted from "
+        "adapters/brands.py::BRAND_REGISTRARS -- RN7WK2CX.\n"
+        f"  missing a catalog block: {sorted(shipped - real) or 'none'}\n"
+        f"  block for an unregistered brand: {sorted(real - shipped) or 'none'}\n"
+        "A missing row does not fail anything; it removes that brand from the "
+        "`brand` fixture and from the leak gate's corpus, silently."
+    )
+
+
+def test_dc21_every_shipped_brand_has_an_adapter_builder():
+    """[DC-21] ADAPTER_BUILDERS covers the shipped registry.
+
+    The builder bodies are necessarily test-side -- each assembles one brand's config
+    directly, without going through brand resolution, which `test_brand_selection`
+    owns separately. The KEY SET is the part that restates the shipped registry, and
+    it is the part that can rot.
+    """
+    from tests.adapters.conftest import ADAPTER_BUILDERS
+
+    shipped = _shipped_brand_ids()
+    assert set(ADAPTER_BUILDERS) == shipped, (
+        "tests/adapters/conftest.py::ADAPTER_BUILDERS has drifted from "
+        "adapters/brands.py::BRAND_REGISTRARS -- RN7WK2CX.\n"
+        f"  no builder: {sorted(shipped - set(ADAPTER_BUILDERS)) or 'none'}\n"
+        f"  builder for an unregistered brand: "
+        f"{sorted(set(ADAPTER_BUILDERS) - shipped) or 'none'}\n"
+        "A brand with no builder never runs the brand-agnostic contract suite, which "
+        "is exactly what that suite exists to guarantee it does."
+    )
+
+
+def test_dc20_the_premise_is_not_an_empty_set():
+    """[DC-20] The shipped registry is non-empty, or both fences above are vacuous.
+
+    `set() == set()` passes. If `BRAND_REGISTRARS` were ever emptied -- or if this
+    import resolved to something that is not the registry -- the two equality
+    assertions would become identities and report coverage of nothing. The floor is
+    the three brands shipped today, asserted as a minimum rather than a count so
+    adding a fourth does not fail here.
+    """
+    shipped = _shipped_brand_ids()
+    assert len(shipped) >= 3, f"suspiciously few shipped brands: {sorted(shipped)}"
+    assert {"eufy", "roborock", "dreame"} <= shipped, sorted(shipped)

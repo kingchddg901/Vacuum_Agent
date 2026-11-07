@@ -93,6 +93,13 @@ def _build_dreame(hass) -> dict[str, Any]:
 
 # Registry of every known adapter. KEY = brand name, VALUE = builder(hass)->config.
 # Adding a brand here wires it into every contract test in this suite.
+#
+# REPLICA RN7WK2CX -- primary: adapters/brands.py::BRAND_REGISTRARS. THIS ONE is the
+# contract suite's parameterization. The builder BODIES are necessarily test-side
+# (each assembles one brand's config without going through brand resolution), but the
+# KEY SET is this table restating the shipped registry -- and a brand missing from it
+# silently never runs the contract suite, while the conftest advertises that adding a
+# brand needs "no new test code". Fenced by DC-21.
 ADAPTER_BUILDERS: dict[str, Callable[[Any], dict[str, Any]]] = {
     "eufy": _build_eufy,
     "roborock": _build_roborock,

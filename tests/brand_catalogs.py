@@ -41,6 +41,13 @@ from custom_components.eufy_vacuum.adapters.roborock.vocabulary import (
     FLOOR_TYPE_WATER_DEFAULTS as _RB_WATER_DEFAULTS,
     ROOM_PROFILES as _RB_BUILTINS,
 )
+from custom_components.eufy_vacuum.adapters.dreame.vocabulary import (
+    CUSTOM_ROOM_PROFILE as _DR_TEMPLATE,
+    FLOOR_TYPE_FAN_DEFAULTS as _DR_FAN_DEFAULTS,
+    FLOOR_TYPE_WATER_DEFAULTS as _DR_WATER_DEFAULTS,
+    LEGACY_ALIASES as _DR_ALIASES,
+    ROOM_PROFILES as _DR_BUILTINS,
+)
 
 EUFY_BLOCK: dict[str, Any] = {
     "default_profile": "vacuum_quick",
@@ -166,11 +173,38 @@ def adapter_config(**overrides: Any) -> dict[str, Any]:
     config.update(overrides)
     return config
 
+# The third brand, shipped 2026-09-13 and absent from the table below until
+# 2026-11-07. Mirrors what adapters/dreame/adapter.py's `room_profiles` block
+# declares, BY REFERENCE like its siblings -- except `default_profile`, which the
+# adapter itself writes as a literal rather than a named constant.
+#
+# WHAT ITS ARRIVAL EXPOSED, and the reason it is worth a comment: Dreame's water
+# ladder is slightly_dry / moist / wet, with NO "off" rung, so it declares an
+# EMPTY floor_type_water_defaults -- there is no word it could put there. Core is
+# right about this (no_water_value yields "" for an undeclared brand, per
+# IN40W49E), but tests/unit/test_profiles_room_profiles.py had its OWN copy of
+# that lookup which indexed the carpet key directly and raised KeyError. Twelve
+# cases failed the moment this row existed; the copy was the bug, not the row.
+DREAME_BLOCK: dict[str, Any] = {
+    "default_profile": "vacuum_quick",
+    "builtins": _DR_BUILTINS,
+    "custom_template": _DR_TEMPLATE,
+    "normalize_defaults": _DR_TEMPLATE,
+    "legacy_aliases": _DR_ALIASES,
+    "floor_type_water_defaults": _DR_WATER_DEFAULTS,
+    "floor_type_fan_defaults": _DR_FAN_DEFAULTS,
+}
+
+# REPLICA RN7WK2CX -- primary: adapters/brands.py::BRAND_REGISTRARS. THIS ONE is
+# the vocabulary-catalog table. A brand in the registry and not here is not a
+# failure, it is silence: every test taking the `brand` fixture simply never runs
+# against it. Fenced by DC-20.
 #: Every REAL brand this integration ships. Parameterize vocabulary tests over all of
 #: them plus the synthetic one; adding a brand adapter should mean adding a row here and
 #: nothing else.
 BRAND_BLOCKS: dict[str, dict[str, Any]] = {
     "eufy": EUFY_BLOCK,
     "roborock": ROBOROCK_BLOCK,
+    "dreame": DREAME_BLOCK,
     "synthetic": SYNTHETIC_BLOCK,
 }
