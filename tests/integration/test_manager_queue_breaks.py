@@ -14,6 +14,10 @@
 [QB-12] set_queue_breaks needs >= 2 rooms (else clears + reports).
 [QB-13] set_queue_breaks clamps after_index and drops invalid entries.
 [QB-14] get_queue_steps exposes the raw ordered breaks list.
+[QB-15] a break STRANDED at the trailing edge by a later room disable is self-healed on
+        READ, and the stored break survives so re-enabling the room restores it.
+[QB-16] breaks left with NOTHING to bracket (every room disabled) heal to an empty plan
+        -- the all-breaks case, where the two heal arms are not separable.
 [ZP-1] add_queue_zone inserts a zone step between rooms.
 [ZP-2] a zone-only queue is still "stepped" (has_breaks True).
 [ZP-3] add_queue_zone needs >= 2 rooms.
@@ -518,3 +522,129 @@ async def test_estimate_multi_zone_step_sums(manager):
         vacuum_entity_id=_VAC, map_id=_MAP, resolved_rooms=[{"clean_mode": "vacuum"}]
     )
     assert len(est["zones"]) == 2 and est["seconds"] == 90  # 0.5*60=30 + 1.0*60=60
+
+
+# ---------------------------------------------------------------------------
+# [QB-15] / [QB-16] — get_queue_steps' self-heal, from the 2026-11-07 coverage triage.
+#
+# `profiles.normalize_run_profile_steps` is NOT total: its own docstring says so, and
+# `_reject_unbracketed_break` raises ServiceValidationError when the first or last of
+# 2+ steps is a charge_wait or wait. That raise comes out of a READ path, so without
+# the catch in get_queue_steps the symptom is the queue refusing to load at all --
+# the same shape the normaliser's docstring describes as "saved run profile will not
+# load".
+#
+# Both WRITE paths clamp after_index to an interior slot ([QB-6], [ZT-2]), so this is
+# only reachable for state that became invalid AFTER it was written. The comment on
+# the except names the cause: "a room disabled AFTER a break was placed can strand it
+# at the edge." Both tests below take that route through the public API rather than
+# hand-planting storage.
+#
+# ⚠ TWO CORRECTIONS, both measured rather than reasoned.
+#
+# 1. The triage proposed persisting `after_index: 0` to reach the leading arm. That
+#    input cannot: `_map_queue_breaks` filters on `after >= 1`, so a 0 is dropped
+#    before the steps loop ever sees it.
+#
+# 2. THE LEADING while-loop IS UNREACHABLE. `steps[0]` can only be a break when there
+#    are NO rooms at all -- a break with `after_index >= 1` always emits after at
+#    least one room_group -- and in that case EVERY entry is a break, so the trailing
+#    loop would drain that same list from the right. So the leading loop IS executed
+#    by [QB-16] -- it runs first and does the popping, and coverage records it -- but
+#    it cannot be ablation-proven, because deleting it leaves the test green:
+#    measured, A3 red set NONE. Deleting the TRAILING loop reddens both tests.
+#
+#    Whether to delete the leading loop is a behaviour decision, not a test one --
+#    the same call [SWT-2] records for the tick's `if not active_job` guard. Left in
+#    place and documented. Note it is not pure dead weight even so: it is what makes
+#    the dropped breaks log as "leading" rather than "trailing", which is the only
+#    observable difference between the two arms on this input.
+# ---------------------------------------------------------------------------
+
+
+def _rooms(manager, map_id=_MAP):
+    return manager.data["maps"][_VAC][map_id]["rooms"]
+
+
+def _stored_breaks(manager, map_id=_MAP):
+    return manager.data["maps"][_VAC][map_id].get("queue_breaks") or []
+
+
+async def test_a_trailing_stranded_break_is_healed_on_read(manager):
+    """[QB-15] disabling a room must not make the queue unreadable.
+
+    Two rooms with an interior wait is [room_1] wait [room_2]. Disable room 1 and the
+    wait has nothing left in front of it, so the derived steps come out as
+    [room_group, wait] -- a trailing break, which the normaliser refuses. Without the
+    self-heal the user's queue simply fails to load, and the only way back is to
+    guess that a disabled room is the cause.
+
+    The second half is the part the except's comment promises and is worth pinning:
+    the heal is NON-DESTRUCTIVE. The stored break is untouched, so re-enabling the
+    room brings it back where it was.
+    """
+    setup_map(manager, _VAC, _MAP, count=2)
+    added = manager.add_queue_break(
+        vacuum_entity_id=_VAC, map_id=_MAP, break_type="wait",
+        after_index=1, wait_minutes=5,
+    )
+    assert added["added"] is True
+    assert [s["type"] for s in added["steps"]] == ["room_group", "wait", "room_group"]
+
+    # The user disables the FIRST room, which is what strands the break.
+    _rooms(manager)["1"]["enabled"] = False
+
+    res = manager.get_queue_steps(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert [s["type"] for s in res["steps"]] == ["room_group"], (
+        f"the stranded trailing break must be dropped from the READ; got {res['steps']!r}"
+    )
+    assert len(res["steps"][0]["rooms"]) == 1
+    # NON-DESTRUCTIVE: storage still holds it...
+    assert _stored_breaks(manager), "the heal must not delete the stored break"
+    # ...so re-enabling the room restores the plan exactly.
+    _rooms(manager)["1"]["enabled"] = True
+    back = manager.get_queue_steps(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert [s["type"] for s in back["steps"]] == ["room_group", "wait", "room_group"], (
+        "re-enabling the room must restore the break the read dropped"
+    )
+
+
+async def test_leading_stranded_breaks_are_healed_on_read(manager):
+    """[QB-16] every room disabled leaves the breaks with nothing to bracket.
+
+    With no enabled rooms the room loop never runs and the drain emits the breaks on
+    their own, so the derived steps are [wait, wait]. Two breaks, not one: the
+    normaliser cannot trip on a single-entry list, as its docstring states.
+
+    A reachable state, not a contrived one -- a user disabling every room on a map
+    while a stepped queue is stored gets here -- and without the heal the queue read
+    raises instead of reporting an empty plan.
+
+    THE LEADING ARM IS COVERED BUT NOT PROVEN, which the ablation established rather
+    than my reading it off the code: the leading loop does run here and does the
+    popping, but the trailing loop would drain the identical all-breaks list from the
+    right, so deleting the leading loop leaves this test GREEN. No input separates
+    them -- see the note above. This test's own bite is the catch itself and the
+    trailing drain; both are measured.
+    """
+    setup_map(manager, _VAC, _MAP, count=3)
+    manager.add_queue_break(
+        vacuum_entity_id=_VAC, map_id=_MAP, break_type="wait",
+        after_index=1, wait_minutes=5,
+    )
+    manager.add_queue_break(
+        vacuum_entity_id=_VAC, map_id=_MAP, break_type="wait",
+        after_index=2, wait_minutes=7,
+    )
+    assert len(_stored_breaks(manager)) == 2
+
+    for rid in ("1", "2", "3"):
+        _rooms(manager)[rid]["enabled"] = False
+
+    res = manager.get_queue_steps(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert res["steps"] == [], (
+        f"breaks with nothing to bracket must heal to an empty plan; got {res['steps']!r}"
+    )
+    assert _stored_breaks(manager), "again non-destructive -- the breaks are still stored"

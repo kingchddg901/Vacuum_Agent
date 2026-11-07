@@ -12,7 +12,6 @@
     "tests/integration/test_fault_label_injection.py",
     "tests/integration/test_finalize_exactly_once.py",
     "tests/integration/test_job_active_signal.py",
-    "tests/integration/test_manager_queue_breaks.py",
     "tests/integration/test_manager_shutdown.py",
     "tests/integration/test_map_switcher.py",
     "tests/integration/test_pose_sampler_cadence.py",
