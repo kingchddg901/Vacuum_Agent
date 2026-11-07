@@ -1465,9 +1465,40 @@ class EufyVacuumManager:
         """Delegate to ActiveJobTracker."""
         return self.active_job._is_charging(vacuum_entity_id)
 
+    # ------------------------------------------------------------------
+    # anchor: CNCCC0CJ
+    # UNCALLED DELEGATORS -- excluded from coverage, audited 2026-11-07
+    #
+    # The thin-delegator facade this class keeps for every method moved out to a
+    # sub-manager is DELIBERATE (see the notes at the extraction sites below, and
+    # docs/dev/design/shipped/eufy-native-transition.md, which names
+    # _finalize_external_run as a thin delegator by design). But fourteen members
+    # of it have no caller at all, audited three ways:
+    #
+    #   * no static call on a MANAGER receiver anywhere in custom_components,
+    #     tests or scripts -- every real caller goes through the sub-manager
+    #     (manager_local.active_job.pause_active_job, mnt.get_maintenance_state,
+    #     ob.check_for_new_rooms, ...);
+    #   * no dynamic route -- getattr/hasattr on a manager only ever reaches
+    #     hass, clean_order, _map_state_source_cache and resolve_active_map_id;
+    #   * no service-layer route.
+    #
+    # THE ONES THAT LOOK REACHABLE AND ARE NOT: pause_active_job and
+    # resume_active_job. services/job_control.py:310 really does call a method
+    # with that stem -- `async_pause_active_job` -- but that is a DIFFERENT, live
+    # method (async_ siblings, defined further down this file). Grepping the stem
+    # alone reads as "the service calls it" and gives the wrong answer.
+    #
+    # Excluded rather than DELETED, because the facade is documented design and
+    # an external pyscript/AppDaemon caller could hold one; and rather than
+    # TESTED, because a one-line pass-through has no behaviour to assert and 14
+    # such tests are padding. Each pragma carries this anchor: delete it the
+    # moment that delegator acquires a real caller.
+    # ------------------------------------------------------------------
+
     def _is_low_battery_return_state(self, *, vacuum_entity_id, current_battery, vacuum_state, task_status):
         """Delegate to ActiveJobTracker."""
-        return self.active_job._is_low_battery_return_state(
+        return self.active_job._is_low_battery_return_state(  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
             vacuum_entity_id=vacuum_entity_id,
             current_battery=current_battery,
             vacuum_state=vacuum_state,
@@ -1504,11 +1535,11 @@ class EufyVacuumManager:
 
     def _get_robot_position(self, vacuum_entity_id: str):
         """Delegate to ActiveJobTracker."""
-        return self.active_job._get_robot_position(vacuum_entity_id)
+        return self.active_job._get_robot_position(vacuum_entity_id)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
     def _access_graph_path(self, managed_rooms, from_room_id: int, to_room_id: int):
         """Delegate to ActiveJobTracker."""
-        return self.active_job._access_graph_path(managed_rooms, from_room_id, to_room_id)
+        return self.active_job._access_graph_path(managed_rooms, from_room_id, to_room_id)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
     def _job_status_summary(self, *, active_job, lifecycle_state=None, progress_snapshot=None):
         """Delegate to ActiveJobTracker."""
@@ -1639,11 +1670,11 @@ class EufyVacuumManager:
 
     def _get_upkeep_item_guide(self, **kwargs):
         """Delegate to MaintenanceManager."""
-        return self.maintenance._get_upkeep_item_guide(**kwargs)
+        return self.maintenance._get_upkeep_item_guide(**kwargs)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
     def _get_replacement_reset_entity(self, **kwargs):
         """Delegate to MaintenanceManager."""
-        return self.maintenance._get_replacement_reset_entity(**kwargs)
+        return self.maintenance._get_replacement_reset_entity(**kwargs)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
     # ------------------------------------------------------------------
     # anchor: BNNH89X5
@@ -3174,7 +3205,7 @@ class EufyVacuumManager:
         blocked_room_ids,
     ):
         """Delegate to RunPlanManager."""
-        return self.run_plan._confirmation_token_for_preflight(
+        return self.run_plan._confirmation_token_for_preflight(  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
             selected_room_ids=selected_room_ids,
@@ -4399,7 +4430,7 @@ class EufyVacuumManager:
 
     def _external_grace_cb(self, vacuum_entity_id: str, map_id: str):
         """Grace-timer fire callback — delegates to ExternalRunManager."""
-        return self.external_run._external_grace_cb(vacuum_entity_id, map_id)
+        return self.external_run._external_grace_cb(vacuum_entity_id, map_id)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
     async def _external_grace_finalize(self, vacuum_entity_id: str, map_id: str) -> None:
         """Finalize an external run after the grace window — delegates to ExternalRunManager."""
@@ -4417,7 +4448,7 @@ class EufyVacuumManager:
         self, *, vacuum_entity_id: str, map_id: str, slot: dict[str, Any]
     ) -> None:
         """Segment a finished external capture into a pending record — delegates to ExternalRunManager."""
-        await self.external_run._finalize_external_run(
+        await self.external_run._finalize_external_run(  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
             vacuum_entity_id=vacuum_entity_id, map_id=map_id, slot=slot
         )
 
@@ -4469,15 +4500,15 @@ class EufyVacuumManager:
 
     def pause_active_job(self, **kwargs) -> dict:
         """Mark job paused — delegates to ActiveJobTracker."""
-        return self.active_job.pause_active_job(**kwargs)
+        return self.active_job.pause_active_job(**kwargs)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
     def resume_active_job(self, **kwargs) -> dict:
         """Resume paused job — delegates to ActiveJobTracker."""
-        return self.active_job.resume_active_job(**kwargs)
+        return self.active_job.resume_active_job(**kwargs)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
     def record_completed_room(self, **kwargs) -> dict:
         """Record one room completed — delegates to ActiveJobTracker."""
-        return self.active_job.record_completed_room(**kwargs)
+        return self.active_job.record_completed_room(**kwargs)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
 
     # ------------------------------------------------------------------
@@ -7023,7 +7054,7 @@ class EufyVacuumManager:
 
     def get_maintenance_state(self, **kwargs):
         """Return maintenance reset snapshots -- delegates to MaintenanceManager."""
-        return self.maintenance.get_maintenance_state(**kwargs)
+        return self.maintenance.get_maintenance_state(**kwargs)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
     def reset_maintenance(self, **kwargs):
         """Reset maintenance counter -- delegates to MaintenanceManager."""
@@ -7048,7 +7079,7 @@ class EufyVacuumManager:
 
     def check_for_new_rooms(self, **kwargs) -> bool:
         """Return True if room count has grown — delegates to OnboardingManager."""
-        return self.onboarding.check_for_new_rooms(**kwargs)
+        return self.onboarding.check_for_new_rooms(**kwargs)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
     def get_rooms_onboarding_summary(self, **kwargs) -> dict[str, Any]:
         """Return onboarding status across all maps — delegates to OnboardingManager."""
@@ -7056,7 +7087,7 @@ class EufyVacuumManager:
 
     def reset_onboarding(self, **kwargs) -> dict[str, Any]:
         """Clear onboarding state for one map — delegates to OnboardingManager."""
-        return self.onboarding.reset_onboarding(**kwargs)
+        return self.onboarding.reset_onboarding(**kwargs)  # pragma: no cover - uncalled delegator, anchor CNCCC0CJ
 
     # ------------------------------------------------------------------
     # anchor: BN9KGAAA
