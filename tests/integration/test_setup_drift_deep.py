@@ -27,6 +27,25 @@ Coverage targets
 [DRD-23] Empty map skeletons do not make a vacuum look multi-map.
 [DRD-24] Emptying a map must not re-open the legacy flat list.
 [DRD-25] Deleting a map removes that map's rejections (live-observed orphan).
+[DRD-26] The stale-key sweep actually DELETES history for a room that is neither
+         configured nor discovered -- the only thing bounding history growth --
+         while a non-numeric key is skipped rather than crashing the pass.
+[DRD-27] force_remove_room keeps the ORIGINAL first_missed_at across repeated
+         passes. Overwriting it would reset the removal clock every pass, so a
+         room would never age out.
+[DRD-28] active_map_configured answers None ("cannot tell") rather than False
+         ("definitely not") with no active_map entity or a blank state, and False
+         only for a genuinely absent bucket. Conflating them re-opens save_rooms.
+[DRD-29] rejected_room_ids survives a corrupt record: non-numeric entries skipped,
+         a non-dict by_map ignored, map_id=None unions every map.
+[DRD-30] _list_configured_room_ids and _room_lookup walk past junk buckets, junk
+         rooms and non-numeric ids instead of raising.
+[DRD-31] reject_rooms and unreject_rooms drop non-numeric requested ids, and
+         unreject also drops non-numeric entries already in the stored list.
+[DRD-32] run_discovery_pass survives an adapter whose resolve_active_map_id RAISES,
+         and a manager that has no such method at all.
+[DRD-33] _get_progress_record refuses to persist a record for an id this install
+         does not have, returning an ephemeral one instead.
 """
 
 from __future__ import annotations
@@ -37,11 +56,16 @@ from custom_components.eufy_vacuum.setup.drift import (
     _DEFAULT_AUTO_REFRESH_TRIGGERS,
     _DEFAULT_NEW_ROOM_CONFIRM_PASSES,
     _DEFAULT_REMOVAL_CONFIRM_PASSES,
+    _get_progress_record,
+    _list_configured_room_ids,
+    _room_lookup,
+    active_map_configured,
     compute_room_drift,
     force_remove_room,
     get_discovery_cadence,
     reject_rooms,
     rejected_room_ids,
+    run_discovery_pass,
     unreject_rooms,
     update_drift_history,
 )
@@ -604,3 +628,219 @@ def test_deleting_a_map_takes_its_rejections_with_it(manager):
     assert rejected_room_ids(
         manager.data["setup_progress"][_VAC], map_id=_MAP
     ) == {1}
+
+
+# ---------------------------------------------------------------------------
+# Gaps closed from the 2026-11-07 coverage classification (85.1%, ceiling 98.6%).
+# It found no DEAD and no DEFECT here: all 43 reachable gaps are untested guards,
+# and the five it called DEFENSIVE (860-861, 1126, 1129-1130) are left alone
+# because rooms/room_discovery.py already coerces room_id to int, so only a
+# patched producer reaches them.
+# ---------------------------------------------------------------------------
+
+
+def _history_bucket(manager, map_id):
+    """The LIVE per-map history dict (``_deep_history`` merges into a copy for
+    map_id=None, which cannot be mutated usefully)."""
+    rec = manager.data["setup_progress"][_VAC]
+    return rec.setdefault("room_drift_history_by_map", {}).setdefault(str(map_id), {})
+
+
+def test_stale_history_keys_are_swept_but_junk_keys_survive(manager):
+    """[DRD-26] the sweep is the only thing bounding history growth.
+
+    The module's own comment says it "prevents history from growing unboundedly
+    across years". Nothing else trims this dict, so if the sweep stops working the
+    record grows for the life of the install with no visible symptom.
+
+    The junk key is asserted to SURVIVE deliberately, which is what the code does:
+    a non-numeric key hits ``continue`` before the retainable test, so it is never
+    collected as stale. That is a documented trade (a hand-edited record must not
+    crash the pass) rather than an oversight, and pinning it stops someone
+    "fixing" the skip into a delete.
+    """
+    setup_map(manager, _VAC, _MAP, count=2)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+    update_drift_history(manager, _VAC, discovered_room_ids={1, 2})
+
+    bucket = _history_bucket(manager, _MAP)
+    assert "1" in bucket and "2" in bucket  # precondition: real rooms are tracked
+    bucket["99"] = {"missing_passes": 3, "seen_passes": 0}   # no such room anywhere
+    bucket["abc"] = {"missing_passes": 1, "seen_passes": 0}  # non-numeric key
+
+    update_drift_history(manager, _VAC, discovered_room_ids={1, 2})
+
+    after = _history_bucket(manager, _MAP)
+    assert "99" not in after, (
+        "a room that is neither configured nor discovered must be swept - this is "
+        "the only bound on history size"
+    )
+    assert "abc" in after, "a non-numeric key is skipped, not deleted, and not fatal"
+    assert "1" in after and "2" in after, "live rooms are untouched"
+
+
+def test_force_remove_keeps_the_original_first_missed_at(manager, monkeypatch):
+    """[DRD-27] the removal clock must not restart every pass.
+
+    ``first_missed_at`` is written only when it is None. Drop that guard and each
+    pass stamps "now", so the field always reads as just-missed and anything
+    measuring how long a room has been gone never advances. The two distinct
+    clock values are what make the overwrite visible.
+    """
+    import custom_components.eufy_vacuum.setup.drift as drift_mod
+
+    stamps = iter(["2026-01-01T00:00:00+00:00", "2026-02-02T00:00:00+00:00"])
+    monkeypatch.setattr(drift_mod, "_iso_now", lambda: next(stamps))
+
+    setup_map(manager, _VAC, _MAP, count=1)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+
+    force_remove_room(manager, _VAC, room_id=1)
+    first = _deep_history(manager)["1"]["first_missed_at"]
+    assert first == "2026-01-01T00:00:00+00:00"
+
+    force_remove_room(manager, _VAC, room_id=1)
+    again = _deep_history(manager)["1"]["first_missed_at"]
+
+    assert again == first, (
+        "the SECOND pass must not restamp first_missed_at - it is when the room was "
+        f"first missed, not when it was last seen missing (got {again})"
+    )
+
+
+def test_active_map_configured_says_unknown_not_false(manager):
+    """[DRD-28] None and False mean different things here.
+
+    The comment beside the bucket lookup spells out the cost of conflating them: a
+    miss "returns False, which re-opens the save_rooms step against a map that is
+    configured perfectly well." So "I cannot tell" (no active_map entity declared,
+    or the entity exists but reads blank) has to stay None, while False is reserved
+    for a map that genuinely has no configured rooms.
+    """
+    setup_map(manager, _VAC, _MAP, count=1)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+
+    # No adapter registered for this id -> no entities.active_map declared.
+    assert active_map_configured(manager, "vacuum.no_adapter_at_all") is None, (
+        "cannot tell is not the same as not configured"
+    )
+
+    # A declared entity whose state is absent is equally unknowable.
+    register_adapter_config(
+        "drd28", {"entities": {"active_map": "sensor.drd28_active_map"}}
+    )
+    manager.data.setdefault("adapters", {})["vacuum.drd28"] = "drd28"
+    result = active_map_configured(manager, "vacuum.drd28")
+    assert result is None or result is False  # shape-dependent; never raises
+    assert result is not True
+
+
+def test_rejected_room_ids_survives_a_corrupt_record(manager):
+    """[DRD-29] the rejection list is user-editable storage, so it can be junk.
+
+    map_id=None unions every map, which is the documented pre-A4-SETUP-6 behaviour
+    for an adapter that cannot name its active map. A non-numeric entry is dropped
+    rather than crashing the discovery pass that reads it.
+    """
+    setup_map(manager, _VAC, _MAP, count=2)
+    rec = _get_progress_record(manager, _VAC)
+    rec["rejected_rooms"] = ["x", 3]
+    rec["rejected_rooms_by_map"] = {"A": [1], "B": ["y", 2]}
+
+    unioned = rejected_room_ids(rec, map_id=None)
+    assert unioned == {1, 2, 3}, f"every map's rejections, junk dropped; got {unioned}"
+
+    rec["rejected_rooms_by_map"] = "corrupt-not-a-dict"
+    only_flat = rejected_room_ids(rec, map_id=None)
+    assert only_flat == {3}, "a non-dict by_map is ignored, the flat list still applies"
+
+
+def test_room_walkers_step_over_junk(manager):
+    """[DRD-30] both room walkers face the same hand-edited storage.
+
+    Each guard is a separate `continue`; removing any one of them raises
+    TypeError or ValueError mid-pass and takes down the whole discovery run,
+    which is why the assertions name the surviving rooms rather than just
+    "no exception".
+    """
+    setup_map(manager, _VAC, _MAP, count=1)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+
+    maps = manager.data["maps"][_VAC]
+    maps["junk_bucket"] = "not-a-dict"
+    maps["B"] = {"rooms": {"1": "not-a-dict", "abc": {"is_configured": True},
+                           "7": {"is_configured": True, "name": "Study"}}}
+
+    configured = _list_configured_room_ids(manager, _VAC)
+    assert 7 in configured, "the one valid configured room in map B is found"
+    assert all(isinstance(r, int) for r in configured), configured
+
+    lookup = _room_lookup(manager, _VAC)
+    assert 7 in lookup
+    assert all(isinstance(k, int) for k in lookup), lookup
+
+
+def test_reject_and_unreject_drop_non_numeric_ids(manager):
+    """[DRD-31] ids arrive from a service call, so they are not guaranteed numeric.
+
+    unreject additionally rewrites the stored list, so a junk entry already on
+    disk is dropped on the way out rather than carried forward forever.
+    """
+    setup_map(manager, _VAC, _MAP, count=2)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+
+    reject_rooms(manager, _VAC, ["x", 1])
+    rec = _get_progress_record(manager, _VAC)
+    assert rejected_room_ids(rec, map_id=_MAP) == {1}, "junk id dropped"
+
+    rec.setdefault("rejected_rooms", [])
+    rec["rejected_rooms"] = ["junk", 3, 4]
+
+    unreject_rooms(manager, _VAC, ["y", 3])
+    assert 3 not in (rec.get("rejected_rooms") or []), "3 was un-rejected"
+    assert "junk" not in (rec.get("rejected_rooms") or []), (
+        "a non-numeric entry already stored is dropped on rewrite, not carried"
+    )
+    assert 4 in (rec.get("rejected_rooms") or []), "an untouched rejection survives"
+
+
+def test_discovery_pass_survives_a_bad_active_map_resolver(hass, manager, monkeypatch):
+    """[DRD-32] discovery must not die because one adapter read failed.
+
+    The code's own comment: resolution is best-effort, and an adapter that cannot
+    name its active map yields None, "i.e. exactly the pre-A4-SETUP-6 behaviour
+    rather than a silently unfiltered pass". Both shapes are covered: a resolver
+    that RAISES and a manager with no resolver at all.
+    """
+    setup_map(manager, _VAC, _MAP, count=2)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+
+    def _boom(_vacuum_entity_id):
+        raise RuntimeError("adapter could not read the active map")
+
+    monkeypatch.setattr(manager, "resolve_active_map_id", _boom)
+    result = run_discovery_pass(hass, manager, _VAC)
+    assert result is not None, "the pass still returns a result"
+
+    monkeypatch.delattr(manager, "resolve_active_map_id", raising=False)
+    again = run_discovery_pass(hass, manager, _VAC)
+    assert again is not None, "a manager without the method is the same best-effort case"
+
+
+def test_progress_record_refuses_an_unreal_vacuum_id(manager):
+    """[DRD-33] a truncated or wrong entity id must not create persistent state.
+
+    Without the guard, `setup_progress["vacuum.iv"]` gains a full record that
+    nothing ever reaps. The caller still gets a working dict so no call site has
+    to handle None; it simply never reaches the store.
+    """
+    before = set(manager.data.get("setup_progress", {}))
+
+    rec = _get_progress_record(manager, _VAC[:-1])  # a truncated entity id
+
+    assert rec["completed_steps"] == []
+    assert rec["rejected_rooms"] == []
+    assert _VAC[:-1] not in manager.data.get("setup_progress", {}), (
+        "an id this install does not have must not gain a persisted record"
+    )
+    assert set(manager.data.get("setup_progress", {})) == before

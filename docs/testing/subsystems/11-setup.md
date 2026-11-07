@@ -13,7 +13,7 @@ Architecture reference: [31 — The Setup Layer](../../dev/31-setup-layer.md)
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `drift.py` | 347 | 85% | `test_setup_drift.py`, `test_setup_drift_deep.py` | integration | clean |
+| `drift.py` | 360 | 94% | `test_setup_drift.py`, `test_setup_drift_deep.py` | integration | clean |
 | `workflow.py` | 75 | 92% | `test_setup_workflow.py`, `test_setup_workflow_deep.py` | integration | **bare x1** |
 | `status.py` | 82 | 96% | `test_setup_status.py` | integration | clean |
 | `delete.py` | 59 | 96% | `test_setup_delete.py` | integration | clean |
@@ -77,13 +77,33 @@ under a full config-entry boot — a different test class than this suite. Note 
 is *not* the setup-package `setup/__init__.py` shown in the table above, which is a
 docstring-only file (0 stmts, 100%).
 
-Within the subsystem package itself, `drift.py` (84%, grown from 193 to 305
-statements this campaign) is now the largest gap — its missing lines
-(239-240, 247, 250, 384-446, 524-529, 606-614, 689-731, 795-894; run
-`--cov-report=term-missing` for the current mapping to specific checks) are
-substantially more numerous than the previously-described defensive coercion
-guards alone, and have not been re-triaged line-by-line this pass; treat the
-"defensive-by-design" characterization as directional, not exhaustive.
+Within the subsystem package itself, `drift.py` is **94%** (342 of 360 statements,
+12 partial branches), up from 85%. That triage — which this section previously
+flagged as "directional, not exhaustive" — has now been done line by line, and the
+remaining 18 statements split cleanly:
+
+- **13 are still-untested but reachable**: 438/450 (`active_map_configured`'s
+  blank-state and absent-bucket arms), 568 (`_drift_history`'s unattributable
+  bucket for `map_id=None` on a multi-map vacuum), 820-821 (the history-only arm of
+  `compute_room_drift`), 938/956 (the zero-map `reject_rooms` flat-list path),
+  968-980 (the rejection strip loop's junk guards) and 1069-1070 (`unreject_rooms`'
+  per-map keep bookkeeping).
+- **5 are DEFENSIVE and deliberately left**: 860-861, 1126, 1129-1130, where the
+  only producer (`rooms/room_discovery.py`) already coerces `room_id` to `int` and
+  builds dicts, so only a patched producer reaches them. A test there would encode
+  an assumption about a shape nothing emits.
+
+So the reachable ceiling is 355/360 = **98.6%**, and nothing in this module needs a
+live HA, hardware or network.
+
+`DRD-26`–`DRD-33` closed the other 30. Two are worth reading rather than counting:
+`DRD-26` pins the stale-key sweep, which is the **only** bound on drift-history
+growth (the module's own comment: it "prevents history from growing unboundedly
+across years") — and also pins the deliberate half, that a non-numeric key is
+*skipped, not deleted*, so it leaks without crashing the pass. `DRD-27` pins
+`first_missed_at` keeping its ORIGINAL value: it is written only when `None`, and
+without that guard every pass restamps "now", so the field always reads as
+just-missed and a room never ages out of the removal threshold.
 `status.py` (96%, missing 128, 263) and `workflow.py` (91%, missing 159, 164,
 170, 204) still leave only a small handful of lines each — a defensive
 `isinstance` bucket guard, a multi-vacuum drift branch, and the
