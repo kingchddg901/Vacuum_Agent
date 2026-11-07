@@ -35,10 +35,13 @@ const shared = {
   // manifest) import by their /eufy_vacuum/frontend/ URL. Mark that prefix external
   // so esbuild leaves the dynamic import() as a runtime URL instead of trying to
   // resolve/bundle it (the map host is a BUILD OUTPUT, not a source file).
+  // anchor: CNJNX9NE  external dynamic-import boundary: the map host stays a runtime URL
   external: ["/eufy_vacuum/frontend/*"],
+  // anchor: CNV1QT53  content-hash cache-bust tokens, injected as compile-time defines
   define: { __ASSET_VER__: JSON.stringify(assetVer), __LOCALE_VER__: JSON.stringify(localeVer), __GUIDE_VER__: JSON.stringify(guideVer) },
 };
 
+// anchor: CNG797ZX  three self-contained bundles, no code-splitting -- and why
 // THREE self-contained ESM bundles (no code-splitting):
 //   1. the sidebar PANEL (command-center),
 //   2. the always-loaded standalone CARDS bundle (room-card + dashboard card),
