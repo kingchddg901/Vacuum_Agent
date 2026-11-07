@@ -6,13 +6,21 @@ fault-injection per the packet: the store primitive, the trouble-rooms RMW, the
 accuracy RMW (+ backoff cache), the accuracy rebuild's one-save, the room-history
 preload (failure keeps cache; concurrent write survives), the source-refresh
 cache, and the finalize-time live-snapshot clear / job-id preference.
+
+[TS-8..TS-10] close the three arms of that machinery measurement still showed
+unexercised: the primitive's catch-all (an unreadable file that is not malformed
+JSON), the atomic writer's temp-file cleanup, and the trouble-rooms reader refusing
+a payload that parsed fine but is the wrong CONTAINER.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from tests._factories import spec_manager
 
@@ -313,3 +321,103 @@ def test_live_snapshot_cleared_after_successful_save(tmp_path):
     assert store.load_live_snapshot(vacuum_entity_id=VAC)
     store.clear_live_snapshot(vacuum_entity_id=VAC)
     assert store.load_live_snapshot(vacuum_entity_id=VAC) is None
+
+
+# ---------------------------------------------------------------------------
+# [TS-8..TS-10] -- the three remaining arms of the tri-state machinery, from the
+# 2026-11-07 coverage pass. Measured missed: 553-555, 600-603, 766.
+# ---------------------------------------------------------------------------
+
+
+def test_read_json_outcome_catches_a_non_json_decode_failure(tmp_path):
+    """[TS-8] UNREADABLE for a file that is not malformed JSON but still unreadable.
+
+    [TS-1] covers the JSONDecodeError arm (trailing garbage) and the zero-byte arm.
+    This covers the catch-all underneath them, and the input is chosen so it CANNOT
+    reach either: invalid UTF-8 bytes make `path.read_text(encoding="utf-8")` raise
+    UnicodeDecodeError, which is a ValueError subclass but NOT a JSONDecodeError --
+    so it passes the specific handler and lands in `except Exception`.
+
+    That matters for the RMW contract rather than for tidiness. Without the
+    catch-all this read RAISES, and a destructive read-modify-write caller that was
+    promised a tri-state gets an exception instead of UNREADABLE -- the one outcome
+    the whole mechanism exists to report. A real cause: a half-written file on the
+    SMB config share, which is the failure this module's docstring was written for.
+    """
+    store = _store(tmp_path)
+    p = tmp_path / "binary.json"
+    # Not valid UTF-8 at byte 0: 0xFF can never start a UTF-8 sequence.
+    p.write_bytes(b"\xff\xfe\x00{not even text}")
+
+    assert store.read_json_outcome(p) == (store.READ_UNREADABLE, None)
+
+
+@pytest.mark.parametrize(
+    "exc, label",
+    [
+        (OSError("disk full"), "an ordinary OSError"),
+        (KeyboardInterrupt(), "a BaseException that is not an Exception"),
+    ],
+    ids=["oserror", "keyboardinterrupt"],
+)
+def test_write_json_leaves_no_temp_file_when_the_replace_fails(tmp_path, monkeypatch,
+                                                               exc, label):
+    """[TS-9] the atomic writer must not orphan its temp file.
+
+    write_json writes to `.{name}.XXXX.tmp` beside the target and os.replace()s it
+    in. If the replace fails, the temp file has to go: an orphan beside a real store
+    is indistinguishable from a torn write to anyone later globbing that directory,
+    and on the SMB share these accumulate silently.
+
+    THE `keyboardinterrupt` ROW IS THE POINT. The handler is
+    `except BaseException`, not `except Exception`, which is unusual enough to look
+    like a mistake -- it is not. A Ctrl-C or a SystemExit landing between the write
+    and the replace is exactly when a stray temp file is least likely to be noticed,
+    so narrowing that handler to Exception leaves an orphan on the one path where
+    nobody is watching. Only this row can tell.
+
+    Both rows also assert the exception PROPAGATES: a cleanup that swallowed the
+    failure would leave the caller believing the store was written.
+    """
+    store = _store(tmp_path)
+    target = tmp_path / "store.json"
+    target.write_text('{"original": true}', encoding="utf-8")
+
+    def _boom(*_a, **_kw):
+        raise exc
+
+    monkeypatch.setattr(os, "replace", _boom)
+
+    with pytest.raises(type(exc)):
+        store.write_json(target, {"replacement": True})
+
+    orphans = list(tmp_path.glob(".store.json.*.tmp"))
+    assert orphans == [], f"{label} left a temp file behind: {orphans!r}"
+    # And the pre-existing store is untouched -- a failed write is not a half write.
+    assert json.loads(target.read_text(encoding="utf-8")) == {"original": True}
+
+
+def test_load_trouble_rooms_outcome_refuses_a_non_dict_payload(tmp_path):
+    """[TS-10] parsed fine, wrong CONTAINER -> UNREADABLE, not an empty dict.
+
+    read_json_outcome deliberately accepts a dict OR a list as valid JSON, because
+    some stores are lists. The trouble-rooms log is not one of them, so a list that
+    parses perfectly is still unusable here -- and the distinction is load-bearing
+    for exactly the reason in this module's header: the RMW writer refuses on
+    UNREADABLE, but would happily treat (READ_OK, None) as "no trouble rooms yet"
+    and replace a store it could not understand with only its own delta.
+
+    So the guard's job is to convert "valid JSON of the wrong shape" into the one
+    outcome that stops the writer, rather than into the one that lets it through.
+    """
+    store = _store(tmp_path)
+    path = store.get_trouble_rooms_path(vacuum_entity_id=VAC)
+    store.write_json(path, ["room_1", "room_2"])
+
+    # The primitive is happy: a list IS a valid JSON container.
+    assert store.read_json_outcome(path) == (store.READ_OK, ["room_1", "room_2"])
+
+    # The trouble-rooms reader is not.
+    assert store.load_trouble_rooms_outcome(vacuum_entity_id=VAC) == (
+        store.READ_UNREADABLE, None
+    )

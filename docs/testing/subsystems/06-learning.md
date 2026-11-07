@@ -199,16 +199,35 @@ the id-validation and finalize-edge gaps:
   undeclared phase appended in index order rather than dropped (`HS-19`), and
   `_native_finalize_brand` refusing an empty entity id (`HS-21`).
 
-**Of the 43 statements still uncovered, 16 are deliberate**: 15 are shape guards the
+**Of the 35 statements still uncovered, 16 are deliberate**: 15 are shape guards the
 coverage triage marked DEFENSIVE ("keep the guards; do not pad coverage with them" —
 no producer emits those shapes), and 2113 is a genuinely unreachable `else` arm.
 Four more (2209-2212) are the live:RECHARGE-ATTR-1 wiring: the predicate
 `monotone_shift_run` is already covered in `test_external_ingest_attribution.py`
 (runs of 3/1/0, both verdicts), so only the wiring is open, and reaching it honestly
 needs three counter segments with `segment_count == queue_count` so the FLAG rather
-than RESCUE branch is taken. The remaining ~23 are ordinary follow-up; the
-read/write error arms among them (553-555, 600-603, 766) belong with the `TS-*`
-tri-state tests in `test_rmw_tristate.py`, not here.
+than RESCUE branch is taken. The remaining ~15 are ordinary follow-up.
+
+The read/write error arms that used to be on that list — 553-555, 600-603 and 766 —
+are **done**, as `TS-8..TS-10` in `test_rmw_tristate.py` where the note said they
+belonged (that is what took the count from 43 to 35):
+
+- **`TS-8`** — the primitive's catch-all, reached with input that *cannot* reach the
+  handlers above it: invalid UTF-8 makes `read_text` raise `UnicodeDecodeError`,
+  a `ValueError` subclass but not a `JSONDecodeError`. Without the catch-all the read
+  *raises*, and an RMW caller promised a tri-state gets an exception instead of
+  `UNREADABLE` — the one outcome the mechanism exists to report.
+- **`TS-9`** — `write_json` must not orphan its temp file when `os.replace` fails,
+  parametrised over an `OSError` and a `KeyboardInterrupt`. That second row is the
+  point: the handler is `except BaseException`, which looks like a mistake and is
+  not. Ablation confirms it — narrowing it to `except Exception` reddens **only**
+  the `KeyboardInterrupt` row, so a Ctrl-C between the write and the replace is
+  precisely when an orphan would otherwise be left, and least likely to be noticed.
+- **`TS-10`** — the trouble-rooms reader refusing a payload that parsed fine but is
+  the wrong *container*. `read_json_outcome` accepts a dict **or** a list by design,
+  so a list is `READ_OK`; converting that to `UNREADABLE` is what stops the RMW
+  writer, which would otherwise read `(READ_OK, None)` as "no trouble rooms yet" and
+  replace a store it could not understand with only its own delta.
 
 ### `stats_rebuilder.py` — pure builders + `LearningStatsRebuilder`
 `_room_key`, `_room_baseline_key`, `_stddev`, and the rebuild paths that turn
