@@ -13,6 +13,7 @@ Coverage targets
 [MSV-18] delete_map_image clears dangling custom_layouts references (backdrop, home art, room art) to the deleted variant (RP-016).
 [MSV-16b] set_map_overlay_visibility REFUSES an unknown map_id instead of minting a phantom durable bucket for it (RP-028/SERVIC-1).
 [MSV-19] rename_saved_zone refuses an unknown map_id the same way its create_saved_zone sibling already did.
+[MSV-20] the RP-028 sweep: all 14 remaining write handlers refuse an unknown map_id, each via its OWN refusal key (saved / deleted / available / cleaned), and mint nothing. Plus the managed-case control, without which a blanket refusal would pass.
 """
 
 from __future__ import annotations
@@ -244,3 +245,91 @@ async def test_msv19_rename_saved_zone_unknown_map_refuses(hass, mapping_service
     )
     assert "known_maps" in result, "name what the caller could have meant"
     assert "never_seeded" not in manager.data.get("maps", {}).get(_VAC, {})
+
+
+# ---------------------------------------------------------------------------
+# [MSV-20] The RP-028 sweep: every mapping handler that WRITES against a
+# caller-supplied map_id refuses an unknown address instead of minting one.
+#
+# RP-028 (2026-08-02) applied this rule to a NAMED LIST of findings and registered
+# nothing durable, so sixteen handlers in this file kept calling `ensure_map_bucket`
+# -- whose `setdefault` creates the address -- on a required, unvalidated map_id.
+# Two were fixed first (MSV-16b, MSV-19); these are the rest.
+#
+# ONE PARAMETRISED TEST, not fourteen, because the rule is one rule. What varies and
+# is therefore asserted per handler is the REFUSAL KEY: these do not all answer
+# `saved`. Getting that wrong is a silent failure at the card, which is why each key
+# below was read off the handler's own existing refusals rather than assumed.
+# ---------------------------------------------------------------------------
+
+_RP028_SWEEP = [
+    # (service, extra required payload, the key THIS handler refuses with)
+    (ms.SERVICE_UPLOAD_MAP_IMAGE, {"image_base64": "aGVsbG8="}, "saved"),
+    (ms.SERVICE_DELETE_MAP_IMAGE, {}, "deleted"),
+    (ms.SERVICE_ANALYZE_MAP_IMAGE, {}, "available"),
+    (ms.SERVICE_SET_SEGMENTATION_MODE, {"mode": "cv"}, "saved"),
+    (ms.SERVICE_SET_CUSTOM_SEGMENTS,
+     {"layout_id": "L1",
+      "segments": [{"id": "s1", "primitives": [{"type": "rect", "x": 1, "y": 1,
+                                                "w": 2, "h": 2}]}]}, "saved"),
+    # `index` is required only INSIDE vertex_moves, not at the top level.
+    (ms.SERVICE_ADJUST_MAP_SEGMENT, {"segment_id": "s1"}, "saved"),
+    (ms.SERVICE_CREATE_CUSTOM_LAYOUT, {"name": "L"}, "saved"),
+    (ms.SERVICE_RENAME_CUSTOM_LAYOUT, {"layout_id": "L1", "name": "L2"}, "saved"),
+    (ms.SERVICE_DELETE_CUSTOM_LAYOUT, {"layout_id": "L1"}, "saved"),
+    (ms.SERVICE_SET_ACTIVE_CUSTOM_LAYOUT, {}, "saved"),
+    (ms.SERVICE_DELETE_SAVED_ZONE, {"zone_id": "z1"}, "saved"),
+    (ms.SERVICE_SET_SAVED_ZONE_ROOM, {"zone_id": "z1", "room_number": 1}, "saved"),
+    (ms.SERVICE_CLEAN_SAVED_ZONE, {"zone_id": "z1"}, "cleaned"),
+    (ms.SERVICE_CLEAN_SAVED_ZONES, {"zone_ids": ["z1"]}, "cleaned"),
+]
+
+
+@pytest.mark.parametrize("service,extra,key", _RP028_SWEEP,
+                         ids=[s for s, _e, _k in _RP028_SWEEP])
+async def test_msv20_write_handlers_refuse_an_unknown_map(
+    hass, mapping_services, service, extra, key
+):
+    """[MSV-20] refuse the address, and leave NOTHING behind.
+
+    The second assertion is the defect itself: `ensure_map_bucket` would have written
+    `maps[vacuum]["never_seeded"]` into live storage, and from that moment "never
+    configured" and "configured and empty" are byte-identical forever -- the same
+    irreversible-as-evidence loss INKV8ZQD describes one level up.
+
+    ABLATION: restore `ensure_map_bucket` in any one handler and that handler's case
+    goes red on both counts -- the refusal key and the phantom bucket.
+    """
+    manager = mapping_services
+    assert "never_seeded" not in manager.data.get("maps", {}).get(_VAC, {}), (
+        "the premise: nothing exists at that address before the call"
+    )
+
+    result = await _call(hass, service,
+                         {"vacuum_entity_id": _VAC, "map_id": "never_seeded", **extra})
+
+    assert result[key] is False, (
+        f"{service} must refuse via its own key {key!r} -- these handlers do not all "
+        f"answer `saved`, and a refusal under the wrong key reads as success"
+    )
+    assert result["reason"] == "map_not_found"
+    assert "known_maps" in result, "name what the caller could have meant"
+    assert "never_seeded" not in manager.data.get("maps", {}).get(_VAC, {}), (
+        "THE PHANTOM BUCKET: a refused write must not mint the address it refused"
+    )
+
+
+async def test_msv20b_a_known_map_is_still_served(hass, mapping_services):
+    """[MSV-20] the control, and it is the one that matters.
+
+    A guard that refused everything would pass all fourteen cases above. This asserts
+    the MANAGED case still works -- the same role [UV-5] plays for INKV8ZQD, whose
+    entry records that without it a blanket refusal looks identical to a correct fix.
+    """
+    manager = mapping_services
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+
+    result = await _call(hass, ms.SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert result["saved"] is True, "a real map must still be writable"
+    assert result.get("reason") != "map_not_found"

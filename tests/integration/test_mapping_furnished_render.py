@@ -44,6 +44,7 @@ import io
 import pytest
 
 from custom_components.eufy_vacuum.const import (
+    DATA_RUNTIME,
     DOMAIN,
     SERVICE_CREATE_CUSTOM_LAYOUT,
     SERVICE_DELETE_CUSTOM_LAYOUT,
@@ -93,7 +94,16 @@ async def _svc(hass, service, data):
 
 async def _create_layout(hass, map_id, *, name="Furnished"):
     """Create + activate a custom layout (flips the map into custom mode) and return
-    its layout_id."""
+    its layout_id.
+
+    RP-028/SERVIC-1: create_custom_layout now REFUSES an unknown map_id rather than
+    minting a bucket for it, so the map has to exist before a layout can be put on it.
+    In production it always does -- maps are DISCOVERED, and a layout is created on a
+    map the user is already looking at. The suite used to get this bucket free from
+    `ensure_map_bucket`, which was the defect. [FURN-8b] covers the refusal itself.
+    """
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=map_id)
     res = await _svc(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
                      {"vacuum_entity_id": _VAC, "map_id": map_id, "name": name})
     return res["layout_id"]

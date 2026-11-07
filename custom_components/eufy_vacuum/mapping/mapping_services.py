@@ -840,6 +840,20 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
     art_scope: str | None = call.data.get("art_scope")
     art_room_id = call.data.get("room_id")
 
+    # RP-028/SERVIC-1, guarded EARLY and deliberately. This handler has THREE
+    # ensure_map_bucket sites and writes a PNG to disk before reaching the last of
+    # them, so refusing at a bucket call would still leave an orphan file named for
+    # a map that does not exist. Refusing here also means a layout-scoped upload to
+    # an unknown map reports map_not_found rather than the misleading layout_not_found.
+    _mgr0 = hass.data[DOMAIN][DATA_RUNTIME]
+    if require_map_bucket(
+        data=_mgr0.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    ) is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=_mgr0.data, vacuum_entity_id=vacuum_entity_id),
+        }
+
     if art_scope is not None:
         # Furnished art is layout-scoped: the variant key + the layout field it writes
         # are both DERIVED from layout_id, so it's required. The layout must already exist.
@@ -1090,11 +1104,17 @@ async def _handle_delete_map_image(hass: HomeAssistant, call: ServiceCall) -> di
     variant: str = call.data.get("variant", "default")
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data,
-        vacuum_entity_id=vacuum_entity_id,
-        map_id=map_id,
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "deleted": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     variants: dict = map_bucket.get("image_variants", {}) or {}
     entry = variants.get(variant)
     if not isinstance(entry, dict):
@@ -1230,11 +1250,17 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
     force_reanalyze: bool = call.data.get("force_reanalyze", False)
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data,
-        vacuum_entity_id=vacuum_entity_id,
-        map_id=map_id,
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "available": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
 
     # RP-006 (IMAGE--3): the cache-hit gate checks AVAILABLE, not truthiness — a
     # cached FAILURE envelope is a truthy dict and used to be served as if it
@@ -1556,11 +1582,17 @@ async def _handle_set_segmentation_mode(hass: HomeAssistant, call: ServiceCall) 
     mode: str = call.data["mode"]
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data,
-        vacuum_entity_id=vacuum_entity_id,
-        map_id=map_id,
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_custom_layouts(map_bucket)
     map_bucket["segmentation_mode"] = mode
     # Flipping to custom with no active layout but layouts present: soft-select the
@@ -1934,11 +1966,17 @@ async def _handle_set_custom_segments(hass: HomeAssistant, call: ServiceCall) ->
         return {"saved": False, "reason": "layout_id_required"}
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data,
-        vacuum_entity_id=vacuum_entity_id,
-        map_id=map_id,
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
 
     _migrate_custom_layouts(map_bucket)
     layout = (map_bucket.get("custom_layouts") or {}).get(layout_id)
@@ -2018,11 +2056,17 @@ async def _handle_adjust_map_segment(hass: HomeAssistant, call: ServiceCall) -> 
         return {"saved": False, "reason": "missing_segment_id"}
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data,
-        vacuum_entity_id=vacuum_entity_id,
-        map_id=map_id,
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
 
     segments = (map_bucket.get("image_segments") or {}).get("segments") or []
     if not any(str(seg.get("segment_id") or "") == segment_id for seg in segments):
@@ -2638,9 +2682,17 @@ async def _handle_create_custom_layout(hass: HomeAssistant, call: ServiceCall) -
     backdrop_source: str | None = str(call.data.get("backdrop_source") or "").strip() or None
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_custom_layouts(map_bucket)
     layout = _create_layout(map_bucket, name, backdrop_source=backdrop_source)
     map_bucket["segmentation_mode"] = "custom"
@@ -2658,9 +2710,17 @@ async def _handle_rename_custom_layout(hass: HomeAssistant, call: ServiceCall) -
         return {"saved": False, "reason": "missing_name"}
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_custom_layouts(map_bucket)
     layout = (map_bucket.get("custom_layouts") or {}).get(layout_id)
     if not isinstance(layout, dict):
@@ -2680,9 +2740,17 @@ async def _handle_delete_custom_layout(hass: HomeAssistant, call: ServiceCall) -
     layout_id: str = call.data["layout_id"]
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_custom_layouts(map_bucket)
     layouts = map_bucket.get("custom_layouts") or {}
     layout = layouts.get(layout_id)
@@ -2749,9 +2817,17 @@ async def _handle_set_active_custom_layout(hass: HomeAssistant, call: ServiceCal
     layout_id = call.data.get("layout_id")
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_custom_layouts(map_bucket)
     layouts = map_bucket.get("custom_layouts") or {}
     if layout_id and isinstance(layouts.get(layout_id), dict):
@@ -2857,9 +2933,17 @@ async def _handle_delete_saved_zone(hass: HomeAssistant, call: ServiceCall) -> d
     zone_id: str = call.data["zone_id"]
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_saved_zones(map_bucket)
     zones = map_bucket.get("saved_zones") or {}
     if zone_id not in zones:
@@ -2878,9 +2962,17 @@ async def _handle_set_saved_zone_room(hass: HomeAssistant, call: ServiceCall) ->
     room_number = call.data["room_number"]  # int or None
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_saved_zones(map_bucket)
     zone = (map_bucket.get("saved_zones") or {}).get(zone_id)
     if not isinstance(zone, dict):
@@ -2907,9 +2999,17 @@ async def _handle_clean_saved_zone(hass: HomeAssistant, call: ServiceCall) -> di
     clean_times: int = int(call.data.get("clean_times", 1))
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "cleaned": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_saved_zones(map_bucket)
     zone = (map_bucket.get("saved_zones") or {}).get(zone_id)
     if not isinstance(zone, dict):
@@ -2971,9 +3071,17 @@ async def _handle_clean_saved_zones(hass: HomeAssistant, call: ServiceCall) -> d
     clean_times: int = int(call.data.get("clean_times", 1))
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    # RP-028/SERVIC-1: refuse an unknown address, never mint one. `ensure_map_bucket`
+    # setdefaults the bucket into existence, so a caller-supplied map_id matching
+    # nothing wrote a durable phantom here and the handler answered as if it worked.
+    map_bucket = require_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "cleaned": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_saved_zones(map_bucket)
     zones_store = map_bucket.get("saved_zones") or {}
 

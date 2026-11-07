@@ -99,6 +99,11 @@ _MAP = "6"
 async def mapping_services(hass, manager):
     # the mapping-specific handlers resolve a dedicated RoomBoundsStore from
     # hass.data; async_setup_entry wires this in production.
+    # RP-028/SERVIC-1: these handlers now REFUSE an unknown map_id instead of minting
+    # one, so the map a test addresses must exist first -- which is what a real install
+    # looks like, since maps are DISCOVERED and never created by these services. The
+    # suite used to get this bucket free from `ensure_map_bucket`; that was the defect.
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
     await async_register_mapping_services(hass)
     yield manager
     await async_unregister_mapping_services(hass)
