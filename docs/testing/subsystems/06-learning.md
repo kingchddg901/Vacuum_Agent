@@ -208,7 +208,16 @@ remaining ~15 are ordinary follow-up.
 
 The last four statements (2209-2212) are closed. The *predicate*
 (`monotone_shift_run`) was already covered in `test_external_ingest_attribution.py`
-with runs of 3/1/0; what was open was the wiring inside
+with runs of 3/1/0. Those fence `_SHIFT_BLOCK_MIN_RUN` **downward only**: lower it
+to 1 and the file's two run-of-1 cases go red (`test_a_single_disagreement_does_not_block`
+and `test_shift_must_be_consecutive`, which is also a run of 1), but raise it to 3
+and every one of them still passes, because a run of 3 blocks either way. The upward fence is `HS-T6`, whose three rows
+make a run of exactly **2**, against `HS-T7`'s exactly **1** — so between them the
+constant cannot move in either direction unseen, and a boundary test added to the
+unit file later would be padding rather than coverage. (The one place that number
+was genuinely loose was the replay harness, which had copied it; see
+[01 § the replay harness](../01-overview.md#the-replay-harness).) What was open was
+the wiring inside
 `build_completed_job_payload`, and reaching it is not a matter of handing the builder
 a `room_timings` list — **there is no parameter for one.** The rows have to be
 produced, by the counter segmenter plus the pose reconcile, which means satisfying

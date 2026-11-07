@@ -81,6 +81,7 @@ tests/
     test_replay_smoke.py      # end-to-end: a real recorded run drives external capture
     test_harvest_units.py     # harvester unit handling (ft^2 / m^2 conversion)
     test_refocus.py           # lens sufficiency guards
+    test_reverdict.py         # the re-judge harness derives verdicts, never restates them
 ```
 
 (`eufy/test_discovery.py` is gone — model detection is no longer a separate
@@ -154,6 +155,21 @@ argparse default) but both scripts' own docstrings model/recommend pointing it
 at the git-ignored `.claude/notes/` tree, with an explicit warning against a
 tracked destination; `reverdict.py` and `reclassify.py` take no `--out` at all
 and only print findings to stdout. Each module's docstring is its manual.
+
+One of those modules is gated, and the gate is about trust rather than coverage.
+`test_reverdict.py` (`RPL-2`–`RPL-5`) holds `reverdict.py` to the rule its own
+docstring states: a harness whose purpose is to report what the *current* build
+concludes must import the shipped functions, never restate them. It restated one
+— the attribution-shift threshold was written out as `run >= 2`, a hand copy of
+`learning/external_ingest.py::_SHIFT_BLOCK_MIN_RUN`
+— so the report printed "records the NEW rule blocks" while answering for a rule
+of its own. `RPL-3` *moves* the shipped constant and asserts the report moves with
+it; a test asserting "a run of 2 blocks" would merely have been a third copy of
+the number. Worth naming why no existing gate could catch this: the `RN` replica
+register ([00c](../dev/00c-replicas.md)) scans `SOURCE_ROOTS` —
+`custom_components`, `scripts`, `src`, `harness` — so a shipped constant copied
+into `tests/` has no anchorable second site and is invisible to
+`test_replica_ratchet.py` as well as to coverage.
 
 ## Coverage status
 

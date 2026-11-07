@@ -46,6 +46,7 @@ from typing import Any
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from custom_components.eufy_vacuum.learning.external_ingest import (  # noqa: E402
+    attribution_shift_blocks_learning,
     monotone_shift_run,
 )
 from custom_components.eufy_vacuum.learning.stats_rebuilder import (  # noqa: E402
@@ -78,6 +79,19 @@ def check_recharge_flag(records) -> list[tuple]:
     observed=False while its own count/accumulator said otherwise. The same file's
     battery_metrics.mid_job_recharge already disagreed, which is how a single
     record ends up testifying both ways.
+
+    THE TWO-TERM DERIVATION IS DELIBERATE and is NOT the restatement the module
+    docstring forbids -- do not "fix" it to match the shipped expression. That one
+    carries a THIRD term, the live ``observed_mid_job_recharge`` flag (see
+    history_store.py, the ``mid_job_recharge_observed`` assignment), and
+    ``learning/manager.py::recharge_summary`` mirrors all three on purpose.
+    Including it HERE would make the comparison one-directional -- ``recorded``
+    would imply ``derived`` -- so the check could never see a record claiming True
+    on no counter evidence, which is the OVER-COUNT half of RECHARGE-FLAG-2 (the
+    run that finalized while still docked and charging: recorded True, right
+    answer, wrong reason). The flag is excluded so the disagreement can point BOTH
+    ways. Import the shipped predicate wherever one answers the question; this
+    question has none, because it is asked ABOUT the shipped one.
     """
     hits = []
     for vac, name, j in records:
@@ -98,13 +112,22 @@ def check_attribution_shift(records) -> list[tuple]:
 
     Reading disagreements one at a time cannot see this; the run of consecutive
     rows each naming its SUCCESSOR is the signature.
+
+    THE VERDICT IS THE SHIPPED PREDICATE'S, never a threshold restated here. This
+    used to read ``if run >= 2``, which is ``external_ingest._SHIFT_BLOCK_MIN_RUN``
+    copied by hand -- so the report printed "records the NEW rule blocks" while
+    answering for a rule of its own. A hand-copied constant that happens to AGREE
+    is the worst case of the rule in the module docstring above, because nothing
+    anywhere goes red on the day it stops agreeing, and what this prints is read as
+    real-device evidence. ``monotone_shift_run`` is still called, for the run
+    LENGTH the operator reads; the decision is not its to make. Pinned by
+    [RPL-3], which moves the shipped constant and requires this to follow.
     """
     hits = []
     for vac, name, j in records:
         timings = (j.get("job") or {}).get("room_timings") or []
-        run = monotone_shift_run(timings)
-        if run >= 2:
-            hits.append((vac, name, run, len(timings),
+        if attribution_shift_blocks_learning(timings):
+            hits.append((vac, name, monotone_shift_run(timings), len(timings),
                          (j.get("outcome") or {}).get("used_for_learning")))
     return hits
 
