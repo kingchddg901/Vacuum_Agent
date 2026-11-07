@@ -156,6 +156,33 @@ because losing the restore must not also lose the run.
 
 Covered by `[ZC-DR-7]` and `[ZC-DR-8]`, each red when its guard is removed.
 
+**And the apply itself had never run.** `ZC-DR-7`/`8` prove a *vanished* target is reported;
+`ZC-DR-6` proves the gate goes back. None of them reached the line that actually hands the
+user's setting back, because it sits behind `if p.get("prior") is not None` and the three
+existing cases miss it from both sides — `ZC-DR-6` snapshots no prior for the select, and
+`ZC-DR-7` sets one and then *removes the entity*, so the vanished-guard fires first. The
+ordinary case, a prior that still exists, was the gap. `[ZC-DR-9]`–`[ZC-DR-12]` close it:
+
+- `ZC-DR-9` — a surviving prior **is** re-applied, and the *last* write is the prior rather
+  than the zone's value. This is the whole point of the restore: a zone clean writes the
+  device's **global** suction, so without it the device keeps the zone's value and every later
+  room clean runs at it. The gate being back ON with the wrong suction behind it is still the
+  user's setting lost.
+- `ZC-DR-10` — a re-apply that *raises* is warned and the rest of the restore still runs. The
+  restore fires from a state-change callback, so an escaping exception is invisible to the
+  caller **and** able to abandon the gate, which is the un-regated failure above.
+- `ZC-DR-11` — a gate re-enable that raises is warned. `ZC-DR-8` covers a gate that has
+  vanished (HA warns rather than raising); this is the service that exists and fails, the only
+  route to that `except`.
+- `ZC-DR-12` — a non-`ValueError` during the bulk set restores the priors **and** re-raises,
+  and asserts the zone service was never called. The readback-mismatch path already restores
+  before raising its own `ValueError`; this is the other arm, and the robot must not be sent
+  when the settings did not take.
+
+Ablated five ways. Removing the `_apply` inside `_restore` reddens all four — stated up front,
+because that line is what every one of them is ultimately about, so a test staying green under
+it would be the suspicious result. The four narrow arms each redden exactly one.
+
 ---
 
 ## 5. Two vocabularies that look identical and must not be merged

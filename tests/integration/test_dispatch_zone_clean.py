@@ -28,6 +28,16 @@ Coverage targets
 [ZC-17] supports_zone_clean: false -> ValueError, no dispatch (RP-022/ZONE-2 -- dispatch itself now checks it).
 [ZC-18] Eufy (non-device_mm) branch: a zone_max_area_m2 bound is now enforced there too (RP-022 item 2).
 [ZC-19] Eufy: supports_zone_repeat: false overrides an otherwise-valid declared cap (RP-022/Q12).
+
+The zone global-precall RESTORE path (ZC-DR-9..12). ZC-DR-6 proves the gate goes back
+and ZC-DR-7/8 prove a VANISHED target is reported -- but the apply itself had never
+run, because every earlier case either had no prior snapshotted or had the entity
+removed before restore. These cover the path that actually hands the user's settings
+back, and the two failure arms around it.
+[ZC-DR-9]  a prior that still EXISTS is re-applied at completion.
+[ZC-DR-10] a re-apply that RAISES is warned, and the rest of the restore still runs.
+[ZC-DR-11] a gate re-enable that RAISES is warned rather than escaping a state callback.
+[ZC-DR-12] a non-ValueError during the bulk set restores the priors AND re-raises.
 """
 
 from __future__ import annotations
@@ -35,6 +45,8 @@ from __future__ import annotations
 import types
 
 import pytest
+
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 
@@ -804,3 +816,169 @@ async def test_dreame_zone_restore_reports_a_vanished_gate(hass, manager, monkey
         "name the CONSEQUENCE -- the globals stay un-regated, which is what the user has to fix"
     )
     assert "switch_on" not in [c[0] for c in calls], "nothing is sent to an entity that is gone"
+
+
+# ---------------------------------------------------------------------------
+# [ZC-DR-9..12] the zone global-precall RESTORE apply path.
+#
+# From the 2026-11-07 coverage triage, which named this the module's real defect
+# risk: the restore "re-applies a user's saved robot settings and has never run in
+# any test". The reason it never ran is specific -- the apply at dispatch/manager.py
+# is guarded by `if p.get("prior") is not None`, and ZC-DR-6 snapshots no prior for
+# the select while ZC-DR-7 removes the entity before restore, so both skip it.
+# ---------------------------------------------------------------------------
+
+
+async def _run_zone_to_completion(hass, manager):
+    """Dispatch a zone and then drive the robot through cleaning -> docked, which is
+    what arms and then fires the restore (ZC-DR-6 pins that ordering)."""
+    await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]], settings={"suction": "strong"},
+    )
+    hass.states.async_set("vacuum.alfred", "cleaning")
+    await hass.async_block_till_done()
+    hass.states.async_set("vacuum.alfred", "docked")
+    await hass.async_block_till_done()
+
+
+async def test_dreame_zone_restore_reapplies_a_surviving_prior(hass, manager, monkeypatch):
+    """[ZC-DR-9] the user's prior setting is handed back.
+
+    This is the whole point of the restore, and it had never executed: a zone clean
+    writes the device's GLOBAL suction, so without this the device keeps the zone's
+    value and every later room clean runs at it. ZC-DR-6 only proves the gate flips
+    back; the gate being on with the wrong suction behind it is still the user's
+    setting lost.
+    """
+    _register_dreame(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    hass.states.async_set("switch.alfred_customized_cleaning", "on")
+    hass.states.async_set("select.alfred_suction_level", "standard")  # the user's setting
+    hass.states.async_set("vacuum.alfred", "docked")
+    calls = _wire_precall(hass)
+
+    await _run_zone_to_completion(hass, manager)
+
+    # The zone's value went on the wire first, then the prior came back.
+    options = [c[1].get("option") for c in calls if c[0] == "select"]
+    assert "strong" in options, "precondition: the zone's own suction was pushed"
+    assert options[-1] == "standard", (
+        f"the LAST write must hand the prior back, else the device keeps the zone's "
+        f"suction for every later room clean; saw {options}"
+    )
+    assert hass.states.get("select.alfred_suction_level").state == "standard"
+    assert "switch_on" in [c[0] for c in calls], "the gate goes back too"
+
+
+async def test_dreame_zone_restore_warns_when_the_reapply_raises(
+    hass, manager, monkeypatch, caplog
+):
+    """[ZC-DR-10] losing one restore must not lose the rest.
+
+    The restore runs from a state-change callback, so an escaping exception is both
+    invisible to the caller and able to abandon the gate -- which would leave the
+    device's globals un-regated and every later room clean refused. The handler here
+    fails ONLY on the prior value, so the forward set still succeeds and the readback
+    still passes; only the restore breaks.
+    """
+    _register_dreame(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    hass.states.async_set("switch.alfred_customized_cleaning", "on")
+    hass.states.async_set("select.alfred_suction_level", "standard")
+    hass.states.async_set("vacuum.alfred", "docked")
+    calls = _wire_precall(hass)
+
+    async def _sel_fails_on_restore(call):
+        calls.append(("select", dict(call.data)))
+        if call.data.get("option") == "standard":      # the RESTORE write only
+            raise HomeAssistantError("select rejected the prior")
+        hass.states.async_set(call.data["entity_id"], call.data["option"])
+
+    hass.services.async_register("select", "select_option", _sel_fails_on_restore)
+    caplog.clear()
+
+    await _run_zone_to_completion(hass, manager)
+
+    msgs = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any("zone restore" in m and "standard" in m for m in msgs), (
+        f"a failed re-apply must say what it could not put back; warnings: {msgs}"
+    )
+    assert "switch_on" in [c[0] for c in calls], (
+        "the gate must still go back -- otherwise one bad select leaves the device "
+        "un-regated and later room cleans refuse"
+    )
+
+
+async def test_dreame_zone_restore_warns_when_the_gate_reenable_raises(
+    hass, manager, monkeypatch, caplog
+):
+    """[ZC-DR-11] the gate is the last step, so its failure has nowhere to propagate.
+
+    ZC-DR-8 covers a gate that has VANISHED (HA warns rather than raising). This is
+    the other arm: the switch exists and its service FAILS, which is the only way the
+    `except` around turn_on is reached.
+    """
+    _register_dreame(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    hass.states.async_set("switch.alfred_customized_cleaning", "on")
+    hass.states.async_set("select.alfred_suction_level", "standard")
+    hass.states.async_set("vacuum.alfred", "docked")
+    calls = _wire_precall(hass)
+
+    async def _swon_fails(call):
+        calls.append(("switch_on", dict(call.data)))
+        raise HomeAssistantError("switch refused")
+
+    hass.services.async_register("switch", "turn_on", _swon_fails)
+    caplog.clear()
+
+    await _run_zone_to_completion(hass, manager)
+
+    msgs = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any("re-enabling" in m for m in msgs), (
+        f"a failed gate re-enable must be reported; warnings: {msgs}"
+    )
+    # The setting restore ran BEFORE the gate, so it still happened.
+    assert any(c[0] == "select" and c[1].get("option") == "standard" for c in calls)
+
+
+async def test_dreame_zone_set_failure_restores_then_reraises(hass, manager, monkeypatch):
+    """[ZC-DR-12] a mid-set failure must not leave the device half-configured.
+
+    The readback mismatch path (ZC-DR-5) raises ValueError and is re-raised WITHOUT a
+    second restore because it already restored. This is the other arm: any non-ValueError
+    from the set or the readback has to put the device back and then propagate, so the
+    caller learns the dispatch failed and the device is not left carrying the zone's
+    settings with no zone ever run.
+    """
+    _register_dreame(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    hass.states.async_set("switch.alfred_customized_cleaning", "on")
+    hass.states.async_set("select.alfred_suction_level", "standard")
+    hass.states.async_set("vacuum.alfred", "docked")
+    calls = _wire_precall(hass)
+
+    # Fail the FORWARD write only. Targeting the select rather than the number
+    # deliberately: ZC-DR-9 proves the suction entry is in the plan, whereas a
+    # settings={"suction": ...} dispatch does not put the water entry on the wire at
+    # all, so a handler registered there never fires (measured: DID NOT RAISE).
+    async def _sel_fails_forward(call):
+        calls.append(("select", dict(call.data)))
+        if call.data.get("option") == "strong":        # the zone's own value
+            raise HomeAssistantError("select is unavailable")
+        hass.states.async_set(call.data["entity_id"], call.data["option"])
+
+    hass.services.async_register("select", "select_option", _sel_fails_forward)
+
+    with pytest.raises(HomeAssistantError, match="select is unavailable"):
+        await manager.dispatch_zone_clean(
+            vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]],
+            settings={"suction": "strong"},
+        )
+
+    kinds = [c[0] for c in calls]
+    assert "zone" not in kinds, "THE ROBOT MUST NOT BE SENT when the settings did not take"
+    assert any(c[0] == "select" and c[1].get("option") == "standard" for c in calls), (
+        "the suction prior must be put back before the failure propagates"
+    )
+    assert "switch_on" in kinds, "and the gate re-enabled, so the device is usable again"
