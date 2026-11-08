@@ -44,7 +44,7 @@ Architecture reference: [11 — A Map’s Stored State](../../dev/11-map-stored-
 | `tracker.py` | 247 | 84% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration | **bare x2** in 2 files |
 | `mapping_services.py` | 1322 | 88% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration | clean |
 | `map_source.py` | 434 | 93% | `tests/unit/test_map_source.py` | unit (pure) | clean |
-| `map_source_runtime.py` | 945 | 77% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) | clean |
+| `map_source_runtime.py` | 972 | 88% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) | clean |
 | `map_source_coordinator.py` | 329 | 86% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` + `tests/unit/test_live_pose_backends.py` | integration + unit | clean |
 | `roborock_raw_map.py` | 145 | 89% | `tests/unit/test_roborock_raw_map.py` | unit (pure) | clean |
 | `stall_capture_render.py` | 191 | 93% | `tests/unit/test_stall_capture_render.py` | unit (pure) | clean |
@@ -191,6 +191,31 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   `roborock_candidates`, `image_entity_object`) that gather roots from
   `hass.data[domain]` / per-entry `runtime_data` / the image entity, each degrading
   cleanly when a source is absent.
+- **`_structure_tree`'s bounds** (`MSR-5`..`MSR-5f`, unit) — the diagnostic shape
+  dump, which is the one piece of this module whose output no user ever sees and whose
+  *bounds* are still worth pinning. Both call sites run on the FAILURE path
+  (`reason="no_parsed_map"`, `reason="no_pose"`) and write `diag["structure"]`, whose
+  job is to SHOW where a parsed map or Room geometry lives when the duck-typed search
+  misses — on hardware nobody here owns, so **the dump is the bug report**. The arms
+  tested are the limits that keep it usable: the depth and width caps (a live SDK
+  graph reaches `hass`, the bus and back); the empty-sequence guard, without which the
+  list arm indexes `obj[0]` and an empty `rooms` list *raises* — and because one call
+  site wraps the dump in a blanket `except` that degrades it to
+  `{"error": "structure dump failed"}`, a raise there costs the diagnostic silently
+  rather than loudly; and `show_skipped`, asserted in **both** directions, since a
+  denylisted attr like `api` must be invisible by default and visible as a
+  `"<type> (skipped)"` leaf when asked for — the data may sit behind exactly the attr
+  the walk refuses to traverse.
+
+  ⚠ **`MSR-5c` is RB-7 one function over.** `MSR-3e` pins the `__slots__` lesson in
+  `_walk`; `_structure_tree` carries its own copy of that fallback and had no test, so
+  the dump could have dead-ended on precisely the object a `__slots__`-using parser
+  hands over, reporting `"_Slotted"` and no attributes — which reads exactly like an
+  object with nothing in it. Same question answered twice, fenced once.
+
+  One asymmetry to know before reading a dump: an empty **list** renders as the string
+  `"list[0]"`, an empty **dict** as `{"dict[0]": {}}`. The bare-string form belongs to
+  the list/tuple arm alone.
 - **the live-pose backend seam** (`LP-*`, unit, `test_live_pose_backends.py`) —
   `async_get_map_live_pose`'s brand dispatch, plus `robot_pose_from_mapdata` /
   `mapdata_live_pose_from_candidates` in `MSR-2k`. The bug they pin is a DECLARATION

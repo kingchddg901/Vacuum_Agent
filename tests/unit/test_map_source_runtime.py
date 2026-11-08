@@ -38,6 +38,8 @@ from custom_components.eufy_vacuum.mapping.map_source_runtime import (
     robot_pose_from_mapdata,
     roborock_result_from_candidates,
     rooms_from_mapdata,
+    _structure_tree,
+    _WALK_SKIP_ATTRS,
     _walk,
 )
 
@@ -1321,3 +1323,186 @@ def test_msr4q_a_saved_map_without_rooms_is_not_mistaken_for_geometry():
     # And the downstream consequence: no rooms -> not present, with a named reason.
     res = dreame_result_from_candidates(out, present=True)
     assert res["present"] is False and res["reason"] == "no_segmentation"
+
+
+# ---------------------------------------------------------------------------
+# [MSR-5] _structure_tree — the diagnostic shape dump, and its BOUNDS
+#
+# This is diagnostic-only code: both call sites run on the FAILURE path
+# (`reason="no_parsed_map"` and `reason="no_pose"`) and write into
+# `diag["structure"]`, so nothing a user sees depends on its output. That is an
+# argument for testing its bounds, not against it. What the dump exists to do is
+# SHOW where a parsed map or Room geometry actually lives when the duck-typed search
+# misses, on a device nobody here owns — so the dump IS the bug report. Every
+# statement uncovered in it was one of the limits that keeps it usable:
+#
+#   * the depth cap and the width cap, which are the whole "bounded" premise. An
+#     unbounded walk of a live SDK graph produces a payload too large to read, and a
+#     cyclic one would not terminate.
+#   * the empty-sequence guard. Without it the list arm indexes `obj[0]`, so an empty
+#     list RAISES. One call site wraps the dump in a blanket `except` that degrades it
+#     to `{"error": "structure dump failed"}` — so a raise here does not crash the
+#     integration, it silently costs the diagnostic the whole reason it was collected.
+#   * the `__slots__` fallback. THIS IS RB-7 ONE FUNCTION OVER. `MSR-3e` pins that
+#     lesson in `_walk`; `_structure_tree` carries its own copy of the fallback and
+#     had no test, which is the shorter-copy shape — the same question answered twice
+#     and fenced once.
+#   * `show_skipped`, which is the only reason the second call site passes it: a
+#     denylisted attr like `api` must still be VISIBLE as a skipped leaf, because the
+#     sought data may sit behind exactly the attr the walk refuses to traverse.
+# ---------------------------------------------------------------------------
+
+class _Slotted:
+    """A __slots__ object: no __dict__, so the __dict__ path finds nothing."""
+
+    __slots__ = ("x0", "y0", "unset")
+
+    def __init__(self):
+        self.x0, self.y0 = 3, 4          # `unset` deliberately left unassigned
+
+
+def test_structure_tree_depth_cap_returns_a_bare_type_name():
+    """[MSR-5] At the depth cap the dump stops and names the type, nothing deeper.
+
+    The cap is the dump's reason for existing in a bounded form at all: these roots
+    are live vendor objects whose graphs reach hass, the event bus and back. Asserting
+    only "it returned something" would hold for an unbounded walk too, so this asserts
+    the FLOOR is a bare string at exactly the requested depth, and the level above it
+    is still a dict.
+
+    RED: delete `if depth >= max_depth: return tname` and the innermost level becomes
+    a dict instead of the string "dict", recursing until the graph runs out.
+    """
+    deep = {"a": {"b": {"c": {"d": {"e": 1}}}}}
+
+    out = _structure_tree(deep, max_depth=3)
+
+    # depth 0 -> dict[1], 1 -> dict[1], 2 -> dict[1], then the cap names the type
+    assert out == {"dict[1]": {"a": {"dict[1]": {"b": {"dict[1]": {"c": "dict"}}}}}}
+    assert isinstance(out["dict[1]"]["a"]["dict[1]"]["b"]["dict[1]"]["c"], str), (
+        "at the cap the dump must be a NAME, not another level"
+    )
+
+
+def test_structure_tree_empty_sequence_does_not_index_it():
+    """[MSR-5b] An empty list is named, not indexed — the arm that stops a raise.
+
+    The non-empty arm summarises `obj[0]` as representative of the whole sequence, so
+    without the emptiness check that same expression raises IndexError on `[]`. A
+    vendor payload with an empty `rooms` list is the ordinary case this dump is
+    collected FOR, which is exactly when it must not fail.
+
+    RED: delete `if not obj: return f"{tname}[0]"` and this raises IndexError. The
+    tuple row is in because the arm covers both and `()` is the shape a parser is more
+    likely to return.
+    """
+    assert _structure_tree([]) == "list[0]"
+    assert _structure_tree(()) == "tuple[0]"
+    # and the non-empty arm still summarises the FIRST member, not the count alone
+    assert _structure_tree([{"x0": 1}]) == {"list[1]": {"dict[1]": {"x0": "int"}}}
+
+
+def test_structure_tree_descends_into_a_slots_object():
+    """[MSR-5c] RB-7 in `_structure_tree`: a __slots__ object is not an opaque leaf.
+
+    `MSR-3e` pins this for `_walk`. `_structure_tree` has its own copy of the fallback
+    and nothing exercised it, so the dump could have dead-ended on precisely the
+    object a `__slots__`-using parser hands over — reporting `"_Slotted"` and no
+    attributes, which reads exactly like an object with nothing in it.
+
+    A declared-but-unassigned slot must also be skipped rather than raising:
+    `getattr` on it throws AttributeError, and the generator swallows that per slot.
+
+    RED: delete the `_slot_names` fallback and this returns the bare string
+    "_Slotted"; delete the `except AttributeError: continue` inside `_slot_items` and
+    the unassigned slot raises instead.
+    """
+    out = _structure_tree(_Slotted())
+
+    assert out == {"_Slotted": {"x0": "int", "y0": "int"}}, (
+        "both assigned slots visible, and the unset one absent rather than fatal"
+    )
+
+
+def test_structure_tree_width_cap_truncates_children():
+    """[MSR-5d] The width cap, which bounds a WIDE object as the depth cap bounds a deep one.
+
+    Asserted as an exact count rather than "fewer than all": an off-by-one in the
+    `n >= max_children` test is the likely error, and `<=` versus `<` is invisible to
+    a loose assertion.
+    """
+    class _Wide:
+        def __init__(self):
+            for i in range(50):
+                setattr(self, f"attr{i:02d}", i)
+
+    out = _structure_tree(_Wide(), max_children=5)
+
+    assert len(out["_Wide"]) == 5, "exactly the budget, not 4 and not 6"
+    assert set(out["_Wide"]) == {f"attr{i:02d}" for i in range(5)}, (
+        "and it keeps the FIRST five, so the dump is reproducible between reads"
+    )
+
+
+def test_structure_tree_skips_dunder_attributes():
+    """[MSR-5e] A dunder in an instance __dict__ is Python's business, not the map's.
+
+    Reachable only for an object that explicitly sets one — `setattr(obj, "__x__", 1)`
+    does land in `obj.__dict__` — so this guards against an odd vendor object rather
+    than an everyday one. It earns a row because the dump has a width budget: internals
+    crowding out real attributes is how the one field someone needed falls off the end.
+
+    RED: delete `if k.startswith("__"): continue` and `__weird__` appears in the dump.
+
+    Note the empty-dict rendering: `{"dict[0]": {}}`, not the string `"dict[0]"`. The
+    bare-string form belongs to the list/tuple arm alone ([MSR-5b]), so an empty dict
+    and an empty list read differently in a dump. Not a defect — an asymmetry worth
+    knowing before reading one.
+    """
+    class _Odd:
+        def __init__(self):
+            self.rooms = {}
+
+    obj = _Odd()
+    setattr(obj, "__weird__", {"deep": 1})
+
+    out = _structure_tree(obj)
+
+    assert out == {"_Odd": {"rooms": {"dict[0]": {}}}}
+
+
+def test_structure_tree_show_skipped_reveals_a_denylisted_attr_without_descending():
+    """[MSR-5f] Both arms of `show_skipped`, because one alone proves nothing.
+
+    The walk refuses to traverse `api`, `hass`, `client` and the rest — without that
+    it would wander into the event bus. But the sought geometry may sit behind exactly
+    one of those, so the dump taken when the search FAILS passes `show_skipped=True`
+    to say "this attr exists, I did not look inside it". That is the difference
+    between a bug report that points somewhere and one that looks like an empty object.
+
+    Three assertions, and the first two are a pair: default OMITS the attr, and
+    `show_skipped` names its TYPE without descending. A test of the second alone would
+    pass if the flag did nothing and the attr were always shown.
+
+    RED: delete the `if show_skipped:` arm and the second assertion fails; make it
+    unconditional and the first fails; descend into it instead of naming the type and
+    the third fails, with `secret` leaking into a diagnostic payload.
+    """
+    denylisted = sorted(_WALK_SKIP_ATTRS)[0]
+
+    class _Holder:
+        def __init__(self):
+            self.rooms = {}
+            setattr(self, denylisted, _Slotted())
+
+    assert _structure_tree(_Holder()) == {"_Holder": {"rooms": {"dict[0]": {}}}}, (
+        "by default a denylisted attr is invisible"
+    )
+
+    shown = _structure_tree(_Holder(), show_skipped=True)
+    assert shown["_Holder"][denylisted] == "_Slotted (skipped)", (
+        "its existence and type are reported, and the '(skipped)' says why no deeper"
+    )
+    assert "x0" not in str(shown), (
+        "named, NOT descended into -- the denylist is still in force"
+    )

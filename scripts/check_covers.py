@@ -83,6 +83,7 @@ import argparse
 import ast
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -221,6 +222,19 @@ def run_coverage(node_ids: list[str], target_file: str) -> dict:
     # carry dynamic contexts and says so, and the data it returned was genuinely
     # short by one test phase. ctrace is slower and correct.
     env["COVERAGE_CORE"] = "ctrace"
+    # ITS OWN DATA FILE, OUTSIDE THE REPO, and this gate was SELF-POISONING without
+    # it. coverage writes parallel data as `.coverage.<host>.pid<n>.<rand>` beside
+    # COVERAGE_FILE, which defaulted to the repo root, and then combines every such
+    # sibling it finds on the next run. An interrupted run leaves a ZERO-BYTE stub,
+    # so the following run died with
+    #     DataError: Couldn't use data file '.../.coverage...': no such table: context
+    # -- and the same collision happens against the plain `--cov` sweeps used to read
+    # per-file percentages, whose data has no context table at all. CI never saw it
+    # because the behaviour gate there runs --no-cov, so nothing else writes one.
+    # Pointing COVERAGE_FILE at the temp dir means the gate neither reads nor leaves
+    # anything in the working tree. [CG-8] fences it.
+    data_dir = tempfile.mkdtemp(prefix="covers_data_")
+    env["COVERAGE_FILE"] = os.path.join(data_dir, ".coverage")
     try:
         proc = subprocess.run(
             [sys.executable, "-m", "pytest", *node_ids,
@@ -253,8 +267,19 @@ def run_coverage(node_ids: list[str], target_file: str) -> dict:
                 f"the claim could not be evaluated. Fix the test first; this is "
                 f"INCONCLUSIVE, not a failed claim."
             ), "_out": proc.stdout[-3000:]}
-        if not os.path.getsize(tmp):
-            return {"_error": "no coverage data produced", "_out": proc.stdout[-3000:]}
+        # EXISTENCE BEFORE SIZE. `getsize` on a report coverage never wrote raises
+        # FileNotFoundError, and this used to crash the whole gate with a traceback
+        # instead of naming the run that produced nothing -- the self-poisoning case
+        # above surfaced exactly that way, as an unhandled errno 2 on a path the
+        # reader had no reason to care about. A missing report is INCONCLUSIVE, so say
+        # so and carry the pytest output that explains it.
+        if not os.path.exists(tmp) or not os.path.getsize(tmp):
+            return {"_error": (
+                "pytest exited 0 but wrote no coverage report, so the claim could "
+                "not be evaluated. INCONCLUSIVE, not a failed claim -- the output "
+                "below says why (a coverage DataError over a stale data file is the "
+                "one seen in practice)."
+            ), "_out": (proc.stdout + proc.stderr)[-3000:]}
         with open(tmp, encoding="utf-8") as fh:
             data = json.load(fh)
         data["_rc"] = proc.returncode
@@ -266,6 +291,7 @@ def run_coverage(node_ids: list[str], target_file: str) -> dict:
                 os.unlink(path)
             except OSError:
                 pass
+        shutil.rmtree(data_dir, ignore_errors=True)
 
 
 def per_test_reach(
