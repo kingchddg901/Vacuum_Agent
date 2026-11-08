@@ -760,11 +760,22 @@ same defect pointing the other way.
 
 ---
 
-### `RN2ZQ5NG` — DURATION normalization by the entity's own unit · **2 copies, 2 shapes**
+### `RN2ZQ5NG` — DURATION normalization by the entity's own unit · **3 copies, 3 shapes**
 
 `learning/job_finalizer.py`'s `_duration_state_to_seconds` (**primary**, an if-chain over
-alias families) and `tests/replay/harvest.py`'s `_TIME_TO_S` (the same rule as a factor
-table). Same stdlib-only constraint as [`RN0RGR1H`](#rn0rgr1h--the-cleaning-area-unit-table--2-copies).
+alias families), `listeners/job_metrics.py`'s `_duration_state_to_seconds` (a second
+if-chain, on the live-state side) and `tests/replay/harvest.py`'s `_TIME_TO_S` (the same
+rule as a factor table). Same stdlib-only constraint as [`RN0RGR1H`](#rn0rgr1h--the-cleaning-area-unit-table--2-copies).
+
+**This entry said TWO until 2026-11-08.** `listeners/job_metrics.py`'s copy carried no
+`REPLICA` marker, appeared nowhere here, and was pinned by nothing — `RPL-7` derives the
+vocabulary from the PRIMARY's AST, so the live-state copy could have drifted alone with
+every gate green. It was found while writing tests for its uncovered `ms` and hour
+branches, not by a gate, which is the failure mode this registry exists to prevent.
+Measured when anchored: identical alias families by AST, and identical answers across all
+25 aliases and fallback cases either side knows — consistent, merely unguarded. The two
+if-chains differ only in signature (the primary takes a `default` and may return `None`;
+the listener's returns `int` and warns once per unrecognised unit), not in the rule.
 
 **The FALLBACK is part of the rule, not an edge case.** Both sides refuse to guess: an
 unrecognised or absent unit is treated as already canonical. If one side started guessing,
@@ -772,9 +783,11 @@ or raising, the corpus and the integration would disagree on exactly the reading
 looked at — and the harvester exists to be the independent check on the integration.
 
 **Pinned by `RPL-7`**, which reads the shipped alias vocabulary out of that function's own
-AST (never retyped — a third copy of the vocabulary would pass for as long as the
-transcription matched the author's belief), takes the factors by CALLING it, and requires
-the same answer for every alias either side knows.
+AST (never retyped — a copy of the vocabulary inside the test would pass for as long as
+the transcription matched the author's belief), takes the factors by CALLING it, and
+requires the same answer for every alias either side knows. **`RPL-7d`** does the same for
+the listener copy against the primary, over the UNION of both functions' extracted
+aliases, so a family either one grows alone is caught in whichever direction it drifts.
 
 ---
 

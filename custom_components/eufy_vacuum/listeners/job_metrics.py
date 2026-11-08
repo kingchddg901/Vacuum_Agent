@@ -47,6 +47,14 @@ _SECOND_UNIT_ALIASES = frozenset({"s", "sec", "secs", "second", "seconds"})
 _WARNED_UNKNOWN_DURATION_UNITS: set[str] = set()
 
 
+# REPLICA RN2ZQ5NG -- DURATION normalization by the entity's own unit.
+# The THIRD copy of this rule, and it was unanchored until 2026-11-08: the registry
+# entry declared two (learning/job_finalizer.py as primary, tests/replay/harvest.py's
+# factor table) and RPL-7 pins them by reading the PRIMARY's AST, so this one could
+# have drifted alone with every gate green. Measured at the time of anchoring:
+# identical alias families, and identical answers for all 25 aliases and fallbacks
+# either side knows. RPL-7d now drives the union of both functions' aliases through
+# both. The alias families and factors here must not be edited alone.
 def _duration_state_to_seconds(raw: Any, unit: Any) -> int:
     """Convert a Home Assistant duration state to seconds."""
     value = float(raw)

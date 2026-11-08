@@ -192,8 +192,42 @@ spot checks on `lifecycle.py` and `path_blockers.py` confirm the *shape*
   non-dict-room skip inside the watcher-build rule walk, and event-dedup
   guards.
 - **`dock_events.py` (92%)** — missing lines 77, 81, 85: event-dedup guards.
-- **`job_metrics.py` (94%)** — missing lines 44, 48, 206: capability-read /
-  value-parse guards in the metrics-change handler.
+- **`job_metrics.py`** — the entry here read "missing lines 44, 48, 206:
+  capability-read / value-parse guards", and both the numbers and the
+  characterisation were wrong. The real gaps were the `ms` and hour branches of
+  `_duration_state_to_seconds`, the declared-support-with-no-entity arm of the
+  station-water wiring, and the two `value_type` arms that RECORD (area and float) —
+  not guards at all, and between them the inputs to every per-minute and per-m²
+  learning mean. Now pinned by `JMN-12` and `JMN-14`..`JMN-16`:
+  - **`ms` and hour aliases** (`JMN-12`) — unconverted, they fall to the
+    "assume seconds" fall-through: 300000 ms stored as 300000 s (**×1000**) and
+    0.5 h as 0 s (**×3600**). Expected values are hand-written, not taken from the
+    function. The unit PRECEDENCE that keeps this honest was already pinned in both
+    directions by `test_entity_unit_wins_over_adapter_fallback` and
+    `test_adapter_unit_fallback_converts_bare_minutes` — a draft duplicate of it was
+    dropped, and the ablation is what revealed the duplication by reddening the
+    pre-existing test alongside the new one.
+  - **station water declared but undeclared** (`JMN-14`) — `supports_station_water`
+    True with neither `water_level` nor `station_water` present. Without the guard,
+    `watch_map[None]` puts `None` into the list handed to
+    `async_track_state_change_event`, which raises and takes down registration for
+    *every* vacuum. The reverse case (entity without the flag) is `JMN-10`.
+  - **the recording arms** (`JMN-15`, `JMN-16`) — only the area *refusal* arm had
+    been driven. The ft² row is the discriminator: a unitless-only test passes
+    against a handler that ignores units, because unitless is the identity case.
+    `JMN-16` uses a fractional 42.5 because 42 would be recorded identically by the
+    `int` arm beside it.
+
+  ⚠ **`_duration_state_to_seconds` here is a THIRD copy of replica set `RN2ZQ5NG`**,
+  which declared two. It carried no `REPLICA` marker, appeared nowhere in
+  `docs/dev/00c-replicas.md`, and was pinned by nothing — `RPL-7` derives the
+  vocabulary from the *primary*'s AST. Measured when anchored: identical alias
+  families and identical answers across all 25 aliases and fallbacks either side
+  knows, so it was consistent, merely unguarded. `RPL-7d` now drives the union of
+  both copies' aliases through both. By enumeration of the duration tests that
+  existed before (`s`, `min`, `fortnight`, `seconds`), **a change to the `ms` factor
+  alone would have reddened nothing** — which is what the anchor is for, and it was
+  found while writing the branch tests above rather than by any gate.
 - **`_common.py` (91%)** — missing lines 77, 82-83, 105-106, 139, 217. The line
   numbers in this entry had rotted (it read 50-51, 73-74, 106, 114 at 93%), and so
   had the claim that all of it was defensive. Two of those lines were not:

@@ -43,6 +43,7 @@ import pytest
 from custom_components.eufy_vacuum.jobs import active_job as shipped_active_job
 from custom_components.eufy_vacuum.learning import job_finalizer as shipped_finalizer
 from custom_components.eufy_vacuum.learning import utils as shipped_utils
+from custom_components.eufy_vacuum.listeners import job_metrics as shipped_metrics
 from tests.replay import harvest, reclassify
 
 
@@ -177,6 +178,99 @@ def test_rpl7_an_unknown_unit_is_left_canonical_on_both_sides():
     assert shipped_finalizer._duration_state_to_seconds(42, None) == 42
     scale, how = harvest._scale_for(None, harvest._TIME_TO_S, 1.0)
     assert scale == 1.0 and how == "absent"
+
+
+# ---------------------------------------------------------------------------
+# [RPL-7d] RN2ZQ5NG -- the THIRD copy, on the live-state side
+#
+# The registry entry declared two copies until 2026-11-08. `listeners/job_metrics.py`
+# has its own `_duration_state_to_seconds` -- the live-state side, reading units off
+# the HA entity as values arrive -- and it carried no REPLICA marker, appeared nowhere
+# in 00c-replicas, and was pinned by nothing: RPL-7 above derives the vocabulary from
+# the PRIMARY's AST, so the listener copy could drift alone with every gate green. It
+# surfaced while writing tests for its uncovered `ms` and hour branches, not from a
+# gate, which is what this file exists to prevent.
+# ---------------------------------------------------------------------------
+
+
+def _aliases_from(func) -> set[str]:
+    """Every unit string a duration if-chain tests against, from its own AST.
+
+    The generalisation of `_shipped_duration_aliases`, so the third copy is read the
+    same way rather than having its vocabulary retyped here. Empty is a FAILURE, not
+    a clean result -- see the caller.
+    """
+    tree = ast.parse(ast.unparse(ast.parse(inspect.getsource(func))))
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Set, ast.List, ast.Tuple)):
+            for el in node.elts:
+                if isinstance(el, ast.Constant) and isinstance(el.value, str):
+                    out.add(el.value.strip().lower())
+    return out
+
+
+def test_rpl7d_the_listener_alias_extraction_finds_a_vocabulary():
+    """[RPL-7d] The empty-set trap, for the new side.
+
+    Without this, a refactor of the listener's if-chain into a dict lookup makes the
+    extraction return nothing and the comparison below passes over an empty union --
+    a green test measuring no aliases at all. Same floor and same reasoning as
+    `test_rpl7_the_alias_extraction_actually_finds_the_vocabulary`.
+    """
+    aliases = _aliases_from(shipped_metrics._duration_state_to_seconds)
+    assert len(aliases) >= 8, f"suspiciously few aliases extracted: {sorted(aliases)}"
+    for family in ("ms", "minutes", "hours"):
+        assert family in aliases, (
+            f"{family!r} missing -- the listener's shape changed and this extraction "
+            f"no longer reads it: {sorted(aliases)}"
+        )
+
+
+@pytest.mark.parametrize("raw", [300000.0, 0.5, 7.0])
+def test_rpl7d_the_listener_converts_durations_like_the_primary(raw):
+    """[RPL-7d] Same answer, for every alias EITHER copy knows.
+
+    The union is the point, and in both directions: iterating only the listener's
+    aliases would miss a family the primary grew, and iterating only the primary's
+    would miss one the listener grew. Both sides are CALLED -- no factor table in
+    this file -- so the only thing asserted is agreement.
+
+    The primary takes a `default` and may return None where the listener returns an
+    int, so it is called with the default that makes the two comparable; the
+    signature difference is not part of the replicated rule, the unit arithmetic is.
+    """
+    aliases = (
+        _aliases_from(shipped_metrics._duration_state_to_seconds)
+        | _shipped_duration_aliases()
+        | set(shipped_metrics._SECOND_UNIT_ALIASES)
+    )
+    assert aliases, "nothing to compare"
+
+    for unit in sorted(aliases):
+        listener = shipped_metrics._duration_state_to_seconds(raw, unit)
+        primary = shipped_finalizer._duration_state_to_seconds(raw, unit)
+        assert listener == primary, (
+            f"unit {unit!r}: listeners/job_metrics says {listener} s, "
+            f"learning/job_finalizer says {primary} s -- RN2ZQ5NG"
+        )
+
+
+def test_rpl7d_both_copies_leave_an_unknown_unit_canonical():
+    """[RPL-7d] The refusal-to-guess policy holds on the live-state side too.
+
+    The registry entry calls the fallback part of the rule rather than an edge case:
+    if one copy started guessing, or raising, the live-state path and the finalizer
+    would disagree on exactly the readings nobody looked at. The listener also WARNS
+    on an unrecognised unit, which the primary does not -- that is a signal, not a
+    different answer, and the answer is what is asserted here.
+    """
+    for unit in ("furlongs", None, "", "d"):
+        assert (
+            shipped_metrics._duration_state_to_seconds(42, unit)
+            == shipped_finalizer._duration_state_to_seconds(42, unit)
+            == 42
+        ), f"unit {unit!r} must be treated as already canonical by both copies"
 
 
 # ---------------------------------------------------------------------------
