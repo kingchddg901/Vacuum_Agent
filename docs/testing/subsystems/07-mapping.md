@@ -44,7 +44,7 @@ Architecture reference: [11 — A Map’s Stored State](../../dev/11-map-stored-
 | `tracker.py` | 247 | 84% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration | **bare x2** in 2 files |
 | `mapping_services.py` | 1322 | 88% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration | clean |
 | `map_source.py` | 434 | 93% | `tests/unit/test_map_source.py` | unit (pure) | clean |
-| `map_source_runtime.py` | 972 | 93% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` + `tests/unit/test_dreame_mapdata_decode.py` | unit (pure) | clean |
+| `map_source_runtime.py` | 972 | 95% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` + `tests/unit/test_dreame_mapdata_decode.py` | unit (pure) | clean |
 | `map_source_coordinator.py` | 329 | 86% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` + `tests/unit/test_live_pose_backends.py` | integration + unit | clean |
 | `roborock_raw_map.py` | 145 | 89% | `tests/unit/test_roborock_raw_map.py` | unit (pure) | clean |
 | `stall_capture_render.py` | 191 | 93% | `tests/unit/test_stall_capture_render.py` | unit (pure) | clean |
@@ -191,6 +191,29 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   `roborock_candidates`, `image_entity_object`) that gather roots from
   `hass.data[domain]` / per-entry `runtime_data` / the image entity, each degrading
   cleanly when a source is absent.
+- **the Store + device-registry readers** (`MSR-6`..`MSR-7c`, `MSC-6`..`MSC-6g`, unit)
+  — the group that answers "where is this vacuum's Store file", from the **public**
+  device registry plus the adapter's declaration. `load_store_json` is the one
+  function here that touches disk, and its `except (OSError, ValueError)` is one
+  clause over two unrelated producers, so an absent file and a truncated one are
+  separate rows: proving one leaves the other half unproven, which is the shape where
+  a guard that exists reads as complete.
+
+  ⚠ **`device_identifier_value`'s fixture must give the identifier and the serial
+  DIFFERENT values.** It scans `device.identifiers` for the asked-for domain and falls
+  back to `device.serial_number`. On a real Eufy device those are the *same* string —
+  the fork keys its Store by the serial, which **is** the `(robovac_mqtt, <serial>)`
+  identifier — so a fixture copied from the real device cannot tell the scan from the
+  fallback: delete the whole scan loop and the test still passes. Measured on exactly
+  that shape, both routes return the same value. `MSC-6`/`MSC-6b` use a distinct
+  serial, which is the only arrangement in which the two arms are distinguishable.
+
+  `MSR-7`/`MSR-7b` close the last two `__slots__` arms, the siblings of `RB-7`:
+  `__slots__ = "rooms"` is legal Python meaning ONE slot, and iterating that string
+  character-wise yields `['r','o','m','s']` so the object dead-ends exactly as it did
+  before RB-7 for a different reason; and a slot that is *declared but never assigned*
+  raises on `getattr`, which the walk must step over because the data may be in the
+  next slot.
 - **the Dreame render's DEGRADATION arms** (`DMD-11`..`DMD-24b`, unit) —
   `DMD-1`..`DMD-10` establish the happy path on a real frame; these are what the
   render does when ONE piece of the device's map is unusable, which was nine

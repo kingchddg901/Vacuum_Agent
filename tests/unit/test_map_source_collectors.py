@@ -19,9 +19,11 @@ import types
 import pytest
 
 from custom_components.eufy_vacuum.mapping.map_source_runtime import (
+    device_identifier_value,
     dreame_coordinator,
     dreame_mapdata_candidates,
     eufy_inmem_candidates,
+    eufy_store_path,
     image_entity_object,
     roborock_candidates,
 )
@@ -1046,3 +1048,181 @@ def test_msc5h_no_camera_state_means_no_pose_keys_at_all(hass, image_entity_id, 
     out = dreame_mapdata_candidates(hass, vacuum_entity_id, {}, image_entity_id)
 
     assert out == {"present": True, "map_data": _MD}, why
+
+
+# ---------------------------------------------------------------------------
+# [MSC-6] device_identifier_value + eufy_store_path — the registry readers
+#
+# These answer "where is this vacuum's Store file", from the PUBLIC device registry
+# plus the adapter's declaration. Both producers are outside this module: HA's
+# registries, and a hand-written adapter block.
+#
+# ⚠ THE IDENTIFIER VALUE AND THE SERIAL MUST DIFFER IN THESE FIXTURES, and that is
+# not cosmetic. `device_identifier_value` scans `device.identifiers` for the asked-for
+# domain and FALLS BACK to `device.serial_number`. On a real Eufy device those two are
+# the same string -- the fork keys its Store by the serial, which IS the
+# `(robovac_mqtt, <serial>)` identifier -- so a fixture built from the real device
+# cannot tell the scan from the fallback: delete the whole scan loop and the test
+# still passes, because line 73 returns the same value. Measured on exactly that
+# fixture shape, both routes print the same string. So these use a distinct serial,
+# which is the only arrangement in which the two arms are distinguishable.
+# ---------------------------------------------------------------------------
+
+_IDENT = "AFC96X0F33201054"          # the (robovac_mqtt, …) registry identifier
+_SERIAL = "SERIAL-DIFFERENT-ON-PURPOSE"
+
+
+def _eufy_device(hass, *, serial=_SERIAL, identifiers=None):
+    """A device + vacuum entity whose identifier and serial are deliberately unequal."""
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain="robovac_mqtt", entry_id="msc6_entry")
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers=identifiers if identifiers is not None else {("robovac_mqtt", _IDENT)},
+        serial_number=serial,
+    )
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", "robovac_mqtt", "msc6_uid",
+        suggested_object_id="msc6", device_id=device.id, config_entry=entry,
+    )
+    return vac.entity_id
+
+
+def test_msc6_the_matching_identifier_wins_over_the_serial(hass):
+    """[MSC-6] The scan loop returns the IDENTIFIER, not the serial fallback.
+
+    RED: delete the `for domain, ident in device.identifiers:` scan and this returns
+    the serial instead. That ablation is invisible on a real-shaped fixture where the
+    two are equal, which is why they are unequal here.
+    """
+    vacuum_entity_id = _eufy_device(hass)
+
+    got = device_identifier_value(hass, vacuum_entity_id, "robovac_mqtt")
+
+    assert got == _IDENT
+    assert got != _SERIAL, "the scan, not the fallback"
+
+
+def test_msc6b_an_unmatched_domain_falls_back_to_the_serial(hass):
+    """[MSC-6b] The other arm: no identifier of that domain -> `device.serial_number`.
+
+    The fallback exists because the serial EQUALS the fork identifier on Eufy, so it
+    is a free second route to the same answer. Here the device carries only a
+    different-domain identifier, so the fallback is the only route and its value is
+    distinguishable.
+
+    RED: delete `return device.serial_number` and this returns None, which downstream
+    means `eufy_store_path` yields no path and the map never loads.
+    """
+    vacuum_entity_id = _eufy_device(hass, identifiers={("some_other_brand", "x")})
+
+    assert device_identifier_value(hass, vacuum_entity_id, "robovac_mqtt") == _SERIAL
+
+
+def test_msc6c_an_unknown_entity_is_none(hass):
+    """[MSC-6c] No registry entry for that entity id -> None, before any device lookup."""
+    assert device_identifier_value(hass, "vacuum.never_registered", "robovac_mqtt") is None
+
+
+def test_msc6d_an_entity_with_no_device_is_none(hass):
+    """[MSC-6d] A registered entity that belongs to no device -> None.
+
+    A vacuum entity without a device is unusual but legal, and the Store path cannot
+    be derived without one.
+
+    ⚠ THIS GUARD AND THE `device is None` ONE BELOW IT ARE A REDUNDANT PAIR, measured
+    by ablation: delete `entry is None or entry.device_id is None` and this test stays
+    GREEN, because `dr.async_get(hass).async_get(None)` returns None and the next
+    guard returns None anyway. Either guard alone is sufficient -- which is also why
+    line 69 never executes and stays uncovered.
+
+    Reaching line 69 for real would need an entity whose `device_id` names a device
+    the registry no longer holds, and HA does not permit that in-process: removing a
+    device cascades to its entities, and creating an entity against a missing device
+    raises `ValueError: Device ... does not exist` out of `entity_registry`. So this
+    test asserts the BEHAVIOUR -- an entity with no device yields no identifier --
+    rather than either guard, and the pair is classified rather than tested.
+    """
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain="robovac_mqtt", entry_id="msc6d_entry")
+    entry.add_to_hass(hass)
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", "robovac_mqtt", "msc6d_uid",
+        suggested_object_id="msc6d", config_entry=entry,      # no device_id
+    )
+
+    assert device_identifier_value(hass, vac.entity_id, "robovac_mqtt") is None
+
+
+def test_msc6e_the_store_path_uses_the_declared_key_template(hass):
+    """[MSC-6e] `store_key` is a template the adapter declares; `{device_id}` fills it.
+
+    Both arms of `source_cfg.get("store_key") or f"{domain}.{{device_id}}"`: an
+    explicit template, and the default built from the domain. The default is what the
+    Eufy fork's own Store is named, so getting it wrong means reading a file that is
+    not there.
+    """
+    vacuum_entity_id = _eufy_device(hass)
+
+    default = eufy_store_path(
+        hass, vacuum_entity_id, {"identifier_domain": "robovac_mqtt"},
+    )
+    explicit = eufy_store_path(
+        hass, vacuum_entity_id,
+        {"identifier_domain": "robovac_mqtt", "store_key": "custom.{device_id}.json"},
+    )
+
+    assert default.endswith(f"robovac_mqtt.{_IDENT}")
+    assert ".storage" in default, "it must sit under HA's .storage"
+    assert explicit.endswith(f"custom.{_IDENT}.json")
+
+
+@pytest.mark.parametrize("cfg,why", [
+    ({}, "no identifier_domain declared at all"),
+    ({"identifier_domain": "no_such_brand"}, "a domain this device does not carry"),
+])
+def test_msc6f_an_unresolvable_store_path_is_none(hass, cfg, why):
+    """[MSC-6f] Two early returns, both of which mean "no Store to read".
+
+    The second row is the interesting one: the device exists, but it carries no
+    identifier of the asked-for domain AND no serial number, so both routes in
+    `device_identifier_value` come up empty and the path cannot be built.
+
+    ⚠ THE FIRST ROW'S GUARD IS SUBSUMED, measured: delete `if not domain: return None`
+    and this stays green, because with `domain=None` the identifier scan matches
+    nothing, the serial fallback is None on this fixture, and `if not device_id:
+    return None` below returns None regardless. So the row pins the BEHAVIOUR -- an
+    adapter that declares no identifier_domain gets no Store path -- and the guard's
+    own red set is empty. That is the third such pair in this module; see the
+    subsumption list in `test_dreame_mapdata_decode.py`.
+    """
+    vacuum_entity_id = _eufy_device(hass, serial=None,
+                                    identifiers={("some_other_brand", "x")})
+
+    assert eufy_store_path(hass, vacuum_entity_id, cfg) is None, why
+
+
+def test_msc6g_a_malformed_store_key_template_is_none_not_a_raise(hass):
+    """[MSC-6g] A template naming a placeholder that is not supplied.
+
+    `"robovac_mqtt.{serial}"` is the typo someone would actually make: "serial" is
+    what this value is called in the docstring and in the retired adapter doc, so
+    reaching for it in the template is natural. `str.format` raises `KeyError`, and
+    the handler turns that into "no path" rather than a failed refresh.
+
+    RED: delete the `except (KeyError, IndexError, ValueError)` and this raises
+    KeyError('serial') out of the map refresh.
+    """
+    vacuum_entity_id = _eufy_device(hass)
+
+    got = eufy_store_path(
+        hass, vacuum_entity_id,
+        {"identifier_domain": "robovac_mqtt", "store_key": "robovac_mqtt.{serial}"},
+    )
+
+    assert got is None

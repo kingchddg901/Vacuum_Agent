@@ -38,6 +38,9 @@ from custom_components.eufy_vacuum.mapping.map_source_runtime import (
     robot_pose_from_mapdata,
     roborock_result_from_candidates,
     rooms_from_mapdata,
+    load_store_json,
+    _device_id_holder,
+    _slot_names,
     _structure_tree,
     _WALK_SKIP_ATTRS,
     _walk,
@@ -1506,3 +1509,136 @@ def test_structure_tree_show_skipped_reveals_a_denylisted_attr_without_descendin
     assert "x0" not in str(shown), (
         "named, NOT descended into -- the denylist is still in force"
     )
+
+
+# ---------------------------------------------------------------------------
+# [MSR-6] load_store_json — the one function here that touches the DISK
+#
+# It reads the eufy-clean fork's Store file, which embeds the map raster (~200 KB),
+# so it is documented as executor-only. What makes it worth testing is that its
+# producer is not a function in this repo: it is a file written by another
+# integration, at a path derived from the device registry, possibly by an older
+# build. "None on any failure" is the contract the caller degrades on.
+# ---------------------------------------------------------------------------
+
+def test_load_store_json_reads_a_real_file(tmp_path):
+    """[MSR-6] The happy path, so the two failure rows below mean something.
+
+    Without it, [MSR-6b] and [MSR-6c] would hold just as well if the function
+    returned None unconditionally.
+    """
+    p = tmp_path / "robovac_mqtt.SERIAL"
+    p.write_text('{"version": 1, "data": {"map": "raster"}}', encoding="utf-8")
+
+    assert load_store_json(str(p)) == {"version": 1, "data": {"map": "raster"}}
+
+
+def test_load_store_json_absent_file_is_none_not_a_raise(tmp_path):
+    """[MSR-6b] The OSError half. This is the ORDINARY case, not an edge one.
+
+    The path is derived from the device registry before anything checks that the fork
+    has ever written a Store there -- a fresh install, or a vacuum the fork has not
+    mapped yet, simply has no file. A raise here would surface as a failed map refresh
+    rather than an empty one.
+    """
+    assert load_store_json(str(tmp_path / "never-written")) is None
+
+
+def test_load_store_json_malformed_json_is_none_not_a_raise(tmp_path):
+    """[MSR-6c] The ValueError half -- a SEPARATE input, and that is the point.
+
+    `except (OSError, ValueError)` is one clause covering two unrelated producers: a
+    missing or unreadable file, and a file whose bytes are not JSON. An absent-file
+    test alone leaves the second half unproven, which is the shape where a guard that
+    EXISTS reads as complete. A truncated Store is what a crash mid-write leaves.
+    """
+    p = tmp_path / "truncated"
+    p.write_text('{"version": 1, "data":', encoding="utf-8")
+
+    assert load_store_json(str(p)) is None
+
+
+# ---------------------------------------------------------------------------
+# [MSR-7] the walk's remaining __slots__ arms — the siblings of RB-7
+# ---------------------------------------------------------------------------
+
+def test_slot_names_accepts_a_bare_string_slots_declaration():
+    """[MSR-7] `__slots__ = "rooms"` is legal Python and means ONE slot, not four.
+
+    A single-slot class is conventionally written as a bare string, and Python accepts
+    it. Iterating that string character-wise yields `['r', 'o', 'm', 's']` (the dedupe
+    collapsing the double 'o'), so the walk would look for four attributes that do not
+    exist and find nothing -- the object dead-ends exactly as it did before RB-7, for
+    a different reason.
+
+    RED: delete `if isinstance(slots, str): slots = (slots,)` and this returns the
+    four characters.
+    """
+    class _StrSlots:
+        __slots__ = "rooms"
+
+        def __init__(self):
+            self.rooms = {"1": object()}
+
+    assert _slot_names(_StrSlots()) == ["rooms"]
+    # and the consequence downstream: the walk can still see into it
+    hit, path = _walk(_StrSlots(), lambda o: isinstance(o, dict) and "1" in o)
+    assert hit is not None and "rooms" in path
+
+
+def test_walk_skips_a_declared_but_unassigned_slot():
+    """[MSR-7b] A slot declared and never assigned raises on `getattr`.
+
+    `__slots__` reserves the name; it does not create the attribute. An object
+    mid-construction, or one whose optional slot is simply unused, raises
+    AttributeError for that name -- and the walk must step over it rather than abort,
+    because the data it is looking for may be in the NEXT slot.
+
+    This is the sibling of the same handler inside `_structure_tree` ([MSR-5c]):
+    the same question answered twice, and until now fenced in neither place.
+
+    RED: reduce the body to a bare `v = getattr(obj, name)` and the AttributeError
+    propagates out of `_walk`, so the room nested in the assigned slot is never found.
+    """
+    class _PartlyBuilt:
+        __slots__ = ("pending", "rooms")      # `pending` deliberately never assigned
+
+        def __init__(self):
+            self.rooms = {"1": {"x0": 0, "y0": 0, "x1": 1, "y1": 1}}
+
+    hit, path = _walk(_PartlyBuilt(), lambda o: isinstance(o, dict) and "x0" in o)
+
+    assert hit is not None, "the assigned slot must still be reachable"
+    assert "rooms" in path
+
+
+def test_device_id_holder_degrades_when_the_walk_itself_raises():
+    """[MSR-7c] `_device_id_holder` swallows a walk that blows up, returning no match.
+
+    The declared `device_id_attrs` come from the adapter, and the predicate iterates
+    them. A non-iterable truthy value survives the `attrs or _DEFAULT` guard upstream
+    and then raises inside the predicate, inside the walk. This is a pre-warm path, so
+    the documented behaviour is "degrade that node to a non-match rather than abort".
+
+    RED: delete the `try` / `except Exception: return None` and this raises TypeError
+    out of a pre-warm, which the caller does not expect to fail.
+
+    The holder is an OBJECT, not a dict, and the control is what established that:
+    `_device_id_matches` reads candidates with `getattr(obj, a, None)`, so a dict
+    carrying `{"duid": ...}` matches nothing. With a dict root the first assertion
+    still passed -- for the wrong reason, no match found rather than the handler
+    firing -- which is precisely what the control exists to catch.
+    """
+    class _Holder:
+        def __init__(self):
+            self.duid = "duid_A"
+
+    root = {"device": _Holder()}
+
+    assert _device_id_holder(root, "duid_A", True) is None, (
+        "a non-iterable attrs declaration degrades to no match"
+    )
+    # control: the same root with a real attrs list DOES find the holder
+    found = _device_id_holder(root, "duid_A", ["duid"])
+    assert found is not None, "and a valid declaration still works"
+    assert isinstance(found[0], _Holder) and "device" in found[1]
