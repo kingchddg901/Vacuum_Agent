@@ -680,6 +680,53 @@ native_current_room`. `DAC-3` asserts both together — a brand that declares th
 attribution source but not the native rollover splits its signal across subsystems, the exact
 drift these guard.
 
+### `dreame/test_dreame_model_catalog.py` — the lowest-covered file in the package
+
+14 tests (`DMC-*`), added 2026-11-08. `adapters/dreame/model_catalog.py` measured
+**76.19%**, the lowest of 157 files carrying ten or more units and an outlier by 7.5
+points — but the shape of the gap mattered more than the number. The only path any
+test exercised was (3), the conservative fallback for a model the catalog has never
+heard of. **Both paths that decide real behaviour had never executed**: the
+hardware-verified override, and the regime-derived profile covering all 700 catalogued
+models. The Roborock catalog's twin `profile_for_model` is tested for its override
+path, so this was the forgotten sibling. Now **100%**.
+
+| id | what it holds |
+|---|---|
+| `DMC-1` | the hardware-verified override wins over the regime, and returns the AUTHORED capability set |
+| `DMC-2` | `display_name` is injected from `DREAME_MODEL_NAMES`, never stored per-profile |
+| `DMC-3` | a catalogued model's `family` is its measured regime composite, not `generic` |
+| `DMC-4` | `charge_only` FAILS CLOSED — **and a wash tier does not** |
+| `DMC-5` | `auto_empty` reduces the station to collect-only |
+| `DMC-6` | an uncatalogued model, `""` and `None` get the conservative baseline |
+| `DMC-7` | `has_path_control` fails CLOSED for every one of the 700 catalogued models |
+| `DMC-8` | every authored override has a real display name |
+
+**`DMC-1` asserts the fields that DIFFER from the default, and that is the whole
+design.** `dreame.vacuum.r2469a` — the maintainer's own L10s Ultra Gen 2 — is in the
+regime table too (the module asserts that at import), so it would resolve perfectly
+happily down path (2). `has_path_control` and `supports_zone_clean` are True in the
+override and False in `DEFAULT_PROFILE`, and a regime-derived profile inherits both
+from the default, so those two are what distinguish "took path (1)" from "took path (2)
+or (3)". Asserting `has_mop` would pass on all three.
+
+**`DMC-4`'s wash-tier half is not decoration.** `_TIER_STATION.get(dock_tier, {})`
+means an *empty* `_TIER_STATION` yields the default for every tier, so "a wash tier has
+a station" passes against a table that was emptied — only the contrast with
+`charge_only` shows the table is consulted at all. 551 of the 700 models sit on a tier
+the table does not name, which is why this is easy to get wrong.
+
+**`DMC-8` closes a drift the module's own import-time assert cannot see.** That assert
+checks `MODEL_PROFILES ⊆ DREAME_MODEL_REGIMES`, but `display_name` is single-sourced
+from `DREAME_MODEL_NAMES`, which nothing checked. A verified model missing from the
+name table does not raise — it silently renders as the generic `"Dreame"`, which for
+the one authored entry means the maintainer's own vacuum shows up unnamed on his card.
+
+No expected value here is computed the way the source computes it: the regime
+composites are hand-written literals, because building them with the source's own
+`"%s|%s|%s"` would make the test agree by construction and survive the separator
+changing.
+
 ### `../unit/test_adapter_config_parity.py` — the schema is a FLOOR, not the contract
 
 3 tests, added 2026-08-15. `test_declaration_contract.py` above pins what happens
@@ -787,6 +834,7 @@ filter weakened to a type check would report it as a clean order continuously.
 | `eufy/upkeep_guides_i18n/*.py` (17 languages) | 19 | 100% | `test_upkeep_guides_i18n.py` | adapter |
 | `roborock/adapter.py` | 108 | 99% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/model_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
+| `dreame/model_catalog.py` | 17 | 100% | `dreame/test_dreame_model_catalog.py` | adapter | clean |
 | `roborock/vocabulary.py` | 62 | 97% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/entities.py` | 27 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/const.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
