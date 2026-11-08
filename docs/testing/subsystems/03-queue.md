@@ -45,6 +45,43 @@ Architecture reference: [05 — While a Run Is Live](../../dev/05-run-live.md)
   before the global pre-calls, and best-effort-loud failure (logs, never raises).
   No-op for every brand that does not declare `dispatch.settings_write`.
 
+- **Slug to live segment ids** (integration) — `test_dispatch_live_ids.py` (`LID-1`..`LID-10`).
+  For brands whose segment ids renumber on re-segment, the framework re-resolves each
+  target room's slug to its CURRENT id just before sending, so a stored id never cleans
+  the wrong room. `LID-10` closes the no-rooms-field early return: an adapter can set
+  `resolve_live_ids_by_slug` and still build a payload with nothing to remap (a zone or
+  whole-house command), and the guard returns before any service call.
+
+- **Global fan/water pre-calls** (integration) — `test_dispatch_global_precall.py`
+  (`GPC-1`..`GPC-24`). `GPC-23` and `GPC-24` were added 2026-11-07 with the last two
+  reachable uncovered statements in `dispatch/manager.py`. Both DROP a pre-call rather
+  than emit a wrong one, which is the safety polarity of the whole path: these calls set
+  DEVICE-GLOBAL fan and water before a run, so a guessed value reaches every room in the
+  batch including the dry ones. `GPC-23` is parametrised over all five terms of the
+  declaration guard's conjunction — a partial guard reads as complete, and losing one
+  term leaves four of five shapes passing. `GPC-24` is the case where the safest-water
+  policy has nothing rankable to choose from: it pushes NOTHING, which only an assertion
+  can distinguish from `GPC-6b`'s "chose off", since both batches are all-vacuum.
+
+#### The three statements that stay uncovered, and why they were not chased
+
+`dispatch/manager.py` sits at **98%** with three uncovered statements (705-706, 709-710),
+all inside the slug→live-id loop, plus five partial branches in the zone-restore path.
+The three are **double-guards over a contract `rooms/room_discovery.py` already
+enforces**: it coerces `room_id = int(raw_id)` under its own `except/continue`, skips a
+row whose name is blank or slugifies to empty, dedupes room ids, and runs a
+disambiguation pass that suffixes any colliding slug with `_r{room_id}`. So a blank slug,
+a duplicate slug and a non-coercible id cannot arrive.
+
+> **Two tests for them were written, PASSED, and were deleted.** The producer's
+> disambiguation renamed the duplicate slug and its own `int()` dropped the unusable id,
+> so both tests asserted a true thing for a reason other than the one they named —
+> coverage is what exposed it, because the lines stayed missed while the tests went
+> green. Reaching those guards needs a fabricated producer, which tests the fake. The
+> guards are kept (this function rewrites the wire payload moments before dispatch, and
+> its failure mode is a plausible segment list rather than an exception) and the
+> reasoning now sits at the site.
+
   **The malformed-declaration guards (`SW-14..SW-18`)** cover the other half: a
   mistake in an adapter's own `settings_write` block rather than bad device data.
   They earn tests rather than pragmas because the block is hand-authored (ours today,

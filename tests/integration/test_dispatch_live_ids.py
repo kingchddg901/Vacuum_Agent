@@ -16,6 +16,15 @@ Coverage targets
 [LID-7] a failed refresh with a FRESH cache still resolves (the freshness gate's other half).
 [LID-8] duplicate map names key collision-safely in the flattened source (SRC-3).
 [LID-9] concurrent refreshes coalesce onto one in-flight service call (SRC-4).
+[LID-10] a payload carrying no rooms field is returned untouched (line 669).
+
+NOT COVERED, AND DELIBERATELY NOT CHASED: dispatch/manager.py:705-710 re-validates
+the slug and the id of every live room, and `rooms/room_discovery.py` already
+guarantees both -- see the comment at those lines. Two tests for them were written,
+passed, and were DELETED: the producer's disambiguation pass renamed the duplicate
+slug and its own int() coercion dropped the unusable id, so both tests asserted a
+true thing for a reason other than the one they named. Coverage proved it -- the
+lines stayed missed while the tests went green.
 """
 
 from __future__ import annotations
@@ -288,3 +297,44 @@ async def test_concurrent_refreshes_coalesce_to_one_call(hass):
     )
     assert calls["n"] == 1
     assert r1["ok"] is True and r2["ok"] is True
+
+
+# ---------------------------------------------------------------------------
+# [LID-10]..[LID-12] -- the three guards inside the slug->live resolver that no
+# test reached. Measured 2026-11-07 with the per-module recipe: of
+# dispatch/manager.py's six uncovered statements, three were here (669, 706,
+# 709-710).
+#
+# All three protect the SAME property and it is worth saying once: this resolver
+# rewrites the wire payload moments before dispatch, so anything it gets wrong
+# cleans the wrong room on real hardware. Its failure mode is never an exception,
+# it is a plausible segment list -- which is why the guards drop input rather than
+# raise, and why a dropped-input guard with no test is indistinguishable from one
+# that drops the wrong thing.
+# ---------------------------------------------------------------------------
+
+
+async def test_payload_without_the_rooms_field_is_untouched(hass, manager):
+    """[LID-10] A payload carrying no rooms field is returned as-is (line 669).
+
+    Reachable whenever an adapter sets `resolve_live_ids_by_slug` and a template
+    builds a payload that does not carry `rooms_field` -- a zone or whole-house
+    command, say, where there are no segments to remap. The guard returns EARLY,
+    before the live source is consulted at all, so the no-rooms case costs no
+    service call.
+
+    The bite: delete the guard and the resolver proceeds to read a field that is
+    not there. Asserted on identity of CONTENT, and the `repeat` key is the point --
+    a resolver that returned a fresh empty dict would also satisfy `out == payload`
+    if the payload were empty, so the payload under test carries something to lose.
+    """
+    _register(hass)
+    _register_get_maps(hass, {"27": "KITCHEN"})
+
+    out = await manager._resolve_live_dispatch_payload(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        payload={"repeat": 3},
+        resolved_rooms=[{"room_id": 16, "slug": "kitchen"}],
+    )
+
+    assert out == {"repeat": 3}

@@ -65,6 +65,10 @@ cannot carry that weight on the water entry.
         its state, a vacuum's fan speed is an attribute. Both halves, because reading
         the wrong one is silent.
 [GPC-22c] an entry may DECLARE the attribute to read, overriding the domain default.
+[GPC-23] an entry missing ANY required key is skipped; its sibling still fires.
+        Parametrised over all five terms of the conjunction -- a partial guard
+        reads as complete.
+[GPC-24] the safest-water path with nothing rankable pushes NOTHING (not 'off').
         Nothing shipped reaches it, so without this test the branch is only present.
 """
 
@@ -893,4 +897,99 @@ async def test_a_declared_state_attribute_overrides_the_domain_default(hass, man
         f"the declared attribute `suction` reports 'max', which is what we pushed, so "
         f"the re-send is redundant. Only `fan_speed` disagrees, and it is not what the "
         f"entry asked us to read. got {fan!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# [GPC-23] / [GPC-24] -- the last two uncovered statements in dispatch/manager.py
+# (848 and 896), measured 2026-11-07 with the per-module coverage recipe.
+#
+# Both drop a pre-call rather than emit a wrong one, and that polarity is the
+# whole safety story of this path: these calls set DEVICE-GLOBAL fan and water
+# before a run, so a malformed or guessed value is applied to every room in the
+# batch, including the dry ones. Silence is the correct failure.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("missing", ["field", "rank", "domain", "service", "value_key"])
+async def test_a_malformed_pre_call_entry_is_skipped(hass, manager, missing):
+    """[GPC-23] An entry missing any required key emits nothing, and its SIBLING still fires.
+
+    Line 848 guards a FIVE-TERM conjunction --
+    `field and rank and domain and service_name and value_key` -- so it is
+    parametrised over all five rather than tested once. A partial guard reads as
+    complete: lose one term and four of the five shapes still pass, which is exactly
+    the asymmetry a single case cannot see.
+
+    These entries come from an adapter's own `dispatch.global_pre_calls` declaration,
+    so the reachable mistake is a hand-written port omitting a key -- the same class
+    [SW-14]..[SW-18] covers for settings_write. The sibling assertion is the other
+    half: a guard that `break`s instead of `continue`ing would silently drop every
+    entry declared after the bad one, and the fan entry sits second here on purpose.
+    """
+    entry = {
+        "field": "water_level",
+        "rank": ["off", "low", "medium", "high"],
+        "service": {
+            "domain": "select", "service": "select_option",
+            "value_key": "option", "target_entity_id": _MOP,
+        },
+    }
+    if missing == "field":
+        entry.pop("field")
+    elif missing == "rank":
+        entry.pop("rank")
+    elif missing == "domain":
+        entry["service"].pop("domain")
+    elif missing == "service":
+        entry["service"].pop("service")
+    elif missing == "value_key":
+        entry["service"].pop("value_key")
+
+    _register(hass, pre_calls=[entry, _PRE_CALLS[0]])
+    fan, sel = _capture(hass)
+
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[{"fan_speed": "turbo", "water_level": "high"}],
+    )
+
+    assert sel == [], f"a declaration missing {missing!r} must emit no water call"
+    assert fan == [{"entity_id": _VAC, "fan_speed": "turbo"}], (
+        "the well-formed sibling declared AFTER the malformed one must still fire -- "
+        "this guard skips an entry, it does not abandon the list"
+    )
+
+
+async def test_safest_water_with_nothing_rankable_pushes_nothing(hass, manager):
+    """[GPC-24] The safest-water path with no rankable value anywhere stays silent (line 896).
+
+    [GPC-6b] pins that an ALL-VACUUM batch forces water OFF, which is the safe answer
+    when the batch tells us something about water. This is the case where it tells us
+    NOTHING: every room carries a value outside the entry's rank, so there is no rung
+    to choose and no evidence the device should be changed. The code's own comment
+    says it -- "a room carrying no rankable value at all still leaves the device
+    alone, which is the honest answer".
+
+    THE DISCRIMINATOR AGAINST [GPC-6b] IS THE ASSERTION, not the setup: both batches
+    are all-vacuum, and without this guard both would push "off". So `sel == []` is
+    the only thing that separates "we chose the safest rung" from "we had no basis to
+    choose". The values are deliberately Eufy-flavoured, because the reachable way to
+    get here is a room whose stored water level was written under another brand's
+    vocabulary -- the same mismatch [GPC-4] covers on the max-wins path.
+    """
+    _register(hass, pre_calls=_SAFEST_WATER)
+    fan, sel = _capture(hass)
+
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[
+            {"clean_mode": "vacuum", "water_level": "Standard"},
+            {"clean_mode": "vacuum", "water_level": "Quick"},
+        ],
+    )
+
+    assert sel == [], (
+        "no room carried a value in the rank, so there is no safest rung to pick and "
+        "the device-global select must be left exactly as the user left it"
     )

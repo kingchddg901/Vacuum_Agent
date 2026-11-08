@@ -699,6 +699,27 @@ class DispatchManager:
         live_rooms = discover_rooms_for_vacuum(
             self._manager.hass, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
         )
+        # DEFENSIVE, AND MEASURED AS SUCH ON 2026-11-07 -- the two guards in this loop
+        # are the only statements in this module coverage cannot reach, and they are
+        # double-guards over a contract `rooms/room_discovery.py` already enforces:
+        #
+        #   room_id   coerced with `int(raw_id)` under its own except/continue, so every
+        #             row arrives with an int and the key present (room_discovery.py:563)
+        #   slug      a row whose name is blank, or whose name slugifies to empty, is
+        #             SKIPPED rather than admitted (room_discovery.py:573, :577)
+        #   unique    a disambiguation pass suffixes any colliding slug with
+        #             `_r{room_id}` until the set is unique (room_discovery.py:644)
+        #
+        # KEPT ANYWAY, because this function rewrites the wire payload moments before
+        # dispatch and its failure mode is a plausible segment list, not an exception --
+        # a KeyError here would clean the wrong room. They are the cheap half of a
+        # boundary between two modules, not padding.
+        #
+        # DO NOT WRITE TESTS FOR THEM through this call site: two were written, both
+        # PASSED, and both were deleted. The producer's own guarantees meant the
+        # assertions held for a different reason than the one they named, and coverage
+        # is what exposed it -- these lines stayed missed while the tests went green.
+        # Reaching them needs a fabricated producer, which tests the fake.
         slug_to_live_id: dict[str, int] = {}
         for room in live_rooms:
             slug = str(room.get("slug") or "").strip().lower()

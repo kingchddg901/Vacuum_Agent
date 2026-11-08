@@ -4,8 +4,6 @@
     "tests/integration/test_cancel_chokepoint.py",
     "tests/integration/test_cancel_single_flight.py",
     "tests/integration/test_charge_wait_phase.py",
-    "tests/integration/test_dispatch_global_precall.py",
-    "tests/integration/test_dispatch_live_ids.py",
     "tests/integration/test_dispatch_live_room_refresh.py",
     "tests/integration/test_dispatch_zone_clean.py",
     "tests/integration/test_dock_phase_rearm.py",
