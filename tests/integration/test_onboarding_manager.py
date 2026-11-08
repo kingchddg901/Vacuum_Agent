@@ -24,6 +24,10 @@ import pytest
 
 from homeassistant.core import State
 
+from custom_components.eufy_vacuum.adapters.registry import (
+    register_adapter_config,
+    unregister_adapter_config,
+)
 from custom_components.eufy_vacuum.onboarding.manager import OnboardingManager
 
 
@@ -34,6 +38,47 @@ _MAP = "6"
 @pytest.fixture
 def hass():
     return MagicMock()
+
+
+@pytest.fixture(autouse=True)
+def _declared_room_list():
+    """[OB-3]/[OB-3b] USED TO PASS ON STATE LEAKED FROM ANOTHER FILE.
+
+    Neither test registered an adapter, so `check_for_new_rooms` read whatever the
+    module-global adapter registry happened to hold -- and what it held was whatever
+    the previously-run test file left there. They passed because the last
+    `test_room_discovery.py` test to run happened to leave `room_list_attribute:
+    "segments"` behind, matching the attribute these tests put on the state. A
+    per-map test leaving `"rooms"` instead reddens both, and that is not hypothetical:
+    `pytest tests/integration/test_room_discovery.py::test_rd_shape_1_per_map_attribute_selects_the_active_map
+    tests/integration/test_onboarding_manager.py` fails on a PRISTINE 6a27ccc9
+    checkout, with no new test involved.
+
+    So the dependency is made explicit rather than inherited. The declaration names
+    `segments` because that is the attribute these tests set on the state; it is
+    deliberately NOT left to `check_for_new_rooms`' own `or "segments"` fallback,
+    which is a brand word in a core path and is flagged for removal -- a test that
+    rides it would go red for the wrong reason when it goes.
+
+    `entities` is left EMPTY on purpose: with no `active_map` declared,
+    `get_active_map_id` returns None, so the DR-ONB-2 active-map comparison is skipped
+    and [OB-3] measures what it is named for. [OB-3b] monkeypatches that resolver
+    itself and is unaffected either way.
+    """
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {},
+        "discovery": {
+            "room_list_entity": "vacuum_entity",
+            "room_list_attribute": "segments",
+            "room_id_key": "id",
+            "room_name_key": "name",
+        },
+    })
+    try:
+        yield
+    finally:
+        unregister_adapter_config(_VAC)
 
 
 def _seed_rooms(data, rooms):

@@ -46,9 +46,18 @@ Two consequences of computing rather than storing completeness:
 - **Only *enabled* rooms need a floor type.** Disabling a room removes it from the requirement
   without touching the onboarding record, because the requirement is derived from the live room set
   each time it is asked.
-- **New rooms are detected from the vacuum's own attributes**
-  (`onboarding/manager.py::check_for_new_rooms`), not from a stored expectation, so a map that
+- **New rooms are detected from the live room set, not from a stored expectation**, so a map that
   gains a room reopens onboarding without a migration.
+
+  > ⚠ This named `onboarding/manager.py::check_for_new_rooms` as the mechanism until 2026-11-08,
+  > and that method **has no production callers** — only a `pragma`-annotated delegator that is
+  > itself uncalled. The real producer of the `new_rooms` the card renders is
+  > `setup/drift.py::compute_room_drift`, via `setup/status.py`. The dead method is worth knowing
+  > about rather than silently re-pointing: it carries two defects a future implementer would
+  > inherit if they wired it up — an `or "segments"` fallback (a brand's word in a core path, the
+  > `f/eufy_is_not_the_default` failure) and no read of `room_list_shape` at all, so a
+  > correctly-declared per-map brand gets an unconditional `False`. Whether to fix both or delete
+  > the method is open; `docs/audit-1-closeout.md` already names the delete option.
 
 `onboarding/manager.py::confirm_floor_type` records a floor type as **explicitly confirmed by the
 user**, which is distinct from a floor type that merely has a value. That distinction is what lets

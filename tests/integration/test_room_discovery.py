@@ -50,6 +50,12 @@ Coverage targets
 [RD-21] a row missing its name key is skipped, not admitted as a room named "None";
         the companion `raw_id is None` clause is SUBSUMED, measured.
 [RD-22] the C16 fixpoint bound is sufficient for the deepest chain a search found.
+[RD-23] an OMITTED room_list_entity no longer switches [MAP-ANCHOR-1] off -- the
+        measurement that decided the key should carry its documented default.
+[RD-24] ...and discovery still finds the rooms.
+[RD-25] ...and the implicit single-map anchor still fires.
+[RD-26] but an EMPTY declaration is NOT an omitted one, at all three read sites --
+        the input that separates `.get(key, default)` from `value or default`.
 """
 
 from __future__ import annotations
@@ -1119,3 +1125,196 @@ def test_rd22_the_fixpoint_bound_is_sufficient_for_the_deepest_chain(
 # was N passes of an N + 1 bound. [RD-22] pins the input that gets closest, so the one
 # pass of remaining slack cannot be spent silently.
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# [RD-23] - [RD-26]  room_list_entity now carries the default the schema always
+# documented, and these are the inputs that make that claim able to go red.
+#
+# THE CHANGE REDDENED NOTHING IN 5663 TESTS, which is exactly why these exist: a
+# behaviour change no test can see is a behaviour change with no test. The schema has
+# documented `Default: 'vacuum_entity'` since the key was added; of the four readers,
+# only `onboarding/manager.py` applied it, and that reader sits in a method with no
+# production callers -- so the documented contract was honoured in zero live paths
+# while three live readers in room_discovery.py refused instead.
+#
+# WHAT DECIDED THE DIRECTION was not statement-counting. At `_known_map_ids` an absent
+# key does not decline an action: it makes the map set unenumerable, which switches the
+# [MAP-ANCHOR-1] / ISSUE #60 guard OFF. [RD-23] is that measurement, run with a
+# positive control before the fix and kept as the regression.
+#
+# `absent` AND `empty` ARE DIFFERENT INPUTS throughout, and the resolver uses
+# `.get(key, default)` rather than `value or default` for that reason alone. See
+# [RD-26]; `RD-19[empty_entity]` is the pre-existing row that separates the two forms
+# at the third read site.
+# ---------------------------------------------------------------------------
+
+
+def _per_map_no_entity(**extra):
+    """A per-map attribute adapter that declares everything EXCEPT room_list_entity.
+
+    The realistic shape for a fourth-brand port: the schema marks the key
+    `required: False` and documents its default, so a porter reasonably omits it.
+    """
+    discovery = {
+        "room_list_attribute": "rooms",
+        "room_list_shape": "per_map_mapping",
+        "room_id_key": "id",
+        "room_name_key": "name",
+    }
+    discovery.update(extra)
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"active_map": "sensor.alfred_map"},
+        "discovery": discovery,
+    })
+
+
+def test_rd23_an_omitted_room_list_entity_does_not_switch_off_the_map_anchor(
+    hass, manager
+):
+    """[RD-23] THE FACT THAT DECIDED THE DEFAULT, kept as the regression.
+
+    Before 2026-11-08, omitting `room_list_entity` from an otherwise valid per-map
+    declaration made `_known_map_ids` refuse to enumerate, `known` came back None, and
+    [MAP-ANCHOR-1] skipped its check entirely -- so ISSUE #60's camera timestamp was
+    accepted as this vacuum's active map id. Measured both ways at the time, with the
+    key absent returning `'2026-10-02 11:04:35'` and the key present returning None.
+
+    That is the difference between an absent declaration DECLINING an action and an
+    absent declaration DISABLING A GUARD. A missing room list is a diagnosis problem; a
+    guard that quietly stops running is the hole the guard was added to close, and no
+    amount of documenting the refusal would have made it safe.
+
+    BOTH ARMS, SAME STATES, ONLY THE DECLARATION DIFFERS -- and they must now agree.
+    Asserting only the absent arm would pass against a resolver that refused
+    everything, which is why the declared arm is here and why the control below uses a
+    REAL map key: a guard that refuses every value is not the guard being tested.
+
+    RED: restore `discovery.get("room_list_entity")` in `declared_room_list_entity` and
+    the absent arm returns the timestamp while the declared arm returns None.
+    """
+    hass.states.async_set("sensor.alfred_map", _NOT_A_MAP_ID)
+    hass.states.async_set(_VAC, "docked", {"rooms": {
+        "Downstairs": [{"id": 1, "name": "Kitchen"}],
+        "Upstairs": [{"id": 9, "name": "Loft"}],
+    }})
+
+    _per_map_no_entity()
+    assert get_active_map_id(hass, _VAC) is None, (
+        "omitting room_list_entity switched [MAP-ANCHOR-1] off: a camera's timestamp "
+        "was accepted as this vacuum's active map id"
+    )
+
+    _per_map_adapter()      # the same config, with the key declared
+    assert get_active_map_id(hass, _VAC) is None, (
+        "control: the declared arm must refuse it too, or the two readings do not agree"
+    )
+
+    # CONTROL: a REAL map key must still resolve on both arms, or the assertions above
+    # are satisfied by a resolver that refuses everything.
+    hass.states.async_set("sensor.alfred_map", "Upstairs")
+    _per_map_no_entity()
+    assert get_active_map_id(hass, _VAC) == "Upstairs", (
+        "a real map key must resolve with the key omitted"
+    )
+    _per_map_adapter()
+    assert get_active_map_id(hass, _VAC) == "Upstairs"
+
+
+def test_rd24_an_omitted_room_list_entity_still_discovers_rooms(hass, manager):
+    """[RD-24] The third read site: discovery itself.
+
+    `discover_rooms_for_vacuum`'s attribute branch used to read the key with no default
+    and fold it into `not all((entity_key, attribute))`, so an adapter that declared
+    its attribute and omitted its entity discovered ZERO rooms and logged that its
+    CONFIG was incomplete -- for a config the schema calls complete.
+
+    The room list is the whole point of the block, so this is the site whose absence a
+    porter would notice; it is also the one that cost nothing but function, which is why
+    [RD-23] rather than this one decided the direction.
+
+    RED: restore the no-default read and this returns [].
+    """
+    _per_map_no_entity(room_list_shape=None)     # flat_list: the Eufy/Tuya shape
+    hass.states.async_set(_VAC, "docked", {"rooms": [
+        {"id": 4, "name": "Pantry"},
+        {"id": 5, "name": "Porch"},
+    ]})
+
+    rooms = discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC, map_id="6")
+    assert [r["room_id"] for r in rooms] == [4, 5], (
+        f"an omitted room_list_entity discovered nothing -- got {rooms}"
+    )
+    assert [r["slug"] for r in rooms] == ["pantry", "porch"]
+
+
+def test_rd25_an_omitted_room_list_entity_still_anchors_the_implicit_map(hass, manager):
+    """[RD-25] The second read site: the implicit single-map anchor.
+
+    `_implicit_attribute_map_id` refuses unless the room list is on the vacuum entity,
+    because it reads `hass.states.get(vacuum_entity_id)` directly -- that refusal is
+    correct and deliberate for a declaration naming ANOTHER entity, and it stays. What
+    was wrong was treating an ABSENT declaration as if it named another entity.
+
+    Note `implicit_map_id` and `room_list_attribute` are still required here and still
+    short-circuit first, so this arm is only reachable for an adapter that declares
+    both and omits the entity.
+
+    RED: restore the no-default read and this returns None.
+    """
+    _per_map_no_entity(implicit_map_id="Main")
+    # No sensor.alfred_map in the state machine or the registry -> the never-created
+    # branch, which is the ladder that reaches this helper.
+    hass.states.async_set(_VAC, "docked", {"rooms": {
+        "Loft": [{"id": 9, "name": "Study"}],
+    }})
+
+    assert get_active_map_id(hass, _VAC) == "Loft", (
+        "the single-map anchor refused an omitted room_list_entity"
+    )
+
+
+@pytest.mark.parametrize("site", ["known_map_ids", "implicit", "discover"])
+def test_rd26_an_empty_declaration_is_not_an_omitted_one(hass, manager, site):
+    """[RD-26] `absent` and `empty` are different inputs, at every read site.
+
+    This is the whole reason the resolver is `.get(key, default)` and not
+    `value or default`. The two spellings differ on exactly one input -- a key present
+    and empty -- and the difference is deliberate: clearing a field in a UI is not a
+    request to read the vacuum's own attributes, it is an incomplete declaration. The
+    `or` form would silently convert one into the other.
+
+    `RD-19[empty_entity]` already pins this at the discovery site. These rows extend it
+    to the two map-anchor readers, because a resolver shared by four callers can only be
+    trusted at the callers that are driven -- and the `or` spelling would have been
+    invisible at the two that were not.
+
+    RED: spell the resolver `(discovery or {}).get("room_list_entity") or
+    ROOM_LIST_ENTITY_SELF` and every row here goes red along with RD-19[empty_entity].
+    """
+    hass.states.async_set("sensor.alfred_map", _NOT_A_MAP_ID)
+
+    if site == "known_map_ids":
+        _per_map_no_entity(room_list_entity="")
+        hass.states.async_set(_VAC, "docked", {"rooms": {
+            "Downstairs": [{"id": 1, "name": "Kitchen"}],
+        }})
+        # An empty declaration cannot enumerate, so [MAP-ANCHOR-1] makes no judgement
+        # and the bad value is trusted -- the [RD-16] behaviour, unchanged.
+        assert get_active_map_id(hass, _VAC) == _NOT_A_MAP_ID
+    elif site == "implicit":
+        _per_map_no_entity(room_list_entity="", implicit_map_id="Main")
+        hass.states.async_set(_VAC, "docked", {"rooms": {
+            "Loft": [{"id": 9, "name": "Study"}],
+        }})
+        hass.states.async_set("sensor.alfred_map", "unavailable")
+        assert get_active_map_id(hass, _VAC) is None, (
+            "an EMPTY declaration anchored an implicit map as though it were absent"
+        )
+    else:
+        _per_map_no_entity(room_list_entity="", room_list_shape=None)
+        hass.states.async_set(_VAC, "docked", {"rooms": [{"id": 4, "name": "Pantry"}]})
+        assert discover_rooms_for_vacuum(
+            hass, vacuum_entity_id=_VAC, map_id="6"
+        ) == [], "an EMPTY declaration discovered rooms as though it were absent"

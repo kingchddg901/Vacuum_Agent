@@ -319,8 +319,40 @@ class OnboardingManager:
         # Room list source is adapter-driven (mirrors rooms/room_discovery.py).
         # Defaults preserve Eufy behavior: the vacuum entity's "segments" attr.
         discovery = (get_adapter_config(vacuum_entity_id) or {}).get("discovery", {})
-        list_entity = discovery.get("room_list_entity") or "vacuum_entity"
-        source_entity = vacuum_entity_id if list_entity == "vacuum_entity" else list_entity
+        # Deferred to match the `get_active_map_id` import below, NOT because it has
+        # to be: measured both ways -- rooms.room_discovery reaches 8 modules at
+        # module level and onboarding is not among them, and importing the two in
+        # either order succeeds. So this is style-matching, and a future hoist of both
+        # is safe. (Said "a module-level import here is a cycle" for one draft; it is
+        # not, and an unverified reason at the site reads as authority.)
+        from ..rooms.room_discovery import (
+            ROOM_LIST_ENTITY_SELF,
+            declared_room_list_entity,
+        )
+
+        # ONE resolver for the room-list entity, shared with rooms/room_discovery.py's
+        # three readers (2026-11-08). This site's own `or "vacuum_entity"` used to be
+        # the ONLY place the schema's documented default existed -- and because this
+        # method has no production callers, that meant the documented contract was
+        # honoured in zero live paths while three live readers refused instead.
+        # `.get(key, default)` is not interchangeable with the old `or`: an explicitly
+        # EMPTY declaration now stays a refusal rather than silently meaning "read the
+        # vacuum".
+        list_entity = declared_room_list_entity(discovery)
+        source_entity = (
+            vacuum_entity_id if list_entity == ROOM_LIST_ENTITY_SELF else list_entity
+        )
+        # ⚠ NOT CHANGED, AND DELIBERATELY LEFT ASYMMETRIC WITH THE LINE ABOVE.
+        # `or "segments"` is a core path yielding a BRAND'S WORD -- "segments" is the
+        # Eufy attribute name, declared by adapters/eufy/adapter.py alone and sourced
+        # from robovac_mqtt -- which is the `f/eufy_is_not_the_default` failure, not a
+        # default question. It is also not the larger defect in these four lines: this
+        # method never reads `room_list_shape`, so a correctly-declared per-map brand
+        # (Dreame, whose `rooms` attribute is a two-map dict) gets an unconditional
+        # False regardless of the attribute name. Removing only the brand word would
+        # leave a shorter copy of a predicate that still reads as complete, so both go
+        # together or the callerless method goes -- a separate call, and Chris's.
+        # [OB-3] pins the current behaviour meanwhile.
         attribute = discovery.get("room_list_attribute") or "segments"
 
         source_state = self._hass.states.get(source_entity)

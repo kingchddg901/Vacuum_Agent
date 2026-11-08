@@ -494,6 +494,11 @@ covered by `RD-16`–`RD-21`:
 | `RD-20` | a non-dict row does not stop the discovery walk (junk rows FIRST, by position) |
 | `RD-21` | a row missing its name key is skipped, not admitted as a room called `"None"` |
 | `RD-22` | the C16 fixpoint bound is sufficient for the deepest chain a search could find |
+| `RD-23` | an OMITTED `room_list_entity` no longer switches [MAP-ANCHOR-1] off — the measurement that decided the default |
+| `RD-24` | ...and discovery still finds the rooms |
+| `RD-25` | ...and the implicit single-map anchor still fires |
+| `RD-26` | but an EMPTY declaration is **not** an omitted one, at all three read sites |
+| `AD-1` | *(adapter contract)* an attribute-source brand declares its `room_list_attribute` — deleting either shipped brand's room-list declaration used to redden nothing |
 
 **`RD-4` is the one to read, and it is the fourth test found this way in two days.**
 It is called "incomplete discovery config → []" and it never reaches that guard:
@@ -558,12 +563,59 @@ non-convergence warning rather than only that the slugs are distinct — unique 
 are also what a loop that converged by luck produces. Shrinking the bound to 2 reddens
 `RD-22` alone, and is the only route by which that else-arm has ever executed.
 
-> **An open disagreement this deliberately does not settle.** The adapter schema
-> documents `discovery.room_list_entity` as "Default: `'vacuum_entity'`", while
-> `discover_rooms_for_vacuum` reads it with no default — so an adapter that omits the
-> key discovers zero rooms. `RD-19`'s rows use an *empty* declaration and an *absent
-> attribute*, both incomplete under either reading, so no test pins the disputed
-> behaviour in passing.
+### `room_list_entity` — the disagreement, CLOSED 2026-11-08
+
+The adapter schema has always documented `discovery.room_list_entity` as
+"Default: `'vacuum_entity'`". **Four readers consulted the key and three of them
+disagreed about what its absence meant**, so the documented contract was honoured in
+zero live paths:
+
+| reader | an ABSENT key meant |
+|---|---|
+| `onboarding/manager.py` | `or "vacuum_entity"` — applied the default, in a method with **no production callers** |
+| `room_discovery.py::_known_map_ids` | `!= "vacuum_entity"` → cannot enumerate the map set |
+| `room_discovery.py::_implicit_attribute_map_id` | `!= "vacuum_entity"` → no implicit map anchor |
+| `room_discovery.py::discover_rooms_for_vacuum` | incomplete config → discover nothing |
+
+**What decided it was not statement-counting.** At `_known_map_ids` an absent key does
+not decline an action — it makes the map set unenumerable, which switches the
+[MAP-ANCHOR-1] / ISSUE #60 guard **off**. Measured with a positive control, before the
+fix: with the key absent a camera's last-updated timestamp `'2026-10-02 11:04:35'` came
+back as the vacuum's active map id; with the key declared, the same value was refused.
+An absent declaration silently disabling a guard is not a diagnosis problem, it is the
+hole the guard was added to close — and no amount of documenting the refusal would have
+made it safe. `RD-23` is that measurement, kept.
+
+Resolved as **the documented default, behind one resolver**
+(`room_discovery.py::declared_room_list_entity`) that all four readers now call — the
+"centralise the QUESTION" ladder's HELPER rung, four call sites of one question. The
+schema needed no edit, so nothing was regenerated; six existing statements of the
+default became true as written.
+
+**`.get(key, default)`, never `value or default`.** The two spellings differ on exactly
+one input — a key present and *empty* — and that difference is deliberate: clearing a
+field is not a request to read the vacuum's own attributes. `RD-26` pins it at all three
+`room_discovery` sites and `RD-19[empty_entity]` at the fourth; the `or` spelling reddens
+all four.
+
+**It reddened nothing in 5663 tests before the pins were written**, which is the whole
+reason `RD-23`–`RD-26` exist. Seven ablations, all at their predicted verdict: reverting
+the resolver reddens `RD-23`/`24`/`25`; the `or` spelling reddens `RD-26`×3 +
+`RD-19[empty_entity]`; and each of the three sites reverted **alone** reddens exactly its
+own test, so no site is covered by another's. The onboarding call site is declared
+**SUBSUMED** — `or` and `.get(default)` agree on an absent key and no onboarding test
+declares an empty one, so what is pinned is the shared resolver, not that caller.
+
+Two things this did **not** touch, both recorded rather than quietly decided:
+`onboarding/manager.py`'s neighbouring `or "segments"` — a brand's word in a core path,
+which is a different rule (`f/eufy_is_not_the_default`) and whose larger sibling defect
+is that the same method never reads `room_list_shape` at all — and the general case: the
+schema states ~29 defaults in **prose only**, with no `default` field and no central
+place that applies one, so each reader implements each default by hand. Two other keys
+are already broken the same way (`dispatch.map_id_type`, `post_job_wash_amendment.enabled`),
+and the sharpest instance sits *outside* the prose subset (`dispatch.passes_max`, whose
+five readers split 2-vs-3 between the card and the wire), so an audit keyed on the string
+`Default:` would exempt exactly the key that most needs it.
 
 One genuine but minor behavior branch remains untested:
 `access_graph.py` around lines 685-698 — the per-issue-type editable-target

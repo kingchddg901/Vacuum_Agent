@@ -239,6 +239,49 @@ cleanup must be unconditional — in a `finally` that releases the parked task a
 awaits it — or the lingering task blocks `hass` teardown and the hang merely moves
 from the assertion to teardown. That was the second draft's failure, measured.
 
+## 15. A test that passes on another FILE's leaked adapter-registry state
+
+The adapter registry is module-global and **nothing clears it between test files**. A
+test that registers no adapter therefore reads whatever the previously-run file left
+behind — and if that value happens to suit it, the test passes for a reason that has
+nothing to do with the test.
+
+`[OB-3]` and `[OB-3b]` in `test_onboarding_manager.py` did exactly this. They set a
+`segments` attribute on the state and register no adapter, so `check_for_new_rooms`
+resolved `room_list_attribute` from the registry — which held `"segments"` only because
+the last `test_room_discovery.py` test to run happened to leave that value. Found by
+adding a per-map test at the end of that file, which leaves `"rooms"` instead. It is not
+specific to the new test:
+
+```bash
+pytest "tests/integration/test_room_discovery.py::test_rd_shape_1_per_map_attribute_selects_the_active_map" \
+       tests/integration/test_onboarding_manager.py
+```
+
+reddens both on a **pristine `6a27ccc9` checkout** (verified with `git archive`, with the
+resolver absent), using only pre-existing tests.
+
+**The tell is that it passes alone and in its own file, and fails in a longer run.** The
+whole file passed 11/11 on its own. If a test depends on registry state, it has to
+declare it:
+
+```python
+@pytest.fixture(autouse=True)
+def _declared_room_list():
+    register_adapter_config(_VAC, {... "discovery": {"room_list_attribute": "segments", ...}})
+    try:
+        yield
+    finally:
+        unregister_adapter_config(_VAC)
+```
+
+Two refinements worth copying. Declare the value **explicitly** rather than relying on
+the production fallback that happens to produce it — `check_for_new_rooms`' own
+`or "segments"` is a brand word flagged for removal, and a test riding it would go red
+for the wrong reason when it goes. And leave `entities` empty unless the test needs a
+map selector: a declared `active_map` makes `get_active_map_id` read a `MagicMock`
+state, which can silently change what the test measures.
+
 ## 11. Fire-and-forget executor file writes — drain, clean-slate, and watch for read-modify-write races
 
 `test_dock_drift_log` cost a red CI run after a clean local pass. It's the

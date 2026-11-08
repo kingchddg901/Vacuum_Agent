@@ -19,8 +19,15 @@ it omitted — ``source`` — is the one that selects the whole branch:
                          ZERO rooms for Dreame until 2026-08-07.
     implicit_map_id:     str — synthetic map id for an attribute-mode device that
                          creates no active_map sensor (_implicit_attribute_map_id).
-    room_list_entity:    "vacuum_entity" | <full entity_id>  (attribute source only)
-    room_list_attribute: str — attribute name on the entity (attribute source only)
+    room_list_entity:    "vacuum_entity" | <full entity_id>  (attribute source only).
+                         DEFAULTS to "vacuum_entity" when absent, which is what the
+                         schema has always documented and what no reader here honoured
+                         until 2026-11-08 — see declared_room_list_entity, and note
+                         that an absent key used to switch the [MAP-ANCHOR-1] guard off
+                         rather than merely decline a room list. A key declared EMPTY
+                         is still a refusal; absent and empty are different inputs.
+    room_list_attribute: str — attribute name on the entity (attribute source only).
+                         Genuinely required: nothing can name it for the adapter.
     room_id_key:         str — key in each room dict for the room ID
     room_name_key:       str — key in each room dict for the room name
 
@@ -86,6 +93,40 @@ _LOGGER = logging.getLogger(__name__)
 #: and defeat the throttle. Cleared on a clean resolution so a later regression is
 #: reported rather than swallowed.
 _MISBOUND_ACTIVE_MAP_WARNED: set[tuple[str, str]] = set()
+
+#: The core SENTINEL meaning "the room list is an attribute on the vacuum entity
+#: itself", as opposed to a full entity id naming another entity. A sentinel, not a
+#: brand's word -- the same class as ``default_profile`` -- so defaulting to it does
+#: not make core speak Eufy.
+ROOM_LIST_ENTITY_SELF = "vacuum_entity"
+
+
+def declared_room_list_entity(discovery: dict | None) -> str:
+    """Which entity the room list is declared on, WITH the schema's documented default.
+
+    ONE QUESTION, FOUR ASKERS. ``discovery.room_list_entity`` is documented in
+    ``adapters/config_schema.py`` as "Default: 'vacuum_entity'", and until 2026-11-08
+    that default existed in exactly one of the four places that read the key --
+    ``onboarding/manager.py``, whose own reader sits in a method with no production
+    callers. The three live readers in this file each treated an absent key as "NOT the
+    vacuum entity", which is a different answer, so the documented contract was honoured
+    in zero live paths.
+
+    THE COST WAS NOT A MISSING ROOM LIST, and that is why this resolves to the default
+    rather than the refusal. At ``_known_map_ids`` an absent key makes the map set
+    unenumerable, which switches OFF the [MAP-ANCHOR-1] / ISSUE #60 guard entirely --
+    measured, with a positive control: with the key absent a camera's last-updated
+    timestamp ``'2026-10-02 11:04:35'`` comes back as the vacuum's active map id, and
+    with it present the same value is refused. An absent declaration silently disabling
+    a guard is not a diagnosis problem; it is the hole the guard was added to close.
+
+    ``.get(key, default)``, NEVER ``value or default``. The two differ on exactly one
+    input and the difference is deliberate: a key declared EMPTY stays empty and is
+    still a refusal, because someone who cleared a field did not ask to read the vacuum.
+    ``RD-19[empty_entity]`` is the row that separates the two forms, and the ``or``
+    spelling reddens it.
+    """
+    return (discovery or {}).get("room_list_entity", ROOM_LIST_ENTITY_SELF)
 
 # HA sentinel states that mean "no usable value".
 #: Kept as a NAME (diagnostics imports it) but derived from the shared vocabulary so the
@@ -320,7 +361,7 @@ def _known_map_ids(
         if discovery.get("room_list_shape") != SHAPE_PER_MAP_MAPPING:
             return None
         attr = discovery.get("room_list_attribute")
-        if not attr or discovery.get("room_list_entity") != "vacuum_entity":
+        if not attr or declared_room_list_entity(discovery) != ROOM_LIST_ENTITY_SELF:
             return None
         state = hass.states.get(vacuum_entity_id)
         rooms = state.attributes.get(attr) if state is not None else None
@@ -396,7 +437,11 @@ def _implicit_attribute_map_id(
     implicit = discovery.get("implicit_map_id")
     attr = discovery.get("room_list_attribute")
     # Only the vacuum-attribute room source supports an implicit single map.
-    if not implicit or not attr or discovery.get("room_list_entity") != "vacuum_entity":
+    if (
+        not implicit
+        or not attr
+        or declared_room_list_entity(discovery) != ROOM_LIST_ENTITY_SELF
+    ):
         return None
     state = hass.states.get(vacuum_entity_id)
     rooms = state.attributes.get(attr) if state is not None else None
@@ -496,9 +541,17 @@ def discover_rooms_for_vacuum(
             return []
     else:
         # Attribute source (default, e.g. Eufy): the room list is a live
-        # attribute on an entity. room_list_entity / room_list_attribute are
-        # required here.
-        room_list_entity_key = discovery.get("room_list_entity")
+        # attribute on an entity.
+        #
+        # ⚠ THIS COMMENT SAID BOTH KEYS WERE "required here" UNTIL 2026-11-08, AND IT
+        # WAS THE ONLY STATEMENT IN THE TREE SAYING SO -- against a schema entry that
+        # says `"required": False` and documents `room_list_entity` as defaulting to
+        # the vacuum entity, a generated reference that repeats that default, and three
+        # retired docs that do too. Prose at the site reads as authority, which is how
+        # the contradiction survived. `room_list_attribute` IS still required: nothing
+        # can name the attribute for the adapter, and absence of it is what the refusal
+        # below now means.
+        room_list_entity_key = declared_room_list_entity(discovery)
         room_list_attribute = discovery.get("room_list_attribute")
         if not all((room_list_entity_key, room_list_attribute)):
             _LOGGER.debug(
@@ -509,7 +562,7 @@ def discover_rooms_for_vacuum(
 
         source_entity_id = (
             vacuum_entity_id
-            if room_list_entity_key == "vacuum_entity"
+            if room_list_entity_key == ROOM_LIST_ENTITY_SELF
             else room_list_entity_key
         )
         source_state = hass.states.get(source_entity_id)

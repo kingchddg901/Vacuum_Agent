@@ -917,3 +917,55 @@ def test_every_component_ships_a_settable_interval_range(adapter):
         f"{name}: these components ship an interval a user cannot set -- the card shows "
         f"'0 hours left of 0 hours' and number.set_value refuses every value: {sorted(bad)}"
     )
+
+
+# --- discovery: what the room list needs declared ----------------------
+
+def test_ad1_an_attribute_source_brand_declares_its_room_list_attribute(adapter):
+    """[AD-1] The room-list declaration this contract still requires, after
+    `room_list_entity` stopped being one (2026-11-08).
+
+    `discovery.room_list_entity` now carries the default the schema always
+    documented, so omitting it is legal and `rooms/room_discovery.py` resolves it
+    to the vacuum entity. `room_list_attribute` is a different case and stays
+    required for the attribute source: nothing can name a device's attribute for
+    it, there is no sentinel that could stand in, and the three readers all treat
+    its absence as a refusal.
+
+    WHY THIS IS A CONTRACT TEST AND NOT A SCHEMA FIELD. The schema marks the key
+    `required: False` because it genuinely is optional for the SERVICE-RESPONSE
+    source, which never reads it -- Roborock declares neither room_list_ key and is
+    correct to. `required` is a flat bool at every one of its occurrences in
+    `ADAPTER_CONFIG_SCHEMA`, so "required only when `source` is `entity_attribute`"
+    is not expressible there; making it unconditionally required reddens
+    `test_schema_conformance[roborock]`, measured. A conditional contract therefore
+    has to live in a test, and this is it.
+
+    THE INPUT THAT MAKES THIS RED: delete `room_list_attribute` from eufy's or
+    dreame's `discovery` block. Measured before writing it: deleting either
+    brand's whole room-list declaration reddened NOTHING in this file, which is a
+    wider hole than the default disagreement that led here.
+    """
+    name, config = adapter
+    discovery = config.get("discovery") or {}
+    source = discovery.get("source")
+
+    if source == "service_response":
+        assert not discovery.get("room_list_attribute"), (
+            f"{name}: declares room_list_attribute on a service_response source, "
+            f"where no reader consults it -- the rooms come from the refresh cache"
+        )
+        return
+    if not discovery:
+        pytest.skip(f"{name}: declares no discovery block at all")
+
+    assert discovery.get("room_list_attribute"), (
+        f"{name}: attribute-source discovery must name the attribute holding the "
+        f"room list; nothing can infer it, and all three readers refuse without it"
+    )
+    for key in ("room_id_key", "room_name_key"):
+        assert discovery.get(key), (
+            f"{name}: attribute-source discovery must declare {key} -- "
+            f"discover_rooms_for_vacuum refuses at its first completeness check "
+            f"without it, before the attribute branch is even chosen"
+        )
