@@ -606,10 +606,12 @@ own test, so no site is covered by another's. The onboarding call site is declar
 **SUBSUMED** — `or` and `.get(default)` agree on an absent key and no onboarding test
 declares an empty one, so what is pinned is the shared resolver, not that caller.
 
-Two things this did **not** touch, both recorded rather than quietly decided:
-`onboarding/manager.py`'s neighbouring `or "segments"` — a brand's word in a core path,
-which is a different rule (`f/eufy_is_not_the_default`) and whose larger sibling defect
-is that the same method never reads `room_list_shape` at all — and the general case: the
+The neighbouring `or "segments"` was left alone in that pass and **closed the same day**
+— a brand's word in a core path is a different rule (`f/eufy_is_not_the_default`), and
+its larger sibling defect was that the same method never read `room_list_shape` at all,
+so both went together: see [13 — onboarding](13-onboarding.md) (`OB-7`–`OB-10`).
+
+What this did **not** settle is the general case: the
 schema states ~29 defaults in **prose only**, with no `default` field and no central
 place that applies one, so each reader implements each default by hand. Two other keys
 are already broken the same way (`dispatch.map_id_type`, `post_job_wash_amendment.enabled`),

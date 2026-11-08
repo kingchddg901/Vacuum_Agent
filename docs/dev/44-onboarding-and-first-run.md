@@ -52,12 +52,15 @@ Two consequences of computing rather than storing completeness:
   > ⚠ This named `onboarding/manager.py::check_for_new_rooms` as the mechanism until 2026-11-08,
   > and that method **has no production callers** — only a `pragma`-annotated delegator that is
   > itself uncalled. The real producer of the `new_rooms` the card renders is
-  > `setup/drift.py::compute_room_drift`, via `setup/status.py`. The dead method is worth knowing
-  > about rather than silently re-pointing: it carries two defects a future implementer would
-  > inherit if they wired it up — an `or "segments"` fallback (a brand's word in a core path, the
-  > `f/eufy_is_not_the_default` failure) and no read of `room_list_shape` at all, so a
-  > correctly-declared per-map brand gets an unconditional `False`. Whether to fix both or delete
-  > the method is open; `docs/audit-1-closeout.md` already names the delete option.
+  > `setup/drift.py::compute_room_drift`, via `setup/status.py`.
+  >
+  > The two defects that note listed are **fixed** (same day, `OB-7`–`OB-10`): the `or "segments"`
+  > fallback is gone, so an undeclared attribute is refused rather than answered with Eufy's
+  > word, and the method now reads `room_list_shape` through the same
+  > `select_segments_for_map` rule discovery uses — a `per_map_mapping` brand was previously
+  > answered `False` unconditionally. What remains open is whether the method should exist at
+  > all: it is public surface, and `room_count_at_last_check` is read here and nowhere else, so
+  > deleting it would strand that key. `docs/audit-1-closeout.md` names the delete option.
 
 `onboarding/manager.py::confirm_floor_type` records a floor type as **explicitly confirmed by the
 user**, which is distinct from a floor type that merely has a value. That distinction is what lets

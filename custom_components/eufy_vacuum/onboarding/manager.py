@@ -298,17 +298,29 @@ class OnboardingManager:
         new rooms" forever, and a larger one reports new rooms that belong to a
         different map.
 
-        The live source cannot be map-scoped — the attribute simply has no map
-        dimension — so the honest answer when the requested map is not the active
-        one is "I cannot tell", i.e. False. That preserves every single-map
-        install byte-for-byte, which is the only shape reachable today.
+        ⚠ THAT PREMISE IS TRUE ONLY OF A FLAT LIST, and reading it as universal was
+        the second of two defects fixed here on 2026-11-08. A ``per_map_mapping``
+        brand's attribute IS keyed by map, so the requested map's entry can be
+        selected and the comparison made apples-to-apples — which is what DR-ONB-2
+        wanted and could not have for a flat source. Dreame declares exactly that
+        shape, and because this method read the attribute as a flat list
+        unconditionally, ``isinstance(segments, list)`` failed on a dict that was
+        never the wrong shape and the answer was a permanent False for the whole
+        brand. The flat branch keeps DR-ONB-2's refusal verbatim; `[OB-3b]` pins it.
+
+        The other defect was the companion read: ``room_list_attribute`` fell back to
+        ``"segments"``, a brand's word in a brand-agnostic path. Both went together on
+        purpose — removing only the fallback would have left a shorter copy of a
+        predicate that still read as complete.
 
         NOTE, and the reason this stayed LOW: this method has NO production
         callers. It is not registered in services.yaml, and the only reference is
         an unused delegator on the parent manager (core/manager.py). Fixed rather
         than deleted because the mechanism is real and the method is public
         surface; if it stays callerless it should go, not linger as a correct
-        answer nobody asks for.
+        answer nobody asks for. ``room_count_at_last_check``, the stored side of the
+        comparison, is read here and nowhere else — it is write-only in practice
+        (audit flag CS-2), so deleting this method would strand it.
         """
         map_ob = self._get_map_onboarding(
             vacuum_entity_id=vacuum_entity_id,
@@ -328,6 +340,11 @@ class OnboardingManager:
         from ..rooms.room_discovery import (
             ROOM_LIST_ENTITY_SELF,
             declared_room_list_entity,
+            get_active_map_id,
+        )
+        from ..rooms.source_refresh import (
+            SHAPE_PER_MAP_MAPPING,
+            select_segments_for_map,
         )
 
         # ONE resolver for the room-list entity, shared with rooms/room_discovery.py's
@@ -342,35 +359,66 @@ class OnboardingManager:
         source_entity = (
             vacuum_entity_id if list_entity == ROOM_LIST_ENTITY_SELF else list_entity
         )
-        # ⚠ NOT CHANGED, AND DELIBERATELY LEFT ASYMMETRIC WITH THE LINE ABOVE.
-        # `or "segments"` is a core path yielding a BRAND'S WORD -- "segments" is the
-        # Eufy attribute name, declared by adapters/eufy/adapter.py alone and sourced
-        # from robovac_mqtt -- which is the `f/eufy_is_not_the_default` failure, not a
-        # default question. It is also not the larger defect in these four lines: this
-        # method never reads `room_list_shape`, so a correctly-declared per-map brand
-        # (Dreame, whose `rooms` attribute is a two-map dict) gets an unconditional
-        # False regardless of the attribute name. Removing only the brand word would
-        # leave a shorter copy of a predicate that still reads as complete, so both go
-        # together or the callerless method goes -- a separate call, and Chris's.
-        # [OB-3] pins the current behaviour meanwhile.
-        attribute = discovery.get("room_list_attribute") or "segments"
+        # NO BRAND WORD. This read was `or "segments"` until 2026-11-08, commented
+        # "Defaults preserve Eufy behavior" -- and `segments` is the Eufy attribute
+        # name, declared by adapters/eufy/adapter.py alone and sourced from
+        # robovac_mqtt. A core path whose fallback yields a brand's word is the
+        # `f/eufy_is_not_the_default` failure: core owns the KEY, never the word. The
+        # schema documents no default for this key, nothing live documented one, and
+        # the authoritative reader (rooms/room_discovery.py) refuses without it --
+        # so this now refuses too, and the four readers agree.
+        #
+        # Unlike `room_list_entity`, there is no sentinel that could stand in: nothing
+        # can name a device's attribute for its adapter.
+        attribute = discovery.get("room_list_attribute")
+        if not attribute:
+            _LOGGER.debug(
+                "eufy_vacuum: %s declares no discovery.room_list_attribute, so the "
+                "live room count cannot be read for map %s",
+                vacuum_entity_id, map_id,
+            )
+            return False
 
         source_state = self._hass.states.get(source_entity)
         if source_state is None:
             return False
 
-        # DR-ONB-2: the live attribute describes the ACTIVE map. Comparing it
-        # against another map's stored count is not a stale answer, it is an
-        # answer about a different room set.
-        from ..rooms.room_discovery import get_active_map_id
+        raw = source_state.attributes.get(attribute)
 
-        active_map_id = get_active_map_id(self._hass, vacuum_entity_id)
-        if active_map_id is not None and str(active_map_id) != str(map_id):
-            return False
+        if discovery.get("room_list_shape") == SHAPE_PER_MAP_MAPPING:
+            # THE SECOND DEFECT, AND THE LARGER ONE. This method read the attribute as
+            # a flat list unconditionally, so a correctly-declared per-map brand --
+            # Dreame declares `per_map_mapping` with a `rooms` attribute holding
+            # {map_name: [rooms]} -- failed `isinstance(segments, list)` and returned
+            # an unconditional False. Not a wrong answer about new rooms: a permanent
+            # "no" for an entire brand, from a dict that was never the wrong shape.
+            #
+            # `select_segments_for_map` is the SAME selection rule rooms/
+            # room_discovery.py uses for this shape, so the two cannot drift -- and it
+            # carries the RP-019/ID-2 guard, which matters here: a resolved map id that
+            # matches no key is never served another map's rooms under the requested id.
+            #
+            # DR-ONB-2's REFUSAL DOES NOT APPLY ON THIS BRANCH, and that is the point
+            # rather than an oversight. Its premise is that "the live source cannot be
+            # map-scoped -- the attribute simply has no map dimension". True of a flat
+            # list; false here, where the attribute is keyed BY map. Selecting the
+            # requested map's entry makes the comparison apples-to-apples, which is
+            # what DR-ONB-2 wanted and could not have for a flat source.
+            segments = select_segments_for_map(raw, map_id)
+            if segments is None:
+                return False
+        else:
+            # Flat list: no map dimension, so DR-ONB-2 stands exactly as written --
+            # the live side describes whichever map is LOADED, and comparing it with
+            # another map's stored count is an answer about a different room set.
+            # [OB-3b] is this branch's pin and must stay green.
+            active_map_id = get_active_map_id(self._hass, vacuum_entity_id)
+            if active_map_id is not None and str(active_map_id) != str(map_id):
+                return False
 
-        segments = source_state.attributes.get(attribute)
-        if not isinstance(segments, list):
-            return False
+            segments = raw
+            if not isinstance(segments, list):
+                return False
 
         current_count = len(segments)
         last_count = int(map_ob.get("room_count_at_last_check", 0))

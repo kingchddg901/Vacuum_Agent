@@ -299,3 +299,169 @@ def test_remap_confirmed_floor_types_leaves_unremapped_keys(hass):
     assert confirmed.get("6") is True     # remapped
     assert confirmed.get("9") is True     # untouched
     assert "5" not in confirmed
+
+
+# ---------------------------------------------------------------------------
+# [OB-7] - [OB-10]  the two defects in check_for_new_rooms' four reads, closed
+# 2026-11-08.
+#
+# NEITHER WAS VISIBLE TO LINE COVERAGE, and that is worth stating because the file
+# measured 96.90% with both present. `attribute = discovery.get(...) or "segments"`
+# reports as COVERED whenever the line executes, and the right-hand operand of an
+# `or` is not a branch coverage tracks -- so a declared attribute (which every test
+# had) means the fallback never ran and nothing said so. The shape defect is the
+# same shape of invisible: the per-map arm did not exist to be uncovered.
+# ---------------------------------------------------------------------------
+
+
+def _declare(**discovery):
+    """Re-register _VAC's adapter with a specific discovery block.
+
+    Overrides the autouse fixture's flat `segments` declaration for one test. The
+    fixture's `unregister_adapter_config` still runs afterwards, so nothing leaks to
+    the next file -- which is the defect the fixture itself exists for.
+    """
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {},
+        "discovery": discovery,
+    })
+
+
+def test_ob7_no_brand_word_stands_in_for_an_undeclared_attribute(hass):
+    """[OB-7] A core path's fallback must not yield a BRAND'S word.
+
+    `room_list_attribute` fell back to `"segments"`, commented "Defaults preserve
+    Eufy behavior". `segments` is the Eufy attribute name -- declared by
+    `adapters/eufy/adapter.py` alone, sourced from robovac_mqtt -- so a
+    brand-agnostic method was reading one brand's vocabulary off any brand's entity.
+    The schema documents no default for this key, nothing live documented one, and
+    `rooms/room_discovery.py` refuses without it; now this agrees.
+
+    THE STATE DELIBERATELY CARRIES A `segments` ATTRIBUTE WITH ENOUGH ROOMS TO
+    ANSWER TRUE. That is what makes the assertion able to fail: with the fallback
+    restored, this method reads `segments`, counts 3 against a stored 0, and returns
+    True. Asserting False against a state with no `segments` at all would pass
+    either way.
+
+    Unlike `room_list_entity`, no sentinel could stand in here -- nothing can name a
+    device's attribute for its adapter -- so the refusal is the whole answer.
+
+    RED: restore `or "segments"` and this returns True.
+    """
+    _declare(room_list_entity="vacuum_entity", room_id_key="id", room_name_key="name")
+    data: dict = {}
+    ob = OnboardingManager(data, hass)
+    hass.states.get.return_value = State(_VAC, "docked", {"segments": [1, 2, 3]})
+
+    assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is False, (
+        "an undeclared room_list_attribute was answered with Eufy's attribute name"
+    )
+
+    # CONTROL: declare the attribute and the same state answers True, so the False
+    # above is the refusal and not a method that always says no.
+    _declare(room_list_entity="vacuum_entity", room_list_attribute="segments",
+             room_id_key="id", room_name_key="name")
+    assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is True
+
+
+def test_ob8_a_per_map_brand_is_not_answered_false_forever(hass):
+    """[OB-8] THE LARGER DEFECT. A per-map brand got an unconditional False.
+
+    Dreame declares `room_list_shape: "per_map_mapping"` with a `rooms` attribute
+    holding `{map_name: [rooms]}`. This method read the attribute as a flat list
+    unconditionally, so `isinstance(segments, list)` failed on a dict that was never
+    the wrong shape, and every call for that brand returned False -- not a wrong
+    answer about new rooms, a permanent "no" for an entire brand.
+
+    The selection goes through `select_segments_for_map`, the SAME rule
+    `rooms/room_discovery.py` uses for this shape, so the two cannot drift apart --
+    and it carries the RP-019/ID-2 guard, which the third assertion checks: a
+    requested map that matches no key is never served another map's rooms under the
+    requested id.
+
+    RED: delete the per-map arm and the first assertion returns False.
+    """
+    _declare(room_list_entity="vacuum_entity", room_list_attribute="rooms",
+             room_list_shape="per_map_mapping", room_id_key="id", room_name_key="name")
+    data: dict = {}
+    ob = OnboardingManager(data, hass)
+    hass.states.get.return_value = State(_VAC, "docked", {"rooms": {
+        _MAP: [{"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Hall"}],
+        "OTHER": [{"id": 9, "name": "Loft"}],
+    }})
+
+    assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is True, (
+        "a per-map brand's room list was read as a flat list and refused"
+    )
+
+    # The count that answers is THIS map's (2), not the whole mapping's (3) and not
+    # the other map's (1): stamp 2 and the growth claim goes away.
+    _seed_rooms(data, {"1": {"enabled": True}, "2": {"enabled": True}})
+    ob.mark_rooms_discovered(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is False, (
+        "the comparison used a count other than the requested map's"
+    )
+
+    # RP-019/ID-2: a map id matching no key is refused, never substituted.
+    assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id="NO_SUCH_MAP") is False
+
+
+def test_ob9_a_per_map_brand_answers_about_a_non_active_map(hass, monkeypatch):
+    """[OB-9] DR-ONB-2's refusal is scoped to the shape whose premise it rests on.
+
+    DR-ONB-2 refuses when the requested map is not the ACTIVE one, because "the live
+    source cannot be map-scoped -- the attribute simply has no map dimension". That
+    is true of a flat list and false of a per-map mapping, where the attribute is
+    keyed BY map. Selecting the requested map's entry is exactly the apples-to-apples
+    comparison DR-ONB-2 wanted and could not have for a flat source, so the refusal
+    does not apply on this branch.
+
+    [OB-10] is the other half: on the flat branch the refusal must still fire. One
+    without the other would pass against "DR-ONB-2 deleted".
+
+    RED: apply the active-map refusal unconditionally and this returns False.
+    """
+    _declare(room_list_entity="vacuum_entity", room_list_attribute="rooms",
+             room_list_shape="per_map_mapping", room_id_key="id", room_name_key="name")
+    data: dict = {}
+    ob = OnboardingManager(data, hass)
+    hass.states.get.return_value = State(_VAC, "docked", {"rooms": {
+        _MAP: [{"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Hall"}],
+        "OTHER": [{"id": 9, "name": "Loft"}],
+    }})
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda _hass, _vac: "OTHER",
+    )
+
+    assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is True, (
+        "a map-keyed source was refused for not being the active map, although the "
+        "requested map's own rooms are right there in the attribute"
+    )
+
+
+def test_ob10_the_flat_branch_keeps_the_dr_onb_2_refusal(hass, monkeypatch):
+    """[OB-10] [OB-9]'s control, and the reason it is a separate test.
+
+    A flat list has no map dimension, so the live side describes whichever map is
+    LOADED and comparing it against another map's stored count is an answer about a
+    different room set. [OB-3b] already covers this through the autouse fixture's
+    flat declaration; this states it beside [OB-9] so that scoping the refusal to one
+    shape cannot be mistaken for removing it.
+
+    RED: drop the refusal from the flat branch and this returns True.
+    """
+    _declare(room_list_entity="vacuum_entity", room_list_attribute="segments",
+             room_id_key="id", room_name_key="name")   # no shape -> flat_list
+    data: dict = {}
+    ob = OnboardingManager(data, hass)
+    hass.states.get.return_value = State(_VAC, "docked", {"segments": [1, 2, 3]})
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda _hass, _vac: "OTHER_MAP",
+    )
+
+    assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is False, (
+        "a flat room list was compared against a different map's stored count"
+    )
