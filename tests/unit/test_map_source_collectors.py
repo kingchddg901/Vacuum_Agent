@@ -14,8 +14,13 @@ Covered here (previously ~0%):
 These assert the documented return shape ``[(origin_label, key, root_obj), ...]`` — the
 exact tuples the introspectors consume — not merely "doesn't crash".
 """
+import types
+
+import pytest
+
 from custom_components.eufy_vacuum.mapping.map_source_runtime import (
     dreame_coordinator,
+    dreame_mapdata_candidates,
     eufy_inmem_candidates,
     image_entity_object,
     roborock_candidates,
@@ -823,3 +828,221 @@ def test_msc6f_the_coordinator_threads_the_duid_into_roborock_candidates():
     assert seen.get("device_id") == "duid_A", f"duid not threaded: {seen}"
     assert list(seen.get("device_id_attrs") or []) == ["duid"], f"declared attrs not threaded: {seen}"
     assert seen.get("image_entity_id") == "image.ivy_map", "the image entity must still be passed"
+
+
+# ---------------------------------------------------------------------------
+# [MSC-5] dreame_mapdata_candidates — the whole body was uncovered
+#
+# This is the locator for a Dreame user's map: it resolves the Tasshack
+# `dreame_vacuum` coordinator, reads the decoded `MapData` off its device, and — only
+# when an image entity is supplied — rides the live camera's CORRECTED pose along.
+# `map_source_coordinator.py` consumes it from three places, so every one of them was
+# resting on a function with no unit coverage.
+#
+# WHAT IT COSTS WHEN IT ANSWERS ABSENT WHILE A MAP EXISTS: the coordinator falls
+# through to the camera-attribute bbox fallback, and the Dreame adapter deliberately
+# declares `map_pixel_size: None`, so that fallback yields RAW PIXEL coordinates
+# instead of 0..1 — rooms land in the wrong frame.
+#
+# THE FIXTURE VOCABULARY IS READ FROM THE INSTALLED COMPONENT, not assumed. Verified
+# against `custom_components/dreame_vacuum` v2.0.3 on the live box:
+#   * `hass.data["dreame_vacuum"][entry_id]` is the COORDINATOR OBJECT — not a dict and
+#     not a `{"coordinators": [...]}` list, which is the Eufy fork's shape.
+#   * `dreame/types.py` declares `self.pixel_type: Optional[Any] = None` inside
+#     `MapData`, while `MapDataPartial` declares no `pixel_type` at all — so BOTH
+#     "present but None" and "absent" are real producer shapes, and both are the
+#     no-mapdata gate's real inputs.
+#   * `ATTR_ROBOT_POSITION = "vacuum_position"` and `ATTR_CHARGER = "charger_position"`
+#     are the camera attribute names, and `MapData.as_dict` assigns the RAW position
+#     object to them (unlike `ATTR_ROOMS`, which calls `.as_dict()` on its members) —
+#     so the attribute value is an object with `.x/.y/.a`, not a dict.
+# Chris has a Dreame (Robin, an L10s Ultra Gen 2), so these shapes are checkable
+# against hardware rather than being a test author's guess.
+# ---------------------------------------------------------------------------
+
+_MD = types.SimpleNamespace(pixel_type=object())      # only `pixel_type` is gated on
+
+
+class _Dev:
+    """A device whose `selected_map` and `get_map` are both observable.
+
+    `get_map` RECORDS rather than raises, and that is the load-bearing detail. The
+    production fallback is wrapped in `except Exception`, so a raising stub is
+    SWALLOWED: a preference-order test built on one passes just as happily with the
+    preference inverted. The repo already carries this lesson as the LP-3 note in
+    docs/testing/subsystems/07-mapping.md.
+    """
+
+    def __init__(self, selected_map=None, from_get_map=None):
+        self.status = types.SimpleNamespace(selected_map=selected_map)
+        self._from_get_map = from_get_map
+        self.calls: list[int] = []
+
+    def get_map(self, index):
+        self.calls.append(index)
+        return self._from_get_map
+
+
+def _with_device(hass, dev):
+    """`_two_dreame_entries` plus a device on the coordinator the device owns."""
+    vacuum_entity_id, wanted, _ = _two_dreame_entries(hass)
+    wanted.device = dev
+    return vacuum_entity_id
+
+
+def test_msc5_no_coordinator_is_a_named_absence(hass):
+    """[MSC-5] Nothing loaded under the domain -> a named reason, never a raise.
+
+    The docstring promises "never raises", and this is the arm a user hits while the
+    Dreame integration is still setting up.
+    """
+    _two_dreame_entries(hass)
+    hass.data[_DREAME] = {}
+
+    out = dreame_mapdata_candidates(hass, "vacuum.msc4", {}, None)
+
+    assert out == {"present": False, "reason": "no_coordinator"}
+
+
+def test_msc5b_the_adapter_declaration_decides_the_domain(hass):
+    """[MSC-5b] `identifier_domain` is READ, not assumed — core holds no brand word.
+
+    The coordinator is loaded under `dreame_vacuum`, and this asks for a different
+    domain. A locator that ignored the declaration would find it anyway and answer
+    present, which is the shape this repo treats as a defect in its own right: a
+    brand-agnostic core must not default to a brand's word. The `or "dreame_vacuum"`
+    fallback in the production line is for callers that pass no config at all
+    ([MSC-5] above relies on it), so BOTH halves of that expression are live.
+
+    RED: replace `source_cfg.get("identifier_domain") or "dreame_vacuum"` with the
+    bare literal and this goes red while every other case here stays green.
+    """
+    _with_device(hass, _Dev(selected_map=_MD))
+
+    out = dreame_mapdata_candidates(
+        hass, "vacuum.msc4", {"identifier_domain": "not_dreame"}, None,
+    )
+
+    assert out == {"present": False, "reason": "no_coordinator"}
+
+
+def test_msc5c_selected_map_is_preferred_and_get_map_is_not_called(hass):
+    """[MSC-5c] `status.selected_map` wins, and the fallback is not consulted at all.
+
+    Asserted by RECORDING, not by raising — see `_Dev`. The production fallback sits
+    under `except Exception`, so a raising `get_map` would be swallowed and this test
+    would pass with the preference inverted, proving nothing. `dev.calls == []` is the
+    assertion that can actually fail.
+    """
+    dev = _Dev(selected_map=_MD, from_get_map=types.SimpleNamespace(pixel_type=object()))
+    vacuum_entity_id = _with_device(hass, dev)
+
+    out = dreame_mapdata_candidates(hass, vacuum_entity_id, {}, None)
+
+    assert out["present"] is True
+    assert out["map_data"] is _MD, "the SELECTED map, by identity"
+    assert dev.calls == [], "the fallback must not be consulted when selected_map answers"
+
+
+def test_msc5d_the_fallback_asks_for_map_index_zero(hass):
+    """[MSC-5d] With no selected_map, the fallback reads index 0 — the LIVE map.
+
+    The literal is load-bearing on the real device: index 0 is `status.current_map`
+    (live) and index 1 is the saved map, so an off-by-one here hands the user their
+    other floor. `selected_map` returns None on the real device while a temporary or
+    new map is pending, which is exactly why this fallback exists rather than being
+    belt-and-braces.
+
+    RED: change the call to `dev.get_map(1)` and the recorded index assertion fails.
+    """
+    fallback = types.SimpleNamespace(pixel_type=object())
+    dev = _Dev(selected_map=None, from_get_map=fallback)
+    vacuum_entity_id = _with_device(hass, dev)
+
+    out = dreame_mapdata_candidates(hass, vacuum_entity_id, {}, None)
+
+    assert out["map_data"] is fallback
+    assert dev.calls == [0], "index 0 is the live map; 1 is the saved one"
+
+
+def test_msc5e_a_device_that_cannot_answer_degrades_to_no_mapdata(hass):
+    """[MSC-5e] A device with neither `status` nor `get_map` is absence, not a crash.
+
+    `_Coord.device` defaults to a bare `object()`, so this is the shape an
+    unfinished-setup coordinator really presents: `getattr(dev, "status", None)` is
+    None and `dev.get_map` raises AttributeError, which the `except Exception` turns
+    into a clean absent marker.
+    """
+    _two_dreame_entries(hass)          # coordinators keep their default object() device
+
+    out = dreame_mapdata_candidates(hass, "vacuum.msc4", {}, None)
+
+    assert out == {"present": False, "reason": "no_mapdata"}
+
+
+@pytest.mark.parametrize("md,why", [
+    (types.SimpleNamespace(pixel_type=None), "MapData declares pixel_type = None"),
+    (types.SimpleNamespace(), "MapDataPartial declares no pixel_type at all"),
+])
+def test_msc5f_a_map_without_a_raster_is_not_present(hass, md, why):
+    """[MSC-5f] Both real shapes of "decoded, but no raster yet".
+
+    The gate is `md is None or getattr(md, "pixel_type", None) is None`, and the two
+    rows are the two ways the installed component produces that: `MapData` carries
+    `pixel_type` defaulting to None, and `MapDataPartial` has no such attribute. One
+    row alone would leave the other arm of the `or` unproven, and they fail for
+    different reasons — a missing attribute versus a present-but-empty one.
+    """
+    vacuum_entity_id = _with_device(hass, _Dev(selected_map=md))
+
+    out = dreame_mapdata_candidates(hass, vacuum_entity_id, {}, None)
+
+    assert out == {"present": False, "reason": "no_mapdata"}, why
+
+
+def test_msc5g_the_live_camera_pose_rides_along_when_an_image_entity_is_given(hass):
+    """[MSC-5g] The camera's CORRECTED pose, read by its real attribute names.
+
+    `MapData.robot_position` is a {0,0} origin sentinel on a docked device, so the
+    anchors come from the camera entity instead. The attribute names are the
+    component's own `ATTR_ROBOT_POSITION`/`ATTR_CHARGER` — `"vacuum_position"` and
+    `"charger_position"` — and it assigns the RAW position object, not a dict, which
+    is why these assert by IDENTITY. A fixture using dicts, or the plausible-looking
+    `robot_position`/`charger_position` names, would pass a shape check and read
+    nothing the producer emits.
+    """
+    vacuum_entity_id = _with_device(hass, _Dev(selected_map=_MD))
+    robot = types.SimpleNamespace(x=1200, y=900, a=90)
+    dock = types.SimpleNamespace(x=100, y=100, a=0)
+    hass.states.async_set(
+        "camera.robin_map", "idle",
+        {"vacuum_position": robot, "charger_position": dock},
+    )
+
+    out = dreame_mapdata_candidates(
+        hass, vacuum_entity_id, {}, "camera.robin_map",
+    )
+
+    assert out["present"] is True
+    assert out["robot_pos"] is robot, "the live pose, untouched"
+    assert out["dock_pos"] is dock
+
+
+@pytest.mark.parametrize("image_entity_id,why", [
+    ("camera.absent_map", "an image entity that has no state yet"),
+    (None, "no image entity at all -- what two of the three call sites pass"),
+])
+def test_msc5h_no_camera_state_means_no_pose_keys_at_all(hass, image_entity_id, why):
+    """[MSC-5h] Absent pose keys, not keys holding None.
+
+    Downstream reads these with `.get()` and then truthiness, so a key present and
+    None would behave the same today — which is exactly why this asserts ABSENCE: it
+    pins the contract the consumer is written against rather than the behaviour it
+    happens to tolerate. Two rows because the guards are separate: one for the image
+    entity being given but unknown to the state machine, one for it being `None`.
+    """
+    vacuum_entity_id = _with_device(hass, _Dev(selected_map=_MD))
+
+    out = dreame_mapdata_candidates(hass, vacuum_entity_id, {}, image_entity_id)
+
+    assert out == {"present": True, "map_data": _MD}, why

@@ -44,7 +44,7 @@ Architecture reference: [11 — A Map’s Stored State](../../dev/11-map-stored-
 | `tracker.py` | 247 | 84% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration | **bare x2** in 2 files |
 | `mapping_services.py` | 1322 | 88% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration | clean |
 | `map_source.py` | 434 | 93% | `tests/unit/test_map_source.py` | unit (pure) | clean |
-| `map_source_runtime.py` | 972 | 88% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) | clean |
+| `map_source_runtime.py` | 972 | 90% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) | clean |
 | `map_source_coordinator.py` | 329 | 86% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` + `tests/unit/test_live_pose_backends.py` | integration + unit | clean |
 | `roborock_raw_map.py` | 145 | 89% | `tests/unit/test_roborock_raw_map.py` | unit (pure) | clean |
 | `stall_capture_render.py` | 191 | 93% | `tests/unit/test_stall_capture_render.py` | unit (pure) | clean |
@@ -191,6 +191,34 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   `roborock_candidates`, `image_entity_object`) that gather roots from
   `hass.data[domain]` / per-entry `runtime_data` / the image entity, each degrading
   cleanly when a source is absent.
+- **`dreame_mapdata_candidates`** (`MSC-5`..`MSC-5h`, unit) — the locator for a Dreame
+  user's map, whose entire body was uncovered while **three** call sites in
+  `map_source_coordinator.py` consumed it. What it costs when it answers absent while
+  a map exists is specific: the coordinator falls through to the camera-attribute bbox
+  fallback, and the Dreame adapter deliberately declares `map_pixel_size: None`, so
+  that fallback yields **raw pixel** coordinates instead of 0..1 — rooms land in the
+  wrong frame.
+
+  The fixtures' vocabulary is read from the installed `custom_components/dreame_vacuum`
+  v2.0.3, not assumed: `hass.data["dreame_vacuum"][entry_id]` is the **coordinator
+  object** (not a dict, and not the Eufy fork's `{"coordinators": [...]}` shape);
+  `dreame/types.py` declares `self.pixel_type: Optional[Any] = None` inside `MapData`
+  while `MapDataPartial` declares no `pixel_type` at all, so `MSC-5f` carries both real
+  shapes of "decoded but no raster yet"; and the camera attributes are the component's
+  own `ATTR_ROBOT_POSITION = "vacuum_position"` / `ATTR_CHARGER = "charger_position"`,
+  assigned the **raw** position object rather than a dict — which is why `MSC-5g`
+  asserts by identity. A fixture using dicts, or the plausible-looking
+  `robot_position`, would pass a shape check and read nothing the producer emits.
+
+  ⚠ **`MSC-5c` must RECORD the fallback call, never make it raise.** The production
+  fallback sits under `except Exception`, so a raising `get_map` stub is swallowed and
+  a preference-order test built on one passes *with the preference inverted* — the same
+  shape as the `LP-3` note below. The index literal matters too: `MSC-5d` pins
+  `get_map(0)` because index 0 is `status.current_map` (live) and index 1 is the saved
+  map, so an off-by-one hands the user their other floor. And `MSC-5b` is the row that
+  proves the adapter's `identifier_domain` is *read* rather than defaulted — core holds
+  no brand word, so a locator that found the coordinator regardless of the declaration
+  would be a defect in its own right.
 - **`_structure_tree`'s bounds** (`MSR-5`..`MSR-5f`, unit) — the diagnostic shape
   dump, which is the one piece of this module whose output no user ever sees and whose
   *bounds* are still worth pinning. Both call sites run on the FAILURE path
