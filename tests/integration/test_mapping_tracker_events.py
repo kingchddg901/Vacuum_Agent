@@ -14,6 +14,14 @@ Coverage targets
 [MTE-11] dock-drift log: docked+no-job readings logged with deltas; dup/non-docked skipped.
 [MTE-12] TRK-6: a failed dock-drift write does not commit the new last-position, so
          the SAME position is retried as drift on the next call instead of being lost.
+[MTE-15] THE SEAM: `_handle_position_update` with an ACTIVE JOB. Both sides were
+         already tested and the join was not -- MTE-11 drives this function but never
+         calls start_job, so only the dock-drift arm ran. One physical move must count
+         ONCE however many of the x/y sensors fire for it.
+[MTE-16] a paused tick (mid-job recharge) is dropped AND leaves no baseline behind.
+[MTE-17] an unreadable position advances neither confidence nor the dock-drift log.
+[MTE-18] _read_active_cleaning_target: the device's native current-room read -- all
+         three arms (undeclared entity / declared-but-missing / present).
 """
 
 from __future__ import annotations
@@ -398,3 +406,148 @@ def test_get_raw_position_non_numeric(tracker, hass):
     hass.states.async_set("sensor.alfred_x", "unknown")
     hass.states.async_set("sensor.alfred_y", "2.5")
     assert tracker._get_raw_position(_VAC) is None
+
+
+# ---------------------------------------------------------------------------
+# [MTE-15]..[MTE-17] -- `_handle_position_update` WITH AN ACTIVE JOB.
+#
+# THE SEAM, not the pieces. Both sides of this function were already tested and
+# the join was not: [MTE-9] drives `_get_raw_position` directly, [MTE-8] drives
+# `_update_confidence` directly, and [MTE-11] drives `_handle_position_update`
+# itself -- but never calls `start_job`, so `job` is always falsy there and only
+# the dock-drift `else` arm ran. The in-job branch, which is what executes on
+# every position tick of every clean, had no test at all.
+#
+# WHAT IT GUARDS IS NOT COSMETIC. The X and Y position sensors fire as SEPARATE
+# state-change events for one physical movement, so without the duplicate check
+# the confidence movement count advances twice per move. MOVEMENT_THRESHOLD_COUNT
+# is 10, so a 2x over-count fires `eufy_vacuum_room_completed` at roughly half the
+# real movement -- the room is marked done while the robot is still in it, which
+# ends per-room timing early and mis-attributes the remainder to the next room.
+# ---------------------------------------------------------------------------
+
+
+def test_in_job_duplicate_position_does_not_double_advance_movement(tracker):
+    """[MTE-15] One physical move = ONE confidence tick, however many sensors fire.
+
+    The duplicate reading models the Y sensor arriving after the X sensor for the
+    same movement. SPIED ON `_update_confidence` RATHER THAN ON movement_count, and
+    the first draft got that wrong: the counter only advances once a room is
+    CURRENT, because `_update_confidence` returns early on a HOLD when
+    `_detect_current_room` has no usable signal (TRK-3 -- a long hold must not push
+    confidence to the fire threshold without observed presence). With no
+    `active_cleaning_target` entity in this fixture that is every tick, so asserting
+    on movement_count measured 0 == 0 and would have passed for nothing. The control
+    assertion is what caught it.
+
+    The call count is the honest instrument: the dedupe's whole job is to not call
+    the confidence machine twice for one move, whatever that machine then decides.
+    """
+    _register(tracker)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
+
+    ticks: list[tuple[float, float]] = []
+    tracker._update_confidence = (
+        lambda vacuum_entity_id, vx, vy, job: ticks.append((vx, vy))
+    )
+
+    tracker._get_raw_position = lambda vacuum_entity_id: (1000.0, 1000.0)
+    tracker._handle_position_update(_VAC)                 # first reading
+    assert ticks == [(1000.0, 1000.0)], "the first reading ticks once"
+    assert tracker._last_recorded_pos[_VAC] == (1000.0, 1000.0)
+
+    tracker._handle_position_update(_VAC)                 # SAME position, 2nd sensor
+    assert ticks == [(1000.0, 1000.0)], (
+        "a duplicate reading must not tick again -- at 2x, a room fires complete at "
+        "half its real movement, ending its timing early"
+    )
+
+    tracker._get_raw_position = lambda vacuum_entity_id: (1100.0, 1000.0)
+    tracker._handle_position_update(_VAC)                 # a genuine move
+    assert ticks == [(1000.0, 1000.0), (1100.0, 1000.0)], "control: a real move ticks"
+
+    tracker._handle_position_update(_VAC)                 # duplicate of the new spot
+    assert len(ticks) == 2
+    assert tracker._last_recorded_pos[_VAC] == (1100.0, 1000.0)
+
+
+def test_in_job_sampling_paused_skips_the_tick_entirely(tracker):
+    """[MTE-16] While sampling is paused the tick is dropped, not merely ignored.
+
+    Pausing happens on a mid-job recharge: the robot is parked on the dock, so its
+    reported position is dock noise, not cleaning movement. Counting it would
+    advance confidence for a room the robot is not in.
+
+    `_last_recorded_pos` is asserted too, and that is the sharper half: if the
+    paused tick still recorded its position, the FIRST tick after resuming would be
+    compared against a dock reading and could be swallowed as a duplicate, or
+    produce a spurious large delta.
+    """
+    _register(tracker)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
+    tracker.pause_sampling(_VAC)
+
+    ticks: list = []
+    tracker._update_confidence = (
+        lambda vacuum_entity_id, vx, vy, job: ticks.append((vx, vy))
+    )
+    tracker._get_raw_position = lambda vacuum_entity_id: (1000.0, 1000.0)
+    tracker._handle_position_update(_VAC)
+
+    assert ticks == [], "a paused tick must not reach the confidence machine"
+    assert _VAC not in tracker._last_recorded_pos, (
+        "a paused tick must leave no baseline behind for the resumed one to "
+        "compare against"
+    )
+
+
+def test_position_update_with_an_unreadable_position_does_nothing(tracker):
+    """[MTE-17] An unreadable position returns before touching any state.
+
+    `_get_raw_position` answers None on four distinct real conditions -- no runtime,
+    no declared x/y entities, a missing state, a non-numeric state ([MTE-9] covers
+    those). This is the join: whichever one it was, the tick is dropped, and neither
+    the confidence machine nor the dock-drift log is advanced. Asserted on both so a
+    future early-return that forgot one of them is visible.
+    """
+    _register(tracker)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
+
+    ticks: list = []
+    tracker._update_confidence = (
+        lambda vacuum_entity_id, vx, vy, job: ticks.append((vx, vy))
+    )
+    tracker._get_raw_position = lambda vacuum_entity_id: None
+    tracker._handle_position_update(_VAC)
+
+    assert ticks == []
+    assert _VAC not in tracker._last_recorded_pos
+    assert _VAC not in tracker._last_dock_pos
+def test_mte18_reading_the_native_current_room_target(tracker, hass):
+    """[MTE-18] The device's own current-room signal, and its two None arms.
+
+    This four-line read is what `_detect_current_room` is built on, so every
+    confidence decision downstream rests on it -- and it had no test. The two None
+    arms are not cosmetic: either one means a HOLD, and a HOLD deliberately accrues
+    NO confidence (TRK-3). A read that wrongly returned a stale name instead of None
+    would let a long hold push a room to the fire threshold with no observed
+    presence; one that wrongly returned None would freeze confidence forever.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    # 1. the adapter declares no active_cleaning_target entity at all
+    register_adapter_config(_VAC, {"adapter_id": "t", "source": "code", "entities": {}})
+    assert tracker._read_active_cleaning_target(_VAC) is None
+
+    # 2. declared, but the entity is not in the state machine
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.alfred_target"},
+    })
+    assert tracker._read_active_cleaning_target(_VAC) is None, (
+        "a declared-but-absent entity must read as no signal, not raise"
+    )
+
+    # 3. present -- the raw state string, handed back verbatim for the resolver
+    hass.states.async_set("sensor.alfred_target", "Kitchen")
+    assert tracker._read_active_cleaning_target(_VAC) == "Kitchen"
