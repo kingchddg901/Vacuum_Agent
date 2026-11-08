@@ -38,6 +38,24 @@ These 12 cases exercise the real `python-roborock` enum and feature classes. Unk
 
 The SDK is a test-only pin in `requirements_test.txt`, so the local Docker image and CI both install it — when it is absent this whole file `importorskip`s away at collection and nothing goes red. The pin matches Home Assistant 2026.10.1; the production manifest continues to defer dependency ownership to the Roborock integration. SDK modules initialize process-lifetime rate-limiters, so the SDK tests import their classes during collection rather than introducing those daemon threads inside an individual Home Assistant test's cleanup boundary.
 
+> **`roborock/test_adapter.py` was the forgotten sibling of that last sentence, until
+> 2026-11-08.** It did the same `import roborock` **inside a test body**, so
+> `python-roborock`'s two `PyrateLimiter's Leaker` daemon threads appeared during that
+> test's own window and HA's `verify_cleanup` failed its TEARDOWN — while the test
+> itself passed, which is what made the symptom hard to read. **The full suite hid it
+> entirely**: `test_dock_sdk.py` is collected alongside, and its collection-time
+> `importorskip` had already warmed the threads, so they predated every snapshot. The
+> defect was reachable only in a subset excluding that module
+> (`pytest tests/adapters/dreame/ tests/adapters/roborock/test_adapter.py` → "162
+> passed, 1 error"), reproduced on a pristine `c9240694` checkout. The import now
+> happens at collection in both files, and `[RBSDK-1]` guards it by asserting a
+> **module-scope** snapshot of those thread names — the only formulation that can fail,
+> since by the time a test body runs an in-body import would already have created
+> them. Ablation-verified in both scopes: putting the import back reddens `[RBSDK-1]`
+> and brings the teardown error with it. The same test's docstring also claimed the SDK
+> was absent from the image and that its `ImportError` branch was the one the suite
+> runs; both were false from the moment the pin landed, and are corrected.
+
 ### `test_disabled_action_warn_once.py` — advice that repeats is noise with a severity
 
 `resolve_action_entity` can answer **disabled**, which is a toggle in the user's own UI
@@ -834,7 +852,7 @@ filter weakened to a type check would report it as a clean order continuously.
 | `eufy/upkeep_guides_i18n/*.py` (17 languages) | 19 | 100% | `test_upkeep_guides_i18n.py` | adapter |
 | `roborock/adapter.py` | 108 | 99% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/model_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
-| `dreame/model_catalog.py` | 17 | 100% | `dreame/test_dreame_model_catalog.py` | adapter | clean |
+| `dreame/model_catalog.py` | 17 | 100% | `dreame/test_dreame_model_catalog.py` | adapter | - |
 | `roborock/vocabulary.py` | 62 | 97% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/entities.py` | 27 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/const.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |

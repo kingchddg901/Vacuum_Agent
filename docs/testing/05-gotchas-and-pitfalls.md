@@ -282,6 +282,56 @@ for the wrong reason when it goes. And leave `entities` empty unless the test ne
 map selector: a declared `active_map` makes `get_active_map_id` read a `MagicMock`
 state, which can silently change what the test measures.
 
+## 16. A third-party daemon thread fails the teardown of whoever imports it first
+
+HA's `verify_cleanup` fixture snapshots `threading.enumerate()` at each test's SETUP
+and asserts that nothing new survives teardown except `threading._DummyThread`,
+`waitpid-*` and `_run_safe_shutdown_loop`
+(`pytest_homeassistant_custom_component/plugins.py`). A vendor library that starts a
+daemon thread on first import therefore fails **the teardown of whichever test
+triggers that import**, and the test itself still PASSES — which is what makes the
+report confusing:
+
+```
+162 passed, 1 error
+ERROR tests/adapters/roborock/test_adapter.py::test_dock_profile_...
+E   assert (False or False or '_run_safe_shutdown_loop' in "PyrateLimiter's Leaker")
+```
+
+`python-roborock`'s module-level rate limiters start two `PyrateLimiter's Leaker`
+daemon threads, once per process. The fix is to do the import **during collection**,
+before any snapshot exists:
+
+```python
+try:
+    import roborock  # noqa: F401
+    _ROBOROCK_SDK = True
+except ImportError:
+    _ROBOROCK_SDK = False
+```
+
+Three things worth carrying from how this one was found.
+
+**The full suite hid it completely.** `test_dock_sdk.py` already imports the SDK at
+collection with the reason in a comment, so in any run that collects it the threads
+predate every snapshot. The defect was reachable only in a subset that excluded that
+module — found while ablating something else. `pytest tests` being green says nothing
+about a subset, and this class of bug lives exactly there.
+
+**It read as the opposite of what it was.** It was first recorded as "a lingering
+*timer* left by an *earlier* test, attributed to whichever test finishes last". Every
+part of that was wrong: it is a *thread*, created *during* the victim test, by the
+victim test. The actual assertion text says so plainly — the lesson is to read the
+whole `E` block rather than the one-line summary and the fixture's name.
+
+**The guard has to read a value captured at collection.** Asserting "the threads
+exist" inside a test body passes either way, because by then an in-body import has
+already created them. `[RBSDK-1]` therefore asserts a module-scope snapshot
+(`_LEAKER_THREADS_AT_IMPORT`), which is the only way to ask "did the import happen
+before any test started?". It is scoped honestly: in a full run its sibling still
+warms the threads, so the guard bites in precisely the subset where the defect is
+reachable — verified by ablation in both scopes.
+
 ## 11. Fire-and-forget executor file writes — drain, clean-slate, and watch for read-modify-write races
 
 `test_dock_drift_log` cost a red CI run after a clean local pass. It's the

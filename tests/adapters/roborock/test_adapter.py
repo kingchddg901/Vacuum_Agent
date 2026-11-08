@@ -14,6 +14,8 @@ don't depend on HA registry plumbing.
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 
 from custom_components.eufy_vacuum.adapters.registry import (
@@ -25,6 +27,42 @@ from custom_components.eufy_vacuum.adapters.roborock import dock as rb_dock
 from custom_components.eufy_vacuum.adapters.roborock import model_catalog
 from custom_components.eufy_vacuum.adapters.roborock import vocabulary as rbv
 from custom_components.eufy_vacuum.adapters.roborock.entities import build_entity_id
+
+
+# Import the real SDK during COLLECTION, for exactly the reason test_dock_sdk.py
+# already gives for doing the same thing: its module-level rate limiters start daemon
+# `PyrateLimiter's Leaker` threads (two of them, once per process — measured) which
+# belong to the SDK's process lifetime, not to any one HA test case.
+#
+# ⚠ THIS WAS THE FORGOTTEN SIBLING. The import used to live INSIDE
+# `test_dock_profile_returns_undetermined_when_vendor_library_is_absent`, where the
+# threads appear during that test's own window — and HA's `verify_cleanup` fixture
+# fails the TEARDOWN of whichever test first triggers the import, because its
+# allowlist admits only `_DummyThread`, `waitpid-*` and `_run_safe_shutdown_loop`.
+# The full suite hid it completely: `test_dock_sdk.py` is collected alongside this
+# file and its collection-time `importorskip` already warmed the threads, so they
+# predated every `threads_before` snapshot. Run a subset WITHOUT that module —
+# `pytest tests/adapters/dreame/ tests/adapters/roborock/test_adapter.py` — and the
+# teardown errors. Reproduced on a pristine c9240694 checkout.
+#
+# A flag rather than `importorskip`: the test below asserts BOTH branches of
+# dock_profile's SDK-present/absent contract, so the module must still import when
+# the SDK is gone.
+try:
+    import roborock  # noqa: F401
+    _ROBOROCK_SDK = True
+except ImportError:
+    # Not reachable in this image — the SDK is pinned in requirements_test.txt — but
+    # the branch stays because the production contract is "degrade to None". (No
+    # `pragma: no cover` here: .coveragerc measures custom_components only, so a
+    # pragma in a test file reads as a coverage claim while doing nothing.)
+    _ROBOROCK_SDK = False
+
+#: Snapshot taken at COLLECTION, which is what makes [RBSDK-1] able to fail: by the
+#: time any test body runs, an in-body import would already have polluted this.
+_LEAKER_THREADS_AT_IMPORT = sorted(
+    t.name for t in threading.enumerate() if "Leaker" in t.name
+)
 
 
 _RVAC = "vacuum.ivy"
@@ -638,21 +676,26 @@ def test_dock_profile_reports_no_dock_without_needing_the_vendor_library(monkeyp
 async def test_dock_profile_returns_undetermined_when_vendor_library_is_absent(monkeypatch, hass):
     """A real dock code with no python-roborock must yield None — NOT a guess.
 
-    None means "could not determine", and the adapter falls back to the model catalog's
-    conservative default. This is the branch the repo suite actually runs: our manifest
-    deliberately does not require python-roborock (the upstream Roborock integration
-    pins it), so it is absent from the test image. If someone later vendors a copy of
-    `_NO_DOCK_TYPES` to "fix" this, that copy goes stale silently the next time the
-    vendor edits the set — which is the whole reason dock.py refuses to hold one.
+    `None` means "could not determine", and the adapter falls back to the model
+    catalog's conservative default. If someone later vendors a copy of `_NO_DOCK_TYPES`
+    to "fix" that, the copy goes stale silently the next time the vendor edits the set
+    — which is the whole reason `dock.py` refuses to hold one.
+
+    ⚠ THIS SAID THE SDK WAS ABSENT FROM THE TEST IMAGE AND THAT THE `ImportError`
+    BRANCH WAS "the branch the repo suite actually runs". Both were wrong, and had been
+    since the SDK was pinned: `requirements_test.txt` carries
+    `python-roborock==7.12.0`, TEST-ONLY and deliberate (the production manifest still
+    does not declare it), so the suite takes the SDK-PRESENT branch and asserts the
+    real enum mapping. The absent branch is the one that does not run here — it is kept
+    because the production contract is that the adapter must degrade to `None`, and the
+    `pragma` on the import guard above records that the other side is unreachable in
+    this image rather than untested by accident.
     """
-    pytest.importorskip  # noqa: B018 — documents the deliberate NON-use of importorskip
     monkeypatch.setattr(
         rb_dock, "find_dock_device", lambda h, v: _FakeDockDevice("7")
     )
     await hass.async_add_executor_job(rb_dock.load_dock_library)
-    try:
-        import roborock  # noqa: F401
-    except ImportError:
+    if not _ROBOROCK_SDK:
         assert rb_dock.dock_profile(None, _RVAC) is None
     else:
         prof = rb_dock.dock_profile(None, _RVAC)
@@ -1983,3 +2026,43 @@ def test_rt14_an_unknown_rung_is_offered_but_not_ranked(monkeypatch, hass):
     values = [o["value"] for o in cfg["vocabulary"]["path_type_options"]]
     assert values == ["standard", "deep", "zz_new_rung"], "an unseen rung is offered"
     assert _route_pre_call(cfg)["rank"] == ["standard", "deep"], "but never ranked"
+
+
+def test_rbsdk1_the_vendor_sdk_is_imported_during_collection():
+    """[RBSDK-1] The SDK's daemon threads must predate every test in this module.
+
+    `python-roborock`'s module-level rate limiters start two daemon
+    `PyrateLimiter's Leaker` threads on first import, once per process. HA's
+    `verify_cleanup` fixture snapshots `threading.enumerate()` at each test's SETUP
+    and asserts that nothing new survives teardown except `_DummyThread`,
+    `waitpid-*` and `_run_safe_shutdown_loop`. So whichever test first triggers the
+    import eats an `AssertionError` at TEARDOWN — the test itself passes, which is
+    what makes it confusing to read.
+
+    `test_dock_sdk.py` already solved this for itself by importing at collection
+    time, with the reason in a comment. This module did the same import INSIDE a
+    test body and was safe only because that sibling is collected beside it in a
+    full run: the threads already existed, so they were in every snapshot. The
+    defect appeared only in a subset that excluded it.
+
+    THE SNAPSHOT IS TAKEN AT COLLECTION, not here, and that is the whole design. By
+    the time this function runs, any in-body import elsewhere in the module would
+    already have created the threads and an assertion made here would pass. Reading
+    a value captured while the module was being imported is the only way to ask
+    "did the import happen before any test started?".
+
+    RED: move the `import roborock` back inside a test body and run this file
+    WITHOUT its sibling —
+    `pytest tests/adapters/roborock/test_adapter.py` — and the snapshot is empty.
+    (In a full run the sibling's collection-time import still warms the threads, so
+    this guard is scoped to exactly the situation where the defect is reachable.)
+    """
+    assert _ROBOROCK_SDK, (
+        "python-roborock is pinned in requirements_test.txt but did not import; "
+        "this guard cannot measure anything without it"
+    )
+    assert _LEAKER_THREADS_AT_IMPORT, (
+        "the SDK's daemon threads did not exist when this module was collected, so "
+        "something imports it inside a test body — HA's verify_cleanup will fail the "
+        "teardown of whichever test gets there first"
+    )
