@@ -502,9 +502,18 @@ It is called "incomplete discovery config → []" and it never reaches that guar
 `room_list_entity`/`room_list_attribute`, which belongs to the attribute branch alone
 and which the service branch never reads. `RD-4` omits the SHARED keys, so it returns
 at the first check with the second still unexecuted. Green, and naming a line coverage
-reported missing the whole time. Every test above therefore carries a
-`@pytest.mark.covers` marker, which is exactly the shape
-[`scripts/check_covers.py`](../../../scripts/check_covers.py) was built for.
+reported missing the whole time.
+
+**The obvious guard against that shape does not fit here, and the attempt is worth
+recording.** `scripts/check_covers.py` exists for exactly this failure, but its SPAN
+check is per *symbol* — the tests declaring a target must together leave no line of it
+uncovered — so a `@pytest.mark.covers` marker only says something true about a symbol
+small enough for its declaring tests to cover whole. Every guard in this group sits
+inside a much larger function, and `discover_rooms_for_vacuum` holds a permanently
+unreachable line (`RD-22`'s else-arm), so a marker on it could never go green. Seven
+were declared and the gate refused all four symbols, correctly; they were removed. What
+proves reach for these instead is the pair of instruments that caught `RD-4` in the
+first place: the before/after coverage diff, and an ablation per clause.
 
 **`RD-19` asserts the DIAGNOSIS, not the return value, and had to.** Ablated, the
 guard changes no answer: with no attribute declared the branch reads
