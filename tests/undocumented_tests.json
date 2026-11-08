@@ -11,7 +11,6 @@
     "tests/integration/test_job_active_signal.py",
     "tests/integration/test_manager_shutdown.py",
     "tests/integration/test_map_switcher.py",
-    "tests/integration/test_pose_sampler_cadence.py",
     "tests/integration/test_roborock_e2e.py",
     "tests/integration/test_set_room_access_graph.py",
     "tests/integration/test_watchdog_liveness.py",

@@ -34,7 +34,7 @@ Architecture reference: [19 — The Event Ingress Layer](../../dev/19-event-ingr
 | `clean_order_refresh.py` | 54 | 97% | `test_listeners_registration.py` | integration | spec'd |
 | `_common.py` | 81 | 91% | `test_listeners_common.py` | integration | clean |
 | `job_progress.py` | 48 | 92% | `test_listeners_active.py` | integration | **bare x28** |
-| `pose_sampler.py` | 142 | 94% | `test_pose_sampler.py` (unit) | unit | **bare x5** |
+| `pose_sampler.py` | 142 | 94% | `test_pose_sampler.py` (unit) + `test_pose_sampler_cadence.py` | unit + integration | **bare x5** |
 
 **Two gates, and neither alone is sufficient — demonstrated, not assumed.**
 `scripts/check_receipts.py` is a static AST scan: it proves a receipt's call site EXISTS and
@@ -194,8 +194,27 @@ spot checks on `lifecycle.py` and `path_blockers.py` confirm the *shape*
 - **`dock_events.py` (92%)** — missing lines 77, 81, 85: event-dedup guards.
 - **`job_metrics.py` (94%)** — missing lines 44, 48, 206: capability-read /
   value-parse guards in the metrics-change handler.
-- **`_common.py` (93%)** — missing lines 50-51, 73-74, 106, 114: broad-except
-  fallbacks in the adapter-vocab/value readers plus a non-dict traversal guard.
+- **`_common.py` (91%)** — missing lines 77, 82-83, 105-106, 139, 217. The line
+  numbers in this entry had rotted (it read 50-51, 73-74, 106, 114 at 93%), and so
+  had the claim that all of it was defensive. Two of those lines were not:
+  - **217**, the `unavailable_is_active` arm, is now pinned by `LC-18`. The flag
+    exists because two callers want opposite readings of an *unreadable* `job_active`
+    binary — the finalize gate must treat silence as still-running and refuse to
+    finalize, the arming gate must treat it as strict not-on — so the test asserts
+    both readings of the same state. `test_listeners_active`'s own
+    `test_lifecycle_recharge_guard_suppresses_on_unavailable_binary` names this arm
+    and never reaches it (see 05-gotchas §10): deleting the arm reddened **0 of 70**
+    tests in those two files.
+  - **77**, `get_adapter_vocab`'s no-adapter return, is now *executed* by `LC-1` —
+    which previously asked about a vacuum the `manager` fixture had registered an
+    adapter for (05-gotchas §13). Two separate ablations, because they are two
+    separate claims: changing that `return fallback` to `frozenset()` reddens `LC-1`
+    and leaves `LC-1b` green, so the test does bite on the **value**; but deleting
+    the `if config is None` **guard** reddens nothing, because `None.get(...)` raises
+    into the blanket `except` which returns the same fallback. The guard is
+    SUBSUMED and its red set is declared empty.
+
+  82-83, 105-106 and 139 remain genuinely defensive broad-except fallbacks.
 - **`pause_timeout.py` (92%)** — missing lines 161, 175, 182-183: guards
   inside the tick (manager gone, unknown map_id, and one new arm not yet
   itemized by name).
@@ -204,12 +223,20 @@ spot checks on `lifecycle.py` and `path_blockers.py` confirm the *shape*
   adapter-configured interval. Trivial.
 - **`job_progress.py` (95%)** — only line 75: the `continue` that skips the
   "unknown" map_id during a tick.
-- **`pose_sampler.py` (89%)** — missing lines 93-94, 155, 173, 176, 185,
-  193-194, 210-212, 262, 339, 372, 379: the no-`task_status` /
-  unreadable-state fallback to the pose `robot_docked` flag and the
-  not-attribution / no-live-map vacuum skips (defensive gating). The
-  external-only sampling and the parked/docked nulling happy paths are
-  covered by `tests/unit/test_pose_sampler.py`.
+- **`pose_sampler.py` (94%)** — missing lines 142-143, 212-214, 294, 429, 436. These
+  numbers had rotted too (the entry read 89% with a different dozen lines). Line
+  **436**, the POSE-2 in-flight guard, is the one worth reading about: it was named
+  by `PC-3` and reached by nothing, because both of that test's ticks fired at the
+  same frozen clock and the **cadence** guard two lines above skipped the vacuum
+  first. `PC-3` now advances the clock to 11.5 so the cadence has elapsed while the
+  first sample is still parked, and it reddens on the guard's removal.
+  Two mechanisms in that fix are worth knowing before touching this file:
+  `asyncio.wait_for` is useless here because the test freezes `hass.loop.time` and
+  asyncio schedules timers against it, and the release must be unconditional or the
+  hang moves into `hass` teardown. Both are written up in 05-gotchas §14.
+  The external-only sampling and the parked/docked nulling happy paths are covered
+  by `tests/unit/test_pose_sampler.py`; cadence, tick isolation and the in-flight
+  guard by `tests/integration/test_pose_sampler_cadence.py`.
 
 These are deliberately uncovered at the ~90% meaningful-coverage ceiling: the
 teardown/guard branches are defensive, and the sequenced-phase /

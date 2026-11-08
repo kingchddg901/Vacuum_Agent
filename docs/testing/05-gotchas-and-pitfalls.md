@@ -166,6 +166,79 @@ granting access to the others) so the rule-bearing rooms clear the graph gate,
 *then* assert `all_selected_rooms_blocked`. If a gate test returns an unexpected
 reason, it's usually an earlier gate firing first — check the order.
 
+**This is not confined to start gates, and it does not announce itself.** A test
+shadowed by an earlier guard does not return an unexpected reason — it *passes*,
+for the wrong reason, and goes on passing when the guard it names is deleted. Three
+in this suite, each found by ablating the guard the test's own name claimed and
+watching the test stay green:
+
+| test | names | actually stopped by |
+|---|---|---|
+| `test_in_flight_vacuum_is_skipped_not_resampled` (`PC-3`) | the pose in-flight guard | the **cadence** guard two lines above it — both ticks fired at the same frozen clock, so `now_ts - last` was `0.0 < 1.0` |
+| `test_lifecycle_recharge_guard_suppresses_on_unavailable_binary` | `is_job_active(unavailable_is_active=True)` | the **sentinel** check — it left `active_cleaning_target` set to a room name, so `should_finalize_completed` was already False and `is_job_active` was never called |
+| `test_get_adapter_vocab_no_adapter_returns_fallback` (`LC-1`, with `LC-4`/`LC-7`) | the no-adapter path | nothing — see §13; it never created the state it named |
+
+The cheap check is the one the campaign now runs by default: **coverage already knows.**
+Each of those guards sat in `coverage.json`'s `missing_lines` the whole time, and a
+line no test executes is a line no test covers, whatever a test is called. Ablating
+is what confirms the test still *passes* rather than errors — i.e. that it covers
+something else rather than being broken.
+
+## 13. A test that names a state it does not create
+
+`LC-1`, `LC-4` and `LC-7` were all called "no adapter registered" and all asked
+about `_VAC` (`vacuum.alfred`) while taking the `manager` fixture — **which registers
+an adapter for `vacuum.alfred`**. They passed on the missing-section and
+missing-entities paths instead, so the genuine no-adapter path had no coverage at
+all. `LC-7` was the least visible of the three: `TEST_ADAPTER_CONFIG` declares no
+`entities` key, so a *registered* adapter produced `[vacuum.alfred]` — character for
+character the answer the unregistered case gives.
+
+The fix is a named constant rather than a comment, so the next test cannot repeat it:
+`_UNREGISTERED = "vacuum.no_adapter_registered"`. Anything asserting unregistered
+behaviour uses that; `_VAC` always has an adapter under `manager`. And the case the
+old tests were really covering is kept as its own test (`LC-1b`), because
+"registered but declares nothing for this section" is a real and commoner state —
+relabelling should remove a false claim, not real coverage.
+
+Generalise it: when a test's name asserts an absence, check that the fixtures did not
+quietly supply the thing. A fixture that pre-satisfies the subject does not fail
+loudly; it changes what the assertion means.
+
+## 14. `asyncio.wait_for` cannot bound anything under a frozen `loop.time`
+
+`test_pose_sampler_cadence` monkeypatches `hass.loop.time` to a fake clock so it can
+drive per-vacuum cadence deterministically. Asyncio's timer machinery schedules
+against `loop.time()` — `call_later(delay)` becomes `call_at(loop.time() + delay)` —
+so a `wait_for(..., timeout=5)` deadline of `11.5 + 5` is compared against a clock
+that never leaves `11.5` and **never fires**. The await simply blocks forever.
+
+Two drafts of the `PC-3` fix hung on this, and the file's pre-existing
+`wait_for(entered.wait(), timeout=5)` was the same illusion — it only ever returned
+because the event was already set, never because it timed out.
+
+Use a yield-and-check loop instead; `sleep(0)` is a bare yield, special-cased by
+asyncio and clock-independent:
+
+```python
+async def _settle(predicate, limit=50):
+    for _ in range(limit):
+        if predicate():
+            return True
+        await asyncio.sleep(0)
+    return predicate()
+
+second = asyncio.ensure_future(tick(None))
+assert await _settle(second.done), "the tick never finished -- it is parked"
+second.result()   # surface anything it raised
+```
+
+**A hang is not a red.** The point of the bound is that the defect fails the test
+instead of stalling the suite, so `second.done()` has to be the assertion. And the
+cleanup must be unconditional — in a `finally` that releases the parked task and
+awaits it — or the lingering task blocks `hass` teardown and the hang merely moves
+from the assertion to teardown. That was the second draft's failure, measured.
+
 ## 11. Fire-and-forget executor file writes — drain, clean-slate, and watch for read-modify-write races
 
 `test_dock_drift_log` cost a red CI run after a clean local pass. It's the

@@ -27,6 +27,18 @@ Coverage targets
         strengthen the ONE key that relied on the collapse -- not to collapse
         inside `_state`, which would silently retune four other keys whose
         adapters already name the indeterminate values themselves.
+[LC-18] `unavailable_is_active` reads an UNREADABLE job_active binary as still
+        active for the finalize gate and as strict not-on for the arming gate.
+        The opposite answers ARE the claim.
+
+⚠ [LC-1] / [LC-4] / [LC-7] SAID "no adapter registered" AND DID NOT MEAN IT.
+All three asked about `_VAC` while taking the `manager` fixture, which registers
+`TEST_ADAPTER_CONFIG` for `vacuum.alfred`. They passed on the missing-section and
+missing-entities paths instead, so the genuine no-adapter path had no coverage at
+all -- `_common.py` line 77 sat in coverage's missing lines and deleting that guard
+reddened 0 of 33 tests here. They now use `_UNREGISTERED`, and [LC-1b] keeps the
+registered-but-silent case they were really covering. Anything asserting
+unregistered behaviour must use `_UNREGISTERED`, never `_VAC`.
 """
 
 from __future__ import annotations
@@ -46,6 +58,13 @@ from custom_components.eufy_vacuum.listeners._common import (
 
 
 _VAC = "vacuum.alfred"
+
+#: A vacuum id NO fixture registers an adapter for. `_VAC` is not that id — the
+#: `manager` fixture registers `TEST_ADAPTER_CONFIG` for `vacuum.alfred` — and three
+#: tests named "no adapter registered" used `_VAC` and so never reached the path they
+#: claimed. Anything asserting the unregistered behaviour must use this instead.
+_UNREGISTERED = "vacuum.no_adapter_registered"
+
 _FALLBACK: frozenset[str] = frozenset({"fallback"})
 
 _MINIMAL_ADAPTER = {
@@ -68,8 +87,33 @@ _MINIMAL_ADAPTER = {
 # [LC-1] — [LC-3] get_adapter_vocab
 # ---------------------------------------------------------------------------
 
-def test_get_adapter_vocab_no_adapter_returns_fallback(manager):
-    """[LC-1] Returns fallback frozenset when no adapter is registered."""
+def test_get_adapter_vocab_no_adapter_returns_fallback():
+    """[LC-1] Returns fallback frozenset when no adapter is registered.
+
+    ⚠ THIS TEST USED TO NAME A STATE IT DID NOT CREATE. It took the `manager`
+    fixture and asked about `_VAC` — and that fixture REGISTERS an adapter for
+    `vacuum.alfred` (tests/integration/conftest.py). So it passed because
+    `TEST_ADAPTER_CONFIG` happens to declare no `completion` section, i.e. it was a
+    duplicate of [LC-3] wearing [LC-1]'s name, and the no-adapter path was covered
+    by nothing. Measured two ways: `_common.py` line 77 is in coverage's missing
+    lines, and deleting that guard reddened 0 of 33 tests in this file.
+
+    `_UNREGISTERED` is the fix — a vacuum id no fixture registers — and the fixture
+    is dropped, because taking `manager` is what created the confusion.
+    """
+    result = get_adapter_vocab(
+        _UNREGISTERED, "completion", "secondary_clear_sentinels", _FALLBACK)
+    assert result == _FALLBACK
+
+
+def test_get_adapter_vocab_registered_but_silent_section_returns_fallback(manager):
+    """[LC-1b] The case [LC-1] was ACTUALLY covering, kept rather than lost.
+
+    A registered adapter that declares nothing for the section asked about is a
+    different state from no adapter at all, and it is the commoner one — every
+    brand declares some sections and not others. Keeping it means the relabelling
+    above removes a false claim without removing real coverage.
+    """
     result = get_adapter_vocab(_VAC, "completion", "secondary_clear_sentinels", _FALLBACK)
     assert result == _FALLBACK
 
@@ -104,9 +148,15 @@ def test_get_adapter_vocab_missing_key_returns_fallback(manager):
 # [LC-4] — [LC-6] get_adapter_value
 # ---------------------------------------------------------------------------
 
-def test_get_adapter_value_no_adapter_returns_fallback(manager):
-    """[LC-4] Returns fallback when no adapter is registered."""
-    result = get_adapter_value(_VAC, "completion", "task_status_value", fallback="default")
+def test_get_adapter_value_no_adapter_returns_fallback():
+    """[LC-4] Returns fallback when no adapter is registered.
+
+    Same relabelling as [LC-1]: it asked about `_VAC`, for which the `manager`
+    fixture has registered an adapter, so it was exercising the missing-section
+    path under the no-adapter name.
+    """
+    result = get_adapter_value(
+        _UNREGISTERED, "completion", "task_status_value", fallback="default")
     assert result == "default"
 
 
@@ -134,10 +184,15 @@ def test_get_adapter_value_none_fallback(manager):
 # [LC-7] — [LC-8] get_lifecycle_watch_entities
 # ---------------------------------------------------------------------------
 
-def test_get_lifecycle_watch_entities_no_adapter(manager):
-    """[LC-7] Returns only the vacuum entity when no adapter is registered."""
-    result = get_lifecycle_watch_entities(_VAC)
-    assert result == [_VAC]
+def test_get_lifecycle_watch_entities_no_adapter():
+    """[LC-7] Returns only the vacuum entity when no adapter is registered.
+
+    Same relabelling as [LC-1]. This one was the most misleading of the three:
+    `TEST_ADAPTER_CONFIG` declares no `entities` key at all, so `_VAC` produced
+    `[_VAC]` with an adapter registered — exactly the answer the no-adapter case
+    gives, which is why the mislabelling was invisible.
+    """
+    assert get_lifecycle_watch_entities(_UNREGISTERED) == [_UNREGISTERED]
 
 
 def test_get_lifecycle_watch_entities_includes_adapter_entities(manager):
@@ -215,6 +270,52 @@ async def test_is_job_active_declared_and_off(hass, manager):
 async def test_is_job_active_declared_missing_state(hass, manager):
     """Declared but the entity has no state -> False."""
     register_adapter_config(_VAC, _JOB_ACTIVE_ADAPTER)
+    assert is_job_active(hass, _VAC) is False
+
+
+@pytest.mark.parametrize("unreadable", ["unavailable", "unknown"])
+async def test_lc18_unreadable_binary_counts_as_active_only_when_asked(
+    hass, manager, unreadable
+):
+    """[LC-18] `unavailable_is_active=True` — an UNREADABLE binary is not a clear.
+
+    The recharge-resume guard asks "is the job still running?" before letting a
+    completion finalize. A `job_active` binary that has gone `unavailable` or
+    `unknown` does not answer, and the two callers want opposite readings of that
+    silence: the finalize gate must treat it as STILL ACTIVE and refuse to finalize
+    (losing a run's learning data is worse than deferring it), while the
+    has_observed arming gate must treat it as strict `off` so an indeterminate
+    binary at startup cannot arm the flag. That is the whole reason the flag exists.
+
+    ⚠ FOUR ASSERTIONS, BECAUSE THE PARAMETER IS NOT THE POINT — the FLAG is. The
+    same state is read with the flag on and off, and the opposite answers are the
+    claim. Asserting only the True half would pass against a function that returned
+    True for every input, which the `off` row then rules out.
+
+    This covers what `test_lifecycle_recharge_guard_suppresses_on_unavailable_binary`
+    in test_listeners_active.py NAMES but never reaches: that test leaves
+    `active_cleaning_target` set to a room name, so the sentinel fallback fails and
+    `should_finalize_completed` is already False before `is_job_active` is called.
+    It passes with this arm deleted — measured, 0 of 70 tests reddened — and
+    `_common.py` line 217 is in coverage's missing lines.
+
+    RED: delete `if unavailable_is_active and raw in ("unavailable", "unknown")` and
+    the first assertion returns False.
+    """
+    register_adapter_config(_VAC, _JOB_ACTIVE_ADAPTER)
+    hass.states.async_set("binary_sensor.alfred_cleaning", unreadable)
+
+    assert is_job_active(hass, _VAC, unavailable_is_active=True) is True, (
+        "the finalize gate must not read silence as a finished job"
+    )
+    assert is_job_active(hass, _VAC) is False, (
+        "the arming gate must read the same silence as strict not-on"
+    )
+
+    # And the flag must not be a blanket True: a binary that DOES answer, and
+    # answers 'off', stays False under both readings.
+    hass.states.async_set("binary_sensor.alfred_cleaning", "off")
+    assert is_job_active(hass, _VAC, unavailable_is_active=True) is False
     assert is_job_active(hass, _VAC) is False
 
 

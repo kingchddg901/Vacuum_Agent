@@ -105,14 +105,53 @@ async def test_one_vacuum_exception_does_not_block_the_other(hass, manager, monk
 
 async def test_in_flight_vacuum_is_skipped_not_resampled(hass, manager, monkeypatch):
     """[PC-3] POSE-2: a second tick firing while the first vacuum's sample is
-    still running must skip it, not sample it again concurrently."""
+    still running must skip it, not sample it again concurrently.
+
+    ⚠ THE CLOCK MUST ADVANCE, and that is the correction this test carries. It used
+    to fire both ticks at the same `fake_time` of 10.0, so the second tick's CADENCE
+    guard (`now_ts - last < own_interval`, i.e. `0.0 < 1.0`) skipped alfred before
+    the in-flight guard was ever reached. It passed — and it passed with the
+    in-flight guard DELETED, measured by ablation. Coverage had been saying so all
+    along: line 436 was never executed. Reaching the guard requires the cadence to
+    have ELAPSED while the first sample is still suspended, which is why the second
+    tick runs at 11.5.
+
+    ⚠ `asyncio.wait_for` CANNOT BOUND ANYTHING IN THIS TEST, and that is why the
+    second tick is scheduled and polled with `sleep(0)` instead of awaited under a
+    timeout. `_register_tick` monkeypatches `hass.loop.time` to a frozen `fake_time`,
+    and asyncio's timer machinery schedules against `loop.time()` — so a `wait_for`
+    deadline of `11.5 + 5` is compared against a clock that never leaves 11.5 and
+    never fires. Two drafts of this test hung on exactly that: without the guard the
+    tick parks on `release.wait()` and the "timeout" waits forever. `sleep(0)` is a
+    bare yield, special-cased by asyncio and clock-independent, so it still works
+    under a frozen clock. (The pre-existing `wait_for(entered.wait(), timeout=5)`
+    here was the same illusion: it only ever returned because the event was already
+    set, never because it timed out.)
+
+    The failure signal is therefore `second.done()`, not an exception: with the guard
+    the tick finishes within a yield or two, and without it the tick is still parked,
+    which makes the assertion red instead of leaving the suite stuck. The `finally`
+    then releases unconditionally, so neither outcome leaves the loop holding a task
+    that can never finish — which is where the hang moves to if cleanup is skipped.
+
+    vacuum.ivy is the POSITIVE CONTROL. "alfred was not sampled twice" is equally
+    what a second tick that did nothing at all produces. ivy is sampled exactly ONCE
+    across both ticks, and the arithmetic is worth stating because it looks wrong:
+    the first tick parks inside alfred before reaching ivy; the second tick samples
+    ivy (11.5 - 0.0 >= 5.0) and stamps its `_last_sample_ts` at 11.5; when the first
+    tick resumes, its own `now_ts` is still 10.0, so `10.0 - 11.5` is negative and
+    its cadence check skips ivy rather than double-sampling it.
+
+    RED: delete `if vacuum_entity_id in _in_flight: continue` and alfred is sampled
+    a second time while its first sample is still in flight.
+    """
     entered = asyncio.Event()
     release = asyncio.Event()
-    call_count = {"n": 0}
+    sampled: list[str] = []
 
     async def _fake_sample(hass_arg, manager_arg, vacuum_entity_id):
+        sampled.append(vacuum_entity_id)
         if vacuum_entity_id == _VAC_FAST:
-            call_count["n"] += 1
             entered.set()
             await release.wait()
         return 0
@@ -121,12 +160,53 @@ async def test_in_flight_vacuum_is_skipped_not_resampled(hass, manager, monkeypa
     tick, fake_time = _register_tick(hass, manager, monkeypatch)
     fake_time[0] = 10.0
 
+    async def _settle(predicate, limit=50):
+        """Yield until `predicate` holds, or `limit` yields have passed.
+
+        `sleep(0)` rather than a timeout: see the clock note above.
+        """
+        for _ in range(limit):
+            if predicate():
+                return True
+            await asyncio.sleep(0)
+        return predicate()
+
     first = asyncio.ensure_future(tick(None))
-    await asyncio.wait_for(entered.wait(), timeout=5)
+    second = None
+    try:
+        assert await _settle(entered.is_set), "the first tick never reached alfred"
+        assert sampled == [_VAC_FAST], (
+            "precondition: the first tick is parked INSIDE alfred's sample, and has "
+            "not yet reached ivy"
+        )
 
-    await tick(None)   # second tick: vacuum.alfred is in flight -> must skip
-    await asyncio.sleep(0)
-    assert call_count["n"] == 1, "the in-flight vacuum was sampled concurrently"
+        # Past alfred's own 1.0s interval (measured from 10.0), so the cadence guard
+        # cannot be what skips it this time, and past ivy's 5.0s (from 0.0) so ivy
+        # is due.
+        fake_time[0] = 11.5
+        second = asyncio.ensure_future(tick(None))
 
-    release.set()
-    await first
+        assert await _settle(second.done), (
+            "the second tick never finished: it sampled the in-flight vacuum and is "
+            "parked on that sample's release, which is the overlap the guard exists "
+            "to prevent"
+        )
+        second.result()   # surface anything the tick raised rather than swallowing it
+
+        assert sampled.count(_VAC_FAST) == 1, (
+            "the in-flight vacuum was sampled concurrently"
+        )
+        assert sampled.count(_VAC_SLOW) == 1, (
+            "positive control: the second tick ran at all and got past alfred"
+        )
+    finally:
+        # Unconditional: however the block above exits, the parked sample has to be
+        # released and both ticks awaited, or the loop keeps a task that can never
+        # finish and the hang reappears in teardown instead of failing here.
+        release.set()
+        for pending in (second, first):
+            if pending is not None:
+                await asyncio.gather(pending, return_exceptions=True)
+
+    assert sampled.count(_VAC_FAST) == 1, "no resample once the first tick resumed"
+    assert sampled.count(_VAC_SLOW) == 1, "and the resumed tick does not double-sample ivy"
