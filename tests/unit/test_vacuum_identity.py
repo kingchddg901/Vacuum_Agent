@@ -23,6 +23,8 @@ Coverage targets
 [VI-5] the sweep can never remove from `vacuums` itself — presence there IS the proof.
 [VI-6] the sweep runs once.
 [VI-7] planning is pure: it mutates nothing.
+[VI-8] a bucket that is not a dict is skipped rather than raising on boot.
+[VI-9] a REGISTERED vacuum with no state is real — an offline one must not be swept.
 """
 
 from __future__ import annotations
@@ -150,3 +152,54 @@ def test_vi_8_a_bucket_that_is_not_a_dict_is_skipped():
     left alone rather than taking the integration down on boot."""
     assert orphaned_vacuum_keys(_hass([]), {"onboarding": "corrupt"}, "onboarding") == []
     assert orphaned_vacuum_keys(_hass([]), {}, "missing") == []
+
+
+async def test_vi_9_a_registered_vacuum_with_no_state_is_real(hass):
+    """[VI-9] An offline or disabled vacuum is real — the ENTITY REGISTRY arm.
+
+    A vacuum that is powered off, unavailable, or simply not loaded yet has NO STATE
+    while its entity is perfectly real. `hass.states.get` answers None for it, so the
+    state check cannot decide, and the registry is the only thing standing between a
+    sleeping vacuum and a sweep that deletes its records.
+
+    ⚠ THE FIXTURE TRAP, and the reason the precondition below is an assertion rather
+    than a comment: if this test also set a state for the entity, the state arm would
+    return True first, the registry block would never execute, and the test would go on
+    passing with that whole block DELETED. `hass.states.get(...) is None` is what forces
+    the only path that can answer here.
+
+    The second assertion is the discriminator: same hass, same empty data, an id the
+    registry has never heard of. Without it, a registry lookup that returned something
+    for every string would satisfy the first assertion.
+
+    RED: delete the `er.async_get(hass).async_get(...)` block and the first assertion
+    returns False.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    # A real Eufy vacuum entity is created by `robovac_mqtt`; the platform is what a
+    # genuine install carries, so the fixture is shaped like one rather than invented.
+    asleep = er.async_get(hass).async_get_or_create(
+        "vacuum", "robovac_mqtt", "asleep_unique_id", suggested_object_id="asleep",
+    ).entity_id
+
+    assert hass.states.get(asleep) is None, (
+        "precondition: NO state, or the state arm answers and the registry never runs"
+    )
+
+    assert is_real_vacuum(hass, _data(), asleep) is True
+    assert is_real_vacuum(hass, _data(), "vacuum.never_registered") is False
+
+
+# ---------------------------------------------------------------------------
+# NOT TESTED — `vacuum_identity.py::is_real_vacuum`'s `if hass is None: return False`
+#
+# SUBSUMED, red set deliberately EMPTY. With the guard ablated, `getattr(None,
+# "states", None)` skips the state arm and `er.async_get(None)` raises inside the
+# try below it, whose blanket except returns False — the same answer, by a longer
+# road. Measured over 8 inputs (hass None with and without a stored record, with a
+# bad prefix, a maps-only record, a hass with no `.states`, `.states` None, a hass
+# that knows the entity, one that does not): every answer identical, no exception
+# escaping either way. No input can make a test of it red, so writing one would
+# assert a preference and read as coverage.
+# ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@ Architecture reference: [18 — The Access Graph](../../dev/18-access-graph.md)
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `run_plan.py` | 605 | 93% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit), `test_water_vocabulary_boundary.py` (unit) | int + unit | **bare x1** |
+| `run_plan.py` | 608 | 93% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit), `test_water_vocabulary_boundary.py` (unit) | int + unit | **bare x1** |
 
 ---
 

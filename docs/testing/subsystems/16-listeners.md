@@ -31,7 +31,7 @@ Architecture reference: [19 — The Event Ingress Layer](../../dev/19-event-ingr
 | `entity_rename.py` | 47 | 89% | `tests/unit/test_listeners_entity_rename.py` | unit | spec'd |
 | `core/manager.py` (D4 migration) | new | — | `tests/unit/test_manager_entity_rename_migration.py` | unit | clean |
 | `pause_timeout.py` | 89 | 95% | `test_listeners_timers.py` | integration | clean |
-| `clean_order_refresh.py` | 54 | 96% | `test_listeners_registration.py` | integration | spec'd |
+| `clean_order_refresh.py` | 54 | 97% | `test_listeners_registration.py` | integration | spec'd |
 | `_common.py` | 81 | 91% | `test_listeners_common.py` | integration | clean |
 | `job_progress.py` | 48 | 92% | `test_listeners_active.py` | integration | **bare x28** |
 | `pose_sampler.py` | 142 | 94% | `test_pose_sampler.py` (unit) | unit | **bare x5** |

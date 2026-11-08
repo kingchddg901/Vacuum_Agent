@@ -769,9 +769,9 @@ filter weakened to a type check would report it as a clean order continuously.
 | `registry.py` | 236 | 92% | `test_adapters.py` | integration | clean |
 | `config_loader.py` | 33 | 100% | `test_adapters.py` | integration | clean |
 | `config_schema.py` | 64 | 94% | `test_adapters.py` | integration | clean |
-| `brands.py` | 47 | 100% | `test_brand_selection.py` | integration | clean |
+| `brands.py` | 53 | 100% | `test_brand_selection.py` | integration | clean |
 | `entity_resolve.py` | 228 | 91% | `tests/unit/test_entity_resolve.py` + `tests/adapters/test_entity_resolve.py` + `tests/unit/test_disabled_action_warn_once.py` | unit + adapter | clean |
-| `eufy/segmentor.py` | 872 | 92% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/segmentor.py` | 868 | 92% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/adapter.py` | 60 | 84% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/entities.py` | 29 | 100% | `test_buttons_entities.py` + `test_suffix_vocabulary.py` | adapter | clean |
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter | clean |
@@ -785,9 +785,9 @@ filter weakened to a type check would report it as a clean order continuously.
 | `eufy/maintenance_components.py` | 1 | 100% | `test_maintenance_config.py` | adapter | clean |
 | `eufy/eufy_upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/upkeep_guides_i18n/*.py` (17 languages) | 19 | 100% | `test_upkeep_guides_i18n.py` | adapter |
-| `roborock/adapter.py` | 90 | 98% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/adapter.py` | 108 | 99% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/model_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
-| `roborock/vocabulary.py` | 19 | 100% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/vocabulary.py` | 62 | 97% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/entities.py` | 27 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/const.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/upkeep_catalog.py` | 3 | 100% | `roborock/test_adapter.py` | adapter | - |

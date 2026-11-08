@@ -3,7 +3,7 @@
 The platform layer is the HA-facing entity surface: the `sensor/` package, the
 `binary_sensor` / `button` / `number` / `switch` platforms, room entities, the
 config flow, and the small shared helpers (entity helpers, frontend URL,
-timestamp utils, models, map manager). Covered by **142 tests across 13 files**.
+timestamp utils, models, map manager). Covered by **159 tests across 13 files**.
 
 Source: `custom_components/eufy_vacuum/sensor/`, `binary_sensor.py`, `button.py`,
 `number.py`, `switch.py`, `room_entities.py`, `config_flow.py`,
@@ -29,14 +29,14 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `button.py` | 143 | 88% | `test_button_entity.py` | **bare x1** |
 | `number.py` | 133 | 96% | `test_number_entity.py` | clean |
 | `switch.py` | 95 | 84% | `test_switch_entity.py` | clean |
-| `binary_sensor.py` | 65 | 91% | `test_platform_files.py` | **bare x8** |
-| `room_entities.py` | 95 | 98% | `test_platform_files.py` | **bare x8** |
+| `binary_sensor.py` | 65 | 96% | `test_platform_files.py` | **bare x8** |
+| `room_entities.py` | 97 | 98% | `test_platform_files.py` | **bare x8** |
 | `config_flow.py` | 90 | 98% | `test_config_flow.py` | clean |
 | `timestamp_utils.py` | 38 | 98% | `test_timestamp_utils.py` (unit) | clean |
 | `models/models.py` | 124 | 98% | `test_models.py` (unit) | clean |
-| `maps/map_manager.py` | 93 | 94% | `test_maps_map_manager.py` (unit) | clean |
+| `maps/map_manager.py` | 93 | 100% | `test_maps_map_manager.py` (unit) | clean |
 | `entity_helpers.py` | 72 | 99% | `test_platform_files.py` | **bare x8** |
-| `_frontend_url.py` | 18 | 89% | `test_platform_files.py` | **bare x8** |
+| `_frontend_url.py` | 18 | 100% | `test_platform_files.py` | **bare x8** |
 
 ---
 
@@ -104,6 +104,28 @@ Entity classes are constructed directly against a MagicMock or the real `manager
 and asserted on their properties (`native_value`, `available`, etc.). The button
 platform's `async_setup_entry` is driven with a recording `async_add_entities`.
 Pure helpers (`timestamp_utils`, `models`, `map_manager`) are unit-tested.
+
+`map_manager.rebuild_map_bucket` treats its stored `rooms` as an **outside input**,
+and three tests say why. The map it reads was written by whatever build last saved
+it, and a rebuild is the thing a user triggers to *recover* from stored data that
+has gone bad — so it is the one path that must not die on the data it exists to
+repair. `MAP-5f` feeds it a `rooms` entry that is not a dict (without the
+`isinstance` guard, building the slug index calls `.get` on a string and the
+rebuild raises); `MAP-5g` feeds a slug-matched room whose `room_id` will not
+convert, driving **both** exceptions the `except` names — `None` for `TypeError`
+and `"16.0"`, the shape a payload that sent `16.0` leaves behind, for `ValueError`
+— so narrowing the tuple to either one reddens its own parameter.
+
+`MAP-5e` covers `preserve_existing_settings=False`. Its claim lives entirely in a
+**comparison**: asserting on the `preserve=False` result alone cannot work, because
+every value it would check is also what a legitimately fresh room gets, so a
+rebuild that ignored the flag and carried everything would be caught by nothing.
+The test runs one seed builder and one discovery builder **twice** — identical
+input by construction, since `rebuild_map_bucket` mutates `data` and a shared
+literal would let the first run's writes reach the second — and asserts the two
+results disagree field by field. It compares counts, flags, lists, colour and
+order rather than `clean_mode`: that axis resolves through the brand's default
+profile, and pinning a word there would pin one brand's vocabulary into a core test.
 
 ---
 
@@ -185,14 +207,51 @@ still carries one partial branch pair (`switch.py` 83->85 and 86->81;
 the table above, not 100%. Display-only, low severity.
 
 **Defensive guards and `# pragma: no cover` branches (intentional).** The rest
-is defensive and deliberately uncovered: the `hass is None` / wrong-vacuum /
-wrong-map early returns in the tracker/event callbacks
-(`binary_sensor.py` 43, 101, 104; `sensor/lifecycle.py` 125, 128, 153, 164,
-166), the `# pragma: no cover` `except` blocks and fallback branches in the
-top-level `__init__.py` (92%, grown from 193 to 317 statements — exercised
-end-to-end by `test_init_setup`, not per-unit), and trivial leaf lines
-(`_frontend_url.py` 47-48; `room_entities.py` 241;
-`sensor/error.py` 67; `models/models.py` 11-12). Not worth covering.
+is defensive and deliberately uncovered: the wrong-map / wrong-vacuum early
+returns in `sensor/lifecycle.py` (125, 128, 153, 164, 166), the
+`# pragma: no cover` `except` blocks and fallback branches in the top-level
+`__init__.py` (92%, grown from 193 to 317 statements — exercised end-to-end by
+`test_init_setup`, not per-unit), and trivial leaf lines (`room_entities.py`
+241; `sensor/error.py` 67; `models/models.py` 11-12).
+
+**Three of the lines this paragraph used to dismiss are now tested, and the
+dismissal was wrong about them.** The two early returns in
+`binary_sensor.py::async_setup_entry` and
+`binary_sensor.py::ActiveRunHasErrorBinarySensor._on_tracker_update`, and the
+`except OSError` in `_frontend_url.py::cards_module_url`, were all listed here as
+"defensive … not worth covering".
+Each turned out to carry a real failure, and each is now pinned by a test with a
+named red input:
+
+- **`async_setup_entry`** (`manager is None or tracker is None`) — `BIN-3`.
+  A compound guard, so it is driven **per half** with a both-present control:
+  with only the runtime removed, the `or tracker is None` shoulder stays unproven
+  and an entity gets built holding `None` as its tracker. Ablating just that half
+  reddens `BIN-3` alone.
+- **`_on_tracker_update`** (the wrong-vacuum early return) — `BIN-4`. One
+  `ErrorTracker` serves every vacuum and broadcasts to all listeners, so without
+  this the entity writes state on another robot's error while `is_on` still reads
+  its own latch — a state change with no cause. The test's stub **records**; it
+  must not raise, because `call_soon_threadsafe` sits inside
+  `try: … except Exception: pass` and a raising stub is swallowed, passing the
+  test inverted.
+- **`cards_module_url`** (`except OSError: return None`) — `FU-3`, and the
+  reason it is not a leaf: this URL is registered as a **global** frontend module,
+  so advertising a missing bundle 404s on every HA page, not just inside the panel.
+  `panel_js_url` degrades to `?v=0` on the same failure and must; the opposite
+  answers are why `FU-1` and `FU-3` are separate tests. `FU-2` covers the live
+  shape and imports `_CARDS_BASE_URL` rather than spelling it out — that string is
+  also what `__init__.async_setup` registers, and a literal here would be a second
+  copy that keeps passing through a rename.
+
+⚠ **`_on_tracker_update`'s `if hass is None: return` is SUBSUMED**, and its red
+set is declared empty in the test file rather than left looking like a gap. The
+guard sits directly above `hass.loop.call_soon_threadsafe(...)`, which is itself
+inside `try: … except Exception: pass` — so with the guard ablated, `None.loop`
+raises into that `except` and the method returns silently either way. Measured
+over 3 inputs (`hass` never set, `hass` set to `None`, `hass` with a recording
+loop): identical answers, identical schedule counts, nothing escaping. Written
+down because the obvious next move, "add a test for that guard", cannot succeed.
 
 `config_flow.py` used to be listed above as two "trivial leaf lines" at 144 and
 167. Both numbers had rotted, and so had the claim — the file is at 98% and its

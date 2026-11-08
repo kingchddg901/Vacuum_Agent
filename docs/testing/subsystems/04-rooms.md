@@ -2,7 +2,7 @@
 
 The rooms subsystem owns room discovery, the managed-room CRUD lifecycle, and the
 **access graph** (which rooms grant cleaning access to which, plus the rule
-engine that gates/modifies rooms at start). Covered by **399 tests across 12 files**.
+engine that gates/modifies rooms at start). Covered by **411 tests across 12 files**.
 
 Source: `custom_components/eufy_vacuum/rooms/`
 Architecture reference: [17 — A Room's Identity](../../dev/17-room-identity.md), [18 — The Access Graph](../../dev/18-access-graph.md)
@@ -367,14 +367,14 @@ Rewritten against that, the ablation reddens.
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
 | `access_graph.py` | 462 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration | clean |
-| `room_crud.py` | 159 | 93% | `test_room_crud.py`, `test_manager_rooms.py` | integration | **bare x1** |
-| `room_discovery.py` | 167 | 93% | `test_room_discovery.py` | integration | clean |
-| `reconciliation.py` | 154 | 92% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration | **bare x1** |
+| `room_crud.py` | 159 | 97% | `test_room_crud.py`, `test_manager_rooms.py` | integration | **bare x1** |
+| `room_discovery.py` | 167 | 94% | `test_room_discovery.py` | integration | clean |
+| `reconciliation.py` | 155 | 92% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration | **bare x1** |
 | `source_refresh.py` | 161 | 88% | `test_rooms_source_refresh.py` (unit) | unit | clean |
-| `room_manager.py` | 82 | 96% | `test_room_manager.py` (unit) | unit | clean |
+| `room_manager.py` | 85 | 97% | `test_room_manager.py` (unit) | unit | clean |
 | `room_defaults.py` | 21 | 100% | `test_room_manager.py` (unit) + `test_adapter_contract.py` | unit | clean |
 | `utils.py` | 3 | 100% | `test_rooms_utils.py` (unit) | unit | clean |
-| `vocabulary_migration.py` | 96 | 91% | `test_vocabulary_migration.py`, `test_path_type_residue_migration.py` (unit) | unit | clean |
+| `vocabulary_migration.py` | 146 | 93% | `test_vocabulary_migration.py`, `test_path_type_residue_migration.py` (unit) | unit | clean |
 
 (Room-facing services live in [17 — services](17-services.md):
 `test_services_rooms.py`, `test_services_access_graph.py`.)

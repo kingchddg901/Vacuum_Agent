@@ -3,8 +3,7 @@
 The queue subsystem turns the enabled-room set into an ordered clean queue: it
 resolves room order, applies per-room overrides, and produces the
 `queue_room_ids` / `queue_rooms` payload the job pipeline consumes -- and, for a
-STEPPED queue, interleaves breaks into that order. Covered by **114 tests across
-5 files** (counted 2026-11-07; the previous "78 across 3" predated both
+STEPPED queue, interleaves breaks into that order. Covered by **78 tests across 3 files** (counted 2026-11-07; the previous "78 across 3" predated both
 `test_dispatch_settings_write.py` and `test_manager_queue_breaks.py`, which the
 body already described and listed respectively).
 

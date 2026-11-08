@@ -4,7 +4,7 @@ The core package is the orchestrator: `EufyVacuumManager` ties every subsystem
 together and owns the live read surfaces the dashboard polls (lifecycle, job
 progress, start-status), plus the storage layer, capability cache, error-tracker
 latch, the post-job water amendment, and the brand-agnostic charging /
-low-battery-return reads. Covered by **357 tests across 16 files**.
+low-battery-return reads. Covered by **401 tests across 16 files**.
 
 Source: `custom_components/eufy_vacuum/core/`
 Architecture reference: [33 — The Orchestrator](../../dev/33-the-orchestrator.md), [35 — The Fault Tracker](../../dev/35-the-fault-tracker.md)
@@ -26,7 +26,7 @@ only ever grew: every typo, placeholder and renamed entity left a record nothing
 
 Three parts: reads stopped creating (`OnboardingManager._get_map_onboarding(create=False)`),
 creation is guarded by `is_real_vacuum`, and a one-shot sweep clears what is already
-stored. `test_vacuum_identity.py` (12 tests) pins the shape:
+stored. `test_vacuum_identity.py` (13 tests) pins the shape:
 
 | id | what it holds |
 |---|---|
@@ -38,12 +38,33 @@ stored. `test_vacuum_identity.py` (12 tests) pins the shape:
 | `VI-6` | it runs once; a deliberate re-creation is not re-reaped |
 | `VI-7` | planning is pure, so a deletion can be reviewed before it happens |
 | `VI-8` | a malformed bucket is skipped rather than taking setup down on boot |
+| `VI-9` | a **registered** vacuum with **no state** is real — an offline one must not be swept |
 
 **VI-1 and VI-2 are the pair that matters.** The discriminator is deliberately not
 "already known to the manager" — that would make adding a vacuum impossible — nor
 "HA has the entity", which would delete a renamed vacuum's history. Either proof
 suffices, and VI-5 guards the catastrophic case: if a stored record ever stopped
 counting as proof, this sweep would delete every vacuum on the install.
+
+**VI-9 covers the entity-REGISTRY arm, and carries a fixture trap worth naming.** A
+vacuum that is powered off, unavailable, or not yet loaded has no state while its
+entity is perfectly real, so `hass.states.get` cannot answer and the registry is the
+only thing between a sleeping vacuum and the sweep. If the test also set a state for
+that entity, the state arm would return `True` first, the registry block would never
+execute, and the test would go on passing **with that whole block deleted** — so
+`hass.states.get(...) is None` is an assertion in the test, not a comment, and a
+second assertion on an unregistered id keeps a lookup that said yes to everything
+from satisfying the first.
+
+⚠ **`is_real_vacuum`'s `if hass is None: return False` is SUBSUMED**, and its red set is
+declared empty in the test file rather than left looking like a gap. With the guard
+ablated, `getattr(None, "states", None)` skips the state arm and `er.async_get(None)`
+raises inside the `try` below it, whose blanket `except` returns `False` — the same
+answer by a longer road. Measured over 8 inputs (`hass` `None` with and without a
+stored record, with a bad prefix, with a maps-only record; a `hass` with no
+`.states`; `.states` set to `None`; a `hass` that knows the entity and one that does
+not): every answer identical, nothing escaping either way. Noted because the obvious
+next move, "add a test for that guard", cannot succeed.
 
 ---
 
@@ -116,7 +137,7 @@ unconditionally.
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `manager.py` | 2331 | 93% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit | **bare x10** |
+| `manager.py` | 2339 | 95% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit | **bare x10** |
 | `error_tracker.py` | 455 | 92% | `test_core_error_tracker.py` | integration | **bare x1** |
 | `capabilities.py` | 349 | 88% | `test_core_capabilities.py` | integration | clean |
 | `charging.py` | 42 | 100% | `test_charging.py` (unit) | unit | clean |
