@@ -72,6 +72,40 @@ Mint with `python scripts/doc_anchor.py --mint RN`.
 
 ## The sets
 
+### `RN3NP79M` — what a migration CARRY must report · **2 copies**
+
+`plan_migration` carries a stored room's durable settings onto a discovered room's new id
+in **two** places, and each has to report the same four things. The second copy reported
+three of them for two and a half months.
+
+| Copy | Matches the stored room by |
+|---|---|
+| the main `for discovered in discovered_rooms` loop | its slug, or its id when that id is unconsumed |
+| the REC-3 singleton pairing below it | elimination — exactly one leftover, exactly one unmatched |
+
+| Must report | Why |
+|---|---|
+| `new_rooms[new_id]` with the carried settings | floor type, passes, rules, grants, order |
+| `id_remap[old_id] = new_id` | the access graph is rewritten through it |
+| `carried_slugs.add(old_slug)` | or the room is also reported `dropped` |
+| **`slug_remap[old_slug] = new_slug`** | learning history is keyed `map_id::slug` |
+
+**The pairing copy omitted the last one until 2026-11-08.** It is the only carry where the
+slug *always* changes — a room reaches it because its stored slug matched nothing discovered
+and the discovered slug matched nothing stored — so the alias was lost on **every** rename+
+renumber rather than occasionally. `room_crud.reconcile_room` gates both history remedies on
+a non-empty `slug_remap`, so the room kept its settings and read as never cleaned: exactly
+the D5 failure the channel was built to stop, surviving in the one path where both halves of
+the identity move at once. The main loop guards its entry with `if source_slug != slug`; the
+pairing needs no guard, because equality is impossible there by construction and
+`LearningHistoryStore.record_slug_alias` already refuses a self-alias at the consumer.
+
+**Declared at** `rooms/reconciliation.py::plan_migration`. Pinned by
+`test_rooms_reconciliation.py::test_sole_leftover_is_paired_with_sole_unmatched_and_not_dropped`
+(the plan) and `test_room_crud.py::test_rc18_a_rename_plus_renumber_records_the_slug_alias`
+(the store call). Both go red if the pairing stops reporting the alias; before the fix the
+first test passed while asserting every other field.
+
 ### `RNF2RCXP` — `translation_key` rescue · **3 copies**
 
 The rescue function is shared; **the decision to call it is written out three times**, and

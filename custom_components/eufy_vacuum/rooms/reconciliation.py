@@ -435,6 +435,11 @@ def plan_migration(
         # ``dropped`` and ``leftover_existing_slugs`` — is stamped only INSIDE this
         # guard. A stored room with a missing or non-coercible ``room_id`` is carried
         # and still reported dropped (R4 / RM10, see the docstring).
+        # anchor: RN3NP79M  what a migration CARRY must report — the replica set
+        # This block and the REC-3 singleton pairing below are the two carries, and
+        # each must report all four of: the carried room, the id remap, the carried
+        # slug, and the SLUG REMAP. The pairing omitted the last one until
+        # 2026-11-08. See 00c-replicas.md.
         if old_id is not None:
             if old_id != new_id:
                 id_remap[old_id] = new_id
@@ -472,6 +477,25 @@ def plan_migration(
         new_rooms[str(new_id)] = carried
         if old_id is not None and old_id != new_id:
             id_remap[old_id] = new_id
+        # REPLICA RN3NP79M — the second CARRY, and the copy that was short. All four
+        # of the main loop's reports have to happen here too; see 00c-replicas.md.
+        # D5 + REC-3: THE SLUG ALWAYS CHANGED HERE, so the alias always had to be
+        # reported — and until 2026-11-08 this was the one carry that did not report
+        # it. This block is a shorter copy of the main loop above: both stamp the new
+        # slug onto the carried room, both remap the id, both mark the old slug
+        # carried, and only the loop recorded `old -> new`. The room therefore kept
+        # its floor type, passes and grants and lost its LEARNING HISTORY, which is
+        # keyed `map_id::slug` — exactly the D5 failure the slug_remap channel was
+        # built to stop, surviving in the one path where both halves of the identity
+        # move at once.
+        #
+        # Unconditional on purpose: a room reaches this pairing only because its
+        # stored slug matched nothing discovered AND the discovered slug matched
+        # nothing stored, so `leftover_existing_slugs[0] != slug` holds by
+        # construction. A guard here could never fire, and
+        # `LearningHistoryStore.record_slug_alias` already refuses a self-alias at
+        # the consumer, so the degenerate case is covered without one.
+        slug_remap[leftover_existing_slugs[0]] = slug
         carried_slugs.add(leftover_existing_slugs[0])
 
     # Rewrite grants through the old->new id remap; drop targets that no longer

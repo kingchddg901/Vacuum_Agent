@@ -29,7 +29,7 @@ Coverage targets
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, create_autospec, patch
 
 import pytest
 
@@ -222,6 +222,74 @@ def test_reconcile_room_migrate_refuses_partial_discovery(rmm):
     )
     assert forced.get("skipped") is None
     assert forced["migrated_room_count"] == 1
+
+
+def test_rc18_a_rename_plus_renumber_records_the_slug_alias(rmm):
+    """[RC-18] D5/REC-3 end to end: the alias must reach the STORE, not just the plan.
+
+    [REC-19] pins that `plan_migration` now reports `slug_remap` for a room that was
+    renamed AND renumbered in one re-map. This is the other half, and it is the half
+    that was actually broken for the user: `reconcile_room` gates BOTH history
+    remedies on a non-empty `slug_remap`, so a plan that reported none meant neither
+    `record_slug_alias` (which repairs `room_stats`, rebuilt from the job records) nor
+    `rekey_accuracy_slugs` (which repairs `accuracy_stats`, append-only and never
+    rebuilt) ever ran. The room kept its floor type, passes and grants and read as
+    never cleaned.
+
+    A plan-level assertion alone would not have caught it: the plan is pure and the
+    consumer is 200 lines away in another module, so this drives the real
+    `reconcile_room(action="migrate")` with a real plan token and spies on the store
+    it constructs. `create_autospec` so the spy agrees with the real method
+    signatures rather than accepting any call.
+
+    RED: drop `slug_remap[leftover_existing_slugs[0]] = slug` from the REC-3 pairing
+    in `plan_migration` and both assertions fail -- `if _slug_remap:` is false and
+    neither call is made.
+    """
+    rm, mgr = rmm
+    stored = {
+        "16": {"room_id": 16, "map_id": _MAP, "name": "Kitchen", "slug": "kitchen",
+               "grants_access_to": [17]},
+        "17": {"room_id": 17, "map_id": _MAP, "name": "Den", "slug": "den",
+               "clean_passes": 3},
+    }
+    mgr.data["maps"] = {_VAC: {_MAP: {"rooms": stored}}}
+    # Den is renamed to Study and the re-segment moves it 17 -> 20. Kitchen is
+    # untouched, so the pairing has exactly one leftover and one unmatched room.
+    discovered = [
+        {"room_id": 16, "map_id": _MAP, "name": "Kitchen"},
+        {"room_id": 20, "map_id": _MAP, "name": "Study"},
+    ]
+    _seed_discovery(mgr, discovered)
+
+    token = compute_plan_token(
+        reviews=compute_reconciliation(
+            discovered_rooms=discovered, existing_rooms=stored,
+        )["reviews"],
+        discovered_rooms=discovered,
+    )
+
+    from custom_components.eufy_vacuum.learning.history_store import (
+        LearningHistoryStore,
+    )
+    spy = create_autospec(LearningHistoryStore, instance=True)
+    with patch(
+        "custom_components.eufy_vacuum.learning.history_store.LearningHistoryStore",
+        return_value=spy,
+    ):
+        out = rm.reconcile_room(
+            vacuum_entity_id=_VAC, map_id=_MAP, action="migrate", plan_token=token,
+        )
+
+    assert out.get("skipped") is None, out
+    spy.record_slug_alias.assert_called_once_with(
+        vacuum_entity_id=_VAC, map_id=_MAP, old_slug="den", new_slug="study",
+    )
+    spy.rekey_accuracy_slugs.assert_called_once_with(
+        vacuum_entity_id=_VAC, map_id=_MAP, slug_remap={"den": "study"},
+    )
+    # and the settings carry that already worked is unaffected
+    assert mgr.data["maps"][_VAC][_MAP]["rooms"]["20"]["clean_passes"] == 3
 
 
 def test_discover_rooms_keeps_cache_on_empty_result(manager):

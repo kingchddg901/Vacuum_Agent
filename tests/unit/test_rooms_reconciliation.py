@@ -534,6 +534,19 @@ def test_sole_leftover_is_paired_with_sole_unmatched_and_not_dropped():
 
     The grant assertion is the consequence that matters: the remap has to reach
     the access graph, or kitchen keeps pointing at an id nothing holds.
+
+    ⚠ `slug_remap` IS THE ASSERTION THIS TEST WAS MISSING, and its absence hid a real
+    defect until 2026-11-08. Every other line here passed while the paired room
+    silently lost its learning history: the carry stamped the NEW slug, remapped the
+    id and kept the durable settings, so floor type, passes and grants all followed —
+    and `room_crud.reconcile_room` gates BOTH history remedies on a non-empty
+    `slug_remap`, so an empty one means neither `record_slug_alias` nor
+    `rekey_accuracy_slugs` runs. The room reads as never cleaned.
+
+    This is the shorter-copy shape: the pairing below the main loop did three of the
+    four things the loop does. [REC-20] directly beneath this test covers a room whose
+    NAME alone changed and does assert the remap, so the two neighbours differed by
+    exactly the case where both halves of the identity move at once.
     """
     existing = {
         "16": {"room_id": 16, "slug": "kitchen", "name": "Kitchen",
@@ -554,6 +567,10 @@ def test_sole_leftover_is_paired_with_sole_unmatched_and_not_dropped():
     assert plan["dropped"] == [], "den was carried, not dropped"
     assert plan["rooms"]["16"]["grants_access_to"] == [20], (
         "the grant must follow the room to its new id"
+    )
+    assert plan["slug_remap"] == {"den": "study"}, (
+        "the LEARNING HISTORY must follow too -- carrying the settings without the "
+        "alias leaves the room reading as never cleaned"
     )
 
 
