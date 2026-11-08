@@ -6741,6 +6741,17 @@ class EufyVacuumManager:
             ).get("live_map_image", []):
                 if sibling != candidate and self.hass.states.get(sibling) is not None:
                     return sibling
+        # Last: a brand-declared resolver, for providers whose image entity id does not
+        # follow the map's current name (Roborock keeps `image.<vac>_map_<flag>` after a
+        # map is named or renamed). Named in the adapter's mapping block, looked up in
+        # mapping/live_map_image.py; core never learns the brand.
+        resolver_name = mapping_cfg.get("live_map_image_entity_resolver")
+        if resolver_name:
+            from ..mapping.live_map_image import resolve_declared_live_map_image
+
+            return resolve_declared_live_map_image(
+                self.hass, resolver_name, vacuum_entity_id, map_id
+            )
         return None
 
     async def async_refresh_map_state_source(

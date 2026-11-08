@@ -1312,6 +1312,11 @@ def register_roborock_adapter_for_vacuum(
             # camera-based brand could instead declare e.g. "camera.{object_id}_map".
             # Eufy omits this -> no live backdrop, byte-identical.
             "live_map_image_entity_pattern": "image.{object_id}_{map_slug}",
+            # The pattern misses whenever a map was named or renamed after HA created
+            # its image (the entity keeps `image.{object_id}_map_<flag>` until the
+            # Roborock integration reloads). This resolver matches on the map FLAG the
+            # image entity carries instead — see mapping/live_map_image.py.
+            "live_map_image_entity_resolver": "roborock_map_flag",
         },
 
         "map_state_source": {
