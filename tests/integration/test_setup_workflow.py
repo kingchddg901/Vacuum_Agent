@@ -686,3 +686,166 @@ async def test_sw10c_an_imported_map_answers_from_storage_when_discovery_is_sile
     assert result["status"] == "already_done", result
     assert result["data"]["room_count"] == 2
     assert manager.data["maps"][_VAC]["sw10cmap"]["rooms"], "storage must be untouched"
+
+
+# ---------------------------------------------------------------------------
+# [SW-9f]..[SW-9h] — the remaining _no_map_message arms
+#
+# `_no_map_message` turns a refresh failure into the sentence a user reads when an
+# import is refused, and its whole reason for existing is that the WRONG sentence has
+# shipped three times: #46 (a Roborock owner told about Eufy), #55 (a Q7 M5 owner asked
+# to report his hardware's documented limits, which he did), #68 (a C20 owner with one
+# named map told to go make a mapping run). [SW-9d] pins the #55 arm. These are the
+# three arms below it that had nothing.
+#
+# EVERY ASSERTION HERE IS A DISCRIMINATOR, not a substring sniff. The fallback tail
+# and several arms end in a report-with-diagnostics ask, so asserting on the word
+# "diagnostics" — or on "report" — cannot tell one branch from another and would pass
+# with the branch deleted. Each test therefore asserts the sentence that is UNIQUE to
+# its arm plus the absence of the tail's own wording.
+#
+# NO RAISING STUBS except through a real registered HA service. `source_refresh` wraps
+# its call in a blanket `except Exception`, so a monkeypatched raiser is swallowed and
+# the test passes inverted — the mirror trap this campaign keeps finding.
+#
+# `not_declared` IS A DEAD LITERAL in the `no_maps_service` arm's tuple: measured, it
+# appears nowhere else in the package, so no producer can emit it. [SW-9g] drives the
+# live half on purpose; written against `not_declared` it would pass against a value
+# the code can never see.
+# ---------------------------------------------------------------------------
+
+_RB_CONFIG = {
+    "adapter_id": "rb", "source": "code", "brand": "Roborock",
+    "entities": {"active_map": "select.alfred_selected_map"},
+    "discovery": {
+        "source": "service_response",
+        "maps_service": {"domain": "roborock", "service": "get_maps"},
+        "maps_rooms_key": "rooms", "map_name_key": "name",
+        "room_id_key": "segment_id", "room_name_key": "name",
+    },
+}
+
+
+async def test_sw9f_an_asleep_vacuum_is_told_to_wake_not_to_remap(
+    hass, manager, _no_panel
+):
+    """[SW-9f] `entity_unavailable` — the commonest of the three wrong sentences.
+
+    A vacuum that is asleep, off its dock, or whose brand integration has not finished
+    loading after a restart reports `unavailable`. Without this arm the user falls to
+    the tail and is told his map could not be identified, to complete a mapping run,
+    and to file a report with diagnostics — none of which is about him, and all of
+    which he will do.
+
+    No `roborock.get_maps` service is registered on purpose: the unavailable gate
+    returns BEFORE the call, so needing one would mean the gate is not doing the work.
+    The active-map entity is never created and the cache left empty so the message is
+    actually reached rather than short-circuited by a resolved map.
+
+    RED: delete the `if reason == "entity_unavailable"` arm and the asleep vacuum gets
+    the tail — red on both absence assertions. Equally red: hoisting the blank-active-
+    map branch above the reason branches.
+    """
+    register_adapter_config(_VAC, dict(_RB_CONFIG))
+    hass.states.async_set(_VAC, "docked")
+    await add_vacuum(hass, _VAC)
+    hass.states.async_set(_VAC, "unavailable")
+
+    result = await import_active_map(hass, _VAC)
+    message = result["message"]
+
+    assert result["status"] == "blocked"
+    assert result["data"]["room_source_refresh"]["reason"] == "entity_unavailable"
+    assert "did not respond" in message, "the cause, in the user's terms"
+    assert "wake it and try again" in message.lower(), "the action that resolves it"
+    # the tail's wording, which is what he used to get
+    assert "mapping run" not in message.lower(), (
+        "he has a map; telling him to make another is the #68 substitution"
+    )
+    assert "diagnostics" not in message.lower(), "nothing to report — he just woke it"
+
+
+async def test_sw9g_an_adapter_that_declares_no_maps_service_says_so(
+    hass, manager, _no_panel
+):
+    """[SW-9h] `no_maps_service` — the adapter-config UI's own mistake, named.
+
+    A user who configures his own brand through the adapter-config UI and leaves the
+    maps service blank gets `no_maps_service`. The arm tells him the declaration is
+    incomplete; the tail would tell him to go make a mapping run.
+
+    This arm DOES ask for a report, deliberately — an adapter that reaches discovery
+    without a maps service is an integration-side gap — so unlike [SW-9f] there is no
+    absence-of-report assertion here. The discriminator is the declaration sentence.
+
+    The vacuum stays `docked` for the whole test so the `entity_unavailable` gate
+    cannot pre-empt this one.
+
+    RED: delete the arm, or drop `"no_maps_service"` from its tuple leaving only the
+    dead `"not_declared"` — either way the misdeclared adapter falls to the tail and
+    this goes red on the declaration substring.
+    """
+    config = dict(_RB_CONFIG)
+    config["discovery"] = {"source": "service_response"}      # no maps_service key
+    register_adapter_config(_VAC, config)
+    hass.states.async_set(_VAC, "docked")
+    await add_vacuum(hass, _VAC)
+
+    result = await import_active_map(hass, _VAC)
+    message = result["message"]
+
+    assert result["status"] == "blocked"
+    assert result["data"]["room_source_refresh"]["reason"] == "no_maps_service"
+    assert "does not declare how to fetch its map list" in message
+    assert "mapping run" not in message.lower(), "the tail's wording must be gone"
+
+
+async def test_sw9h_a_transient_maps_failure_is_not_an_unsupported_device(
+    hass, manager, _no_panel
+):
+    """[SW-9h] `service_call_failed` — and the arm it must stay distinct from.
+
+    [SW-9d] pins the #55 arm, where HA has stated the device cannot answer and there
+    is nothing to report. THIS arm is the opposite case: the call genuinely failed and
+    may well work next time, so asking for a report is right. Folding the two back
+    together is what produced #55, and this test is what makes that fold visible.
+
+    `HomeAssistantError` through a REAL registered service, not a monkeypatched raiser:
+    `source_refresh` wraps the call in a blanket `except Exception`, so a stub raising
+    anywhere else would be swallowed and this would pass inverted.
+
+    THE DISCRIMINATOR IS THE ABSENCES. Both this arm and the fallback end in a
+    report-with-diagnostics ask ("report it with diagnostics" vs "report this with
+    diagnostics attached"), so an assertion on "diagnostics" alone cannot tell them
+    apart. What separates them is the tail's "No map could be identified" and the #55
+    arm's "no need to report this" — both must be absent.
+
+    RED: delete the arm and the transient failure gets the tail (red on "for its maps
+    failed"); fold it back into the `service_not_supported` arm and it goes red on
+    "no need to report this" appearing.
+    """
+    from homeassistant.core import SupportsResponse
+    from homeassistant.exceptions import HomeAssistantError
+
+    register_adapter_config(_VAC, dict(_RB_CONFIG))
+
+    async def _get_maps(call):
+        raise HomeAssistantError("boom")
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY,
+    )
+    hass.states.async_set(_VAC, "docked")
+    await add_vacuum(hass, _VAC)
+
+    result = await import_active_map(hass, _VAC)
+    message = result["message"]
+    low = message.lower()
+
+    assert result["status"] == "blocked"
+    assert result["data"]["room_source_refresh"]["reason"] == "service_call_failed"
+    assert "for its maps failed" in low, "the cause, stated as transient"
+    assert "no map could be identified" not in low, "that is the tail, not this arm"
+    assert "no need to report this" not in low, (
+        "that is the #55 arm; collapsing the two back together is the regression"
+    )
