@@ -370,6 +370,22 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   NAME entity, and it goes red (`KeyError: current_room`) with the injection removed —
   ablation-confirmed. `MSD-15` holds the None case (an unmatched name draws nothing rather
   than a wrong room).
+
+  > `current_room.py` reached **100%** on 2026-11-08 with `CRR-7`/`CRR-8`, and both are
+  > about the managed-room registry being STORED data — its rows come back from
+  > `.storage`, so they are outside data even though the producer is in this repo.
+  > `CRR-7` drives a non-dict row with the real match placed AFTER it (position is the
+  > test: `continue` and `break` are indistinguishable when the bad row is last), and
+  > `CRR-8` drives both arms of the `int()` `except` on a room that MATCHED — the one
+  > failure mode where the brand's live name found a managed room and the answer still
+  > has to be `None`, since a raw string in the frame's `current_room` is what the card
+  > uses as a raster room id. The cost of the missing guard is not a lost room and the
+  > two call sites differ: the map coordinator calls the resolver inside the refresh's
+  > blanket `except`, whose handler serves an ABSENT MARKER, so one junk registry row
+  > blanks the whole frame rather than dropping a highlight; the pose sampler loses one
+  > tick's sample to POSE-5 and retries. `return` vs `continue` inside that except is
+  > deliberately not asserted — RP-015 makes slugs unique per map, so no second room
+  > with that slug exists for a `continue` to reach.
 - **`roborock_raw_map`** (`RRD-*`, unit, `test_roborock_raw_map.py`) — the pure Roborock
   v1 raw-map segment decoder, no HA/device: `decode_roborock_v1_segments` (a well-formed
   IMAGE block → resolved room-id raster + dims + ids; no-IMAGE / empty / truncated / garbage

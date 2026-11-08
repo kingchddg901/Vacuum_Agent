@@ -25,6 +25,8 @@ Coverage targets
 [VI-7] planning is pure: it mutates nothing.
 [VI-8] a bucket that is not a dict is skipped rather than raising on boot.
 [VI-9] a REGISTERED vacuum with no state is real — an offline one must not be swept.
+[VI-10] a non-dict bucket contributes NOTHING to a delete plan — the filter that makes
+       the sweep loop's own type re-check unreachable.
 """
 
 from __future__ import annotations
@@ -191,15 +193,81 @@ async def test_vi_9_a_registered_vacuum_with_no_state_is_real(hass):
     assert is_real_vacuum(hass, _data(), "vacuum.never_registered") is False
 
 
+def test_vi_10_a_non_dict_bucket_never_reaches_the_sweep_loop():
+    """[VI-10] WHY `sweep_orphaned_vacuums`' OWN `isinstance(node, dict)` IS UNREACHABLE.
+
+    The type check exists TWICE: once in `orphaned_vacuum_keys`, which [VI-8] pins, and
+    once again inside the sweep's own delete loop. The second can never see a non-dict,
+    because every (bucket, key) it iterates came from the first -- which returns `[]`
+    for a bucket that is not a dict, so such a bucket contributes no keys to plan. The
+    only way to reach the re-check would be for `data[bucket]` to change type between
+    planning and deleting, and the plan is built four lines above the loop over the same
+    dict.
+
+    That makes the re-check's unreachability a PROPERTY OF THE FILTER rather than of
+    the loop, so the filter is what gets pinned. Recorded instead of
+    `pragma: no cover`d, because an unreachable guard whose reason is undocumented is
+    the one that gets "simplified" away later.
+
+    A LIST, NOT A STRING, AND THAT IS THE DIFFERENCE FROM [VI-8]. [VI-8] passes the
+    bucket `"corrupt"`; iterating that string yields single characters, none of which
+    start with `vacuum.`, so it answers `[]` with the filter REMOVED as well -- that
+    assertion cannot see this guard at all, and [VI-8] bites only through its second
+    row, where `for key in None` raises. A list of entity-id-shaped strings is the
+    shape that would silently produce PLAUSIBLE orphan keys, which is what a sweep
+    that DELETES USER DATA must not be handed.
+
+    RED: relax the filter from `isinstance(node, dict)` to a None check and the list's
+    entry is planned for deletion. [VI-8] stays green on that ablation, which is the
+    measurement that says this test is not a duplicate of it.
+    """
+    data = _data(
+        vacuums={_REAL: {}},
+        onboarding=[_FAKE],               # a LIST where a per-vacuum dict belongs
+        setup_progress={_TYPO: {}},       # control: a real orphan, in a real dict
+    )
+
+    planned = plan_orphan_sweep(_hass([_REAL]), data)
+
+    assert planned == [("setup_progress", _TYPO)], (
+        f"a non-dict bucket contributed keys to a delete plan: {planned}"
+    )
+
+    # And the sweep over that same data removes the control and leaves the list alone.
+    result = sweep_orphaned_vacuums(_hass([_REAL]), data)
+    assert result["removed"] == [("setup_progress", _TYPO)]
+    assert data["onboarding"] == [_FAKE], "the unreadable bucket was mutated"
+
+
 # ---------------------------------------------------------------------------
-# NOT TESTED — `vacuum_identity.py::is_real_vacuum`'s `if hass is None: return False`
+# NOT TESTED -- `vacuum_identity.py::is_real_vacuum`'s `if hass is None: return False`
 #
 # SUBSUMED, red set deliberately EMPTY. With the guard ablated, `getattr(None,
 # "states", None)` skips the state arm and `er.async_get(None)` raises inside the
-# try below it, whose blanket except returns False — the same answer, by a longer
+# try below it, whose blanket except returns False -- the same answer, by a longer
 # road. Measured over 8 inputs (hass None with and without a stored record, with a
 # bad prefix, a maps-only record, a hass with no `.states`, `.states` None, a hass
 # that knows the entity, one that does not): every answer identical, no exception
 # escaping either way. No input can make a test of it red, so writing one would
 # assert a preference and read as coverage.
+#
+# NOT TESTED -- the FALSE arm of `if getattr(hass, "states", None) is not None:`
+#
+# DEFENSIVE, and its only producer is a test harness. A real `HomeAssistant` sets
+# `.states` in its constructor and never clears it, and both call sites pass one:
+# `onboarding/manager.py` its `self._hass` and `setup/drift.py` the hass it was
+# handed. The docstring is explicit that the fallback is for "tests constructing a
+# bare manager", so a test of it would be a test of `_hass()`. Not subsumed -- with
+# the guard removed a `.states`-less object raises AttributeError outside the try
+# below -- but the input cannot arrive from anywhere this integration runs.
+#
+# NOT TESTED -- the FALSE arm of `isinstance(node, dict)` inside
+# `sweep_orphaned_vacuums`
+#
+# UNREACHABLE; see [VI-10] above, which pins the filter that makes it so.
+#
+# THE ARITHMETIC THESE THREE LEAVE: 1 statement and 3 branch arms uncovered of 64
+# units, so the file measures 93.75% and cannot honestly reach 95% -- closing even
+# one would take a vacuous test or a pragma on a non-logger line. Stated here rather
+# than papered over.
 # ---------------------------------------------------------------------------

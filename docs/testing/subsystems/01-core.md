@@ -26,7 +26,7 @@ only ever grew: every typo, placeholder and renamed entity left a record nothing
 
 Three parts: reads stopped creating (`OnboardingManager._get_map_onboarding(create=False)`),
 creation is guarded by `is_real_vacuum`, and a one-shot sweep clears what is already
-stored. `test_vacuum_identity.py` (13 tests) pins the shape:
+stored. `test_vacuum_identity.py` (14 tests) pins the shape:
 
 | id | what it holds |
 |---|---|
@@ -39,6 +39,7 @@ stored. `test_vacuum_identity.py` (13 tests) pins the shape:
 | `VI-7` | planning is pure, so a deletion can be reviewed before it happens |
 | `VI-8` | a malformed bucket is skipped rather than taking setup down on boot |
 | `VI-9` | a **registered** vacuum with **no state** is real — an offline one must not be swept |
+| `VI-10` | a non-dict bucket contributes **nothing** to a delete plan — the filter that makes the sweep loop's own type re-check unreachable |
 
 **VI-1 and VI-2 are the pair that matters.** The discriminator is deliberately not
 "already known to the manager" — that would make adding a vacuum impossible — nor
@@ -65,6 +66,38 @@ stored record, with a bad prefix, with a maps-only record; a `hass` with no
 `.states`; `.states` set to `None`; a `hass` that knows the entity and one that does
 not): every answer identical, nothing escaping either way. Noted because the obvious
 next move, "add a test for that guard", cannot succeed.
+
+**VI-10 pins an UNREACHABILITY rather than a behaviour, which is why it adds no
+coverage.** The `isinstance(node, dict)` test exists twice — once in
+`orphaned_vacuum_keys`, which VI-8 pins, and again inside `sweep_orphaned_vacuums`'
+delete loop. The second can never see a non-dict, because every `(bucket, key)` it
+iterates came from the first, which answers `[]` for a bucket that is not a dict; the
+plan is built four lines above the loop over the same dict, so there is no window for
+the type to change. That makes the re-check's unreachability a property of the
+*filter*, so the filter is what gets pinned — an unreachable guard with no recorded
+reason is the one that gets "simplified" away later.
+
+A **list**, not a string, and that is the whole difference from VI-8: iterating
+`"corrupt"` yields single characters, none `vacuum.`-prefixed, so VI-8's first
+assertion answers `[]` with the filter removed as well and cannot see this guard at
+all (VI-8 bites only through its second row, where `for key in None` raises). A list
+of entity-id-shaped strings is the shape that would silently produce *plausible*
+orphan keys for a sweep that deletes user data. Ablation-measured: relaxing the filter
+to a `None` check reddens VI-10 and leaves VI-8 green, which is what says the two are
+not duplicates.
+
+**Two more arms are classified rather than tested, and the file's honest ceiling is
+93.75%.** The false arm of `if getattr(hass, "states", None) is not None:` is
+DEFENSIVE with no producer outside a test harness — a real `HomeAssistant` sets
+`.states` in its constructor and never clears it, both call sites
+(`onboarding/manager.py`, `setup/drift.py`) pass one, and the docstring says the
+fallback exists for "tests constructing a bare manager", so a test of it would be a
+test of the fixture. It is not subsumed (ablated, a `.states`-less object raises
+`AttributeError` outside the `try` below) — the input simply cannot arrive from
+anywhere this integration runs. With that arm, the subsumed `hass is None` pair and
+the unreachable re-check above, 1 statement and 3 branch arms of 64 units stay
+uncovered: **93.75%, and 95% is not reachable here** without a vacuous test or a
+pragma on a non-logger line. Stated rather than papered over.
 
 ---
 

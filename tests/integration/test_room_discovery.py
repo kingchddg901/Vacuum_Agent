@@ -39,9 +39,22 @@ Coverage targets
 [RD-ANCHOR-6] ...and the canonical form is what comes back, not the raw state.
 [RD-ANCHOR-7] ...but normalisation is whitespace ONLY -- case stays significant.
         a phantom map for a novel device whose sensor hasn't materialised yet).
+[RD-16] a declaration the map enumerator cannot read makes NO [MAP-ANCHOR-1]
+        judgement -- the declaration-shaped twin of [RD-ANCHOR-3]'s boot window.
+[RD-17] ISSUE #46: the one cached map must actually carry room-shaped rows.
+[RD-18] [RD-SHAPE-3]'s refusing twin -- a single per-map attribute with no usable
+        rooms anchors nothing.
+[RD-19] the attribute branch's OWN completeness check -- the guard [RD-4] names and
+        never reaches.
+[RD-20] a non-dict row does not stop the walk (junk rows FIRST, by position).
+[RD-21] a row missing its name key is skipped, not admitted as a room named "None";
+        the companion `raw_id is None` clause is SUBSUMED, measured.
+[RD-22] the C16 fixpoint bound is sufficient for the deepest chain a search found.
 """
 
 from __future__ import annotations
+
+import logging
 
 import pytest
 
@@ -53,6 +66,7 @@ from custom_components.eufy_vacuum.rooms.room_discovery import (
     discover_rooms_payload,
     get_active_map_id,
 )
+from custom_components.eufy_vacuum.rooms.source_refresh import set_cached_room_source
 
 
 _VAC = "vacuum.alfred"
@@ -660,3 +674,448 @@ def test_rd_anchor_7_case_is_still_significant(hass, manager):
     assert get_active_map_id(hass, _VAC) is None, (
         "case-folding would merge two maps a user deliberately named differently"
     )
+
+
+# ---------------------------------------------------------------------------
+# [RD-16] - [RD-22]  the gaps a coverage run named and the test NAMES did not.
+#
+# [RD-4] IS CALLED "incomplete discovery config -> []" AND NEVER REACHES THE GUARD
+# IT NAMES. Its adapter omits room_id_key/room_name_key, so discover_rooms_for_vacuum
+# returns at the FIRST incompleteness check -- the one BOTH sources share -- and the
+# attribute branch's own check below it never executes. Measured, not inferred: that
+# line stayed in coverage's missing set with [RD-4] green, which is the one shape
+# `scripts/check_covers.py` exists to catch. [RD-19] is the test [RD-4] reads like.
+#
+# NO `covers` MARKERS HERE, AND THE REASON IS WORTH KNOWING: that gate's SPAN check
+# is per SYMBOL -- the tests declaring a target must together leave no line of it
+# uncovered -- so a marker only says something true about a symbol small enough for
+# its declaring tests to cover whole. Every guard below sits inside a function far
+# larger than the one branch its test drives, and `discover_rooms_for_vacuum` holds a
+# permanently unreachable line ([RD-22]'s else-arm), so a marker on it could never go
+# green. Declaring one anyway was tried and the gate refused it, correctly. What
+# proves reach for these is the pair of instruments that caught [RD-4]: the
+# before/after coverage diff, and an ablation per clause.
+# ---------------------------------------------------------------------------
+
+
+def _per_map_adapter_with(**discovery):
+    """`_per_map_adapter` with discovery keys replaced, or REMOVED by passing None.
+
+    Removal and empty-string are different inputs here and the distinction is
+    load-bearing -- see [RD-19].
+    """
+    base = {
+        "room_list_entity": "vacuum_entity",
+        "room_list_attribute": "rooms",
+        "room_list_shape": "per_map_mapping",
+        "room_id_key": "id",
+        "room_name_key": "name",
+    }
+    base.update(discovery)
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"active_map": "sensor.alfred_map"},
+        "discovery": {k: v for k, v in base.items() if v is not None},
+    })
+
+
+_NOT_A_MAP_ID = "2026-10-02 11:04:35"   # the ISSUE #60 camera state, verbatim
+
+
+@pytest.mark.parametrize("override,shape", [
+    pytest.param({"room_list_attribute": None},
+                 "no attribute is NAMED, so there is nothing to read",
+                 id="no_attribute"),
+    pytest.param({"room_list_entity": "sensor.alfred_rooms"},
+                 "the rooms live on ANOTHER entity, whose attributes this "
+                 "enumerator never reads",
+                 id="another_entity"),
+])
+def test_rd16_a_declaration_it_cannot_enumerate_makes_no_map_judgement(
+    hass, manager, override, shape
+):
+    """[RD-16] [MAP-ANCHOR-1] is conditional on being able to ENUMERATE the maps, and
+    [RD-ANCHOR-3] pins only one way of failing to: the boot window, where the attribute
+    has not landed yet. These are the other two -- the DECLARATION itself gives the
+    enumerator nothing to read, on a config that is otherwise perfectly valid.
+
+    Both rows reach the same `return None`, and the consequence is the one
+    [RD-ANCHOR-3] argues for: `known is None` means no judgement is possible, so the
+    selector's value is TRUSTED rather than refused. The assertion is therefore the
+    INVERSE of [RD-ANCHOR-1] on a byte-identical bad value -- the ISSUE #60 camera
+    timestamp comes back out.
+
+    THE CONTROL IS THE WHOLE TEST. "returns the state unchanged" is also what a
+    resolver with no guard at all does, and this value is the exact string the guard
+    was written for, so the properly-declared adapter is run against the SAME state
+    and must refuse it. Without that half this passes against a deleted
+    [MAP-ANCHOR-1].
+
+    ONLY THE `another_entity` ROW HAS A RED INPUT, and that is measured rather than
+    assumed. Delete the whole guard and that row reddens: the enumerator reads the
+    VACUUM's `rooms` attribute, gets a real map set, and refuses the timestamp. The
+    `not attr` clause is SUBSUMED -- ablated on its own it reddens nothing, because
+    `state.attributes.get(None)` yields None, the key set comes out empty, and
+    `return keys or None` already answers None by the longer road. The row stays
+    because it is a real declaration shape and because its subsumption is only
+    checkable while something drives it.
+
+    RED: delete the guard and the `another_entity` row is refused instead of trusted
+    -- the every-restart regression [RD-ANCHOR-3] names, arriving through a
+    declaration rather than a race.
+    """
+    _per_map_adapter_with(**override)
+    hass.states.async_set("sensor.alfred_map", _NOT_A_MAP_ID)
+    hass.states.async_set(_VAC, "docked", {"rooms": {
+        "Downstairs": [{"id": 1, "name": "Kitchen"}],
+    }})
+
+    assert get_active_map_id(hass, _VAC) == _NOT_A_MAP_ID, (
+        f"the map set is not enumerable ({shape}) so no judgement is possible"
+    )
+
+    # CONTROL: same hass, same states, same bad value -- only the declaration differs.
+    _per_map_adapter()
+    assert get_active_map_id(hass, _VAC) is None, (
+        "control: with a readable declaration [MAP-ANCHOR-1] must still refuse this"
+    )
+
+
+def _service_response_adapter():
+    """The ISSUE #46 shape: a service-response brand with NO active_map declared.
+
+    HA 2026.7 (home-assistant/core#173282) stopped creating the map-selector entity on
+    some devices, so there is no entity to read and the anchor has to come from the
+    cached room source itself.
+    """
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {},
+        "discovery": {
+            "source": "service_response",
+            "room_id_key": "segment_id",
+            "room_name_key": "name",
+        },
+    })
+
+
+@pytest.mark.parametrize("segments,shape", [
+    pytest.param([], "empty -- the docstring's own case: an empty list anchors "
+                     "nothing", id="empty_list"),
+    pytest.param(["Kitchen", 7], "a list carrying no room-shaped row",
+                 id="no_dict_rows"),
+    pytest.param("corrupt", "not a list at all", id="string"),
+    pytest.param({"segment_id": "16"}, "a bare dict where a list of them belongs",
+                 id="bare_dict"),
+    pytest.param(7, "not even iterable", id="not_iterable"),
+])
+def test_rd17_the_one_cached_map_must_actually_carry_rooms(
+    hass, manager, segments, shape
+):
+    """[RD-17] ISSUE #46's anchor is narrow on purpose, and this is the third of its
+    three narrowings -- "the map must actually carry rooms".
+
+    The cost of getting this wrong is named in the source and in
+    17-room-identity.md: serving one map's rooms under another map's id (RP-019/ID-2).
+    Anchoring on a map whose room list is junk invents a map id from nothing, and
+    every downstream key -- the room cache, managed_rooms_by_map, the per-map camera
+    slug -- is then hung off it.
+
+    BOTH CLAUSES OF THE GUARD ARE DRIVEN, and the `not_iterable` row is here because
+    without it one of them is subsumed. `any(isinstance(row, dict) for row in
+    segments)` happily walks a string's characters and a dict's keys, finds no dict,
+    and refuses on its own -- so the `isinstance(segments, list)` clause changes
+    nothing for the string or the bare dict. A bare `7` is what makes it bite: without
+    the isinstance clause, `for row in 7` raises TypeError out of a resolver whose
+    whole contract is to refuse one bad value without raising.
+
+    The empty list is not a contrived input: the service flattener writes a map key
+    with no rooms whenever a response enumerates a floor it returned no segments for.
+
+    RED: drop the clause and the junk map's KEY is returned as this vacuum's active
+    map id.
+    """
+    _service_response_adapter()
+    set_cached_room_source(hass, _VAC, {"Main": segments})
+
+    assert get_active_map_id(hass, _VAC) is None, (
+        f"a single cached map whose segments are {shape} was accepted as an anchor"
+    )
+
+    # CONTROL: the same single-map cache, one real room -- the ISSUE #46 fix itself.
+    set_cached_room_source(hass, _VAC, {"Main": [{"segment_id": "16", "name": "Kitchen"}]})
+    assert get_active_map_id(hass, _VAC) == "Main", (
+        "control: with one usable room the single-map anchor must still resolve, or "
+        "this test passes against a helper that answers None for everything"
+    )
+
+
+@pytest.mark.parametrize("segments,shape", [
+    pytest.param([], "the one map's room list is empty", id="empty_list"),
+    pytest.param(["Loft", 3], "the one map's rows are not room-shaped",
+                 id="no_dict_rows"),
+    pytest.param("corrupt", "the one map's value is not a list", id="string"),
+    pytest.param(7, "the one map's value is not even iterable", id="not_iterable"),
+])
+def test_rd18_a_single_per_map_attribute_with_no_usable_rooms_anchors_nothing(
+    hass, manager, segments, shape
+):
+    """[RD-18] [RD-SHAPE-3]'s refusing twin. A per-map-mapping device (Dreame) with its
+    selector unavailable -- the steady state with multi-floor mapping off -- anchors on
+    its one map's KEY, but only when that map has rooms.
+
+    This is the arm where exactly ONE map is present and its room list is unusable, so
+    neither the single-map anchor nor the flat-list fallback below it may fire. A
+    phantom map here is worse than no map: import would succeed under an id whose
+    rooms do not exist, and the user's real map would later arrive as a SECOND one.
+
+    [RD-8] covers the flat_list shape's version of this refusal; the per-map arm had
+    never been driven -- a coverage run named it after [RD-SHAPE-3] had been green for
+    months.
+
+    The `not_iterable` row carries the `isinstance(seg, list)` clause, which the other
+    three cannot: `any(isinstance(r, dict) for r in seg)` walks a string's characters
+    and refuses by itself, so only a non-iterable distinguishes the two clauses. Same
+    shoulder as [RD-17].
+
+    RED: drop the `isinstance(seg, list) and any(... dict ...)` test and the junk map's
+    key is returned as the anchor.
+    """
+    _per_map_adapter_with(implicit_map_id="Main")
+    # REGISTERED and present-but-blank: Dreame's real steady state, and the path that
+    # reaches the single-map fallback directly rather than through the never-created
+    # branch ([RD-SHAPE-3]).
+    er.async_get(hass).async_get_or_create(
+        "sensor", "test", "alfred_map_unique", suggested_object_id="alfred_map",
+    )
+    hass.states.async_set("sensor.alfred_map", "unavailable")
+    hass.states.async_set(_VAC, "docked", {"rooms": {"Loft": segments}})
+
+    assert get_active_map_id(hass, _VAC) is None, (
+        f"a phantom map was anchored although {shape}"
+    )
+
+    # CONTROL: one map, one real room -> its KEY (not the declared implicit id).
+    hass.states.async_set(_VAC, "docked", {"rooms": {
+        "Loft": [{"id": 9, "name": "Study"}],
+    }})
+    assert get_active_map_id(hass, _VAC) == "Loft", (
+        "control: the single-map anchor must still fire for a usable room list"
+    )
+
+
+@pytest.mark.parametrize("override,missing", [
+    pytest.param({"room_list_attribute": None},
+                 "room_list_attribute is not declared at all", id="no_attribute"),
+    pytest.param({"room_list_entity": ""},
+                 "room_list_entity is declared EMPTY", id="empty_entity"),
+])
+def test_rd19_the_attribute_branch_reports_an_incomplete_config_as_one(
+    hass, manager, caplog, override, missing
+):
+    """[RD-19] The guard [RD-4] is named after and never reaches.
+
+    `discover_rooms_for_vacuum` checks completeness TWICE and the two checks are not
+    the same check. The first is shared by both sources and asks for room_id_key /
+    room_name_key. The second belongs to the attribute branch alone and asks for
+    room_list_entity / room_list_attribute, which the service branch never reads at
+    all. [RD-4] omits the SHARED keys, so it returns at the first check with the
+    second still unexecuted -- green, and naming a line coverage reported missing.
+
+    THE CONTROL IS THE PROOF OF PATH, and it is why the shared keys are declared in
+    every row here: if the first check could still be what answers, the control -- same
+    adapter, both room_list_ keys present, identical attribute payload -- would return
+    [] as well. It returns the room, so the shared check is passed and the branch's own
+    check is what refuses.
+
+    THE ASSERTION IS ON THE DIAGNOSIS, NOT THE RETURN VALUE, because the return value
+    cannot distinguish this guard from its absence. Ablated, an adapter naming no
+    attribute reads `state.attributes.get(None)`, gets None, and falls out at
+    "missing or invalid"; one with an empty entity key looks up the entity `""`, gets
+    no state, and falls out at "missing for". Both answer `[]` by a longer road, so an
+    assertion on `== []` alone is SUBSUMED and would pass with the guard deleted --
+    measured, not assumed. What the guard actually buys is the right diagnosis: the
+    user is told their CONFIG is incomplete rather than that a device attribute is
+    missing, which is the difference between editing an adapter and chasing a device.
+
+    NEITHER ROW IS THE ABSENT-`room_list_entity` CASE, deliberately. The schema
+    documents that key as "Default: 'vacuum_entity'" while this function reads it with
+    no default, so an adapter that omits it discovers zero rooms. Which of the two is
+    right is an open question and not one a test should settle in passing, so these
+    rows use an EMPTY declaration and an absent ATTRIBUTE -- incomplete under either
+    reading.
+
+    RED: delete the branch's own check and the log says the attribute is missing or
+    invalid, which is a report about the device for a fault in the declaration.
+    """
+    _per_map_adapter_with(room_list_shape=None, **override)
+    hass.states.async_set(_VAC, "docked", {"rooms": [{"id": 1, "name": "Kitchen"}]})
+
+    caplog.clear()
+    with caplog.at_level(logging.DEBUG, logger="custom_components.eufy_vacuum.rooms.room_discovery"):
+        assert discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC, map_id="6") == [], (
+            f"discovery proceeded although {missing}"
+        )
+
+    messages = [r.getMessage() for r in caplog.records]
+    # The full prefix, not "discovery config incomplete": the SHARED check one guard
+    # up logs "Discovery config incomplete for ..." and a substring that matched both
+    # would let [RD-4]'s path satisfy this assertion.
+    assert any("Attribute discovery config incomplete" in m for m in messages), (
+        f"the config fault was not reported as one -- logged instead: {messages}"
+    )
+    assert not any("missing or invalid" in m or "missing for" in m for m in messages), (
+        "the fault was reported against the DEVICE rather than the declaration: "
+        f"{messages}"
+    )
+
+    # CONTROL: both keys declared, same payload -- so the SHARED check is not what
+    # answered above.
+    _per_map_adapter_with(room_list_shape=None)
+    rooms = discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC, map_id="6")
+    assert [r["room_id"] for r in rooms] == [1], (
+        "control: a complete attribute declaration must discover the room, or the "
+        "first completeness check is what refused and this names the wrong guard"
+    )
+
+
+def _discover_segments(hass, rows):
+    """Discover from a RAW segment list -- rows exactly as given.
+
+    `_rooms_named` builds well-formed `{"id": ..., "name": ...}` dicts from (name, id)
+    pairs, which cannot express a row that is not a dict or is missing a key.
+    """
+    _discovery_adapter()
+    hass.states.async_set(_VAC, "docked", {"segments": rows})
+    return discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC, map_id="6")
+
+
+def test_rd20_a_row_that_is_not_a_dict_does_not_stop_the_walk(hass, manager):
+    """[RD-20] The room list arrives from the device, so its ROWS are outside data even
+    when the list itself is well-formed.
+
+    THE JUNK ROWS COME FIRST ON PURPOSE. `continue` and `break` are indistinguishable
+    when the bad row is last; with the real room AFTER them, the discovered room is
+    what proves the walk resumed rather than quietly stopped -- the same positional
+    reasoning as [LS-23] and [PC-4].
+
+    There is no `try` around this walk, so without the guard `"not a dict".get(...)`
+    raises AttributeError straight out of `discover_rooms_for_vacuum`. The cost is
+    therefore not one lost room: the caller gets an exception instead of a room list,
+    so one malformed row in a payload costs the whole discovery.
+
+    RED: delete the guard and this raises AttributeError on the first row.
+    """
+    rooms = _discover_segments(hass, [
+        "not a dict",
+        None,
+        7,
+        ["nested", "list"],
+        {"id": 4, "name": "Pantry"},
+    ])
+
+    assert [r["room_id"] for r in rooms] == [4], (
+        f"the row after four junk rows was not discovered -- got {rooms}"
+    )
+
+
+def test_rd21_a_row_missing_its_name_is_skipped_not_named_none(hass, manager):
+    """[RD-21] A row whose declared name key is ABSENT -- not empty, absent.
+
+    [RD-3] covers an empty name (`""`) and a non-integer id. Neither reaches this
+    guard, because an absent key yields None rather than a falsy string, and None is
+    tested one guard EARLIER.
+
+    ONLY ONE HALF OF THIS COMPOUND GUARD CAN BE MADE RED, and that is the finding
+    rather than the coverage:
+
+      * `raw_name is None` is LOAD-BEARING. Delete it and the row is admitted with
+        `name = str(None).strip()` -- a room literally called "None", slug `none`,
+        which then becomes a stable identity key that reconciliation matches on and
+        the learning baselines hang durable per-room data from.
+      * `raw_id is None` is SUBSUMED, red set deliberately EMPTY. `int(None)` raises
+        TypeError four lines below, inside the `except (TypeError, ValueError):
+        continue` that the non-integer id case already needs, so the row is skipped by
+        the same route and nothing distinguishes the code with that clause from the
+        code without it. Measured by ablation, not argued.
+
+    Both rows are still driven, because both are real device payloads and the id row is
+    what makes the subsumption claim checkable.
+
+    RED: delete `raw_name is None` and the first row arrives as a room named "None".
+    """
+    rooms = _discover_segments(hass, [
+        {"name": "No Id Key"},            # the SUBSUMED half
+        {"id": 11},                       # the LOAD-BEARING half
+        {"id": 12, "name": "Study"},
+    ])
+
+    assert [r["room_id"] for r in rooms] == [12], f"got {rooms}"
+    assert [r["name"] for r in rooms] == ["Study"], (
+        "a row with no name key was admitted as a room -- check whether it is called "
+        "'None'"
+    )
+
+
+def test_rd22_the_fixpoint_bound_is_sufficient_for_the_deepest_chain(
+    hass, manager, caplog
+):
+    """[RD-22] The C16 bound on the uniqueness pass, measured rather than asserted.
+
+    The loop runs `len(rooms) + 1` passes and takes a `for ... else` on non-convergence
+    that WARNS and leaves duplicate slugs in place. Coverage says that else-arm has
+    never executed, and the question a search answered is whether it can: over 608,093
+    simulated (slug, room_id) configurations -- suffix-chain alphabets with distinct
+    ids, and again with duplicate ids -- nothing exhausted the bound. The worst case
+    needs exactly N passes for N rooms, so the bound has exactly ONE pass of slack.
+    Not generous: sufficient.
+
+    This is that worst case, four rooms deep, and it is a real input rather than a
+    constructed one -- it is [RD-14]'s hand-disambiguated "Kitchen R7" user, one floor
+    further on. `slugify_room_name` folds "Attic R2" and "Attic R2 R3" onto exactly the
+    values passes one and two produce (verified: 'Attic R2' -> 'attic_r2',
+    'Attic R2 R3' -> 'attic_r2_r3'), so each pass's output lands on the next room's
+    slug and the collision walks one level deeper per pass.
+
+    [RD-14] is depth three and converges in two rewriting passes, so it stays green on
+    a bound of two. This is the shallowest input that does not.
+
+    THE WARNING ASSERTION IS THE POINT, not the uniqueness one: unique slugs are also
+    what a loop that converged by luck produces. "Did not converge" not being logged is
+    what says the fixpoint was REACHED inside the bound, and it is what makes a
+    shrunken bound red even where the slugs happen to come out distinct.
+
+    RED: `range(len(rooms) + 1)` -> `range(2)` and this is the only test in the suite
+    that reddens -- with a duplicate slug AND the non-convergence warning, which is
+    the else-arm's only route to being executed at all.
+    """
+    caplog.clear()
+    rooms = _rooms_named(hass, [
+        ("Attic", 1), ("Attic", 2), ("Attic R2", 3), ("Attic R2 R3", 4),
+    ])
+
+    slugs = [r["slug"] for r in rooms]
+    assert len(slugs) == 4, f"a room was dropped before disambiguation: {rooms}"
+    assert len(set(slugs)) == 4, f"the uniqueness pass left a duplicate: {slugs}"
+    assert next(r["slug"] for r in rooms if r["room_id"] == 1) == "attic", (
+        "the lowest room_id must keep the bare slug -- the convergence promise"
+    )
+    assert not [
+        r for r in caplog.records
+        if r.levelname == "WARNING" and "did not converge" in r.getMessage()
+    ], "the bound was exhausted on the deepest chain a search could find"
+
+
+# ---------------------------------------------------------------------------
+# NOT TESTED -- `room_discovery.py::discover_rooms_for_vacuum`'s non-convergence
+# `else:` arm (the "did not converge" warning under the uniqueness pass).
+#
+# UNREACHABLE. Each pass resolves exactly one level of collision depth, and the
+# deepest chain N rooms can form is N - 1 levels, so N passes always suffice while the
+# bound is N + 1. Searched rather than argued: 608,093 configurations over two shapes
+# -- distinct room_ids with suffix-chain slug alphabets (exhaustive for N <= 4, two
+# bases, sampled to N = 8) and duplicate room_ids (the `seen_room_ids` dedup normally
+# makes those impossible, so its removal is the other shape) -- and the worst observed
+# was N passes of an N + 1 bound. [RD-22] pins the input that gets closest, so the one
+# pass of remaining slack cannot be spent silently.
+# ---------------------------------------------------------------------------

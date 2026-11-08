@@ -13,9 +13,15 @@ Coverage targets
 [CRR-4] no active_cleaning_target entity declared -> None.
 [CRR-5] entity missing / unavailable / unknown / empty / sentinel -> None.
 [CRR-6] room_id falls back to the dict KEY when the room lacks an explicit room_id.
+[CRR-7] a non-dict row in the stored registry is skipped, and a match AFTER it still
+        resolves (junk rows FIRST, by position).
+[CRR-8] a matched room whose stored room_id will not parse resolves to None, not to a
+        raw string and not by raising -- both except arms driven.
 """
 
 from __future__ import annotations
+
+import pytest
 
 from custom_components.eufy_vacuum.rooms.current_room import resolve_native_current_room_id
 
@@ -92,3 +98,88 @@ def test_room_id_falls_back_to_key():
     """[CRR-6] a managed room lacking an explicit room_id resolves to its dict KEY, so a
     registry that keys by id without repeating it inside the value still resolves."""
     assert _resolve("Dining Room", {7: {"name": "Dining Room"}}) == 7
+
+
+# ---------------------------------------------------------------------------
+# [CRR-7] - [CRR-8]  the managed-room registry is STORED data, so its rows are
+# outside data even though its producer is in this repo.
+#
+# WHAT AN EXCEPTION OUT OF THIS RESOLVER ACTUALLY COSTS, measured at both call
+# sites rather than assumed, because the two differ and the worse one is not the
+# obvious one:
+#
+#   * `mapping/map_source_coordinator.py` calls it INSIDE the refresh's blanket
+#     `except Exception:` whose handler logs and serves an ABSENT MARKER for the
+#     whole frame. So the cost is not a missing highlight -- `_commit_result` is
+#     skipped and the card's map goes dark entirely.
+#   * `listeners/pose_sampler.py` calls it outside its own pose `try`, so the
+#     exception rides up to POSE-5's per-vacuum except: that tick's sample is lost
+#     and logged, and the next tick retries.
+#
+# One junk row in the stored registry therefore blanks a map rather than skipping a
+# room, which is why these guards are tested and not classified as plumbing.
+# ---------------------------------------------------------------------------
+
+
+def test_crr7_a_corrupt_room_row_does_not_hide_a_later_match():
+    """[CRR-7] A non-dict row in the managed-room registry is skipped, and the real
+    room AFTER it still resolves.
+
+    THE JUNK ROWS COME FIRST ON PURPOSE -- `continue` and `break` are
+    indistinguishable when the bad row is last, so the matched room is what proves the
+    walk resumed rather than quietly stopped.
+
+    The registry is read back from `.storage`, so a row that is not a dict is what a
+    hand-edited store, an interrupted write, or a build that keyed this bucket
+    differently leaves behind -- not something an in-process producer would emit today.
+
+    RED: delete the guard and `"corrupt".get("slug")` raises AttributeError, which
+    reaches the map coordinator's blanket except and blanks the frame (see above).
+    """
+    rooms = {
+        1: "corrupt",
+        2: None,
+        3: ["not", "a", "room"],
+        4: 17,
+        7: {"room_id": 7, "name": "Dining Room"},
+    }
+    assert _resolve("Dining Room", rooms) == 7, (
+        "the match after four junk rows was not reached"
+    )
+
+
+@pytest.mark.parametrize("stored_id,arm", [
+    pytest.param(None, "TypeError -- and NOT the CRR-6 key fallback: `.get` only "
+                       "defaults on an ABSENT key, so a key present with a null "
+                       "value yields None", id="null"),
+    pytest.param("kitchen", "ValueError", id="word"),
+    pytest.param("", "ValueError", id="empty"),
+    pytest.param([3], "TypeError", id="list"),
+])
+def test_crr8_a_match_whose_room_id_will_not_parse_resolves_to_none(stored_id, arm):
+    """[CRR-8] The slug matched, and the room's stored id is not a number.
+
+    Both arms of the `except (TypeError, ValueError)` are driven, not whichever came to
+    mind: a string and an empty string raise ValueError, None and a list raise
+    TypeError. Narrowing the tuple to either reddens the other rows.
+
+    This is the one failure mode where the room was FOUND -- the brand's live
+    current-room name matched a managed room -- and the answer still has to be None.
+    Returning the raw value instead would put a string into the render frame's
+    `current_room`, which the card uses as a raster room id, and into the pose ring's
+    per-room split key.
+
+    `return` rather than `continue` is indistinguishable here and deliberately not
+    asserted: RP-015 guarantees slugs are unique within a map, so there is no second
+    room with this slug for a `continue` to reach. Pinning one spelling would assert a
+    preference.
+
+    RED: delete the `except` and this raises straight out of the resolver; narrow it to
+    one error class and the other two rows go red.
+    """
+    rooms = {7: {"room_id": stored_id, "name": "Dining Room"}}
+    assert _resolve("Dining Room", rooms) is None, f"expected the {arm} arm to answer"
+
+    # CONTROL: same room, same name, a parseable id -- so "None" above is the except
+    # answering and not a match that never happened.
+    assert _resolve("Dining Room", {7: {"room_id": "7", "name": "Dining Room"}}) == 7

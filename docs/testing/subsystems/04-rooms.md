@@ -4,6 +4,10 @@ The rooms subsystem owns room discovery, the managed-room CRUD lifecycle, and th
 **access graph** (which rooms grant cleaning access to which, plus the rule
 engine that gates/modifies rooms at start). Covered by **411 tests across 12 files**.
 
+> `rooms/current_room.py` lives in this package but is documented with the map
+> consumers it serves, in [07 — mapping](07-mapping.md) (`CRR-*`) — the render frame's
+> current-room highlight and the pose sampler's attribution read the one resolver.
+
 Source: `custom_components/eufy_vacuum/rooms/`
 Architecture reference: [17 — A Room's Identity](../../dev/17-room-identity.md), [18 — The Access Graph](../../dev/18-access-graph.md)
 
@@ -368,7 +372,8 @@ Rewritten against that, the ablation reddens.
 |---------------|------:|----:|------------|-------|-------|
 | `access_graph.py` | 462 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration | clean |
 | `room_crud.py` | 159 | 97% | `test_room_crud.py`, `test_manager_rooms.py` | integration | **bare x1** |
-| `room_discovery.py` | 167 | 94% | `test_room_discovery.py` | integration | clean |
+| `room_discovery.py` | 167 | 99% | `test_room_discovery.py` | integration | clean |
+| `current_room.py` | 25 | 100% | `test_current_room_resolve.py` (unit) | unit | clean |
 | `reconciliation.py` | 155 | 92% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration | **bare x1** |
 | `source_refresh.py` | 161 | 88% | `test_rooms_source_refresh.py` (unit) | unit | clean |
 | `room_manager.py` | 85 | 97% | `test_room_manager.py` (unit) | unit | clean |
@@ -465,14 +470,91 @@ the reasoning.
 > vocabulary set. The reconciliation additions above therefore use `REC-` rather than
 > extending `MIG-`; check both files before minting a new `MIG-` id.
 
-`access_graph.py` (94%) and `room_discovery.py` (93%) leave mostly
-type-coercion fallbacks and duplicated skip-bad-row branches — the `(TypeError,
-ValueError)` `except` blocks themselves are covered; what is not is the
-*fallback* arms that replace a non-list / non-dict input with `[]` / `{}` and
-the `continue` skip-bad-row guards repeated across the graph walkers
-(`access_graph.py` missing lines 154, 160, 211, 246, 287, 290, 500, 503, 521,
-849, 852, 858, 864, 1100, 1112; `room_discovery.py` missing lines 147, 235,
-240, 248, 252, 264, 280, 286). These are normalization plumbing, not behavior.
+`access_graph.py` (94%) leaves mostly type-coercion fallbacks and duplicated
+skip-bad-row branches — the `(TypeError, ValueError)` `except` blocks themselves are
+covered; what is not is the *fallback* arms that replace a non-list / non-dict input
+with `[]` / `{}` and the `continue` skip-bad-row guards repeated across the graph
+walkers (`access_graph.py` missing lines 154, 160, 211, 246, 287, 290, 500, 503, 521,
+849, 852, 858, 864, 1100, 1112). These are normalization plumbing, not behavior.
+
+### `room_discovery.py` — 94% → 99% (2026-11-08), and the entry this corrects
+
+This section used to fold `room_discovery.py` into the paragraph above as
+"normalization plumbing, not behavior", over eight line numbers from a revision that
+no longer exists. Both halves were wrong. A fresh branch-coverage run named seven
+statements and seven arms, **six of each carried real behaviour**, and they are now
+covered by `RD-16`–`RD-21`:
+
+| id | what it holds |
+|---|---|
+| `RD-16` | a declaration the map enumerator cannot READ makes no `MAP-ANCHOR-1` judgement — the declaration-shaped twin of `RD-ANCHOR-3`'s boot window |
+| `RD-17` | ISSUE #46: the one cached map must actually carry room-shaped rows |
+| `RD-18` | `RD-SHAPE-3`'s refusing twin — a single per-map attribute with no usable rooms anchors nothing |
+| `RD-19` | the attribute branch's OWN completeness check — **the guard `RD-4` is named after and never reaches** |
+| `RD-20` | a non-dict row does not stop the discovery walk (junk rows FIRST, by position) |
+| `RD-21` | a row missing its name key is skipped, not admitted as a room called `"None"` |
+| `RD-22` | the C16 fixpoint bound is sufficient for the deepest chain a search could find |
+
+**`RD-4` is the one to read, and it is the fourth test found this way in two days.**
+It is called "incomplete discovery config → []" and it never reaches that guard:
+`discover_rooms_for_vacuum` checks completeness TWICE — once for
+`room_id_key`/`room_name_key`, shared by both sources, and once for
+`room_list_entity`/`room_list_attribute`, which belongs to the attribute branch alone
+and which the service branch never reads. `RD-4` omits the SHARED keys, so it returns
+at the first check with the second still unexecuted. Green, and naming a line coverage
+reported missing the whole time. Every test above therefore carries a
+`@pytest.mark.covers` marker, which is exactly the shape
+[`scripts/check_covers.py`](../../../scripts/check_covers.py) was built for.
+
+**`RD-19` asserts the DIAGNOSIS, not the return value, and had to.** Ablated, the
+guard changes no answer: with no attribute declared the branch reads
+`state.attributes.get(None)`, gets `None`, and falls out at "missing or invalid"; with
+an empty entity key it looks up the entity `""`, finds no state, and falls out there
+instead. Both answer `[]` by a longer road, so an assertion on `== []` alone is
+subsumed and passes with the guard deleted — measured. What the guard buys is the
+right diagnosis: the user is told their CONFIG is incomplete rather than that a device
+attribute is missing, which is the difference between editing an adapter and chasing a
+device. The assertion matches the full `"Attribute discovery config incomplete"`
+prefix, because the shared check one guard up logs `"Discovery config incomplete"` and
+a substring matching both would let `RD-4`'s own path satisfy it.
+
+**Three clauses measured SUBSUMED, red sets declared empty.** A compound guard that
+exists reads as complete, so each clause was ablated alone:
+
+- `_known_map_ids`' `not attr` clause — `state.attributes.get(None)` yields `None`, the
+  key set comes out empty, and `return keys or None` already answers `None`.
+- the discovery walk's `raw_id is None` clause — `int(None)` raises `TypeError` four
+  lines below, inside the `except (TypeError, ValueError): continue` the non-integer
+  id case already needs. Its sibling `raw_name is None` is load-bearing: delete it and
+  the row is admitted as a room literally called `"None"`, slug `none`, which then
+  becomes the identity key reconciliation matches on and the learning baselines hang
+  durable per-room data from.
+- both `isinstance(..., list)` clauses in the two single-map anchors are subsumed *for
+  an iterable input* — `any(isinstance(row, dict) for row in segments)` walks a
+  string's characters and a dict's keys, finds no dict and refuses by itself. A bare
+  `7` is the only input that distinguishes them, so `RD-17` and `RD-18` each carry a
+  `not_iterable` row; without it those clauses have no red input at all.
+
+**What is left is one UNREACHABLE arm**, the non-convergence `else:` on the slug
+uniqueness pass (the "did not converge" warning). Each pass resolves exactly one level
+of collision depth and the deepest chain N rooms can form is N−1 levels, so N passes
+always suffice while the bound is N+1. Searched rather than argued: 608,093
+configurations over two shapes — distinct `room_id`s with suffix-chain slug alphabets
+(exhaustive to N=4, two bases, sampled to N=8) and duplicate `room_id`s (the
+`seen_room_ids` dedup normally makes those impossible, so its removal is the other
+shape) — and the worst case observed needs exactly N passes of an N+1 bound. The bound
+is not generous; it is *sufficient*, with one pass of slack. `RD-22` pins the input
+that gets closest ("Attic", "Attic", "Attic R2", "Attic R2 R3"), and asserts no
+non-convergence warning rather than only that the slugs are distinct — unique slugs
+are also what a loop that converged by luck produces. Shrinking the bound to 2 reddens
+`RD-22` alone, and is the only route by which that else-arm has ever executed.
+
+> **An open disagreement this deliberately does not settle.** The adapter schema
+> documents `discovery.room_list_entity` as "Default: `'vacuum_entity'`", while
+> `discover_rooms_for_vacuum` reads it with no default — so an adapter that omits the
+> key discovers zero rooms. `RD-19`'s rows use an *empty* declaration and an *absent
+> attribute*, both incomplete under either reading, so no test pins the disputed
+> behaviour in passing.
 
 One genuine but minor behavior branch remains untested:
 `access_graph.py` around lines 685-698 — the per-issue-type editable-target
@@ -482,10 +564,9 @@ generic legality fallback (see "What's tested"); the four named per-type reason
 strings are deliberately left unexercised — they are unreachable elif-arms
 already covered by the generic-fallback test. Also uncovered: one
 effectively-unreachable cycle-DFS artifact (`access_graph.py` ~964, the
-`cycle_chain = [room_id]` else branch) and the `_single_cached_map_id`
-non-list-of-dicts-segments guard (`return None`) in `room_discovery.py`
-(147) — part of the issue-#46 single-map anchor fallback, not
-pragma-excluded.
+`cycle_chain = [room_id]` else branch). `room_discovery.py`'s
+`_single_cached_map_id` non-list-of-dicts-segments guard **used to be named here
+too and is now covered by `RD-17`** — see the `room_discovery.py` section above.
 
 (Exact line numbers above are from a fresh coverage run against this
 worktree's revision and will drift as the modules change — treat the
