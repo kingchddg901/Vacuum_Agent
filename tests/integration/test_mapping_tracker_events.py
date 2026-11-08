@@ -523,6 +523,9 @@ def test_position_update_with_an_unreadable_position_does_nothing(tracker):
     assert ticks == []
     assert _VAC not in tracker._last_recorded_pos
     assert _VAC not in tracker._last_dock_pos
+
+
+@pytest.mark.covers("custom_components/eufy_vacuum/mapping/tracker.py::MappingTracker._read_active_cleaning_target")
 def test_mte18_reading_the_native_current_room_target(tracker, hass):
     """[MTE-18] The device's own current-room signal, and its two None arms.
 

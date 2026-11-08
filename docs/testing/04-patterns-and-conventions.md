@@ -445,6 +445,91 @@ inside it. The bar also differs: Python is enforced against `docs/testing/`
 specifically, while the node figures above count a mention anywhere under `docs/`,
 which is the more generous test.
 
+### Covers gate — `scripts/check_covers.py`, `tests/test_covers_gate.py`
+
+A test may **name the symbol it covers**, and this gate proves it does:
+
+```python
+@pytest.mark.covers("custom_components/eufy_vacuum/mapping/tracker.py::MappingTracker._compact_dock_drift")
+def test_mt6_compaction_keeps_the_meta_header_and_the_newest_entries(tracker, tmp_path):
+```
+
+```bash
+python scripts/check_covers.py          # every marker in tests/ (also a CI step)
+python scripts/check_covers.py --list   # just show what is declared
+```
+
+It exists because of a count, not an incident. On **2026-11-07 six tests in this
+repo passed without exercising what they named** — four of them written that same
+day, by the same author, while closing coverage gaps:
+
+| the test | why it was worthless |
+| --- | --- |
+| `LID-11` / `LID-12` | `rooms/room_discovery.py` already renamed the duplicate slug and already dropped the bad id, so each assertion held for a reason other than the one it named — and the lines they claimed stayed **missed** |
+| a staleness boundary pair | fixtures built **from the constant under test**, so 30 → 31 and 30 → 29 both left the suite green |
+| `test_harvest_units.py` | imported the unit table it was meant to be checking |
+| a rect-shape guard | subsumed by the `except` below it; ablating the guard changed nothing |
+| `MTE-15` | asserted on a counter that only moves once a room is current, so it measured `0 == 0` |
+
+**What caught each one was a second instrument** — coverage disagreeing with a green
+test, a declared-empty red set, or a control assertion. **The suite alone never
+caught one.** This closes the commonest of those shapes unattended: the test passes
+and the line it claims is still uncovered.
+
+**Two checks, and they are not the same claim:**
+
+- **REACH**, per test — every test naming a symbol must itself execute at least one
+  line inside it.
+- **SPAN**, per symbol — the declaring tests *together* must leave no line of it
+  uncovered. Several tests legitimately share one symbol, one per branch, so this
+  half stays collective. It is the half that catches `LID-11`'s shape, where the
+  test does enter but its named lines stay missed.
+
+⚠ **REACH was missing from v1, and an ablation on the real repo is what found it.**
+v1 ran every test naming a symbol in one coverage run and asked whether the span
+came out covered. Repointing a real marker at a symbol its test never calls —
+`MTE-18` at `_compact_dock_drift` — left the gate **green**, because the four
+genuine compaction tests were in the same run and answered for the liar. The hole
+sat one level below the one v1's own grouping comment already warned about, written
+by the same hand that then shipped it. `CG-1` could not see it: its lying test was
+alone in its group, so the missing red input was the *mixed* group, now `CG-7`.
+
+⚠ **Contexts need a non-default measurement core.** REACH is attributed with
+coverage's own per-test contexts (`--cov-context=test`), and on python 3.14 coverage
+defaults to `core=sysmon`, which warns *"Dynamic contexts aren't supported … context
+data may be incomplete"*. It is not cosmetic: under `sysmon` a two-test probe
+reported **four** context names, under `COVERAGE_CORE=ctrace` the same two tests
+reported **five** — the missing one a `setup` phase. Incomplete attribution makes
+REACH fail tests that do reach, so the gate pins `ctrace` and then **fails loudly**
+if the warning appears anyway rather than reading a half-populated report as a
+verdict.
+
+**What it deliberately does not do.** It catches one of the six shapes. A fixture
+derived from its own constant, a self-referential import, a subsumed guard and a
+vacuous assertion all cover their target lines perfectly well — coverage cannot see
+any of them, and **ablation is still the only instrument that can**. This is not a
+substitute for declaring a red set; it is the cheap half that runs unattended.
+
+**No line numbers, on purpose.** Targets are `file.py::symbol`, never `file.py:120`.
+Line citations rot: inserting 21 comment lines into `dispatch/manager.py` on the day
+this was written moved its guards from 669/706 to 727/730, and every line citation
+from that morning was wrong by the afternoon.
+`scripts/check_doc_citations.py` reached the same conclusion for docs and calls a
+line citation *"a defect by rule"*.
+
+**Its own coverage run.** The CI behaviour gate is deliberately `--no-cov`
+(coverage is inspection-only there), so this cannot read a shared report. It runs
+the declaring tests only, scoped to the target's package directory — one pytest
+subprocess per declared *symbol*, not per marker. Markers inside a test class are
+reported **MALFORMED** rather than skipped, because a declaration nothing can parse
+is invisible and invisible reads as clean.
+
+`tests/test_covers_gate.py` drives the real script as a subprocess against
+synthetic trees in `tmp_path` (via the `COVERS_ROOT` override) — the lying test
+cannot live in the real suite, which is why that override exists. `CG-1` is the
+bite; `CG-2` is the control, and without it `CG-1` would pass just as happily if
+the gate failed on everything.
+
 ### The generated `Mocking` column
 
 Each subsystem coverage table carries a `Mocking` cell derived from the same

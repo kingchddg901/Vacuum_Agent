@@ -159,6 +159,7 @@ def _body(path: Path) -> list[dict]:
     return [r for r in rows if "_meta" not in r]
 
 
+@pytest.mark.covers("custom_components/eufy_vacuum/mapping/tracker.py::MappingTracker._compact_dock_drift")
 def test_mt6_compaction_keeps_the_meta_header_and_the_newest_entries(tracker, tmp_path):
     """[MT-6] The header stays line ONE and the trim keeps the NEWEST body entries.
 
@@ -183,6 +184,7 @@ def test_mt6_compaction_keeps_the_meta_header_and_the_newest_entries(tracker, tm
     )
 
 
+@pytest.mark.covers("custom_components/eufy_vacuum/mapping/tracker.py::MappingTracker._compact_dock_drift")
 def test_mt7_a_log_with_no_header_is_trimmed_from_the_end(tracker, tmp_path):
     """[MT-7] The `elif` arm: no `_meta` line, so the whole file is the body.
 
@@ -202,6 +204,7 @@ def test_mt7_a_log_with_no_header_is_trimmed_from_the_end(tracker, tmp_path):
     assert [r["n"] for r in rows] == [5, 6, 7]
 
 
+@pytest.mark.covers("custom_components/eufy_vacuum/mapping/tracker.py::MappingTracker._compact_dock_drift")
 def test_mt8_a_log_under_the_cap_survives_compaction_unchanged(tracker, tmp_path):
     """[MT-8] Neither trim branch taken: the rewrite must be faithful.
 
@@ -220,6 +223,7 @@ def test_mt8_a_log_under_the_cap_survives_compaction_unchanged(tracker, tmp_path
     assert path.read_text(encoding="utf-8") == before
 
 
+@pytest.mark.covers("custom_components/eufy_vacuum/mapping/tracker.py::MappingTracker._compact_dock_drift")
 def test_mt9_compaction_leaves_no_temp_file_behind(tracker, tmp_path):
     """[MT-9] The write goes through a `.tmp` and is MOVED into place.
 

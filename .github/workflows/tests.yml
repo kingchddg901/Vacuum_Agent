@@ -34,6 +34,20 @@ jobs:
       - name: Run test suite (behavior gate)
         run: python -m pytest tests --no-cov -p no:cacheprovider --tb=short
 
+      # A GREEN TEST IS NOT EVIDENCE IT TESTED ANYTHING. Six tests in this repo
+      # passed on 2026-11-07 without exercising what they named, four written that
+      # same day while closing coverage gaps, and in every case what caught it was a
+      # SECOND INSTRUMENT -- coverage disagreeing with a green test, a declared-empty
+      # red set, a control assertion. The step above cannot see this class of defect
+      # at all: it is the instrument being checked.
+      #
+      # It cannot share that run's data either. The behaviour gate is deliberately
+      # `--no-cov`, so this does its own measurement -- the declaring tests only,
+      # scoped to the target's package, attributed PER TEST via coverage contexts.
+      # Cost is one pytest subprocess per declared symbol, not per marker.
+      - name: Check every `covers` declaration holds
+        run: python scripts/check_covers.py
+
   node:
     name: node scripts
     runs-on: ubuntu-latest
