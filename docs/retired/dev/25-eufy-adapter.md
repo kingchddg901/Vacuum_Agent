@@ -464,7 +464,8 @@ Two flags are hardcoded literals, because they can't be settled by a runtime
 entity probe: `position_lock_reliable = False` (Eufy re-bases the raw
 coordinate frame each session — retained against a possible trace-bounds
 revival; the position/bounds room detector it once gated was removed with the
-mapping split, so **no code reads this flag today**, `adapters/eufy/adapter.py#eufy_room_pixels_v1`) and
+mapping split, so **no code reads this flag today**,
+`adapters/eufy/adapter.py::register_eufy_adapter_for_vacuum`) and
 `rooms_unique_per_job = True` (no vacuum-then-mop whole-home mode, so a room is
 cleaned at most once per job).
 
@@ -472,7 +473,7 @@ The zone-clean device limits sit alongside `supports_zone_clean`: `zone_max: 10`
 zones, each zone **side** `zone_min_side_m: 0.5` / `zone_max_side_m: 10.0` — a
 **per-SIDE** bound (checked against the live-map dims in `dispatch_zone_clean`),
 **not** Roborock's per-area bound (the §4.5 brand-variant distinction) — and
-`supports_zone_repeat: False` (`adapters/eufy/adapter.py#eufy_room_pixels_v1`, RF-23/Q12): the fork's
+`supports_zone_repeat: False` (`dispatch/manager.py#IN76GE4W`, RF-23/Q12): the fork's
 `zone_clean` command has no repeat/passes field at all, so this is declared
 explicitly rather than left to an implicit default, making `dispatch_zone_clean`'s
 normalization a documented adapter decision. See

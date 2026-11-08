@@ -150,15 +150,23 @@ Never wrong: a record of what was true then.
 
 ## Gates
 
-Documentation is a **release** gate, not a per-push one.
+Documentation *review* is a **release** gate. Four of the five commands below are
+**per-push** in CI, and the `when` column is the part that rots — it read "not a
+per-push one" for all five until 2026-11-07, by which point only one still was.
 
-| command | checks |
-|---|---|
-| `python scripts/check_doc_citations.py` | every `::symbol` resolves; flags surviving line citations |
-| `python scripts/check_generated_docs.py` | generated docs match their generator |
-| `python scripts/check_docs_index.py` | every doc is reachable from an index |
-| `python scripts/doc_anchor.py --check` | anchor identity: duplicate, broken, moved, malformed |
-| `mkdocs build --strict` | **links only** — it has passed clean through eleven false sentences and can never be the freshness gate |
+| command | checks | when |
+|---|---|---|
+| `python scripts/check_doc_citations.py` | `::symbol` resolves, `#name` string present; tallies (does **not** fail on) surviving line citations | per push — `tests.yml` *generated docs* |
+| `python scripts/check_generated_docs.py` | generated docs match their generator | per push — `tests.yml` *generated docs* |
+| `python scripts/check_docs_index.py` | every doc is reachable from an index | **not in CI** — a doc-commit rule by the 2026-06-12 ruling, run by hand |
+| `python scripts/doc_anchor.py --check` | anchor identity: duplicate, broken, moved, malformed | per push — `tests.yml` *generated docs* |
+| `mkdocs build --strict` | **links only** — it has passed clean through eleven false sentences and can never be the freshness gate | per push on `docs/` — `theme-intake.yml` |
+
+The first and fourth are **one pair, not two gates**: `doc_anchor` owns ID-form
+anchors (`CN…`/`IN…`) and resolves them repo-wide; `check_doc_citations` skips those
+and owns `::symbol` plus any other `#name` string. Gating one without the other
+leaves half the forms unchecked, which is exactly what happened — see
+[04 § Line-number citations](../testing/04-patterns-and-conventions.md).
 
 Naming a file in backticks does **not** make it reachable. That is how the whole of `design/`
 once went missing from the corpus.

@@ -643,6 +643,41 @@ precision being given up was fictional.
 python scripts/check_doc_citations.py --summary
 ```
 
+**Gated in CI since 2026-11-07, and until then it was the half of a pair that ran
+nowhere.** The two citation gates divide the work deliberately:
+
+| form | validated by | failure it reports |
+|---|---|---|
+| ID-form anchor — `CN…`, `IN…`, written file.py#ID | `doc_anchor.py --check` | `MOVED` / `BROKEN`, resolved **repo-wide** |
+| `file.py::symbol` | `check_doc_citations.py` | `NO-SYMBOL` |
+| any other #name fragment | `check_doc_citations.py` | `NO-ANCHOR`, substring in that one file |
+
+⚠ **The forms in that table are spelled oddly on purpose: an example citation IS a
+citation.** Both gates match a backticked `file.py` immediately followed by `#token`,
+and `doc_anchor`'s `BARE_RE` matches a well-formed anchor id *anywhere* — backticks,
+prose, a table cell illustrating the syntax. Writing this section the natural way
+failed both gates on the commit that added them: a quoted example of the broken
+citation was reported `NO-ANCHOR`, and a plausible-looking placeholder id was
+reported `BROKEN … defined nowhere`. Use `CN…` with an ellipsis for a specimen id,
+and keep the file and the `#` fragment out of one code span.
+
+`check_doc_citations.py` explicitly skips ID-form anchors (`if ANCHOR_ID_RE.match(anchor):
+continue`) so that two tools never render opposite verdicts on one citation — a moved
+but valid anchor is `doc_anchor`'s business. The consequence of gating only
+`doc_anchor` was that the whole symbol-and-name half went unchecked, and it was not
+hypothetical: two citations in `docs/retired/dev/25-eufy-adapter.md` pointed at
+`adapters/eufy/adapter.py` with an `#eufy_room_pixels_v1` fragment — a map **format**
+key that lives in `mapping/map_source_coordinator.py` and was never an anchor at all
+— pasted onto two unrelated capability claims, while CI stayed green.
+
+⚠ **The line-citation tally above is advisory, which is what makes gating it safe.**
+`main` ends `return 1 if all_problems else 0`, so the 109 surviving `file.py:N`
+citations (100 of them unverifiable) are *printed* and never fail the run. Clearing
+that backlog is therefore not a precondition for the gate, and the gate did not need
+narrowing to one defect class — both of which looked true before the exit path was
+read. It is stdlib-only and ~1.2 s, so it rides in the `generated-docs` job beside
+its sibling rather than paying for a runner.
+
 ### Testing a generator: assert on the DOCUMENT
 
 `EVT-1`..`EVT-3` in the same file cover `scripts/gen_event_docs.py`, and they read

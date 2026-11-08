@@ -95,3 +95,25 @@ jobs:
       # its own runner. Exit 1 on any MALFORMED, DUPLICATE, BROKEN or MOVED anchor.
       - name: Check anchor ids are unique and every citation resolves
         run: python scripts/doc_anchor.py --check
+
+      # THE SIBLING GATE, and it was the only one of the pair running nowhere. The two
+      # split the work on purpose: `doc_anchor --check` owns ID-form anchors
+      # (`CN…`/`IN…`), resolving them repo-wide so it can tell MOVED from DANGLING,
+      # and SKIPS them here; this one owns the other two forms, reporting NO-SYMBOL for
+      # a `file.py::symbol` the file does not declare and NO-ANCHOR for a
+      # `file.py#name` string absent from it. So gating only the first left the whole
+      # symbol-and-name half unchecked -- which is how two citations in
+      # `docs/retired/dev/25-eufy-adapter.md` pointed at a non-existent
+      # `adapter.py#eufy_room_pixels_v1` (a map FORMAT key that lives in
+      # map_source_coordinator.py) while CI stayed green.
+      #
+      # SAFE TO GATE AS-IS, measured rather than assumed. It also tallies 109
+      # `file.py:N` line citations and calls them "every one a defect by rule", 100 of
+      # them unchecked -- but that tally is ADVISORY: `main` ends
+      # `return 1 if all_problems else 0`, so the form counts are printed and never
+      # fail. The backlog therefore does NOT have to be cleared first, and the gate
+      # does not need narrowing to one defect class.
+      # Stdlib-only (it imports doc_anchor for the shared token pattern rather than
+      # restating it) and ~1.2 s, so it rides in this job like its sibling.
+      - name: Check every doc citation names something that exists
+        run: python scripts/check_doc_citations.py
