@@ -22,22 +22,52 @@ Options flow:
           refused with a form + vacuum_not_found error, not written to options.
   [OF-6]  FLOW-2: switching to a different (existing) vacuum logs a warning
           naming the old vacuum_entity_id, and does not touch its stored data.
+  [OF-7]  The DEFERRED INSTALL through this screen: a blank-vacuum entry gets a
+          picker with NO default, and a notes-only submit saves no vacuum key.
+  [OF-8]  live:ENT-7: a role whose reason is not `resolved`, and a role recorded
+          as CONTESTED under `entity_augmentation["ambiguous"]`, each get an
+          override picker — and a RESOLVED role does not.
+  [OF-9]  A stored override comes back as that picker's default.
+  [OF-10] Saving one override MERGES with another role's stored override rather
+          than replacing the vacuum's whole role map.
+  [OF-11] A blank or padded override is refused by the entity selector, before
+          `async_step_init` is entered at all.
+  [OF-12] A missing runtime still opens the form, and does so WITHOUT taking the
+          exception path.
+  [OF-13] The positive control for [OF-12]: a runtime that cannot answer DOES log
+          the record, so [OF-12]'s absence assertion is not an empty-set pass.
+
+Every one of [OF-7]..[OF-13] has a named production edit that reddens it and
+nothing else; the nine of them were run as ablations, each reddening exactly one
+test. Two of those edits are worth knowing about because they look harmless:
+`merged = {}` (a replace) and `_ANY_ENTITY_SELECTOR = str`.
 """
 
 from __future__ import annotations
 
+import logging
+from typing import Any
 from unittest.mock import patch
 
 import pytest
+import voluptuous as vol
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.eufy_vacuum import config_flow as config_flow_module
 from custom_components.eufy_vacuum.const import (
     CONF_NOTES,
     CONF_TESTED_MODEL,
     CONF_VACUUM_ENTITY_ID,
+    DATA_RUNTIME,
     DOMAIN,
+    ENTITY_OVERRIDES_KEY,
+)
+from custom_components.eufy_vacuum.core.capabilities import (
+    REASON_ABSENT,
+    REASON_OVERRIDE_UNRESOLVED,
+    REASON_RESOLVED,
 )
 from custom_components.eufy_vacuum.adapters.eufy.const import SUPPORTED_TESTED_MODEL
 
@@ -333,3 +363,398 @@ async def test_options_flow_reads_vacuum_from_data(
         if hasattr(k, "default")
     }
     assert defaults.get(CONF_VACUUM_ENTITY_ID) == "vacuum.alfred"
+
+
+# ---------------------------------------------------------------------------
+# Options flow — [OF-7] through [OF-12]
+#
+# THE DEFERRED INSTALL AND THE ENTITY-OVERRIDE PICKERS, neither of which had any
+# test. `mock_entry_no_vacuum` already existed in tests/conftest.py and was used
+# only by test_init_setup.py, so the options flow -- which docs/dev/44 § 1 names as
+# the RECOVERY PATH for exactly that install -- was never opened on one.
+#
+# A note on what is asserted. `vol.Optional(key)` with no default and
+# `vol.Optional(key, default=None)` both read as `None` through the
+# `k.default() if callable(...)` idiom used above, so these tests compare against
+# `vol.UNDEFINED` itself. The weaker form would pass if a default were introduced,
+# which is the one change it exists to catch.
+# ---------------------------------------------------------------------------
+
+def _schema_markers(result) -> dict[str, Any]:
+    """{field name: the voluptuous Marker}, so a default can be told from none."""
+    return {str(k): k for k in result["data_schema"].schema}
+
+
+def _override_field(role: str) -> str:
+    """The options form's field name for one role's entity override.
+
+    Derived from the shipped prefix rather than hand-written: a test that spells
+    `entity_override__x` itself keeps passing when the prefix moves, and the field
+    it then asserts on is one the form no longer renders.
+    """
+    return f"{config_flow_module._OVERRIDE_FIELD_PREFIX}{role}"
+
+
+def _seed_capabilities(manager, vacuum_entity_id: str, snapshot: dict[str, Any]) -> None:
+    """Store a capabilities snapshot the way detection would have left it.
+
+    NO MOCK OF THE PRODUCER. `EufyVacuumManager.get_vacuum_capabilities_snapshot`
+    is documented as reading `self.data["capabilities"]` as-is and never running
+    detection, so seeding the store exercises the real accessor rather than a fake
+    that agrees with my reading of it. The vocabulary below is the real one:
+    `entity_resolution_reasons` and `entity_augmentation` are built in
+    `core/capabilities.py` (the dict returned alongside anchor `CNAYBZY3`), the
+    reason words come from its `REASON_*` constants, and `ambiguous` is a
+    `{role: [competing entity ids]}` dict set only when non-empty.
+    """
+    manager.data.setdefault("capabilities", {})[vacuum_entity_id] = snapshot
+
+
+@pytest.mark.covers("custom_components/eufy_vacuum/config_flow.py::EufyVacuumOptionsFlow._options_schema")
+@pytest.mark.covers("custom_components/eufy_vacuum/config_flow.py::EufyVacuumOptionsFlow._current_overrides")
+async def test_of7_deferred_install_can_save_notes_without_choosing_a_vacuum(
+    hass: HomeAssistant, mock_entry_no_vacuum
+):
+    """[OF-7] The install that skipped the vacuum picker, through the options form.
+
+    `docs/dev/44-onboarding-and-first-run.md` § 1 states the whole point of
+    accepting a blank vacuum: it "converts a hard failure into a deferred step",
+    and this flow is where the step is deferred TO. That path had no test, and two
+    arms of the code exist only for it -- the schema arm that registers the vacuum
+    field with NO default, and the submit arm that builds `data` with no vacuum key.
+
+    THE TWO ASSERTIONS ARE ONE CLAIM. On a configured entry the field carries
+    `default=current_vacuum`, so voluptuous fills the default back in whenever the
+    field is omitted -- that is [OF-3]'s subject, and it is why the no-vacuum submit
+    arm is unreachable on a configured entry. Give the blank entry a default too and
+    the submit would carry a vacuum id the user never chose, so the schema check and
+    the saved-data check are the same guarantee read at both ends. Measured: a
+    `default=""` there does not merely add a key, it makes the screen UNSUBMITTABLE
+    -- voluptuous applies the default and then runs the validator, which refuses
+    `""` as an entity id, so the recovery form raises for exactly the user it exists
+    for.
+
+    LIMIT, STATED BECAUSE IT WAS MEASURED. This pins the arm against ADDING the
+    vacuum key, not against over-copying: rewrite it as `data = dict(user_input)`
+    and all of these tests still pass. That substitution is behaviourally
+    indistinguishable on every reachable input rather than merely unnoticed --
+    voluptuous rejects extra keys, and a blank-vacuum entry renders no override
+    fields (`_resolution_gaps` returns `()` on a falsy vacuum), so `user_input` on
+    this path can only ever be `{CONF_NOTES: ...}`. Worth knowing before someone
+    "simplifies" the arm on a path where that stops being true.
+    """
+    mock_entry_no_vacuum.add_to_hass(hass)
+
+    init = await hass.config_entries.options.async_init(mock_entry_no_vacuum.entry_id)
+    assert init["type"] == FlowResultType.FORM
+    markers = _schema_markers(init)
+    assert CONF_VACUUM_ENTITY_ID in markers, (
+        "the picker must still be offered -- it is the recovery affordance"
+    )
+    assert markers[CONF_VACUUM_ENTITY_ID].default is vol.UNDEFINED, (
+        "a blank entry must get NO default, or voluptuous submits a vacuum the "
+        "user never picked"
+    )
+
+    result = await hass.config_entries.options.async_configure(
+        init["flow_id"], user_input={CONF_NOTES: "still deciding"},
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"] == {CONF_NOTES: "still deciding"}
+    assert CONF_VACUUM_ENTITY_ID not in result["data"]
+
+
+@pytest.mark.covers("custom_components/eufy_vacuum/config_flow.py::EufyVacuumOptionsFlow._options_schema")
+async def test_of8_only_unresolved_and_ambiguous_roles_get_an_override_picker(
+    hass: HomeAssistant, mock_config_entry, manager
+):
+    """[OF-8] live:ENT-7 — which roles the form offers to fix, and which it does not.
+
+    THE CONTROL IS THE POINT. A gap computation that returned every role it saw
+    would pass any test that merely counts pickers, so this seeds one role that
+    RESOLVED cleanly and asserts it gets no field. Without that row the test would
+    hold just as well if `_resolution_gaps` ignored the reason entirely.
+
+    Both sources of a gap are seeded, because they arrive by different routes and
+    `core/capabilities.py` says so at the site carrying anchor `CNAYBZY3`: a role
+    whose reason is not `resolved`, and a role recorded in
+    `entity_augmentation["ambiguous"]` because companions CONTESTED it and the
+    resolver declined to guess. `gaps.update(ambiguous)` reads a dict's keys, so an
+    ambiguous role contributes its name and not its candidate list.
+    """
+    mock_config_entry.add_to_hass(hass)
+    _seed_capabilities(manager, "vacuum.alfred", {
+        "entity_resolution_reasons": {
+            "task_status": REASON_RESOLVED,
+            "water_level": REASON_ABSENT,
+        },
+        "entity_augmentation": {
+            "ambiguous": {
+                "cleaning_area": [
+                    "sensor.alfred_area_a", "sensor.alfred_area_b",
+                ],
+            },
+        },
+    })
+
+    init = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+
+    assert init["type"] == FlowResultType.FORM
+    markers = _schema_markers(init)
+    assert _override_field("water_level") in markers, "an absent role must be fixable"
+    assert _override_field("cleaning_area") in markers, (
+        "a CONTESTED role must be fixable -- declining to guess is the reason the "
+        "picker exists"
+    )
+    assert _override_field("task_status") not in markers, (
+        "a resolved role must NOT be offered a picker; this is the row that makes "
+        "the other two mean something"
+    )
+    # The ambiguous role's candidates are not themselves roles.
+    assert _override_field("sensor.alfred_area_a") not in markers
+
+
+@pytest.mark.covers("custom_components/eufy_vacuum/config_flow.py::EufyVacuumOptionsFlow._options_schema")
+@pytest.mark.covers("custom_components/eufy_vacuum/config_flow.py::EufyVacuumOptionsFlow._current_overrides")
+async def test_of9_a_stored_override_prefills_its_picker(
+    hass: HomeAssistant, mock_config_entry, manager
+):
+    """[OF-9] The `if existing:` arm — a previous choice comes back as the default.
+
+    Without it the user re-picks from scratch every time the screen opens, and
+    because the field is rendered only while the role is still unresolved, that is
+    exactly when they are most likely to be mid-diagnosis. Asserted against
+    `vol.UNDEFINED` rather than "is not None", since the no-default arm yields a
+    marker whose default is that sentinel.
+    """
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={
+            ENTITY_OVERRIDES_KEY: {
+                "vacuum.alfred": {"water_level": "number.alfred_water"},
+            },
+        },
+    )
+    _seed_capabilities(manager, "vacuum.alfred", {
+        "entity_resolution_reasons": {"water_level": REASON_OVERRIDE_UNRESOLVED},
+    })
+
+    init = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+
+    markers = _schema_markers(init)
+    field = _override_field("water_level")
+    assert field in markers
+    default = markers[field].default
+    assert default is not vol.UNDEFINED, "a stored override must come back pre-filled"
+    assert default() == "number.alfred_water"
+
+
+async def test_of10_submitting_one_override_keeps_another_roles_stored_override(
+    hass: HomeAssistant, mock_config_entry, manager
+):
+    """[OF-10] MERGE, NEVER REPLACE — and only a pre-seeded store can tell them apart.
+
+    The shipped comment describes the failure a replace would cause, and it is not
+    cosmetic: these fields are rendered ONLY for roles that failed to resolve, so a
+    role fixed by an override stops being unresolved and its field disappears from
+    the next render. Rebuild the map from the form alone and that override is
+    dropped, the role breaks again, the field returns -- an install oscillating
+    between fixed and broken on every visit.
+
+    A test that submits one override into an EMPTY store cannot see any of that: a
+    replace and a merge produce the identical result. So `dock_status` is stored
+    first and deliberately left OUT of both the gap set and the submitted form, the
+    way a role already fixed by an override behaves. If the merge became a replace,
+    `dock_status` vanishes from the saved options and this goes red.
+    """
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={
+            ENTITY_OVERRIDES_KEY: {
+                "vacuum.alfred": {"dock_status": "binary_sensor.alfred_docked"},
+            },
+        },
+    )
+    # Only water_level is unresolved now -- dock_status was fixed by the override
+    # above, so the form does not render a field for it.
+    _seed_capabilities(manager, "vacuum.alfred", {
+        "entity_resolution_reasons": {"water_level": REASON_ABSENT},
+    })
+    hass.states.async_set("vacuum.alfred", "docked")
+
+    init = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    assert _override_field("dock_status") not in _schema_markers(init), (
+        "precondition: the already-fixed role must be absent from the form, which "
+        "is what makes a replace lose it"
+    )
+
+    result = await hass.config_entries.options.async_configure(
+        init["flow_id"],
+        user_input={
+            CONF_VACUUM_ENTITY_ID: "vacuum.alfred",
+            CONF_NOTES: "fixed water level",
+            _override_field("water_level"): "number.alfred_water",
+        },
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    saved = result["data"][ENTITY_OVERRIDES_KEY]["vacuum.alfred"]
+    assert saved == {
+        "dock_status": "binary_sensor.alfred_docked",
+        "water_level": "number.alfred_water",
+    }
+
+
+@pytest.mark.parametrize("blank", ["   ", "", "  number.alfred_water  "])
+async def test_of11_a_blank_override_is_refused_by_the_form_itself(
+    hass: HomeAssistant, mock_config_entry, manager, blank
+):
+    """[OF-11] A blank or padded override never reaches the handler at all.
+
+    An override is tried FIRST when a role resolves, so storing `""` would make a
+    role that merely had no user choice start reporting `override_unresolved`
+    instead of `absent` -- a different diagnosis on the one screen built to be
+    trusted. What stops it is not the submit handler but the ENTITY SELECTOR: it
+    runs `cv.entity_id_or_uuid`, so HA refuses the whole submission before
+    `async_step_init` is entered.
+
+    ⚠ I WROTE THIS TEST THE OTHER WAY FIRST AND IT COULD NOT PASS, which is how the
+    finding below turned up. The handler filters picks on
+    `str(value or "").strip()`, and I took that to mean a blank arrives and is
+    dropped. It cannot arrive. Measured against the real selector, it accepts a
+    clean entity id or an omitted field and rejects every one of: whitespace, `""`,
+    `None`, a PADDED id, and a domain-less name. So both halves of that filter are
+    inert through this form -- the blank test can never be true, and `.strip()` has
+    nothing to strip because a padded id is refused upstream. That is the same
+    inert-branch shape, for the same reason, that ledger D25 records against
+    `EufyVacuumConfigFlow.async_step_user` one layer up in this very file; the
+    classification is now recorded at the site.
+
+    So the assertion is the guarantee that actually holds, and it bites: replace
+    `_ANY_ENTITY_SELECTOR` with a plain `str` and every row here stops raising and
+    returns CREATE_ENTRY instead. The padded row is in because it is the only one
+    that would otherwise look like a job for `.strip()`.
+    """
+    mock_config_entry.add_to_hass(hass)
+    _seed_capabilities(manager, "vacuum.alfred", {
+        "entity_resolution_reasons": {"water_level": REASON_ABSENT},
+    })
+    hass.states.async_set("vacuum.alfred", "docked")
+
+    init = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    with pytest.raises(InvalidData):
+        await hass.config_entries.options.async_configure(
+            init["flow_id"],
+            user_input={
+                CONF_VACUUM_ENTITY_ID: "vacuum.alfred",
+                CONF_NOTES: "nothing picked",
+                _override_field("water_level"): blank,
+            },
+        )
+
+    # NO "and nothing was written" ROW HERE, deliberately. The obvious one --
+    # `assert ENTITY_OVERRIDES_KEY not in mock_config_entry.options` -- was in this
+    # test and is removed: `mock_config_entry` ships `options={}` and nothing here
+    # writes to it, so the assertion is already true before the flow starts and
+    # stays true whatever the submit does. Delete the `pytest.raises` block above
+    # and it would STILL pass. A stronger version is not available either: the raise
+    # means `async_step_init` never runs, so "the store is untouched" is guaranteed
+    # by the raise rather than asserted alongside it. Its red set is EMPTY, so it is
+    # a preference, not a claim -- and a tautology is the one thing this file cannot
+    # afford to carry, given what it is for. [OF-10] is where a real
+    # nothing-was-clobbered assertion lives, because there the store is pre-seeded
+    # with a role the submit does not carry.
+
+
+async def test_of12_a_missing_runtime_is_expected_not_an_error(
+    hass: HomeAssistant, mock_config_entry, caplog
+):
+    """[OF-12] The form opens before the runtime exists, WITHOUT taking the except.
+
+    `_resolution_gaps` documents this as best-effort because the screen's primary
+    job is editing the vacuum and notes, and it "must still open when the runtime is
+    missing" -- which is precisely when a user comes looking for it.
+
+    ⚠ THE OBVIOUS ASSERTION HERE CANNOT BITE, so it is not the assertion. Delete the
+    `manager is None` guard and the form still opens with no pickers: the attribute
+    access on `None` raises, the broad `except` catches it, and the function returns
+    `()` either way. That is the subsumed-guard shape that has already cost this repo
+    a worthless test. What the guard actually changes is WHICH PATH is taken, so the
+    discriminator is the debug record the except arm logs -- absent when a missing
+    runtime is handled as the expected state, present the moment it is handled as a
+    failure. Ablating the guard turns this red on that line alone.
+    """
+    mock_config_entry.add_to_hass(hass)
+    assert hass.data.get(DOMAIN, {}).get(DATA_RUNTIME) is None, (
+        "precondition: no runtime manager registered"
+    )
+
+    with caplog.at_level(
+        logging.DEBUG, logger="custom_components.eufy_vacuum.config_flow"
+    ):
+        init = await hass.config_entries.options.async_init(
+            mock_config_entry.entry_id
+        )
+
+    assert init["type"] == FlowResultType.FORM
+    markers = _schema_markers(init)
+    assert CONF_VACUUM_ENTITY_ID in markers and CONF_NOTES in markers
+    assert not [k for k in markers if k.startswith(
+        config_flow_module._OVERRIDE_FIELD_PREFIX
+    )], "no runtime means no gap information, so no pickers"
+    assert not [
+        rec for rec in caplog.records if "could not read resolution gaps" in rec.message
+    ], (
+        "a missing runtime is an expected state, not an exception to swallow -- see "
+        "the docstring above for why this is the assertion that can fail"
+    )
+
+
+async def test_of13_a_runtime_that_cannot_answer_does_log_and_still_opens(
+    hass: HomeAssistant, mock_config_entry, caplog
+):
+    """[OF-13] The positive control for [OF-12], and it is not optional.
+
+    [OF-12]'s whole claim rests on asserting the ABSENCE of a debug record, and an
+    absence assertion proves nothing until something proves the record is VISIBLE to
+    caplog in the first place. Get the logger name wrong, lose propagation, or have
+    the level not applied, and [OF-12] passes vacuously -- it would pass with the
+    guard it exists to pin deleted. This repo has already shipped that mistake in
+    another form: a CI check that matched nothing counted zero failures of zero runs
+    and reported green while two of five jobs were red. A pass over an empty set is
+    indistinguishable from a real pass.
+
+    So this is the same screen with a runtime that is PRESENT but cannot answer --
+    which is what the broad `except` in `_resolution_gaps` is actually for, and what
+    deleting [OF-12]'s guard turns a missing runtime into. Two facts at once: the
+    record is real and reachable (so [OF-12]'s absence check is load-bearing), and
+    the form still opens either way (so the best-effort promise in the docstring
+    holds on the exception path too, not just the guarded one).
+    """
+    mock_config_entry.add_to_hass(hass)
+    # Not None, so the guard does not fire -- and with no snapshot method, so the
+    # attribute access raises and the except arm runs.
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = object()
+
+    with caplog.at_level(
+        logging.DEBUG, logger="custom_components.eufy_vacuum.config_flow"
+    ):
+        init = await hass.config_entries.options.async_init(
+            mock_config_entry.entry_id
+        )
+
+    assert init["type"] == FlowResultType.FORM, "the form must open anyway"
+    markers = _schema_markers(init)
+    assert CONF_VACUUM_ENTITY_ID in markers and CONF_NOTES in markers
+    assert not [k for k in markers if k.startswith(
+        config_flow_module._OVERRIDE_FIELD_PREFIX
+    )]
+    assert [
+        rec for rec in caplog.records if "could not read resolution gaps" in rec.message
+    ], (
+        "the record must be VISIBLE here, or [OF-12]'s absence assertion is an "
+        "empty-set pass that would survive deleting the guard it pins"
+    )

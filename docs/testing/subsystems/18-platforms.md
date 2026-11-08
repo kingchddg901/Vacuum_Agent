@@ -31,7 +31,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `switch.py` | 95 | 84% | `test_switch_entity.py` | clean |
 | `binary_sensor.py` | 65 | 91% | `test_platform_files.py` | **bare x8** |
 | `room_entities.py` | 95 | 98% | `test_platform_files.py` | **bare x8** |
-| `config_flow.py` | 90 | 71% | `test_config_flow.py` | clean |
+| `config_flow.py` | 90 | 98% | `test_config_flow.py` | clean |
 | `timestamp_utils.py` | 38 | 98% | `test_timestamp_utils.py` (unit) | clean |
 | `models/models.py` | 124 | 98% | `test_models.py` (unit) | clean |
 | `maps/map_manager.py` | 93 | 94% | `test_maps_map_manager.py` (unit) | clean |
@@ -57,7 +57,33 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
   adds a button).
 - **Number / Switch** — maintenance-interval number + the toggle switches:
   value read/write and bounds.
-- **Config flow** — the entry creation flow.
+- **Config flow** (`CF-*`, `OF-*`) — the entry creation flow, and the options
+  screen, which carries more than its name suggests. Two halves had no tests until
+  2026-11-07 and they are the two that matter most to a user in trouble:
+  - **The deferred install** (`OF-7`). Setup accepts a *blank* vacuum on purpose —
+    [44 § 1](../../dev/44-onboarding-and-first-run.md) explains why, since the
+    vacuum belongs to another integration that may not have set up yet — and this
+    screen is where the deferral is resolved. `tests/conftest.py::mock_entry_no_vacuum`
+    had existed for that install all along and only `test_init_setup.py` ever used
+    it, so the recovery path itself was never opened. The arm it exercises is not
+    cosmetic: give the blank entry's picker a `default=""` and voluptuous validates
+    the default, so the recovery form becomes **unsubmittable** for exactly the user
+    it exists for.
+  - **The entity-override pickers** (`OF-8`..`OF-13`, live:ENT-7). One picker per
+    role that failed to resolve, driven by `entity_resolution_reasons` and
+    `entity_augmentation["ambiguous"]` from the stored capabilities snapshot
+    (`config_flow.py#CNAYBZY3`). Tested against the **real** producer — the snapshot
+    accessor is documented as reading `data["capabilities"]` as-is, so the tests
+    seed that store rather than stubbing the method, and they import the real
+    `REASON_*` constants. That last point is load-bearing: the gap predicate only
+    compares against `resolved`, so an *invented* reason word still produces a gap
+    and the test would pass by luck while being blind to a producer rename.
+  `OF-10` is the one to read first if you touch this screen. It pins MERGE-NOT-REPLACE
+  by pre-seeding an override for a role the submitted form does **not** carry; with
+  an empty store a merge and a replace are byte-identical, so the obvious version of
+  that test cannot bite. `OF-13` exists for the same class of reason — it is the
+  positive control proving the debug record `OF-12` asserts the *absence* of is
+  visible at all.
 - **Helpers + data layer** (unit) — timestamp parsing, the dataclass models, the
   map-manager persistence, device-info builder.
 - **HA-core compatibility** (`DCE-*`, unit, `test_device_config_entry_ids.py`) —
@@ -165,5 +191,16 @@ wrong-map early returns in the tracker/event callbacks
 166), the `# pragma: no cover` `except` blocks and fallback branches in the
 top-level `__init__.py` (92%, grown from 193 to 317 statements — exercised
 end-to-end by `test_init_setup`, not per-unit), and trivial leaf lines
-(`config_flow.py` 144, 167; `_frontend_url.py` 47-48; `room_entities.py` 241;
+(`_frontend_url.py` 47-48; `room_entities.py` 241;
 `sensor/error.py` 67; `models/models.py` 11-12). Not worth covering.
+
+`config_flow.py` used to be listed above as two "trivial leaf lines" at 144 and
+167. Both numbers had rotted, and so had the claim — the file is at 98% and its
+one uncovered statement is named, not trivial: the `return ()` under
+`if not isinstance(caps, dict)` in `EufyVacuumOptionsFlow._resolution_gaps`. It is
+one stage re-validating the stage before it. `get_vacuum_capabilities_snapshot`
+ends in `return dict(...)`, so it cannot hand back a non-dict; reaching that arm
+would mean faking the producer to disagree with its own signature, which asserts
+the test author's reading of the contract rather than the contract. The
+`manager is None` arm beside it *is* reachable and is pinned by `OF-12`. The
+classification is recorded at the site, which is the half that does not rot.

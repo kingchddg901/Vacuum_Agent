@@ -209,6 +209,22 @@ class EufyVacuumOptionsFlow(OptionsFlow):
             # vacuum's whole panel-set role map. Set role A from the panel, then save
             # here having picked only role B, and role A is dropped.
             target_vacuum = vacuum_entity_id or previous_vacuum
+            # ⚠ THE BLANK-DROPPING HALF OF THIS FILTER IS INERT, for the same reason
+            # ledger D25 records against async_step_user above — and it was found the
+            # same way, by a test that could not be made to pass ([OF-11]).
+            # `str(value or "").strip()` reads as though a blank field arrives here
+            # and is discarded. It cannot arrive: these fields sit behind
+            # `_ANY_ENTITY_SELECTOR`, whose `cv.entity_id_or_uuid` runs in HA's
+            # data_entry_flow BEFORE this method is entered. Measured against the real
+            # selector, it accepts a clean entity id or an OMITTED field and rejects
+            # all of: whitespace, "", None, a PADDED id, and a domain-less name — an
+            # unfilled picker therefore never sets the key at all, and a set key
+            # always carries a clean entity id. `.strip()` has nothing to strip for
+            # the same reason.
+            # Kept rather than tightened: it is inert, not wrong, and a selector that
+            # ever loosens (or a programmatic caller that bypasses the schema) lands
+            # back on it. [OF-11] pins the guarantee that actually holds, so if the
+            # selector is swapped for a plain `str` the tests say so there.
             picked = {
                 key[len(_OVERRIDE_FIELD_PREFIX):]: str(value).strip()
                 for key, value in user_input.items()
@@ -314,6 +330,17 @@ class EufyVacuumOptionsFlow(OptionsFlow):
             caps = manager.get_vacuum_capabilities_snapshot(
                 vacuum_entity_id=vacuum_entity_id
             )
+            # UNREACHABLE THROUGH THE REAL PRODUCER, and left uncovered on purpose —
+            # this is the one line of this module no test asserts (98%, [OF-7..12]).
+            # `EufyVacuumManager.get_vacuum_capabilities_snapshot` ends in
+            # `return dict(...)`, so it can only hand back a dict; `{}` when nothing
+            # has been detected yet, which passes this check and falls through to the
+            # `or {}` reads below. Reaching this arm needs a `hass.data[DOMAIN]`
+            # runtime that is not the manager, i.e. a test that fakes the producer to
+            # disagree with its own signature — which would assert my reading of the
+            # contract rather than the contract. The `manager is None` arm above IS
+            # reachable (the screen must open before setup completes) and is pinned
+            # by [OF-12]; this one is a stage re-validating the stage before it.
             if not isinstance(caps, dict):
                 return ()
             # anchor: CNAYBZY3  entity-resolution reasons read by the options flow
