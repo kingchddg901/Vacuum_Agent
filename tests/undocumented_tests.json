@@ -15,7 +15,6 @@
     "tests/integration/test_roborock_e2e.py",
     "tests/integration/test_set_room_access_graph.py",
     "tests/integration/test_watchdog_liveness.py",
-    "tests/integration/test_zone_phase.py",
     "tests/unit/test_decision_log.py",
     "tests/unit/test_entity_ownership.py",
     "tests/unit/test_locale_completeness.py",

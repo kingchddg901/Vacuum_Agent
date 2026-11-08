@@ -100,7 +100,7 @@ It was live when these were written: on the real box one vacuum's `room_stats` c
 | `counter_segmentation.py` | 202 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) | clean |
 | `brand_facts.py` | 54 | 93% | `tests/unit/test_learning_brand_facts.py` | unit (pure) | clean |
 | `external_run.py` | 340 | 85% | `tests/integration/test_manager_external_finalize.py` + `tests/integration/test_manager_lifecycle_status.py` | integration | clean |
-| `zone_learning.py` | 90 | 83% | `tests/unit/test_zone_learning.py` | unit (pure) | clean |
+| `zone_learning.py` | 90 | 100% | `tests/unit/test_zone_learning.py` | unit (pure) | clean |
 | `constants.py` | 3 | 100% | (exercised via `external_run.py` / `test_manager_external_finalize.py`) | unit (pure) | clean |
 
 `counter_segmentation.py` lives at the package root (not under `learning/`) — it
@@ -649,7 +649,7 @@ Two things the ablation established that reading the table would not have:
   same `isinstance` refusal as the absent-attribute row by a different route. Delete
   that refusal and `QRI-4` raises rather than returning None.
 
-### `zone_learning.py` — saved-zone TIME learning (pure, `ZL-1..ZL-10`)
+### `zone_learning.py` — saved-zone TIME learning (pure, `ZL-1..ZL-20`)
 A deliberately tiny parallel to room learning: a saved zone has a stable
 `zone_id`, a deterministic (never-learned) area, and cleans in one
 uninterrupted pass, so the only thing learned is a **wall-clock time average**
@@ -664,6 +664,61 @@ and vacuum (and different zone ids) in separate buckets;
 falls back to area × a per-mode rate before any sample, and clamps the
 estimate to a sane band. Store lives on the map bucket
 (`map_bucket["learned_zones"]`), persisted with the map.
+
+**Reading a store this build did not write (`ZL-11..ZL-20`).** The module is at
+100%, and the half that was uncovered until 2026-11-07 is every `except` arm and
+`isinstance` re-seed that handles a `learned_zones` store whose shape is wrong.
+Those are normally the shape to leave uncovered and classify — one stage
+re-validating the one before it — and these are the exception, for two reasons
+worth keeping straight:
+
+- **The producer is a file, not a function.** This store is `learned_zones` as some
+  earlier build left it on disk, read back across versions and recoverable by hand.
+  There is no in-process signature guaranteeing its shape.
+- **The bad value is persisted, not discarded.** `update_learned_zone` mutates a
+  store the caller then writes. An arm that raised instead of re-seeding would break
+  learning for that whole map permanently; one that quietly produced garbage would
+  ship a wrong ETA.
+
+So the tests assert consequences rather than lines, and the consequences are
+asymmetric in ways a line-count check would miss: an unreadable `wall_seconds`
+**drops** its timing while an unreadable `area_m2` **keeps** it (wall time is what
+is being learned; area only feeds the cold-start fallback) — two `except` arms three
+lines apart doing deliberately opposite things. Re-seeding one zone's corrupt bucket
+must not take the map's other zones with it. An unreadable bucket must fall back to
+area and **not** report `source: "learned"`, because that word is a claim to the
+user that the figure came from this zone's own history. `ZL-19` sweeps every
+unreadable store shape in one parametrize, including the row that matters most — a
+perfectly valid store with no sample for the mode being asked about, which must
+behave like the corrupt ones rather than borrowing the other mode's average.
+`ZL-20` is the combination, because each of the others bends one field and a store
+recovered from an older build is not polite enough to be wrong in one place at a
+time.
+
+**Two findings came out of writing them, both recorded rather than fixed:**
+
+- **`normalize_clean_mode` has no caller, and never had one.** Measured: zero
+  references in the live tree (its only other mention is a retired doc), and
+  `git log -S` shows it arrived in `a2dd9092` with the `def` alone — born orphaned,
+  not orphaned later. It is the named form of a rule its one real producer,
+  `phase_runner.py::_capture_zone_phase_timing`, computes inline from the same
+  `job_metadata["has_mop_mode"]` field. `ZN-11b` in
+  `tests/integration/test_zone_phase.py` now pins the two against each other by
+  calling **both**, so drift in either reddens it — which a restated copy of the
+  expression could not do. `ZN-11` keeps its literal `== "mop"`: that one pins the
+  value, `ZN-11b` pins the agreement, and neither subsumes the other (ablating only
+  the helper reddens `ZN-11b` alone; ablating only the producer reddens both).
+  Whether to wire the helper and delete the inline copy is a separate call.
+- **A rejected fold leaves an empty bucket behind.** `update_learned_zone` runs
+  `store.setdefault(str(zone_id), {})` before `float(wall_seconds)` can raise, so an
+  observation rejected for a bad wall time still mints its zone key — and because
+  `applied` is non-zero from the batch's good observations, the caller persists it.
+  Measured consequence: none to behaviour. Every reader reaches this store through
+  `estimate_zone_seconds`, which treats `{}` exactly like an absent key; nothing
+  counts or iterates the keys; and `rebuild_learned_zones` recomputes into a fresh
+  store, so a rebuild clears the residue. `ZL-16` therefore asserts that the residue
+  is **inert** rather than that it is absent — pinning its absence would pin a wart,
+  while the inertness row goes red if an empty bucket ever starts being trusted.
 
 ### `counter_segmentation.py` — counter-plateau segmentation primitives
 `find_candidates` / `select_active` / `build_segments` — the frame-invariant

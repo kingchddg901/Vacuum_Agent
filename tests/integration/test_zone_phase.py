@@ -23,10 +23,13 @@ unlike a charge_wait/wait which a dock poller drives.
 
 from __future__ import annotations
 
+import pytest
+
 import custom_components.eufy_vacuum.jobs.phase_runner as phase_runner_mod
 import custom_components.eufy_vacuum.jobs.active_job as active_job_mod
 from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
 from custom_components.eufy_vacuum.learning.manager import LearningManager
+from custom_components.eufy_vacuum.learning.zone_learning import normalize_clean_mode
 
 _VAC = "vacuum.ivy"
 _MAP = "Main floor"
@@ -320,6 +323,67 @@ async def test_capture_zone_phase_timing(hass, manager, monkeypatch):
     assert zt["wall_seconds"] == 270          # 00:02:00 -> 00:06:30
     assert zt["area_m2"] == 0.5
     assert job["phases"][1]["room_timing"] == []
+
+
+@pytest.mark.covers("custom_components/eufy_vacuum/learning/zone_learning.py::normalize_clean_mode")
+@pytest.mark.parametrize("meta,expected", [
+    ({"has_mop_mode": True}, "mop"),
+    ({"has_mop_mode": False}, "vacuum"),
+    ({}, "vacuum"),
+])
+async def test_zn11b_the_producer_and_the_helper_agree_on_the_bucket(
+    hass, manager, monkeypatch, meta, expected
+):
+    """[ZN-11b] `zone_learning.normalize_clean_mode` is the named form of the bucket
+    rule, and `phase_runner` is the only thing that computes it. They must agree.
+
+    THIS TEST EXISTS BECAUSE THE HELPER HAS NO CALLER. Measured: `normalize_clean_mode`
+    has zero references in the live tree (its only other mention is a RETIRED doc),
+    and `git log -S` shows it arrived in `a2dd9092` with the `def` alone -- so it was
+    born orphaned, never wired and then lost. What it does is exactly what
+    `_capture_zone_phase_timing` does inline:
+
+        clean_mode = "mop" if (isinstance(meta, dict) and meta.get("has_mop_mode"))
+                     else "vacuum"
+
+    Same input (`job_metadata["has_mop_mode"]`), same two output words. So the helper
+    is not irrelevant code -- it is the centralised version of a question its one real
+    producer answers in place, which is why nothing calls it.
+
+    Rather than delete a named rule or quietly rewire a persisted-field writer, this
+    pins the two against each other. It calls BOTH -- the real producer through
+    `_capture_finishing_phase_timing`, and the helper directly -- so drift in either
+    one reddens it, which a restated copy of the expression could never do.
+
+    [ZN-11] above keeps the literal `== "mop"`, and the division is deliberate: that
+    one pins the VALUE, this one pins the AGREEMENT. Neither subsumes the other --
+    change both copies identically and only [ZN-11] notices; change one and only this
+    notices.
+
+    RED: invert `normalize_clean_mode`, or change the phase-runner expression to a
+    constant -- each reddens this and leaves [ZN-11] green except on the "mop" row.
+    """
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:06:30Z")
+    _seed_saved_zone_area(manager, "z_a", area=0.5)
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "started_at": "2026-01-01T00:00:00Z",
+        "job_metadata": dict(meta),
+        "phases": [
+            {**_room_phase(5, "kitchen"), "_timing_end_t": "2026-01-01T00:02:00Z"},
+            _zone_phase(zone_ids=("z_a",)),
+        ],
+        "current_phase_index": 1,
+    }
+
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+    produced = job["phases"][1]["zone_timing"]["clean_mode"]
+
+    assert produced == normalize_clean_mode(meta.get("has_mop_mode")), (
+        "the phase runner and zone_learning.normalize_clean_mode have drifted; they "
+        "answer the same question from the same field and must not disagree"
+    )
+    assert produced == expected, "and the shared answer is the documented one"
 
 
 async def test_zone_recorder_learns_only_on_completed(hass, manager):
