@@ -292,6 +292,93 @@ def test_rc18_a_rename_plus_renumber_records_the_slug_alias(rmm):
     assert mgr.data["maps"][_VAC][_MAP]["rooms"]["20"]["clean_passes"] == 3
 
 
+def test_rc19_a_renamed_rooms_accuracy_history_survives_on_a_REAL_store(rmm, tmp_path):
+    """[RC-19] The data actually survives -- one real artefact, end to end.
+
+    [RC-18] proves `reconcile_room` CALLS `record_slug_alias` and
+    `rekey_accuracy_slugs` with the right arguments, against an autospec'd store. That
+    is the wiring, not the outcome: a spy cannot tell whether the rename leaves the
+    room's history reachable. This drives the whole chain on a REAL
+    `LearningHistoryStore` writing real files under `tmp_path` --
+    `plan_migration` -> `slug_remap` -> `record_slug_alias` + `rekey_accuracy_slugs`
+    -> the stores on disk -- because the pieces are each tested alone and the defect
+    lived in the PAIRING.
+
+    `accuracy_stats` is the half that matters. `room_stats` is rebuilt from the job
+    records, so an alias alone repairs it; `accuracy_stats` is APPEND-ONLY and nothing
+    ever rebuilds it, so an entry left under the old name is unreachable forever. A
+    user renames a room in the vendor app, confirms the reconciliation, and the room
+    keeps its profile, grants and id while reading as never cleaned -- with no way to
+    tell it happened.
+
+    ⚠ THE `config_dir` LINE IS LOAD-BEARING AND NOT SELF-ANNOUNCING. `MagicMock`
+    implements `__fspath__`, so without it `Path(hass.config.config_dir)` does NOT
+    raise -- it yields `WindowsPath('MagicMock/mock.config.config_dir/<id>')` and the
+    test passes while writing into a junk directory next to the repo. Hence the
+    assertion that the store's path is actually under `tmp_path`: it is the only thing
+    standing between this test and a green run that proves nothing.
+
+    RED: revert `slug_remap[leftover_existing_slugs[0]] = slug` in `plan_migration`'s
+    REC-3 pairing and the remap is empty, so `if _slug_remap:` is false, neither store
+    is touched, and the old key is still the only one present.
+    """
+    from custom_components.eufy_vacuum.learning.history_store import (
+        LearningHistoryStore,
+    )
+
+    rm, mgr = rmm
+    mgr.hass.config.config_dir = str(tmp_path)
+
+    store = LearningHistoryStore(mgr.hass)
+    old_key = f"{_MAP}::den::vacuum::1::0::narrow::0"      # 7 parts, map id first
+    new_key = f"{_MAP}::study::vacuum::1::0::narrow::0"
+    acc_path = store.save_accuracy_stats(
+        vacuum_entity_id=_VAC, payload={"rooms": {old_key: {"samples": 4}}},
+    )
+    assert str(tmp_path) in str(acc_path), (
+        f"the store must write under tmp_path, not {acc_path} -- see the docstring"
+    )
+
+    # Den is renamed to Study and the re-segment moves it 17 -> 20: the REC-3 pairing.
+    stored = {
+        "16": {"room_id": 16, "map_id": _MAP, "name": "Kitchen", "slug": "kitchen"},
+        "17": {"room_id": 17, "map_id": _MAP, "name": "Den", "slug": "den",
+               "profile_name": "deep_clean"},
+    }
+    mgr.data["maps"] = {_VAC: {_MAP: {"rooms": stored}}}
+    discovered = [
+        {"room_id": 16, "map_id": _MAP, "name": "Kitchen"},
+        {"room_id": 20, "map_id": _MAP, "name": "Study"},
+    ]
+    _seed_discovery(mgr, discovered)
+    token = compute_plan_token(
+        reviews=compute_reconciliation(
+            discovered_rooms=discovered, existing_rooms=stored,
+        )["reviews"],
+        discovered_rooms=discovered,
+    )
+
+    out = rm.reconcile_room(
+        vacuum_entity_id=_VAC, map_id=_MAP, action="migrate", plan_token=token,
+    )
+    assert out.get("skipped") is None, out
+
+    # THE APPEND-ONLY STORE: the samples moved onto the new name, intact.
+    rooms = LearningHistoryStore(mgr.hass).load_accuracy_stats(
+        vacuum_entity_id=_VAC,
+    )["rooms"]
+    assert new_key in rooms, f"the history must follow the rename, got {sorted(rooms)}"
+    assert old_key not in rooms, "and must not be left behind under the old name"
+    assert rooms[new_key] == {"samples": 4}, "intact, not recreated empty"
+
+    # THE REBUILDABLE STORE: the alias is on disk for the rebuilder to resolve.
+    aliases = LearningHistoryStore(mgr.hass).load_key_aliases(vacuum_entity_id=_VAC)
+    assert aliases.get("rooms", {}).get(_MAP, {}).get("den") == "study"
+
+    # and the room itself carried, which is the part that always worked
+    assert mgr.data["maps"][_VAC][_MAP]["rooms"]["20"]["profile_name"] == "deep_clean"
+
+
 def test_discover_rooms_keeps_cache_on_empty_result(manager):
     """[RP-005] A discovery glitch that returns zero rooms must not replace a
     previously-good cache -- save_managed_rooms reads FROM this cache, so an
