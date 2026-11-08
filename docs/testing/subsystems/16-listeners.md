@@ -184,10 +184,46 @@ against this revision rather than re-verified item-by-item for every module —
 spot checks on `lifecycle.py` and `path_blockers.py` confirm the *shape*
 (early-return / defensive guards) still holds:
 
-- **`lifecycle.py` (94%)** — missing lines 115, 126, 129, 144, 516, 521: the
-  no-manager early return, the unmatched-vacuum debug-log-and-return, and
-  guards inside the finalize/mark-finalized flow. Same defensive shape as
-  before this campaign's growth.
+- **`lifecycle.py`** — the entry's line numbers had rotted (115/126/129/144/516/521)
+  and "same defensive shape" was wrong about two of them. `LC-11`..`LC-15` close
+  them:
+  - **`LC-11`/`LC-13`** are the no-manager return and the unmatched-vacuum branch.
+    `LC-13` asserts the DECISION LOG, not just the return, because the branch exists
+    precisely so a lifecycle signal does not "die without a word" — a bare `return`
+    with no log would satisfy an absence-only test. `decision_log.emit` logs at
+    DEBUG under `custom_components.eufy_vacuum.decision_log` and is guarded on
+    `isEnabledFor`; both were read out of that module rather than assumed, since an
+    assertion on the wrong logger passes for the wrong reason.
+  - **`LC-12`** is not defensive at all. The watch-entity match is made per vacuum
+    against that vacuum's own declared entities; without it EVERY known vacuum
+    matches EVERY watched entity, so one robot finishing a job drives finalization
+    for another — reading the other's active job and writing its transitions. It
+    needs two vacuums, which no lifecycle test had, and it asserts on the
+    `vacuum_entity_id` **kwarg** rather than call counts, because the mock manager
+    ignores which vacuum it was asked about and a wrongly-matched second vacuum
+    produces calls identical in shape.
+  - **`LC-14`/`LC-15`** are the `maybe_handle_external_run` True arm and its False
+    control. `_mgr` hard-wires that call to `AsyncMock(return_value=False)` "to keep
+    that branch inert", so the True arm had never executed — and it is the one that
+    matters for app-started runs: True means an external slot was opened or
+    finalized, and without `any_changes` the pass never reaches `async_save`, so the
+    slot exists in memory only and is gone on the next restart. The **idle** job in
+    `LC-14` is load-bearing: a started job sets `any_changes` through the internal
+    path and masks the line.
+
+  ⚠ `LC-11` and `LC-13` drive the CAPTURED handler; `LC-12`, `LC-14` and `LC-15` go
+  through the real bus because what they assert happens inside the spawned
+  `_process()` task. `LC-12` also pins
+  `finalize_learning_for_active_job.return_value`: left untouched, that autospec'd
+  async method returns a coroutine nothing awaits, and the test passes while leaking
+  a ResourceWarning (measured — it was the only one of the five that did).
+
+  All five set `.return_value` on the **already-autospec'd** mock rather than
+  assigning a fresh `AsyncMock` over it. A first draft did the latter, and the W0
+  mock ratchet caught it (28 → 31) — correctly, because assigning over a spec'd
+  method throws its signature protection away, which is the thing `spec_manager`
+  exists to provide. Same correction in `test_pose_sampler.py` for `PS-3`
+  (`record_pose_sample.return_value = False`, 5 → 6 refused).
 - **`path_blockers.py` (95%)** — missing lines 179, 250-251, 256-257: a
   non-dict-room skip inside the watcher-build rule walk, and event-dedup
   guards.
@@ -305,8 +341,21 @@ spot checks on `lifecycle.py` and `path_blockers.py` confirm the *shape*
 - **`discovery.py` (99%)** — only line 190: the body of the periodic
   safety-net `_on_tick` callback; the timer fires it but no test advances the
   adapter-configured interval. Trivial.
-- **`job_progress.py` (95%)** — only line 75: the `continue` that skips the
-  "unknown" map_id during a tick.
+- **`job_progress.py`** — "only line 75" was stale. `JP-5`/`JP-5b` pin Lever B's
+  gating (the live-room pulse is for CONTIGUOUS runs; a strict-order run already
+  gets a free refresh on each state flip, and `JP-4` deliberately asserted nothing
+  about where the gate sits), and `JP-6` pins the stuck watch's own try/except.
+  `JP-6` uses TWO vacuums with the first raising: the single-vacuum version cannot
+  distinguish "the event still fired for this vacuum" from "the loop survived to the
+  next one", and the second is the more important half — without the except the
+  exception escapes the loop body, so the raising vacuum never reaches `async_fire`
+  AND the one after it is never processed, turning 2 tick events into 0. Stuck
+  detection rides this ticker rather than a fourth timer, so a fault there sits
+  directly upstream of the `EVENT_JOB_PROGRESS_TICK` the card's live view needs.
+  The remaining `unknown`-map `continue` is still uncovered, and the trace's own note
+  on it is worth keeping: a persisted `active_jobs[vac]["unknown"]` slot written by
+  an older build would distinguish it, and no producer for one was found — so it is
+  recorded as UNVERIFIED rather than classified either way.
 - **`pose_sampler.py` (94%)** — missing lines 142-143, 212-214, 294, 429, 436. These
   numbers had rotted too (the entry read 89% with a different dozen lines). Line
   **436**, the POSE-2 in-flight guard, is the one worth reading about: it was named
@@ -321,6 +370,34 @@ spot checks on `lifecycle.py` and `path_blockers.py` confirm the *shape*
   The external-only sampling and the parked/docked nulling happy paths are covered
   by `tests/unit/test_pose_sampler.py`; cadence, tick isolation and the in-flight
   guard by `tests/integration/test_pose_sampler_cadence.py`.
+
+  The other four are closed by `PS-1`..`PS-3` and `PC-4`:
+  - **`PS-1`** (142-143) — `room_attribution.tuning.interval_s` is **not validated
+    by the registry**, which the module comment states, so a non-numeric declaration
+    is live on shipped brands rather than hypothetical. Both exceptions the `except`
+    names are driven (a string → ValueError, a list or dict → TypeError), so
+    narrowing the tuple reddens its own rows. The cost if it goes:
+    `_room_attribution_interval_s` is called UNGUARDED from `register()`, so one bad
+    declaration stops the sampler registering for the **whole fleet**. The expected
+    2.0 is written as a literal, not read from `_FALLBACK_INTERVAL_S` — reading the
+    constant would make the test pass against whatever the fallback became.
+  - **`PS-2`** (212-214) — the live-pose provider raising. It is called DIRECTLY,
+    never through `_handle_pose_tick`, because the tick's POSE-5 `except` swallows
+    exactly the exception a missing try/except here would raise: routed through the
+    tick this test passes INVERTED.
+  - **`PS-3`** (308→332) — the 24-hour pose ring is deliberately NOT gated on
+    `record_pose_sample`'s return, and every prior test stubbed that True so the
+    False arm never ran. The two sinks answer different questions: the buffer is
+    job-scoped and guards live attribution, the ring is a parallel copy that
+    outlives the job. The ablation is the plausible tidy-up — an `else: continue`
+    under the buffer's acceptance — which would drop ring history for exactly the
+    samples the buffer rejected while every other test stayed green.
+  - **`PC-4`** (429) — a mixed fleet where one member declares no
+    `room_attribution`. Without the guard, `now_ts - last < None` raises TypeError
+    in the tick BODY, **outside** the per-vacuum try, so the whole cycle dies and
+    every later vacuum goes unsampled. The interval-less vacuum sits in the MIDDLE
+    of the list on purpose: at the end, a `continue` wrongly written as `break` or
+    `return` would be indistinguishable from correct behaviour.
 
 These are deliberately uncovered at the ~90% meaningful-coverage ceiling: the
 teardown/guard branches are defensive, and the sequenced-phase /

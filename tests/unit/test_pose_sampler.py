@@ -9,6 +9,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from tests._factories import spec_manager
 
 from custom_components.eufy_vacuum.listeners import pose_sampler
@@ -442,3 +444,124 @@ def test_read_cleaning_area_m2_unchanged():
     """Ivy: sensor unit m² -> value passes through unscaled."""
     cfg = {"entities": {"cleaning_area": "sensor.ivy_cleaning_area"}}
     assert pose_sampler._read_cleaning_area(_hass_area_state("4.4", "m²"), cfg) == 4.4
+
+
+# --- [PS-1] — [PS-3] arms with no prior coverage ---------------------------
+
+
+def _cfg_interval(raw):
+    """_cfg_full with the declared interval_s replaced by `raw`."""
+    def _cfg(_vid):
+        cfg = _cfg_full(_vid)
+        cfg["room_attribution"]["tuning"]["interval_s"] = raw
+        return cfg
+    return _cfg
+
+
+@pytest.mark.parametrize("raw,why", [
+    ("fast", "a string the schema never looks at -> ValueError"),
+    ([1, 2], "a list, e.g. a range someone meant as min/max -> TypeError"),
+    ({}, "an empty block left behind by an edit -> TypeError"),
+])
+def test_ps1_an_unparseable_declared_interval_falls_back(monkeypatch, raw, why):
+    """[PS-1] `room_attribution.tuning.interval_s` is NOT validated by the registry.
+
+    The module comment says so, which is why this path is live on shipped brands
+    rather than hypothetical: nothing between an adapter declaration and this
+    `float()` inspects that value. Both exceptions the `except` names are driven —
+    `"fast"` raises ValueError and the two containers raise TypeError — so narrowing
+    the tuple to either one reddens its own rows.
+
+    What it costs if the `except` goes: `_room_attribution_interval_s` is called
+    UNGUARDED from `register()`, so the exception propagates and the whole pose
+    sampler fails to register — for every vacuum, not just the misdeclaring one.
+
+    ⚠ THE EXPECTED VALUE IS THE LITERAL 2.0, not `_FALLBACK_INTERVAL_S`. Reading the
+    constant would make this a shared oracle that passes whatever the fallback
+    became. The literal means a change to the shipped fallback has to be a decision
+    someone takes here too, which is the point of a pinned default.
+    """
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_interval(raw))
+    assert pose_sampler._room_attribution_interval_s("vacuum.alfred") == 2.0, why
+
+
+async def test_ps2_a_live_pose_provider_fault_skips_the_tick(monkeypatch, caplog):
+    """[PS-2] A raising live-pose provider must skip the tick, not propagate.
+
+    The native-source sibling of this `except` has a test; the live_pose one did
+    not. `async_get_map_live_pose` decodes a map off the fork and can fail for
+    reasons that have nothing to do with this run.
+
+    ⚠ CALLED DIRECTLY, NOT THROUGH `_handle_pose_tick`. The tick wraps each vacuum
+    in the POSE-5 `except`, which swallows the exception a missing try/except here
+    would raise — so routed through the tick, this test passes INVERTED and the
+    guard could be deleted with it green.
+
+    `test_sample_records_external_pose` is the positive control: same cfg, a present
+    pose, returns 1. Without it, "returns 0" is also what a sampler that never
+    records anything produces.
+
+    RED: delete the try/except in `_read_live_pose_sample` and this raises
+    RuntimeError out of `_sample_vacuum_once`.
+    """
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_full)
+    mgr = _mock_manager({"present": True, "current_room": 5})
+
+    async def _boom(**_kwargs):
+        raise RuntimeError("live map provider down (test fixture)")
+
+    mgr.async_get_map_live_pose = _boom
+
+    hass = _hass_with_area("3.0")
+    recorded = await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.alfred")
+
+    assert recorded == 0
+    mgr.record_pose_sample.assert_not_called()
+    # NB: a bare `mock.assert_not_called(), "msg"` is a TUPLE, not an assertion --
+    # it evaluates and discards. The call must stand alone.
+    hass.async_add_executor_job.assert_not_called()
+    assert "pose-sample tick failed" in caplog.text, "swallowed is not silent"
+
+
+async def test_ps3_the_pose_ring_is_not_gated_on_the_live_buffer(monkeypatch):
+    """[PS-3] `record_pose_sample` returning False must still append to the 24h ring.
+
+    Every existing test stubs that call True, so the False arm had never run. The
+    two sinks answer different questions and the source comment says so explicitly:
+    the live buffer is job-scoped and guards live attribution, while the ring is a
+    parallel copy that outlives the job. A change that gated the ring on the
+    buffer's acceptance — which looks like a tidy-up — would leave every other test
+    in this file green while silently dropping ring history for exactly the samples
+    the buffer rejected.
+
+    The SCHEDULED APPEND is the positive half. `assert recorded == 0` alone is
+    absence-only and is equally what a sampler that did nothing produces, so the
+    partial is unpacked and its payload checked.
+
+    `hass` stays a MagicMock here (as everywhere in this file), so
+    `async_add_executor_job` records the call and performs no file I/O.
+
+    RED: move the ring append inside the `if manager.record_pose_sample(...)` block
+    and `async_add_executor_job` is never called.
+    """
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_full)
+    mgr = _mock_manager({"present": True, "current_room": 5, "robot_anchor": [0.1, 0.2]})
+    mgr.record_pose_sample.return_value = False
+
+    hass = _hass_with_area("3.0")
+    recorded = await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.alfred")
+
+    assert recorded == 0, "the live buffer refused it"
+    mgr.record_pose_sample.assert_called_once()
+    hass.async_add_executor_job.assert_called_once()
+
+    scheduled = hass.async_add_executor_job.call_args.args[0]
+    from custom_components.eufy_vacuum import pose_store
+
+    assert scheduled.func is pose_store.append_sample
+    sample = scheduled.keywords["sample"]
+    assert sample["map_id"] == "6"
+    assert sample["current_room"] == 5, (
+        "the ring gets the SAME sample the buffer rejected, not a blanked one"
+    )
+    assert sample["anchor"] == [0.1, 0.2]

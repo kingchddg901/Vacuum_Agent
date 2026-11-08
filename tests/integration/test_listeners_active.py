@@ -373,6 +373,108 @@ async def test_job_progress_snapshot_raises(hass):
     assert ticks == []
 
 
+async def test_jp5_a_strict_order_run_skips_the_live_room_pulse(hass):
+    """[JP-5] Lever B is for CONTIGUOUS runs, and the exclusion is the claim.
+
+    A strict-order run advances one room per dispatched phase and docks between
+    rooms, so it already gets a free current-room refresh on each state flip.
+    Pulsing it as well would ask the adapter for a live room read on a cadence it
+    does not need, on top of the per-vacuum rate limit inside the manager helper.
+
+    `[JP-4]` uses `phases: []` and says explicitly that it does NOT assert where
+    the pulse is gated, so the phases-bearing arm had nothing on it at all.
+
+    The tick assertions are the positive control: `assert_not_called` on its own is
+    also what a tick that never ran at all produces, and this test deliberately
+    drives a run that DOES tick.
+
+    RED: delete `if not active_job.get("phases")` and the pulse fires for
+    strict-order runs. `[JP-5b]` below is the other half — it must keep firing for
+    contiguous ones, because a gate fixed by never firing is the same defect wearing
+    the opposite sign.
+    """
+    m = _mgr(hass)
+    m.get_active_job.return_value = {"status": "started", "phases": [{"room_ids": [1]}]}
+    m.apply_job_progress_tick.return_value = {}
+    ticks = _collect(hass, EVENT_JOB_PROGRESS_TICK)
+    job_progress.register(hass)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+    job_progress.remove(hass)
+
+    m.maybe_pulse_live_room_refresh.assert_not_called()
+    assert len(ticks) == 1, "positive control: this run did tick"
+    m.apply_job_progress_tick.assert_called_once()
+
+
+async def test_jp5b_a_contiguous_run_does_get_the_live_room_pulse(hass):
+    """[JP-5b] The control for [JP-5]: no phases means Lever B applies.
+
+    Without this, [JP-5] is satisfied by a listener that never pulses anything, and
+    the whole of Lever B could be deleted with both tests green.
+    """
+    m = _mgr(hass)
+    m.get_active_job.return_value = {"status": "started", "phases": []}
+    m.apply_job_progress_tick.return_value = {}
+    job_progress.register(hass)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+    job_progress.remove(hass)
+
+    m.maybe_pulse_live_room_refresh.assert_called_once_with(_VAC)
+
+
+async def test_jp6_a_stuck_watch_failure_never_costs_the_progress_tick(hass, caplog):
+    """[JP-6] The stuck watch rides this ticker, and must not be able to break it.
+
+    Stuck detection shares this timer rather than adding a fourth, which is correct
+    — it inherits the same cadence contract the stall dedup was written against —
+    but it means a fault in `apply_stuck_watch_tick` sits directly upstream of the
+    `EVENT_JOB_PROGRESS_TICK` the card's live view depends on. Its own try/except is
+    what keeps a stuck-watch bug from blanking the user's progress display.
+
+    TWO VACUUMS, THE FIRST RAISING, because the single-vacuum version cannot tell
+    the difference between "the event still fired for this vacuum" and "the loop
+    survived to the next one" — and the second is the more important half. Without
+    the try/except the exception escapes the loop body, so the raising vacuum never
+    reaches `async_fire` AND the second vacuum is never processed: 2 events become 0.
+
+    The raising stub is correct here: the `except` is the subject, and nothing above
+    it swallows. Asserting `call_count == 2` is what stops the test passing
+    vacuously if the stuck call were skipped altogether.
+
+    RED: remove the try/except around `apply_stuck_watch_tick` and `ticks` is empty.
+    """
+    other = "vacuum.ivy"
+    m = _mgr(hass)
+    m.get_known_vacuum_ids.return_value = [_VAC, other]
+    m.get_active_job.return_value = {"status": "started"}
+    m.apply_job_progress_tick.return_value = {}
+
+    def _stuck(*, vacuum_entity_id, map_id):
+        if vacuum_entity_id == _VAC:
+            raise RuntimeError("stuck-watch exploded (test fixture)")
+        return None
+
+    m.apply_stuck_watch_tick.side_effect = _stuck
+
+    ticks = _collect(hass, EVENT_JOB_PROGRESS_TICK)
+    job_progress.register(hass)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+    job_progress.remove(hass)
+
+    assert m.apply_stuck_watch_tick.call_count == 2, (
+        "both vacuums must have reached the stuck watch, or the test is vacuous"
+    )
+    assert [e.data["vacuum_entity_id"] for e in ticks] == [_VAC, other], (
+        "the raising vacuum still ticks, AND the one after it is still reached"
+    )
+    assert "stuck-watch tick failed" in caplog.text, (
+        "swallowed is not the same as silent"
+    )
+
+
 async def test_job_progress_ticks_external_run(hass):
     """[JP-4] RP-014 / #12:A5-METRICS-1 — an app-started run is on the floor.
 
@@ -1151,3 +1253,205 @@ async def test_path_blocker_rapid_edges_single_cancel(hass):
     await hass.async_block_till_done()
     path_blockers.remove(hass)
     m.async_cancel_active_job.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# [LC-11] — [LC-15] lifecycle guards and arms with no prior coverage
+#
+# ⚠ [LC-11] and [LC-13] CALL THE CAPTURED HANDLER, NOT THE BUS. HA catches and
+# logs exceptions raised inside a @callback, so a missing guard's AttributeError is
+# swallowed by the bus and the test passes INVERTED. The other three go through the
+# real state machine, because what they assert happens inside the spawned
+# _process() task, which the bus path is what produces.
+# ---------------------------------------------------------------------------
+
+def _capture_lifecycle_handler(hass, monkeypatch, adapter=None):
+    """Register lifecycle with the subscribe stubbed; return (handler, manager)."""
+    m = _wire_lifecycle(hass, adapter)
+    captured: dict = {}
+
+    def _fake_track(hass_arg, entity_ids, action):
+        captured["entities"] = list(entity_ids)
+        captured["handler"] = action
+        return lambda: None
+
+    monkeypatch.setattr(lifecycle, "async_track_state_change_event", _fake_track)
+    lifecycle.register(hass)
+    assert "handler" in captured, "lifecycle.register() watched nothing"
+    return captured["handler"], m
+
+
+def _lc_event(entity_id, old_value, new_value):
+    from homeassistant.core import Event, State
+
+    return Event("state_changed", {
+        "entity_id": entity_id,
+        "old_state": State(entity_id, old_value) if old_value is not None else None,
+        "new_state": State(entity_id, new_value) if new_value is not None else None,
+    })
+
+
+async def test_lc11_an_event_arriving_with_no_runtime_manager_is_ignored(
+    hass, monkeypatch
+):
+    """[LC-11] The manager is looked up at EVENT time, so it can be gone by then.
+
+    `register` subscribes once; the manager is re-read on every event. After an
+    unload or a config-entry reload the subscription can still fire while
+    `DATA_RUNTIME` is absent. Without the guard,
+    `manager_local.get_known_vacuum_ids()` raises AttributeError on None.
+
+    The restored-manager half is the positive control: "nothing was asked of the
+    manager" is equally what a handler that does nothing ever produces.
+
+    RED: delete `if manager_local is None: return` and this raises AttributeError.
+    """
+    handler, m = _capture_lifecycle_handler(hass, monkeypatch)
+    before = m.get_known_vacuum_ids.call_count
+
+    runtime = hass.data[DOMAIN].pop(DATA_RUNTIME)
+    handler(_lc_event("sensor.alfred_task", "cleaning", "completed"))
+    assert m.get_known_vacuum_ids.call_count == before, (
+        "the manager was gone; nothing should have been asked of it"
+    )
+
+    hass.data[DOMAIN][DATA_RUNTIME] = runtime
+    handler(_lc_event("sensor.alfred_task", "cleaning", "completed"))
+    await hass.async_block_till_done()
+    assert m.get_known_vacuum_ids.call_count > before, (
+        "positive control: with the manager present the same event IS processed"
+    )
+
+
+async def test_lc12_an_entity_claimed_by_one_vacuum_does_not_match_another(hass):
+    """[LC-12] Two vacuums; only one claims the changed entity.
+
+    Every vacuum in the house routes through one handler, and the match is made per
+    vacuum against that vacuum's own declared watch entities. Without the `if`,
+    EVERY known vacuum matches every watched entity — so one robot finishing a job
+    would drive finalization for another, reading the other's active job and
+    writing its transitions.
+
+    ⚠ ASSERTED ON THE vacuum_entity_id KWARG, NOT ON CALL COUNTS. The mock
+    manager's `get_active_job` ignores which vacuum it was asked about, so a
+    wrongly-matched ivy produces calls identical in shape — only the kwarg
+    distinguishes them. `vacuum.ivy` deliberately gets NO adapter, so
+    `sensor.alfred_task` is claimed by alfred alone.
+
+    RED: delete the `if entity_id in get_lifecycle_watch_entities(...)` test and
+    ivy appears among the vacuums asked about.
+    """
+    m = _wire_lifecycle(hass)
+    m.get_known_vacuum_ids.return_value = [_VAC, "vacuum.ivy"]
+    # This test drives a STARTED job all the way to finalization, so finalize has
+    # to be awaitable: left as the autospec'd default it returns a coroutine that
+    # nothing awaits, and the test passes while leaking a ResourceWarning. Same
+    # reason [LC-1] sets it.
+    m.finalize_learning_for_active_job.return_value = None
+
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    lifecycle.register(hass)
+
+    hass.states.async_set("sensor.alfred_task", "completed")
+    await hass.async_block_till_done()
+    lifecycle.remove(hass)
+
+    asked = [c.kwargs.get("vacuum_entity_id") for c in m.get_active_job.call_args_list]
+    assert asked, "positive control: the claiming vacuum WAS processed"
+    assert set(asked) == {_VAC}, f"a foreign vacuum was matched: {sorted(set(asked))}"
+
+
+async def test_lc13_an_unclaimed_watched_entity_is_logged_not_silent(
+    hass, monkeypatch, caplog
+):
+    """[LC-13] When a lifecycle signal dies unmatched, it must say so.
+
+    Reachable whenever the known-vacuum set or the adapter registry moves between
+    `register()` and the event — a vacuum removed, an adapter unregistered, a
+    reload in flight. The branch exists precisely because this is where a lifecycle
+    signal "dies without a word", so the decision-log record IS the behaviour under
+    test. Without asserting it the test is absence-only, and a bare `return` with no
+    log would pass.
+
+    `decision_log.emit` is guarded on `isEnabledFor(DEBUG)` and logs under
+    `custom_components.eufy_vacuum.decision_log` — both read out of that module
+    rather than assumed, because an assertion on the wrong logger name would pass
+    for the wrong reason.
+
+    RED: delete the `_dlog("lifecycle.event.unmatched", ...)` call and the log
+    assertions fail while everything else still passes.
+    """
+    import logging
+
+    handler, m = _capture_lifecycle_handler(hass, monkeypatch)
+    m.get_known_vacuum_ids.return_value = []          # nothing claims anything now
+
+    with caplog.at_level(logging.DEBUG,
+                         logger="custom_components.eufy_vacuum.decision_log"):
+        handler(_lc_event("sensor.alfred_task", "cleaning", "completed"))
+
+    assert "lifecycle.event.unmatched" in caplog.text
+    assert "sensor.alfred_task" in caplog.text
+    m.get_active_job.assert_not_called()
+
+    # Positive control: restore the vacuum list and the same event IS processed.
+    m.get_known_vacuum_ids.return_value = [_VAC]
+    handler(_lc_event("sensor.alfred_task", "cleaning", "completed"))
+    await hass.async_block_till_done()
+    assert m.get_active_job.called
+
+
+async def test_lc14_an_external_run_that_opens_a_slot_is_persisted(hass):
+    """[LC-14] `maybe_handle_external_run` returning True must set any_changes.
+
+    `_mgr` hard-wires this to `AsyncMock(return_value=False)` "to keep that branch
+    inert", so the True arm had never executed. It is the arm that matters for
+    app-started runs: True means a `status="external"` slot was opened or finalized,
+    and if `any_changes` is not set the pass ends without reaching `async_save` — so
+    the slot exists in memory only and is gone on the next restart.
+
+    THE IDLE JOB IS LOAD-BEARING: a "started" job would set `any_changes` through
+    the internal finalization path and mask this line entirely. [LC-15] is the
+    False control that makes `assert_awaited` mean something.
+
+    RED: delete `any_changes = True` under the external branch and `async_save` is
+    never awaited.
+    """
+    m = _wire_lifecycle(hass)
+    m.get_active_job.return_value = {"status": "idle"}
+    m.maybe_handle_external_run.return_value = True
+
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    lifecycle.register(hass)
+    hass.states.async_set("sensor.alfred_task", "completed")
+    await hass.async_block_till_done()
+    lifecycle.remove(hass)
+
+    m.maybe_handle_external_run.assert_awaited()
+    m.async_save.assert_awaited()
+
+
+async def test_lc15_no_external_slot_and_an_idle_job_saves_nothing(hass):
+    """[LC-15] The control for [LC-14]: False must NOT persist.
+
+    Without this, [LC-14] passes against a listener that saves unconditionally, and
+    the whole `any_changes` accounting could be deleted with both tests green.
+    """
+    m = _wire_lifecycle(hass)
+    m.get_active_job.return_value = {"status": "idle"}
+    m.maybe_handle_external_run.return_value = False
+
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    lifecycle.register(hass)
+    hass.states.async_set("sensor.alfred_task", "completed")
+    await hass.async_block_till_done()
+    lifecycle.remove(hass)
+
+    m.maybe_handle_external_run.assert_awaited()
+    m.async_save.assert_not_awaited()

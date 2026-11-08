@@ -103,6 +103,60 @@ async def test_one_vacuum_exception_does_not_block_the_other(hass, manager, monk
     assert sampled == [_VAC_SLOW]
 
 
+async def test_pc4_a_vacuum_with_no_declared_interval_is_skipped_mid_loop(
+    hass, manager, monkeypatch
+):
+    """[PC-4] A mixed fleet is the normal case, and one member declares nothing.
+
+    Eufy and Roborock declare `room_attribution`; a Dreame, or any vacuum whose
+    adapter has no such block, yields None from `_room_attribution_interval_s`.
+    Without the `if own_interval is None: continue`, `now_ts - last < None` raises
+    TypeError — and it raises in the TICK BODY, outside the per-vacuum try that
+    POSE-5 installed, so the whole tick dies and every vacuum after it goes
+    unsampled for that cycle.
+
+    ⚠ THE INTERVAL-LESS VACUUM IS IN THE MIDDLE OF THE LIST ON PURPOSE. At the end,
+    a `continue` wrongly written as `break` or `return` would be indistinguishable
+    from the correct behaviour. In the middle, the vacuum AFTER it is what proves
+    the loop continued rather than merely stopped quietly — the same positional
+    reasoning as [LS-23].
+
+    `register()` filters None intervals out of its own `min()`, so the ticker is
+    still registered; this is purely about the per-vacuum loop.
+
+    RED: delete the guard and the tick raises TypeError, leaving `sampled` empty.
+    """
+    sampled: list[str] = []
+
+    async def _fake_sample(hass_arg, manager_arg, vacuum_entity_id):
+        sampled.append(vacuum_entity_id)
+        return 0
+
+    no_interval = "vacuum.noattr"
+    monkeypatch.setattr(pose_sampler, "_sample_vacuum_once", _fake_sample)
+    tick, fake_time = _register_tick(hass, manager, monkeypatch)
+
+    # AFTER _register_tick, which sets get_known_vacuum_ids itself -- setting it
+    # before would simply be overwritten. Registering with two vacuums and ticking
+    # with three is also the realistic shape: the fleet can change between
+    # register() and any later tick.
+    monkeypatch.setattr(
+        manager, "get_known_vacuum_ids",
+        lambda: [_VAC_FAST, no_interval, _VAC_SLOW],
+    )
+    # _INTERVALS has no entry for `no_interval`, so the patched resolver returns None
+    # for it -- which is exactly what an adapter with no room_attribution block gives.
+    assert _INTERVALS.get(no_interval) is None, "precondition: this vacuum declares none"
+    fake_time[0] = 10.0
+
+    await tick(None)
+
+    assert sampled == [_VAC_FAST, _VAC_SLOW], (
+        "the interval-less vacuum must be skipped, and the one AFTER it must still "
+        f"be reached -- got {sampled}"
+    )
+
+
 async def test_in_flight_vacuum_is_skipped_not_resampled(hass, manager, monkeypatch):
     """[PC-3] POSE-2: a second tick firing while the first vacuum's sample is
     still running must skip it, not sample it again concurrently.
