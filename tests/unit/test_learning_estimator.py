@@ -25,10 +25,19 @@ Coverage targets
 [LE-21] LearningEstimator.next_room: returns None when all rooms completed.
 [LE-22] LearningEstimator.reanchor_timeline: completed rooms update offsets.
 [LE-23] LearningEstimator.reanchor_timeline: remaining rooms marked current/remaining.
+[LE-24] _is_stats_stale: a fresh rebuild is not stale.
+[LE-25] _is_stats_stale: exactly at the threshold is NOT stale (the gate is `>`).
+[LE-26] _is_stats_stale: one day past the threshold IS stale.
+        LE-25/LE-26 are a PAIR -- together they fence _STALE_THRESHOLD_DAYS in
+        both directions, which one test on either side cannot do.
+[LE-27] _is_stats_stale: absent/empty stats read as stale, not fresh.
+[LE-28] _is_stats_stale: an unparseable `rebuilt_at` fails SAFE (stale).
+[LE-29] _is_stats_stale: honours `room_stats_data` instead of reading the store.
 """
 
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -48,6 +57,7 @@ from custom_components.eufy_vacuum.learning.estimator import (
     _relaxed_setting_scale,
     _score_room_confidence,
 )
+from custom_components.eufy_vacuum.timestamp_utils import utc_now
 
 
 # ---------------------------------------------------------------------------
@@ -1159,3 +1169,147 @@ def test_mop_projection_identical_for_display_label_and_token(tmp_path):
     # And the opposite direction: a vacuum-only job must project none, so a fix that
     # simply treats everything as mop cannot pass.
     assert vacuum_mop == 0
+
+
+# ---------------------------------------------------------------------------
+# [LE-24]..[LE-29] _is_stats_stale -- four arms and a threshold, previously with
+# ZERO tests of any kind. `grep -rn "_is_stats_stale\|_STALE_THRESHOLD_DAYS\|
+# stats_stale" tests/` returned nothing before these.
+#
+# WHY IT MATTERS RATHER THAN JUST BEING UNCOVERED. This is the only thing that
+# tells a user their learned data has gone old: the estimator's own module
+# docstring says the "payload includes stats_stale=True so the card can warn the
+# user", and `learning/manager.py` surfaces it in the dashboard snapshot. A gate
+# that silently answered False would leave the warning permanently off; one that
+# silently answered True would cry wolf on every fresh rebuild. Neither has a
+# symptom anywhere else.
+#
+# AND IT WAS LIVE WHEN THESE WERE WRITTEN. Measured on the real box 2026-11-07:
+# one vacuum's room_stats carried `rebuilt_at` 2026-10-11, i.e. 27 days -- three
+# days short of the threshold, on an untested comparison.
+#
+# THE THRESHOLD IS FENCED IN BOTH DIRECTIONS, which is the point of LE-25/LE-26
+# being a pair rather than one "it goes stale eventually" test. Raise
+# _STALE_THRESHOLD_DAYS and LE-26 goes red; lower it and LE-25 does. A single
+# test on either side pins nothing: the sweep that prompted this found nine
+# thresholds whose tests held only one side, and this one had neither.
+# ---------------------------------------------------------------------------
+
+
+def _stats_rebuilt_days_ago(days: float) -> dict:
+    """A room_stats payload whose rebuild stamp is `days` old.
+
+    The stamp format is the one the REAL store writes -- `...Z`, as read off the
+    live box -- not `datetime.isoformat()`'s `+00:00`. Both parse, and deriving the
+    fixture from the producer rather than from what is convenient is the difference
+    between testing the code and testing my memory of it.
+    """
+    stamp = (utc_now() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"schema_version": 6, "rebuilt_at": stamp, "room_stats": []}
+
+
+def test_is_stats_stale_fresh_rebuild_is_not_stale(tmp_path):
+    """[LE-24] A rebuild from yesterday is not stale."""
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    assert estimator._is_stats_stale(
+        vacuum_entity_id="vacuum.alfred",
+        room_stats_data=_stats_rebuilt_days_ago(1),
+    ) is False
+
+
+def test_is_stats_stale_at_the_threshold_is_not_yet_stale(tmp_path):
+    """[LE-25] Exactly 30 days old is NOT stale -- the gate is `>`.
+
+    THE 30 IS A LITERAL ON PURPOSE, and the first draft got this wrong. It read
+    `_stats_rebuilt_days_ago(_STALE_THRESHOLD_DAYS)`, which moves the FIXTURE every
+    time the constant moves -- so the test asserted only "the gate is `>` relative to
+    whatever the constant happens to be" and could never notice the constant
+    changing. Ablation proved it: raising the threshold to 31 and lowering it to 29
+    both left the suite GREEN. That is the self-referential trap, the same shape as a
+    unit test importing the table it is meant to be checking.
+
+    A literal here is a FENCE, which is what a hardcoded shipped value in an
+    ASSERTION is for: move _STALE_THRESHOLD_DAYS and this goes red, so the change has
+    to be made deliberately. With [LE-26] it fences the number from both sides.
+
+    `timedelta.days` truncates, so the few microseconds between building the stamp
+    and the gate reading the clock cannot push 30 days over the line.
+    """
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    assert estimator._is_stats_stale(
+        vacuum_entity_id="vacuum.alfred",
+        room_stats_data=_stats_rebuilt_days_ago(30),
+    ) is False
+
+
+def test_is_stats_stale_one_day_past_the_threshold_is_stale(tmp_path):
+    """[LE-26] 31 days old IS stale -- the upper half of the fence.
+
+    Literal for the same reason as [LE-25]: derived from the constant it would move
+    with it and pin nothing. Raise _STALE_THRESHOLD_DAYS and this is the test that
+    fires.
+    """
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    assert estimator._is_stats_stale(
+        vacuum_entity_id="vacuum.alfred",
+        room_stats_data=_stats_rebuilt_days_ago(31),
+    ) is True
+
+
+def test_is_stats_stale_no_stats_at_all_is_stale(tmp_path):
+    """[LE-27] Absent or empty stats are stale, not fresh.
+
+    A new vacuum has nothing stored, and the honest answer is "you have no learned
+    data", not "your learned data is current". `{}` and `None` take different
+    branches -- the empty dict is caught by the falsy check, `None` triggers a store
+    read -- so both are asserted rather than assumed equivalent.
+    """
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    assert estimator._is_stats_stale(
+        vacuum_entity_id="vacuum.alfred", room_stats_data={}
+    ) is True
+
+
+def test_is_stats_stale_an_unreadable_stamp_is_stale(tmp_path):
+    """[LE-28] A missing or unparseable `rebuilt_at` is stale.
+
+    Fails SAFE, and that direction is the whole claim: a stamp nobody can read must
+    not be treated as recent. Parametrised over the shapes `_parse_iso` returns None
+    for, because "it handles a bad timestamp" is the kind of statement that holds for
+    one shape and not the next.
+    """
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    for stamp in (None, "", "garbage", "not-a-date", "2026-13-45T99:99:99Z"):
+        payload = {"schema_version": 6, "room_stats": []}
+        if stamp is not None:
+            payload["rebuilt_at"] = stamp
+        assert estimator._is_stats_stale(
+            vacuum_entity_id="vacuum.alfred", room_stats_data=payload
+        ) is True, f"stamp {stamp!r} must read as stale"
+
+
+def test_is_stats_stale_reads_the_store_only_when_not_handed_data(tmp_path):
+    """[LE-29] Passing `room_stats_data` avoids the disk read; omitting it does one.
+
+    The docstring makes this promise -- "Pass room_stats_data when it is already
+    loaded to avoid a redundant disk read on the event loop" -- and nothing held it.
+    A refactor that always loaded would be invisible: every other assertion here
+    would still pass, because the loaded value and the passed value agree.
+
+    Asserted in BOTH directions, because only the pair distinguishes "the parameter
+    is honoured" from "the store happens to return the same thing".
+    """
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    fresh = _stats_rebuilt_days_ago(1)
+
+    with patch.object(estimator.store, "load_room_stats") as loader:
+        estimator._is_stats_stale(vacuum_entity_id="vacuum.alfred", room_stats_data=fresh)
+        assert loader.call_count == 0, (
+            "room_stats_data was supplied, so the store must not be read -- this "
+            "function runs on the event loop"
+        )
+
+    with patch.object(estimator.store, "load_room_stats", return_value=fresh) as loader:
+        assert estimator._is_stats_stale(vacuum_entity_id="vacuum.alfred") is False
+        assert loader.call_count == 1
+        assert loader.call_args.kwargs == {"vacuum_entity_id": "vacuum.alfred"}

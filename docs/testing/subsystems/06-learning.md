@@ -60,6 +60,35 @@ Mirrors the dispatch side, where `queue_engine` only writes `water_level` /
 |---------------|------:|----:|--------------|-------|-------|
 | `utils.py` | 120 | 94% | `tests/unit/test_learning_utils.py` | unit (pure) | clean |
 | `estimator.py` | 535 | 94% | `tests/unit/test_learning_estimator.py` | unit (pure + class) | **bare x1** |
+
+#### The staleness gate (`LE-24`..`LE-29`) — added 2026-11-07, previously untested
+
+`estimator._is_stats_stale` had **no tests of any kind**: `grep -rn
+"_is_stats_stale\|_STALE_THRESHOLD_DAYS\|stats_stale" tests/` returned nothing. It has
+four arms and a threshold, and it is the only thing that tells a user their learned data
+has gone old — the module docstring says the payload carries `stats_stale=True` *"so the
+card can warn the user"*, and `learning/manager.py` surfaces it in the dashboard
+snapshot. A gate that silently answered `False` would leave the warning permanently off;
+one that answered `True` would cry wolf on every rebuild. Neither has a symptom anywhere
+else.
+
+It was live when these were written: on the real box one vacuum's `room_stats` carried
+`rebuilt_at` 2026-10-11, 27 days against a 30-day threshold.
+
+**`LE-25`/`LE-26` are a PAIR and that is the point.** Together they fence
+`_STALE_THRESHOLD_DAYS` in both directions — raise it and `LE-26` fires, lower it and
+`LE-25` does. A single "it goes stale eventually" test pins the *direction* and not the
+*number*.
+
+> **The first draft of that pair did not bite, and the reason is worth keeping.** It
+> built its fixtures from the constant — `_stats_rebuilt_days_ago(_STALE_THRESHOLD_DAYS)`
+> — so moving the constant moved the fixture with it, and the test asserted only "the
+> gate is `>` relative to whatever the constant happens to be". Ablation proved it:
+> 30 → 31 and 30 → 29 both left the suite **green**. The boundaries are literal `30` and
+> `31` now. A hardcoded shipped value inside an *assertion* is a FENCE and is the correct
+> shape; deriving it from the thing under test is the self-referential trap, the same one
+> `tests/replay/test_harvest_units.py` fell into by importing the unit table it was
+> meant to be checking (see [`RN0RGR1H`](../../dev/00c-replicas.md)).
 | `history_store.py` | 839 | 93% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) | **bare x1** |
 | `stats_rebuilder.py` | 501 | 95% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) | **bare x1** |
 | `job_finalizer.py` | 641 | 94% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration | **bare x8** |
