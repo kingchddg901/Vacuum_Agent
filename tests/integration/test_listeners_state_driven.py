@@ -42,6 +42,17 @@ Coverage targets
 [LS-22] a dock_status entity and extra_watches coexist; neither suppresses the other.
 [LS-23] an extra_watch that resolves no entity is skipped without taking the rest
         of the registration down with it.
+[LS-24] an extra_watch with EMPTY triggers is skipped -- and skipping it matters:
+        kept, its `{}` shadows the adapter's real trigger vocabulary for that
+        entity, because `extra_triggers.get(id)` returning `{}` is not None.
+[LS-25] a removed watched entity (new_state=None) is ignored, not dereferenced.
+[LS-26] a dock edge arriving with no runtime manager is ignored. The event has to
+        be a GENUINE edge or the guard is invisible.
+
+⚠ [LS-25] and [LS-26] call the CAPTURED handler, not the bus. HA catches and logs
+exceptions raised inside a @callback, so firing through `hass.states.async_set`
+would swallow the AttributeError a missing guard raises and the test would pass
+inverted. See the note above those tests.
 """
 
 from __future__ import annotations
@@ -1078,3 +1089,147 @@ async def test_ls23_an_unresolvable_extra_watch_is_skipped_not_fatal(hass, manag
     assert "last_dust_empty" in manager.data.get("dock_events", {}).get(_VAC, {}), (
         "an unresolvable watch took the surviving ones down with it"
     )
+
+
+# ---------------------------------------------------------------------------
+# [LS-24] — [LS-26] dock_events guards that need the handler, not the bus
+#
+# ⚠ THESE THREE CALL THE CAPTURED HANDLER DIRECTLY, and that is not a style
+# preference. HA's event bus CATCHES and LOGS exceptions raised inside a @callback,
+# so a test that fires through `hass.states.async_set` passes whether the guard is
+# there or not — the AttributeError the missing guard raises is swallowed by the bus
+# and the assertion never sees it. Driving the closure directly is what makes the
+# ablation visible, and it is also the only way to synthesise a `new_state=None`
+# event, which the real state machine will not emit on demand.
+# ---------------------------------------------------------------------------
+
+def _capture_dock_handler(hass, monkeypatch, adapter_config=_ADAPTER_WITH_DOCK):
+    """Register dock_events with the subscribe call stubbed; return the handler."""
+    captured: dict = {}
+
+    def _fake_track(hass_arg, entity_ids, action):
+        captured["entities"] = list(entity_ids)
+        captured["handler"] = action
+        return lambda: None
+
+    monkeypatch.setattr(dock_events, "async_track_state_change_event", _fake_track)
+    dock_events.register(hass)
+    assert "handler" in captured, "dock_events.register() watched nothing"
+    return captured["handler"]
+
+
+def _dock_event(entity_id, old_value, new_value):
+    """A state_changed-shaped event; `new_value=None` means the entity was removed."""
+    from homeassistant.core import Event, State
+
+    return Event("state_changed", {
+        "entity_id": entity_id,
+        "old_state": State(entity_id, old_value) if old_value is not None else None,
+        "new_state": State(entity_id, new_value) if new_value is not None else None,
+    })
+
+
+async def test_ls24_an_extra_watch_with_empty_triggers_is_skipped(hass, manager):
+    """[LS-24] `triggers: {}` on an extra_watch is skipped, and skipping it MATTERS.
+
+    This looks like a harmless guard and is not. Without `if not _trig: continue`, an
+    empty-trigger watch whose role RESOLVES still writes both `watched[entity]` and
+    `extra_triggers[entity] = {}`. At event time `extra_triggers.get(entity_id)`
+    returns `{}` — which is not None — so the `_triggers is None` fallback never
+    consults the adapter's main `dock_events.triggers` for that entity. Point the
+    empty watch at the SAME entity as dock_status, as here, and every real wash event
+    on it is silently shadowed.
+
+    ⚠ THE ROLE MUST RESOLVE, or this proves nothing: an empty-trigger watch whose
+    role resolves to no entity is subsumed by the line-139 guard, which `continue`s
+    on `not _entity` either way. `dock_status` is declared by `_ADAPTER_WITH_DOCK`,
+    so it resolves.
+
+    The recorded wash IS the positive control — the assertion is that the main
+    vocabulary still reached the entity, not merely that nothing broke.
+
+    RED: delete `if not _trig: continue` and `last_mop_wash` never appears.
+    """
+    import copy
+
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    shadowing = copy.deepcopy(_ADAPTER_WITH_DOCK)
+    shadowing["dock_events"]["extra_watches"] = [
+        {"role": "dock_status", "triggers": {}},
+    ]
+    register_adapter_config(_VAC, shadowing)
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "idle")
+    await hass.async_block_till_done()
+
+    dock_events.register(hass)
+
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "washing")
+    await hass.async_block_till_done()
+
+    assert "last_mop_wash" in manager.data.get("dock_events", {}).get(_VAC, {}), (
+        "an empty-trigger extra_watch shadowed the adapter's real trigger vocabulary"
+    )
+
+
+async def test_ls25_a_removed_watched_entity_is_ignored(hass, manager, monkeypatch):
+    """[LS-25] HA delivers `new_state=None` when a watched entity is removed.
+
+    `hass.states.async_remove`, or disabling the entity in the registry, produces
+    exactly this event. Without the guard, `new_state.state` raises AttributeError
+    inside the callback.
+
+    The old_state is a real prior value on purpose: with `old_state=None` too, the
+    edge test would refuse for its own reason and the absence of a recording would
+    say nothing about this guard.
+
+    RED: delete `if new_state is None: return` and this raises AttributeError.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_WITH_DOCK)
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "idle")
+    await hass.async_block_till_done()
+
+    handler = _capture_dock_handler(hass, monkeypatch)
+
+    handler(_dock_event(_DOCK_STATUS_ENTITY, "idle", None))
+    assert "last_mop_wash" not in manager.data.get("dock_events", {}).get(_VAC, {})
+
+    # Positive control: the SAME captured handler, given a real reading, records.
+    handler(_dock_event(_DOCK_STATUS_ENTITY, "idle", "washing"))
+    assert "last_mop_wash" in manager.data.get("dock_events", {}).get(_VAC, {}), (
+        "the handler records nothing at all -- the None assertion above is vacuous"
+    )
+
+
+async def test_ls26_a_dock_edge_with_no_runtime_manager_is_ignored(
+    hass, manager, monkeypatch
+):
+    """[LS-26] The manager is re-read per event, so it can be gone by then.
+
+    ⚠ THE EVENT MUST BE A GENUINE EDGE. `idle -> washing` is a declared trigger in
+    `_ADAPTER_WITH_DOCK`, so this event WOULD record if the manager were present.
+    A non-edge event (a non-trigger value, or old == new) does nothing whether the
+    guard is there or not, so it cannot expose the guard at all — which is the trap
+    that makes this test look passable while proving nothing.
+
+    RED: delete `if manager_local is None: return` and `record_dock_event` is called
+    on None, raising AttributeError.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_WITH_DOCK)
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "idle")
+    await hass.async_block_till_done()
+
+    handler = _capture_dock_handler(hass, monkeypatch)
+
+    from custom_components.eufy_vacuum.const import DATA_RUNTIME
+
+    runtime = hass.data[DOMAIN].pop(DATA_RUNTIME)
+    handler(_dock_event(_DOCK_STATUS_ENTITY, "idle", "washing"))
+    assert "last_mop_wash" not in manager.data.get("dock_events", {}).get(_VAC, {})
+
+    # Positive control: restore it and the IDENTICAL event records, which is what
+    # proves the event above was a real edge rather than a no-op.
+    hass.data[DOMAIN][DATA_RUNTIME] = runtime
+    handler(_dock_event(_DOCK_STATUS_ENTITY, "idle", "washing"))
+    assert "last_mop_wash" in manager.data.get("dock_events", {}).get(_VAC, {})

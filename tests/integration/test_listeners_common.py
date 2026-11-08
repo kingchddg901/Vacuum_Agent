@@ -30,6 +30,13 @@ Coverage targets
 [LC-18] `unavailable_is_active` reads an UNREADABLE job_active binary as still
         active for the finalize gate and as strict not-on for the arming gate.
         The opposite answers ARE the claim.
+[LC-19] a section whose value is not a dict still returns the fallback -- the
+        input that actually tests `get_adapter_vocab`'s "Never raises" promise,
+        which the missing-section cases do not.
+[LC-20] `is_dock_trigger_edge` distinguishes NO READING from the word "none".
+        A CONTRACT test: measured, no shipped dock_events.triggers vocabulary
+        contains "none", so the guard is subsumed against every brand that ships
+        today and only a vocabulary containing it can make the test bite.
 
 ⚠ [LC-1] / [LC-4] / [LC-7] SAID "no adapter registered" AND DID NOT MEAN IT.
 All three asked about `_VAC` while taking the `manager` fixture, which registers
@@ -52,6 +59,7 @@ from custom_components.eufy_vacuum.listeners._common import (
     get_adapter_value,
     get_adapter_vocab,
     get_lifecycle_watch_entities,
+    is_dock_trigger_edge,
     is_job_active,
     job_finished_event_data,
 )
@@ -104,6 +112,81 @@ def test_get_adapter_vocab_no_adapter_returns_fallback():
     result = get_adapter_vocab(
         _UNREGISTERED, "completion", "secondary_clear_sentinels", _FALLBACK)
     assert result == _FALLBACK
+
+
+@pytest.mark.parametrize("section_value", [
+    ["secondary_clear_sentinels"],   # a list has no .get
+    "secondary_clear_sentinels",     # nor does a str
+    7,                               # nor an int
+])
+def test_lc19_a_section_whose_value_is_not_a_dict_still_returns_the_fallback(
+    monkeypatch, section_value
+):
+    """[LC-19] `get_adapter_vocab` promises "Never raises". This is the input that tests it.
+
+    The existing missing-section and missing-key cases ([LC-3]) also return the
+    fallback without raising, which is why they do not cover this: there the `.get`
+    chain succeeds and finds nothing. Here `config.get(section)` returns a value with
+    no `.get` of its own, so the expression itself raises and only the broad `except`
+    can keep the promise.
+
+    Reachable because adapter config shape is an adapter DECLARATION, and
+    code-sourced adapters register warn-only rather than being rejected. The caller
+    that matters is lifecycle's completion-gate evaluation: a raise there aborts
+    finalization for the run.
+
+    `get_adapter_config` is patched rather than registering a malformed adapter,
+    because registration may validate or reject the block and then the test would be
+    measuring the registry instead of this function.
+
+    RED: delete `except Exception: return fallback` and every row raises
+    AttributeError (TypeError for the int).
+    """
+    from custom_components.eufy_vacuum.listeners import _common
+
+    monkeypatch.setattr(
+        _common, "get_adapter_config",
+        lambda _vid: {"completion": section_value},
+    )
+    result = get_adapter_vocab(
+        _VAC, "completion", "secondary_clear_sentinels", _FALLBACK)
+    assert result == _FALLBACK
+
+
+def test_lc20_no_reading_is_not_the_string_none(monkeypatch):
+    """[LC-20] `is_dock_trigger_edge` must distinguish "no reading" from the word "none".
+
+    ⚠ THIS IS A CONTRACT TEST, AND NO SHIPPED BRAND REACHES IT. Measured: no
+    shipped `dock_events.triggers` vocabulary contains `none` — Eufy ships
+    washing/emptying/drying variants, Dreame ships washing and drying, and Roborock
+    declares no dock_status role at all and goes through `extra_watches`. So against
+    every vocabulary that ships today the `new_state_value is None` guard is
+    SUBSUMED: without it `str(None).lower()` is `"none"`, which is in no trigger set,
+    and the answer is False either way.
+
+    It is still worth pinning, because the vocabulary is a PARAMETER. This is a pure
+    public helper with two callers, and `lifecycle.py` passes
+    `getattr(new_state_obj, "state", None)` — so None genuinely arrives when a
+    dock_status entity is removed. A brand that ever declares `none` as a trigger
+    state (an idle dock reporting the string) would, without the guard, have every
+    entity removal recorded as a dock cycle.
+
+    THE VOCABULARY CONTAINING `none` IS THE WHOLE RED INPUT. With an ordinary
+    vocabulary such as {"washing"} this test passes identically with the guard
+    deleted, which is exactly the trap it is written to avoid.
+
+    RED: delete `if new_state_value is None: return False` and the first assertion
+    returns True.
+    """
+    vocabulary = frozenset({"none"})
+
+    assert is_dock_trigger_edge("washing", None, vocabulary) is False, (
+        "a removed entity has no reading; it has not transitioned INTO anything"
+    )
+    # The positive control, and the thing being distinguished FROM: the literal
+    # string "none" from a device that really does report it IS a reading, and an
+    # edge into it is a real edge.
+    assert is_dock_trigger_edge("idle", "none", vocabulary) is True
 
 
 def test_get_adapter_vocab_registered_but_silent_section_returns_fallback(manager):

@@ -191,7 +191,38 @@ spot checks on `lifecycle.py` and `path_blockers.py` confirm the *shape*
 - **`path_blockers.py` (95%)** — missing lines 179, 250-251, 256-257: a
   non-dict-room skip inside the watcher-build rule walk, and event-dedup
   guards.
-- **`dock_events.py` (92%)** — missing lines 77, 81, 85: event-dedup guards.
+- **`dock_events.py`** — the entry read "missing lines 77, 81, 85: event-dedup
+  guards"; the numbers had rotted and only one of the three real gaps was a dedup
+  guard. Now pinned by `LS-24`..`LS-26`:
+  - **`LS-24`** is the one that is not defensive at all. An `extra_watch` carrying
+    `triggers: {}` whose role RESOLVES still writes `watched[entity]` *and*
+    `extra_triggers[entity] = {}` — and at event time `extra_triggers.get(id)`
+    returning `{}` is **not None**, so the `_triggers is None` fallback never
+    consults the adapter's own `dock_events.triggers` for that entity. Point such a
+    watch at the same entity as `dock_status` and every real wash event on it is
+    silently shadowed. The role has to resolve for the test to bite: an
+    empty-trigger watch that resolves no entity is subsumed by the `not _entity`
+    guard below it, which `continue`s either way.
+  - **`LS-25`/`LS-26`** drive the removed-entity (`new_state=None`) and
+    manager-gone guards. `LS-26`'s event must be a GENUINE edge
+    (`idle -> washing`, a declared trigger) — a non-edge event does nothing whether
+    the guard is present or not, so it cannot expose it.
+
+  ⚠ **Both call the CAPTURED handler, never the bus.** HA catches and logs
+  exceptions raised inside a `@callback`, so a test firing through
+  `hass.states.async_set` swallows the `AttributeError` a missing guard raises and
+  passes inverted. Driving the closure directly is also the only way to synthesise
+  a `new_state=None` event, which the real state machine will not emit on demand.
+- **`entity_rename.py`** — `ER-7`..`ER-9` close the three guards between the
+  entity_id check and the append.
+  `ER-7`'s guard is a three-clause compound and **only two of its clauses can
+  bite**, which is measured rather than asserted: ablating each clause separately,
+  `not new_entity_id` and `old == new` each redden exactly one parametrised row,
+  while `not old_entity_id` reddens **nothing** — an empty old id is not in
+  `data["vacuums"]`, so the managed check below returns anyway. Using old-empty as
+  the red input would have looked like coverage and proved nothing. `ER-9` covers a
+  `pending_entity_renames` value off disk that is not a list; note the repair
+  DISCARDS the prior value, so the test asserts the list holds exactly one entry.
 - **`job_metrics.py`** — the entry here read "missing lines 44, 48, 206:
   capability-read / value-parse guards", and both the numbers and the
   characterisation were wrong. The real gaps were the `ms` and hour branches of
@@ -248,7 +279,26 @@ spot checks on `lifecycle.py` and `path_blockers.py` confirm the *shape*
     into the blanket `except` which returns the same fallback. The guard is
     SUBSUMED and its red set is declared empty.
 
-  82-83, 105-106 and 139 remain genuinely defensive broad-except fallbacks.
+  82-83 and 139 have since been closed too, and 139 is worth reading before anyone
+  calls it covered:
+  - **82-83** (`LC-19`) is the input that actually tests `get_adapter_vocab`'s
+    "Never raises" promise. The existing missing-section cases do not: there the
+    `.get` chain succeeds and finds nothing, whereas a section whose VALUE is a
+    list, str or int makes the expression itself raise, and only the broad `except`
+    keeps the promise. Reachable because adapter shape is a declaration and
+    code-sourced adapters register warn-only.
+  - **139** (`LC-20`) is a CONTRACT test, and no shipped brand reaches it.
+    Measured: no shipped `dock_events.triggers` vocabulary contains `none` (Eufy
+    ships washing/emptying/drying variants, Dreame washing and drying, Roborock
+    declares no dock_status role and goes through `extra_watches`), so against
+    everything that ships today the guard is **subsumed** — without it
+    `str(None).lower()` is `"none"`, which is in no trigger set. It is pinned anyway
+    because the vocabulary is a PARAMETER of a pure public helper and
+    `lifecycle.py` really does pass `None` when a dock_status entity is removed. A
+    vocabulary containing `none` is the entire red input; with an ordinary one the
+    test passes with the guard deleted.
+
+  105-106 remain a genuinely defensive broad-except fallback.
 - **`pause_timeout.py` (92%)** — missing lines 161, 175, 182-183: guards
   inside the tick (manager gone, unknown map_id, and one new arm not yet
   itemized by name).

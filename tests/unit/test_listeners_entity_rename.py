@@ -15,6 +15,13 @@ Coverage targets
        first and leave a pair whose old half nothing can resolve.
 [ER-6] the check is against the OLD id. By the time this fires the registry already
        holds the new one, and the new one is precisely what we have never seen.
+[ER-7] a degenerate pair (old == new, or no new id) records nothing. Only TWO of
+       that guard's three sub-conditions can bite; `not old_entity_id` is subsumed
+       by the managed check below it, measured, and is deliberately not the input.
+[ER-8] a registry update arriving with no runtime manager is ignored — this
+       listener outlives the manager it reads.
+[ER-9] a `pending_entity_renames` value off disk that is not a list is REPAIRED
+       (and the bad value discarded) rather than appended to.
 """
 
 from __future__ import annotations
@@ -146,3 +153,106 @@ def test_remove_is_idempotent_and_unsubscribes():
     entity_rename.remove(hass)
     assert "_entity_rename_unsub" not in hass.data[DOMAIN]
     entity_rename.remove(hass)   # second call is a no-op, not an error
+
+
+# ---------------------------------------------------------------------------
+# [ER-7] / [ER-8] / [ER-9] the guards between the entity_id check and the append
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("new_id,why", [
+    ("vacuum.alfred", "old == new: the registry moved something else on this entity"),
+    ("", "no new id in the payload at all"),
+])
+def test_er7_a_degenerate_id_pair_records_nothing(new_id, why):
+    """[ER-7] A pair that is not a rename must not be banked as one.
+
+    The payload is an HA registry-update event, so its shape is an outside input.
+    Both rows below are reachable: an update that carries `entity_id` in `changes`
+    while the entity id did not actually move, and one with no new id to read.
+
+    ⚠ ONLY TWO OF THE GUARD'S THREE SUB-CONDITIONS CAN BITE, and the third is left
+    out deliberately rather than forgotten. `not old_entity_id` is SUBSUMED: with
+    the whole guard deleted, an empty old id is not in `manager.data["vacuums"]`, so
+    the managed check below returns anyway and the answer is identical. Measured by
+    ablation. Using old-empty as the red input here would look like coverage and
+    prove nothing.
+
+    What the two live rows cost if the guard goes: a bogus pair is appended to
+    `pending_entity_renames` — `alfred -> alfred` or `alfred -> ''` — and the
+    user-facing warning fires claiming their vacuum was renamed. The repair pass
+    then has a record whose halves it cannot reconcile.
+
+    [ER-1] in this file is the positive control: the same wiring with a REAL pair
+    records exactly one.
+    """
+    hass, cb, data = _wire(["vacuum.alfred"])
+
+    if new_id == "":
+        # No `entity_id` key at all, which is the shape that yields "" -- not the
+        # same thing as an explicit empty string, and the one HA could actually send.
+        cb(SimpleNamespace(data={"action": "update",
+                                 "changes": {"entity_id": "vacuum.alfred"}}))
+    else:
+        cb(_event(entity_id=new_id, changes={"entity_id": "vacuum.alfred"}))
+
+    assert entity_rename.PENDING_RENAMES not in data, why
+
+
+def test_er8_a_registry_update_with_no_runtime_manager_is_ignored():
+    """[ER-8] This listener outlives the manager, so it must tolerate its absence.
+
+    `register` subscribes to the bus independently of manager lifetime, and the
+    manager is re-read on every event — so a registry update arriving during
+    unload, reload or early startup finds `DATA_RUNTIME` gone. Without the guard,
+    `manager.data` raises AttributeError on None.
+
+    The ids are valid and distinct on purpose: if they were not, [ER-7]'s guard
+    would return first and this test would pass without reaching the manager check
+    at all.
+
+    RED: delete `if manager is None: return` and this raises AttributeError.
+    """
+    hass, cb, data = _wire(["vacuum.alfred"])
+
+    # Positive control FIRST, so "nothing recorded" below cannot be a listener that
+    # never records anything.
+    cb(_event(entity_id="vacuum.alfred_2", changes={"entity_id": "vacuum.alfred"}))
+    assert len(data[entity_rename.PENDING_RENAMES]) == 1
+
+    del hass.data[DOMAIN][DATA_RUNTIME]
+    cb(_event(entity_id="vacuum.alfred_3", changes={"entity_id": "vacuum.alfred"}))
+
+    assert len(data[entity_rename.PENDING_RENAMES]) == 1, (
+        "the manager was gone; nothing more could be banked"
+    )
+
+
+@pytest.mark.parametrize("prior", [{}, None, "corrupt", 7])
+def test_er9_a_non_list_pending_key_is_repaired_not_appended_to(prior):
+    """[ER-9] `pending_entity_renames` off disk may not be a list.
+
+    `manager.data` is the persisted store and nothing coerces this key on load —
+    `manager.py` and `services/setup.py` each defend it separately, which is the
+    tell that its type is not guaranteed. A value an older build or a corrupted
+    store left behind makes `setdefault` hand back a non-list, and
+    `pending.append(record)` then raises — losing a real rename AND raising inside
+    a bus callback.
+
+    ⚠ THE REPAIR DISCARDS WHATEVER WAS THERE. That is the right trade (a non-list
+    value holds nothing this code can read) but it is a real consequence, so the
+    test asserts the list has exactly ONE entry — the new one — rather than
+    asserting it merely contains it.
+
+    RED: delete the isinstance repair and every row raises AttributeError (or
+    TypeError for the int).
+    """
+    hass, cb, data = _wire(["vacuum.alfred"])
+    data[entity_rename.PENDING_RENAMES] = prior
+
+    cb(_event(entity_id="vacuum.alfred_2", changes={"entity_id": "vacuum.alfred"}))
+
+    pending = data[entity_rename.PENDING_RENAMES]
+    assert isinstance(pending, list)
+    assert len(pending) == 1, "the repair replaces the bad value, it does not merge"
+    assert pending[0]["old_entity_id"] == "vacuum.alfred"
+    assert pending[0]["new_entity_id"] == "vacuum.alfred_2"
