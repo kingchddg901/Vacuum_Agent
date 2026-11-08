@@ -100,7 +100,7 @@ It was live when these were written: on the real box one vacuum's `room_stats` c
 | `counter_segmentation.py` | 202 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) | clean |
 | `brand_facts.py` | 54 | 93% | `tests/unit/test_learning_brand_facts.py` | unit (pure) | clean |
 | `external_run.py` | 340 | 85% | `tests/integration/test_manager_external_finalize.py` + `tests/integration/test_manager_lifecycle_status.py` | integration | clean |
-| `zone_learning.py` | 90 | 100% | `tests/unit/test_zone_learning.py` | unit (pure) | clean |
+| `zone_learning.py` | 94 | 100% | `tests/unit/test_zone_learning.py` | unit (pure) | clean |
 | `constants.py` | 3 | 100% | (exercised via `external_run.py` / `test_manager_external_finalize.py`) | unit (pure) | clean |
 
 `counter_segmentation.py` lives at the package root (not under `learning/`) — it
@@ -649,7 +649,7 @@ Two things the ablation established that reading the table would not have:
   same `isinstance` refusal as the absent-attribute row by a different route. Delete
   that refusal and `QRI-4` raises rather than returning None.
 
-### `zone_learning.py` — saved-zone TIME learning (pure, `ZL-1..ZL-20`)
+### `zone_learning.py` — saved-zone TIME learning (pure, `ZL-1..ZL-21`)
 A deliberately tiny parallel to room learning: a saved zone has a stable
 `zone_id`, a deterministic (never-learned) area, and cleans in one
 uninterrupted pass, so the only thing learned is a **wall-clock time average**
@@ -709,16 +709,33 @@ time.
   value, `ZN-11b` pins the agreement, and neither subsumes the other (ablating only
   the helper reddens `ZN-11b` alone; ablating only the producer reddens both).
   Whether to wire the helper and delete the inline copy is a separate call.
-- **A rejected fold leaves an empty bucket behind.** `update_learned_zone` runs
-  `store.setdefault(str(zone_id), {})` before `float(wall_seconds)` can raise, so an
-  observation rejected for a bad wall time still mints its zone key — and because
-  `applied` is non-zero from the batch's good observations, the caller persists it.
-  Measured consequence: none to behaviour. Every reader reaches this store through
-  `estimate_zone_seconds`, which treats `{}` exactly like an absent key; nothing
-  counts or iterates the keys; and `rebuild_learned_zones` recomputes into a fresh
-  store, so a rebuild clears the residue. `ZL-16` therefore asserts that the residue
-  is **inert** rather than that it is absent — pinning its absence would pin a wart,
-  while the inertness row goes red if an empty bucket ever starts being trusted.
+- **A rejected fold used to leave an empty bucket behind — FIXED 2026-11-07.**
+  `update_learned_zone` ran `store.setdefault(str(zone_id), {})` before its
+  conversions could raise, so an observation rejected for a bad wall time still
+  minted its zone key — and because `applied` is non-zero from the batch's good
+  observations, the caller persisted it. Inert to read (every reader goes through
+  `estimate_zone_seconds`, which treats `{}` like an absent key) but on disk, and
+  only a rebuild cleared it. The function is now **all-or-nothing**: every conversion
+  that can fail happens above the first mutation, so `ZL-16` asserts
+  `list(store) == ["z_good"]` — the assertion it could not make before.
+
+  **Three conversions, not one.** `float()` for the running mean, `int()` for
+  `last_wall_seconds` (which rejects values `float()` accepts — `"300.5"`), and
+  `round()` for the area. The first pass at the fix hoisted the two `wall_seconds`
+  calls and left `round(area_m2, 2)` below the mutation, where it raises on a
+  non-number for exactly the same reason, so `ZL-21` carries one row per conversion:
+  hoisting two of three is indistinguishable from hoisting all three unless something
+  exercises the one left behind. It still **raises** rather than returning quietly,
+  because `record_observations` counts an application only when the call returns — a
+  silent no-op would inflate that count and make the caller persist for nothing.
+
+  Proven a no-op for working installs by differential run rather than by argument:
+  both implementations over 10,206 generated input combinations gave **5,670
+  successes with 0 divergences** and the same exception class on all 4,536
+  rejections, of which **2,688 had residue the old code wrote and the new one does
+  not**. The sweep was then shown able to see a difference by injecting one into the
+  old side, which it flagged on all 5,670 successes — a differential that finds
+  nothing has not been shown able to find anything.
 
 ### `counter_segmentation.py` — counter-plateau segmentation primitives
 `find_candidates` / `select_active` / `build_segments` — the frame-invariant

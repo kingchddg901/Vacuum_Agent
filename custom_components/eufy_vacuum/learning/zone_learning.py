@@ -119,14 +119,38 @@ def update_learned_zone(
     """Fold one observation into the learned-zones ``store`` (mutated + returned).
 
     Incremental running mean, so history isn't re-scanned. Keyed ``store[zone_id][mode]``; a
-    fresh key starts at the single sample. Defensive: a non-dict store/bucket is re-seeded."""
+    fresh key starts at the single sample. Defensive: a non-dict store/bucket is re-seeded.
+
+    ALL-OR-NOTHING: a rejected observation leaves the store untouched. Every conversion
+    that can fail happens BEFORE the first mutation, so an unusable ``wall_seconds`` or
+    ``area_m2`` raises without having written anything. It still RAISES rather than
+    returning quietly — ``record_observations`` counts an application only when this
+    returns, so a silent no-op would inflate its count and make the caller persist for
+    nothing.
+    """
     if not isinstance(store, dict):
         store = {}
     mode = "mop" if str(clean_mode).strip().lower() == "mop" else "vacuum"
-    by_mode = store.setdefault(str(zone_id), {})
+    # CONVERT FIRST, MUTATE SECOND, and the order is the whole point of these four
+    # lines. Until 2026-11-07 all three conversions sat BELOW `store.setdefault`, so an
+    # observation rejected for an unusable value had already minted its zone key — and
+    # because `record_observations` goes on to apply the batch's good observations, the
+    # caller persisted that empty bucket. Harmless to read (`estimate_zone_seconds`
+    # treats `{}` like an absent key) but written to disk, and a rebuild was the only
+    # thing that cleared it.
+    #
+    # THREE SITES, not one: `float()` for the running mean, `int()` for last_wall_seconds
+    # — which rejects a value `float()` accepts, e.g. "300.5" — and `round()` for the
+    # area, which raises on a non-number. The first draft of this fix hoisted only the
+    # wall conversions; the area is the same defect one field over.
+    wall_f = float(wall_seconds)
+    wall_i = int(wall_seconds)
+    last_area = round(area_m2, 2) if area_m2 is not None else None
+    key = str(zone_id)
+    by_mode = store.setdefault(key, {})
     if not isinstance(by_mode, dict):
         by_mode = {}
-        store[str(zone_id)] = by_mode
+        store[key] = by_mode
     prev = by_mode.get(mode)
     if isinstance(prev, dict):
         try:
@@ -137,12 +161,12 @@ def update_learned_zone(
     else:
         n, avg = 0, 0.0
     new_n = n + 1
-    new_avg = (avg * n + float(wall_seconds)) / new_n
+    new_avg = (avg * n + wall_f) / new_n
     by_mode[mode] = {
         "avg_wall_seconds": round(new_avg, 1),
         "sample_count": new_n,
-        "last_wall_seconds": int(wall_seconds),
-        "last_area_m2": round(area_m2, 2) if area_m2 is not None else None,
+        "last_wall_seconds": wall_i,
+        "last_area_m2": last_area,
         "updated_at": now_iso,
     }
     return store

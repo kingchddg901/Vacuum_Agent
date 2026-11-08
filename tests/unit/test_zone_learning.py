@@ -26,6 +26,8 @@
 [ZL-19] every store shape that cannot be read falls back; none of them claims learned.
 [ZL-20] the combination: one fold into a store corrupt three ways, then an estimate
         off the result.
+[ZL-21] a rejected fold mutates nothing — one row per failing conversion, since
+        hoisting two of three above the mutation looks exactly like hoisting all three.
 
 WHY [ZL-11]..[ZL-20] ARE TESTS AND NOT CLASSIFICATIONS. They cover `except` arms and
 `isinstance` re-seeds, which is usually the shape to leave uncovered and classify --
@@ -293,23 +295,19 @@ def test_zl16_a_malformed_observation_is_skipped_and_the_count_says_so():
     write; an unguarded loop loses the whole batch to one bad entry. Both halves are
     asserted, plus that the store holds only the good zone.
 
-    ⚠ A REJECTED FOLD LEAVES AN EMPTY BUCKET BEHIND, found by writing this test.
-    `update_learned_zone` runs `store.setdefault(str(zone_id), {})` BEFORE
-    `float(wall_seconds)` can raise, so an observation that is rejected for a bad
-    wall time still mints its zone key, and since `applied` is non-zero from the good
-    observation the caller persists it. Measured consequence: none to behaviour.
-    Every reader reaches this store through `estimate_zone_seconds`, which treats
-    `{}` exactly like an absent key, nothing counts or iterates the keys, and
-    `rebuild_learned_zones` recomputes into a fresh store so a rebuild clears the
-    residue. It is persisted rather than discarded though, so it is recorded here
-    rather than waved off, and the fix would change a persisted-store writer.
+    A REJECTED FOLD TOUCHES NOTHING, which is the half this test could not assert when
+    it was written. `update_learned_zone` used to run `store.setdefault(str(zone_id),
+    {})` before its conversions could raise, so an observation rejected for a bad wall
+    time still minted its zone key — and because `applied` is non-zero from the good
+    observation, the caller persisted that empty bucket. It was inert (every reader
+    goes through `estimate_zone_seconds`, which treats `{}` like an absent key) but it
+    was on disk, and only a rebuild cleared it. The conversions now happen above the
+    first mutation, so `list(store)` is the assertion it should always have been.
 
-    So the assertion is that the residue is INERT, not that it is absent — pinning
-    `list(store) == ["z_good"]` would be pinning a wart I would rather see removed,
-    while this row goes red if an empty bucket ever starts being trusted.
-
-    RED: delete the `except (KeyError, TypeError, ValueError): continue` and the
-    missing `zone_id` raises KeyError, losing the good observation with it.
+    RED, two ways: delete the `except (KeyError, TypeError, ValueError): continue` in
+    `record_observations` and the missing `zone_id` raises KeyError, losing the good
+    observation with it; or move any conversion in `update_learned_zone` back below
+    `store.setdefault` and `z_bad` reappears as an empty bucket.
     """
     store, applied = zl.record_observations(
         {},
@@ -323,13 +321,53 @@ def test_zl16_a_malformed_observation_is_skipped_and_the_count_says_so():
 
     assert applied == 1, "two of the three were unusable"
     assert store["z_good"]["mop"]["sample_count"] == 1
-    # the rejected one carries no usable sample, whatever key it left behind
-    assert not store.get("z_bad"), "a rejected fold must not record a sample"
-    rejected = zl.estimate_zone_seconds(
-        store, zone_id="z_bad", clean_mode="mop", area_m2=2.0,
+    assert list(store) == ["z_good"], (
+        "a rejected observation must leave no trace at all, not even an empty bucket"
     )
-    assert rejected["source"] == "area_fallback"
-    assert rejected["sample_count"] == 0
+
+
+@pytest.mark.parametrize("wall,area,why", [
+    pytest.param("nope", None, "wall_seconds is not a number at all",
+                 id="wall-not-a-number"),
+    pytest.param("300.5", None,
+                 "float() accepts it, int() does not - the second conversion alone",
+                 id="wall-float-ok-int-not"),
+    pytest.param(300, "unreadable",
+                 "the AREA is the third conversion, the one I first missed",
+                 id="area-not-a-number"),
+])
+def test_zl21_every_failing_conversion_leaves_the_store_untouched(wall, area, why):
+    """[ZL-21] All three conversions must reject BEFORE the store is touched.
+
+    The fix that made [ZL-16] assertable hoisted the conversions above
+    `store.setdefault`, and there are THREE of them. A row per conversion, because
+    hoisting two of three is indistinguishable from hoisting all three unless
+    something exercises the one left behind — and that is exactly what happened: my
+    first pass moved the two `wall_seconds` conversions and left `round(area_m2, 2)`
+    below the mutation, where it raises on a non-number for the same reason.
+
+    The middle row is the one to keep in mind: `"300.5"` passes `float()` and fails
+    `int()`, so a fix that hoisted only the `float` call would still mint the key
+    here. Each row asserts the store is untouched AND that the exception the caller
+    relies on still escapes — a fix that swallowed it would make `record_observations`
+    count an application that never happened.
+
+    The explicit `id=` on each row is not cosmetic. With the `why` string generating
+    the ids, the node ids contained spaces and parentheses, and the ablation harness
+    that checks these rows can go red parses `pytest -v` with `::(\\S+?)\\s+(PASSED|
+    FAILED)` — which cannot cross a space, so it matched none of these rows and
+    reported "nothing reddened" for an ablation that reddens all three. The test was
+    fine and the instrument was blind; the only visible symptom was its baseline
+    counting 20 tests in a file holding 21.
+    """
+    store = {}
+    with pytest.raises((TypeError, ValueError)):
+        zl.update_learned_zone(
+            store, zone_id="z_bad", clean_mode="mop",
+            wall_seconds=wall, area_m2=area, now_iso=_NOW,
+        )
+
+    assert store == {}, f"store was mutated despite rejection ({why})"
 
 
 def test_zl17_an_unreadable_bucket_falls_back_and_never_claims_learned():
