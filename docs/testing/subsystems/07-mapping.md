@@ -44,7 +44,7 @@ Architecture reference: [11 — A Map’s Stored State](../../dev/11-map-stored-
 | `tracker.py` | 247 | 84% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration | **bare x2** in 2 files |
 | `mapping_services.py` | 1322 | 88% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration | clean |
 | `map_source.py` | 434 | 93% | `tests/unit/test_map_source.py` | unit (pure) | clean |
-| `map_source_runtime.py` | 972 | 90% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) | clean |
+| `map_source_runtime.py` | 972 | 93% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` + `tests/unit/test_dreame_mapdata_decode.py` | unit (pure) | clean |
 | `map_source_coordinator.py` | 329 | 86% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` + `tests/unit/test_live_pose_backends.py` | integration + unit | clean |
 | `roborock_raw_map.py` | 145 | 89% | `tests/unit/test_roborock_raw_map.py` | unit (pure) | clean |
 | `stall_capture_render.py` | 191 | 93% | `tests/unit/test_stall_capture_render.py` | unit (pure) | clean |
@@ -191,6 +191,45 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   `roborock_candidates`, `image_entity_object`) that gather roots from
   `hass.data[domain]` / per-entry `runtime_data` / the image entity, each degrading
   cleanly when a source is absent.
+- **the Dreame render's DEGRADATION arms** (`DMD-11`..`DMD-24b`, unit) —
+  `DMD-1`..`DMD-10` establish the happy path on a real frame; these are what the
+  render does when ONE piece of the device's map is unusable, which was nine
+  statements and eight partial branches of `dreame_render_from_mapdata` plus most of
+  `dreame_render_data_from_mapdata` and all of `_dreame_raster_flip`'s give-up arms.
+  Each arm decides which FIELD goes missing, and the card draws what it is given — so
+  a room with no `area_m2` still draws, a room whose corners would not project must
+  **not** draw at a garbage bbox, and an unplaceable anchor must be absent rather than
+  pinned at the frame origin. The assertions are on the surviving shape, never on the
+  absence of an exception.
+
+  Three worth knowing:
+  - `DMD-11` asserts a malformed `map_frame_offset_mm` yields a payload **equal** to
+    the unshifted render, which pins the fallback at `(0, 0)` rather than merely
+    "present". Its fourth row was dropped on measurement: a *dict* declaration raises
+    `KeyError`, which is a `LookupError` but not an `IndexError`, so it escapes the
+    handler. Left alone — the key is in no schema, its only producer is a hardcoded
+    list literal, and the second copy of that read in `dispatch/manager.py` (the
+    replica pair in `00c-replicas.md`) carries the **identical** except tuple, so this
+    is a uniform limit rather than the copies having drifted.
+  - `DMD-21` proves both raster orientations decode to byte-identical `room_pixels`,
+    which is the `[x][y]` vs `[y][x]` question the fixture header makes a point of.
+  - `DMD-24` injects its own `proj` stub and hand-computes the centroids (rows 8–9 of
+    10 → `raster_cy` 0.85 against a projection at 0.0, so 0.85 > 0.15 → flip). That is
+    deliberate: deriving the expected rows from `_dreame_projector` — the transform
+    under test — would be a shared oracle whose assertion could never fail. `DMD-24b`'s
+    four give-up rows all assert `False`, which only means something because `DMD-24`
+    proves `True` is reachable.
+
+  ⚠ **Four of `dreame_render_from_mapdata`'s `None` guards are SUBSUMED**, found by
+  ablating each and seeing nothing go red: `None in (x0, y0, x1, y1)` by
+  `not c0 or not c1`; `cx is not None and cy is not None` by `if centre:`;
+  `ra is not None` by the `except (TypeError, ValueError)`; and
+  `dx is not None and dy is not None` by `if p:`. In each case `_n()` reaches
+  `float(None)`, raises, and returns None, so the downstream check already skips the
+  field. The guards are harmless belt-and-braces costing two wasted `_n` calls apiece
+  — and **no test proves them**, so their red sets are declared empty in the test
+  file. Written down because the obvious next move, "add a test for that guard",
+  cannot succeed.
 - **`dreame_mapdata_candidates`** (`MSC-5`..`MSC-5h`, unit) — the locator for a Dreame
   user's map, whose entire body was uncovered while **three** call sites in
   `map_source_coordinator.py` consumed it. What it costs when it answers absent while
