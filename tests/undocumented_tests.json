@@ -5,7 +5,6 @@
     "tests/integration/test_cancel_single_flight.py",
     "tests/integration/test_charge_wait_phase.py",
     "tests/integration/test_dispatch_live_room_refresh.py",
-    "tests/integration/test_dispatch_zone_clean.py",
     "tests/integration/test_dock_phase_rearm.py",
     "tests/integration/test_fault_label_injection.py",
     "tests/integration/test_finalize_exactly_once.py",
@@ -26,7 +25,6 @@
     "tests/unit/test_pose_store.py",
     "tests/unit/test_shipped_font_support.py",
     "tests/unit/test_step_types.py",
-    "tests/unit/test_user_fonts.py",
-    "tests/unit/test_zone_dispatch.py"
+    "tests/unit/test_user_fonts.py"
   ]
 }

@@ -311,6 +311,23 @@ class DispatchManager:
             if st in _ZONE_ACTIVE_STATES:
                 started["v"] = True
                 return
+            # THE TWO ARCS LEFT UNCOVERED IN THIS MODULE, classified 2026-11-07 rather than
+            # chased, and both are IDEMPOTENCY on a state callback:
+            #
+            #   314->exit   `_on_state` running for a state that is neither active nor
+            #               done-after-started -- a `paused` tick mid-zone, say. Reachable, and
+            #               the guard is just "do nothing yet"; a test would assert that nothing
+            #               happened, which every other assertion in the zone suite already
+            #               implies on every tick that is not the completion.
+            #   315->318    the done state arriving while `unsub` is ALREADY None. Not reachable
+            #               through `async_track_state_change_event`: the unsub removes the
+            #               listener, so the callback cannot fire again. It protects against a
+            #               RE-ENTRANT invocation, which this subscription does not produce --
+            #               defensive, and the cheap half of not scheduling two restores.
+            #
+            # Both are kept. Neither is worth a test that would pass for a reason other than
+            # the one it names -- which is exactly what happened to two tests written for the
+            # slug/id guards above (see that comment).
             if started["v"] and st in _ZONE_DONE_STATES:
                 if holder["unsub"] is not None:
                     holder["unsub"]()

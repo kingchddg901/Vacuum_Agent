@@ -69,6 +69,8 @@ cannot carry that weight on the water entry.
         Parametrised over all five terms of the conjunction -- a partial guard
         reads as complete.
 [GPC-24] the safest-water path with nothing rankable pushes NOTHING (not 'off').
+[GPC-25] the off-fallback walk finding NO candidate: the call still goes out carrying
+        'off' to a select that has no 'off'. Pins today's behaviour and NAMES the gap.
         Nothing shipped reaches it, so without this test the branch is only present.
 """
 
@@ -992,4 +994,45 @@ async def test_safest_water_with_nothing_rankable_pushes_nothing(hass, manager):
     assert sel == [], (
         "no room carried a value in the rank, so there is no safest rung to pick and "
         "the device-global select must be left exactly as the user left it"
+    )
+
+
+async def test_off_fallback_when_the_select_shares_nothing_with_the_rank(hass, manager):
+    """[GPC-25] The off-fallback walk finding NO candidate -- and what it then sends.
+
+    [GPC-9] covers the fallback working: chosen "off", the select has no "off", so the
+    walk lowers to the select's lowest AVAILABLE rank member. This is the arm where
+    the walk completes and finds nothing, because the select's options and the entry's
+    rank are disjoint. It was the last uncovered branch arc in dispatch/manager.py.
+
+    PINNING CURRENT BEHAVIOUR, AND NAMING A GAP RATHER THAN CHANGING IT. With no
+    candidate, `canonical_value` stays "off" and the call goes out carrying "off" --
+    to a select that has just told us it has no such option. Home Assistant does not
+    raise on an invalid `select_option`; it logs and no-ops. So the fallback that
+    exists precisely to avoid a silent no-op degrades, in this one case, into exactly
+    one.
+
+    I am asserting what the code does today rather than what it arguably should,
+    because this is a hardware-facing path and "skip the call instead" is a shipped
+    behaviour change, not a test fix. The alternatives are to send nothing (leaving
+    the device at whatever the vendor app last set, which may be wetter than the
+    batch wants) or to refuse the dispatch outright the way the zone converter does.
+    Both are decisions about safety posture.
+    """
+    _register(hass)
+    fan, sel = _capture(hass)
+    # Options that are real for some device but share no member with ["off", "low",
+    # "medium", "high"] -- and crucially no "off", so the fallback walk is entered.
+    hass.states.async_set(_MOP, "damp", {"options": ["dry", "damp", "soaked"]})
+
+    await manager._run_global_pre_calls(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[{"fan_speed": "balanced", "water_level": "off"}],
+    )
+
+    assert fan == [{"entity_id": _VAC, "fan_speed": "balanced"}], "control: fan unaffected"
+    assert sel == [{"entity_id": _MOP, "option": "off"}], (
+        "today the call still goes out carrying 'off' to a select that has no 'off' "
+        "-- a silent no-op. If this assertion is ever changed, it is because the "
+        "posture was decided, not because the test drifted"
     )

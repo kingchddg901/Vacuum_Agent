@@ -60,6 +60,9 @@ The remaining zone bounds (ZC-20..24), from the 2026-11-07 coverage triage.
         other arm, where repeats are declared unsupported).
 [ZC-24] _values_match treats a missing readback as a mismatch, including the string
         'None', so a setting that did not take is never read as taken.
+[ZC-DR-13] a gate the user already left OFF is neither flipped nor restored -- both
+        arms of `gate_prior == "on"` were uncovered, so the suite only ever drove an
+        install whose customized-cleaning switch was on.
 """
 
 from __future__ import annotations
@@ -1285,3 +1288,42 @@ def test_values_match_treats_a_missing_readback_as_a_mismatch():
     assert _values_match("16.0", 16) is True
     assert _values_match("strong", "strong") is True
     assert _values_match("standard", "strong") is False
+
+
+async def test_dreame_zone_precall_when_the_gate_is_already_off(hass, manager, monkeypatch):
+    """[ZC-DR-13] A gate the user already left OFF is neither flipped nor restored.
+
+    Both arms of `gate_prior == "on"` were uncovered -- the flip at dispatch and the
+    re-enable at restore -- so the suite only ever drove an install whose
+    customized-cleaning switch was ON. A user who leaves it off is an ordinary
+    install, not an edge case: the globals are already settable, so there is nothing
+    to ungate and nothing to hand back.
+
+    THE NEGATIVE ASSERTIONS ARE THE TEST. A restore that re-enabled a gate the user
+    had deliberately left off would silently change their device configuration as a
+    side effect of one zone clean, and nothing else in the suite would notice. The
+    positive assertions are there so this cannot pass by the dispatch simply not
+    happening -- the zone still runs and the globals are still set and restored.
+    """
+    _register_dreame(hass)
+    _stub_map_source(manager, monkeypatch, _DreameMapData())
+    hass.states.async_set("switch.alfred_customized_cleaning", "off")   # the whole point
+    hass.states.async_set("select.alfred_suction_level", "standard")
+    hass.states.async_set("vacuum.alfred", "docked")
+    calls = _wire_precall(hass)
+
+    await _run_zone_to_completion(hass, manager)
+
+    kinds = [c[0] for c in calls]
+    assert "switch_off" not in kinds, (
+        "the gate was already off, so there was nothing to ungate"
+    )
+    assert "switch_on" not in kinds, (
+        "and nothing to hand back -- re-enabling a gate the user left off would "
+        "change their device config as a side effect of a zone clean"
+    )
+
+    assert "zone" in kinds, "precondition: the zone still dispatched"
+    options = [c[1].get("option") for c in calls if c[0] == "select"]
+    assert "strong" in options, "precondition: the zone's own suction was still pushed"
+    assert options[-1] == "standard", "and the prior was still handed back"

@@ -82,6 +82,54 @@ a duplicate slug and a non-coercible id cannot arrive.
 > its failure mode is a plausible segment list rather than an exception) and the
 > reasoning now sits at the site.
 
+#### The zone converter — `zone_dispatch.py` at 100%
+
+`tests/unit/test_zone_dispatch.py` (`ZDM-*`, `ZPT-*`, `DGT-*`) covers the
+normalized→device-mm affine: pure maths, no HA. `ZDM-10`..`ZDM-14` and `ZPT-4`/`ZPT-5`
+closed the last twelve statements on 2026-11-07, taking the module to **100% statements
+and branches**.
+
+**Eleven of those twelve cannot be reached through either production caller**, measured
+before they were written: `services/job_control.py::_ZONE_RECT_SCHEMA` is
+`vol.All([vol.Coerce(float)], vol.Length(min=4, max=4))`, `_GOTO_SCHEMA` coerces each
+element to float *and* range-checks 0..1 at length 2, and
+`map_source_runtime.correspondences_from_mapdata` returns clean 4-tuples, skipping a
+corner that projects out of grid. They are tested anyway because this module is a
+standalone converter whose docstrings state a return contract four times over ("or
+`None`", "caller MUST refuse to dispatch"), and the schema that currently excludes the
+bad shapes is a separate layer a new caller would not pass through. That is a different
+case from the same sweep's slug/id guards above, which were one internal stage
+re-validating the previous one — those stayed uncovered.
+
+`ZPT-4` is the exception and the one that matters: the round-trip residual check is not
+an input-shape guard but the module's whole safety contract, and it fires on real,
+well-formed geometry that simply is not the affine assumed. `ZDM-5` pinned it for rects;
+go-to had no equivalent, and the consequence there is worse — a wrong rect cleans the
+wrong area, a wrong point drives the robot to the wrong place.
+
+#### The zone restore path, and the two arcs left
+
+`test_dispatch_zone_clean.py` (`ZC-*`, `ZC-DR-*`, `GOTO-DR-*`) drives the real
+gate-flip → set → readback → execute → restore sequence. `ZC-DR-13` closed both arms of
+`gate_prior == "on"`: the suite had only ever driven an install whose
+customized-cleaning switch was ON, so neither the no-flip nor the no-restore path ran.
+A user who leaves that switch off is an ordinary install, and the negative assertions
+are the test — re-enabling a gate the user deliberately left off would change their
+device configuration as a side effect of one zone clean.
+
+`GPC-25` closed the last branch arc, the off-fallback walk finding no candidate. It
+**pins today's behaviour and names a gap** rather than changing it: with no rank member
+among the select's options, the call still goes out carrying `"off"` to a select that
+has just reported it has no `"off"`, and HA logs rather than raises — so the fallback
+built to avoid a silent no-op degrades into one. Changing that is a safety-posture
+decision on a hardware-facing path, not a test fix.
+
+Two arcs remain in `dispatch/manager.py` (`314->exit`, `315->318`), both idempotency on
+the completion callback, classified at the site. `315->318` is not reachable through
+`async_track_state_change_event` at all — the unsub removes the listener, so the
+callback cannot fire twice; it guards a re-entrant invocation this subscription does not
+produce.
+
   **The malformed-declaration guards (`SW-14..SW-18`)** cover the other half: a
   mistake in an adapter's own `settings_write` block rather than bad device data.
   They earn tests rather than pragmas because the block is hand-authored (ours today,

@@ -9,6 +9,19 @@ DOWN, vacuum y grows UP) mimicking a Roborock map crop, so the inverse must un-f
 [ZDM-4] collinear points -> None (degenerate).
 [ZDM-5] a corrupted (non-affine) correspondence -> refuse (None), not a bad dispatch.
 [ZDM-6] reversed-corner rects are min/max-ordered in mm.
+[ZDM-10] a None / wrong-length correspondence is skipped; the fit survives.
+[ZDM-11] a non-numeric correspondence is skipped; the fit survives.
+[ZDM-12] the residual skips them too -- a junk row cannot cause a FALSE refusal.
+[ZDM-13] a rect of the wrong shape refuses the WHOLE batch (never a partial clean).
+[ZDM-14] a rect of the right shape with unusable values refuses.
+[ZPT-4]  go-to refuses when the round trip does not validate -- the safety contract.
+[ZPT-5]  a 2-long point with unusable values refuses (neither the caller nor the
+         service schema catches this one).
+
+ELEVEN of these twelve statements are unreachable through either production caller
+-- the service schemas coerce and length-check, and the correspondence producer
+emits clean 4-tuples. They pin a DOCUMENTED RETURN CONTRACT, not a live failure
+mode; the comment above the tests has the measurements. [ZPT-4] is the exception.
 """
 
 import pytest
@@ -319,3 +332,196 @@ def test_dgt3_dreame_correspondences_empty_without_geometry():
 
     assert msr.dreame_correspondences_from_mapdata(_NoDims()) == []
     assert msr.dreame_correspondences_from_mapdata(_NoSegs()) == []
+
+
+# ---------------------------------------------------------------------------
+# [ZDM-10]..[ZDM-14] / [ZPT-4]..[ZPT-5] -- the twelve uncovered statements in
+# zone_dispatch.py, added 2026-11-07.
+#
+# READ THIS BEFORE "FIXING" ONE OF THEM. Eleven of the twelve cannot be reached
+# through either production caller, and that was MEASURED before these were
+# written, not assumed:
+#
+#   zones   `services/job_control.py::_ZONE_RECT_SCHEMA` is
+#           `vol.All([vol.Coerce(float)], vol.Length(min=4, max=4))` -- every rect
+#           arrives already float-coerced and exactly four long.
+#   point   `_GOTO_SCHEMA` coerces each element to float AND range-checks it 0..1,
+#           length exactly 2.
+#   corr    `dispatch/manager.py::_live_correspondences` returns whatever
+#           `map_source_runtime.correspondences_from_mapdata` yields, which is
+#           typed `list[tuple[float, float, float, float]]` and SKIPS a corner that
+#           projects out of grid rather than admitting a clamped one.
+#
+# SO WHY TEST THEM AT ALL, when the equivalent guards in dispatch/manager.py were
+# classified DEFENSIVE and left uncovered in the same sweep? Because these are a
+# different thing. Those were one internal stage re-validating what the previous
+# internal stage guaranteed. These are a standalone conversion module whose
+# docstrings state a RETURN CONTRACT four times over -- "or None", "caller MUST
+# refuse to dispatch" -- and the schema that currently excludes the bad shapes is a
+# separate layer that a new caller, a new service, or a card calling in directly
+# would not pass through. A documented contract earns a test wherever its callers
+# happen to stand today.
+#
+# What these tests are NOT is evidence that such input arrives. It does not. They
+# pin the contract; the schema keeps it from being exercised.
+#
+# [ZPT-4] IS THE EXCEPTION AND THE ONE THAT MATTERS: the round-trip residual check
+# is not an input-shape guard at all, it is this module's entire safety contract --
+# "refuse rather than mis-dispatch" -- and it fires on real, well-formed geometry
+# that simply is not the affine we assumed.
+# ---------------------------------------------------------------------------
+
+
+def test_zdm10_a_malformed_correspondence_is_skipped_not_fatal():
+    """[ZDM-10] A None or wrong-length correspondence is dropped; the fit still works.
+
+    Covers the `continue` in `fit_normalized_to_mm`. The point is the SURVIVING fit:
+    a guard that bailed out of the loop instead of skipping the row would discard
+    every good correspondence after the bad one, and with 3 points the fit would
+    then silently become under-determined and return None -- a refusal the user
+    would see as "could not place the drawn zone".
+    """
+    corr = _corr(_GRID)
+    corr.insert(0, None)
+    corr.insert(3, (0.1, 0.2))          # only two values, not four
+    corr.append((0.5, 0.5, 1.0, 2.0, 3.0))  # five
+
+    out = zd.normalized_rects_to_mm(corr, [[0.25, 0.25, 0.75, 0.75]])
+
+    assert out is not None, "the good correspondences must still fit"
+    x0, y0, x1, y1 = out[0]
+    assert x0 == pytest.approx(27500, abs=1.0)
+    assert y1 == pytest.approx(37500, abs=1.0)
+
+
+def test_zdm11_a_non_numeric_correspondence_is_skipped():
+    """[ZDM-11] A correspondence whose values will not float() is dropped.
+
+    Covers the `except (TypeError, ValueError): continue`. Same surviving-fit
+    assertion as [ZDM-10] and for the same reason -- the interesting half is that
+    the remaining six points still produce the right answer, not merely that
+    nothing raised.
+    """
+    corr = _corr(_GRID)
+    corr.insert(0, ("nx", "ny", "mx", "my"))
+    corr.insert(2, (0.5, None, 1000.0, 2000.0))
+
+    out = zd.normalized_rects_to_mm(corr, [[0.25, 0.25, 0.75, 0.75]])
+
+    assert out is not None
+    assert out[0][0] == pytest.approx(27500, abs=1.0)
+
+
+def test_zdm12_a_malformed_correspondence_cannot_inflate_the_residual():
+    """[ZDM-12] `max_residual_mm` skips the same shapes -- so they cannot cause a
+    FALSE REFUSAL.
+
+    Covers the `continue` and the `except` in `max_residual_mm`, and this guard has
+    the more interesting consequence of the pair. The residual is the validation
+    gate: if a malformed row reached `_apply` it would either raise or contribute a
+    nonsense error, and a CLEAN affine would then be refused. The user-visible
+    result is "could not place the drawn zone on the device coordinate frame" on a
+    map that was perfectly fine.
+
+    So this asserts the residual is ~0 despite the junk, and asserts it through the
+    public entry point too -- a residual computed correctly but never consulted
+    would pass the first assertion alone.
+    """
+    corr = _corr(_GRID)
+    coeffs = zd.fit_normalized_to_mm(corr)
+    assert coeffs is not None
+
+    dirty = [None, (0.1, 0.2), ("a", "b", "c", "d"), (0.5, None, 1.0, 2.0)] + corr
+
+    assert zd.max_residual_mm(coeffs, dirty) == pytest.approx(0.0, abs=1.0), (
+        "junk rows must be skipped, not folded into the worst-case error"
+    )
+    assert zd.normalized_rects_to_mm(dirty, [[0.25, 0.25, 0.75, 0.75]]) is not None, (
+        "and the end-to-end conversion must therefore still be ACCEPTED"
+    )
+
+
+def test_zdm13_a_rect_that_is_not_four_long_refuses():
+    """[ZDM-13] A rect of the wrong shape refuses the WHOLE batch, not just that rect.
+
+    THIS PINS THE CONTRACT, NOT THE SHAPE GUARD, and the distinction is measured.
+    Ablating `if not isinstance(r, (list, tuple)) or len(r) != 4: return None`
+    leaves this test GREEN: the unpack below it (`x0, y0, x1, y1 = (float(v) for v
+    in r)`) raises ValueError on a 3- or 5-element rect and TypeError on a
+    non-iterable, and its own `except` returns None for all of them. So the shape
+    guard is SUBSUMED for every input here -- it changes when the refusal happens,
+    never whether. Declared as an empty red set in the ablation driver so the
+    redundancy is a checked prediction rather than a silence.
+
+    What the test does pin is the POLARITY, which is the part that matters for a
+    command that moves hardware: one bad rect refuses the batch rather than
+    skipping itself and cleaning the others, because a partial zone clean is a
+    silently wrong clean. The good rect alongside proves the refusal is total, and
+    the control proves the refusals are the bad rect's doing.
+    """
+    good = [0.25, 0.25, 0.75, 0.75]
+    for bad in ([0.1, 0.2, 0.3], [0.1, 0.2, 0.3, 0.4, 0.5], "0.1,0.2,0.3,0.4", 42, None):
+        assert zd.normalized_rects_to_mm(_corr(_GRID), [good, bad]) is None, (
+            f"a batch containing {bad!r} must refuse entirely"
+        )
+
+    assert zd.normalized_rects_to_mm(_corr(_GRID), [good]) is not None, (
+        "control: the good rect alone converts, so the refusals above are the bad "
+        "rect's doing and not a broken fixture"
+    )
+
+
+def test_zdm14_a_non_numeric_rect_value_refuses():
+    """[ZDM-14] A rect whose values will not float() refuses the batch.
+
+    Covers the `except (TypeError, ValueError): return None`. Distinct from
+    [ZDM-13]: the shape is right and the CONTENT is not, which is the arm a
+    length-only check would miss.
+    """
+    assert zd.normalized_rects_to_mm(_corr(_GRID), [["x", 0.2, 0.3, 0.4]]) is None
+    assert zd.normalized_rects_to_mm(_corr(_GRID), [[None, 0.2, 0.3, 0.4]]) is None
+    assert zd.normalized_rects_to_mm(_corr(_GRID), [[0.1, 0.2, 0.3, {}]]) is None
+
+
+def test_zpt4_go_to_refuses_when_the_round_trip_does_not_validate():
+    """[ZPT-4] THE SAFETY CONTRACT, on the go-to path: a fit that cannot reproduce
+    its own correspondences refuses rather than sending a coordinate.
+
+    Covers the residual arm of `normalized_point_to_mm`, and it is the only one of
+    these twelve statements reachable with REAL, well-formed input: the
+    correspondences are all proper 4-tuples of floats, they simply do not describe
+    the affine the module assumes (a non-affine projection, a clamped corner that
+    got through). [ZDM-5] pins this for rects; the point sibling had no equivalent,
+    and the consequence is worse -- a wrong rect cleans the wrong area, a wrong
+    point drives the robot to the wrong place.
+
+    The corruption is 5 m, matching [ZDM-5], so both halves of the module refuse on
+    the same evidence. The control assertion is what makes this about the RESIDUAL
+    rather than about the fit failing: the same points un-corrupted must succeed.
+    """
+    corr = _corr(_GRID)
+    nx, ny, mx, my = corr[0]
+    corr[0] = (nx, ny, mx + 5000.0, my - 5000.0)
+
+    assert zd.normalized_point_to_mm(corr, [0.5, 0.5]) is None
+
+    assert zd.normalized_point_to_mm(_corr(_GRID), [0.5, 0.5]) is not None, (
+        "control: the uncorrupted fixture must place the point, or this test is "
+        "measuring a degenerate fit instead of a failed round trip"
+    )
+
+
+def test_zpt5_a_non_numeric_go_to_point_refuses():
+    """[ZPT-5] A point of the right shape with unusable values refuses.
+
+    Covers the `except (TypeError, ValueError): return None`. The length and type
+    check above it is already covered and is also done by the caller
+    (`dispatch/manager.py` raises on a non-2 point before calling); this arm is the
+    one neither of those catches, because `["a", "b"]` is a list of two.
+    """
+    corr = _corr(_GRID)
+    assert zd.normalized_point_to_mm(corr, ["a", "b"]) is None
+    assert zd.normalized_point_to_mm(corr, [None, 0.5]) is None
+    assert zd.normalized_point_to_mm(corr, [0.5, {}]) is None
+
+    assert zd.normalized_point_to_mm(corr, [0.5, 0.5]) is not None, "control"
