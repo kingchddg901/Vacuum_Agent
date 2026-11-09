@@ -15,11 +15,18 @@ Coverage targets
 [BE-11] async_setup_entry wires the update callback; exposing a profile adds its run button.
 [BE-12] A profile exposed before setup is built into the initial entities.
 [BE-13] Un-exposing a profile reconciles away its stale button (async_remove + registry un-register).
+[BE-14] RENAMING a profile swaps the entity OBJECT, keeping the unique_id and
+        any user name override -- the forgotten sibling of [INIT-13]'s sensor swap.
+[BE-15] The swapped-in object is ADOPTED, so a second notification does not re-swap.
+[BE-16] A notification with no rename writes state on the existing buttons -- ALL
+        of them, which is what distinguishes `continue` from `break`.
+[BE-17] THE MODEL GATE is consulted by this platform, not merely by its own unit
+        tests: a guide-only component is dropped while a sensor-backed one survives.
 """
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, create_autospec
 
 import pytest
 
@@ -32,10 +39,13 @@ from custom_components.eufy_vacuum.button import (
 )
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.eufy_vacuum.adapters.registry import (
+    register_adapter_config,
+)
 from custom_components.eufy_vacuum.const import DOMAIN
 
 from tests._factories import VAC as _VAC, MAP as _MAP, make_manager_mock
-from .conftest import setup_map
+from .conftest import TEST_ADAPTER_CONFIG, setup_map
 
 
 _COMPONENT = "main_brush"
@@ -324,3 +334,303 @@ async def test_run_profile_button_reconciliation_removes_stale(hass, manager):
 
     run_button.async_remove.assert_awaited()  # popped + removed from the platform
     assert registry.async_get_entity_id("button", DOMAIN, unique_id) is None  # un-registered
+
+
+# ---------------------------------------------------------------------------
+# [BE-14] - [BE-16]  THE RENAME SWAP, which the code itself flagged as unguarded.
+#
+# The comment at button.py:113 says it in as many words -- "NO TEST REACHES THIS
+# BRANCH (ledger T4, open)" -- and names the covered sensor twin, [INIT-13]
+# `test_room_rename_swaps_entity_keeping_unique_id`. So the fix for a forgotten
+# sibling (EP-5 / SN-4 reached the sensor platform and not this one) was ITSELF
+# unguarded: delete the branch and the suite stayed green. Measured.
+#
+# WHY THE STUBS. This harness never adds the entity to a platform, so HA's real
+# `async_remove` / `async_write_ha_state` raise -- and `_notify_run_profiles_updated`
+# (core/manager.py:1117-1132) wraps every callback in a blanket `except Exception`
+# that logs and continues, so that raise produces NO test failure. [BE-13] already
+# stubs `async_remove` for the same reason. Every assertion below is therefore a
+# RECORDED CALL or the `async_add_entities` capture list, never an escaping
+# exception, and each named red input was confirmed red THROUGH that swallow.
+#
+# A SHAPE DELIBERATELY NOT TAKEN, and it is a real alternative: these could be
+# written as full-platform tests in test_init_setup.py, mirroring [INIT-13] exactly,
+# where the entity has a real entity_id and nothing needs stubbing. That version is
+# the more faithful sibling; this one reuses the [BE-11]/[BE-13] harness and is
+# cheaper. If a third rename claim ever lands here, prefer the INIT- shape.
+# ---------------------------------------------------------------------------
+
+async def _setup_one_exposed(hass, manager, name="Evening"):
+    """The [BE-11] harness: one exposed profile, set up, entities captured."""
+    manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
+    setup_map(manager, "vacuum.alfred", _REAL_MAP, count=1)
+    pid = manager.save_run_profile(
+        vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP, name=name)["profile_id"]
+    manager.data["run_profiles"]["vacuum.alfred"][_REAL_MAP][pid][
+        "expose_as_button"] = True
+
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    captured: list = []
+    await button_mod.async_setup_entry(
+        hass, entry, lambda entities, *a, **k: captured.extend(entities))
+    return pid, captured
+
+
+def _stub_ha_teardown(entity):
+    """Replace HA's own teardown/state methods with SPEC'D doubles.
+
+    SPEC'D, NOT BARE, for two reasons. `create_autospec` on the bound method keeps
+    the real signature, so a call with the wrong arity fails HERE instead of being
+    swallowed by a mock that accepts anything -- and these run inside
+    `_notify_run_profiles_updated`'s blanket `except`, which is precisely where a
+    silently-wrong call would never be seen. The mock ratchet (W0) is also
+    shrink-only, and this file's one bare mock is already spent on [BE-13].
+
+    WHY STUB AT ALL: this harness never adds the entity to a platform, so HA's real
+    `async_remove` / `async_write_ha_state` raise -- and that raise is swallowed, so
+    the test would observe nothing rather than fail.
+    """
+    entity.async_remove = create_autospec(entity.async_remove)
+    entity.async_write_ha_state = create_autospec(entity.async_write_ha_state)
+    return entity
+
+
+def _run_buttons(captured):
+    return [e for e in captured if isinstance(e, EufyVacuumSavedRunProfileButton)]
+
+
+async def test_run_profile_rename_swaps_entity_keeping_unique_id(hass, manager):
+    """[BE-14] A renamed profile replaces the entity OBJECT under the same unique_id.
+
+    The stale object caches the old name in `_attr_translation_placeholders`, so
+    writing state onto it would never update the friendly name -- which is precisely
+    what SN-4 fixed in the sensor platform. The fix here swaps the object and
+    deliberately does NOT call `registry.async_update_entity(name=...)`, which would
+    stomp a user override and freeze future translation updates.
+
+    THE REGISTRY HALF IS ASSERTED, NOT NARRATED. An earlier draft claimed the
+    unique_id check proved "the registry entry is undisturbed" -- it proves nothing
+    of the sort: `unique_id` is a pure function of (vacuum, map, profile_id), none of
+    which the swap touches, so it holds under every ablation in which `new` exists at
+    all. So the entry is really created and really given a user override here, and
+    BOTH are asserted to survive. That is the counterfactual against the rejected
+    implementation.
+
+    RED, three measured inputs: make line 113's comparison never true (the swap never
+    happens, `async_remove` is never awaited, one button stays); delete the
+    `hass.async_create_task(_swap_renamed())` (same); delete ONLY the `continue`
+    after it (`async_write_ha_state` is then called on the stale object, which is the
+    assertion that pins that one line).
+
+    LEDGER NOTE: this test COVERS `entity_map[unique_id] = entity` but does not PIN
+    it -- deleting that line leaves this test green. [BE-15] is the only test that
+    sees it.
+    """
+    pid, captured = await _setup_one_exposed(hass, manager)
+    old = _run_buttons(captured)[0]
+    assert old.profile_name == "Evening"
+    uid = old.unique_id
+
+    # A REAL registry entry with a REAL user override, so the survival claim has a
+    # subject. Without this the test observes nothing whatsoever about the registry.
+    registry = er.async_get(hass)
+    ent_id = registry.async_get_or_create("button", DOMAIN, uid).entity_id
+    registry.async_update_entity(ent_id, name="My Name")
+
+    _stub_ha_teardown(old)
+
+    # Through the REAL producer: rename_run_profile writes the name and fires the
+    # notification itself, so nothing here pokes private state to reach the branch.
+    manager.rename_run_profile(
+        vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP, profile_id=pid,
+        name="Great Room")
+    await hass.async_block_till_done()
+
+    old.async_remove.assert_awaited_once()
+    old.async_write_ha_state.assert_not_called()  # the `continue` skipped the write
+
+    runs = _run_buttons(captured)
+    assert len(runs) == 2, "the swapped-in object was never added"
+    new = runs[-1]
+    assert new.profile_name == "Great Room", (
+        "the stale object could never report this -- which is what SN-4 was about"
+    )
+    assert registry.async_get_entity_id("button", DOMAIN, uid) == ent_id
+    assert registry.async_get(ent_id).name == "My Name", (
+        "the swap stomped the user's name override"
+    )
+
+
+async def test_a_second_notification_does_not_re_swap_the_renamed_button(hass, manager):
+    """[BE-15] The swapped-in object is ADOPTED into the map, so the rename settles.
+
+    This is the only test that can see `entity_map[unique_id] = entity`, and the
+    reason is a contrast nothing else provides: with that line deleted the closure
+    keeps the STALE object, so the NEXT notification finds a name mismatch all over
+    again and swaps a second time. One notification cannot distinguish an adopted map
+    from an un-adopted one -- [BE-14] and the plain no-rename case both stay GREEN
+    under that ablation. Measured: `old.async_remove` awaited twice,
+    `new.async_write_ha_state` never called, three buttons instead of two.
+
+    RED: delete `entity_map[unique_id] = entity` (above), or delete
+    `existing.async_write_ha_state()` (which reddens [BE-16] too).
+    """
+    pid, captured = await _setup_one_exposed(hass, manager)
+    old = _run_buttons(captured)[0]
+    _stub_ha_teardown(old)
+
+    manager.rename_run_profile(
+        vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP, profile_id=pid,
+        name="Great Room")
+    await hass.async_block_till_done()
+
+    new = _run_buttons(captured)[-1]
+    _stub_ha_teardown(new)
+
+    # ...and now a notification carrying NO rename, the steady state after a swap.
+    manager._notify_run_profiles_updated(
+        vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP)
+    await hass.async_block_till_done()
+
+    new.async_write_ha_state.assert_called_once()
+    new.async_remove.assert_not_awaited()
+    old.async_remove.assert_awaited_once()  # STILL once -- no second swap
+    assert len(_run_buttons(captured)) == 2
+
+
+async def test_a_notification_without_a_rename_writes_state_on_every_button(hass, manager):
+    """[BE-16] The unchanged arm: keep the object, push it to the state machine, skip.
+
+    TWO EXPOSED PROFILES, AND THAT IS THE WHOLE POINT. With one, the matched row is
+    the LAST row of a one-row loop, and `continue` is indistinguishable from `break`
+    -- measured: the single-profile version of this test stays green with the
+    `continue` turned into a `break`, along with every other test in this file. The
+    names are chosen so `_build_run_profile_buttons_for_map`'s sort on
+    `profile_name.lower()` makes the order deterministic.
+
+    RED: `continue` -> `break` (the second button never gets its write); delete
+    `existing.async_write_ha_state()` (neither does); delete the `continue` entirely
+    (both buttons are then re-added as new entities).
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
+    setup_map(manager, "vacuum.alfred", _REAL_MAP, count=1)
+    for name in ("Alpha", "Zulu"):
+        pid = manager.save_run_profile(
+            vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP, name=name)["profile_id"]
+        manager.data["run_profiles"]["vacuum.alfred"][_REAL_MAP][pid][
+            "expose_as_button"] = True
+
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    captured: list = []
+    await button_mod.async_setup_entry(
+        hass, entry, lambda entities, *a, **k: captured.extend(entities))
+
+    runs = _run_buttons(captured)
+    assert len(runs) == 2, "precondition: both profiles must be exposed"
+    for button in runs:
+        _stub_ha_teardown(button)
+
+    manager._notify_run_profiles_updated(
+        vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP)
+    await hass.async_block_till_done()
+
+    for button in runs:
+        button.async_write_ha_state.assert_called_once()
+        button.async_remove.assert_not_awaited()
+    assert len(_run_buttons(captured)) == 2, "an unchanged button was re-added"
+
+
+# ---------------------------------------------------------------------------
+# [BE-17] THE MODEL GATE's call site
+#
+# A CALL-SITE REACHABILITY GAP, not a logic gap, and the distinction is the finding.
+# The gate FUNCTION is heavily tested -- [MGT-1]..[MGT-6] in
+# tests/adapters/test_model_gate.py pin `components_for_model` and
+# `model_has_component` directly, including the REGIME_UNRESOLVED ruling. But a grep
+# of tests/ for either name outside that file returns ZERO hits, against FOUR
+# production call sites (button.py:56, number.py:63, sensor/__init__.py:151,
+# maintenance/manager.py:601). Nothing proved any platform consults it --
+# `feedback_audit_callsite_reachability`: "a correct service with ZERO callers passes
+# every audit".
+#
+# The incident the gate exists for: before 2026-09-14 this loop walked the flat BRAND
+# catalog, so a component the model does not have still minted an entity -- 876
+# (model, component) pairs across three brands, confirmed on hardware (ivy, a
+# Roborock S6, carried button/number/sensor entities for a cleaning tray it has no
+# station for).
+# ---------------------------------------------------------------------------
+
+async def test_the_model_gate_drops_a_guide_only_maintenance_button(hass, manager):
+    """[BE-17] An unresolved regime keeps a sensor-backed part and drops a guide-only one.
+
+    This is the live [MGT-3] ruling, not a synthetic state: *"if regime is unresolved
+    it will lose its maintenance cards"*. `components_for_model` is keyed on
+    `manager._get_registry_model_code`, and the `manager` fixture leaves vacuum.alfred
+    out of the entity registry, so the model code is None, `model_key_regimes` misses,
+    and the helper returns REGIME_UNRESOLVED -- after which `model_has_component`
+    answers `has_own_counter`: True for the filter, False for the guide-only tray.
+
+    THE DROPPED COMPONENT IS DECLARED FIRST, AND THAT IS LOAD-BEARING -- do not tidy
+    the order. Dict iteration is insertion order, so with the tray declared LAST the
+    `continue` on line 59 is the last row of the loop and `continue` -> `break` leaves
+    this test green at its exact asserted set. Declared first, that ablation yields an
+    EMPTY set and the test goes red. Measured both ways.
+
+    THE TWO-KEY CONTRAST IS WHAT DEFEATS THE EMPTY-CONTAINER TRAP: one surviving
+    button and one dropped button. A dead loop or an emptied catalog yields zero and
+    fails; a gate that always says yes yields two and fails. And BOTH components sit
+    in `maintenance_sources` with non-None values, so the `sources.get(component) is
+    None` arm one line up cannot be what drops the tray.
+
+    RED, two measured inputs: delete the whole `if not model_has_component(...):
+    continue` guard (the tray mints a second button); or restore the pre-2026-09-14
+    suffix exemption by forcing `has_own_counter=True` (both survive) -- the very
+    clause [MGT-2] exists to keep retired.
+    """
+    register_adapter_config(
+        "vacuum.alfred",
+        {
+            **TEST_ADAPTER_CONFIG,
+            "maintenance_components": {
+                # FIRST on purpose -- see the docstring.
+                "cleaning_tray": {"label": "Cleaning Tray", "icon": "mdi:tray"},
+                "filter": {"label": "Filter", "icon": "mdi:air-filter",
+                           "sensor_suffix": "filter_life"},
+            },
+            "upkeep_catalog": {
+                "key_guides": {"r1": {"filter": {}, "cleaning_tray": {}}},
+                "model_key_regimes": {"T2320": "r1"},
+            },
+        },
+    )
+    try:
+        manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
+        # Pre-seed the snapshot so get_vacuum_capabilities(refresh=False) answers from
+        # it rather than re-detecting. TEST_ADAPTER_CONFIG declares no model_family, so
+        # the self-heal re-detect at core/manager.py:1986 cannot fire.
+        manager.data.setdefault("capabilities", {})["vacuum.alfred"] = {
+            "detected_model": "a-model-no-regime-knows",
+            "maintenance_sources": {
+                "filter": "sensor.alfred_filter_life",
+                "cleaning_tray": "sensor.alfred_uptime",
+            },
+        }
+
+        entry = MockConfigEntry(domain=DOMAIN)
+        entry.add_to_hass(hass)
+        captured: list = []
+        await button_mod.async_setup_entry(
+            hass, entry, lambda entities, *a, **k: captured.extend(entities))
+    finally:
+        # Restore the fixture's adapter: the registry is MODULE-GLOBAL state, and a
+        # leaked registration is how another file's test once passed for the wrong
+        # reason (docs/testing/05-gotchas-and-pitfalls.md, SS15).
+        register_adapter_config("vacuum.alfred", dict(TEST_ADAPTER_CONFIG))
+
+    reset_ids = {
+        entity.unique_id for entity in captured
+        if isinstance(entity, EufyVacuumMaintenanceResetButton)
+    }
+    assert reset_ids == {"vacuum_alfred_filter_maintenance_reset"}, reset_ids

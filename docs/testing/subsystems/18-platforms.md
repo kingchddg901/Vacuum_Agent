@@ -26,7 +26,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `sensor/room_history.py` | 19 | 100% | `test_sensor_remaining.py` | clean |
 | `sensor/room_rule_status.py` | 19 | 100% | `test_sensor_remaining.py` | clean |
 | `sensor/map_overlays.py` | 57 | 99% | `test_sensor_map_overlays.py`, `test_map_overlays_sensor.py` (unit) | clean |
-| `button.py` | 143 | 88% | `test_button_entity.py` | **bare x1** |
+| `button.py` | 143 | 96% | `test_button_entity.py` | **bare x1** |
 | `number.py` | 133 | 96% | `test_number_entity.py` | clean |
 | `switch.py` | 95 | 98% | `test_switch_entity.py` | clean |
 | `binary_sensor.py` | 65 | 96% | `test_platform_files.py` | **bare x8** |
@@ -54,7 +54,10 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 - **Button** — maintenance-reset + saved-run-profile buttons; `unique_id`,
   `name`, `available`, `async_press`, and the **dynamic run-profile button
   reconciliation** (setup wires the update callback; exposing a profile builds +
-  adds a button).
+  adds a button; RENAMING one swaps the entity object under the same
+  `unique_id`, and the next notification writes state rather than swapping
+  again). The **model gate** is also asserted at this platform's call site, not
+  only in its own unit tests.
 - **Number / Switch** — maintenance-interval number + the toggle switches:
   value read/write and bounds.
 - **Config flow** (`CF-*`, `OF-*`) — the entry creation flow, and the options
@@ -184,21 +187,127 @@ hourly safety-net tick — are now exercised end-to-end by INIT-6/7/8 in
 `tests/integration/test_init_setup.py` via the full-boot harness (adding a room
 and firing the update callback registers new sensors; the rule-status + theme
 refreshes push observable state; the hourly tick refreshes history sensors).
-What remains uncovered is now concentrated on `button.py` (89%, missing lines
-100, 111-120, 164, 169, 283) rather than spread evenly. Line 100 is the
-run-profile **rename-detection** condition (`if existing.profile_name !=
-entity.profile_name:`) as before. Lines 111-120 are new this campaign and
-are the more interesting gap: the profile-**rename swap**
-(`_swap_renamed`) — when a reconciled button's `profile_name` changed, the
-platform removes the stale entity object and adds a fresh one instead of
-writing state onto it (the comment identifies this as the button platform's
-missing counterpart to the sensor platform's SN-4 rename fix). Lines 164 and
-283 are non-dict `library`/`profile` guards. These all call `async_remove()` /
-`async_write_ha_state()` / need a reconciled entity registry on **registered**
-entities, so exercising them needs a **full entity-platform registration**
-harness (a registered entity on a real platform) rather than the recording
-`async_add_entities` the current tests use; only white-box spies are otherwise
-possible. `number.py` (98%, missing 258-259) has a small residual gap.
+`button.py`'s share of that residue is closed as of 2026-11-08 — see
+the `button.py` section below, which also
+corrects what this paragraph used to say about it. `number.py` (98%, missing
+258-259) has a small residual gap.
+
+### `button.py` — 88% → 95.58% (2026-11-08)
+
+> ⚠ The paragraph above USED to describe this gap as needing "a **full
+> entity-platform registration** harness (a registered entity on a real platform)
+> rather than the recording `async_add_entities` the current tests use; only
+> white-box spies are otherwise possible." **That was wrong, and it is the reason
+> the gap survived two campaigns.** `BE-14`..`BE-16` close it on the existing
+> `[BE-11]`/`[BE-13]` recording harness, with two `create_autospec` doubles per
+> entity — the same thing `[BE-13]` was already doing one line away. The registry
+> half is not a spy either: `BE-14` creates a real registry entry, gives it a real
+> user name override, and asserts both survive the swap.
+>
+> Its line citations had also rotted (it cited 100, 111-120, 164, 169, 283) and its
+> percentage was a point high. A wrong "this needs a bigger harness" is worse than
+> a wrong line number, because the line number rots visibly and the claim does not.
+
+**The real gap was one behaviour, and the code said so itself.** The comment on the
+rename-swap branch read `⚠ NO TEST REACHES THIS BRANCH (ledger T4, open)` and named
+the covered sensor twin, `[INIT-13]`
+`test_room_rename_swaps_entity_keeping_unique_id`. So EP-5 / SN-4's fix for a
+forgotten sibling — the sensor platform got the rename swap and the button platform
+did not — was itself unguarded: **delete the branch and the suite stayed green**,
+measured. That one behaviour was 12 of the 22 uncovered units.
+
+| id | what it holds |
+|---|---|
+| `BE-14` | a renamed profile swaps the entity OBJECT under the same `unique_id`, and the registry entry plus any user name override survive |
+| `BE-15` | the swapped-in object is ADOPTED, so a second notification writes state instead of swapping again |
+| `BE-16` | a notification with no rename writes state on EVERY existing button |
+| `BE-17` | the MODEL GATE is consulted by this platform, not merely by its own unit tests |
+
+**`BE-17` is a call-site reachability gap, not a logic gap**, and the distinction is
+the finding. The gate function is heavily tested — `MGT-1`..`MGT-6` in
+`tests/adapters/test_model_gate.py` pin `components_for_model` and
+`model_has_component` directly, including the REGIME_UNRESOLVED ruling — but a grep
+of `tests/` for either name outside that file returned **zero** hits, against four
+production call sites (`button.py`, `number.py`, `sensor/__init__.py`,
+`maintenance/manager.py`). Nothing proved any platform consults it. `BE-17` closes
+one of the four; the other three are still unproven at their call sites.
+
+**Three of these tests needed a second input to stop being vacuous, and the pattern
+is the same each time: the interesting row was LAST.**
+
+- `BE-16` seeds TWO exposed profiles. With one, the matched row is the only row, and
+  `continue` → `break` is invisible — measured: the single-profile version stays
+  green under that mutation along with the whole file.
+- `BE-17` declares the DROPPED component FIRST in its catalog. **Do not tidy that
+  order.** With the dropped component last, ablating the gate's `continue` to `break`
+  leaves the test green at its exact asserted set; declared first, the same mutation
+  empties the set and the test goes red.
+- `BE-15` exists ONLY because one notification cannot distinguish an adopted entity
+  map from an un-adopted one. Deleting `entity_map[unique_id] = entity` leaves
+  `BE-14` and all 15 pre-existing tests green; `BE-15` is the single test that sees
+  it. Ledger note: line 135 is **covered by `BE-14`, pinned by `BE-15`**.
+
+**The swallowing layer is why every assertion is a recorded call.**
+`core/manager.py::_notify_run_profiles_updated` wraps each run-profile callback in a
+blanket `except Exception` that logs and continues, so a raise inside the
+reconciliation callback produces no test failure at all. Each assertion is therefore
+a `create_autospec` call record or the `async_add_entities` capture list, never an
+escaping exception — and every named red input was confirmed red THROUGH that layer.
+The stubs are not convenience: an unstubbed `async_write_ha_state` on an entity
+never added to a platform raises, and the raise is swallowed, so the test would
+observe nothing rather than fail.
+
+**Eight units stay, all three clusters classified, so 95.58% is the honest ceiling.**
+
+- `102->105` is **UNREACHABLE**. `_on_run_profiles_updated` is a plain `def`, so no
+  `await` is possible anywhere in it; `stale_ids` is filtered from
+  `list(entity_map.keys())`, dict keys are distinct, and every stored value is a
+  freshly constructed entity — so `entity_map.pop(unique_id, None)` cannot miss. The
+  one synchronous re-entrancy vector was checked: the integration has exactly one
+  `EVENT_ENTITY_REGISTRY_UPDATED` listener, it returns at its first guard when the
+  action is not `update`, and no file under `listeners/` can reach the notifier. If
+  the arm is ever made reachable (deriving `stale_ids` from the registry instead
+  would do it), its observable must be the registry removal or the log, **never an
+  exception**, because of the swallow above.
+- `106->100` is **SUBSUMED**, and the swallower is Home Assistant itself rather than
+  an `except`. `er.EntityRegistry.async_remove` opens with `if entity_id not in
+  self.entities: return`, carrying its own comment that removing a non-existent
+  entity is *allowed* because "there will be races during cleanup" — before the
+  pop, the deleted-entry write, the event fire and the save. Measured:
+  `async_remove(None)` raises nothing, and replacing the guard with an unconditional
+  call left the FULL suite green. The early return is present at the `hacs.json`
+  floor (2025.6.0) too, not only in the image's version, so the tolerance holds
+  across the supported range. **This is the identical classification `switch.py`'s
+  stale-sweep guard already carries below** — same guard, same reason, found twice.
+- `187->188`/`188`, `192->193`/`193` and `306->307`/`307` are **UNREACHABLE**: the
+  non-dict `library` and non-dict `profile` guards. The sole producer,
+  `profiles/manager.py::get_saved_run_profiles`, builds `"library"` as a dict
+  COMPREHENSION already guarded by `isinstance(profile, dict)`, and each surviving
+  value is `_enrich_saved_run_profile`, whose only return is a `{**profile, ...}`
+  literal. Fifty garbage shapes driven through the real producer came back with
+  `library` a dict every time. They are the shadow of a filter that already ran.
+
+Two honesty caveats on that last group, because the walk turned up limits the
+classification does not cover:
+
+1. The store is filtered at the MAP level (`_get_saved_run_profile_store` returns
+   `{}` for a non-dict), **not above it**. `core/storage.py::async_load` does not
+   normalise `run_profiles` at all, so a corrupt store with a non-dict at
+   `data["run_profiles"]` or `["run_profiles"][vac]` raises `AttributeError` on
+   `.setdefault` one layer BELOW these guards. The conclusion is unaffected — it
+   raises before `library` is read — but that raise belongs to
+   `profiles/manager.py`, not here.
+2. These units ARE coverable by substituting the producer: the repo ships
+   `make_manager_mock(run_profiles=...)` and seven button tests already use it. Note
+   the trap if anyone tries — that factory coerces its argument to `{"library":
+   run_profiles or {}}`, so `[]`, `""`, `0` and `None` are all turned into `{}` and
+   never reach the guard; only truthy garbage bites. By this repo's recorded
+   standard (see `EufyVacuumOptionsFlow._resolution_gaps` further down) such a test
+   asserts the author's reading of the contract rather than the contract, so it is
+   left unwritten — stated as a choice rather than by omission.
+
+**`BE-10` is a RETIRED id, not a free one** — removed in `7164c076` with
+`_slugify_profile_name`. Do not fill the gap.
 
 ### `switch.py` — 84% → 98.37% (2026-11-08), and the entry this corrects
 

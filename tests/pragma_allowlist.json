@@ -27,7 +27,6 @@
     "custom_components/eufy_vacuum/listeners/job_progress.py": 1,
     "custom_components/eufy_vacuum/listeners/lifecycle.py": 2,
     "custom_components/eufy_vacuum/listeners/pose_sampler.py": 1,
-    "custom_components/eufy_vacuum/listeners/stall_capture.py": 1,
     "custom_components/eufy_vacuum/maintenance/manager.py": 2,
     "custom_components/eufy_vacuum/mapping/map_source_runtime.py": 5,
     "custom_components/eufy_vacuum/mapping/segment_primitives.py": 1,

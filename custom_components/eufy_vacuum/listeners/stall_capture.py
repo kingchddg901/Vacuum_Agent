@@ -124,7 +124,14 @@ def is_enabled(manager: EufyVacuumManager, vacuum_entity_id: str) -> bool:
     """Whether capture is armed for this vacuum. Absent → OFF."""
     try:
         bucket = (manager.data.get("vacuums") or {}).get(vacuum_entity_id) or {}
-    except Exception:  # pragma: no cover - defensive; a broken store must not raise here
+    # NO `pragma: no cover` HERE, and the direction of the damage is the point: this
+    # arm is ALREADY covered, by `test_a_broken_store_disarms_rather_than_raises`,
+    # which hands in a manager whose `data` property raises. The pragma it carried
+    # until 2026-11-08 was subtracting two EXERCISED statements from numerator and
+    # denominator alike, so removing it RAISES the measured figure. It also failed the
+    # repo's own rule (a waiver is for logger lines; this body is `return False`), and
+    # `scripts/pragma_census.py` was counting it as this file's one waiver.
+    except Exception:
         return False
     return bool(bucket.get(STALL_CAPTURE_KEY))
 

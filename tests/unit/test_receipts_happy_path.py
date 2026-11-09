@@ -220,3 +220,168 @@ async def test_rch3_a_write_failure_speaks_then_stops(dump, tmp_path, wired, mon
     assert not fired, "no event may claim a capture that does not exist"
     # and the failure is the LAST thing said — the chain stops rather than trailing off
     assert recs[-1]["msg"] == "stall.capture.written"
+
+
+# ---------------------------------------------------------------------------
+# [RC-H4] - [RC-H5]  TWO THINGS THAT MUST NOT COST THE CAPTURE.
+#
+# Both live in this file rather than beside the declines because the claim in each
+# case is that the chain still COMPLETES -- a corrupt stored rotation costs the
+# orientation, and an unarmed receipts logger costs nothing at all.
+# ---------------------------------------------------------------------------
+
+_PNG = b"\x89PNG" + b"x" * 96
+
+
+def _recording_renderer(monkeypatch, seen):
+    """Replace the renderer with one that records the kwargs it was handed."""
+    def _render(**kw):
+        seen.update(kw)
+        return _PNG
+
+    monkeypatch.setattr(sc, "render_room_capture", _render)
+
+
+@pytest.mark.parametrize("stored", ["sideways", [90], {"deg": 90}, "90deg"])
+async def test_rch4_a_corrupt_rotation_costs_the_orientation_not_the_capture(
+    dump, tmp_path, wired, monkeypatch, stored
+):
+    """[RC-H4] A stored rotation `int()` cannot read falls back to 0 and the run finishes.
+
+    The user's per-map rotation is display-only state the card applies. A capture at
+    the raw raster angle is correct and UNRECOGNISABLE, which for a glanced
+    notification is worse than no picture -- so the value is applied, and a value
+    that will not coerce costs the ORIENTATION, never the capture.
+
+    ALL FOUR SHAPES ARE TRUTHY, so the `or 0` cannot absorb them, and they cover both
+    arms of the except tuple: `sideways`/`90deg` raise ValueError, `[90]`/`{...}`
+    raise TypeError.
+
+    REACHABLE ONLY FROM STATE NO IN-PACKAGE WRITER CAN EMIT, and that is said plainly
+    rather than dressed up as an incident. The sole writer is
+    `mapping_services.py::_handle_set_live_map_rotation`, schema-bound to
+    `vol.All(vol.Coerce(int), vol.In([0, 90, 180, 270]))`, and `git log -S` shows the
+    writer and that schema arrived in the SAME commit -- there was never a
+    coerce-free version. What remains is the store: `core/storage.py` wraps HA's
+    Store with no load-time validation, so a legacy or hand-edited `.storage` value
+    reaches this read as-is. The IDENTICAL guard at `core/manager.py:6226-6229` is
+    also uncovered, so the class was untested package-wide.
+
+    ⚠ THE GUARD IS NARROWER THAN THIS TEST'S TITLE SUGGESTS, and the except tuple is
+    where the line falls. The same external store that can put `sideways` at
+    `live_map_rotation` can put a string or a list at `maps[vacuum][map_id]` -- and
+    `.get` on that raises AttributeError, which this handler does NOT catch and
+    nothing in `_capture` catches either. A corrupt VALUE costs the orientation; a
+    corrupt BUCKET does cost the capture. Widening the tuple is a code change and a
+    separate decision, not this test's to make.
+
+    RED: replace the try/except with its bare body. The ValueError/TypeError then
+    propagates out of `_capture`, the `written` receipt never fires and no event is
+    fired -- and the contrast test below stays GREEN under that ablation, which is
+    why both are needed.
+    """
+    seen: dict = {}
+    _recording_renderer(monkeypatch, seen)
+    wired.data["maps"]["vacuum.ivy"]["Main floor"]["live_map_rotation"] = stored
+
+    fired: list = []
+    hass = _hass(tmp_path, fired, listeners=1)
+    hass.data = {sc.DOMAIN: {sc.DATA_RUNTIME: wired}}
+
+    await sc._capture(hass, {"vacuum_entity_id": "vacuum.ivy", "map_id": "Main floor",
+                             "room_id": 27, "room_name": "KITCHEN"})
+
+    import decode_receipts as dec
+
+    by = {r["msg"]: r for r in dec.parse(chr(10).join(dump))}
+    assert seen["rotation_deg"] == 0, seen.get("rotation_deg")
+    assert by["stall.capture.written"]["outcome"] == "P", "the capture was lost"
+    assert fired and fired[0][0] == sc.EVENT_STALL_CAPTURED
+
+
+async def test_rch4b_a_good_rotation_reaches_the_renderer(
+    dump, tmp_path, wired, monkeypatch
+):
+    """[RC-H4] The contrast, and without it the test above is vacuous.
+
+    A renderer that ignored `rotation_deg` entirely, or a bucket read that resolved to
+    `{}` for the wrong reason, would satisfy `rotation_deg == 0` for all four corrupt
+    shapes. Only a stored value arriving INTACT shows the read is consulted at all --
+    the empty-container trap in another costume.
+
+    RED: this one stays green under [RC-H4]'s ablation and goes red if the rotation
+    read or its pass-through is dropped.
+    """
+    seen: dict = {}
+    _recording_renderer(monkeypatch, seen)
+    wired.data["maps"]["vacuum.ivy"]["Main floor"]["live_map_rotation"] = 270
+
+    hass = _hass(tmp_path, [], listeners=1)
+    hass.data = {sc.DOMAIN: {sc.DATA_RUNTIME: wired}}
+
+    await sc._capture(hass, {"vacuum_entity_id": "vacuum.ivy", "map_id": "Main floor",
+                             "room_id": 27, "room_name": "KITCHEN"})
+
+    assert seen["rotation_deg"] == 270, seen.get("rotation_deg")
+
+
+async def test_rch5_an_unarmed_run_does_not_count_the_net(tmp_path, wired):
+    """[RC-H5] With nothing capturing receipts, the net is not counted at all.
+
+    The all-stations announcement's third fact is
+    `hass.bus.async_listeners().get(EVENT_STALL_CAPTURED, 0)` -- the listener COUNT is
+    what makes the broadcast's silence readable. The guard exists so that counting
+    the net is not paid for when nobody is listening to the receipt, and on a live box
+    HA's `async_listeners` is a comprehension over EVERY registered event type, so it
+    is not a token cost.
+
+    THIS IS SUBSUMED UNLESS THE NON-CALL IS THE OBSERVABLE, and that is why the test
+    is shaped the way it is. Unarmed, `receipts.emit` returns at its own first line,
+    so the guard changes no outcome, no raise and no disk state. The ONE thing that
+    distinguishes it is that Python evaluates the argument BEFORE calling `emit` --
+    so with the guard gone, the net is counted on every capture. Assert that
+    non-call, or there is nothing here.
+
+    DELIBERATELY NOT USING THE `dump` FIXTURE: it sets the package logger to DEBUG,
+    which is exactly the state this test needs absent -- which is also why every
+    existing test that reaches this line takes the armed arm. `assert not
+    receipts.armed()` is the precondition that fails closed if DEBUG is left on the
+    receipts logger itself.
+
+    RED: delete `if receipts.armed():` and dedent the emit -- `async_listeners()` is
+    then called on every capture and `calls` is non-empty.
+    """
+    calls: list = []
+    fired: list = []
+    hass = _hass(tmp_path, fired, listeners=3)
+    hass.data = {sc.DOMAIN: {sc.DATA_RUNTIME: wired}}
+
+    def _recording_listeners():
+        calls.append(1)
+        return {sc.EVENT_STALL_CAPTURED: 3}
+
+    hass.bus.async_listeners = _recording_listeners
+
+    logger = logging.getLogger("custom_components.eufy_vacuum")
+    lvl = logger.level
+    logger.setLevel(logging.INFO)
+    try:
+        assert not receipts.armed(), "the precondition for this test is not armed"
+        await sc._capture(hass, {"vacuum_entity_id": "vacuum.ivy",
+                                 "map_id": "Main floor", "room_id": 27,
+                                 "room_name": "KITCHEN"})
+    finally:
+        logger.setLevel(lvl)
+
+    # The positive control, and it comes FIRST: `async_fire` is the line immediately
+    # above the guard, so a fired event PROVES the guard was reached. Without it the
+    # assertion below would pass on a run that returned early.
+    assert fired and fired[0][0] == sc.EVENT_STALL_CAPTURED, (
+        "nothing about receipts may gate the user-visible announcement"
+    )
+    assert calls == [], "unarmed, async_listeners() must not be called"
+
+    # ...and the recorder must be able to SEE a call, or the line above is a
+    # tautology the day `_hass` rebuilds its bus or HA renames the method.
+    assert hass.bus.async_listeners() == {sc.EVENT_STALL_CAPTURED: 3}
+    assert calls == [1], "the recorder never observed a call it did see"

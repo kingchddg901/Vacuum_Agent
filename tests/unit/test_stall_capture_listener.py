@@ -17,6 +17,8 @@ Coverage targets
        the ±window is the one the caller asked for.
 [SL-9] the window comes from the brand's DECLARED pose cadence, not a constant.
 [SL-10] the write is DURABLE (fsync before rename) and leaves no orphan tmp on failure.
+[SL-11] a brand declaring active_map as a CANDIDATE LIST still gets a label.
+[SL-12] registration is a HAND-OFF: a fired event really reaches the capture.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from __future__ import annotations
 import base64
 import os
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -113,7 +116,15 @@ def test_a_hostile_map_id_cannot_escape_the_directory():
 # ---------------------------------------------------------------------------
 
 def test_map_label_prefers_the_declared_entity(monkeypatch):
-    """[SL-4] Roborock declares select.<id>_selected_map, whose state IS the name."""
+    """[SL-4] Roborock declares select.<id>_selected_map, whose state IS the name.
+
+    ⚠ THE `map_id` MUST DIFFER FROM THE EXPECTED LABEL. This test passed `map_id`
+    "Main floor" until 2026-11-08 — exactly the string it asserts — so the fallback
+    `return str(map_id)` satisfied it and the test stayed GREEN with the ENTIRE declared-
+    entity read deleted. Found by ablating that read while verifying [SL-11]: nothing in
+    the file could see the branch it was named for. An id that is not the answer is the
+    whole discriminator here.
+    """
     monkeypatch.setattr(
         sc, "get_adapter_value",
         lambda vid, *a, **kw: "select.ivy_selected_map",
@@ -128,7 +139,7 @@ def test_map_label_prefers_the_declared_entity(monkeypatch):
             def get(_e):
                 return _S()
 
-    assert sc.map_label(_Hass(), "vacuum.ivy", "Main floor") == "Main floor"
+    assert sc.map_label(_Hass(), "vacuum.ivy", "7") == "Main floor"
 
 
 def test_map_label_falls_back_to_the_id_when_nothing_is_declared(monkeypatch):
@@ -166,6 +177,182 @@ def test_an_unusable_state_is_not_a_label(monkeypatch, bad):
                 return _S()
 
     assert sc.map_label(_Hass(), "vacuum.alfred", "12") == "12"
+
+
+# ---------------------------------------------------------------------------
+# [SL-11] the candidate-LIST declaration
+#
+# `entities.active_map` arrives in TWO SHAPES from the same key, and the files that
+# declare them declare both: every code adapter sets `entities.active_map` to a bare
+# string (eufy/adapter.py:262, dreame/adapter.py:170, roborock/adapter.py:820) and a
+# one-element LIST under `entity_candidates` (197, 105, 430). The normalisation at the
+# top of `map_label` is what lets the second shape through, and `isinstance(x,
+# (list, tuple))` on an entity id occurs EXACTLY ONCE in `custom_components/` -- none
+# of the other ~100 `entities.*` reads needs it.
+#
+# NO INCIDENT BEHIND IT, and it is not recorded here as a replay: `git log -S` puts
+# the guard in the file's FIRST commit (76b79e78), not in a fix. What makes it
+# reachable rather than decorative is that
+# `adapters/config_loader.load_stored_adapter_configs` registers a stored `.storage`
+# config with no schema validation (only an outer `isinstance(config, dict)`), and
+# `get_adapter_value` returns `node.get(key)` verbatim.
+# ---------------------------------------------------------------------------
+
+def test_map_label_resolves_a_candidate_list_to_its_first_entity(monkeypatch):
+    """[SL-11] A list declaration resolves to its FIRST element, not merely to one.
+
+    The fake resolves a state for the first id and None for anything else, so a
+    `[-1]` or an any-of implementation fails rather than passing on a one-element
+    list.
+
+    RED: `entity_id = entity_id[-1] if entity_id else None` -- measured red; and
+    deleting the normalisation entirely leaves `entity_id` a list, `isinstance(...,
+    str)` False, and the label falls back to the id.
+    """
+    monkeypatch.setattr(
+        sc, "get_adapter_value",
+        lambda vid, *a, **kw: ["select.ivy_selected_map", "select.ivy_other_map"],
+    )
+
+    class _Hass:
+        class states:
+            @staticmethod
+            def get(entity_id):
+                if entity_id == "select.ivy_selected_map":
+                    return SimpleNamespace(state="Main floor")
+                return None
+
+    assert sc.map_label(_Hass(), "vacuum.ivy", "7") == "Main floor"
+
+
+def test_map_label_falls_back_when_the_candidate_list_is_empty(monkeypatch):
+    """[SL-11] An EMPTY declaration resolves to the id rather than raising.
+
+    RED, AND IT IS NOT THE ONE THE OBVIOUS ABLATION GIVES: deleting the whole
+    normalisation leaves this GREEN -- `isinstance([], str)` is already False, so
+    control reaches `return str(map_id)` by the same route. The one input that
+    separates this arm is dropping only the emptiness ternary (`entity_id =
+    entity_id[0]`), which raises `IndexError: list index out of range`. Measured both
+    ways while verifying this pair.
+
+    THE RAISING STUB BELOW IS A TRIPWIRE, NOT THE OBSERVABLE, and saying so is the
+    point: it cannot fire in ANY variant (with the guard `entity_id` is None, without
+    it `[]`, and `isinstance` rejects both before `hass.states.get` is reached). An
+    earlier draft of this test claimed the stub proved the short-circuit. It proves
+    nothing, and an assertion that cannot see the thing it names is the trap this
+    campaign keeps paying for. What is asserted is the behaviour: no raise, and the
+    id comes back.
+    """
+    monkeypatch.setattr(sc, "get_adapter_value", lambda vid, *a, **kw: [])
+
+    class _Hass:
+        class states:
+            @staticmethod
+            def get(_e):
+                raise AssertionError("an empty declaration must not be looked up")
+
+    assert sc.map_label(_Hass(), "vacuum.alfred", "7") == "7"
+
+
+# ---------------------------------------------------------------------------
+# [SL-12] the dispatch hand-off
+#
+# `register()` was reached by the setup tests, but `_on_stall` -- the callback it
+# subscribes -- was invoked by NOTHING: the only proof this listener dispatched
+# anything was a static call site. That is
+# `feedback_audit_callsite_reachability` in its runtime form, and
+# `test_receipts_happy_path`'s own header records the same split being found inside
+# the instrument built to detect it ("a call SITE exists, not that it ever RUNS").
+#
+# The three bus-level stall tests (test_manager_progress, test_stuck_watch_tick,
+# test_services_stall_capture) FIRE the event but never `register()` the listener,
+# and the four receipts tests await `_capture` directly -- so the hand-off between
+# them was the one link nothing crossed.
+# ---------------------------------------------------------------------------
+
+def _dispatch_hass():
+    """A hass that records what was subscribed and what was scheduled, nothing more."""
+    listened: list = []
+    scheduled: list = []
+
+    def _listen(event_type, callback):
+        listened.append((event_type, callback))
+        return lambda: None
+
+    return SimpleNamespace(
+        data={},
+        bus=SimpleNamespace(async_listen=_listen),
+        async_create_task=scheduled.append,
+    ), listened, scheduled
+
+
+async def test_a_detected_stall_is_handed_to_the_capture(monkeypatch):
+    """[SL-12] The subscription really runs the capture, and hands it a COPY.
+
+    Two claims, each with its own red input:
+
+    * the hand-off -- RED if `hass.async_create_task(_run())` is dropped: nothing is
+      scheduled and `seen` stays empty.
+    * the COPY at `data = dict(event.data or {})` -- RED if the `dict(...)` is
+      dropped: the capture then reads the bus's own dict, which has moved on by the
+      time the task runs. This is the only assertion here that can tell a copy from
+      an alias, and `_capture` runs on a LATER tick than the callback, so the window
+      is real rather than theoretical.
+
+    `_capture` is replaced rather than driven: what is under test is the dispatch,
+    and the capture's own behaviour is pinned by the four receipts tests.
+    """
+    seen: list[dict] = []
+
+    async def _fake_capture(_hass, data):
+        seen.append(data)
+
+    monkeypatch.setattr(sc, "_capture", _fake_capture)
+
+    hass, listened, scheduled = _dispatch_hass()
+    sc.register(hass)
+
+    assert [ev for ev, _cb in listened] == [sc.EVENT_STALL_DETECTED], listened
+    _ev, on_stall = listened[0]
+
+    payload = {"vacuum_entity_id": "vacuum.ivy", "map_id": "Main floor", "room_id": 27}
+    on_stall(SimpleNamespace(data=payload))
+    assert len(scheduled) == 1, "the callback did not hand the capture to the loop"
+
+    # The bus's dict moves on BEFORE the scheduled task runs -- which is exactly the
+    # ordering the real loop produces, since `_on_stall` returns immediately.
+    payload["room_id"] = 99
+    await scheduled[0]
+
+    assert seen == [{"vacuum_entity_id": "vacuum.ivy", "map_id": "Main floor",
+                     "room_id": 27}], seen
+
+
+async def test_an_event_with_no_data_is_dispatched_as_an_empty_payload(monkeypatch):
+    """[SL-12] `event.data or {}` -- a dataless fire declines, it does not raise.
+
+    `hass.bus.async_fire(EVENT_STALL_DETECTED)` with no payload is reachable from any
+    user automation, and `dict(None)` is a TypeError inside a callback whose only
+    protection is the blanket `except` in `_run`. So the empty payload has to reach
+    `_capture`, which declines `no_room` for it.
+
+    RED: drop the `or {}` -- `dict(None)` raises and `seen` stays empty.
+    """
+    seen: list[dict] = []
+
+    async def _fake_capture(_hass, data):
+        seen.append(data)
+
+    monkeypatch.setattr(sc, "_capture", _fake_capture)
+
+    hass, listened, scheduled = _dispatch_hass()
+    sc.register(hass)
+    _ev, on_stall = listened[0]
+
+    on_stall(SimpleNamespace(data=None))
+    await scheduled[0]
+
+    assert seen == [{}], seen
 
 
 # ---------------------------------------------------------------------------

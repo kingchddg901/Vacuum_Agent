@@ -24,7 +24,7 @@ Architecture reference: [19 — The Event Ingress Layer](../../dev/19-event-ingr
 | `lifecycle.py` | 146 | 94% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration | **bare x28** |
 | `path_blockers.py` | 144 | 98% | `test_listeners_state_driven.py`, `test_listeners_path_blockers.py` | integration | spec'd |
 | `job_metrics.py` | 98 | 94% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration | **bare x28** |
-| `stall_capture.py` | 160 | 87% | `tests/unit/test_stall_capture_listener.py`, `tests/unit/test_receipts_criterion.py`, `tests/unit/test_receipts_happy_path.py`, `tests/unit/test_receipts_concurrency.py` | unit (pure helpers, the decline paths, the whole chain, and two chains at once) | clean |
+| `stall_capture.py` | 162 | 100% | `tests/unit/test_stall_capture_listener.py`, `tests/unit/test_receipts_criterion.py`, `tests/unit/test_receipts_happy_path.py`, `tests/unit/test_receipts_concurrency.py` | unit (pure helpers, the decline paths, the whole chain, and two chains at once) | clean |
 | `receipts/` | new | — | `tests/unit/test_receipts.py` | unit | clean |
 | `dock_events.py` | 84 | 93% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration | **bare x28** |
 | `discovery.py` | 83 | 99% | `test_listeners_timers.py` | integration | clean |
@@ -116,6 +116,8 @@ The targets cover the decisions AROUND the render (the renderer itself is `SC` i
 | `SL-4` | the map label prefers the brand's DECLARED entity and falls back to the id |
 | `SL-5` | `unknown` / `unavailable` is not a label — the id beats "stalled … on unknown" |
 | `SL-6`/`SL-7` | render geometry is passed through verbatim, never re-derived; unusable data yields `None` rather than a partial payload |
+| `SL-11` | a brand declaring `active_map` as a **candidate LIST** still gets a label, from the list's FIRST element; an empty list falls back to the id |
+| `SL-12` | registration is a **hand-off**: a fired `EVENT_STALL_DETECTED` really reaches `_capture`, and reaches it with a COPY of the event payload |
 
 `SL-4` records a real brand asymmetry rather than papering over it. Roborock declares
 `select.<id>_selected_map`, whose state IS the map name. Eufy declares only
@@ -129,6 +131,122 @@ that supplies a name ("on map Main floor"). Declaring the name properly needs a 
 ROLE: the role list in `core/capabilities.py` is fixed, and `active_map` must keep
 resolving to the ID because map-id resolution depends on it. That is a contract change,
 not the one-line adapter tweak it first looked like.
+
+### The receipts pilot (`RC`) — and `stall_capture.py` at 100% (2026-11-08)
+
+The `RC-*` ids live in three files beside the `SL-*` ones and had no entry here
+until this campaign closed the module out:
+`tests/unit/test_receipts_criterion.py` (`RC-C*`, the pilot's success criterion),
+`test_receipts_happy_path.py` (`RC-H*`, success must actually speak) and
+`test_receipts_concurrency.py` (`RC-X`, two captures at once).
+
+| id | what it holds |
+|---|---|
+| `RC-C` / `RC-C2` | replay of the 2026-08-09 incident: the dump ALONE says `not_armed` — and the mirror, an armed run does not decline |
+| `RC-C3` | the runtime is gone, and the decline still NAMES its own station |
+| `RC-C4` | a stall with no resolved room declines `no_room`, and that outranks `not_armed` |
+| `RC-C5` | present render data the geometry step refuses declines `unusable` rather than crashing — three causes, three rows |
+| `RC-C6` | a missing picture says WHICH absence: `no_pillow` or `unusable` |
+| `RC-H` / `RC-H2` / `RC-H3` | the whole chain speaks in causal order; a poseless brand reads `weak` not `lc`; a write failure speaks then STOPS |
+| `RC-H4` | a corrupt stored rotation costs the ORIENTATION, not the capture |
+| `RC-H5` | with nothing capturing receipts, the net is not counted at all |
+| `RC-X` | two interleaved captures stay attributable |
+
+**Four of the six decline reasons this module owns had never fired in a test.**
+`no_runtime`, `no_room`, `unusable` (twice) and `no_pillow` existed as emit SITES
+and nothing ran them — which is `feedback_audit_callsite_reachability` reproduced
+inside the instrument built to detect it, a split
+`test_receipts_happy_path.py`'s own header already records finding once:
+`check_receipts.py` is a static AST scan, so it proves "a call SITE exists, not
+that it ever RUNS". The same was true one layer up: `register()` was reached by
+the setup tests while `_on_stall`, the callback it subscribes, was invoked by
+NOTHING — the three bus-level stall tests fire the event without registering the
+listener, and the receipts tests await `_capture` directly, so the hand-off
+between them was the one link nothing crossed (`SL-12`).
+
+**One reason in the vocabulary is still unemittable, and is NOT closed.**
+`DECLINE_REASONS` declares `no_map`; all six emit sites are in this module and
+none of them emits it. (The `no_map` strings in `mapping_services.py` and
+`setup/status.py` are a different vocabulary — service refusal reasons.) The
+receipts module's own docstring already names it as declared-but-never-emitted.
+It is recorded here because it is the same class of defect as the four above.
+
+**`C33` is also still open**, and the test prose says so rather than smoothing it
+over: `unusable` stands for FOUR distinct causes across TWO emit sites, and
+`RC-C5`/`RC-C6` pin all four without splitting them, because splitting them is a
+code change (new reasons plus the `DECLINE_REASONS` vocabulary).
+
+#### The pragma that was costing coverage rather than buying it
+
+`is_enabled`'s `except Exception:` carried `# pragma: no cover - defensive; a
+broken store must not raise here` and was this file's single entry in
+`tests/pragma_allowlist.json`. Two things were wrong with it, in opposite
+directions:
+
+- it failed the repo's own rule (a waiver is for logger lines; that body is
+  `return False`), which is why the census counted it; **and**
+- the arm was **already covered**, by `SL-1`
+  `test_a_broken_store_disarms_rather_than_raises`, which hands in a manager whose
+  `data` property raises. So the pragma was subtracting two EXERCISED statements
+  from numerator and denominator alike.
+
+Removing it therefore RAISED the measured figure and drained the allowlist row,
+which `PR-3` then required to be deleted — the direction that gate is built for.
+The general shape is worth keeping: **a `pragma: no cover` is not evidence that
+the code under it is untested.** Measure before classifying.
+
+**Four pragmas remain and all four are within the rule** (119, 172, 422, 459 — an
+`except` whose body is logger calls plus at most an inert return). Two of them
+hide behaviour that is genuinely untested, and this is the honest record of it
+rather than a claim of completeness:
+
+- **119** hides the loop CONTINUATION that makes `remove()` best-effort across
+  ALL unsubs. `break` versus `continue` is invisible unless the raising unsub is
+  first — and production only ever puts ONE unsub in that list, so the multi-unsub
+  shape a test would need is one no shipped code path produces. Stated here
+  instead of tested, deliberately.
+- **459** hides `_run`'s task containment, which is the reason `_capture` is
+  wrapped at all. `SL-12` drives `_on_stall` and `_run` but not the `except`.
+- **422** hides nothing by the rule, but it does hide a fact: lines 422-423 ARE
+  executed, and only because every test reaching the notification block passes a
+  `SimpleNamespace` hass, so `persistent_notification.async_create` raises and the
+  handler swallows it. **No test in the repo has ever observed the notification
+  being CREATED** — the only arm ever exercised on that path is the failure one.
+
+#### Two reachability claims stated at their real strength
+
+Both of these guards are reachable only from stored state no in-package writer can
+produce, and the tests say so rather than inventing an incident:
+
+- `map_label`'s list normalisation (`SL-11`) is in the file's FIRST commit
+  (`76b79e78`), not in a fix. What makes it reachable is that
+  `adapters/config_loader.load_stored_adapter_configs` registers a stored
+  `.storage` config with no schema validation.
+- `RC-H4`'s rotation guard has exactly one in-package writer, schema-bound to
+  `vol.In([0, 90, 180, 270])` — and `git log -S` shows the writer and that schema
+  arrived in the same commit, so there was never a coerce-free version. What
+  remains is the store: `core/storage.py` does no load-time validation. **The
+  near-identical guard in `core/manager.py::get_dashboard_snapshot` is still
+  uncovered** (it differs only in spelling the `.get` default), so that half of
+  the class remains untested package-wide.
+
+And one limit of `RC-H4` worth carrying, because the test's title is wider than
+its guard: the `except (TypeError, ValueError)` covers a corrupt VALUE. The same
+store can put a string or a list at `maps[vacuum][map_id]`, and `.get` on that
+raises **AttributeError**, which this handler does not catch and nothing in
+`_capture` catches either. A corrupt bucket *does* cost the capture. Widening the
+tuple is a code change and a separate decision.
+
+#### One vacuous test found and fixed in passing
+
+`SL-4`'s `test_map_label_prefers_the_declared_entity` passed `map_id="Main floor"`
+— **exactly the label it asserts** — so the fallback `return str(map_id)`
+satisfied it and the test stayed GREEN with the ENTIRE declared-entity read
+deleted. It was found by ablating that read while verifying `SL-11`, and the fix
+is one character class: the id is now `"7"`. The general form is the one this
+campaign keeps paying for — **an expected value that the fallback also produces
+is not a discriminator** — and the ablation harness now carries that ablation as a
+standing check (`S4`), so the fix cannot silently come undone.
 
 ### Entity rename (`ER`) — detection only, on purpose
 
