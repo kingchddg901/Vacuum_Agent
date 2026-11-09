@@ -375,7 +375,7 @@ Rewritten against that, the ablation reddens.
 | `room_discovery.py` | 167 | 99% | `test_room_discovery.py` | integration | clean |
 | `current_room.py` | 25 | 100% | `test_current_room_resolve.py` (unit) | unit | clean |
 | `reconciliation.py` | 155 | 92% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration | **bare x1** |
-| `source_refresh.py` | 161 | 88% | `test_rooms_source_refresh.py` (unit) | unit | clean |
+| `source_refresh.py` | 161 | 100% | `test_rooms_source_refresh.py` (unit) | unit | clean |
 | `room_manager.py` | 85 | 97% | `test_room_manager.py` (unit) | unit | clean |
 | `room_defaults.py` | 21 | 100% | `test_room_manager.py` (unit) + `test_adapter_contract.py` | unit | clean |
 | `utils.py` | 3 | 100% | `test_rooms_utils.py` (unit) | unit | clean |
@@ -476,6 +476,82 @@ covered; what is not is the *fallback* arms that replace a non-list / non-dict i
 with `[]` / `{}` and the `continue` skip-bad-row guards repeated across the graph
 walkers (`access_graph.py` missing lines 154, 160, 211, 246, 287, 290, 500, 503, 521,
 849, 852, 858, 864, 1100, 1112). These are normalization plumbing, not behavior.
+
+### `source_refresh.py` — 88% → 100% (223/223) (2026-11-09)
+
+The `SR-*` family had no entry here until this pass — only a row in the coverage
+map — so this is its first.
+
+**FOUR NAMED RULINGS HAD NO TEST, and they hid for one shared reason.** `SRC-2`,
+`SRC-3`, `SRC-4` and `SRC-4`'s coalescing half are all **refusals to commit**, and
+every pre-existing refresh test hands the shim a good response on a quiet cache —
+which is exactly the input all four guards let through. The happy path was well
+covered; nothing had ever made the code decline.
+
+| id | the ruling it drives |
+|---|---|
+| `SR-21` | `RP-006` / `SRC-2`: a response that flattens to nothing is refused when there is a cache to protect, and committed when there is not — both arms of the `and` |
+| `SR-22` | `SRC-4`: a slow response superseded while it awaited is discarded and the newer commit left standing |
+| `SR-23` | `RP-007` / `SRC-3`: two maps with the same human-edited name both survive, the second under a collision-safe suffix, and the warning names both |
+| `SR-24` | `SRC-4`'s other half: concurrent callers coalesce onto one in-flight refresh — the service is called once |
+
+`SR-16`..`SR-20` close the smaller half: the non-dict source refusal,
+`invalidate_room_source_cache` (whose **entire `if/else` was unreached** — every call
+in the suite arrived with no cache dict and returned at the guard above, so `SRC-5`,
+"a reloaded entry must not serve the previous life's cache as fresh", was untested),
+`_extract_maps_list`'s preference-then-fall-through, `_active_map_id_from_config`'s
+two refusals, and flatten's `flag` naming rung.
+
+#### How the `SRC-4` race is driven, and the two ways it can be faked
+
+`generation` is captured on the line **above** the service `await`, so a test that
+writes `_GENERATION` before calling has its own value read back — the comparison
+becomes `g != g`, an identity that cannot fail. All three candidate approaches were
+written and measured rather than argued:
+
+- **poke `_GENERATION` before the call** — returns `reason=None` and commits. The
+  branch is never entered, so the test is red against *correct* code.
+- **poke it mid-flight from inside the stubbed handler** — green on a clean tree,
+  **and still green with `_GENERATION[vid] = generation + 1` deleted**, because the
+  poke supplies the increment the code was supposed to make. It passes for the wrong
+  reason and is blind to the counter's only writer.
+- **a real second refresh** (`SR-22`) — the only one of the three that reddens under
+  that ablation.
+
+It calls `_do_refresh_room_source` directly by necessity: `_INFLIGHT` coalescing
+makes two concurrent refreshes of one vacuum unreachable through the public entry
+point, which is what `SR-24` pins from the other side. The race is still reachable
+in production — cancelling an awaiter pops `_INFLIGHT` while `asyncio.shield` keeps
+the inner task running — measured, not inferred.
+
+#### When every ablation fails on a cheaper assertion first
+
+Five of the seven ablations for `SR-21`/`SR-22` fail on the **reason string** before
+execution reaches the cache assertion — and the cache assertions are the actual
+rulings ("a glitch must not blank a good source", "a stale response must not
+overwrite a newer commit"). Two further ablations therefore make each guard *report*
+correctly while writing the cache anyway, leaving the cheap assertion intact. Without
+those two the load-bearing assertions would be unproven claims riding on the assert
+above them. **Generalisable: when every mutation trips a cheaper assertion first, the
+expensive one is untested.**
+
+#### The `reason` vocabulary, audited
+
+Eight strings, all emitted and all reachable — so not the
+declared-but-never-emitted shape `stall_capture`'s `no_map` turned out to be, but its
+weaker cousin: **declared, emitted, and nothing checks the string.** Three of the
+eight were in that state. `SR-21`/`SR-22` close two.
+
+The third was `not_service_source`. `SR-7` drove that exit while asserting only
+`get_cached_room_source(...) == {}` — which is equally true of a vacuum that was
+never configured at all, so renaming the literal broke no test. An expectation the
+**fallback also produces** is not a discriminator; `SR-7` now asserts the reason.
+
+19 ablations, 19 at the predicted verdict. Three of those expectations needed
+correcting first, all in the direction of the tests catching MORE than predicted —
+including the flip of `SRC-4`'s comparison, which reddens six tests in the file
+rather than the two both the author and an independent reviewer predicted, because
+every test expecting a successful commit is downstream of that guard.
 
 ### `room_discovery.py` — 94% → 99% (2026-11-08), and the entry this corrects
 
