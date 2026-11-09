@@ -319,6 +319,44 @@ python scripts/mock_census.py                     # the current profile, worst f
 python scripts/mock_census.py --write-allowlist   # bank progress AFTER converting
 ```
 
+### Pragma ratchet — `tests/test_pragma_ratchet.py`
+
+The programme allows `# pragma: no cover` for a **logger line only**. Every other
+excluded line leaves the arithmetic as well as the report, so a pragma elsewhere makes
+a file's percentage flattering by exactly as much as it hides — and that percentage is
+what the 95%-per-file campaign is measured on.
+
+Audited 2026-11-08: **224 pragma sites, 103 within the rule, 121 outside it across 39
+files**, concentrated in `diagnostics.py` (21) and `core/manager.py` (20).
+
+**A pragma on a compound statement suppresses the whole statement, not its own line**,
+and that is the part that surprises. Of the 189 pragmas sitting on an `except` clause,
+**97 handlers contain no logger call at all** — mostly `pass`, `continue`, and real
+returns like `return (entities, report)`. A pragma written to skip one
+`_LOGGER.exception(...)` can be excluding control flow nobody meant to waive, which is
+why `scripts/pragma_census.py` classifies the handler BODY rather than the comment.
+
+Not a ban, and not a verdict on any one site. An `except Exception: # pragma: no cover`
+whose body is a log line plus a bare `return None` is the allowance in substance and is
+**not counted** — proven by ablation, along with both failing halves. 121 sites is not
+one commit's work and should not be: several are genuinely unreachable handlers whose
+right answer is a recorded classification (the shape used for `room_discovery.py`'s
+non-convergence arm and `switch.py`'s two remaining arms) rather than a pragma, and a
+few are real gaps. The gate holds the total steady while that judgement happens —
+deliberately the same shape as the mock ratchet above.
+
+| id | what it holds |
+|---|---|
+| `PR-1` | a file **not** on the allowlist may have zero |
+| `PR-2` | a listed file may not exceed its ceiling |
+| `PR-3` | slack is **reported, not enforced**; a drained or deleted file must lose its row |
+| `PR-4` | the census can tell the two shapes apart — the ablation `PR-1`/`PR-2` cannot do on themselves |
+
+```bash
+python scripts/pragma_census.py            # the profile, worst first
+python scripts/pragma_census.py --json     # {path: count} for the allowlist
+```
+
 ### Front-page link gate — `tests/unit/test_readme_links.py`
 
 `mkdocs.yml` sets `docs_dir: docs` and builds `--strict`, so every link inside
