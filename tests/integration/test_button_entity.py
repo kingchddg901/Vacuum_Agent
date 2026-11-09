@@ -20,8 +20,10 @@ Coverage targets
 [BE-15] The swapped-in object is ADOPTED, so a second notification does not re-swap.
 [BE-16] A notification with no rename writes state on the existing buttons -- ALL
         of them, which is what distinguishes `continue` from `break`.
-[BE-17] THE MODEL GATE is consulted by this platform, not merely by its own unit
-        tests: a guide-only component is dropped while a sensor-backed one survives.
+[BE-17] THE MODEL GATE's UNRESOLVED arm at this platform's call site: with no model
+        code, a guide-only component is dropped and a sensor-backed one survives.
+[BE-18] THE MODEL GATE's RESOLVED arm, which is the half that proves the regime
+        TABLE is read at all: a SENSOR-BACKED component the regime omits is dropped.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ from unittest.mock import AsyncMock, MagicMock, create_autospec
 
 import pytest
 
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 import custom_components.eufy_vacuum.button as button_mod
 from custom_components.eufy_vacuum.button import (
@@ -584,10 +586,19 @@ async def test_the_model_gate_drops_a_guide_only_maintenance_button(hass, manage
     in `maintenance_sources` with non-None values, so the `sources.get(component) is
     None` arm one line up cannot be what drops the tray.
 
-    RED, two measured inputs: delete the whole `if not model_has_component(...):
-    continue` guard (the tray mints a second button); or restore the pre-2026-09-14
+    RED, three measured inputs: delete the whole `if not model_has_component(...):
+    continue` guard (the tray mints a second button); restore the pre-2026-09-14
     suffix exemption by forcing `has_own_counter=True` (both survive) -- the very
-    clause [MGT-2] exists to keep retired.
+    clause [MGT-2] exists to keep retired; or turn either `continue` into a `break`.
+
+    ⚠ WHAT THIS TEST DOES *NOT* PIN, and it took an adversarial audit to see it:
+    `components_for_model`. In REGIME_UNRESOLVED `_emitted` is ALREADY None, so
+    replacing the whole `components_for_model(...)` call with `_emitted = None`
+    changes nothing and reddens NOTHING -- measured, with a control (hardcoding a
+    model code the regime KNOWS does redden this test, so the probe can see the
+    call and the null is real). An identity is not a mutation: this test pins
+    `model_has_component` and the two `continue`s, and [BE-18] is what pins the
+    regime table being consulted at all. Neither half is sufficient alone.
     """
     register_adapter_config(
         "vacuum.alfred",
@@ -596,6 +607,13 @@ async def test_the_model_gate_drops_a_guide_only_maintenance_button(hass, manage
             "maintenance_components": {
                 # FIRST on purpose -- see the docstring.
                 "cleaning_tray": {"label": "Cleaning Tray", "icon": "mdi:tray"},
+                # MIDDLE on purpose, and it is dropped by the OTHER `continue` --
+                # the one a line above the gate, on `sources.get(component) is
+                # None`. Both are now non-terminal rows, so neither `continue` can
+                # be a `break` in disguise. The two are copies of each other, and a
+                # guard that exists reads as complete: this is the shoulder just
+                # outside the window the gate test was aiming at.
+                "side_brush": {"label": "Side Brush", "icon": "mdi:broom"},
                 "filter": {"label": "Filter", "icon": "mdi:air-filter",
                            "sensor_suffix": "filter_life"},
             },
@@ -610,11 +628,18 @@ async def test_the_model_gate_drops_a_guide_only_maintenance_button(hass, manage
         # Pre-seed the snapshot so get_vacuum_capabilities(refresh=False) answers from
         # it rather than re-detecting. TEST_ADAPTER_CONFIG declares no model_family, so
         # the self-heal re-detect at core/manager.py:1986 cannot fire.
+        # The two keys mirror `core/capabilities.py`'s payload, which
+        # `core/manager.py` stores at data["capabilities"][vacuum] -- named so a
+        # rename sweep greps its way here rather than leaving this passing against
+        # a shape production no longer emits.
         manager.data.setdefault("capabilities", {})["vacuum.alfred"] = {
             "detected_model": "a-model-no-regime-knows",
             "maintenance_sources": {
                 "filter": "sensor.alfred_filter_life",
                 "cleaning_tray": "sensor.alfred_uptime",
+                # DECLARED AND UNRESOLVED -- the shape the `sources is None` arm
+                # exists for: the adapter names the part, the device reports nothing.
+                "side_brush": None,
             },
         }
 
@@ -633,4 +658,93 @@ async def test_the_model_gate_drops_a_guide_only_maintenance_button(hass, manage
         entity.unique_id for entity in captured
         if isinstance(entity, EufyVacuumMaintenanceResetButton)
     }
+    assert reset_ids == {"vacuum_alfred_filter_maintenance_reset"}, reset_ids
+
+
+async def test_the_model_gate_reads_the_regime_for_a_known_model(hass, manager):
+    """[BE-18] The RESOLVED arm: a SENSOR-BACKED part the regime omits is dropped.
+
+    THIS IS THE HALF THAT PROVES THE REGIME TABLE IS READ. [BE-17] runs with no
+    model code, where `model_has_component` collapses to `return has_own_counter`
+    and the table is never touched -- so `button.py` could stop consulting the
+    adapter's `upkeep_catalog` entirely and [BE-17] would not notice. Measured:
+    `_emitted = None` left all 19 tests green before this one existed.
+
+    AND IT IS THE RULING, not a style choice. Under a RESOLVED regime a
+    sensor-backed component is gated TOO -- Chris: *"for eufy Gate them."* The old
+    gate exempted anything declaring a `sensor_suffix`, and since Eufy's tray
+    declares one it could never be reached, so the hole was structural rather than
+    an oversight. `cleaning_tray` here therefore declares a `sensor_suffix` AND
+    resolves to a real source, and must still be dropped because `r1` omits it.
+    That is the exact 876-pair shape confirmed on hardware: ivy, a Roborock S6,
+    carried button/number/sensor entities for a cleaning tray it has no station for.
+
+    THE DROPPED COMPONENT IS DECLARED FIRST for the same reason as in [BE-17] --
+    do not tidy the order, or `continue` -> `break` stops being visible.
+
+    RED: replace `_emitted = components_for_model(...)` with `_emitted = None` --
+    the regime goes unresolved, `has_own_counter` is True for the tray, and it mints
+    a second button. This test is the ONLY one in the suite that sees that mutation.
+    """
+    # A REAL device-registry model, which is what `_get_registry_model_code` reads;
+    # the `manager` fixture deliberately leaves vacuum.alfred out of the registry,
+    # which is why [BE-17] gets REGIME_UNRESOLVED for free.
+    dev_entry = MockConfigEntry(domain=DOMAIN, entry_id="be18dev")
+    dev_entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=dev_entry.entry_id,
+        identifiers={(DOMAIN, "alfred-be18")},
+        model="T2320",
+    )
+    er.async_get(hass).async_get_or_create(
+        "vacuum", "robovac_mqtt", "alfred_be18",
+        suggested_object_id="alfred", device_id=device.id,
+    )
+    assert manager._get_registry_model_code(
+        vacuum_entity_id="vacuum.alfred") == "T2320", (
+        "precondition: the model must RESOLVE, or this is [BE-17] again"
+    )
+
+    register_adapter_config(
+        "vacuum.alfred",
+        {
+            **TEST_ADAPTER_CONFIG,
+            "maintenance_components": {
+                # Sensor-backed AND omitted from regime r1. Declared FIRST.
+                "cleaning_tray": {"label": "Cleaning Tray", "icon": "mdi:tray",
+                                  "sensor_suffix": "tray_life"},
+                "filter": {"label": "Filter", "icon": "mdi:air-filter",
+                           "sensor_suffix": "filter_life"},
+            },
+            "upkeep_catalog": {
+                "key_guides": {"r1": {"filter": {}}},
+                "model_key_regimes": {"T2320": "r1"},
+            },
+        },
+    )
+    try:
+        manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
+        # Keys mirror `core/capabilities.py`'s payload -- see [BE-17].
+        manager.data.setdefault("capabilities", {})["vacuum.alfred"] = {
+            "detected_model": "T2320",
+            "maintenance_sources": {
+                "filter": "sensor.alfred_filter_life",
+                "cleaning_tray": "sensor.alfred_tray_life",
+            },
+        }
+
+        entry = MockConfigEntry(domain=DOMAIN)
+        entry.add_to_hass(hass)
+        captured: list = []
+        await button_mod.async_setup_entry(
+            hass, entry, lambda entities, *a, **k: captured.extend(entities))
+    finally:
+        register_adapter_config("vacuum.alfred", dict(TEST_ADAPTER_CONFIG))
+
+    reset_ids = {
+        entity.unique_id for entity in captured
+        if isinstance(entity, EufyVacuumMaintenanceResetButton)
+    }
+    # ONE survives and ONE is dropped, both sensor-backed -- so the only thing that
+    # can separate them is the regime table.
     assert reset_ids == {"vacuum_alfred_filter_maintenance_reset"}, reset_ids

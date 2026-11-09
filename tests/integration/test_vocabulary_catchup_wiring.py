@@ -26,9 +26,50 @@ Coverage targets
         backstop fires on the publish and re-registers.
 [VCW-2] the room entity's ATTRIBUTES change too, not just the config.
 [VCW-3] a provider that was ready on time arms nothing and changes nothing.
+[VCW-5] the vendor SDK is imported at COLLECTION, so its daemon threads cannot
+        fail the teardown of whichever test forces a Roborock first.
 """
 
 from __future__ import annotations
+
+import threading
+
+# THE SDK IS IMPORTED HERE, AT COLLECTION, AND THE REASON IS A TEARDOWN FAILURE.
+# This module makes the configured vacuum look like a Roborock, so setup calls
+# `adapters/roborock/dock.py::load_dock_library` -- and python-roborock's
+# module-level rate limiters start two daemon `PyrateLimiter's Leaker` threads on
+# first import. Done inside a test body, HA's autouse `verify_cleanup` fixture then
+# fails that test's TEARDOWN while the test itself PASSES, which is what made the
+# symptom unreadable: `4 passed, 1 error`, pointing at a test with nothing wrong
+# with it.
+#
+# ⚠ THIS WAS THE FORGOTTEN THIRD SITE. `b6a85f6f` diagnosed this precisely and
+# swept only `tests/adapters/roborock/test_adapter.py` and `test_dock_sdk.py`. Its
+# `[RBSDK-1]` guard is PER-MODULE, so it is structurally unable to see a third site,
+# and this file was already on disk -- failing since `6b3f2997` (2026-10-24) and
+# invisible to CI, because under `pytest tests` the alphabetically earlier
+# tests/adapters collection warms the threads first. The error only appears when
+# tests/integration is selected on its own.
+#
+# NOTHING ENUMERATES THESE SITES, and that is the open half. A census gate was
+# considered and NOT built: the only discriminator available today is
+# monkeypatching `brands._vacuum_platform`, this is its one user, and a future test
+# could force a Roborock another way -- so the gate would carry weak recall while
+# its PRESENCE read as coverage. Chris's call, recorded rather than pre-empted.
+#
+# A PLAIN import, never `importorskip`: this module fakes every SDK answer and must
+# still run when the SDK is absent.
+try:
+    import roborock  # noqa: F401
+    _ROBOROCK_SDK = True
+except ImportError:
+    _ROBOROCK_SDK = False
+
+#: Snapshotted at COLLECTION, which is what makes [VCW-5] able to fail -- by the
+#: time any test body runs, an in-body import would already have polluted it.
+_LEAKER_THREADS_AT_IMPORT = sorted(
+    t.name for t in threading.enumerate() if "Leaker" in t.name
+)
 
 import pytest
 
@@ -212,3 +253,32 @@ async def test_vcw_4_the_entry_still_unloads_after_the_catch_up_completes(
     )
     await hass.async_block_till_done()
     assert mock_config_entry.state is not ConfigEntryState.FAILED_UNLOAD
+
+
+def test_vcw5_the_vendor_sdk_is_imported_during_collection():
+    """[VCW-5] The SDK's daemon threads must predate every test in this module.
+
+    Not a vocabulary claim -- a HYGIENE one, and it is here because the three tests
+    above all passed while this module reported an ERROR. `verify_cleanup` asserts
+    that nothing new survives teardown, so the test that happens to trigger the
+    first `import roborock` is blamed for threads it merely woke.
+
+    RED: delete the module-level `import roborock` above. The snapshot is then empty
+    whenever this file is run on its own, which is exactly the configuration that
+    was failing -- and is the configuration CI never exercises, because
+    tests/adapters is collected first under `pytest tests` and warms the threads.
+
+    ⚠ THE RED INPUT IS SELECTION-DEPENDENT, and saying so is the point. Run beside
+    tests/adapters this assertion holds with the import deleted, because a sibling
+    module already warmed the threads. That is not a weakness of this test; it is
+    the property that hid the defect for fifteen days.
+    """
+    assert _ROBOROCK_SDK, (
+        "python-roborock is pinned in requirements_test.txt but did not import; "
+        "this guard cannot measure anything without it"
+    )
+    assert _LEAKER_THREADS_AT_IMPORT, (
+        "the SDK's daemon threads did not exist when this module was collected, so "
+        "something imports it inside a test body -- HA's verify_cleanup will fail "
+        "the teardown of whichever test gets there first"
+    )

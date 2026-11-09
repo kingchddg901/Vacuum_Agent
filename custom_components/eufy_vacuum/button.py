@@ -122,16 +122,25 @@ async def async_setup_entry(
                     # registry.async_update_entity(name=...), which would stomp
                     # a user override and freeze future translation updates.
                     #
-                    # ⚠ NO TEST REACHES THIS BRANCH (ledger T4, open). The sibling
-                    # it names IS covered — `[INIT-13]`
+                    # GUARDED since 2026-11-08 (ledger T4 closed), and the three
+                    # pieces are pinned SEPARATELY because no single test sees them
+                    # all: `[BE-14]` the swap itself, plus the registry entry and a
+                    # user name override surviving it; `[BE-15]` the ADOPTION on the
+                    # next line — delete that and this branch fires again on every
+                    # later notification, which [BE-14] cannot see; `[BE-16]` the
+                    # unchanged arm below. All in
+                    # tests/integration/test_button_entity.py. The sibling this fix
+                    # was forgotten by is `[INIT-13]`
                     # `test_room_rename_swaps_entity_keeping_unique_id` in
-                    # tests/integration/test_init_setup.py pins the swap for the
-                    # SENSOR platform — while tests/integration/test_button_entity.py
-                    # ([BE-1]..[BE-7]) covers unique_id, icon, press, name resolution
-                    # and availability, and never renames a profile. So the fix for
-                    # the forgotten sibling is itself unguarded: delete this branch
-                    # and the suite stays green. Closing that is a test, not a
-                    # comment.
+                    # tests/integration/test_init_setup.py, which pins the SENSOR
+                    # platform's copy.
+                    #
+                    # ⚠ THIS COMMENT USED TO SAY "NO TEST REACHES THIS BRANCH" AND
+                    # "delete this branch and the suite stays green". Both were true
+                    # when written and both were still here one commit AFTER they
+                    # stopped being true, because the commit that closed the gap
+                    # touched only tests and docs. A warning outlives the condition
+                    # it describes, so it is the thing to retire first.
                     entity_map[unique_id] = entity
 
                     async def _swap_renamed(_old=existing, _new=entity) -> None:

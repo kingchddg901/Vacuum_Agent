@@ -221,7 +221,8 @@ measured. That one behaviour was 12 of the 22 uncovered units.
 | `BE-14` | a renamed profile swaps the entity OBJECT under the same `unique_id`, and the registry entry plus any user name override survive |
 | `BE-15` | the swapped-in object is ADOPTED, so a second notification writes state instead of swapping again |
 | `BE-16` | a notification with no rename writes state on EVERY existing button |
-| `BE-17` | the MODEL GATE is consulted by this platform, not merely by its own unit tests |
+| `BE-17` | the model gate's UNRESOLVED arm at this call site: no model code, so a guide-only component is dropped and a sensor-backed one survives |
+| `BE-18` | the model gate's RESOLVED arm, which is the half that proves the regime TABLE is read: a SENSOR-BACKED component the regime omits is dropped |
 
 **`BE-17` is a call-site reachability gap, not a logic gap**, and the distinction is
 the finding. The gate function is heavily tested — `MGT-1`..`MGT-6` in
@@ -229,8 +230,21 @@ the finding. The gate function is heavily tested — `MGT-1`..`MGT-6` in
 `model_has_component` directly, including the REGIME_UNRESOLVED ruling — but a grep
 of `tests/` for either name outside that file returned **zero** hits, against four
 production call sites (`button.py`, `number.py`, `sensor/__init__.py`,
-`maintenance/manager.py`). Nothing proved any platform consults it. `BE-17` closes
-one of the four; the other three are still unproven at their call sites.
+`maintenance/manager.py`). Nothing proved any platform consults it. `BE-17` plus
+`BE-18` close one of the four; the other three are still unproven at their call
+sites.
+
+> ⚠ **IT TOOK TWO TESTS, AND THE FIRST DRAFT SHIPPED WITH ONE.** `BE-17` alone was
+> recorded here as closing this call site. It does not: it runs in
+> REGIME_UNRESOLVED, where `_emitted` is **already** `None`, so replacing the whole
+> `components_for_model(...)` call with `_emitted = None` is an IDENTITY rather than
+> a mutation — measured, it reddened nothing, while the control (hardcoding a model
+> code the regime KNOWS) did redden `BE-17`, which is what shows the probe could see
+> the call and the null was real. `BE-17` pins `model_has_component`; `BE-18` pins
+> the regime table being read at all. This is
+> `feedback_retirement_isnt_done_until_uncited`'s central shape — **a claim whose
+> subject has gone identically zero stops being able to fail** — and it was found by
+> an adversarial audit of the commit that introduced it, not by the suite.
 
 **Three of these tests needed a second input to stop being vacuous, and the pattern
 is the same each time: the interesting row was LAST.**
@@ -279,8 +293,12 @@ observe nothing rather than fail.
   floor (2025.6.0) too, not only in the image's version, so the tolerance holds
   across the supported range. **This is the identical classification `switch.py`'s
   stale-sweep guard already carries below** — same guard, same reason, found twice.
-- `187->188`/`188`, `192->193`/`193` and `306->307`/`307` are **UNREACHABLE**: the
-  non-dict `library` and non-dict `profile` guards. The sole producer,
+- The three **non-dict guards** are **UNREACHABLE** — `library` in
+  `_build_run_profile_buttons_for_map` and in
+  `EufyVacuumSavedRunProfileButton._profile`, plus `profile` in the former's
+  loop. (Named by symbol, not line: they were `188`/`193`/`307` when this
+  section was written and became `197`/`202`/`316` the same day, when a comment
+  above them was corrected.) The sole producer,
   `profiles/manager.py::get_saved_run_profiles`, builds `"library"` as a dict
   COMPREHENSION already guarded by `isinstance(profile, dict)`, and each surviving
   value is `_enrich_saved_run_profile`, whose only return is a `{**profile, ...}`
