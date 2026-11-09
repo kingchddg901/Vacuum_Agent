@@ -24,7 +24,9 @@ Coverage targets
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+import json
+
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -37,6 +39,8 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_GET_RECENT_ERRORS,
     SERVICE_SET_ENTITY_OVERRIDE,
     SERVICE_SETUP_ADD_VACUUM,
+    SERVICE_SETUP_REPAIR_RENAME,
+    SERVICE_SETUP_UNREJECT_ROOMS,
     SERVICE_SETUP_DELETE_MAP,
     SERVICE_SETUP_FORCE_REMOVE_ROOM,
     SERVICE_SETUP_GET_MAP_ROOMS,
@@ -468,3 +472,429 @@ async def test_set_entity_override_blank_role_errors_and_writes_nothing(
     assert result["status"] == "error"
     assert result["reason"] == "missing_role"
     assert _VAC not in manager_with_services.data.get(ENTITY_OVERRIDES_KEY, {})
+
+
+# ---------------------------------------------------------------------------
+# [SVS-11] - [SVS-18]  services/setup.py was the lowest-covered file in the
+# package at 83.74%. These close every uncovered unit OUTSIDE the standing
+# `manager is None` ruling (17-services.md) -- 30 of its 47.
+#
+# ⚠ THE RULING'S LINE NUMBERS ARE ENTIRELY STALE and that is worth knowing before
+# reading it: all SIXTEEN lines it names (64, 114, 187, 190, 237, 264, 303, 335-338,
+# 344-345, 356, 375, 425) are COVERED today. Nine uncovered lines and eight arms of
+# the same SHAPE remain, at completely different numbers. Its shape is what still
+# applies; its list is not. Those 17 units are deliberately untouched here.
+# ---------------------------------------------------------------------------
+
+
+def test_svs11_a_non_dict_workflow_result_advances_the_step(hass, manager_with_services):
+    """[SVS-11] `_completed_step_result` treats a non-dict as COMPLETED.
+
+    The setup panel renders a step as done from this predicate. A workflow that
+    returns something other than a status dict -- a bool, or None from an older
+    helper -- is taken as success, so the step advances rather than wedging the panel
+    on a step the user cannot clear.
+
+    The dict arm is the one every other test drives; this is the fallback, and both
+    halves are asserted together so "True" cannot come from the dict path by accident.
+
+    RED: flip the fallback to False and a non-dict result stops advancing the step.
+    """
+    from custom_components.eufy_vacuum.services.setup import _completed_step_result
+
+    assert _completed_step_result(True) is True
+    assert _completed_step_result(None) is True
+    assert _completed_step_result("done") is True
+    # ...and the dict arm still discriminates, or the assertions above prove nothing.
+    assert _completed_step_result({"status": "success"}) is True
+    assert _completed_step_result({"status": "already_done"}) is True
+    assert _completed_step_result({"status": "blocked"}) is False
+
+
+def test_svs12_the_enabled_room_ids_validator_accepts_and_coerces(hass):
+    """[SVS-12] The validator's ACCEPT path, which no test had driven.
+
+    Both of its refusals were covered and its success return was not, so nothing
+    asserted that a valid selection survives validation -- or that it comes out as
+    INTS. The ids are used as dict keys and compared against stored room ids; a
+    string `"3"` would silently miss every one of them.
+
+    ⚠ ITS DOCSTRING CALLS IT THE SAME VALIDATOR AS `services/rooms.py`'s, so the
+    coercion is asserted here and the twin is asserted to agree. A replica whose
+    copies drift is the failure this repo keeps finding; comparing the two outputs
+    is cheaper than trusting the comment.
+
+    RED: drop the `vol.Coerce(int)` and the ids come back as strings.
+    """
+    import voluptuous as vol
+
+    from custom_components.eufy_vacuum.services.setup import (
+        _enabled_room_ids_validator,
+    )
+
+    assert _enabled_room_ids_validator([3, "7", 11]) == [3, 7, 11]
+    assert _enabled_room_ids_validator("5") == [5], "a scalar is accepted as one id"
+
+    # The two refusals, so the accept path above is not the only thing measured.
+    with pytest.raises(vol.Invalid):
+        _enabled_room_ids_validator(None)
+    with pytest.raises(vol.Invalid):
+        _enabled_room_ids_validator([])
+
+    # The replica its docstring names must agree on all three.
+    from custom_components.eufy_vacuum.services.rooms import (
+        _enabled_room_ids_validator as twin,
+    )
+    for value in ([3, "7", 11], "5", ["2"]):
+        assert _enabled_room_ids_validator(value) == twin(value), (
+            f"the two copies of this validator disagree on {value!r}"
+        )
+
+
+async def test_svs13_a_corrupt_pending_rename_list_is_repaired(hass, manager_with_services):
+    """[SVS-13] `pending_entity_renames` read back from storage as a non-list.
+
+    The repair handler appends to that list. It comes back from `.storage`, so a dict
+    (an older shape) or a string is outside data -- and without the guard the append
+    raises `AttributeError` out of a service the user invoked to FIX a rename, which
+    is the worst moment for it.
+
+    The replacement must also be STORED, not just local: the assertion reads the
+    manager's own data back, because `pending = []` alone would repair a local name
+    and leave the corrupt value on disk.
+
+    RED: drop the `isinstance(pending, list)` guard and this raises.
+    """
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    manager_with_services.data["pending_entity_renames"] = {"not": "a list"}
+
+    result = await _call(hass, SERVICE_SETUP_REPAIR_RENAME, {
+        "old_entity_id": _VAC,
+        "new_entity_id": "vacuum.alfred_renamed",
+    })
+
+    assert isinstance(result, dict)
+    stored = manager_with_services.data["pending_entity_renames"]
+    assert isinstance(stored, list), (
+        f"the corrupt value survived the repair: {stored!r}"
+    )
+
+
+async def test_svs14_an_explicit_map_id_is_used_verbatim(hass, manager_with_services):
+    """[SVS-14] `_rejection_map_id`: an explicitly supplied map_id wins.
+
+    A4-SETUP-6 made rejections map-scoped because room ids are reissued per map. The
+    card does not send `map_id` today, so the resolver path is what the suite
+    exercised and the explicit path -- the one an automation or a future card uses --
+    was never driven.
+
+    THE TWO MAPS ARE SET UP WITH THE SAME ROOM IDS, which is the whole point: a
+    rejection that ignored the explicit id and resolved the ACTIVE map instead would
+    reject the right NUMBERS on the wrong map, and a test using distinct ids could
+    not tell the difference.
+
+    RED: ignore `call.data["map_id"]` and the rejection lands on the resolver's map.
+    """
+    setup_map(manager_with_services, _VAC, "floor1", count=3)
+    setup_map(manager_with_services, _VAC, "floor2", count=3)
+    manager_with_services.resolve_active_map_id = lambda vid: "floor1"
+
+    result = await _call(hass, SERVICE_SETUP_REJECT_ROOMS, {
+        "vacuum_entity_id": _VAC, "room_ids": [2], "map_id": "floor2",
+    })
+
+    assert result["status"] == "success"
+    rejected = manager_with_services.data.get("setup_progress", {}).get(_VAC, {})
+    assert "floor2" in json.dumps(rejected), (
+        f"the rejection did not land on the explicitly named map: {rejected}"
+    )
+
+
+async def test_svs15_no_active_map_resolver_falls_back_to_every_map(
+    hass, manager_with_services, monkeypatch
+):
+    """[SVS-15] `_rejection_map_id` returns None when the manager cannot say.
+
+    The source is explicit that this is the legacy every-map rejection and that it is
+    "worse, but it is the pre-existing behaviour and never silently no-ops the
+    rejection". So the claim is not "None" in the abstract -- it is that the rejection
+    STILL HAPPENS without a resolver, rather than being dropped.
+
+    RED: make the missing resolver raise or return early without rejecting, and the
+    rejection vanishes.
+    """
+    setup_map(manager_with_services, _VAC, "svsnores", count=2)
+    # ⚠ `EufyVacuumManager` DOES define `resolve_active_map_id` (core/manager.py), so
+    # this arm is not reachable by using the real manager as-is -- which is exactly
+    # why line 330 was uncovered. The guard is written `getattr(manager, ..., None)`
+    # with `manager: Any`, so what it defends against is a manager object that does
+    # not carry the method: an older stored manager, or a duck-typed one from an
+    # external pyscript/AppDaemon caller. Shadowing the class method on the instance
+    # is the faithful stand-in for that.
+    #
+    # Two measurements got me here, both worth leaving: `delattr(instance, ...)`
+    # raises AttributeError for a CLASS attribute, and `hasattr` then still answers
+    # True -- so a draft that tried to delete it concluded the method was absent when
+    # it is always present.
+    assert callable(getattr(manager_with_services, "resolve_active_map_id", None)), (
+        "precondition: the real manager carries this method, which is what makes "
+        "the no-resolver arm unreachable without shadowing it"
+    )
+    monkeypatch.setattr(manager_with_services, "resolve_active_map_id", None)
+
+    result = await _call(hass, SERVICE_SETUP_REJECT_ROOMS, {
+        "vacuum_entity_id": _VAC, "room_ids": [1],
+    })
+
+    assert result["status"] == "success"
+    assert 1 in set(result["rejected"]), (
+        "without a map resolver the rejection was dropped instead of applying to "
+        "every map"
+    )
+
+
+async def test_svs16_a_blocked_add_vacuum_does_not_stamp_the_step(
+    hass, manager_with_services, _no_panel
+):
+    """[SVS-16] The arm where the workflow did NOT complete.
+
+    `setup_add_vacuum` stamps the step only when the result is a completed one.
+    "blocked" means the user still has an action to take, so stamping it would render
+    the panel step as done while the user is still stuck on it -- the source comment
+    says exactly that.
+
+    THE CONTROL IS A SECOND CALL THAT DOES SUCCEED. "no step recorded" is also what a
+    stamp that never works produces, so the same vacuum is driven through a
+    successful add afterwards and the step must appear.
+
+    RED: stamp unconditionally and the blocked call records the step.
+    """
+    # THE REAL PRODUCTION PATH, not a patched one. `setup.workflow.add_vacuum`
+    # checks the HA state machine BEFORE the already-managed check, so a vacuum with
+    # a STORED record but no live state returns "blocked". (`_add_vacuum` is a lazy
+    # import bound into a closure at registration, so patching the module after the
+    # fixture registered the services would not take effect anyway -- measured.)
+    #
+    # ⚠ THE STORED RECORD IS WHAT MAKES THIS ABLE TO FAIL, and a first draft without
+    # it was vacuous. `record_step_completed` goes through
+    # `drift._get_progress_record`, which refuses to create a record for a vacuum the
+    # install does not have -- so for a never-seen id NOTHING stamps the step whatever
+    # the guard does, and the assertion held for the wrong reason. With the record in
+    # place, unconditional stamping genuinely appends the step.
+    offline = "vacuum.stored_but_offline"
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=offline)
+    assert hass.states.get(offline) is None, "precondition: no live state"
+
+    result = await _call(hass, SERVICE_SETUP_ADD_VACUUM, {"vacuum_entity_id": offline})
+    assert result["status"] == "blocked", (
+        f"expected the absent-entity arm, got {result.get('status')!r}"
+    )
+    steps = (manager_with_services.data.get("setup_progress", {})
+             .get(offline, {}).get("completed_steps", []))
+    assert "add_vacuum" not in steps, (
+        f"a blocked add stamped the step as done: {steps}"
+    )
+
+    # CONTROL: give it a state and the SAME call returns already_done -- a COMPLETED
+    # result -- which must stamp the step.
+    hass.states.async_set(offline, "docked")
+    result = await _call(hass, SERVICE_SETUP_ADD_VACUUM, {"vacuum_entity_id": offline})
+    assert result["status"] == "already_done", (
+        f"control: expected already_done, got {result.get('status')!r}"
+    )
+    steps = (manager_with_services.data.get("setup_progress", {})
+             .get(offline, {}).get("completed_steps", []))
+    assert "add_vacuum" in steps, (
+        "control: a completed result must stamp the step, or SVS-16 passes against a "
+        "stamp that never fires"
+    )
+
+
+async def test_svs17_an_entity_override_with_no_config_entry_skips_the_reload(
+    hass, manager_with_services, _no_panel
+):
+    """[SVS-17] ISSUE #63's guard, on the arm where there is no entry to reload.
+
+    Setting an override normally reloads the entry -- an override changes which entity
+    a role resolves to, which can change the capability set and therefore which
+    maintenance sensors exist. Before the reload it plants
+    `_panel_survives_reload`, because this service is invoked FROM the panel and
+    unregistering it ejects the user to their default dashboard mid-action (the
+    "appears to crash (screen exit)" report).
+
+    With no config entry there is nothing to reload and nothing to protect, so neither
+    the marker nor the task may appear -- a marker left behind with no reload coming
+    would make the NEXT genuine unload skip its panel teardown.
+
+    The override itself must still be stored: the service's job is the override, and
+    the reload is a side effect of it.
+
+    RED: hoist the marker out of the `if entries:` block and it is planted with no
+    reload to survive.
+    """
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    assert hass.config_entries.async_entries(DOMAIN) == [], (
+        "precondition: this test needs NO config entry, which is the arm under test"
+    )
+    hass.data.setdefault(DOMAIN, {}).pop("_panel_survives_reload", None)
+
+    result = await _call(hass, SERVICE_SET_ENTITY_OVERRIDE, {
+        "vacuum_entity_id": _VAC,
+        "role": "active_map",
+        "entity_id": "sensor.alfred_override",
+    })
+
+    assert result["status"] == "success"
+    assert result["role"] == "active_map"
+    assert "_panel_survives_reload" not in hass.data.get(DOMAIN, {}), (
+        "the panel-survival marker was planted with no reload coming, which makes "
+        "the next real unload skip its panel teardown"
+    )
+    # ENTITY_OVERRIDES_KEY is a TOP-LEVEL key in manager.data, keyed by vacuum --
+    # not a field on the vacuum record. Measured; the first draft looked inside
+    # data["vacuums"][vac] and raised KeyError.
+    overrides = manager_with_services.data[ENTITY_OVERRIDES_KEY][_VAC]
+    assert overrides["active_map"] == "sensor.alfred_override"
+
+
+async def test_svs18_unreject_rooms_restores_a_rejected_room(hass, manager_with_services):
+    """[SVS-18] `setup_unreject_rooms` -- the handler had NO test at all.
+
+    Its twin `setup_reject_rooms` is covered by [SVS-6]; this is A4-SETUP-6's escape
+    hatch, and the source says what it exists for: without it a rejection was one-way,
+    so a room rejected by mistake -- or, before rejections were map-scoped, a REAL room
+    upstairs sharing an id with a ghost downstairs -- had no route back short of
+    hand-editing `.storage`.
+
+    REJECT FIRST, THEN UNREJECT, so the test measures a round trip rather than the
+    absence of a rejection that was never made. The assertion after the reject is a
+    precondition, not decoration: unrejecting a room that was never rejected would
+    report success too.
+
+    RED: have the handler return without calling `_unreject_rooms`, or without saving,
+    and the id stays in the rejected set.
+    """
+    setup_map(manager_with_services, _VAC, "svsunrej", count=3)
+    manager_with_services.resolve_active_map_id = lambda vid: "svsunrej"
+
+    rejected = await _call(hass, SERVICE_SETUP_REJECT_ROOMS,
+                           {"vacuum_entity_id": _VAC, "room_ids": [2]})
+    assert 2 in set(rejected["rejected"]), "precondition: the room must be rejected first"
+
+    # ⚠ READ THE STORED SET THROUGH ITS OWN READER, not a json.dumps string search.
+    # A first draft asserted `'"2"' not in json.dumps(...)` and was VACUOUS: the ids
+    # are stored as INTS, so `"2"` with quotes never appears and the assertion held
+    # whatever the handler did. The ablation caught it -- stubbing the handler's call
+    # out entirely reddened nothing. `rejected_room_ids_for` is the module's own
+    # accessor and returns `set[int]`, and it deliberately does not materialise the
+    # record, so reading it cannot change what is being measured.
+    from custom_components.eufy_vacuum.setup.drift import rejected_room_ids_for
+
+    before = rejected_room_ids_for(manager_with_services, _VAC, map_id="svsunrej")
+    assert 2 in before, f"precondition: 2 must be in the stored set, got {before}"
+
+    result = await _call(hass, SERVICE_SETUP_UNREJECT_ROOMS,
+                         {"vacuum_entity_id": _VAC, "room_ids": [2]})
+
+    assert result["status"] == "success"
+    after = rejected_room_ids_for(manager_with_services, _VAC, map_id="svsunrej")
+    assert 2 not in after, (
+        f"room 2 is still recorded as rejected after un-rejecting it: {after}"
+    )
+
+
+@pytest.mark.parametrize("entity,expect_stored", [
+    pytest.param("  camera.upstairs  ", "camera.upstairs", id="set_trimmed"),
+    pytest.param("   ", None, id="cleared"),
+])
+async def test_svs19_the_map_camera_override_is_per_map(
+    hass, manager_with_services, _no_panel, entity, expect_stored
+):
+    """[SVS-19] The PER-MAP branch of `setup_set_map_camera`, the sibling [SVS-10]
+    does not cover.
+
+    [SVS-10] drives the per-vacuum override. Passing `map_id` takes a different branch
+    entirely, which stores under `live_map_image_entity_by_map` so that the per-vacuum
+    value "keeps meaning exactly what it meant before" -- the change was additive, and
+    nothing asserted the additive half.
+
+    ⚠ THE PER-VACUUM VALUE IS SET FIRST AND ASSERTED UNCHANGED. That is the claim: a
+    per-map write that clobbered the per-vacuum fallback would break every OTHER map
+    on that vacuum, and a test that only looked at the per-map dict could not see it.
+
+    The clearing row also pins the cleanup: emptying the last per-map entry must drop
+    the whole `live_map_image_entity_by_map` key rather than leave `{}` behind, since
+    an empty dict is a stored value that reads as "configured" to anything checking
+    for the key.
+
+    RED: write the per-map value to `live_map_image_entity` instead and the
+    per-vacuum assertion fires; skip the empty-dict cleanup and the clearing row
+    leaves `{}`.
+    """
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    record = manager_with_services.data["vacuums"][_VAC]
+    record["live_map_image_entity"] = "camera.alfred_default"
+
+    # Seed a per-map entry so the clearing row has something to remove.
+    await _call(hass, SERVICE_SETUP_SET_MAP_CAMERA, {
+        "vacuum_entity_id": _VAC, "entity_id": "camera.seed", "map_id": "floor9",
+    })
+    assert record["live_map_image_entity_by_map"]["floor9"] == "camera.seed"
+
+    result = await _call(hass, SERVICE_SETUP_SET_MAP_CAMERA, {
+        "vacuum_entity_id": _VAC, "entity_id": entity, "map_id": "floor9",
+    })
+
+    assert result["status"] == "success"
+    assert result["map_id"] == "floor9", "the response must name the map it scoped to"
+
+    by_map = record.get("live_map_image_entity_by_map")
+    if expect_stored is None:
+        assert by_map is None, (
+            f"clearing the last per-map entry left the key behind: {by_map!r} -- an "
+            f"empty dict is a stored value that reads as configured"
+        )
+    else:
+        assert by_map == {"floor9": expect_stored}
+
+    assert record["live_map_image_entity"] == "camera.alfred_default", (
+        "the per-map write clobbered the per-vacuum fallback, which would break "
+        "every other map on this vacuum"
+    )
+
+
+async def test_svs20_clearing_one_maps_camera_leaves_the_others(
+    hass, manager_with_services, _no_panel
+):
+    """[SVS-20] The cleanup's OTHER arm: clear one map, keep the rest.
+
+    [SVS-19]'s clearing row removes the only per-map entry, so the whole
+    `live_map_image_entity_by_map` key is dropped. This is the arm where entries
+    REMAIN -- and it is the one with teeth, because an over-eager cleanup that
+    dropped the key whenever anything was cleared would silently delete the
+    overrides for every other floor the user had configured.
+
+    Two maps in, one cleared, and the assertion is on the SURVIVOR.
+
+    RED: move the `record.pop(...)` out from under `if not by_map:` and floor8's
+    override disappears with floor9's.
+    """
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    record = manager_with_services.data["vacuums"][_VAC]
+
+    for map_id, cam in (("floor8", "camera.eight"), ("floor9", "camera.nine")):
+        await _call(hass, SERVICE_SETUP_SET_MAP_CAMERA, {
+            "vacuum_entity_id": _VAC, "entity_id": cam, "map_id": map_id,
+        })
+    assert record["live_map_image_entity_by_map"] == {
+        "floor8": "camera.eight", "floor9": "camera.nine",
+    }, "precondition: both maps must be configured before one is cleared"
+
+    result = await _call(hass, SERVICE_SETUP_SET_MAP_CAMERA, {
+        "vacuum_entity_id": _VAC, "entity_id": "", "map_id": "floor9",
+    })
+
+    assert result["status"] == "success"
+    assert record["live_map_image_entity_by_map"] == {"floor8": "camera.eight"}, (
+        "clearing one map's camera took another map's override with it"
+    )

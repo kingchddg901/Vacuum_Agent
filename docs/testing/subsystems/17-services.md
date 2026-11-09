@@ -123,6 +123,51 @@ Covered by `tests/unit/test_services_repair_renamed_vacuum.py`. Two targets carr
   map-id defaulting (incl. the no-active-map pass-through), and
   `job_finished_event_payload` built from a `finalize_result`-wrapped result.
 
+### `setup.py` — 83.74% → 94.46% (`SVS-11`–`SVS-20`, 2026-11-08)
+
+It was the lowest-covered file in the package. These close **every** uncovered unit
+outside the `manager is None` ruling in Known gaps below — 30 of its 47.
+
+| id | what it holds |
+|---|---|
+| `SVS-11` | `_completed_step_result` treats a non-dict as COMPLETED, so a step cannot wedge the panel |
+| `SVS-12` | the `enabled_room_ids` validator's ACCEPT path, and that it coerces to **ints** |
+| `SVS-13` | a `pending_entity_renames` value read back as a non-list is repaired **in storage** |
+| `SVS-14` | an explicitly supplied `map_id` wins over the resolved active map |
+| `SVS-15` | a manager carrying no `resolve_active_map_id` still rejects (legacy every-map) |
+| `SVS-16` | a **blocked** add does not stamp the setup step as done |
+| `SVS-17` | an entity override with no config entry plants no panel-survival marker (ISSUE #63) |
+| `SVS-18` | `setup_unreject_rooms` — A4-SETUP-6's escape hatch, which had **no test at all** |
+| `SVS-19` | the map-camera override's **per-map** branch, [SVS-10]'s untested sibling |
+| `SVS-20` | clearing one map's camera leaves the other maps' overrides intact |
+
+**Three of these were vacuous before the ablation caught them**, which is the part
+worth carrying:
+
+- `SVS-18` asserted `'"2"' not in json.dumps(...)`. The ids are stored as **ints**, so
+  the quoted form never appears and the assertion held whatever the handler did —
+  stubbing the handler's call out entirely reddened nothing. It now reads the stored
+  set through `drift.rejected_room_ids_for`, the module's own accessor, which also
+  deliberately does not materialise the record it reads.
+- `SVS-16` first used a never-seen vacuum id. Nothing stamps a step for one —
+  `drift._get_progress_record` refuses to create a record for a vacuum the install
+  does not have — so the assertion passed for the wrong reason. It now uses a
+  **stored-but-offline** vacuum: `add_vacuum` checks the state machine *before* the
+  already-managed check, so a stored record with no live state returns `blocked` while
+  still being real enough for a step record to exist.
+- `SVS-15` could not reach its arm at all at first: `EufyVacuumManager` **does** define
+  `resolve_active_map_id`, which is why that line was uncovered. `delattr` on the
+  instance raises for a class attribute and `hasattr` still answers True, so a draft
+  concluded the method was absent when it is always present. It now shadows the method
+  on the instance, which is the faithful stand-in for the duck-typed manager the
+  `getattr(..., None)` guard exists for.
+
+Eleven ablations, eleven at the predicted verdict after those fixes. Two are worth
+noting: ablating `_completed_step_result` reddens the pre-existing `SVS-8b` as well,
+because both `setup_add_vacuum` and `setup_import_active_map` consult that one
+predicate; and the per-map cleanup's two ablations redden `SVS-19` and `SVS-20`
+*separately*, which is what says `SVS-20` is not redundant.
+
 ---
 
 ## How it's tested
@@ -153,17 +198,37 @@ The remaining misses elsewhere are still almost all defensive, not untested
 behavior, though line numbers have shifted with the campaign's growth:
 
 - **`manager is None` early-returns (defensive)** — the runtime-not-available
-  guards at the top of several `setup.py` handlers (missing lines 64, 114,
-  187, 190, 237, 264, 303, 335-338, 344-345, 356, 375, 425), plus
-  `adapter_config.py`'s missing lines 67, 116. Unreachable in the
-  fixture-registered service set, intentionally uncovered.
+  guards at the top of several `setup.py` handlers, plus `adapter_config.py`'s
+  missing lines 67, 116. Unreachable in the fixture-registered service set,
+  intentionally uncovered.
+
+  > ⚠ **THE LINE NUMBERS THIS USED TO NAME WERE ALL STALE** (64, 114, 187, 190,
+  > 237, 264, 303, 335-338, 344-345, 356, 375, 425). Re-measured 2026-11-08: every
+  > one of those sixteen is **covered**. Eight uncovered lines and eight arms of the
+  > same SHAPE remain, at entirely different numbers (377, 439, 466, 518, 552, 571,
+  > 590, 640). The ruling's *shape* is what still applies; its *list* described
+  > nothing. Numbers are deliberately not re-listed here — the shape is the durable
+  > fact, and a replacement list would rot the same way.
+  >
+  > **This is now the only thing standing between `setup.py` and 95%, and it is a
+  > decision rather than work.** Everything outside the ruling is closed (83.74% →
+  > 94.46%); the file needs **2** more units and the 16 that remain are all inside
+  > it. Worth knowing before deciding: the ruling's own wording is about the
+  > FIXTURE — "unreachable in the fixture-registered *service set*" — not about
+  > reachability in principle. In production `hass.data[DOMAIN][DATA_RUNTIME]` is
+  > genuinely absent during a reload or after a failed setup, and one test that
+  > calls a handler with the runtime cleared would close all 16 at once. Against
+  > that: this campaign has found the "defensive, intentionally uncovered" label
+  > wrong more often than right — three of four such claims in `18-platforms.md`
+  > carried real failures, and `13-onboarding.md`'s turned out to be the per-map
+  > dict bug that returned `False` forever for Dreame. Left to Chris either way.
 - **`access_graph.py` (88%)** — missing lines 89-91, 104: defensive guards,
   not yet re-itemized by name this pass.
 - **Registered-wrapper closures (trivial)** — `rooms.py` missing line 270 (a
   wrapper/`vol.Required` false-arm the registered service can't reach).
 - **`_common.py` (96%)** — missing line 138, a single defensive guard.
 
-Module coverage: `queue.py` 77% (see above), `setup.py` 86%,
+Module coverage: `queue.py` 77% (see above), `setup.py` 94%,
 `access_graph.py` 88%, `adapter_config.py` 96%, `_common.py` 96%,
 `errors.py` 95%, `rooms.py` 98%; `dock.py`, `room_profiles.py`,
 `maintenance.py`, and `snapshots.py` are at 100%.
