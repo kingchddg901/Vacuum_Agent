@@ -12,6 +12,9 @@ Coverage targets
 [JCW-9]  cancel_active_job manager raises → HomeAssistantError.
 [JCW-10] cancel_active_job that stranded rooms → also fires EVENT_RUN_INCOMPLETE.
 [JCW-11] cancel_active_job with no missed rooms → JOB_FINISHED only.
+[JCW-17] goto wraps a dispatch failure, prefix and __cause__ both asserted.
+[JCW-18] start_zone_clean does the same, past its in-flight gate. [JCW-1b] gains
+        the two service rows it omitted, which were register()'s only dead lines.
 
 The device-I/O action handlers (start/pause/resume/cancel) are driven through
 the module-level _handle_* coroutines with a mock manager rather than the
@@ -43,6 +46,7 @@ from custom_components.eufy_vacuum.services.job_control import (
     _handle_resume_active_job,
     _handle_start_run_profile,
     _handle_start_selected_rooms,
+    _handle_goto,
     _handle_start_zone_clean,
 )
 
@@ -93,6 +97,15 @@ async def test_clear_active_job_no_active_job_does_not_raise(hass, manager_with_
 
 @pytest.mark.parametrize("service,method,extra", [
     ("start_selected_rooms", "start_selected_rooms", {}),
+    # The two services this list used to omit. Their closures were the only
+    # uncovered lines in register(), and a mis-wiring would have been invisible:
+    # nothing else in the suite calls either one by its REGISTERED name. The zone
+    # rect is the shape tests/integration/test_dispatch_zone_clean.py already uses,
+    # taken from there rather than invented, and the goto point is inside the 0..1
+    # normalised range _GOTO_SCHEMA enforces.
+    ("goto", "dispatch_goto", {"point": [0.25, 0.75]}),
+    ("start_zone_clean", "dispatch_zone_clean",
+     {"zones": [[0.05, 0.70, 0.35, 0.95]]}),
     ("start_run_profile", "start_run_profile", {"profile_id": "p"}),
     ("pause_active_job", "async_pause_active_job", {}),
     ("resume_active_job", "async_resume_active_job", {}),
@@ -391,3 +404,57 @@ async def test_cancel_manager_raises(jc):
     mgr.async_cancel_active_job = AsyncMock(side_effect=RuntimeError("boom"))
     with pytest.raises(HomeAssistantError, match="Failed to cancel job"):
         await _handle_cancel_active_job(hass, _call())
+
+
+# ---------------------------------------------------------------------------
+# [JCW-17]/[JCW-18] the two handlers whose failure path had no test. Separate from
+# [JCW-5]'s parametrize on purpose -- see this file's note on _ASYNC_ACTIONS.
+# ---------------------------------------------------------------------------
+
+async def test_jcw17_goto_wraps_a_dispatch_failure(jc):
+    """[JCW-17] A failing `dispatch_goto` is wrapped, and the cause is preserved.
+
+    The wrapper is the difference between a user seeing "Failed to send go-to: no live
+    map available" and seeing a bare ValueError traceback. `dispatch_goto` converts a
+    normalised point to device-mm through the live map's affine and REFUSES when that
+    cannot be validated, so this is the ordinary failure of the feature, not an
+    exotic one.
+
+    THREE ASSERTIONS, BECAUSE THE TYPE ALONE IS NOT THE CLAIM. The exception type says
+    it was wrapped; the message prefix says it was wrapped by THIS handler rather than
+    one of the six siblings that raise the same class with different text; and
+    `__cause__` says the original was chained rather than swallowed and re-raised,
+    which is what keeps the underlying reason in the log.
+    """
+    hass, mgr = jc
+    mgr.dispatch_goto = AsyncMock(side_effect=ValueError("no live map available"))
+
+    with pytest.raises(HomeAssistantError, match="Failed to send go-to") as excinfo:
+        await _handle_goto(hass, _call(point=[0.25, 0.75]))
+
+    assert "no live map available" in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, ValueError)
+
+
+async def test_jcw18_zone_clean_wraps_a_dispatch_failure(jc):
+    """[JCW-18] The same for `start_zone_clean`, past its in-flight gate.
+
+    The gate is the reason this needs its own test rather than a row on an existing
+    parametrize: `_handle_start_zone_clean` consults `get_job_inflight_state` FIRST and
+    returns a refusal dict without ever reaching the dispatch, so the in-flight state
+    has to be set to not-in-flight explicitly. `spec_manager` is autospec'd from the
+    real manager, so an unset `get_job_inflight_state` returns a MagicMock, and
+    `MagicMock().get("in_flight")` is TRUTHY -- the handler would take the refusal
+    branch and this test would pass while never reaching the line it names.
+    """
+    hass, mgr = jc
+    mgr.get_job_inflight_state.return_value = {
+        "in_flight": False, "reason": "", "message": "",
+    }
+    mgr.dispatch_zone_clean = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with pytest.raises(HomeAssistantError, match="Failed to start zone clean") as excinfo:
+        await _handle_start_zone_clean(hass, _call(zones=[[0.05, 0.70, 0.35, 0.95]]))
+
+    assert "boom" in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, RuntimeError)

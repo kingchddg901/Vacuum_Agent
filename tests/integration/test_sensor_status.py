@@ -10,6 +10,8 @@ Coverage targets
 [LC-1]  ActiveJob native: started / paused / finalized / cancelled / none / external.
 [LC-2]  ActiveJob attributes carry the job snapshot.
 [LC-3]  ActiveJob update callbacks write on a matching vacuum/map, skip otherwise.
+[LC-3c] the other three filter arms: _on_room_started's MAP check and both of
+        _on_job_finished's. [LC-3] only ever reaches the vacuum check of the first.
 [MN-1]  MaintenanceRemaining native: remaining hours, None when unavailable.
 [MN-2]  MaintenanceRemaining interval from storage, else default.
 [MN-3]  MaintenanceRemaining attributes from the cached result.
@@ -18,6 +20,7 @@ Coverage targets
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -281,3 +284,49 @@ def test_maintenance_no_warning_on_startup_unavailable(caplog):
     with caplog.at_level(logging.WARNING):
         s2._refresh_cache()
     assert "source entity unavailable" in caplog.text
+
+
+def test_active_job_callbacks_reject_the_other_three_mismatches():
+    """[LC-3c] The three event filters [LC-3] does not reach.
+
+    [LC-3] sends its mismatching event to `_on_room_started` ONLY, and that event
+    carries the right MAP with the wrong vacuum. So one of the four filter arms was
+    exercised and the other three were asserted by absence: `_on_room_started`'s MAP
+    check, and both of `_on_job_finished`'s.
+
+    EACH EVENT VARIES EXACTLY ONE FIELD, which is what makes a deleted arm attributable.
+    An event with both fields wrong would be rejected by whichever check still existed,
+    so removing either would leave the test green.
+
+    THE SECOND HALF IS THE POINT. Zero writes is also what a sensor that never writes
+    produces, so the matching event is sent to both callbacks afterwards and must
+    produce exactly two writes. Without it the first assertion would pass against
+    callbacks that had been emptied entirely.
+
+    NO MOCKS, AND THE MOCK RATCHET IS WHY. A first draft used five `MagicMock`s and
+    pushed this file from 11 bare mocks to 16, which [MR-2] refused -- the allowlist is
+    shrink-only. The conversion made the test better rather than merely compliant: the
+    only thing either callback reads off an event is `.data`, so a `SimpleNamespace`
+    states that contract exactly, where a MagicMock would have answered any attribute
+    these callbacks grew in future and hidden the change.
+    """
+    s = _job_sensor({"status": "started"})
+    writes: list[int] = []
+    s.async_write_ha_state = lambda: writes.append(1)
+
+    def _event(vacuum_entity_id: str, map_id: str) -> SimpleNamespace:
+        """The only thing either callback reads off an event is `.data`."""
+        return SimpleNamespace(
+            data={"vacuum_entity_id": vacuum_entity_id, "map_id": map_id}
+        )
+
+    s._on_room_started(_event(_VAC, "999"))            # right vacuum, wrong map
+    s._on_job_finished(_event("vacuum.other", _MAP))   # wrong vacuum, right map
+    s._on_job_finished(_event(_VAC, "999"))            # right vacuum, wrong map
+    assert writes == []
+
+    s._on_room_started(_event(_VAC, _MAP))
+    s._on_job_finished(_event(_VAC, _MAP))
+    assert len(writes) == 2, (
+        "the filters reject everything, so the zero above says nothing about them"
+    )

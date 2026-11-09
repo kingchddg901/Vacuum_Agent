@@ -28,6 +28,12 @@ Coverage targets
 [BAM-8] an install with nothing stale latches VACUOUSLY rather than rescanning forever.
 [BAM-9] the previous aggregates are snapshotted before being replaced, because the
         accumulated sums exist nowhere else and a replay is otherwise one-way.
+[BAM-13] the planner survives a non-dict bucket and an unparseable denominator,
+        each placed FIRST so skipping is distinguishable from aborting.
+[BAM-14] a junk vacuum record, and junk job_aggregates, do not hide the vacuum
+        behind them.
+[BAM-15] a HEALTHY sub-bucket is not reported. [BAM-5] cannot see this: every
+        sub-bucket in its fixture is stale, so an always-True detector passes it.
 [BAM-10] a missing subsystem DEFERS and does NOT latch. Latching there would burn the
         one shot on a vacuum whose numbers are about to collapse.
 [BAM-11] one vacuum failing does not abort the rest, and does not latch.
@@ -332,3 +338,106 @@ async def test_bam12_force_reruns_a_latched_migration():
     out = await migrate_battery_aggregates(
         hass=hass, manager=_Manager(data), force=True)
     assert out["ran"] is True and out["changes"][0]["jobs_replayed"] == 2
+
+
+# ---------------------------------------------------------------------------
+# The planner's shape guards. Every input below puts the CORRUPT row FIRST and a
+# real stale row after it, because `continue` and `return`/`break` are
+# indistinguishable when the interesting row is last. The data these walk is the
+# persisted battery store, so a row written by an older version reaches them.
+# ---------------------------------------------------------------------------
+
+def test_bam13_a_corrupt_bucket_shape_does_not_stop_the_scan():
+    """[BAM-13] `_is_stale_bucket` tolerates two corrupt shapes and keeps scanning.
+
+    FIRST: a non-dict bucket. A SUB-bucket set to a string must answer "not stale"
+    rather than raise, and the stale sibling after it must still be found -- which is
+    what distinguishes the guard returning False from the scan aborting.
+
+    IT IS A SUB-BUCKET AND NOT `all_jobs` FOR A REASON, and the reason is a live
+    defect this test found. With `all_jobs` set to a string, `_is_stale_bucket`
+    correctly declines it, and then the planner dereferences it anyway:
+    `all_jobs = (aggregates or {}).get("all_jobs") or {}` catches a FALSY bucket but
+    not a truthy non-dict, so `all_jobs.get("count")` raises AttributeError on a store
+    holding a corrupt `all_jobs` plus any stale sub-bucket. Reported separately rather
+    than pinned here -- a test asserting the crash would freeze it as intended
+    behaviour. The sub-bucket route exercises the same guard without depending on it.
+
+    SECOND: a denominator that is not a number. `float("abc")` raises ValueError, and
+    the pair it belongs to is the FIRST entry of `_PARTNERED`
+    (`duration_min_sum`/`drain_pct_sum_for_duration`), so the `continue` is what lets
+    the second pair be examined at all. The bucket is built stale on that second pair
+    -- `area_m2_sum` populated with no `drain_pct_sum_for_area` -- so `all_jobs` must
+    come back STALE. Turn the `continue` into `return False` and it does not.
+
+    That ordering is the whole design of the input: with the junk denominator in the
+    second pair instead, `continue` and `return False` would both yield the same answer.
+    """
+    data = _data()
+    aggs = data["battery"]["vacuums"]["vacuum.alfred"]["job_aggregates"]
+
+    aggs["by_clean_mode"] = {
+        "corrupt": "not a dict",
+        "vacuum": _stale_bucket(43, 131.0, 394.65, 150.0),
+    }
+    plan = plan_battery_aggregates_migration(data=data)
+    assert [p["vacuum_entity_id"] for p in plan] == ["vacuum.alfred"]
+    assert plan[0]["stale_buckets"] == ["all_jobs", "by_clean_mode[vacuum]"]
+
+    aggs["all_jobs"] = {"duration_min_sum": "abc", "area_m2_sum": 191.0, "count": 5}
+    plan = plan_battery_aggregates_migration(data=data)
+    assert plan[0]["stale_buckets"] == ["all_jobs", "by_clean_mode[vacuum]"], (
+        "the unparseable FIRST denominator aborted the pair walk instead of skipping it"
+    )
+
+
+def test_bam14_a_junk_vacuum_record_does_not_hide_the_next_one():
+    """[BAM-14] Two per-vacuum guards, both positional.
+
+    A vacuum whose record is not a dict, and one whose `job_aggregates` is not a dict,
+    are each skipped -- and because both sit BEFORE the real vacuum in insertion order,
+    a `break` or an early `return` in either place would drop `vacuum.alfred` from the
+    plan entirely. Python preserves dict insertion order, so the ordering this test
+    relies on is a language guarantee rather than an accident.
+
+    The expected value is a one-element list naming the real vacuum, not an emptiness
+    assertion: `[]` is what a planner that walked nothing also returns.
+    """
+    data = _data()
+    real = data["battery"]["vacuums"]
+    data["battery"]["vacuums"] = {
+        "vacuum.not_a_record": None,
+        "vacuum.aggregates_not_a_dict": {"job_aggregates": "junk"},
+        **real,
+    }
+    plan = plan_battery_aggregates_migration(data=data)
+    assert [p["vacuum_entity_id"] for p in plan] == ["vacuum.alfred"]
+
+
+def test_bam15_a_healthy_sub_bucket_is_not_reported_as_stale():
+    """[BAM-15] The sub-bucket loop reports only the stale members.
+
+    [BAM-5] proves sub-buckets are examined; it does not prove a HEALTHY one is left
+    out, because every sub-bucket in its fixture is stale. An `_is_stale_bucket` that
+    returned True unconditionally would satisfy it.
+
+    The clean bucket is placed FIRST and the stale one after, so the exact expected
+    list also shows the loop continued past the member it declined to report.
+
+    SHARED SENSITIVITY, measured rather than assumed: forcing `_is_stale_bucket` to
+    True reddens [BAM-13] as well as this test. That was an UNPREDICTED result from the
+    ablation sweep and the prediction was the thing at fault -- BAM-13 also puts a
+    non-reportable sub-bucket before a stale one and asserts the exact resulting list.
+    The two cover the same line from different directions, a non-dict member and a
+    healthy post-C17 member, so neither is redundant.
+    """
+    data = _data()
+    aggs = data["battery"]["vacuums"]["vacuum.alfred"]["job_aggregates"]
+    aggs["by_clean_mode"] = {
+        "mop": _new_aggregate_bucket(),
+        "vacuum": _stale_bucket(43, 131.0, 394.65, 150.0),
+    }
+    plan = plan_battery_aggregates_migration(data=data)
+    assert plan[0]["stale_buckets"] == ["all_jobs", "by_clean_mode[vacuum]"], (
+        "an empty post-C17 bucket was reported as accumulated under the old rule"
+    )
