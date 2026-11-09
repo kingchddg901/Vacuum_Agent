@@ -130,16 +130,32 @@ def test_map_label_prefers_the_declared_entity(monkeypatch):
         lambda vid, *a, **kw: "select.ivy_selected_map",
     )
 
-    class _S:
-        state = "Main floor"
-
+    # THE STUB ANSWERS ONLY FOR THE DECLARED ID. With one that answers for any id,
+    # this test could not tell "read the adapter's declaration" from "construct
+    # the entity id from the vacuum's object_id" -- and `map_label`'s own docstring
+    # says constructing it is the brand-ism this project keeps removing, so that
+    # distinction IS the claim.
     class _Hass:
         class states:
             @staticmethod
-            def get(_e):
-                return _S()
+            def get(entity_id):
+                if entity_id != "select.ivy_selected_map":
+                    return None
+                return SimpleNamespace(state="Main floor")
 
-    assert sc.map_label(_Hass(), "vacuum.ivy", "7") == "Main floor"
+    # THE DISCRIMINATOR, ASSERTED SO IT SHIPS. A doc claimed the ablation harness
+    # carried this as "a standing check, so the fix cannot silently come undone" --
+    # but that harness is an untracked scratchpad file, so a clone had no such
+    # guard and CI reddened for nobody. This line is the guard: collapse the id
+    # back into the label and it fires here, in the suite, for everyone.
+    map_id, expected = "7", "Main floor"
+    assert map_id != expected, (
+        "the map id must NOT be the expected label -- an expected value the fallback "
+        "also produces is not a discriminator, which is the defect this test carried "
+        "until 2026-11-08"
+    )
+
+    assert sc.map_label(_Hass(), "vacuum.ivy", map_id) == expected
 
 
 def test_map_label_falls_back_to_the_id_when_nothing_is_declared(monkeypatch):
@@ -235,13 +251,19 @@ def test_map_label_falls_back_when_the_candidate_list_is_empty(monkeypatch):
     entity_id[0]`), which raises `IndexError: list index out of range`. Measured both
     ways while verifying this pair.
 
-    THE RAISING STUB BELOW IS A TRIPWIRE, NOT THE OBSERVABLE, and saying so is the
-    point: it cannot fire in ANY variant (with the guard `entity_id` is None, without
-    it `[]`, and `isinstance` rejects both before `hass.states.get` is reached). An
-    earlier draft of this test claimed the stub proved the short-circuit. It proves
-    nothing, and an assertion that cannot see the thing it names is the trap this
-    campaign keeps paying for. What is asserted is the behaviour: no raise, and the
-    id comes back.
+    THE RAISING STUB BELOW IS A TRIPWIRE, NOT THE OBSERVABLE, and the scope of that
+    claim matters -- two audits disagreed about it, so here is the measured version.
+    It cannot fire under any single mutation of the NORMALISATION: with the guard
+    `entity_id` is None, without it `[]`, and `isinstance(..., str)` rejects both
+    before `hass.states.get` is reached. It CAN be reached by a COMPOUND mutation
+    that also widens that isinstance test (e.g. to `entity_id is not None`) while
+    dropping the normalisation -- so "cannot fire in ANY variant", which an earlier
+    draft said, was too strong.
+
+    Either way it is not this test's observable: an earlier draft claimed the stub
+    proved the short-circuit, and an assertion that cannot see the thing it names is
+    the trap this campaign keeps paying for. What is asserted is the behaviour: no
+    raise, and the id comes back.
     """
     monkeypatch.setattr(sc, "get_adapter_value", lambda vid, *a, **kw: [])
 
@@ -331,10 +353,23 @@ async def test_a_detected_stall_is_handed_to_the_capture(monkeypatch):
 async def test_an_event_with_no_data_is_dispatched_as_an_empty_payload(monkeypatch):
     """[SL-12] `event.data or {}` -- a dataless fire declines, it does not raise.
 
-    `hass.bus.async_fire(EVENT_STALL_DETECTED)` with no payload is reachable from any
-    user automation, and `dict(None)` is a TypeError inside a callback whose only
-    protection is the blanket `except` in `_run`. So the empty payload has to reach
-    `_capture`, which declines `no_room` for it.
+    ⚠ TWO REACHABILITY CLAIMS IN AN EARLIER DRAFT WERE BOTH WRONG, and the test is
+    kept for a narrower reason than either of them.
+
+    * It said a dataless fire "is reachable from any user automation". It is NOT:
+      HA normalises `event.data`, so it can never arrive as None from the bus and
+      the `or {}` is unreachable from every production path. Only a hand-built
+      stub reaches it -- which is exactly what this test is.
+    * It said `dict(None)`'s TypeError is contained by the blanket `except` in
+      `_run`. It is not: the read sits at the top of `_on_stall`, ABOVE `_run`, so
+      that handler cannot see it; HA's own `_async_dispatch` is what would.
+
+    SO WHAT IT IS WORTH: `or {}` is a defensive default on a callback signature
+    this module does not own, and the test pins that the empty payload reaches
+    `_capture` and declines `no_room` rather than raising in the callback. That is
+    a contract against the bus's shape, not a replay of anything a user can do --
+    and recording the difference is the point, because a guard defended for the
+    wrong reason survives the next person who checks whether it is needed.
 
     RED: drop the `or {}` -- `dict(None)` raises and `seen` stays empty.
     """
@@ -503,13 +538,33 @@ def test_an_unreadable_ring_costs_the_trail_not_the_capture(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_pose_cadence_is_read_from_the_adapter_declaration(monkeypatch):
-    """[SL-9] The number is declared per brand, never assumed here."""
-    monkeypatch.setattr(
-        sc, "get_adapter_value",
-        lambda vid, *path, **kw: 30.0 if path[-1] == "pose_refresh_s" else None,
-    )
+    """[SL-9] The number is declared per brand, never assumed here.
 
-    assert sc.pose_refresh_seconds("vacuum.ivy") == 30.0
+    ⚠ 12.5, NOT 30.0, AND THE STUB KEYS ON THE WHOLE PATH. This test carried the
+    same two defects [SL-4] was fixed for on 2026-11-08, 390 lines up in this same
+    file, and they were found by auditing that fix rather than by the suite:
+
+    * it asserted `30.0`, which is `_DEFAULT_TRAIL_SECONDS` — so replacing the
+      whole read with `float(_DEFAULT_TRAIL_SECONDS)` left it GREEN (measured).
+      An expected value the fallback also produces is not a discriminator.
+    * the stub matched on `path[-1]` alone, so changing the read from
+      `map_state_source.live_pose.pose_refresh_s` to any other path ending in
+      `pose_refresh_s` also left it GREEN (measured). The PATH is half the claim.
+
+    RED: return the constant instead of reading the declaration; or read a
+    different path.
+    """
+    seen: list = []
+
+    def _declared(vid, *path, **kw):
+        seen.append(path)
+        return 12.5 if path == ("map_state_source", "live_pose",
+                                "pose_refresh_s") else None
+
+    monkeypatch.setattr(sc, "get_adapter_value", _declared)
+
+    assert sc.pose_refresh_seconds("vacuum.ivy") == 12.5
+    assert ("map_state_source", "live_pose", "pose_refresh_s") in seen, seen
 
 
 @pytest.mark.parametrize("declared", [None, "soon", 0, -1])

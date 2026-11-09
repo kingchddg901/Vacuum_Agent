@@ -190,25 +190,49 @@ directions:
   `data` property raises. So the pragma was subtracting two EXERCISED statements
   from numerator and denominator alike.
 
-Removing it therefore RAISED the measured figure and drained the allowlist row,
-which `PR-3` then required to be deleted — the direction that gate is built for.
-The general shape is worth keeping: **a `pragma: no cover` is not evidence that
-the code under it is untested.** Measure before classifying.
+Removing it drained the allowlist row, which `PR-3` then required to be deleted —
+the direction that gate is built for. The general shape is worth keeping: **a
+`pragma: no cover` is not evidence that the code under it is untested.** Measure
+before classifying.
 
-**Four pragmas remain and all four are within the rule** (119, 172, 422, 459 — an
-`except` whose body is logger calls plus at most an inert return). Two of them
-hide behaviour that is genuinely untested, and this is the honest record of it
-rather than a claim of completeness:
+> ⚠ **THE FIRST VERSION OF THIS PARAGRAPH OVERCLAIMED THE ARITHMETIC.** It said
+> removing the waiver "RAISED the measured figure". It raises the PACKAGE figure by
+> two covered statements; at this file's 100 % it changes nothing (160/160 →
+> 162/162), because excluding *covered* statements cannot move a ratio with zero
+> missing. The 86.56 % → 100 % here is entirely the new tests. The claim was true of
+> the state it was written against and false of the state it shipped in.
 
-- **119** hides the loop CONTINUATION that makes `remove()` best-effort across
+**A SECOND WAIVER OVER EXERCISED CODE SAT 45 LINES AWAY, in the same file, and only
+an audit of the first deletion found it.** `_trail_from_ring`'s handler is driven by
+`[SL-8]` `test_an_unreadable_ring_costs_the_trail_not_the_capture`, which monkeypatches
+`pose_store.read_range` to raise — so it was hiding three covered statements. It is
+*rule*-compliant (the census allows an inert `return []` beside the logger call), which
+is exactly why the rule is not the whole test. Deleted; the file stays at 100 %, now
+over 165 statements. One instance got swept and the file did not — the partial-guard
+shape in its smallest form.
+
+**Three pragmas remain and all three are within the rule** — the `except` in
+`remove`, in the notification block, and in `register`'s `_run`, each a handler whose
+body is logger calls plus at most an inert return. Two of them hide behaviour that is
+genuinely untested, and this is the honest record of it rather than a claim of
+completeness:
+
+> ⚠ **THIS LIST SAID "four pragmas" AND CITED 119, 172, 422, 459.** Every
+> substantive claim about them held, but three of the four numbers were stale by
+> exactly 7 — the comment lines *this same commit* inserted into `is_enabled` — and
+> a fourth handler has since been deleted too (below). `check_doc_citations.py`
+> cannot catch this: a bare number with no `file.py:` prefix is not a citation to it,
+> so the commit's own "0 wrong" gate line never covered them. Symbols from here on.
+
+- **`remove`'s handler** hides the loop CONTINUATION that makes `remove()` best-effort across
   ALL unsubs. `break` versus `continue` is invisible unless the raising unsub is
   first — and production only ever puts ONE unsub in that list, so the multi-unsub
   shape a test would need is one no shipped code path produces. Stated here
   instead of tested, deliberately.
-- **459** hides `_run`'s task containment, which is the reason `_capture` is
+- **`register._run`'s handler** hides the task containment, which is the reason `_capture` is
   wrapped at all. `SL-12` drives `_on_stall` and `_run` but not the `except`.
-- **422** hides nothing by the rule, but it does hide a fact: lines 422-423 ARE
-  executed, and only because every test reaching the notification block passes a
+- **the notification handler** hides nothing by the rule, but it does hide a fact:
+  its body IS executed, and only because every test reaching the notification block passes a
   `SimpleNamespace` hass, so `persistent_notification.async_create` raises and the
   handler swallows it. **No test in the repo has ever observed the notification
   being CREATED** — the only arm ever exercised on that path is the failure one.
@@ -246,7 +270,15 @@ deleted. It was found by ablating that read while verifying `SL-11`, and the fix
 is one character class: the id is now `"7"`. The general form is the one this
 campaign keeps paying for — **an expected value that the fallback also produces
 is not a discriminator** — and the ablation harness now carries that ablation as a
-standing check (`S4`), so the fix cannot silently come undone.
+standing check.
+
+> ⚠ **THAT SENTENCE USED TO CREDIT THE ABLATION HARNESS (`S4`), AND IT WAS A FALSE
+> CLAIM OF PROTECTION.** The harness is an untracked scratchpad file, so a clone had
+> none of it and CI reddened for nobody — the same hazard as a shipped feature whose
+> spec lives in a git-ignored directory. The guard now ships: the test asserts
+> `map_id != expected` in its own body, which fires in the suite the moment someone
+> collapses the two. An ablation harness can prove a test bites today; only something
+> tracked keeps it biting.
 
 ### Entity rename (`ER`) — detection only, on purpose
 

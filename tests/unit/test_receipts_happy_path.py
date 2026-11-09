@@ -72,6 +72,10 @@ def _hass(tmp_path, fired: list, listeners: int):
         data={}, bus=bus,
         config=SimpleNamespace(config_dir=str(tmp_path)),
         async_add_executor_job=_exec,
+        # Present so a test can DECLARE a map-name entity. Unused by the others:
+        # with `get_adapter_value` left real there is no adapter config for
+        # vacuum.ivy, so `map_label` returns the id without ever reaching here.
+        states=SimpleNamespace(get=lambda _entity_id: None),
     )
 
 
@@ -105,6 +109,21 @@ async def test_rch_the_whole_chain_speaks(dump, tmp_path, wired, monkeypatch):
     fired: list = []
     hass = _hass(tmp_path, fired, listeners=2)
     hass.data = {sc.DOMAIN: {sc.DATA_RUNTIME: wired}}
+
+    # A DECLARED map name that differs from the map id, because that difference is
+    # the only thing that can prove `map_label`'s answer is CONSUMED. Measured: with
+    # the declaration absent, `map_label` falls back to `str(map_id)` and an
+    # assertion on the message holds whether the call is made or not -- replacing
+    # `label = map_label(...)` with `str(map_id)` left this test GREEN. [SL-11]
+    # proves `map_label` HANDLES a list; only this proves `_capture` uses its answer.
+    monkeypatch.setattr(
+        sc, "get_adapter_value",
+        lambda vid, *path, **kw: ("select.ivy_selected_map"
+                                  if path[-1] == "active_map" else None),
+    )
+    hass.states = SimpleNamespace(
+        get=lambda _e: SimpleNamespace(state="Upstairs"),
+    )
 
     await sc._capture(hass, {"vacuum_entity_id": "vacuum.ivy", "map_id": "Main floor",
                              "room_id": 27, "room_name": "KITCHEN"})
@@ -155,19 +174,61 @@ async def test_rch_the_whole_chain_speaks(dump, tmp_path, wired, monkeypatch):
     assert by["stall.capture.heard"]["facts"][1] == "Main floor"
 
     assert all(r["prov"] == ["live"] for r in recs)
-    assert fired and fired[0][0] == sc.EVENT_STALL_CAPTURED
+
+    # THE EVENT PAYLOAD IS A DOCUMENTED PUBLIC CONTRACT (docs/advanced/02-events.md)
+    # and nothing asserted a single field of it until 2026-11-08 -- only that SOME
+    # event fired. Measured: making `image_path` carry `path + ".tmp"` survived the
+    # whole suite, which is the one field the module docstring tells consumers to
+    # USE ("not `map_id`, to reach the file"), so an automation reading it would
+    # have opened a path that is deleted by the next write.
+    assert len(fired) == 1, fired
+    event, payload = fired[0]
+    assert event == sc.EVENT_STALL_CAPTURED
+    assert payload == {
+        "vacuum_entity_id": "vacuum.ivy",
+        "map_id": "Main floor",
+        "room_id": 27,
+        "room_name": "KITCHEN",
+        "image_path": sc.capture_path(str(tmp_path), "vacuum.ivy", "Main floor"),
+        "message": payload["message"],
+    }, payload
+    # The message is asserted for its CONTENT rather than pinned verbatim.
+    assert "KITCHEN" in payload["message"], payload["message"]
+    # THE DECLARED NAME, not the id -- this is the assertion `str(map_id)` cannot
+    # satisfy, and the `not in` half is what stops a message carrying BOTH from
+    # passing for the wrong reason.
+    assert "on map Upstairs" in payload["message"], payload["message"]
+    assert "Main floor" not in payload["message"], payload["message"]
 
 
-async def test_rch_a_poseless_brand_reads_weak_not_clear(dump, tmp_path, wired, monkeypatch):
+@pytest.mark.parametrize("pose,expected", [
+    pytest.param({"present": True}, "weak", id="answered_without_a_position"),
+    pytest.param({"present": False}, "broken", id="answered_unusably"),
+    pytest.param(None, "broken", id="did_not_answer"),
+])
+async def test_rch_a_poseless_brand_reads_weak_not_clear(
+    dump, tmp_path, wired, monkeypatch, pose, expected
+):
     """[RC-H2] The readability report has to DISCRIMINATE, or it is decoration.
 
     A brand whose map source answers but carries no position must read `weak`, not `lc`.
     That distinction is not hypothetical: it is exactly the state Roborock shipped in until
     2026-08-09 — an answer with no anchor, indistinguishable from a clean read, which is how
     a whole brand had no dot and nobody noticed.
+
+    ALL THREE WORDS, because until 2026-11-08 only two of them were ever asserted and
+    `broken` was dead vocabulary — collapsing it into `weak` survived the suite
+    (measured). That is the same defect as the four decline reasons this campaign
+    found unemitted, one layer over: a word that cannot be observed is not a
+    distinction. `broken` means the source did not answer USABLY at all, which is a
+    different fault from answering without a position — one is the source, the other
+    is the robot.
+
+    RED: collapse the ternary's `broken` arm into `weak`, and the two `broken` rows
+    fail while `answered_without_a_position` stays green.
     """
     async def _poseless(**_kw):
-        return {"present": True}  # answered, no anchor
+        return pose
 
     wired.async_get_map_live_pose = _poseless
     hass = _hass(tmp_path, [], listeners=0)
@@ -179,7 +240,7 @@ async def test_rch_a_poseless_brand_reads_weak_not_clear(dump, tmp_path, wired, 
     import decode_receipts as dec
 
     by = {r["msg"]: r for r in dec.parse("\n".join(dump))}
-    assert by["stall.capture.pose.observed"]["facts"][1] == "weak"
+    assert by["stall.capture.pose.observed"]["facts"][1] == expected
     # and the run still completes — a weak pose costs the dot, never the capture
     assert "stall.capture.written" in by
     # zero listeners is recorded, so a silent net is distinguishable from a lost broadcast
@@ -299,8 +360,12 @@ async def test_rch4_a_corrupt_rotation_costs_the_orientation_not_the_capture(
     assert fired and fired[0][0] == sc.EVENT_STALL_CAPTURED
 
 
+@pytest.mark.parametrize("stored,expected", [
+    pytest.param(270, 270, id="a_declared_angle"),
+    pytest.param(450, 90, id="past_a_full_turn"),
+])
 async def test_rch4b_a_good_rotation_reaches_the_renderer(
-    dump, tmp_path, wired, monkeypatch
+    dump, tmp_path, wired, monkeypatch, stored, expected
 ):
     """[RC-H4] The contrast, and without it the test above is vacuous.
 
@@ -309,12 +374,18 @@ async def test_rch4b_a_good_rotation_reaches_the_renderer(
     shapes. Only a stored value arriving INTACT shows the read is consulted at all --
     the empty-container trap in another costume.
 
+    450 IS THE SECOND ROW BECAUSE 270 IS ITS OWN MODULO FIXED POINT. With only 270
+    declared, dropping the `% 360` entirely left this GREEN (measured) -- so the
+    normalisation had no red input at all, and it is in the same reachability class
+    as the `except` beside it: an unvalidated `.storage` value. A renderer handed 450
+    degrees is not a wrong angle, it is an angle no canvas transform expects.
+
     RED: this one stays green under [RC-H4]'s ablation and goes red if the rotation
-    read or its pass-through is dropped.
+    read or its pass-through is dropped, or if `% 360` is dropped (the 450 row only).
     """
     seen: dict = {}
     _recording_renderer(monkeypatch, seen)
-    wired.data["maps"]["vacuum.ivy"]["Main floor"]["live_map_rotation"] = 270
+    wired.data["maps"]["vacuum.ivy"]["Main floor"]["live_map_rotation"] = stored
 
     hass = _hass(tmp_path, [], listeners=1)
     hass.data = {sc.DOMAIN: {sc.DATA_RUNTIME: wired}}
@@ -322,7 +393,7 @@ async def test_rch4b_a_good_rotation_reaches_the_renderer(
     await sc._capture(hass, {"vacuum_entity_id": "vacuum.ivy", "map_id": "Main floor",
                              "room_id": 27, "room_name": "KITCHEN"})
 
-    assert seen["rotation_deg"] == 270, seen.get("rotation_deg")
+    assert seen["rotation_deg"] == expected, seen.get("rotation_deg")
 
 
 async def test_rch5_an_unarmed_run_does_not_count_the_net(tmp_path, wired):
@@ -353,7 +424,10 @@ async def test_rch5_an_unarmed_run_does_not_count_the_net(tmp_path, wired):
     """
     calls: list = []
     fired: list = []
-    hass = _hass(tmp_path, fired, listeners=3)
+    # `listeners=` is deliberately absent: the recorder below REPLACES
+    # `bus.async_listeners` wholesale, so a value passed here would be dead and read
+    # as if it mattered.
+    hass = _hass(tmp_path, fired, listeners=0)
     hass.data = {sc.DOMAIN: {sc.DATA_RUNTIME: wired}}
 
     def _recording_listeners():

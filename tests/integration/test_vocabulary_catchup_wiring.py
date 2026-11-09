@@ -43,13 +43,21 @@ import threading
 # symptom unreadable: `4 passed, 1 error`, pointing at a test with nothing wrong
 # with it.
 #
-# ⚠ THIS WAS THE FORGOTTEN THIRD SITE. `b6a85f6f` diagnosed this precisely and
-# swept only `tests/adapters/roborock/test_adapter.py` and `test_dock_sdk.py`. Its
-# `[RBSDK-1]` guard is PER-MODULE, so it is structurally unable to see a third site,
-# and this file was already on disk -- failing since `6b3f2997` (2026-10-24) and
-# invisible to CI, because under `pytest tests` the alphabetically earlier
-# tests/adapters collection warms the threads first. The error only appears when
-# tests/integration is selected on its own.
+# ⚠ THIS WAS THE FORGOTTEN THIRD SITE, and the history is worth the three lines
+# because it is not the one it looks like. `6b3f2997` (2026-10-24) CREATED the
+# hazard -- it hoisted the SDK import out of `dock_profile` into
+# `load_dock_library`, wired unconditionally -- and in the same commit added the
+# collection-time `importorskip` to `tests/adapters/roborock/test_dock_sdk.py`,
+# the one file it was editing. `b6a85f6f` (2026-11-08) then found it in a SECOND
+# file, `test_adapter.py`, and swept only that one. This file was open the whole
+# time. Each guard is PER-MODULE, so none of them can see a sibling.
+#
+# AND IT WAS NOT A RARE SELECTION. `pytest.ini` sets `testpaths = tests/unit
+# tests/integration` -- tests/adapters is NOT in it -- so a bare `pytest` with no
+# arguments collected exactly the subset in which this fails, and it was the ONLY
+# error in that 5005-test run. CI escaped it solely because tests.yml passes the
+# explicit `tests` argument, which pulls in the alphabetically earlier
+# tests/adapters and warms the threads at collection.
 #
 # NOTHING ENUMERATES THESE SITES, and that is the open half. A census gate was
 # considered and NOT built: the only discriminator available today is

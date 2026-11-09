@@ -176,7 +176,16 @@ def _trail_from_ring(
             config_dir=config_dir, vacuum_entity_id=vacuum_entity_id,
             start_iso=start, end_iso=end,
         )
-    except Exception:  # pragma: no cover - the ring is best-effort context
+    # NO `pragma: no cover` HERE either, and finding this one is why the first
+    # deletion was only half a fix. This arm IS exercised, by [SL-8]
+    # `test_an_unreadable_ring_costs_the_trail_not_the_capture`, which monkeypatches
+    # `pose_store.read_range` to raise -- so the waiver was hiding three COVERED
+    # statements. It passed the census because the rule allows an inert `return []`
+    # beside the logger call, which made it rule-compliant while being exactly what
+    # the sibling deletion's own lesson warns about: A PRAGMA IS NOT EVIDENCE THAT
+    # THE CODE UNDER IT IS UNTESTED. One instance got swept on 2026-11-08 and the
+    # file was not, which is the partial-guard shape in its smallest form.
+    except Exception:
         _LOGGER.exception("stall_capture: could not read the pose ring")
         return []
     return [s.get("anchor") for s in samples if isinstance(s, dict) and s.get("anchor")]

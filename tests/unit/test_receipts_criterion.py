@@ -232,7 +232,11 @@ async def test_rcc4_a_stall_with_no_room_declines_no_room(dump, armed, drop):
     returning True emits NOTHING, so with an ARMED vacuum both orderings produce one
     `no_room` decline -- armed is the single configuration in which the ordering is
     INVISIBLE. Moving this guard below the `is_enabled` check leaves `armed_no_room`
-    green and reddens only `disarmed_no_room`.
+    green and reddens BOTH rows in which `is_enabled` is False -- the disarmed one
+    and the empty-id one, since `is_enabled(manager, "")` is False too. (This
+    docstring said "only `disarmed_no_room`" until an audit counted it; the
+    ablation harness had predicted two all along, so the prose disagreed with the
+    measurement that was sitting beside it.)
 
     The first case is still needed, for a different reason: it is the one that proves
     the guard prevents `int(None)` from raising out of the executor lambda further
@@ -250,9 +254,12 @@ async def test_rcc4_a_stall_with_no_room_declines_no_room(dump, armed, drop):
     rounded up to "the real producers".
 
     RED: delete the `if not vacuum_entity_id or room_id is None: ... return` block.
-    `armed_no_room` then runs on to `int(None)` and raises TypeError out of the
-    executor lambda; the other two decline `not_armed` because `is_enabled` is False
-    for an empty id and for a disarmed vacuum.
+    All three rows redden. ⚠ The MECHANISM for `armed_no_room` is not the one an
+    earlier draft named: it dies at `AttributeError: 'types.SimpleNamespace' object
+    has no attribute 'async_get_map_render_data'`, because this manager double
+    carries only `data` -- execution never reaches `int(None)` at all. The other two
+    decline `not_armed`, because `is_enabled` is False for an empty id and for a
+    disarmed vacuum.
     """
     bucket = {"stall_capture_enabled": True} if armed else {}
     manager = SimpleNamespace(data={"vacuums": {"vacuum.ivy": bucket}})
@@ -294,8 +301,9 @@ async def test_rcc5_render_data_that_cannot_be_used_declines_unusable(dump, rend
     the one reachable from real data: `render_data_from_storage` forwards the stored
     `room_pixels` as `str(rp_b64)` without ever decoding it, so a corrupt or
     truncated value in `.storage` arrives here present-and-undecodable. The other two
-    are refused by every current producer (`map_source.py:745`,
-    `roborock_raw_map.py:197`) and are pinned here as this listener's contract
+    are refused by every current producer (`map_source.py::render_data_from_storage`,
+    `roborock_raw_map.py::roborock_render_data`) and are pinned here as this
+    listener's contract
     against `_render_payload`'s documented None -- which is the seam a NEW adapter
     enters through.
 
@@ -303,12 +311,16 @@ async def test_rcc5_render_data_that_cannot_be_used_declines_unusable(dump, rend
     membership check. The other `unusable` emit site (the renderer returning None,
     pinned by [RC-C6]) produces byte-identical facts, so `facts` alone cannot say
     which site fired; its order runs on through pose and trail, and this one stops at
-    two. The order assertion is also what survives `register()`'s blanket `except`,
-    which would otherwise eat the TypeError the missing guard raises.
+    two. (An earlier draft also credited it with surviving `register()`'s blanket
+    `except`. That claim is empty here: this test awaits `_capture` directly, so
+    `register()` is not in the path and nothing swallows anything.)
 
-    RED: delete the `if geometry is None: ... return` block --
-    `render_room_capture(**geometry)` then raises "argument after ** must be a
-    mapping, not NoneType" and no decline is emitted at all.
+    RED: delete the `if geometry is None: ... return` block -- all three rows redden
+    and no decline is emitted at all. ⚠ The MECHANISM is not the one an earlier
+    draft named: it dies ~15 lines earlier at `AttributeError: ... no attribute
+    'config'` on `hass.config.config_dir`, because this test's hass is the minimal
+    one the decline path needs. The `**geometry` TypeError is what a FULL hass
+    would give.
     """
     manager = SimpleNamespace(
         data={"vacuums": {"vacuum.ivy": {"stall_capture_enabled": True}}},
