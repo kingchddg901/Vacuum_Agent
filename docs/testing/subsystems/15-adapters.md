@@ -745,6 +745,42 @@ composites are hand-written literals, because building them with the source's ow
 `"%s|%s|%s"` would make the test agree by construction and survive the separator
 changing.
 
+### `eufy/adapter.py` — 84.29% → 91.43%, and an honest ceiling below 95%
+
+Only 60 of its 1123 lines are statements — the file is mostly one declaration dict —
+so its nine uncovered units sat in three small clusters. **Five were testable, four
+are unreachable by construction**, which puts the ceiling at **91.43%** and makes this
+the third file in the campaign where 95% is not reachable with honest tests (after
+`core/vacuum_identity.py` at 93.75% and `services/setup.py` at 94.46%).
+
+**The testable five were a REPLICA with no tests at all.**
+`_registry_model_code` is a deliberate copy of `core/manager._get_registry_model_code`
+— its docstring says "Mirrors core/manager._get_registry_model_code (kept local to
+keep the adapter self-contained)". The original had three tests; the copy had none,
+and its **device-lookup half had never executed** — every call in the suite returned
+`None` at the first guard. That is the half that matters: the copy exists because the
+scalar/Tuya transport does not set the `detected_model` attribute, so reading only the
+attribute "pinned scalar devices to model_family generic". The fix for that bug was
+the untested part.
+
+`CMR-4`–`CMR-7` live in `../integration/test_core_manager_registry.py`, beside the
+original and its `_link_vacuum_to_device` helper, because **the claim is that the two
+copies agree** — every assertion compares them. Four ablations, four at the predicted
+verdict, and each one checks that the *original's* tests stay green, which is the only
+way to catch having edited the wrong copy.
+
+**The four unreachable units, each measured rather than argued:**
+
+| guard | why it cannot be reached |
+|---|---|
+| `_build_button_block`'s `return None` | `_build_button_blocks` iterates `set(candidates) \| set(tokens)`, so every key it passes is in one of them; the other caller passes a `component_id`, and **all 7 components carry reset data** (both reset maps hold exactly those 7 keys — set difference measured empty both ways) |
+| `_registry_model_code`'s `device_entry is None` | HA's entity registry **validates the device link on write** — `async_update_entity` with an unknown `device_id` raises `ValueError: Device ... does not exist` — and removing a device cleans up its entities rather than orphaning them. `CMR-7` pins exactly that, so if a future HA stops validating, the test goes red and the arm becomes a real gap |
+| `_rescue_select_block`'s `if not ids` | its single call site passes a literal dict whose every entry carries an `entity_id` f-string, so `ids` is never empty |
+
+Recorded rather than `pragma: no cover`'d, since the programme admits a pragma for
+logger lines only — and because an unreachable guard with no written reason is the one
+that gets "simplified" later.
+
 ### `../unit/test_adapter_config_parity.py` — the schema is a FLOOR, not the contract
 
 3 tests, added 2026-08-15. `test_declaration_contract.py` above pins what happens
@@ -837,7 +873,7 @@ filter weakened to a type check would report it as a clean order continuously.
 | `brands.py` | 53 | 100% | `test_brand_selection.py` | integration | clean |
 | `entity_resolve.py` | 228 | 91% | `tests/unit/test_entity_resolve.py` + `tests/adapters/test_entity_resolve.py` + `tests/unit/test_disabled_action_warn_once.py` | unit + adapter | clean |
 | `eufy/segmentor.py` | 868 | 92% | `tests/adapters/eufy/` | adapter | - |
-| `eufy/adapter.py` | 60 | 84% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/adapter.py` | 60 | 91% | `tests/adapters/eufy/` + `../integration/test_core_manager_registry.py` | adapter | - |
 | `eufy/entities.py` | 29 | 100% | `test_buttons_entities.py` + `test_suffix_vocabulary.py` | adapter | clean |
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter | clean |
 | `eufy/constants.py` | 15 | 100% | `tests/adapters/eufy/` | adapter | - |

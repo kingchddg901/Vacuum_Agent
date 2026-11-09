@@ -20,6 +20,16 @@ Coverage targets
 [CMR-3]  ensure_vacuum_record: existing record with detected_model=None +
          no detected_model arg + a resolvable registry model → record is
          backfilled with the registry model (manager.py line 887 elif).
+
+The SECOND copy of this resolver lives in `adapters/eufy/adapter.py`
+(`_registry_model_code`), whose docstring states it mirrors the one above. It had
+no tests at all and its device-lookup half had never executed:
+
+[CMR-4]  the adapter copy returns the stripped device model, and AGREES with the
+         original.
+[CMR-5]  ...normalizes a blank model to None, not `""`.
+[CMR-6]  ...answers None for an unregistered entity and for one with no device,
+         rather than raising during adapter registration.
 """
 
 from __future__ import annotations
@@ -158,3 +168,191 @@ def test_ensure_vacuum_record_backfills_model_from_registry(
     assert record["detected_model"] == "RoboVac X8"
     # stored data reflects the backfill too
     assert manager.data["vacuums"][_VAC]["detected_model"] == "RoboVac X8"
+
+
+# ---------------------------------------------------------------------------
+# [CMR-4] - [CMR-6]  the SECOND copy of this resolver.
+#
+# `adapters/eufy/adapter.py::_registry_model_code` is a deliberate copy of
+# `_get_registry_model_code` above -- its docstring says so: "Mirrors
+# core/manager._get_registry_model_code (kept local to keep the adapter
+# self-contained)." The original had three tests and the copy had NONE, and its
+# device-lookup half had never executed: coverage put the whole body after the
+# first guard in the missing set, so every call in the suite returned None at the
+# `entity_entry is None or not device_id` line.
+#
+# That is the half that matters. The copy exists because the scalar/Tuya transport
+# does NOT set the `detected_model` vacuum-entity attribute, so reading only the
+# attribute "pinned scalar devices to model_family generic" -- the registry is what
+# carries the code on that path. The fix for that bug was the untested part.
+#
+# Tested HERE rather than under tests/adapters/eufy/ on purpose: the claim is that
+# the two copies AGREE, and the helper plus the original's cases already live in
+# this file. A replica whose copies drift is the failure this repo keeps finding.
+# ---------------------------------------------------------------------------
+
+
+def _adapter_copy(hass, entity_id):
+    """The adapter's local copy of the resolver, imported at call time."""
+    from custom_components.eufy_vacuum.adapters.eufy.adapter import (
+        _registry_model_code,
+    )
+    return _registry_model_code(hass, entity_id)
+
+
+def test_cmr4_the_adapter_copy_resolves_a_populated_model(
+    manager, hass, mock_config_entry
+):
+    """[CMR-4] The adapter's copy returns the stripped device model.
+
+    Same input as [CMR-1], and the answers are asserted to MATCH -- that agreement
+    is the point, not the value on its own. The whitespace in the model is
+    deliberate: both copies end in `str(...).strip() or None`, so a copy that
+    dropped the strip would return `"  RoboVac X8  "` and only a padded fixture
+    can see it.
+
+    RED: delete the device lookup from the adapter copy and it returns None while
+    the original still answers.
+    """
+    entity_id = _link_vacuum_to_device(
+        hass,
+        mock_config_entry,
+        model="  RoboVac X8  ",
+        device_identifier="cmr4bot",
+        object_id="cmr4bot",
+        unique_id="uid-cmr4",
+    )
+
+    assert _adapter_copy(hass, entity_id) == "RoboVac X8"
+    assert _adapter_copy(hass, entity_id) == manager._get_registry_model_code(
+        vacuum_entity_id=entity_id
+    ), "the two copies of this resolver disagree on a populated model"
+
+
+def test_cmr5_the_adapter_copy_normalizes_a_blank_model(
+    manager, hass, mock_config_entry
+):
+    """[CMR-5] A blank device model becomes None in the copy too, not `""`.
+
+    `model_family` lookups are keyed on this value; an empty string is a key that
+    matches nothing and reads as "a model we do not know" rather than "no model",
+    which is a different diagnosis.
+
+    RED: drop the `or None` from the copy and it returns `""`.
+    """
+    entity_id = _link_vacuum_to_device(
+        hass,
+        mock_config_entry,
+        model="   ",
+        device_identifier="cmr5bot",
+        object_id="cmr5bot",
+        unique_id="uid-cmr5",
+    )
+
+    assert _adapter_copy(hass, entity_id) is None
+    assert _adapter_copy(hass, entity_id) == manager._get_registry_model_code(
+        vacuum_entity_id=entity_id
+    ), "the two copies disagree on a blank model"
+
+
+def test_cmr6_the_adapter_copy_handles_a_missing_entity_and_device(
+    manager, hass, mock_config_entry
+):
+    """[CMR-6] The copy's two refusals: no entity at all, and an entity with no device.
+
+    Both must answer None rather than raising. This runs at adapter REGISTRATION, so
+    an exception here takes the whole brand's registration down -- and registration
+    happens for every vacuum on every start.
+
+    The unregistered-entity row is the one worth having: `er.async_get(...).async_get`
+    returns None for an id the registry has never seen, which is exactly what a
+    vacuum being added for the first time looks like.
+    """
+    mock_config_entry.add_to_hass(hass)
+
+    # (a) an entity the registry has never heard of
+    assert _adapter_copy(hass, "vacuum.never_registered_at_all") is None
+    assert _adapter_copy(hass, "vacuum.never_registered_at_all") == (
+        manager._get_registry_model_code(vacuum_entity_id="vacuum.never_registered_at_all")
+    )
+
+    # (b) a registered entity with no linked device
+    entry = er.async_get(hass).async_get_or_create(
+        "vacuum",
+        "demo",
+        "uid-cmr6",
+        config_entry=mock_config_entry,
+        suggested_object_id="cmr6bot",
+    )
+    assert entry.device_id is None, "precondition: no device linked"
+
+    assert _adapter_copy(hass, entry.entity_id) is None
+    assert _adapter_copy(hass, entry.entity_id) == manager._get_registry_model_code(
+        vacuum_entity_id=entry.entity_id
+    ), "the two copies disagree on an entity with no device"
+
+
+def test_cmr7_home_assistant_refuses_the_stale_device_link(
+    manager, hass, mock_config_entry
+):
+    """[CMR-7] WHY both copies' `device_entry is None` arm is UNREACHABLE.
+
+    Both resolvers guard it -- `if device_entry is None: return None` -- and neither
+    arm has ever run. The obvious test is an entity whose `device_id` names a device
+    the registry does not have, and **Home Assistant will not let you build that**:
+    `async_update_entity` raises `ValueError: Device ... does not exist`. The entity
+    and device registries are not independent stores here; the entity registry
+    validates the link on write, and removing a device cleans up its entities rather
+    than orphaning them.
+
+    So the arm is defensive against a state HA's own registry refuses to create, and
+    the honest thing is to pin THAT rather than reach into registry internals to
+    manufacture it. Recorded as a test instead of a comment because it is
+    falsifiable: if a future HA stops validating, this goes red and the arm becomes a
+    real gap that wants a real test.
+
+    RED: HA accepting an unknown device_id.
+    """
+    import pytest as _pytest
+
+    entity_id = _link_vacuum_to_device(
+        hass,
+        mock_config_entry,
+        model="RoboVac X9",
+        device_identifier="cmr7bot",
+        object_id="cmr7bot",
+        unique_id="uid-cmr7",
+    )
+    registry = er.async_get(hass)
+    assert _adapter_copy(hass, entity_id) == "RoboVac X9", (
+        "precondition: it resolves while the link is real"
+    )
+
+    bogus = "deadbeefdeadbeefdeadbeef"
+    assert dr.async_get(hass).async_get(bogus) is None, "precondition: no such device"
+    with _pytest.raises(ValueError, match="does not exist"):
+        registry.async_update_entity(entity_id, device_id=bogus)
+
+    # The link is untouched, so both copies still agree on the real answer.
+    assert _adapter_copy(hass, entity_id) == "RoboVac X9"
+    assert _adapter_copy(hass, entity_id) == manager._get_registry_model_code(
+        vacuum_entity_id=entity_id
+    )
+
+
+# ---------------------------------------------------------------------------
+# NOT TESTED -- both copies' `if device_entry is None: return None`
+#
+# UNREACHABLE, red set deliberately EMPTY, and [CMR-7] pins the reason. Home
+# Assistant's entity registry validates the device link on write:
+# `async_update_entity(entity_id, device_id=<unknown>)` raises
+# `ValueError: Device ... does not exist`, and removing a device cleans up its
+# entities rather than orphaning them. So no test can put an entity in the state
+# this guard defends against without reaching into registry internals, and
+# manufacturing it that way would test the internals rather than the guard.
+# Ablation confirms: deleting the guard from the adapter copy reddens nothing.
+#
+# Recorded rather than pragma'd -- the programme admits `pragma: no cover` for
+# logger lines only, and an unreachable guard with no written reason is the one that
+# gets "simplified" later.
+# ---------------------------------------------------------------------------
