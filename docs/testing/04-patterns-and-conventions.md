@@ -654,8 +654,15 @@ rots **without anyone touching the document**: one import added at the top of a
 module invalidates every citation below it, everywhere.
 
 What makes it a trap rather than a nuisance is that **a rotted line number still
-resolves.** `capabilities.py::_find_registry_entity_by_tokens` lands on `return entry.entity_id` — real code, in
-the right file, plausible. A broken link announces itself; this reads as correct.
+resolves.** A rotted citation into
+`core/manager.py::_find_button_entity_by_tokens` lands on `return entry_.entity_id`
+— real code, in the right file, plausible. A broken link announces itself; this
+reads as correct.
+
+> This example used to name a `_find_registry_entity_by_tokens` helper in the core
+> capabilities module, DELETED on 2026-11-09 as a zero-call-site orphan — so the
+> illustration would have quietly stopped illustrating, which is this same failure
+> one layer up. Replaced with the live twin that outlived it.
 
 Measured across `docs/` on 2026-08-15:
 

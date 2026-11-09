@@ -169,30 +169,29 @@ def resolve_with_reason(
     return None, REASON_ABSENT
 
 
-def _find_registry_entity_by_tokens(
-    hass: HomeAssistant,
-    *,
-    domain: str,
-    object_id_prefix: str,
-    required_tokens: list[str],
-) -> str | None:
-    """Find a registry entity by prefix + token match.
-
-    Used for entities whose exact suffix may differ between versions
-    or may be disabled by default.
-    """
-    registry = er.async_get(hass)
-    prefix = f"{domain}.{object_id_prefix}".lower()
-
-    for entry in registry.entities.values():
-        entity_id = str(entry.entity_id).lower()
-        if not entity_id.startswith(prefix):
-            continue
-        if all(token in entity_id for token in required_tokens):
-            return entry.entity_id
-
-    return None
-
+# REMOVED 2026-11-09: `_find_registry_entity_by_tokens`, a 23-line prefix +
+# all-tokens registry scan with ZERO call sites -- `git grep` found four
+# references in the whole tree and not one of them was a call. It had no call
+# site at `eae291fa` either, the repo's first commit; that is deliberately NOT
+# "never called", because 57 pre-git days make never-wired and
+# caller-removed-before-the-repo indistinguishable.
+#
+# IT HAD A LIVE TWIN, which is what decided deletion over wiring:
+# `core/manager.py::_find_button_entity_by_tokens` is the same scan, is called
+# from the dock and maintenance managers, and carries ten assertions behind
+# [CMR-1]/[CMR-1d].
+#
+# AND THIS WAS ITS PRE-#49 SHAPE. The twin's fallback arm is this body plus one
+# line, the ownership guard, and the comment above that arm says what this
+# function therefore was: a scan with no abstention at all, returning the FIRST
+# registry hit, where which candidate wins depends on registry insertion order.
+# So it was not dead weight -- it was the documented-defective shape preserved
+# in a second file where the guard was never added, and wiring it would have
+# reintroduced issue #49.
+#
+# It read as healthy for a reason worth remembering: tests/integration/
+# test_core_capabilities.py IMPORTED it and its header advertised a `[CAP-6]`
+# test, while no function in that file ever called it.
 
 # ----------------------------------------------------------------------
 # anchor: BN7SHBDE

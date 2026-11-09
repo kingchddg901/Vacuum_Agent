@@ -14,7 +14,13 @@ Coverage targets
 [CAP-5b] _detect_maintenance_sources: a user override wins while it resolves (state or
          registry), and a STALE one falls through to derivation and reports
          `override_unresolved` instead of pinning a dead id (C14).
-[CAP-6]  _find_registry_entity_by_tokens: prefix + token match.
+[CAP-6]  RETIRED 2026-11-09 with `_find_registry_entity_by_tokens` itself -- a
+         23-line orphan with zero call sites, and the PRE-#49 shape of its live
+         twin `core/manager.py::_find_button_entity_by_tokens` (same scan, minus
+         the ownership guard; tested there as [CMR-1]/[CMR-1d]).
+         NOTE: this entry advertised a test that did not exist. The symbol was
+         imported below and never called, so a header line plus an import made
+         23 unreachable lines read as covered. Do not refill this id.
 [CAP-7]  get_vacuum_capabilities: newly-known model refreshes cached caps even with refresh=False.
 [CAP-8]  detect_capabilities: an explicit supports_water_control hint wins over the
          mop-derived default (the Roborock S6 declares it False — water is unsettable).
@@ -33,7 +39,6 @@ import pytest
 
 from custom_components.eufy_vacuum.core.capabilities import (
     _detect_maintenance_sources,
-    _find_registry_entity_by_tokens,
     detect_capabilities,
 )
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
