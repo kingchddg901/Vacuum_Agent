@@ -46,7 +46,7 @@ Architecture reference: [11 — A Map’s Stored State](../../dev/11-map-stored-
 | `map_source.py` | 434 | 93% | `tests/unit/test_map_source.py` | unit (pure) | clean |
 | `map_source_runtime.py` | 972 | 95% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` + `tests/unit/test_dreame_mapdata_decode.py` | unit (pure) | clean |
 | `map_source_coordinator.py` | 350 | 86% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` + `tests/unit/test_live_pose_backends.py` | integration + unit | clean |
-| `roborock_raw_map.py` | 145 | 89% | `tests/unit/test_roborock_raw_map.py` | unit (pure) | clean |
+| `roborock_raw_map.py` | 145 | 98% | `tests/unit/test_roborock_raw_map.py` | unit (pure) | clean |
 | `stall_capture_render.py` | 191 | 93% | `tests/unit/test_stall_capture_render.py` | unit (pure) | clean |
 
 ---
@@ -399,6 +399,49 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   finding), and `geometry_drift`, the on-device decode self-validator overlaying the parser's
   bboxes against the raster (aligned / IoU / centre-drift, flip detection, `only_parser`
   set-diff).
+
+  **89% → 98% (2026-11-09), and six of the eleven claims written to get there were
+  wrong on first measurement.** `RRD-14`..`RRD-20` close the malformed-blob guards
+  (`break` on an unwalkable block header; a zero-length walk step; dims the declared
+  `data_len` cannot back; a `data_len` the BLOB cannot back), the caller-supplied
+  `version` pass-through, `raster_room_bboxes`' two shapeless-input returns and its
+  un-flipped arm, and `geometry_drift`'s two malformed-row skip paths.
+
+  > ⚠ **THE METHOD FAILURE IS THE PART WORTH KEEPING.** `RRD-14` was first
+  > "verified" by comparing TWO INPUTS — a blob with a bad header returns `None`,
+  > the same blob without it decodes — and that was read as the guard biting. It is
+  > not the ablation. Removing the guard and re-running the SAME input is the only
+  > thing that establishes it, and when that was done the sweep read **5 of 11**.
+  > Four claims were guards shadowed by a LATER guard returning the identical
+  > answer. The biting input turned out to need `data_len == 4`, because the walker
+  > advances by `data_len + (header_len & 0xFF)` and only `4 + 4 == 8` lands the
+  > ablated walk cleanly on the trailing IMAGE; at `data_len == 0` it steps 4,
+  > lands misaligned, and returns `None` either way.
+
+  **Three guards are recorded SUBSUMED rather than tested**, each because its
+  successor returns the same value: `pixels_exceed_data_len` falls into the
+  blob-overrun return three lines down; `{}` is answered by EITHER
+  `raster_room_bboxes` guard alone, so neither pins it; and `_bbox_iou`'s `if inter
+  <= 0: return 0.0` is a short-circuit, since the general formula already computes
+  `0 / (area_a + area_b)` and the union guard catches the degenerate case. All three
+  measured DEAD.
+
+  **Two units stay uncovered, both unreachable, so 98.03 % (199/203) is the honest
+  ceiling.** The `except (IndexError, ValueError)` net has no constructible input:
+  `n >= 4` bounds the header read, the loop's `pos + 8 <= n` bounds all three block
+  reads, and `header_len >= 24` with `pos + header_len <= n` bounds the dims quad —
+  every index is guarded. (It DOES catch something once the header `break` is
+  ablated, which is how the overrun variant of `RRD-14` turned out subsumed.) And
+  `raster_room_bboxes`' `y`-minimum update is unreachable by construction: the scan
+  is `enumerate(rp)` in index order, so `y = i // w` never decreases and `y < b[1]`
+  cannot hold after a room's first pixel. Its `x` twin IS reachable, because `x`
+  cycles — which is why only one of the pair was ever uncovered.
+
+  **`RRD-15` is deliberately outside the ablation sweep.** Its red input is
+  NON-TERMINATION: with the `step <= 0` break removed, `pos += 0` forever. A harness
+  that waits on an exit code would stall rather than report it, so that claim is
+  verified out of band with a bounded timeout and the test says so. A guard whose
+  only alternative is a hang cannot be proven by the usual instrument.
 - **`dreame_render_from_mapdata`** (`DMD-*`, unit, `test_dreame_mapdata_decode.py`) — the
   pure Dreame raster decoder over the base integration's decoded `MapData` (no HA/device; a
   `SimpleNamespace` fake shaped from the live ground-truth probe on `vacuum.robin`): TRUE
