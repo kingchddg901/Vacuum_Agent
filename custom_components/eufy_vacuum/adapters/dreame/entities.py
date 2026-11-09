@@ -110,17 +110,17 @@ def build_entity_id(
     return f"{domain}.{object_id}{suffix}"
 
 
-def build_room_entity_id(
-    vacuum_entity_id: str,
-    room_index: int,
-    field: str,
-    domain: str = DOMAIN_SELECT,
-) -> str:
-    """Return a per-room companion entity ID.
-
-    Dreame exposes per-room settings as ``{domain}.{object_id}_room_{n}_{field}``,
-    e.g. ``select.robin_room_1_cleaning_mode`` / ``number.robin_room_2_wetness_level``.
-    Room index is 1-based, matching the device's own ``_room_N_*`` numbering.
-    """
-    object_id = vacuum_entity_id.split(".", 1)[-1]
-    return f"{domain}.{object_id}_room_{room_index}_{field}"
+# REMOVED 2026-11-09: `build_room_entity_id`, a per-room id builder with ZERO call
+# sites. `git grep` over tracked files returned exactly one line, its own `def`, and
+# `git log -S` over `custom_components/` returned a single commit -- `6e380169`, the
+# Dreame Phase 0-1 skeleton that introduced it. So unlike the `capabilities.py` orphan
+# removed the same day there is no pre-git ambiguity here: this function entered the
+# repository with the feature and never acquired a caller.
+#
+# IT IS NOT A LOST CONSUMER. The per-room id it built is built live in
+# `dispatch/manager.py`, in the room-gate probe, from the adapter's own
+# `gate_room_suffix` / `gate_domain` config rather than from a hardcoded helper --
+# which is why the Dreame adapter imports the SUFFIX constants from this module and
+# never imported this function. The naming convention stays documented in the module
+# docstring above, because the convention is real; only this unused builder of it is
+# gone.

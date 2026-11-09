@@ -13,12 +13,16 @@ Coverage targets
         downstream raises its own clear error on the missing kwarg).
 [SC-5]  job_finished_event_payload: a non-dict completed_job degrades to {}.
 [SC-6]  job_finished_event_payload: job_path absent at root → taken from finalize_result.
+[SC-19] is_managed_vacuum: no runtime → False (not AttributeError), with a positive
+        control so the guard is distinguished from a uniformly negative answer.
 """
 
 from __future__ import annotations
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
 from custom_components.eufy_vacuum.services._common import (
+    is_managed_vacuum,
     job_finished_event_payload,
     resolved_call_data,
 )
@@ -90,3 +94,34 @@ def test_job_finished_job_path_from_finalize_result():
     )
     assert payload["job_path"] == "/from/finalize"
     assert payload["status"] == "ok"          # completed_job resolved from finalize_result
+
+
+def test_sc19_is_managed_vacuum_is_false_without_a_runtime_and_true_with_one():
+    """[SC-19] `is_managed_vacuum` answers False when DATA_RUNTIME is absent instead of
+    dereferencing None.
+
+    `cv.entity_id` validates only the SHAPE `domain.object_id`, so this helper is what
+    stands between a well-formed id for somebody else's vacuum and a service acting on
+    it. The guard's value is that the answer stays a BOOLEAN: delete it and
+    `manager.data` raises AttributeError on None, so a service call fails with a
+    traceback instead of a clean refusal.
+
+    THE POSITIVE CONTROL IS THE POINT. `False` is the answer for both "no runtime" and
+    "runtime present, vacuum not ours", so a function hardcoded to return False would
+    satisfy the first assertion alone. The second and third assertions make the helper
+    show it can return True, and that it still says False for a vacuum the runtime does
+    not list -- so the first assertion is about the GUARD rather than about the
+    function being uniformly negative.
+
+    Driven against a stub carrying only `.data`, which is all the helper touches.
+    """
+    from types import SimpleNamespace
+
+    no_runtime = SimpleNamespace(data={DOMAIN: {}})
+    assert is_managed_vacuum(no_runtime, _VAC) is False
+
+    managed = SimpleNamespace(
+        data={DOMAIN: {DATA_RUNTIME: SimpleNamespace(data={"vacuums": {_VAC: {}}})}}
+    )
+    assert is_managed_vacuum(managed, _VAC) is True
+    assert is_managed_vacuum(managed, "vacuum.somebody_elses") is False

@@ -28,10 +28,13 @@ class BrandFacts(Protocol):
 
     brand: str | None                                   # cosmetic label only
 
-    def entity_id(self, key: str) -> str | None: ...    # "task_status", "cleaning_time",
-                                                        # "cleaning_area", "wash_frequency_mode", …
-    def alias_map(self, key: str) -> dict[str, str]: ...  # "clean_mode", "clean_intensity",
-                                                        # "fan_speed", "water_level", "wash_frequency_mode"
+    # "task_status", "cleaning_time", "cleaning_area", "wash_frequency_mode", …
+    def entity_id(self, key: str) -> str | None:
+        ...
+
+    # "clean_mode", "clean_intensity", "fan_speed", "water_level", "wash_frequency_mode"
+    def alias_map(self, key: str) -> dict[str, str]:
+        ...
 
     mid_run_statuses: frozenset[str]                    # docked-but-will-resume task_status values
     cleaning_time_unit: str | None                      # fallback unit for a bare-number sensor (Roborock=min)

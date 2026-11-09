@@ -20,6 +20,11 @@ Coverage targets
         entity override + surfaces it in setup status; an unmanaged vacuum errors.
 [SVS-9b] RP-039/RF-16: setup_set_panel_title appends its registered panel url to
         the entry's teardown ledger instead of discarding the return value.
+[SVS-21] Each setup handler answers with its own error value, not AttributeError,
+        when DATA_RUNTIME is absent. DEFENSIVE -- unreachable in production, see
+        SVS-22 for the ordering that keeps it so.
+[SVS-22] async_unload_entry unregisters the services BEFORE dropping DATA_RUNTIME,
+        which is the whole reason SVS-21's guards cannot fire.
 """
 
 from __future__ import annotations
@@ -33,6 +38,7 @@ import pytest
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import (
     DATA_ERROR_TRACKER,
+    DATA_RUNTIME,
     DOMAIN,
     ENTITY_OVERRIDES_KEY,
     SERVICE_ACKNOWLEDGE_ERROR,
@@ -897,4 +903,105 @@ async def test_svs20_clearing_one_maps_camera_leaves_the_others(
     assert result["status"] == "success"
     assert record["live_map_image_entity_by_map"] == {"floor8": "camera.eight"}, (
         "clearing one map's camera took another map's override with it"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The eight `manager is None` guards in services/setup.py. A DEFENSIVE PAIR, not a
+# test of live behaviour -- see SVS-21's reachability paragraph and SVS-22.
+# ---------------------------------------------------------------------------
+
+_UNAVAILABLE = {"status": "error", "message": "Integration manager not available."}
+
+_RUNTIME_GONE_CASES = [
+    (SERVICE_SET_ENTITY_OVERRIDE,
+     {"vacuum_entity_id": _VAC, "role": "battery", "entity_id": "sensor.x"},
+     {"status": "error", "reason": "runtime_unavailable"}),
+    (SERVICE_SETUP_GET_MAP_ROOMS,
+     {"vacuum_entity_id": _VAC, "map_id": "2"},
+     {"rooms": [], "vacuum_entity_id": _VAC, "map_id": "2"}),
+    (SERVICE_SETUP_SAVE_ROOMS,
+     {"vacuum_entity_id": _VAC, "map_id": _MAP, "enabled_room_ids": [1]}, _UNAVAILABLE),
+    (SERVICE_SETUP_REJECT_ROOMS,
+     {"vacuum_entity_id": _VAC, "room_ids": [3]}, _UNAVAILABLE),
+    (SERVICE_SETUP_UNREJECT_ROOMS,
+     {"vacuum_entity_id": _VAC, "room_ids": [3]}, _UNAVAILABLE),
+    (SERVICE_SETUP_FORCE_REMOVE_ROOM,
+     {"vacuum_entity_id": _VAC, "room_id": 4}, _UNAVAILABLE),
+    (SERVICE_SETUP_SET_PANEL_TITLE,
+     {"vacuum_entity_id": _VAC, "title": "X"}, _UNAVAILABLE),
+    (SERVICE_SETUP_SET_MAP_CAMERA,
+     {"vacuum_entity_id": _VAC, "entity_id": "camera.x"}, _UNAVAILABLE),
+]
+
+
+@pytest.mark.parametrize(
+    "service,payload,expected", _RUNTIME_GONE_CASES,
+    ids=[case[0] for case in _RUNTIME_GONE_CASES],
+)
+async def test_svs21_setup_handlers_answer_instead_of_raising_without_a_runtime(
+    hass, manager_with_services, service, payload, expected
+):
+    """[SVS-21] Each setup handler returns its own error value when DATA_RUNTIME is
+    absent, rather than raising AttributeError on None.
+
+    REACHABILITY, STATED PLAINLY: this is a DEFENSIVE guard, not a live path. Unload
+    unregisters the services before it pops DATA_RUNTIME, the failed-setup unwind is
+    LIFO and therefore does the same, and every one of these handlers reads `manager`
+    as its first statement with no `await` ahead of it, so there is no concurrency
+    window either. No shipped sequence makes a handler see `manager is None`. SVS-22
+    pins that ordering; this test pins what users would get if it ever broke -- an
+    error dict instead of a traceback out of a service call.
+
+    WHY EIGHT CASES AND NOT TWO: two would cross the coverage line, but the guards do
+    NOT all answer the same way, and the differences are the contract. `set_entity_override`
+    returns a `reason` key (not `message`), and `setup_get_map_rooms` returns a rooms
+    payload with no `status` key at all. A parametrised row per handler is what makes a
+    future copy-paste that returns the wrong SHAPE visible.
+
+    THE EXACT MESSAGE IS ASSERTED, NOT JUST `status == "error"`. Six of these handlers
+    have a SECOND error branch a few lines later for an unmanaged vacuum, which also
+    returns `status: "error"` with a different message -- and two existing tests
+    (`test_setup_set_panel_title_not_managed`, `test_setup_set_map_camera_not_managed`)
+    already cover that one. Asserting only the status would let this test pass on the
+    wrong branch.
+    """
+    hass.data[DOMAIN].pop(DATA_RUNTIME)
+    assert await _call(hass, service, payload) == expected
+
+
+def test_svs22_unload_removes_the_services_before_it_drops_the_runtime():
+    """[SVS-22] The ordering that makes SVS-21's eight guards unreachable.
+
+    `async_unload_entry` calls `async_unregister_services(hass)` BEFORE
+    `domain_data.pop(DATA_RUNTIME, None)`. That order is the only reason a registered
+    service can never observe a missing runtime. It is currently incidental -- two
+    statements fifty lines apart in a long teardown with no comment tying them
+    together -- which is exactly why it is worth pinning: swapping them opens a real
+    window in which any of the eight handlers answers from its defensive branch, and
+    nothing else in the suite would notice.
+
+    Asserted on the function's SOURCE rather than by driving a teardown, because the
+    claim is about statement order and a behavioural test would have to provoke the
+    failure it is trying to forbid.
+    """
+    import inspect
+
+    from custom_components.eufy_vacuum import async_unload_entry
+
+    source = inspect.getsource(async_unload_entry)
+    # ANTI-VACUITY: a renamed call would make both `index` lookups raise rather than
+    # silently satisfy the comparison, but assert presence first so the failure names
+    # the real cause.
+    assert "async_unregister_services(hass)" in source, (
+        "async_unload_entry no longer unregisters the domain services by that name -- "
+        "re-establish what now removes them before trusting SVS-21's reachability note"
+    )
+    assert "pop(DATA_RUNTIME" in source, (
+        "async_unload_entry no longer pops DATA_RUNTIME by that name"
+    )
+    assert source.index("async_unregister_services(hass)") < source.index("pop(DATA_RUNTIME"), (
+        "DATA_RUNTIME is now dropped BEFORE the services are unregistered, which opens "
+        "a window where a service call reaches a handler with no runtime -- SVS-21's "
+        "eight guards have become live code and need tests of live behaviour"
     )

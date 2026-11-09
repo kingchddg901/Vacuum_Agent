@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+from custom_components.eufy_vacuum.learning.utils import known_completed_room_ids
 from tests._factories import spec_manager
 
 from custom_components.eufy_vacuum.learning.job_finalizer import (
@@ -1108,3 +1109,76 @@ def test_trouble_uses_the_shared_completed_rooms_helper(finalizer):
     assert rooms.get("1", {}).get("miss_count") == 0, "an earlier phase's room read as missed"
     assert rooms.get("2", {}).get("miss_count") == 0
     assert rooms.get("3", {}).get("miss_count") == 1, "the genuinely unreached room"
+
+
+# ---------------------------------------------------------------------------
+# known_completed_room_ids' shape guards (learning/utils.py). These are NOT
+# synthetic: history_store passes `c.get("queue")` taken from load_completed_job --
+# persisted storage read back -- and job_finalizer passes active_job_state out of
+# manager.data. A corrupt or older-schema row on disk reaches every guard below.
+# ---------------------------------------------------------------------------
+
+def test_jf14_a_junk_phase_or_room_is_skipped_without_abandoning_the_rest():
+    """[JF-14] The per-phase and per-room shape guards SKIP a bad row and keep going.
+
+    Three claims in one input, each needing the junk row to come FIRST:
+      * a non-dict PHASE is skipped (`continue`, not `break`);
+      * a non-dict ROOM inside a phase is skipped;
+      * the id ladder reads `room_id`, falls back to `id`, rejects non-positive ids and
+        refuses duplicates.
+
+    POSITION IS LOAD-BEARING. `continue` and `break` are indistinguishable when the bad
+    row is last, so the junk phase is element 0 and the junk room is element 0: a
+    `break` in either place yields `[]` and the expected value is `[7, 9]`.
+
+    THE EXPECTED VALUE IS NOT THE FALLBACK. An empty list is what this function returns
+    for every malformed input, so `[7, 9]` is the only kind of assertion that can tell
+    "the guards skipped the junk and collected the rest" from "the guards swallowed
+    everything". Each element earns its place: `{"room_id": 0}` proves `rid > 0`
+    rejects non-positive ids, `{"id": 7}` proves the `id` fallback key is read, the
+    second `{"room_id": 7}` proves the duplicate check, and `{"room_id": 9}` proves
+    collection continued past all of them.
+
+    `current_phase_index` is 2 so `phases[:2]` admits the junk phase and the real one
+    and excludes the trailing `{}` -- with index 1 the real phase would fall outside
+    the slice and the test would pass for the wrong reason.
+    """
+    state = {
+        "phases": [
+            "junk",
+            {"resolved_rooms": [
+                "junk",
+                {"room_id": 0},
+                {"id": 7},
+                {"room_id": 7},
+                {"room_id": 9},
+            ]},
+            {},
+        ],
+        "current_phase_index": 2,
+    }
+    assert known_completed_room_ids(state, None) == [7, 9]
+
+
+def test_jf15_room_timings_still_contribute_when_the_job_state_is_not_a_dict():
+    """[JF-15] The timings source is independent of the phase source.
+
+    `known_completed_room_ids` reads two places: the active-job phases (only when the
+    state is a dict) and `room_timings`. A non-dict state must not cost the caller the
+    timings, because the two arrive from different stores -- the state from
+    `manager.data["active_jobs"]`, the timings from a completed job's `job` block -- and
+    either can be absent or malformed on its own.
+
+    Two inputs, because `None` and a non-dict that is still truthy take different
+    paths through `isinstance(active_job_state, dict)`, and a guard written as a
+    truthiness test rather than an isinstance test would pass the first and raise on
+    the second.
+
+    The junk timing row is FIRST again, so a `break` would return `[]` rather than
+    `[5]`. `cleaning_seconds` is 30.0 and not 0, because a zero-second row is dropped
+    by the acceptance rule further down and the test would then pass whether the shape
+    guard worked or not.
+    """
+    timings = ["junk", {"room_id": 5, "cleaning_seconds": 30.0}]
+    assert known_completed_room_ids(None, timings) == [5]
+    assert known_completed_room_ids(["not a dict"], timings) == [5]

@@ -31,6 +31,7 @@ import pytest
 
 from custom_components.eufy_vacuum.adapters.config_schema import (
     ADAPTER_CONFIG_SCHEMA,
+    _TYPE_FAMILIES,
     _type_ok,
     validate_adapter_config,
     validate_against_schema as _validate,
@@ -60,6 +61,62 @@ _ENTITY_ID_RE = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Schema walk helpers for RC-21/RC-22. BOTH TRACK `id()` AND STOP ON A REPEAT:
+# ADAPTER_CONFIG_SCHEMA shares sub-dicts between blocks, so a naive recursion
+# revisits them and over-counts -- a first pass reported 60 entry_fields specs
+# where there are 9. An over-count would not have changed either verdict here,
+# but a walk whose own arithmetic is wrong is not evidence of anything.
+# ---------------------------------------------------------------------------
+
+
+def _outer_family(type_str: str) -> str:
+    """The family name `_type_ok` looks up: suffix stripped, generic args dropped."""
+    spec = type_str.strip()
+    for suffix in ("| null", "| none", "|null", "|none"):
+        if spec.lower().endswith(suffix):
+            spec = spec[: -len(suffix)].strip()
+            break
+    return spec.split("[", 1)[0].strip()
+
+
+def _declared_type_strings(node: Any, seen: set[int] | None = None) -> list[str]:
+    """Every `"type"` string declared anywhere in the schema."""
+    if seen is None:
+        seen = set()
+    if id(node) in seen:
+        return []
+    seen.add(id(node))
+    out: list[str] = []
+    if isinstance(node, dict):
+        if isinstance(node.get("type"), str):
+            out.append(node["type"])
+        for value in node.values():
+            out.extend(_declared_type_strings(value, seen))
+    elif isinstance(node, list):
+        for value in node:
+            out.extend(_declared_type_strings(value, seen))
+    return out
+
+
+def _entry_field_specs(node: Any, seen: set[int] | None = None,
+                       path: str = "") -> list[tuple[str, Any]]:
+    """(path, declared type) for every spec carrying `entry_fields`."""
+    if seen is None:
+        seen = set()
+    if id(node) in seen:
+        return []
+    seen.add(id(node))
+    out: list[tuple[str, Any]] = []
+    if isinstance(node, dict):
+        if "entry_fields" in node:
+            out.append((path or "<root>", node.get("type")))
+        for key, value in node.items():
+            out.extend(_entry_field_specs(value, seen, f"{path}/{key}"))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            out.extend(_entry_field_specs(value, seen, f"{path}[{index}]"))
+    return out
 class TestValidatorItself:
     def test_an_undeclared_key_is_caught_at_every_level(self):
         """[RC-1] The walker iterates the SCHEMA, so an unknown key was never inspected.
@@ -188,6 +245,110 @@ class TestValidatorItself:
         }
         issues = _validate({"cat": {"k1": {}}}, schema)
         assert issues == ["cat['k1'].v: required key missing"]
+    # -- the three units coverage flagged in config_schema.py. Only ONE of them is
+    # -- reachable from shipped code; the other two are recorded ceilings, pinned by
+    # -- the invariant that keeps each arm dead rather than asserted as if it were live.
+
+    def test_rc20_a_catalog_entry_that_is_not_a_dict_is_named_not_mangled(self):
+        """[RC-20] The non-dict guard, reached through the RECURSION and not the front door.
+
+        `validate_against_schema` opens with `if not isinstance(config, dict)`, which
+        reads like a front-door check on the whole config. It is not only that: every
+        `entry_fields` spec recurses once PER ENTRY, and a catalogue's entries are the
+        VALUES of a user-authored dict. `validate_adapter_config` is the SAVE door
+        (`services/adapter_config.py::_handle_save_adapter_config`), so
+        `maintenance_components: {"main_brush": "oops"}` is a config a user can submit
+        through the service, and this guard is what diagnoses it.
+
+        WHY THE MESSAGE IS ASSERTED AND NOT MERELY "IT DID NOT CRASH": without the
+        guard the walker does NOT raise. The next statement is
+        `set(config) - set(schema)`, and `set("oops")` is a set of CHARACTERS, so the
+        walk reports `key(s) not declared in the schema: {'o', 'p', 's'}` -- a
+        plausible-looking issue naming letters. Deleting the guard turns a correct
+        diagnosis into a confident nonsense one, so only the TEXT discriminates.
+
+        IT IS ALSO THE NON-DEFAULT ARM of `path or '<root>'`. The front-door case
+        yields `<root>`, which is exactly what that expression produces when `path` is
+        empty, so an assertion on it cannot tell a working `path` from an ignored one.
+        This entry carries a real location, so the two differ.
+
+        Driven through the REAL schema rather than a hand-built mirror:
+        `maintenance_components` is declared `dict[str, dict]` with `entry_fields`, so
+        the fixture cannot drift from what ships.
+        """
+        issues = validate_adapter_config(
+            {"maintenance_components": {"main_brush": "oops"}}
+        )
+        named = [i for i in issues if "main_brush" in i]
+        assert named == [
+            "maintenance_components['main_brush']: expected dict, got str"
+        ]
+        # The location is CARRIED, not flattened to the `<root>` fallback.
+        assert "<root>" not in named[0]
+
+    def test_rc21_every_declared_type_has_a_family_so_the_unknown_arm_stays_dead(self):
+        """[RC-21] A RECORDED CEILING, not a covered line. `_type_ok`'s unknown-family
+        arm (`families is None` -> `return True`) is unreachable from this schema, and
+        this test is what keeps it that way.
+
+        The arm exists so an unrecognised family does not fail the walk. Measured: the
+        schema declares 218 type strings, 18 distinct, and NONE has an outer family
+        outside `_TYPE_FAMILIES`. The only production caller is
+        `validate_adapter_config`, which passes `ADAPTER_CONFIG_SCHEMA` itself -- no
+        schema arrives from outside -- so no shipped input can take that branch.
+
+        `scripts/gen_adapter_config_docs.py` already fails when a declared type has no
+        family entry. This is the same invariant asserted at TEST time rather than at
+        doc-generation time: that gate protects the generated docs, this protects a
+        suite run.
+
+        WHAT MAKES IT RED: declare a spec with `"type": "Any"`, or any family absent
+        from `_TYPE_FAMILIES`. The assertion then names it -- and the `return True` arm
+        has become live code with no test behind it.
+        """
+        declared = _declared_type_strings(ADAPTER_CONFIG_SCHEMA)
+        # ANTI-VACUITY. The first probe of this invariant reported "none outside the
+        # families" while having located no schema at all: a walk that sees nothing
+        # agrees with every claim. Assert the walk found the schema before believing it.
+        assert len(declared) > 50, (
+            f"the schema walk found only {len(declared)} type strings -- it is blind, "
+            "so 'none outside the families' below would be vacuous"
+        )
+        known = set(_TYPE_FAMILIES)
+        outside = sorted({t for t in declared if _outer_family(t) not in known})
+        assert outside == [], (
+            "these declared types have no _TYPE_FAMILIES entry, so _type_ok returns "
+            f"True unconditionally for them: {outside}"
+        )
+
+    def test_rc22_every_entry_fields_spec_declares_a_container_type(self):
+        """[RC-22] The second recorded ceiling. `validate_against_schema`'s
+        `entries = []` arm -- the else taken when an `entry_fields` value is neither
+        dict nor list -- is unreachable from this schema.
+
+        THE REASON IS A GUARD ELEVEN LINES EARLIER, not the arm itself: a type mismatch
+        `continue`s before `entry_fields` is read. So reaching the else needs a spec
+        declaring `entry_fields` AND either no `type` or a SCALAR type, which would let
+        a non-container value past the type gate. Measured: all 9 `entry_fields` specs
+        declare `list[dict]` or `dict[str, dict]`.
+
+        WHAT MAKES IT RED: give any `entry_fields` spec a scalar type, or drop its
+        `type`. The arm is then reachable and needs a test of its own -- and it is not
+        merely defensive: without it `entries` would carry the PREVIOUS loop
+        iteration's value, so the walk would recurse into the wrong catalogue rather
+        than raise.
+        """
+        specs = _entry_field_specs(ADAPTER_CONFIG_SCHEMA)
+        assert specs, "the walk found no entry_fields specs -- the check below is vacuous"
+        scalar = sorted(
+            path for path, type_str in specs
+            if not (isinstance(type_str, str)
+                    and _outer_family(type_str) in ("dict", "list"))
+        )
+        assert scalar == [], (
+            "these entry_fields specs do not declare a container type, so a "
+            "non-container value reaches the `entries = []` arm: " + str(scalar)
+        )
 
 
 # ---------------------------------------------------------------------------

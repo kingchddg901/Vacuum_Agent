@@ -2066,3 +2066,43 @@ def test_rbsdk1_the_vendor_sdk_is_imported_during_collection():
         "something imports it inside a test body — HA's verify_cleanup will fail the "
         "teardown of whichever test gets there first"
     )
+
+
+# ---------------------------------------------------------------------------
+# RECORDED CEILING -- adapters/roborock/dock.py, 93.68%, measured 2026-11-09
+#
+# Three uncovered units, all in the dock-device resolver. NONE is testable without
+# the test asserting its own stub, so the file is left below 95% deliberately rather
+# than lifted by three tests that would each pass for the wrong reason.
+#
+# NOT TESTED -- the `vacuum_device is None` guard after `dev_reg.async_get(...)`
+#
+# UNREACHABLE on a real registry. Reaching it needs an entity-registry entry whose
+# device_id points at a device the device registry does not hold, and the registry
+# refuses to create that: `async_get_or_create(device_id="nonexistent")` raises
+# ValueError. Not subsumed -- without the guard `vacuum_device.identifiers` raises
+# AttributeError -- but the only input that takes the branch is a mocked
+# `dr.async_get` returning None, which pins the mock.
+#
+# NOT TESTED -- the `if not duids` guard
+#
+# SUBSUMED on current HA. Ablated and run against a real registry with a vacuum whose
+# device carries only a non-roborock identifier: with the guard gone the comprehension
+# yields an empty `wanted`, the lookup loop does not iterate, and the function falls
+# through to the same `return None`. The guard shortens the road; it does not change
+# the answer, so no input can redden a correct test of it.
+#
+# NOT TESTED -- the `config_entry_id is None` guard
+#
+# THE ONE REAL CLAIM, AND IT IS AN IDENTITY ON THE HA VERSION WE TEST AGAINST. The
+# docstring states the ruling it enforces: "an entity with no config entry cannot be
+# the upstream integration's, so it resolves to None rather than to an unscoped
+# search". On old HA core that guard is load-bearing. On the scoped-method core in the
+# test image, ablating it still returns None, because `by_identifier(ident, None)`
+# misses anyway -- so the assertion cannot distinguish the guard working from the
+# guard being absent. It is listed here, not written, because a test that passes
+# identically with and without the code it names is the thing the bar forbids.
+#
+# THE ARITHMETIC: 3 statements and 3 branch arms of 95 units, so the file measures
+# 93.68% and needs 2 units to cross. There are none to take honestly.
+# ---------------------------------------------------------------------------
