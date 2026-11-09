@@ -125,3 +125,105 @@ def test_missing_directory_reads_empty_rather_than_raising(tmp_path):
     assert pose_store.read_range(
         config_dir=str(tmp_path), vacuum_entity_id="vacuum.nope",
         start_iso="2026-08-05T00:00:00Z", end_iso="2026-08-06T00:00:00Z") == []
+
+
+def test_prune_never_deletes_a_file_it_did_not_name(tmp_path):
+    """A `.jsonl` whose name is not one of ours survives prune untouched.
+
+    The skip is commented "not ours - never delete a file we did not name", and
+    that is a SAFETY claim rather than a parsing one: this directory lives under
+    the user's config dir, and the pruner walks it by listing rather than by
+    remembering what it wrote. A filename that ends `.jsonl` but is not a chunk
+    stamp reaches `strptime` and raises -- so the ValueError arm is what stands
+    between a stray file and deletion.
+
+    THE OBSERVABLE IS THE FILE STILL BEING THERE, not the return value. A pruner
+    that returned 0 while unlinking it would satisfy a count-only assertion.
+
+    RED: narrow the `except ValueError` and prune raises on the stray file; drop
+    the `if start is None: continue` and it is judged by a start time it does not
+    have.
+    """
+    _write(tmp_path, _at(6, 5), 5)
+    stray = os.path.join(_dir(tmp_path), "notes-from-the-user.jsonl")
+    with open(stray, "w", encoding="utf-8") as fh:
+        fh.write("{}" + chr(10))
+
+    # Far enough ahead that every CHUNK is past retention...
+    removed = pose_store.prune(
+        config_dir=str(tmp_path), vacuum_entity_id="vacuum.alfred",
+        now=_at(6, 5) + dt.timedelta(days=3),
+    )
+
+    assert removed == 1, "the real chunk should have gone"
+    assert os.path.exists(stray), (
+        "prune deleted a file it did not name -- this directory is under the "
+        "user's config dir and is walked by LISTING, not by remembering"
+    )
+    # ...and the parse says None rather than raising, which is what allows that.
+    assert pose_store._parse_chunk_name("notes-from-the-user.jsonl") is None
+
+
+def test_prune_on_a_vacuum_with_no_directory_is_zero(tmp_path):
+    """No ring yet is not an error: 0 removed, nothing raised.
+
+    `prune` runs on a timer against every known vacuum, so it meets this state on
+    every boot before the first pose sample lands -- and on any vacuum whose
+    sampler never started. A raise here would be a recurring log error for a
+    perfectly ordinary install.
+
+    RED: drop the `except OSError` and `os.listdir` raises FileNotFoundError.
+    """
+    assert not os.path.exists(_dir(tmp_path)), "precondition: no ring on disk"
+    assert pose_store.prune(
+        config_dir=str(tmp_path), vacuum_entity_id="vacuum.alfred",
+        now=_at(6, 5),
+    ) == 0
+    # And the read side answers the same state with an empty list, not a raise.
+    assert pose_store.read_range(
+        config_dir=str(tmp_path), vacuum_entity_id="vacuum.alfred",
+        start_iso="2026-08-05T06:00:00Z", end_iso="2026-08-05T07:00:00Z",
+    ) == []
+
+
+def test_read_range_opens_only_the_chunks_that_can_overlap(tmp_path, monkeypatch):
+    """Chunks that cannot overlap the window are never OPENED.
+
+    ⚠ THE OBSERVABLE HAS TO BE THE OPEN, because the result cannot see this. Every
+    line is filtered by `start_iso <= stamp <= end_iso` anyway, so a chunk that was
+    opened and then filtered out returns exactly what a skipped one returns --
+    removing the skip changes the OUTPUT not at all. The claim the module makes is
+    about cost: "only chunks that can overlap the window are opened", which
+    "matters when a window can span thousands of samples". So this records which
+    files were opened, the same shape as asserting a NON-call.
+
+    BOTH ARMS OF THE `or`: a chunk that ends before the window opens, and one that
+    begins after it closes. The in-window chunk is present in the same run, so
+    "nothing was opened" cannot pass for "only the right one was opened".
+
+    RED: delete the `if ... < lo or start > hi: continue` and all three chunks are
+    opened while the returned samples stay identical -- which is precisely why the
+    output assertion below is NOT the one that pins this.
+    """
+    _write(tmp_path, _at(4, 5), 1)      # ends 04:30, before the window
+    _write(tmp_path, _at(6, 5), 2)      # inside
+    _write(tmp_path, _at(9, 5), 3)      # begins after the window closes
+
+    opened: list = []
+    real_open = open
+
+    def _recording_open(path, *a, **kw):
+        opened.append(os.path.basename(str(path)))
+        return real_open(path, *a, **kw)
+
+    monkeypatch.setattr("builtins.open", _recording_open)
+    rows = pose_store.read_range(
+        config_dir=str(tmp_path), vacuum_entity_id="vacuum.alfred",
+        start_iso="2026-08-05T06:00:00Z", end_iso="2026-08-05T06:59:59Z",
+    )
+    monkeypatch.undo()
+
+    # THE LOAD-BEARING ASSERTION: the two chunks that cannot overlap were not read.
+    assert opened == ["2026-08-05T06-00.jsonl"], opened
+    # The output is asserted too, but it is the same with or without the skip.
+    assert [r["current_room"] for r in rows] == [2], rows

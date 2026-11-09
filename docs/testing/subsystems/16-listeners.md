@@ -35,6 +35,7 @@ Architecture reference: [19 — The Event Ingress Layer](../../dev/19-event-ingr
 | `_common.py` | 81 | 91% | `test_listeners_common.py` | integration | clean |
 | `job_progress.py` | 48 | 92% | `test_listeners_active.py` | integration | **bare x28** |
 | `pose_sampler.py` | 142 | 94% | `test_pose_sampler.py` (unit) + `test_pose_sampler_cadence.py` | unit + integration | **bare x5** |
+| `pose_store.py` | 80 | 96% | `tests/unit/test_pose_store.py` (unit) | unit | clean |
 
 **Two gates, and neither alone is sufficient — demonstrated, not assumed.**
 `scripts/check_receipts.py` is a static AST scan: it proves a receipt's call site EXISTS and
@@ -279,6 +280,59 @@ standing check.
 > `map_id != expected` in its own body, which fires in the suite the moment someone
 > collapses the two. An ablation harness can prove a test bites today; only something
 > tracked keeps it biting.
+
+### `pose_store.py` — 90% → 96% (2026-11-09), and two guards that are not bugs
+
+The 24-hour pose ring's STORE had no row in the coverage map above until this pass
+— the sampler was listed, the store it writes to was not.
+
+**Three tests, and the two most interesting units are the ones NOT tested.** Of
+seven uncovered statements, reading the code said only three were worth a test,
+and the ablation sweep then agreed with every classification — the first file this
+campaign where the reading was right BEFORE the measurement rather than corrected
+by it.
+
+- **`prune` never deletes a file it did not name.** The skip is commented "not ours
+  — never delete a file we did not name", which is a SAFETY claim, not a parsing
+  one: this directory lives under the user's config dir and the pruner walks it by
+  LISTING rather than by remembering what it wrote. A name ending `.jsonl` that is
+  not a chunk stamp reaches `strptime` and raises, so the `ValueError` arm is what
+  stands between a stray file and deletion. The observable is the file still being
+  on disk, not the return count — a pruner that returned 0 while unlinking it would
+  satisfy a count-only assertion.
+- **No ring yet is not an error.** `prune` runs on a timer against every known
+  vacuum, so it meets a missing directory on every boot before the first sample
+  lands. A raise there is a recurring log error on a perfectly ordinary install.
+- **Only chunks that can overlap the window are OPENED**, and this one needs a
+  call-boundary observable. Every line is filtered by `start_iso <= stamp <=
+  end_iso` anyway, so a chunk that was opened and then filtered returns exactly
+  what a skipped one returns — **removing the skip changes the output not at all**,
+  measured. The module's claim is about cost ("matters when a window can span
+  thousands of samples"), so the test records which files were opened. The
+  ablation confirmed the asymmetry: it reddens the recorded-open test and leaves
+  the output assertion green, which is what justifies reaching past the return
+  value rather than being clever for its own sake.
+
+#### The ceiling is 96%, and both remaining units are classified
+
+- `read_range`'s `if start is None: continue` is **UNREACHABLE**. The line above it
+  builds `names` with `if _parse_chunk_name(n)`, so the SAME predicate is applied
+  one statement earlier and `start` can never be None here. That is
+  `feedback_partial_guard_blind_spot`'s "diff a predicate against its copies" — the
+  guard is a redundant copy of a filter that already ran.
+- `read_range`'s `if not raw: continue` is **SUBSUMED**. Without it,
+  `json.loads("")` raises `JSONDecodeError`, a `ValueError` subclass, which the
+  handler two lines down already catches and continues on. Identical outcome, so
+  no input distinguishes them; it is a cheap early-out, not a behavioural guard.
+
+Both measured DEAD against their own ablations rather than asserted. 5 of 5 cases
+at the predicted verdict, source restored byte-identical.
+
+> ⚠ **THIS FILE WAS ESTIMATED AS A "5-UNIT CHEAP WIN" AND IT IS NOT ONE.** Of the
+> seven missing statements, two were testable behaviour, two were classifications,
+> and one was unreachable. The unit count advertised more than the file contained,
+> which is worth remembering for the other small files on the list: `need=N` from a
+> coverage table is an upper bound on the WORK, not a count of the BEHAVIOUR.
 
 ### Entity rename (`ER`) — detection only, on purpose
 
