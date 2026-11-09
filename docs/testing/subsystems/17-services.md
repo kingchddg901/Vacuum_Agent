@@ -53,7 +53,7 @@ Covered by `tests/unit/test_services_repair_renamed_vacuum.py`. Two targets carr
 | `rooms.py` | 108 | 98% | `test_services_rooms.py` | **bare x1** |
 | `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` | clean |
 | `queue.py` | 135 | 96% | `test_services_queue.py`, `test_services_unmanaged_vacuum.py` | **bare x1** |
-| `snapshots.py` | 71 | 85% | `test_services_snapshots.py`, `test_services_unmanaged_vacuum.py` | clean |
+| `snapshots.py` | 71 | 100% | `test_services_snapshots.py`, `test_services_unmanaged_vacuum.py` | clean |
 | `errors.py` | 40 | 96% | `test_services_errors_setup.py`, `test_services_unmanaged_vacuum.py` | **bare x2** |
 | `access_graph.py` | 34 | 100% | `test_services_access_graph.py` | clean |
 | `clean_order.py` | 42 | 96% | `test_services_clean_order.py` | spec'd |
@@ -122,6 +122,49 @@ Covered by `tests/unit/test_services_repair_renamed_vacuum.py`. Two targets carr
 - **Call-data resolution + job-finished payload** (`_common`) — `resolved_call_data`
   map-id defaulting (incl. the no-active-map pass-through), and
   `job_finished_event_payload` built from a `finalize_result`-wrapped result.
+
+### `snapshots.py` — 84.81% → 100% (`SNP-4`, `SNP-6`–`SNP-8`, 2026-11-08)
+
+Its twelve uncovered units were **two whole behaviours**, not a scattered tail: both
+READ handlers' unmanaged arms, and `_handle_set_vacuum_capability` in its entirety
+including its registered delegator. The manager method behind that handler is well
+covered by `test_user_capability.py`; the **service** that reaches it had no test at
+all — the forgotten-sibling shape again.
+
+| id | what it holds |
+|---|---|
+| `SNP-4` | both reads answer empty-**with-a-reason** for an unmanaged vacuum, and mint no record |
+| `SNP-6` | the WRITE **refuses** with `ServiceValidationError` instead |
+| `SNP-7` | the capability service records the user's answer **and persists it** |
+| `SNP-8` | an omitted `supported` **clears** the override rather than storing `False` |
+
+**`SNP-4` and `SNP-6` are one claim in two halves.** The split is a ruling
+(`INT62M7A`, 2026-08-18): a write refuses so HA shows a toast rather than a traceback,
+a read returns its empty shape carrying `reason` "because a read is how a card
+discovers state and turning discovery into an error trades a blank panel for a red
+toast". Ablation separates them: converting the write's refusal into a read-style
+answer — the plausible "make it consistent" edit — reddens `SNP-6` **and leaves
+`SNP-4` green**, which is what shows the two tests establish a split rather than a
+preference.
+
+**`SNP-8` is the one with real user consequence.** The schema says absent means clear
+— "a user who answers wrongly must not be stuck with it" — and the handler passes
+`data.get("supported")`, so absent arrives as `None`. Defaulting that to `False` would
+pin the wrong answer permanently, which is the exact failure the feature exists to
+undo. The test sets the override first, because "no override present" is also what a
+service that never stored anything produces.
+
+**`SNP-7` pins the save with a wrapping spy, and had to.** Asserting on `manager.data`
+cannot see a missing `async_save` — the handler mutates the dict and *then* persists,
+so the read-back passes either way. Measured: dropping the save reddened nothing until
+the spy was added, and an earlier draft of that docstring claimed otherwise. The spy
+`wraps` the real method, so the save still happens.
+
+Two things about the existing ids, both left alone rather than changed in passing:
+`SNP-5` was already taken, which is why `SNP-4` carries both reads as parametrize rows;
+and `SNP-5b` — the third read's equivalent — is **named** `refuses_an_unmanaged_vacuum`
+while its body asserts the service *answers*, and it checks only `isinstance(result,
+dict)`, so a bare `{}` would satisfy it.
 
 ### `setup.py` — 83.74% → 94.46% (`SVS-11`–`SVS-20`, 2026-11-08)
 
@@ -232,3 +275,9 @@ Module coverage: `queue.py` 77% (see above), `setup.py` 94%,
 `access_graph.py` 88%, `adapter_config.py` 96%, `_common.py` 96%,
 `errors.py` 95%, `rooms.py` 98%; `dock.py`, `room_profiles.py`,
 `maintenance.py`, and `snapshots.py` are at 100%.
+
+> ⚠ **This list claimed `snapshots.py` was at 100% while the Coverage map above said
+> 85%** — the two halves of this document contradicted each other, and the prose half
+> was the wrong one. It is 100% as of 2026-11-08 (`SNP-4`, `SNP-6`–`SNP-8`), so the
+> sentence is now true, but it was not when it was written. A figure that appears in
+> two places in one file is a figure that will disagree with itself; prefer the table.
