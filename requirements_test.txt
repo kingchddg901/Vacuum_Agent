@@ -3,6 +3,20 @@ pytest-asyncio>=1.3
 pytest-cov
 pytest-homeassistant-custom-component>=0.13.332
 
+# pytest-xdist is a LOCAL ACCELERATOR, not part of the gate. CI runs `pytest
+# tests` with no `-n`, and the pre-push gate must match CI exactly -- xdist
+# redistributes tests across processes, which changes order and grouping, and a
+# test can pass in parallel BECAUSE it no longer inherits state it was silently
+# depending on. That is a false green, the dangerous direction. This suite has
+# form: test_onboarding_manager.py had a real order-dependence on leaked
+# adapter-registry state (fixed 2026-11-08), and _GENERATION/_INFLIGHT in
+# rooms/source_refresh.py have no autouse reset.
+#
+# Use `-n auto --dist loadfile` for the inner loop (ablation sweeps, iteration):
+# loadfile keeps each file's tests in ONE worker, so intra-file order survives.
+# Never `--dist load`, which splits per test.
+pytest-xdist>=3.6
+
 # Image-processing stack used by the mapping segmentor pipeline
 # (segment_primitives transforms, mask_edge_band, estimate_alignment, and the
 # eufy_cv segmentor). numpy arrives transitively via Home Assistant core, but

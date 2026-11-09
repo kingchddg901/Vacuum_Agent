@@ -332,6 +332,34 @@ before any test started?". It is scoped honestly: in a full run its sibling stil
 warms the threads, so the guard bites in precisely the subset where the defect is
 reachable — verified by ablation in both scopes.
 
+## 17. `pytest-xdist` is a local accelerator, never the gate — and the run that proved it
+
+`pytest-xdist` is in `requirements_test.txt` and **CI does not use it**: the Tests job runs `pytest tests` with no `-n`. The pre-push gate must match CI exactly, because the gate's whole job is to PREDICT CI.
+
+**The measurement, 2026-11-09**, three full-suite runs on one tree:
+
+| run | wall | outcome |
+|---|---|---|
+| serial | 510s | 5785 passed |
+| `-n auto --dist loadfile` | 140s | 5785 passed — **3.6x faster, agrees** |
+| `-n auto --dist loadfile` again | 142s | **5783 passed, 2 failed** |
+
+Same command, same tree, two different answers. **The third run is the one that found it** — a serial-vs-parallel comparison alone would have declared equivalence, because the first parallel run agreed. One agreeing pair tells you less than it looks: worker assignment varies, so parallel must be checked against ITSELF as well as against serial.
+
+The two failures were `test_receipts_concurrency.py`'s `[RC-X]` pair. **What is bounded about them, measured:**
+
+- serial, that file alone: **5/5 passes** in 1.16s;
+- `tests/unit` under `-n auto --dist loadfile`: **4/4 attempts clean**, 2427 passed each;
+- only a FULL-SUITE parallel run has produced it.
+
+So the trigger is not intrinsic to those tests — it needs files from OUTSIDE `tests/unit` sharing a worker. Both tests assert `len(recs) == 14` against a `dump` fixture that captures the whole **package logger**, so a stray record from a neighbour (or a leaked task still running in that worker) breaks the count. `--dist loadfile` keeps each FILE in one worker but not each DIRECTORY, and which files share a worker varies run to run.
+
+⚠ **A mechanism was asserted before it was measured, and it was wrong.** The first reading was "timing-dependent: under twelve competing workers the `asyncio.sleep(0)` yields stop alternating". The serial 5/5 pass is equally consistent with neighbour contamination, so it discriminated NOTHING — the same error as comparing two INPUTS and calling it an ablation. The failure text would separate them (`len(recs)` too high => contamination; the interleave assertion => ordering; `facts[0].startswith("vacuum.")` => a receipt missing the vacuum, which is `[RC-X2]` doing its job and wanting a correlation id). **That text has not been captured**, so the mechanism is still open.
+
+**Where it is safe.** An ablation sweep runs ONE test file, which cannot produce cross-directory worker sharing — so `-n auto --dist loadfile` is safe for the inner loop, which is where it was wanted. Never `--dist load`, which splits per TEST and would break intra-file order (this suite has form: §15).
+
+**And it is not where the time goes.** Measured the same day: all 80 ablation cases across five files cost **9.8 min total**, while ONE full-suite run costs **9.3 min** — six of those in a session is ~56 min. Thinning the ablations was proposed as the speedup and it targets ~15% of the compute while giving up the harness's detection of UNPREDICTED RED, which caught a false classification that was about to be committed (`A9`: a guard declared SUBSUMED that a pre-existing test actually pins). **Batch the corrections and run ONE gate; do not thin the sweeps.**
+
 ## 11. Fire-and-forget executor file writes — drain, clean-slate, and watch for read-modify-write races
 
 `test_dock_drift_log` cost a red CI run after a clean local pass. It's the
