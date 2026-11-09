@@ -342,6 +342,35 @@ her yielded 14, not her 6. Her absence is the protection, not an omission.
 
 ---
 
+### `RNFT127G` — a persisted bucket is validated by ISINSTANCE, not truthiness · **3 copies**
+
+`x or {}` substitutes a dict for a **falsy** value and passes a **truthy non-dict**
+straight through to `.get`. These buckets come back from `.storage`, so their shape is
+whatever any past version wrote — not whatever the current writer produces.
+
+| Copy | Levels checked | State before 2026-11-09 |
+|---|---|---|
+| `battery/sensors.py::_bucket_means` (primary) | mapping **and** each bucket | correct |
+| `battery/sensors.py::LastJobMetricSensor.extra_state_attributes` | mapping **and** bucket | **both `or {}`** |
+| `core/battery_aggregates_migration.py::plan_battery_aggregates_migration` | bucket only | **`or {}`** |
+
+The planner needs only the inner level: `_stale_buckets` already declines a non-dict
+`job_aggregates` and `if not stale` skips the vacuum before the read. The sensor needs
+both, because `_record()` hands back the persisted record with nothing in between. That
+divergence is why this is a set and not a helper.
+
+**Two of the three were wrong, and one of those sat 100 lines above the correct copy in
+the same file.** The sensor property raised `AttributeError` inside
+`extra_state_attributes`, taking the whole attribute set down, while `_bucket_means` —
+reading the `by_*` buckets three lines later — declined the identical shape. The planner
+raised on any store holding a corrupt `all_jobs` plus one stale sub-bucket, and
+`_is_stale_bucket` twenty lines earlier opens with the very `isinstance` check the read
+was missing: the shape was anticipated and then dereferenced anyway.
+
+Found while writing a coverage test, not by a gate — the same way `RNF2RCXP`'s third
+copy was found. Pinned by `[BAM-16]` and `[BS-13]`; `[BAM-13]` documents why it routes
+around the planner read rather than through it.
+
 ## Finding sets: four ways to ask, and three axes to judge
 
 Derived 2026-08-18 and **tested before being written down** — five mixed candidates run

@@ -128,7 +128,17 @@ def plan_battery_aggregates_migration(*, data: dict[str, Any]) -> list[dict[str,
         stale = _stale_buckets(aggregates)
         if not stale:
             continue
-        all_jobs = (aggregates or {}).get("all_jobs") or {}
+        # REPLICA RNFT127G — the twin is `battery/sensors.py::_bucket_means`, which
+        # carries the reasoning. Only the INNER level needs checking here:
+        # `_stale_buckets` above already declines a non-dict `aggregates` and the
+        # vacuum is skipped by `if not stale` before this line runs, which the probe
+        # confirmed. Until 2026-11-09 this read `(aggregates or {}).get("all_jobs")
+        # or {}` and raised AttributeError on a stored `all_jobs` of any truthy
+        # non-dict — and `_is_stale_bucket` opens with the very isinstance check this
+        # line was missing, so the shape was anticipated twenty lines earlier and
+        # then dereferenced anyway.
+        all_jobs = (aggregates or {}).get("all_jobs")
+        all_jobs = all_jobs if isinstance(all_jobs, dict) else {}
         out.append({
             "vacuum_entity_id": vacuum_entity_id,
             "stale_buckets": stale,

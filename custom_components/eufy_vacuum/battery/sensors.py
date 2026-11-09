@@ -518,8 +518,18 @@ class LastJobMetricSensor(_BatteryBase):
     def extra_state_attributes(self) -> dict[str, Any]:
         rec = self._record()
         last = rec.get("last_job") or {}
-        agg = rec.get("job_aggregates", {}) or {}
-        all_jobs = agg.get("all_jobs", {}) or {}
+        # REPLICA RNFT127G — the twin is `_bucket_means` at the foot of this file,
+        # which carries the reasoning. BOTH levels are checked here because nothing
+        # upstream of this property checks either: `_record()` hands back the
+        # persisted battery record as-is. Until 2026-11-09 both lines read
+        # `x or {}`, so a stored `all_jobs` of any truthy non-dict raised
+        # AttributeError inside this property and took the whole attribute set with
+        # it — while `_bucket_means`, reading the `by_*` buckets three lines later,
+        # declined the same shape correctly.
+        agg = rec.get("job_aggregates")
+        agg = agg if isinstance(agg, dict) else {}
+        all_jobs = agg.get("all_jobs")
+        all_jobs = all_jobs if isinstance(all_jobs, dict) else {}
         # Map the sensor's stat to the matching aggregate field.
         mean_field = {
             "drain_per_min":  "drain_per_min_mean",
@@ -622,6 +632,21 @@ def _bucket_means(buckets: dict, mean_field: str | None) -> dict:
     Emits ``samples`` beside ``mean``: the number of jobs the mean was actually
     computed over. ``count`` stays, because it is a true and separate fact about the
     bucket — but it is no longer the only number next to a mean it does not describe.
+
+    anchor: RNFT127G  a persisted aggregate bucket is validated by ISINSTANCE, never
+    by truthiness — the replica set. Declared here because this is the copy that
+    already had it right: both levels are checked below, the mapping and each bucket.
+
+    ``x or {}`` is the shape that fails, and it fails SILENTLY RIGHT UP TO THE
+    DEREFERENCE: it substitutes a dict for a FALSY value (``None``, ``{}``, ``0``)
+    and passes a truthy non-dict straight through, so a persisted ``"corrupt"``
+    reaches ``.get`` and raises AttributeError. These buckets are read back from
+    `.storage`, so the shape is whatever any past version wrote, not whatever the
+    current writer produces.
+
+    MEASURED 2026-11-09: two of the three copies had it wrong, including the one
+    ONE HUNDRED LINES ABOVE THIS in the same file. A green suite cannot see a
+    missing copy, which is the whole argument of docs/dev/00c-replicas.md.
     """
     if not isinstance(buckets, dict) or not mean_field:
         return {}

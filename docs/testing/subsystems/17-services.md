@@ -44,7 +44,7 @@ Covered by `tests/unit/test_services_repair_renamed_vacuum.py`. Two targets carr
 
 | Source module | Stmts | Cov | Test file | Mocking |
 |---------------|------:|----:|-----------|-------|
-| `job_control.py` | 154 | 93% | `test_services_job_control_read.py`, `test_services_job_control_write.py` | **bare x10** |
+| `job_control.py` | 154 | 93% | `test_services_job_control_read.py`, `test_services_job_control_write.py` | **bare x12** |
 | `run_profiles.py` | 104 | 100% | `test_services_run_profiles.py` | **bare x1** |
 | `adapter_config.py` | 107 | 96% | `test_services_adapter_config.py` | clean |
 | `setup.py` | 219 | 84% | `test_services_errors_setup.py` | **bare x2** |

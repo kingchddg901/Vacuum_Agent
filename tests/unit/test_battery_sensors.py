@@ -12,9 +12,13 @@ Coverage targets
 [BS-7]  LastJobMetricSensor: native + aggregate attributes (all_jobs/by-bucket).
 [BS-8]  MidJobRechargeRateSensor: native + sample-count attributes.
 [BS-9]  Empty record → native_value None across sensors.
-[BS-10] _bucket_means projects count+mean; non-dict → {}.
+[BS-10] _bucket_means projects count+mean; a non-dict mapping AND a non-dict member
+        bucket are both declined — the member half was untested until 2026-11-09.
 [BS-11] unique_id / suggested_object_id derive from vacuum + suffix.
 [BS-12] _on_manager_update schedules a threadsafe state write on match; mismatch returns early.
+[BS-13] LastJobMetricSensor: a corrupt `job_aggregates` or `all_jobs` degrades the
+        mean/count pair to None instead of raising inside the property. The
+        forgotten sibling of _bucket_means' own isinstance checks ([BS-10]). RNFT127G.
 """
 
 from __future__ import annotations
@@ -308,6 +312,26 @@ def test_bucket_means():
     assert _bucket_means("nope", "drain_per_min_mean") == {}
     assert _bucket_means({"x": {}}, None) == {}
 
+    # ...and a non-dict MEMBER inside a valid mapping is SKIPPED, not dereferenced.
+    # HALF THIS GUARD WAS ASSERTED BY ABSENCE until 2026-11-09: the line above pins the
+    # MAPPING level, and ablating the per-member `if not isinstance(b, dict): continue`
+    # reddened NOTHING in the suite. Found by sweeping every copy of RNFT127G rather
+    # than by a gate -- and this is the copy the register names as the one that already
+    # had it right, so "correct" meant correct in the code and untested in half.
+    # The junk member comes FIRST so `continue` is distinguishable from `break`, and a
+    # real member follows so the expected value is not the empty fallback.
+    mixed = _bucket_means(
+        {
+            "junk": "not a dict",
+            "vacuum": {"count": 2, "drain_per_min_mean": 0.4, "samples_duration": 2},
+        },
+        "drain_per_min_mean",
+    )
+    assert mixed == {"vacuum": {"count": 2, "mean": 0.4, "samples": 2}}, (
+        "a corrupt member bucket either crashed the projection or took the healthy "
+        "sibling after it down with it"
+    )
+
 
 def test_unique_and_object_id():
     """[BS-11] EP-6: _attr_suggested_object_id is no longer set (matches every
@@ -347,3 +371,50 @@ async def test_on_manager_update_dispatches_state_write(hass):
     s._on_manager_update("vacuum.other")   # mismatch → early return
     await hass.async_block_till_done()
     assert writes == ["write"], "another vacuum's update wrote this entity's state"
+
+
+def test_bs13_corrupt_aggregates_do_not_break_the_attribute_set():
+    """[BS-13] `LastJobMetricSensor` reads both aggregate levels by ISINSTANCE.
+
+    The twin of [BAM-16], and the worse of the two: this is a SENSOR PROPERTY, so the
+    AttributeError surfaced as the entity's whole attribute set disappearing with an
+    error in the log, not as a one-off migration failure.
+
+    IT WAS THE FORGOTTEN SIBLING OF A CORRECT COPY IN THIS SAME FILE. `_bucket_means`,
+    about a hundred lines below, declines a non-dict mapping AND a non-dict member
+    bucket. The `all_jobs` read three lines above its call site used `x or {}` at both
+    levels, which substitutes a dict for a FALSY value and passes a truthy non-dict
+    through to `.get`. Recorded as RNFT127G.
+
+    A FIRST DRAFT OF THIS DOCSTRING SAID `[BS-10]` "has always pinned that", and the
+    ablation sweep measured it FALSE: only the MAPPING half was pinned, and the
+    per-member check reddened nothing until [BS-10] gained a case for it in this same
+    commit. Worth leaving on the record, because a confident sentence about what
+    another test covers is exactly the kind of claim that reads as verification.
+
+    BOTH LEVELS ARE DRIVEN because nothing upstream of this property checks either:
+    `_record()` returns the persisted battery record as-is.
+
+    `last_job` IS DELIBERATELY INTACT IN EVERY CASE. It is the source of ten of the
+    twelve attributes, so asserting those survive is what distinguishes "the aggregate
+    read degraded gracefully" from "the property returned a mostly-empty dict". The
+    mean/count pair degrading to None is the narrow claim; the rest of the set carrying
+    on is what makes it a graceful degradation rather than a silent loss.
+    """
+    last = {"job_id": "j9", "drain_per_min": 0.5, "duration_min": 12.0}
+
+    for aggregates in ("junk", ["junk"], {"all_jobs": "corrupt"},
+                       {"all_jobs": ["corrupt"]}):
+        s = LastJobMetricSensor(
+            manager=_mgr({"last_job": last, "job_aggregates": aggregates}),
+            vacuum_entity_id=_VAC, stat_key="drain_per_min",
+            translation_key="t", unique_suffix="u", unit="%/min",
+        )
+        attrs = s.extra_state_attributes
+
+        assert attrs["all_jobs_mean"] is None, f"aggregates={aggregates!r}"
+        assert attrs["all_jobs_count"] is None
+        # The ten attributes that come from `last_job` are untouched.
+        assert attrs["job_id"] == "j9"
+        assert attrs["duration_min"] == 12.0
+        assert s.native_value == pytest.approx(0.5)

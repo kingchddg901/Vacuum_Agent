@@ -34,6 +34,9 @@ Coverage targets
         behind them.
 [BAM-15] a HEALTHY sub-bucket is not reported. [BAM-5] cannot see this: every
         sub-bucket in its fixture is stale, so an always-True detector passes it.
+[BAM-16] a corrupt `all_jobs` is declined, not dereferenced — the planner used to
+        raise AttributeError on it while `_is_stale_bucket` twenty lines earlier
+        already carried the isinstance check it was missing. RNFT127G.
 [BAM-10] a missing subsystem DEFERS and does NOT latch. Latching there would burn the
         one shot on a vacuum whose numbers are about to collapse.
 [BAM-11] one vacuum failing does not abort the rest, and does not latch.
@@ -52,6 +55,7 @@ from custom_components.eufy_vacuum.const import DATA_BATTERY, DATA_LEARNING, DOM
 from custom_components.eufy_vacuum.core.battery_aggregates_migration import (
     BACKUP_FIELD,
     MIGRATION_KEY,
+    _MEAN_FIELDS,
     migrate_battery_aggregates,
     plan_battery_aggregates_migration,
 )
@@ -354,14 +358,13 @@ def test_bam13_a_corrupt_bucket_shape_does_not_stop_the_scan():
     rather than raise, and the stale sibling after it must still be found -- which is
     what distinguishes the guard returning False from the scan aborting.
 
-    IT IS A SUB-BUCKET AND NOT `all_jobs` FOR A REASON, and the reason is a live
-    defect this test found. With `all_jobs` set to a string, `_is_stale_bucket`
-    correctly declines it, and then the planner dereferences it anyway:
-    `all_jobs = (aggregates or {}).get("all_jobs") or {}` catches a FALSY bucket but
-    not a truthy non-dict, so `all_jobs.get("count")` raises AttributeError on a store
-    holding a corrupt `all_jobs` plus any stale sub-bucket. Reported separately rather
-    than pinned here -- a test asserting the crash would freeze it as intended
-    behaviour. The sub-bucket route exercises the same guard without depending on it.
+    IT IS A SUB-BUCKET AND NOT `all_jobs` FOR A REASON. When this test was written the
+    planner still crashed on a non-dict `all_jobs`, so routing through a sub-bucket
+    exercised the same guard without depending on the bug -- a test asserting the crash
+    would have frozen it as intended behaviour. The defect is FIXED (RNFT127G) and
+    pinned by [BAM-16]; this route is kept because it is the one that reaches the guard
+    through the sub-bucket loop rather than through the `all_jobs` read, so the two
+    tests enter `_is_stale_bucket` by different doors.
 
     SECOND: a denominator that is not a number. `float("abc")` raises ValueError, and
     the pair it belongs to is the FIRST entry of `_PARTNERED`
@@ -441,3 +444,52 @@ def test_bam15_a_healthy_sub_bucket_is_not_reported_as_stale():
     assert plan[0]["stale_buckets"] == ["all_jobs", "by_clean_mode[vacuum]"], (
         "an empty post-C17 bucket was reported as accumulated under the old rule"
     )
+
+
+def test_bam16_a_corrupt_all_jobs_bucket_does_not_crash_the_planner():
+    """[BAM-16] The planner reads `all_jobs` by ISINSTANCE, not truthiness.
+
+    THIS IS THE DEFECT [BAM-13] ROUTES AROUND, now fixed and pinned. `_is_stale_bucket`
+    opens with `if not isinstance(bucket, dict): return False`, so a corrupt bucket was
+    anticipated and correctly declined -- and then the planner dereferenced the same
+    value twenty lines later via `(aggregates or {}).get("all_jobs") or {}`. `or {}`
+    substitutes a dict for a FALSY value and passes a truthy non-dict straight through,
+    so `all_jobs.get("count")` raised AttributeError.
+
+    REACHABLE FROM DISK, which is why it is worth a test rather than a pragma: this is
+    the battery store read back from `.storage` by a startup migration, so an
+    `all_jobs` written by any past version arrives here. A stale SIBLING bucket is
+    required to reach the line at all -- `if not stale: continue` skips the vacuum
+    otherwise -- so the fixture carries one.
+
+    THE ASSERTIONS SAY WHAT SURVIVES, not merely that nothing raised. The corrupt
+    bucket is declined (absent from `stale_buckets`), the genuinely stale sub-bucket is
+    still reported, and `count_before` degrades to None instead of to a value read off
+    a string. A bare "does not raise" would pass against a planner that dropped the
+    vacuum entirely.
+
+    Both truthy non-dict shapes are driven, because the failure is about TYPE and a str
+    is the one a hand-edited store produces while a list is what a half-written array
+    leaves behind.
+    """
+    for corrupt in ("corrupt", ["corrupt"], 1.0):
+        data = _data()
+        aggs = data["battery"]["vacuums"]["vacuum.alfred"]["job_aggregates"]
+        aggs["all_jobs"] = corrupt
+
+        plan = plan_battery_aggregates_migration(data=data)
+
+        assert [p["vacuum_entity_id"] for p in plan] == ["vacuum.alfred"], (
+            f"a corrupt all_jobs ({corrupt!r}) lost the vacuum its stale sub-bucket "
+            "still needs repairing"
+        )
+        assert plan[0]["stale_buckets"] == ["by_clean_mode[vacuum]"]
+        assert plan[0]["count_before"] is None
+        assert plan[0]["means_before"] == {k: None for k in _MEAN_FIELDS}
+
+    # The FALSY shapes `or {}` already handled must keep behaving identically.
+    for falsy in (None, {}, 0):
+        data = _data()
+        data["battery"]["vacuums"]["vacuum.alfred"]["job_aggregates"]["all_jobs"] = falsy
+        plan = plan_battery_aggregates_migration(data=data)
+        assert plan[0]["count_before"] is None
