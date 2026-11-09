@@ -28,7 +28,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `sensor/map_overlays.py` | 57 | 99% | `test_sensor_map_overlays.py`, `test_map_overlays_sensor.py` (unit) | clean |
 | `button.py` | 143 | 88% | `test_button_entity.py` | **bare x1** |
 | `number.py` | 133 | 96% | `test_number_entity.py` | clean |
-| `switch.py` | 95 | 84% | `test_switch_entity.py` | clean |
+| `switch.py` | 95 | 98% | `test_switch_entity.py` | clean |
 | `binary_sensor.py` | 65 | 96% | `test_platform_files.py` | **bare x8** |
 | `room_entities.py` | 97 | 98% | `test_platform_files.py` | **bare x8** |
 | `config_flow.py` | 90 | 98% | `test_config_flow.py` | clean |
@@ -198,13 +198,65 @@ missing counterpart to the sensor platform's SN-4 rename fix). Lines 164 and
 entities, so exercising them needs a **full entity-platform registration**
 harness (a registered entity on a real platform) rather than the recording
 `async_add_entities` the current tests use; only white-box spies are otherwise
-possible. `number.py` (98%, missing 258-259) has a small residual gap;
-`switch.py` and `entity_helpers.py` now have every *statement* covered (0
-missing lines) — the `_on_rooms_updated` add-new-entities path and the
-floor-guidance map previously described here are exercised now — but each
-still carries one partial branch pair (`switch.py` 83->85 and 86->81;
-`entity_helpers.py` 162->167) that keeps their combined Cov column at 98% in
-the table above, not 100%. Display-only, low severity.
+possible. `number.py` (98%, missing 258-259) has a small residual gap.
+
+### `switch.py` — 84% → 98.37% (2026-11-08), and the entry this corrects
+
+> ⚠ This section said `switch.py` "now has every *statement* covered (0 missing
+> lines)" and named one partial branch pair, `83->85 and 86->81`. It had **fourteen
+> missing lines** and a different pair of arms. The whole gap was one thing, and the
+> count being wrong is what hid it: `EufyVacuumCleanOrderOverrideSwitch` was named
+> NOWHERE in the suite and its creation gate never fired either way, so the class and
+> both arms that build it were dead to the tests.
+
+That matters more than the percentage, because this switch is the consent surface for
+an action its own docstring flags twice: pressing **Apply edits a persistent,
+map-level setting in the user's vendor app**, and toggling off must not silently clear
+it — "that would destroy a sequence the USER set in their app". `SWO-*` in
+`test_switch_entity.py` (the room switch owns `SW-*`; check both before minting an id):
+
+| id | what it holds |
+|---|---|
+| `SWO-1` | the switch exists only where the adapter+model declares the WRITE half — `can_write` is MODEL-gated, so a Qrevo/B01 must gain no entity rather than one that does nothing |
+| `SWO-2` | a manager with no `clean_order` grows no switch, **and does not take every room switch down with it** |
+| `SWO-3` | the card finds it by `role` without its entity_id |
+| `SWO-4` / `SWO-4b` | `is_on` reads the manager both ways, and fails CLOSED when the subsystem disappears under a live entity |
+| `SWO-5` | toggling stores intent and reaches **no device** |
+| `SWO-6` | the stale sweep removes every stale switch, not just the first |
+
+**`SWO-3` asserts an ambiguity, not just an attribute.** The entity_id is not
+guaranteed: with `_attr_has_entity_name` plus a `translation_key`, HA composes the id
+from the device and entity names, and the name is unresolvable when the platform adds
+the entity — observed live 2026-08-24 as a bare `switch.ivy`, and an entity_id is
+sticky. So the card scans states. `vacuum_entity_id` alone cannot identify this switch
+because every per-room switch carries it too, so the test proves that directly:
+filtering the real platform's output by that attribute yields more than one entity,
+filtering by `role` yields exactly one. Name-matching is not an alternative — the name
+is translated, so a Chinese install reads `覆盖清扫顺序`.
+
+**`SWO-5` is the safety claim.** `set_override_enabled` must be called with the right
+vacuum and flag, **and no device-facing call may be recorded at all**. The stub carries
+`async_apply`, `async_clear` and `write` so such a call is recorded and nameable rather
+than raising an AttributeError somebody has to read a traceback to understand. The
+ablation is the plausible tidy-up — making toggle-off symmetrical with Apply — and it
+reddens `SWO-5` alone.
+
+**Two arms stay, both classified, so 98.37% is the honest ceiling here.** The
+`if stale is not None:` arm is UNREACHABLE: the `uid` comes from
+`list(entity_map.items())` two statements earlier in the same synchronous callback, so
+the pop cannot miss. The `if entity_id:` arm is **SUBSUMED** —
+`er.EntityRegistry.async_remove` opens with `if entity_id not in self.entities:
+return`, carrying its own comment that removing a non-existent entity is *allowed*
+because "there will be races during cleanup"; measured, `async_remove(None)` raises
+nothing and leaves the registry size unchanged. That one was found the hard way:
+ablating the guard reddened nothing, which sent me to read HA's source rather than
+trust the test's claimed red input.
+
+**The swallowing layer is why `SWO-6` asserts a log.**
+`core/manager.py::_notify_rooms_updated` wraps each room-update callback in a blanket
+`except` that logs "Room update callback failed" and continues, so anything raising in
+there produces no test failure by itself — two drafts of `SWO-6` passed while the
+callback died on every run, on two different unwired attributes.
 
 **Defensive guards and `# pragma: no cover` branches (intentional).** The rest
 is defensive and deliberately uncovered: the wrong-map / wrong-vacuum early
