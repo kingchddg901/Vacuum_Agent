@@ -863,6 +863,76 @@ filter weakened to a type check would report it as a clean order continuously.
 
 ---
 
+### `diagnostics.py` — 89.32% → 95.48% (2026-11-09)
+
+**Two functions held 23 of the 36 uncovered statements, and both hid the same
+way: an early return that every existing test takes, so the guard was covered and
+the work was not.**
+
+- `_device_entity_census` returned `reason: vacuum_entity_not_in_registry` in every
+  test, because none of them put the vacuum IN the registry. The census that exists
+  to tell "the device has no such entity" from "we looked in the wrong place"
+  (`DIAG-1`, issues #48 and #49) had therefore never been POPULATED.
+- `_pattern_resolution` returned `{}` because no test declared
+  `live_map_image_entity_pattern`.
+
+> ⚠ **`DIAG-14` IS NAMED FOR A DISTINCTION IT DOES NOT ASSERT**, and that is why
+> this sat uncovered through two campaigns. It carries four `isinstance` checks —
+> shape, not vocabulary — and its only substantive assertions sit under
+> `if summary["likely_naming_mismatch"]:`, which is False in its own fixture. A
+> conditional assertion that never fires. It is kept as the shape-and-degradation
+> test it really is, and its docstring now says so; `DIAG-24` produces the
+> populated census and asserts the distinction unconditionally.
+
+| id | what it holds |
+|---|---|
+| `DIAG-24` | live:ENT-1 / #48 — a POPULATED census beside failed resolutions IS the naming mismatch; both sweep scopes are reported APART (live:ENT-5, #49: the device search found nothing while the config-entry search rescued battery on the same box) |
+| `DIAG-25` | live:ENT-9 — `translation_key` and `state_class`, the two fields that separate `cleaning_area` from `total_cleaning_area` when `entity_id`, `platform` and `disabled` cannot; plus `disabled`, the OTHER silent cause |
+| `DIAG-26` | an empty sweep NAMES itself rather than reading as a device that exposes nothing |
+| `DIAG-27` | live:ENT-2 — `derived_exists` False beside `override_exists` True, which is "exactly what hid this for so long" |
+| `DIAG-28` | an unformattable adapter pattern costs its own block, not the dump |
+| `DIAG-29` | the on-device decode validator is wired in, and ONLY for the memory backend that can answer it |
+| `DIAG-30` | ISSUE #55 — the last room-source refresh outcome is READ, and its absence means "never asked" rather than "nothing wrong" |
+
+**`DIAG-29`/`DIAG-30` are CALL-SITE tests for engines covered the same day**, which
+is `feedback_audit_callsite_reachability` pointed at my own afternoon:
+`geometry_drift` went to 98.03% in `roborock_raw_map.py` and `source_refresh.py` to
+100%, while the dump's wiring of BOTH stayed dark. A correct engine with an
+untested call site passes every audit. They also happen to be what cleared 95% —
+written because they were right, not to reach a number.
+
+#### Three of my own tests did not test what they said
+
+All three were caught by running or ablating, none by reading:
+
+- `DIAG-27` assumed `_FakeManager` exposes `.data`. It does not — it is a pure stub,
+  so `_pattern_resolution`'s read falls into its own pragma'd `except` and
+  `override` is ALWAYS None. That is part of why the block was uncovered at all.
+  Fixed by giving the fake a `data` attribute in the test rather than widening a
+  fixture fifty other tests share.
+- `DIAG-26` was called `a_vacuum_with_no_siblings_says_so` while its own docstring
+  explained why it could not produce that case, then asserted something weaker —
+  leaving `no_entities_on_device_or_config_entry` uncovered. The same shape as
+  `DIAG-14` above, written an hour after flagging it. The case IS reachable: a
+  registry entry with NEITHER a device NOR a config entry empties both scopes,
+  because the vacuum otherwise counts as its own sibling.
+- `DIAG-24`'s sort assertion was an IDENTITY. With two entities the sweep's natural
+  order is the exact reverse of sorted order, so `ids == sorted(ids)` holds whether
+  the census sorts or REVERSES — measured DEAD. A third companion breaks the
+  coincidence. Fourth identity of the session, same family as `BE-17`'s
+  `_emitted = None`, `% 360` asserted with `270`, and a map label asserted with a
+  value equal to the fallback. **The cure is always the input, never the assertion.**
+
+**9 ablations, 9 at the predicted verdict**, one declared SUBSUMED and confirmed:
+`DIAG-24` asserts `config_entry_entity_count` is an `int` rather than a value, and
+in its fixture everything is on the device, so collapsing that scope to 0 changes
+nothing. Recorded rather than discovered.
+
+**The remaining 22 units are a scattered tail** — twelve one-line alternate
+branches across five functions in a 1322-line dump builder, no block larger than
+two lines, plus two partial arcs. 95.48% (465/487) is where the behaviour-shaped
+work ends; the rest would be tests written to a number.
+
 ## Coverage map
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |

@@ -891,7 +891,17 @@ async def test_device_entity_census_distinguishes_the_two_failure_modes(hass):
     reporter for entity ids the dump could have carried.
 
     The census plus the summary make the two visibly different in the dump
-    itself. This test pins the DISTINCTION, not the wording.
+    itself.
+
+    ⚠ WHAT THIS TEST ACTUALLY PINS IS NARROWER THAN "the DISTINCTION", which it
+    used to claim. Its vacuum is not in the entity registry, so the census returns
+    `reason: vacuum_entity_not_in_registry` and the body that does the
+    distinguishing never runs -- 23 statements of it. The four `isinstance` checks
+    below are SHAPE, not vocabulary, and the only substantive assertions sit under
+    `if summary["likely_naming_mismatch"]:`, which is False here: a conditional
+    assertion that never fires. Kept as the shape-and-degradation test it really
+    is; [DIAG-24] produces the populated census and asserts the distinction
+    unconditionally.
     """
     manager = _make_manager()
     hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
@@ -1438,3 +1448,421 @@ async def test_diag22b_a_brand_that_records_nothing_gets_no_block(hass):
     diag = await async_get_config_entry_diagnostics(hass, entry)
 
     assert "dock_detection" not in diag["vacuums"][0]
+
+
+# ---------------------------------------------------------------------------
+# [DIAG-24] - [DIAG-28]  the two bodies that no test had ever entered.
+#
+# Both are guarded by an early return that every existing test takes, which is why
+# 23 of this module's 36 uncovered statements sit in just two functions. The
+# guards were covered; the work was not.
+# ---------------------------------------------------------------------------
+
+def _vacuum_on_device(hass, *, companions=(), device=True, config_entry=True):
+    """Put VACUUM in the entity registry, optionally on a device with companions.
+
+    `device=False` is the issue #49 shape: a vacuum on the CONFIG ENTRY with no
+    device at all, which is the install the census used to come back empty on.
+    """
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
+
+    entry = MockConfigEntry(domain=DOMAIN, entry_id="diag24")
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+
+    # BOTH scopes off is the only way to an EMPTY sweep: the vacuum counts as its
+    # own sibling, so a registered vacuum on either scope finds at least one.
+    device_id = None
+    if device:
+        device_id = dr.async_get(hass).async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, "alfred-device")},
+        ).id
+
+    registry.async_get_or_create(
+        "vacuum", DOMAIN, "alfred_vac", suggested_object_id="alfred",
+        config_entry=entry if config_entry else None, device_id=device_id,
+    )
+    for kwargs in companions:
+        registry.async_get_or_create(
+            kwargs.pop("domain", "sensor"), DOMAIN, kwargs.pop("unique_id"),
+            config_entry=entry, device_id=device_id, **kwargs,
+        )
+    return registry
+
+
+async def test_diag24_a_populated_census_is_the_naming_mismatch(hass):
+    """[DIAG-24] live:ENT-1 / issue #48 - a POPULATED census beside failed
+    resolutions IS the naming mismatch, and an empty one is a reduced device.
+
+    This is the case [DIAG-14] names and never produces. Ten roles at exists=false
+    has two causes that print identically, and answering "which?" cost a
+    round-trip to the reporter for entity ids the dump could have carried. The
+    census is what makes them different IN THE DUMP -- so it has to actually list
+    something.
+
+    BOTH SCOPES ARE ASSERTED SEPARATELY (live:ENT-5). The census was device-scoped
+    only and bailed when the vacuum had no device, which made it empty on exactly
+    the installs it exists to explain: issue #49's device search found nothing
+    while the config-entry search rescued battery on the same box. A blank census
+    on a naming problem is worse than none, because it reads as "this device
+    exposes nothing".
+
+    RED: make the sweep device-scoped again and `config_entry_entity_count` goes
+    to 0 with the companion missing from `entities`; drop the two counts and the
+    dump can no longer say WHICH scope found what.
+    """
+    # THREE companions, not one, and the reason is measured: with only
+    # `sensor.alfred_battery` beside the vacuum, the sweep's natural order is the
+    # EXACT REVERSE of sorted order, so `ids == sorted(ids)` holds whether the
+    # census sorts or reverses. A two-element list cannot see that mutation.
+    _vacuum_on_device(hass, companions=[
+        {"unique_id": "uid_batt", "suggested_object_id": "alfred_battery"},
+        {"unique_id": "uid_zzz", "suggested_object_id": "alfred_zzz_last"},
+        {"unique_id": "uid_aaa", "suggested_object_id": "alfred_aaa_first"},
+    ])
+
+    manager = _make_manager()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    census = diag["vacuums"][0]["device_entities"]
+
+    # The precondition that makes everything below meaningful: the early return
+    # every other test in this file takes was NOT taken.
+    assert "reason" not in census, census
+    assert census["device_id"], census
+
+    ids = [item["entity_id"] for item in census["entities"]]
+    assert VACUUM in ids and "sensor.alfred_battery" in ids, ids
+    assert census["entity_count"] == len(ids)
+    # The two scopes are reported APART, not summed.
+    assert census["device_entity_count"] >= 4, census
+    assert isinstance(census["config_entry_entity_count"], int)
+    # Sorted, so two dumps from one box diff cleanly. The registration order above
+    # is deliberately NOT sorted order, so this can see a reversal.
+    assert ids == sorted(ids), ids
+
+
+async def test_diag25_the_census_carries_what_separates_a_collision(hass):
+    """[DIAG-25] live:ENT-9 - `translation_key` and `state_class`, because nothing
+    else in the dump separates two real sensors that share a suffix.
+
+    `cleaning_area` and `total_cleaning_area` are both real, enabled sensors with
+    the same domain and a shared suffix: entity_id, `disabled` and `platform` do
+    not distinguish them. The two fields that do live in the registry and need no
+    state. Verified across three brands on the maintainer's own install --
+    robovac_mqtt sets state_class and no translation_key, Roborock the reverse,
+    Dreame sets translation_key on 39/39 sensors -- so a dump carrying only one of
+    the two would be blind to a brand.
+
+    THE TWO SENSORS HERE DIFFER ONLY IN THOSE FIELDS. That is the point: if the
+    census omitted either one, the dump would show two indistinguishable rows, and
+    the assertion below could not tell them apart either.
+
+    `disabled` IS ASSERTED ON THE SAME RUN, because it is the OTHER silent cause --
+    an entity in the registry with no state is indistinguishable, through
+    `hass.states.get`, from one that was never created.
+
+    RED: drop `translation_key` or `state_class` from the census dict and the two
+    rows become equal; drop `disabled` and the disabled companion reads as live.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    registry = _vacuum_on_device(hass, companions=[
+        {"unique_id": "uid_area", "suggested_object_id": "alfred_cleaning_area",
+         "original_device_class": None, "capabilities": {"state_class": "measurement"}},
+        {"unique_id": "uid_total", "suggested_object_id": "alfred_total_cleaning_area",
+         "translation_key": "total_cleaning_area"},
+    ])
+    registry.async_update_entity("sensor.alfred_total_cleaning_area",
+                                 disabled_by=er.RegistryEntryDisabler.USER)
+
+    manager = _make_manager()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    rows = {i["entity_id"]: i for i in diag["vacuums"][0]["device_entities"]["entities"]}
+
+    area = rows["sensor.alfred_cleaning_area"]
+    total = rows["sensor.alfred_total_cleaning_area"]
+
+    # Nothing a dump carried BEFORE these two fields separates them...
+    assert area["platform"] == total["platform"]
+    # ...and these two do.
+    assert area["state_class"] == "measurement", area
+    assert total["translation_key"] == "total_cleaning_area", total
+    assert (area["state_class"], area["translation_key"]) != (
+        total["state_class"], total["translation_key"]
+    ), "the census cannot tell a collision pair apart"
+
+    # The other silent cause, on the same run.
+    assert total["disabled"] is True, total
+    assert area["disabled"] is False, area
+
+
+async def test_diag26_a_vacuum_with_no_siblings_says_so(hass):
+    """[DIAG-26] The honest empty: a sweep that finds nothing says so, rather than
+    reporting a device that exposes nothing.
+
+    This is the OTHER half of [DIAG-24]'s claim -- "an empty one is a genuinely
+    reduced device" -- and without it the populated case could be satisfied by a
+    census that never reports an absence at all.
+
+    ⚠ THE VACUUM COUNTS AS ITS OWN SIBLING, which is what makes this case hard to
+    reach and is why an earlier draft of this test did not reach it: on either
+    scope a registered vacuum finds at least ONE entity, itself. The only input
+    that empties both scopes is a registry entry with NEITHER a device NOR a
+    config entry. That draft said so in this docstring and then asserted something
+    weaker, which left `no_entities_on_device_or_config_entry` uncovered -- a test
+    whose name promised more than its body.
+
+    RED: delete the `if not siblings` block and the census reports
+    `entity_count: 0` with an empty list, which reads as a reduced device rather
+    than as a sweep that found nothing.
+    """
+    from custom_components.eufy_vacuum.diagnostics import _device_entity_census
+
+    # Neither scope: no device, no config entry.
+    _vacuum_on_device(hass, device=False, config_entry=False)
+    census = _device_entity_census(hass, VACUUM)
+
+    # The early return was not taken -- this vacuum IS in the registry.
+    assert census.get("reason") == "no_entities_on_device_or_config_entry", census
+    assert census["device_entity_count"] == 0, census
+    assert census["config_entry_entity_count"] == 0, census
+    # The absence is NAMED, not implied by an empty list.
+    assert "entities" not in census, census
+
+
+async def test_diag27_a_working_override_beside_a_wrong_derivation(hass):
+    """[DIAG-27] live:ENT-2 - the combination that hid the derivation bug.
+
+    `_pattern_resolution` reports the DERIVATION's health separately from whether
+    the feature works, and its docstring names why: "a manual override (or the
+    ENT-2 device-sibling fallback) can make the live map work while the derived id
+    is still wrong, and that combination is exactly what hid this for so long".
+
+    SO THAT IS THE COMBINATION ASSERTED: `derived_exists` False beside
+    `override_exists` True. A test with both true, or both false, would not
+    reproduce the state the block exists to make visible -- and every test before
+    this one declared no pattern at all, so the whole body (20 lines) never ran.
+
+    THE OVERRIDE IS REDACTED, asserted here because `_redact` is applied to it and
+    to nothing else in the block; a dump that leaked a user's entity id verbatim
+    while redacting it elsewhere would be inconsistent in the direction that
+    matters.
+
+    RED: drop the `derived_exists` lookup and it reads True for an id that does not
+    exist; drop `override`/`override_exists` and the dump cannot say why the
+    feature works despite a wrong derivation.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import (
+        clear_registry,
+        register_adapter_config,
+    )
+
+    clear_registry()
+    register_adapter_config(VACUUM, {
+        "adapter_id": "rb", "source": "code",
+        "mapping": {
+            "live_map_image_entity_pattern": "image.{object_id}_map",
+        },
+    })
+
+    manager = _make_manager()
+    # ⚠ `_FakeManager` HAS NO `.data` -- it is a pure stub (`_caps`, `_maps`,
+    # `_rooms`, `_upkeep`, `_dashboard`). `_pattern_resolution` reads
+    # `manager.data.get("vacuums")` inside its own pragma'd `except`, so with the
+    # stock fixture the override is ALWAYS None -- which is part of why this block
+    # was never covered. Attach it here rather than widen a fixture every other
+    # test in this file shares.
+    manager.data = {"vacuums": {VACUUM: {
+        "live_map_image_entity": "image.upstairs_robot_map",
+    }}}
+    # The override points at an entity that EXISTS; the derived id does not.
+    hass.states.async_set("image.upstairs_robot_map", "idle")
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+    try:
+        diag = await async_get_config_entry_diagnostics(hass, entry)
+    finally:
+        clear_registry()
+
+    block = diag["vacuums"][0]["pattern_resolution"]["live_map_image"]
+    assert block["pattern"] == "image.{object_id}_map"
+    assert block["derived"] == "image.alfred_map", block
+    # THE COMBINATION: the feature works, the derivation is wrong.
+    assert block["derived_exists"] is False, block
+    assert block["override_exists"] is True, block
+    assert block["override"], block
+
+
+async def test_diag28_an_unformattable_pattern_is_dropped_not_raised(hass):
+    """[DIAG-28] A pattern the adapter wrote wrong costs its block, not the dump.
+
+    The derivation substitutes `{object_id}` and `{map_slug}`; any OTHER
+    placeholder raises `KeyError` out of `str.format`, and an adapter is free to
+    declare one by mistake. Diagnostics is reached for when things are already
+    broken, so a bad pattern must drop its own block and leave the rest readable.
+
+    THE CONTRAST IS ASSERTED IN THE SAME TEST: a well-formed pattern on the same
+    fixture DOES produce the block. Without it, `pattern_resolution == {}` is
+    equally true of a vacuum that declared no pattern at all -- an expectation the
+    fallback also produces.
+
+    RED: drop the `except (KeyError, IndexError, ValueError)` and the dump raises
+    instead of degrading.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import (
+        clear_registry,
+        register_adapter_config,
+    )
+
+    manager = _make_manager()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    # The unformattable one: `{floor}` is not a placeholder the derivation knows.
+    clear_registry()
+    register_adapter_config(VACUUM, {
+        "adapter_id": "rb", "source": "code",
+        "mapping": {"live_map_image_entity_pattern": "image.{object_id}_{floor}"},
+    })
+    try:
+        bad = await async_get_config_entry_diagnostics(hass, entry)
+    finally:
+        clear_registry()
+    assert bad["vacuums"][0]["pattern_resolution"] == {}, (
+        "an unformattable pattern took more than its own block"
+    )
+
+    # THE CONTRAST: a well-formed pattern on the same fixture does produce it.
+    clear_registry()
+    register_adapter_config(VACUUM, {
+        "adapter_id": "rb", "source": "code",
+        "mapping": {"live_map_image_entity_pattern": "image.{object_id}_map"},
+    })
+    try:
+        good = await async_get_config_entry_diagnostics(hass, entry)
+    finally:
+        clear_registry()
+    assert "live_map_image" in good["vacuums"][0]["pattern_resolution"], (
+        "the empty dict above is not a discriminator if a GOOD pattern is empty too"
+    )
+
+
+async def test_diag29_the_memory_backend_gets_the_drift_block(hass):
+    """[DIAG-29] The on-device decode validator is wired into the dump, and only
+    for the backend that can answer it.
+
+    `geometry_drift` overlays the vendor parser's per-room bboxes with the
+    raster-decoded ones: both come from the SAME segment layer, so aligned boxes
+    confirm the decode and a systematic delta is the calibration signal. Only the
+    roborock MEMORY backend carries the raw blob, so the block is gated on it.
+
+    THE CONTRAST IS THE TEST. "The key is present" is satisfied by a dump that
+    always adds it, which would invite a reader to interpret an empty drift report
+    on a brand that cannot produce one. So a non-memory backend must NOT carry it.
+
+    This is a CALL-SITE test, not an engine test: `geometry_drift` itself is
+    covered by `RRD-10`/`RRD-20` in tests/unit/test_roborock_raw_map.py. What was
+    untested is that the dump reaches it at all.
+
+    RED: drop the `backend == "memory"` gate and the storage case gains the key;
+    drop the two calls and the memory case loses it.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import (
+        clear_registry,
+        register_adapter_config,
+    )
+
+    manager = _make_manager()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    async def _dump(backend):
+        clear_registry()
+        register_adapter_config(VACUUM, {
+            "adapter_id": "rb", "source": "code",
+            "map_state_source": {"backend": backend},
+        })
+        try:
+            diag = await async_get_config_entry_diagnostics(hass, entry)
+        finally:
+            clear_registry()
+        return diag["vacuums"][0]
+
+    mem = await _dump("memory")
+    other = await _dump("storage")
+
+    # The gate fired: the validator ran for the backend that can answer it...
+    assert "roborock_geometry_drift" in mem, sorted(mem)
+    # ...and stayed out of the dump for the one that cannot, so an empty report is
+    # never shown for a brand with no raw blob to compare.
+    assert "roborock_geometry_drift" not in other, sorted(other)
+    # And it degraded rather than raising -- there is no live coordinator here.
+    assert "roborock_geometry_drift_error" not in mem, mem.get(
+        "roborock_geometry_drift_error")
+
+
+async def test_diag30_a_recorded_refresh_outcome_is_read_not_deduced(hass):
+    """[DIAG-30] ISSUE #55 - the dump carries the last room-source refresh outcome,
+    and its ABSENCE means "never asked" rather than "nothing wrong".
+
+    The incident is recorded at the call site: without this field the self-check
+    had to infer "why has this device no rooms" from the shape of its entity list,
+    and that inference told a ROBOROCK owner to go and set his rooms up in the
+    EUFY app. A recorded reason is a reading, not a guess.
+
+    BOTH STATES ARE ASSERTED, because `get_last_refresh_outcome`'s own docstring
+    warns that they read alike and are opposite: "{} MEANS 'NEVER ASKED', NOT
+    'NOTHING WRONG'". The `if outcome:` guard at the call site is what keeps the
+    two apart in the dump, and a test of either state alone cannot see it.
+
+    This is the call-site half of work whose engine is now at 100 %:
+    `SR-16`..`SR-24` cover the refresher itself.
+
+    RED: drop the `if outcome:` and the never-asked case gains an empty block;
+    drop the assignment and the recorded reason never reaches the dump.
+    """
+    from custom_components.eufy_vacuum.rooms.source_refresh import (
+        record_refresh_outcome,
+    )
+
+    manager = _make_manager()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    # NEVER ASKED: the key must be absent, not an empty block.
+    before = await async_get_config_entry_diagnostics(hass, entry)
+    assert "room_source_refresh" not in before["vacuums"][0], (
+        "an un-refreshed vacuum must not carry an empty outcome -- that reads as "
+        "'asked, nothing wrong'"
+    )
+
+    # ASKED, AND REFUSED FOR A NAMED REASON -- the #55 case.
+    record_refresh_outcome(
+        hass, VACUUM, {"ok": False, "reason": "not_service_source"}
+    )
+    after = await async_get_config_entry_diagnostics(hass, entry)
+
+    outcome = after["vacuums"][0]["room_source_refresh"]
+    assert outcome["ok"] is False, outcome
+    assert outcome["reason"] == "not_service_source", outcome
