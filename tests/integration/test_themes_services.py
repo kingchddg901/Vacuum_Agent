@@ -12,6 +12,13 @@ Coverage targets
 [TS-8]  revert_draft service returns ok=True dict.
 [TS-9]  export_theme service returns dict; raises for unknown theme.
 [TS-10] import_theme service adds theme; raises for invalid payload.
+[TS-11] set_theme_tags SERVICE stores tags and persists. The handler had no test;
+        [TM-20] covers the manager METHOD and never enters services.py.
+[TS-12] ...and raises ServiceValidationError for an unknown theme.
+[TS-13] set_active_theme with vacuum_entity_id OMITTED skips the managed-vacuum
+        guard -- a declared ruling, since refusing would break a library-wide call.
+[TS-14] import_theme SCOPED to a vacuum does apply the guard: it passes for a
+        managed one and raises for an unmanaged one.
 """
 
 from __future__ import annotations
@@ -332,3 +339,182 @@ async def test_import_theme_service_raises_for_missing_name(hass, manager_with_t
             blocking=True,
             return_response=True,
         )
+
+
+# ---------------------------------------------------------------------------
+# [TS-11]/[TS-12] set_theme_tags -- the one theme service with no handler test
+# ---------------------------------------------------------------------------
+
+async def test_ts11_set_theme_tags_service_stores_and_persists(hass, manager_with_theme_services):
+    """[TS-11] The service handler, which [TM-20] does not reach.
+
+    `set_theme_tags` is registered, documented in services.yaml, and called by the card
+    for vibe tags -- and its HANDLER had no test. [TM-20] in test_themes_manager.py
+    covers the manager METHOD thoroughly (six tests) by calling
+    `manager.set_theme_tags` directly, so none of them executes a line of
+    themes/services.py. That is the same shape as the `goto`/`start_zone_clean`
+    closures: a live service nothing calls by its registered name.
+
+    THE HANDLER DOES FOUR THINGS THE METHOD DOES NOT, which is why covering the method
+    is not covering this: it resolves the manager, raises on a failed result, PERSISTS,
+    and returns the result to the caller.
+
+    THE SAVE TAIL NEEDS AN OBSERVABLE, AND A FIRST DRAFT GOT THAT WRONG. It read the
+    tags back through a second service call and claimed that covered persistence -- it
+    does not: `get_theme_library` reads the IN-MEMORY data, so ablating
+    `await manager.async_save()` left the test GREEN. Measured, not assumed.
+
+    IT IS A PLAIN CLOSURE, NOT A MOCK, for two reasons. The W0 ratchet holds this
+    file's bare-mock total at 1 and raising it deliberately requires deleting the gate
+    -- a second `AsyncMock` here was refused, correctly. And a counting wrapper is the
+    better observable anyway: it states exactly what is being watched, still awaits the
+    real save so persistence runs, and cannot answer an attribute the handler might
+    start reading later. Restored in a `finally` either way.
+
+    The tags are deliberately mixed-case with a blank, because the manager cleans
+    (trim/lower/dedupe) and the cleaned form is what must reach the library: asserting
+    the submitted form would pass against a handler that stored the raw input.
+    """
+    manager = manager_with_theme_services
+    theme_id = await _save_theme(hass)
+
+    saves: list[int] = []
+    real_async_save = manager.async_save
+
+    async def _counting_save(*args, **kwargs):
+        saves.append(1)
+        return await real_async_save(*args, **kwargs)
+
+    manager.async_save = _counting_save
+    try:
+        result = await hass.services.async_call(
+            DOMAIN,
+            "set_theme_tags",
+            {"theme_id": theme_id, "tags": ["Aurora", " aurora ", "Cosmic", ""]},
+            blocking=True,
+            return_response=True,
+        )
+    finally:
+        manager.async_save = real_async_save
+
+    assert result["ok"] is True
+    assert len(saves) == 1, "the handler's save tail did not run"
+
+    library = await hass.services.async_call(
+        DOMAIN, "get_theme_library", {}, blocking=True, return_response=True
+    )
+    # The `themes` SUMMARY list carries only id/theme_id/name/source -- a first draft
+    # read `tags` off it and got a KeyError. The tags live in the full `library` dict,
+    # which is also where [TM-20] reads them. Worth knowing: the two differ, and the
+    # summary deliberately does not carry everything.
+    assert library["library"][theme_id]["tags"] == ["aurora", "cosmic"], (
+        "the handler returned ok but the cleaned tags did not reach the library"
+    )
+
+
+async def test_ts12_set_theme_tags_service_raises_for_unknown_theme(hass, manager_with_theme_services):
+    """[TS-12] A failed result is RAISED, not returned.
+
+    The manager answers an unknown theme with `ok=False` -- [TM-20] pins that -- and the
+    handler's `_raise_if_failed` is what turns it into a ServiceValidationError the
+    caller sees. Without it the service would return `{"ok": False}` with a 200, and the
+    card would show success for a write that did not happen.
+
+    This is the arm [TS-11] does not take: together they cover both sides of
+    `_raise_if_failed` for this handler.
+    """
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "set_theme_tags",
+            {"theme_id": "ghost_theme_id", "tags": ["aurora"]},
+            blocking=True,
+            return_response=True,
+        )
+
+
+# ---------------------------------------------------------------------------
+# [TS-13]/[TS-14] the conditional managed-vacuum guard, both arms
+# ---------------------------------------------------------------------------
+
+async def test_ts13_set_active_theme_without_a_vacuum_skips_the_guard(hass, manager_with_theme_services):
+    """[TS-13] Omitting `vacuum_entity_id` must NOT be refused.
+
+    `SET_ACTIVE_THEME_SCHEMA` makes the field `vol.Optional`, and the handler's comment
+    states the ruling: "Omitted means no per-vacuum state is touched, so there is
+    nothing to guard -- refusing there would break a full library import outright." So
+    the guard is conditional ON PURPOSE, and the false arm is the library-wide call.
+
+    [TS-6] always passes `_VAC`, so it only ever takes the true arm. This takes the
+    other one, and asserts the call SUCCEEDS rather than merely not raising a specific
+    error -- `ok is True` is what distinguishes "the guard was skipped" from "the guard
+    was skipped and the handler then failed for another reason".
+    """
+    theme_id = await _save_theme(hass)
+
+    result = await hass.services.async_call(
+        DOMAIN,
+        "set_active_theme",
+        {"theme_id": theme_id},
+        blocking=True,
+        return_response=True,
+    )
+    assert result["ok"] is True
+
+
+async def test_ts14_a_scoped_import_applies_the_managed_vacuum_guard(hass, manager_with_theme_services):
+    """[TS-14] The TRUE arm of the same conditional, in the handler that had neither.
+
+    `import_theme` is library-wide by default and SCOPED when a vacuum is named -- and
+    no test ever named one, so the `require_managed_vacuum` call inside it had never
+    run. The guard sits at the service boundary deliberately (comment INKV8ZQD): the
+    manager's `_get_vacuum_theme` setdefaults a full draft record for ANY well-formed
+    entity id, and it is also called during setup before the vacuum record exists, so
+    the manager cannot be the one to refuse.
+
+    BOTH OUTCOMES ARE DRIVEN. A scoped import against the fixture's MANAGED vacuum must
+    pass the guard and succeed; one against a well-formed but unmanaged id must raise.
+    The second is what gives the first its meaning -- a guard that let everything
+    through would satisfy the success case alone.
+    """
+    exported = await hass.services.async_call(
+        DOMAIN, "export_theme", {"theme_id": await _save_theme(hass, name="Scoped")},
+        blocking=True, return_response=True,
+    )
+    payload = exported["payload"] if "payload" in exported else exported
+
+    scoped = await hass.services.async_call(
+        DOMAIN,
+        "import_theme",
+        {"payload": payload, "vacuum_entity_id": _VAC},
+        blocking=True,
+        return_response=True,
+    )
+    assert scoped["ok"] is True
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "import_theme",
+            {"payload": payload, "vacuum_entity_id": "vacuum.not_managed_here"},
+            blocking=True,
+            return_response=True,
+        )
+
+
+# ---------------------------------------------------------------------------
+# RECORDED CEILING -- the four remaining partial branches in themes/services.py
+#
+# `save_theme_as_new`, `overwrite_theme`, `update_working_draft` and `revert_draft`
+# each carry the same conditional guard, and for all four the FALSE arm is
+# SCHEMA-UNREACHABLE: their schemas declare `vol.Required("vacuum_entity_id")`, so
+# voluptuous rejects the call before the handler runs and `call.data.get(...)` can
+# never be falsy. Verified by reading the four schemas, and the module's own comment
+# says the same thing from the other side -- "two of these schemas make
+# vacuum_entity_id OPTIONAL" -- which is SET_ACTIVE_THEME_SCHEMA and
+# IMPORT_THEME_SCHEMA, the two [TS-13] and [TS-14] drive.
+#
+# So the conditional is uniform across six handlers while only two of them can take
+# both arms. That is deliberate (one guard, written once, read the same way everywhere)
+# and the cost is four partial branches that no input can close.
+# ---------------------------------------------------------------------------
