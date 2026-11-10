@@ -21,6 +21,9 @@ from unittest.mock import patch
 import pytest
 
 from custom_components.eufy_vacuum.user_fonts import (
+    _face_codepoints,
+    _have_woff2_decoder,
+    _string_values,
     build_catalog,
     locale_char_requirements,
     strip_jsonc,
@@ -386,3 +389,367 @@ class TestImportErrorInsideTheParse:
         entry = json.loads((fonts / "catalog.json").read_text(encoding="utf-8"))[0]
         assert entry["status"] == "unverified"
         assert entry["locales"] == []
+
+
+# ---------------------------------------------------------------------------
+# [UF-1..3] validate_descriptor's FIELD-LEVEL behaviour
+#
+# The module docstring draws the line: "conservative -- reject anything that
+# could smuggle CSS, a path, or an implausible face. Field-level tolerance where
+# harmless". Both halves of that promise need inputs: a bad FIELD is repaired, a
+# bad IDENTITY is refused outright. Tested together because the distinction is
+# the design, and either half alone reads as the other being untested.
+# ---------------------------------------------------------------------------
+
+class TestDescriptorFieldHandling:
+    def test_uf1_a_non_string_family_is_refused_outright(self):
+        """[UF-1] `family` is the CSS identity; there is no repairing a missing one.
+
+        Unlike weight or a fallback entry, family has no safe default -- inventing
+        one would put a name on the wire that matches no font file, and the card
+        would render the fallback while reporting the drop-in as present.
+        """
+        for bad in (None, 42, ["Atkinson"], {"name": "Atkinson"}):
+            desc = dict(_good_desc())
+            desc["family"] = bad
+            assert validate_descriptor(desc) is None, (
+                "family=%r was accepted" % (bad,)
+            )
+
+    def test_uf2_a_fallback_chain_always_ends_in_a_generic_family(self):
+        """[UF-2] The chain's LAST entry must be a generic, and the code appends one.
+
+        A fallback chain ending in a named family can dead-end: if that font is
+        absent too, the browser falls back to its own default, which is the one
+        outcome the chain exists to prevent. Three inputs, one rule:
+
+          fallback absent / not a list  -> ["sans-serif"]
+          fallback of named families    -> generic APPENDED, names kept in order
+          fallback already generic-tailed -> left exactly as it is
+
+        RED IF THE `not isinstance(raw_fallback, list)` ARM GOES: a string
+        fallback is iterated CHARACTER BY CHARACTER, and each character that
+        happens to match the name pattern becomes a font family.
+        """
+        desc = dict(_good_desc())
+        desc["fallback"] = "Arial"              # a string, not a list
+        assert validate_descriptor(desc)["fallback"] == ["sans-serif"]
+
+        desc["fallback"] = ["Helvetica", "Arial"]   # named only, no generic tail
+        assert validate_descriptor(desc)["fallback"] == [
+            "Helvetica", "Arial", "sans-serif"
+        ]
+
+        desc["fallback"] = ["Arial", "monospace"]   # already ends generic
+        assert validate_descriptor(desc)["fallback"] == ["Arial", "monospace"]
+
+    def test_uf3_a_descriptor_with_no_USABLE_face_is_refused(self):
+        """[UF-3] Faces are the font. A descriptor naming none is not a font.
+
+        Three shapes reach the same refusal, and they are different failures:
+        `faces` not a list at all, a list whose entries are not dicts, and a list
+        whose every entry names an unusable file. The LAST is the one that matters
+        -- the descriptor looks complete and every face was individually rejected,
+        which is exactly when a lenient reading would catalogue an empty font and
+        offer the user a typeface that cannot render a single character.
+
+        The mixed case proves the per-face skip rather than an all-or-nothing
+        refusal: one junk entry beside one good one keeps the good one.
+        """
+        desc = dict(_good_desc())
+        desc["faces"] = {"file": "A.woff2"}         # a dict, not a list
+        assert validate_descriptor(desc) is None
+
+        desc["faces"] = ["Atkinson-Regular.woff2", 7, None]   # not dicts
+        assert validate_descriptor(desc) is None
+
+        desc["faces"] = [{"file": "../escape.woff2"}, {"file": "not-a-font.txt"}]
+        assert validate_descriptor(desc) is None, (
+            "a descriptor whose every face was rejected was still catalogued"
+        )
+
+        desc["faces"] = [{"file": "../escape.woff2"},
+                         {"file": "Atkinson-Bold.woff2", "weight": 700}]
+        out = validate_descriptor(desc)
+        assert out is not None and out["faces"] == [
+            {"file": "Atkinson-Bold.woff2", "weight": 700}
+        ], "the junk face was not skipped independently of the good one"
+
+
+# ---------------------------------------------------------------------------
+# [UF-4..5] the optional dependency, absent
+#
+# "Verification is graceful about its own dependency" -- and the module is
+# careful that CANNOT VERIFY never collapses into COVERS NOTHING. Both absences
+# are simulated by putting None in sys.modules, which is what the import system
+# itself does for a module that failed to load: `import x` then raises
+# ImportError, exactly as a genuinely missing package does.
+# ---------------------------------------------------------------------------
+
+class TestOptionalDependencyAbsent:
+    def test_uf4_no_brotli_means_no_woff2_decoder(self):
+        """[UF-4] `haveBrotli` is asked for, and its ABSENCE answers False.
+
+        The docstring explains why this flag rather than matching the error text:
+        "Asking it beats substring-matching that message, which would go silently
+        wrong the day upstream rewords it." If the import itself fails, there is
+        no flag to ask and the answer is False -- not an exception out of a
+        setup path.
+        """
+        import sys
+
+        with patch.dict(sys.modules, {"fontTools.ttLib.woff2": None}):
+            assert _have_woff2_decoder() is False
+
+    def test_uf5_no_fonttools_is_CANNOT_VERIFY_not_covers_nothing(self, tmp_path):
+        """[UF-5] The distinction the whole verification chain rests on.
+
+        `None` from `_face_codepoints` means "cannot answer the coverage
+        question". An empty codepoint set would mean "this font covers nothing"
+        -- and that is a VERDICT, which would mark every locale unsupported and
+        silently withdraw a font that is perfectly fine.
+
+        RED IF THE ImportError ARM RETURNS `set(), False` INSTEAD OF None: the
+        assertion is on `is None` specifically, because an empty set is falsy and
+        a truthiness check would pass against exactly that mistake.
+        """
+        import sys
+
+        face = tmp_path / "Atkinson-Regular.woff2"
+        face.write_bytes(b"\x00fake")
+
+        with patch.dict(sys.modules, {"fontTools.ttLib": None}):
+            out = _face_codepoints(str(face))
+
+        assert out is None, (
+            "expected None (cannot verify); got %r. An empty set here reads as "
+            "a verdict that the font covers nothing." % (out,)
+        )
+
+
+# ---------------------------------------------------------------------------
+# [UF-6] the string walk that feeds every locale's requirement
+# ---------------------------------------------------------------------------
+
+class TestStringValues:
+    def test_uf6_the_walk_descends_through_lists_as_well_as_dicts(self):
+        """[UF-6] A locale file's strings can sit inside arrays, and they count.
+
+        `_string_values` is what turns a locale JSON into the character set that
+        locale's chrome needs. Every shipped locale tested here happened to be a
+        flat object, so the LIST arm had never run -- and a locale whose strings
+        live in an array would contribute NO characters, which does not fail: it
+        makes the font look like it covers that locale when it may not. An
+        under-collected requirement is the dangerous direction, because the
+        verification is a promise of coverage.
+        """
+        out = []
+        _string_values(
+            {"a": "one", "b": ["two", {"c": "three"}, ["four", 5, None]], "d": 6},
+            out,
+        )
+        assert sorted(out) == ["four", "one", "three", "two"], (
+            "the walk missed strings nested in lists: %r" % (out,)
+        )
+
+
+# ---------------------------------------------------------------------------
+# [UF-7..9] locale_char_requirements, on inputs it cannot read
+#
+# Every one of these is an I/O failure the module promises to survive. It runs
+# during setup, so a raise here is a failed integration start over a locale file
+# the user cannot be expected to know about.
+# ---------------------------------------------------------------------------
+
+class TestLocaleRequirementsDegradation:
+    def test_uf7_an_unreadable_english_reference_does_not_stop_the_rest(
+        self, tmp_path, caplog
+    ):
+        """[UF-7] English is the BASE every other locale inherits -- and it can fail.
+
+        With the reference unreadable, `en` is an empty requirement and every
+        other locale keeps its own characters. The alternative, raising, takes
+        down setup; the other alternative, inheriting nothing silently, is what
+        this test pins by asserting `de` still carries its own.
+        """
+        d = tmp_path / "locales"
+        d.mkdir()
+        (d / "en.reference.jsonc").write_text("{ not json at all", encoding="utf-8")
+        (d / "de.json").write_text(json.dumps({"k": "Größe"}), encoding="utf-8")
+
+        with caplog.at_level(logging.WARNING):
+            reqs = locale_char_requirements(str(d))
+
+        assert reqs["en"] == set(), "a broken reference produced characters"
+        assert {ord(c) for c in "Größe"} <= reqs["de"], (
+            "de lost its own characters because the English base failed"
+        )
+        assert "English reference unreadable" in caplog.text, (
+            "the failure was swallowed with no way for the user to find it"
+        )
+
+    def test_uf8_a_missing_locales_directory_yields_english_only(self, tmp_path):
+        """[UF-8] No directory at all: answer what is known, do not raise.
+
+        `reqs["en"]` is built before the listing is attempted, so the return is
+        not empty -- it is the English entry with nothing else. The assertion is
+        on the KEYS, because an empty dict and an en-only dict behave very
+        differently downstream: with no `en` key at all, a font that covers
+        English perfectly would be catalogued as verifying no locales.
+        """
+        reqs = locale_char_requirements(str(tmp_path / "nope"))
+        assert list(reqs) == ["en"]
+        assert reqs["en"] == set()
+
+    def test_uf9_one_unreadable_locale_costs_only_that_locale(self, tmp_path, caplog):
+        """[UF-9] A truncated locale file must not take its siblings with it.
+
+        The loop warns and continues, so a single corrupt file costs exactly one
+        language. `index.json` is in the directory too, because it is skipped by
+        NAME rather than by failing to parse -- without it here, a regression that
+        started parsing index.json would be invisible.
+        """
+        d = tmp_path / "locales"
+        d.mkdir()
+        (d / "en.reference.jsonc").write_text(
+            json.dumps({"k": "Abc"}), encoding="utf-8"
+        )
+        (d / "de.json").write_text(json.dumps({"k": "Größe"}), encoding="utf-8")
+        (d / "fr.json").write_text('{"k": "Café"', encoding="utf-8")   # truncated
+        (d / "index.json").write_text(json.dumps(["de", "fr"]), encoding="utf-8")
+
+        with caplog.at_level(logging.WARNING):
+            reqs = locale_char_requirements(str(d))
+
+        assert "de" in reqs, "a good locale was lost with the broken one"
+        assert "fr" not in reqs, "a locale that would not parse was catalogued"
+        assert "index" not in reqs, "index.json was read as a locale"
+        assert "locale fr.json unreadable" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# [UF-10..13] build_catalog, which "never raises"
+# ---------------------------------------------------------------------------
+
+class TestBuildCatalogDegradation:
+    def test_uf10_a_missing_fonts_directory_catalogues_nothing(self, tmp_path):
+        """[UF-10] The ordinary case for every user who never dropped a font in.
+
+        The directory does not exist on a stock install, so this path runs at
+        every single setup. It must answer 0 without raising and without writing.
+        """
+        missing = tmp_path / "no-fonts-here"
+        assert build_catalog(str(missing), str(tmp_path / "locales")) == 0
+        assert not missing.exists(), "the discovery path created the directory"
+
+    def test_uf11_a_descriptor_that_is_not_a_regular_file_is_skipped(self, tmp_path):
+        """[UF-11] Two shapes: no `font.json` at all, and one that is a SYMLINK.
+
+        The symlink arm is a containment rule, not a tidiness one. A symlinked
+        descriptor is a pointer OUT of the fonts directory, and the whole trust
+        model here is that a drop-in describes itself from inside its own folder.
+        The same check is applied to the face files.
+
+        The good font is catalogued in the same call, so this is a skip and not
+        a bail-out -- a refusal that also dropped the valid font would satisfy
+        any assertion about the bad one alone.
+
+        THE LINKED DROP-IN IS OTHERWISE COMPLETE, and that took two corrections.
+        Written with a COPY of the good descriptor it shared the id "atkinson",
+        so deleting the islink guard changed nothing -- the entry was read and
+        then dropped by the id dedup. Written without face files beside it, the
+        missing-face check would have discarded it just as silently. Either flaw
+        alone makes this arm untestable while looking tested, and the ablation
+        came back DEAD until both were fixed. It now has its own id and its own
+        faces, so the only thing standing between it and the catalog is the
+        symlink check: remove that and the count goes 1 -> 2.
+        """
+        fonts = tmp_path / "fonts"
+        fonts.mkdir()
+        (fonts / "empty").mkdir()                        # no font.json
+
+        outside = tmp_path / "elsewhere.json"
+        outside.write_text(json.dumps({
+            "id": "linkedfont",
+            "family": "Linked Sans",
+            "faces": [{"file": "Linked-Regular.woff2", "weight": 400}],
+        }), encoding="utf-8")
+        linked = fonts / "linked"
+        linked.mkdir()
+        (linked / "Linked-Regular.woff2").write_bytes(b"\x00fake")
+        os.symlink(str(outside), str(linked / "font.json"))
+
+        _write_font_dir(str(fonts))                      # the good one
+
+        loc = _locales_dir(tmp_path)
+        with patch(
+            "custom_components.eufy_vacuum.user_fonts._face_codepoints",
+            return_value=({ord(c) for c in "AbcGröße"} | set(range(0x21, 0x7F)), True),
+        ):
+            count = build_catalog(str(fonts), loc)
+
+        assert count == 1, (
+            "expected only the good drop-in, got %d -- a descriptor reached from "
+            "OUTSIDE the fonts directory by symlink was catalogued" % count
+        )
+        written = json.loads((fonts / "catalog.json").read_text(encoding="utf-8"))
+        assert [e["id"] for e in written] == ["atkinson"], (
+            "catalogued %r" % ([e["id"] for e in written],)
+        )
+
+    def test_uf12_an_unreadable_descriptor_is_warned_and_skipped(
+        self, tmp_path, caplog
+    ):
+        """[UF-12] Malformed JSON in one drop-in costs that drop-in and nothing else.
+
+        Distinct from a descriptor that PARSES and is then rejected, which is a
+        different message and a different line -- this one never becomes a dict
+        at all. The warning names the subdirectory, because "descriptor
+        unreadable" with no name is unactionable when several fonts are present.
+        """
+        fonts = tmp_path / "fonts"
+        fonts.mkdir()
+        broken = fonts / "brokenfont"
+        broken.mkdir()
+        (broken / "font.json").write_text("{ oh dear", encoding="utf-8")
+        _write_font_dir(str(fonts))
+
+        loc = _locales_dir(tmp_path)
+        with caplog.at_level(logging.WARNING), patch(
+            "custom_components.eufy_vacuum.user_fonts._face_codepoints",
+            return_value=({ord(c) for c in "AbcGröße"} | set(range(0x21, 0x7F)), True),
+        ):
+            count = build_catalog(str(fonts), loc)
+
+        assert count == 1
+        assert "brokenfont" in caplog.text and "descriptor unreadable" in caplog.text
+
+    def test_uf13_a_catalog_that_cannot_be_written_reports_ZERO(self, tmp_path, caplog):
+        """[UF-13] The count is a claim about what the CARD can read, not what we built.
+
+        Everything upstream succeeded here -- a valid drop-in, verified locales,
+        an entry assembled. Only the write failed, and the function returns 0
+        rather than the number it had in hand. That is the honest answer: the
+        catalog is the canonical response the card consumes, so a font that is
+        not in the written file does not exist as far as the UI is concerned.
+
+        The write is made to fail by putting a DIRECTORY where catalog.json goes,
+        which is a real OSError from the real `open` rather than a patched one --
+        a patched `open` would also intercept every read this function makes.
+        """
+        fonts = tmp_path / "fonts"
+        fonts.mkdir()
+        _write_font_dir(str(fonts))
+        (fonts / "catalog.json").mkdir()
+
+        loc = _locales_dir(tmp_path)
+        with caplog.at_level(logging.WARNING), patch(
+            "custom_components.eufy_vacuum.user_fonts._face_codepoints",
+            return_value=({ord(c) for c in "AbcGröße"} | set(range(0x21, 0x7F)), True),
+        ):
+            count = build_catalog(str(fonts), loc)
+
+        assert count == 0, (
+            "a font that never reached catalog.json was counted as catalogued"
+        )
+        assert "could not write catalog.json" in caplog.text
