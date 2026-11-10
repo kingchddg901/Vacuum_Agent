@@ -34,6 +34,10 @@ Coverage targets
          passes. Overwriting it would reset the removal clock every pass, so a
          room would never age out.
 [DRD-28] active_map_configured answers None ("cannot tell") rather than False
+[DRD-34] ...and all FOUR of its answers are pinned exactly. [DRD-28] stops at
+         `is None or is False`, which admits both of the values it exists to separate.
+[DRD-35] reject_rooms on a vacuum with no maps writes the FLAT list and names no map.
+[DRD-36] a corrupt room row does not stop the managed-rooms strip.
          ("definitely not") with no active_map entity or a blank state, and False
          only for a genuinely absent bucket. Conflating them re-opens save_rooms.
 [DRD-29] rejected_room_ids survives a corrupt record: non-numeric entries skipped,
@@ -844,3 +848,113 @@ def test_progress_record_refuses_an_unreal_vacuum_id(manager):
         "an id this install does not have must not gain a persisted record"
     )
     assert set(manager.data.get("setup_progress", {})) == before
+
+
+async def test_drd34_active_map_configured_is_exactly_tri_state(hass, manager):
+    """[DRD-34] Each of the four answers pinned to one value, not a disjunction.
+
+    [DRD-28] states the claim -- None means "cannot tell", False means "this map has no
+    configured rooms" -- and then asserts `result is None or result is False`, which
+    cannot tell them apart. It also registers its adapter under `"drd28"` while the
+    lookup is `get_adapter_config(vacuum_entity_id)`, so the config never resolves and
+    the function returns at the no-entity-declared guard without reaching the state
+    read at all. That is why the blank-state and missing-bucket arms are both
+    uncovered despite a test named for them.
+
+    WHY THE DISTINCTION IS LOAD-BEARING, from the comment beside the bucket lookup: a
+    miss "returns False, which re-opens the save_rooms step against a map that is
+    configured perfectly well." False is an instruction to re-run setup. None is not.
+
+    The four inputs differ by one thing each, so a deleted arm is attributable:
+    no state at all, a blank state, a state naming a map with no bucket, and the
+    configured map. The last is the control -- without it the three Nones and Falses
+    would be satisfied by a function that could never answer True.
+    """
+    setup_map(manager, _VAC, _MAP, count=1)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+    register_adapter_config(_VAC, {"entities": {"active_map": "sensor.drd34_map"}})
+
+    # 1. The entity is declared and has no state yet -- unknowable.
+    assert active_map_configured(manager, _VAC) is None, (
+        "a declared entity with no state is 'cannot tell', not 'not configured'"
+    )
+
+    # 2. Declared, present, and blank -- still unknowable.
+    hass.states.async_set("sensor.drd34_map", "unavailable")
+    assert active_map_configured(manager, _VAC) is None
+
+    # 3. A real map name this vacuum holds no bucket for -- KNOWN not configured.
+    hass.states.async_set("sensor.drd34_map", "a_map_this_vacuum_never_had")
+    assert active_map_configured(manager, _VAC) is False, (
+        "an active map with no bucket is a definite answer, not an unknown one"
+    )
+
+    # 4. The configured map -- the control, so the three answers above are the guards
+    #    talking rather than a function that cannot say yes.
+    hass.states.async_set("sensor.drd34_map", _MAP)
+    assert active_map_configured(manager, _VAC) is True
+
+
+async def test_drd35_reject_rooms_with_no_maps_uses_the_flat_list(hass, manager):
+    """[DRD-35] The pre-A4-SETUP-6 shape, which is still what a no-map vacuum gets.
+
+    `reject_rooms` keeps two stores: `rejected_rooms_by_map` when a map is named, and a
+    flat `rejected_rooms` when one cannot be. [DRD-3] through [DRD-6] all drive the
+    map-scoped arm, so the flat arm -- the one an adapter that cannot name its active
+    map actually uses -- had no test.
+
+    BOTH HALVES OF THE ARM ARE ASSERTED, because they are separate statements twenty
+    lines apart: the READ that seeds `bucket_list` from the flat key, and the WRITE
+    that puts it back. The pre-seeded `[9]` is what makes the read visible -- without
+    it a broken read would produce `[4]`, which is indistinguishable from a working
+    one. The result's `map_id is None` and the absence of a by-map bucket are what show
+    nothing leaked into the scoped store under a "None" key.
+    """
+    # THE VACUUM HAS TO BE REAL, which a first draft missed. `_get_progress_record`
+    # refuses to PERSIST a record for an id this install does not have and hands back
+    # an ephemeral one instead ([DRD-33]), so without a state the seed below landed in
+    # a throwaway dict and `reject_rooms` was handed a different one. A state with no
+    # maps is also the honest input: a vacuum that exists but has not been discovered
+    # yet is exactly when an adapter cannot name an active map.
+    hass.states.async_set(_VAC, "docked")
+
+    record = _get_progress_record(manager, _VAC)
+    record["rejected_rooms"] = [9]
+
+    result = reject_rooms(manager, _VAC, [4])
+
+    assert record["rejected_rooms"] == [9, 4], "the flat list was not read, or not written"
+    assert result["map_id"] is None
+    assert not record.get("rejected_rooms_by_map"), (
+        "a vacuum that cannot name its map must not gain a 'None'-keyed bucket"
+    )
+
+
+async def test_drd36_a_corrupt_room_row_does_not_stop_the_strip(manager):
+    """[DRD-36] The managed-rooms strip walks user-editable storage.
+
+    Two skips, both in the same loop: a room value that is not a dict, and one whose
+    `room_id` will not coerce to an int. Either would raise on the next statement.
+
+    POSITIONAL, AND THE ORDER IS THE INPUT. Both junk rows are inserted BEFORE the real
+    room 7, so a `break` or an early return in either place would leave 7 in
+    `managed_rooms` and report nothing removed. With the junk last, the strip would
+    succeed first and the skips would be invisible.
+
+    The surviving keys are asserted, not just the removal: `{'a', 'b'}` shows the junk
+    rows were LEFT ALONE rather than swept, which is the difference between "skipped"
+    and "deleted because we could not read it".
+    """
+    setup_map(manager, _VAC, _MAP, count=1)
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    rooms.clear()
+    rooms["a"] = "not-a-dict"
+    rooms["b"] = {"room_id": "xyz"}
+    rooms["7"] = {"room_id": 7, "name": "kitchen"}
+
+    result = reject_rooms(manager, _VAC, [7], map_id=_MAP)
+
+    assert result["removed_from_managed"] == [7]
+    assert set(rooms) == {"a", "b"}, (
+        "an unreadable room row was deleted rather than skipped"
+    )
