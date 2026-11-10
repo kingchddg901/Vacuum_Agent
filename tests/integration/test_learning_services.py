@@ -72,6 +72,10 @@ Coverage targets
        keys coerced to int so the wizard's ids match the queue's.
 [LS-74] ...and a NON-NUMERIC room key empties that list, because the dead eager default
        in get_managed_rooms calls int() on it and raises into the handler's except.
+[LS-75] collect_archived_battery_metrics: the archive gate that makes exclude_learning_job
+       bite the BATTERY means too -- every existing test stubs this method out.
+[LS-76] _build_access_graph_context recovers a room id from the ROW when the key is not
+       numeric (a custom segment), and steps over a row with no id at all.
 [LS-60] get_learning_history_snapshot profile_key + used_for_learning filters prune room_profiles rows (manager 971, 978).
 [LS-64] profile_key filter swaps summary.selected_profile for the matching ENRICHED entry (manager 1321).
 [LS-67] restore_learning_job coerces malformed outcome/learning_blockers before restoring (manager 1664, 1668).
@@ -105,6 +109,7 @@ from custom_components.eufy_vacuum.learning.services import (
     SERVICE_RESTORE_LEARNING_JOB,
     SERVICE_RUN_LEARNING_ESTIMATE,
     SERVICE_SAVE_LEARNING_SNAPSHOT,
+    _get_learning_manager,
     async_register_learning_services,
     async_unregister_learning_services,
 )
@@ -4366,3 +4371,196 @@ async def test_ls74_a_non_numeric_room_key_empties_the_offered_room_list(
         "repaired, and [LS-73]'s sibling claim now needs rewriting rather than this "
         "assertion loosening"
     )
+
+
+# ---------------------------------------------------------------------------
+# [LS-75] the archive -> battery handover.
+#
+# `collect_archived_battery_metrics` is called from `core/manager.py:6922` and from
+# `core/battery_aggregates_migration.py:196`, and every test that touches either stubs
+# it to `[]` -- so the loop, the eligibility gate and the two shape guards had never
+# executed. Its docstring states the consequence: the same archive-derived gate as the
+# stats rebuild, "which is what makes `exclude_learning_job` effective against battery
+# means rather than silently ineffective".
+# ---------------------------------------------------------------------------
+
+_LS75_VAC = "vacuum.ls75_archive"
+
+
+def _seed_battery_job(hass, job_id, *, drain, used_for_learning=True, job_block=None):
+    """One archived completed job whose inner `job` carries real battery_metrics.
+
+    The metrics come from `battery/job_metrics.py::compute_job_battery_metrics` -- the
+    producer the finalizer itself calls (job_finalizer.py:1176, writing the result into
+    the record's inner `job` dict at :1197) -- rather than from a hand-written dict, so
+    the keys and types are the ones a real archive holds.
+    """
+    from custom_components.eufy_vacuum.battery.job_metrics import (
+        compute_job_battery_metrics,
+    )
+
+    metrics = compute_job_battery_metrics(
+        battery_start=100, battery_end=100 - drain, duration_minutes=30.0,
+        cleaning_area_m2=20.0,
+        resolved_rooms=[{"room_id": 1, "clean_mode": "vacuum",
+                         "fan_speed": "Standard", "water_level": "Medium"}],
+    )
+    inner = {"started_at": "2026-01-01T09:00:00+00:00",
+             "ended_at": "2026-01-01T09:30:00+00:00",
+             "duration_minutes": 30.0, "room_count": 1,
+             "battery_metrics": metrics}
+    LearningHistoryStore(hass).save_completed_job(
+        vacuum_entity_id=_LS75_VAC, job_id=job_id,
+        payload={
+            "record_type": "completed_job", "job_id": job_id,
+            "job": inner if job_block is None else job_block,
+            "outcome": {"status": "completed",
+                        "used_for_learning": used_for_learning,
+                        "learning_blockers": []},
+            "job_profile": {"map_id": 6, "room_count": 1, "room_slugs": ["kitchen"],
+                            "rooms": []},
+            "resolved_rooms": [], "queue": {"queue_room_ids": [1], "queue_rooms": []},
+            "battery": {}, "water": {},
+        },
+    )
+    return metrics
+
+
+def test_ls75_an_excluded_run_stays_out_of_the_battery_handover(hass, learning_services):
+    """[LS-75] The gate, and the thing it is load-bearing for.
+
+    `exclude_learning_job` flips `used_for_learning`, and the stats rebuild honours it.
+    If THIS reader did not, excluding a known-bad run would look like it worked -- the
+    room statistics would drop it -- while the battery drain means silently kept it. The
+    docstring names that failure in as many words.
+
+    FIVE RECORDS, FOUR OF THEM MUST NOT APPEAR, and each is rejected for a different
+    reason: the excluded run (the gate), a run whose inner `job` holds no
+    `battery_metrics` at all, a run whose inner `job` is not a dict, and a run whose
+    metrics block is an EMPTY dict -- that last one is the `and metrics` half of the
+    final guard, which a truthiness-free isinstance check would let through as a
+    meaningless row in the battery fold.
+
+    THE ASSERTION IS THE LIST OF DRAINS, IN ORDER, NOT ITS LENGTH. Every record here
+    carries a distinct `battery_used_pct`, so the excluded run's 55 appearing anywhere
+    is visible, and the two eligible runs pin the documented "oldest first" ordering --
+    a length of two is satisfied by returning the wrong two.
+
+    The vacuum is its own id because the learning archive is shared across the session
+    and lives on disk; a record left under the shared `_VAC` turned [LS-4b] red four
+    files away once, so these records are written and removed under a dedicated root.
+    """
+    store = LearningHistoryStore(hass)
+    root = store.get_paths(vacuum_entity_id=_LS75_VAC).root
+    try:
+        _seed_battery_job(hass, "ls75-a-oldest", drain=11)
+        _seed_battery_job(hass, "ls75-b-newer", drain=22)
+        _seed_battery_job(hass, "ls75-c-excluded", drain=55, used_for_learning=False)
+        _seed_battery_job(hass, "ls75-d-no-metrics", drain=33, job_block={
+            "started_at": "2026-01-01T09:00:00+00:00", "duration_minutes": 30.0,
+        })
+        _seed_battery_job(hass, "ls75-e-job-not-a-dict", drain=44,
+                          job_block="torn-record")
+        _seed_battery_job(hass, "ls75-f-empty-metrics", drain=66, job_block={
+            "started_at": "2026-01-01T09:00:00+00:00", "battery_metrics": {},
+        })
+
+        out = _get_learning_manager(hass).collect_archived_battery_metrics(
+            vacuum_entity_id=_LS75_VAC
+        )
+
+        assert [m["battery_used_pct"] for m in out] == [11, 22], (
+            "the handover returned %r -- 55 means the exclusion did not reach the "
+            "battery means, and a missing 11/22 means the gate rejects eligible runs"
+            % ([m.get("battery_used_pct") for m in out],)
+        )
+    finally:
+        for path in sorted(
+            (p for p in root.rglob("*") if p.is_file()), reverse=True
+        ):
+            path.unlink()
+
+
+# ---------------------------------------------------------------------------
+# [LS-76] the access-graph context's room walk.
+# ---------------------------------------------------------------------------
+
+def test_ls76_a_custom_segment_key_recovers_its_room_id_from_the_row(
+    hass, learning_services, monkeypatch
+):
+    """[LS-76] The room walk keys on the dict KEY and falls back to the row.
+
+    A managed-rooms dict is keyed by string, normally the room id -- but
+    `set_custom_segments` mints segment ids as `custom_1`, `custom_2`
+    (mapping_services.py:2008), so a non-numeric key is a real shape and the row's own
+    `room_id` is the only id available for it. Without the fallback a custom segment
+    contributes no edges at all, and the access-graph coherence score the finalizer
+    banks is computed as though the user had never authored those grants.
+
+    `edge_count` IS THE OBSERVABLE because it sums grants over the rooms that SURVIVED
+    the walk: 1 from the numeric room plus 2 from the recovered one. Lose the recovery
+    and it reads 1 -- a different number, not a missing one. `_adjacency` is asserted
+    too, because it names WHICH ids survived, and a count of three edges is satisfied
+    by attributing them to the wrong rooms.
+
+    TWO ROWS MUST BE STEPPED OVER, for different reasons: one that is not a dict, and
+    one that is a dict but carries no usable id on either the key or the row -- the
+    second is the guard immediately after the fallback, and it is the one a reader
+    would assume the fallback made unnecessary.
+    """
+    learning = _get_learning_manager(hass)
+    manager = learning_services
+
+    monkeypatch.setattr(manager, "get_managed_rooms", lambda **kw: {"rooms": {
+        "1": {"room_id": 1, "name": "Kitchen", "slug": "kitchen",
+              "grants_access_to": [7]},
+        "custom_1": {"room_id": 7, "name": "Nook", "slug": "nook",
+                     "grants_access_to": [1, 99]},
+        "torn": "not-a-dict",
+        "custom_2": {"name": "Ghost", "slug": "ghost", "grants_access_to": [1]},
+    }})
+
+    ctx = learning._build_access_graph_context(
+        manager=manager, vacuum_entity_id=_VAC, map_id="6",
+        queue_state={"queue_room_ids": [1, 7]}, payload_state={},
+    )
+
+    assert ctx["edge_count"] == 3, (
+        "edge_count %r: 1 means the custom-segment row was skipped, 4 means the "
+        "id-less row was walked" % (ctx["edge_count"],)
+    )
+    assert [row["room_id"] for row in ctx["_adjacency"]] == [1, 7]
+    assert ctx["present"] is True
+    # queue 1 -> 7 is a declared grant, so the transition is coherent rather than a jump
+    assert ctx["graph_transition_count"] == 1 and ctx["graph_jump_count"] == 0
+
+
+def test_ls76b_a_non_dict_rooms_payload_yields_an_empty_graph(
+    hass, learning_services, monkeypatch
+):
+    """[LS-76] The same walk's outer guard: `rooms` itself not being a dict.
+
+    `get_managed_rooms` reads straight off stored map state, so the value can be a
+    string or a list after a hand-edit. The walk iterates `.items()` on it one line
+    later.
+
+    THE CONTROL IS [LS-76] ITSELF -- same method, same queue, a payload that produces
+    three edges -- so `edge_count == 0` here is a contrast rather than the empty answer
+    an un-run method also gives. `present` is asserted because that is the flag the
+    finalizer stores to say whether a graph existed at all, and `pair_count` is
+    asserted non-zero to show the queue half still ran: the failure this guard prevents
+    is the whole context being lost, not just the edges.
+    """
+    learning = _get_learning_manager(hass)
+    manager = learning_services
+
+    monkeypatch.setattr(manager, "get_managed_rooms", lambda **kw: {"rooms": "corrupt"})
+
+    ctx = learning._build_access_graph_context(
+        manager=manager, vacuum_entity_id=_VAC, map_id="6",
+        queue_state={"queue_room_ids": [1, 7]}, payload_state={},
+    )
+
+    assert ctx["edge_count"] == 0 and ctx["present"] is False
+    assert ctx["pair_count"] == 1, "the queue half of the context was lost too"
+    assert ctx["graph_coherence_score"] is None
