@@ -674,3 +674,288 @@ def test_dc8_an_unknown_role_asks_for_nothing():
     assert entity_resolve.rescue_by_device_class(
         sibs, device_classes=classes, wanted_class="", domain="sensor",
     ) is None
+
+
+# ---------------------------------------------------------------------------
+# [ER-18]..[ER-21], [TK-7]/[TK-8], [DC-9]/[DC-10]
+#
+# WHY NO FIXTURE HERE CARRIES A TORN REGISTRY ROW, measured rather than assumed. The
+# three rungs each guard their sibling walk with `not isinstance(sibling, str)` (lines
+# 228, 494, 568), which reads as a tolerant reader worth covering. It is not reachable
+# from this entry point: `resolve_declared_entities` builds its rung-1/2 candidate list
+# at :804-805 with a BARE `e.entity_id.startswith(f"{domain}.")` and no such guard, so
+# a non-string entity_id raises there first -- three of these tests were red on exactly
+# that before the fixtures were corrected.
+#
+# And the shape cannot arrive at all: HA declares `RegistryEntry.entity_id: str`
+# (attr.ib, read in the installed source), so the real producer never emits it. Those
+# three guards are UNREACHABLE here, not subsumed, and :805 having no guard is
+# consistent with that rather than being the short copy of a replica. Recorded as a
+# ceiling.
+#
+# [ER-18] is the exception and it is a different argument: its non-string arrives as a
+# DECLARED id, which `core/manager.py:1884-1894` builds from the adapter config with no
+# isinstance filter and the schema never type-checks. That one is producible.
+# ---------------------------------------------------------------------------
+
+def test_er18_the_suffix_universe_rejects_a_non_string_candidate():
+    """[ER-18] The tolerant-reader half of the shared suffix predicate.
+
+    `build_suffix_universe` has two callers and only one of them pre-filters:
+    `entity_resolve.py:723` passes `[v for v in entities.values() if isinstance(v, str)]`
+    while `core/capabilities.py:761-765` flattens its candidate lists with no filter at
+    all. A non-string reaching `_suffix_of` there raises OUTSIDE
+    `augment_candidates_from_device`'s try, so capability detection aborts and every
+    feature reads unsupported.
+
+    THE NON-STRING IS THE ONLY DISCRIMINATING SHAPE, which is the trap in this one. The
+    obvious bad input is a dotless STRING -- and it is subsumed: `_suffix_of` catches
+    the IndexError and returns None, which `if suffix:` drops identically, so the
+    assertion passes with the guard deleted. Dropping only the `isinstance` half is the
+    named red input, and it needs a value with no `.split` at all.
+
+    The good element is paired with it so the expectation is `{"_battery"}` and not the
+    empty set, which is what an un-run function also returns.
+    """
+    assert entity_resolve.build_suffix_universe(
+        [None, "sensor.alfred_battery"], "alfred"
+    ) == {"_battery"}
+
+    # the dotless string, for the record: tolerated, and tolerated one line lower
+    assert entity_resolve.build_suffix_universe(
+        ["alfred_battery", "sensor.alfred_battery"], "alfred"
+    ) == {"_battery"}
+
+
+def test_er19_a_reserved_suffix_must_be_a_non_empty_string():
+    """[ER-19] The other half of the same predicate, on the argument that does the work.
+
+    The module says so itself at :661-665 -- "WHAT ACTUALLY PROTECTS A COLLISION PAIR
+    HERE IS reserved_suffixes, not the override." A junk element leaking into the
+    universe is handed to `claimed_by`, where `sibling_object.endswith(None)` raises
+    TypeError outside any try at `capabilities.py:812`, turning the ownership test into
+    a crash.
+
+    THE EXPECTATION IS AN EXACT SET, which is what makes the empty string observable:
+    `""` would otherwise enter silently and `"_dock" in universe` would still pass.
+    Dropping the truthiness half of `isinstance(reserved, str) and reserved` is the
+    named red input for the empty string; replacing the whole condition with `if True:`
+    is the one for `None`.
+    """
+    assert entity_resolve.build_suffix_universe(
+        ["sensor.alfred_battery"], "alfred", reserved_suffixes=["_dock", "", None]
+    ) == {"_battery", "_dock"}
+
+
+def test_er20_an_empty_token_set_owns_nothing():
+    """[ER-20] The ownership rule is not satisfied VACUOUSLY.
+
+    The empty set is a proper subset of every non-empty rival, so without the early
+    return every id a rival explains is reported "owned elsewhere" -- the guard inverts
+    into a blanket exclusion and the token fallback (the last resort for a dock button,
+    issue #49) can return nothing at all.
+
+    THREE READINGS OF ONE RIVAL, asymmetric by construction. The vacuous case must be
+    False; a strictly-more-specific rival over a shorter wanted set must be True; and
+    the same wanted set against an id the rival does NOT explain must be False. A lone
+    `is False` assertion is invariant under deleting the guard whenever the rival cannot
+    match the id, which is why the True case shares the fixture.
+    """
+    rivals = [["stop", "dry", "mop"]]
+
+    assert entity_resolve.tokens_owned_elsewhere(
+        "button.alfred_stop_dry_mop", [], rivals
+    ) is False, "an empty wanted set must own nothing, not everything"
+    assert entity_resolve.tokens_owned_elsewhere(
+        "button.alfred_stop_dry_mop", ["dry", "mop"], rivals
+    ) is True
+    assert entity_resolve.tokens_owned_elsewhere(
+        "button.alfred_dry_mop", ["dry", "mop"], rivals
+    ) is False
+
+
+def test_er21_a_malformed_override_cannot_destroy_a_working_binding(monkeypatch):
+    """[ER-21] An override is PINNED before anything else runs and REPLACES the
+    declared id (entity_resolve.py:647-648, 678-681), so a value that is not an entity
+    id must not be pinned -- the role's real derived id would be gone and there is no
+    repair path back.
+
+    THE CONTROL IS THAT THE DECLARED ID STILL RESOLVES. Asserting the override was
+    ignored is only meaningful against a binding that works: `sensor.alfred_battery` is
+    present, so the expected value is the one rung 1 returns, and a pinned
+    `alfred_battery` is both wrong and unresolvable.
+
+    Dropping the `"." in _chosen` half is the named red input. The `isinstance` half is
+    crossed by the integer override in the same call and is not separately asserted --
+    an int has no `.split`, so it would be refused one rung lower regardless.
+    """
+    hass = _install(
+        monkeypatch,
+        present={"sensor.alfred_battery"},
+        registry_ids=["sensor.alfred_battery"],
+    )
+    out, report = resolve_declared_entities(
+        hass, "vacuum.alfred", {"battery": "sensor.alfred_battery"},
+        overrides={"battery": "alfred_battery", "charging": 7},
+    )
+
+    assert out["battery"] == "sensor.alfred_battery", (
+        "a dotless override was pinned over a working binding"
+    )
+    assert "charging" not in out
+    assert report == {}
+
+
+def test_tk7_rung_three_never_repairs_a_role_onto_its_own_declared_id(monkeypatch):
+    """[TK-7] The translation-key rung's `exclude`, on the rung the act path never had.
+
+    A declared English id that is REGISTERED BUT DISABLED carries the provider's
+    `translation_key` -- which is exactly the key this rung derives from the declared
+    suffix (:819-823) -- so it is the likeliest self-match in the whole ladder.
+    `async_entries_for_config_entry` applies no disabled filter, which this module's
+    own docstring at :385-391 relies on, so the declared id really is in the sibling
+    list while having no state.
+
+    THE SECOND ROLE SUPPLIES THE ASYMMETRY. `report == {}` is what a never-run rescue
+    returns, so the expectation is `{"mop_intensity"}` -- that proves rung 3 ran at all,
+    and the ABSENCE of `filter_time_left` from it is then load-bearing. Without the
+    exclude, the user is shown a repair that did not happen, pointing at an entity with
+    no state; `entity_remaps` is persisted and surfaced on the System binding screen.
+
+    NEITHER ROLE IS IN `ROLE_DEVICE_CLASSES` on purpose. It holds only `battery` and
+    `charging`, so rung 4's `wanted_class` evaluates to "" here and
+    `rescue_by_device_class` returns early -- otherwise rung 4 would fire underneath
+    and mask the rung being measured.
+    """
+    hass = _install(
+        monkeypatch,
+        present={"select.alfred_wisch_intensitat"},
+        registry_ids=[
+            "sensor.alfred_filter_time_left",       # declared, registered, no state
+            "select.alfred_wisch_intensitat",
+        ],
+        keys={
+            "sensor.alfred_filter_time_left": "filter_time_left",
+            "select.alfred_wisch_intensitat": "mop_intensity",
+        },
+    )
+    out, report = resolve_declared_entities(
+        hass, "vacuum.alfred",
+        {
+            "filter_time_left": "sensor.alfred_filter_time_left",
+            "mop_intensity": "select.alfred_mop_intensity",
+        },
+    )
+
+    assert out["mop_intensity"] == "select.alfred_wisch_intensitat"
+    assert set(report) == {"mop_intensity"}, (
+        "a role was reported repaired onto its own unresolvable declared id"
+    )
+
+
+def test_tk8_sibling_translation_keys_omits_a_sibling_that_declares_none(monkeypatch):
+    """[TK-8] The documented contract: "entity_id -> translation_key, for the siblings
+    that DECLARE one". Eufy carries a key on 0 of 65 entities (measured, stated at
+    :481-483), so the keyless sibling is the common case and no test had one.
+
+    THE EXPECTATION IS AN EXACT DICT, which is what makes the empty-string key
+    observable: dropping the truthiness half of `isinstance(key, str) and key` admits
+    `"select.alfred_c": ""` and the equality goes red. A membership assertion would not
+    see it. The `None` key is the other shape, and the integer sibling crosses the
+    non-string guard at :252 -- which is subsumed (its fallthrough reaches
+    `registry.async_get(7)`, which this registry answers with None anyway) and is
+    therefore not asserted.
+    """
+    entries = {
+        "select.alfred_a": SimpleNamespace(translation_key="mop_intensity"),
+        "select.alfred_b": SimpleNamespace(translation_key=None),
+        "select.alfred_c": SimpleNamespace(translation_key=""),
+    }
+    registry = SimpleNamespace(async_get=lambda eid: entries.get(eid))
+
+    assert entity_resolve.sibling_translation_keys(
+        registry, ["select.alfred_a", "select.alfred_b", "select.alfred_c", 7]
+    ) == {"select.alfred_a": "mop_intensity"}
+
+
+def test_dc9_rung_four_binds_only_a_sibling_whose_class_matches(monkeypatch):
+    """[DC-9] Rung 4's only discriminator, and the arm no test had taken.
+
+    `_dc_map` is non-empty on every brand (:777-780), so rung 4 is the one rung live
+    everywhere, and the class comparison is the single thing stopping a same-domain
+    sibling being bound to a role it has nothing to do with. [DC-1]/[DC-2] filter their
+    second sibling out by DOMAIN instead, so a same-domain sibling with a DIFFERENT
+    class had never reached this line. Broken, a Spanish install binds
+    `sensor.alfred_deposito` (moisture) as the battery and the card reports a tank
+    reading as charge -- wrong data, not missing data.
+
+    THE TWO ROLES' CORRECT ANSWERS CROSS, and that is the cure for a severe
+    equals-the-fallback trap. The obvious assertion is the negative one ("the moisture
+    sensor was refused", i.e. battery keeps its declared id) -- but the declared id is
+    exactly what a wholly deleted rescue returns, so it passes either way. With battery
+    -> bateria and water_tank -> deposito in ONE call, each role must reject the other's
+    sibling by class alone; delete the comparison and both roles see two candidates,
+    `len(matches) != 1`, and both assertions go red.
+
+    This is the shoulder just after [DC-6]'s window: that test already uses
+    deposito/moisture, but only in the positive direction.
+    """
+    hass = _install(
+        monkeypatch,
+        present={"sensor.alfred_bateria", "sensor.alfred_deposito"},
+        registry_ids=["sensor.alfred_bateria", "sensor.alfred_deposito"],
+        classes={
+            "sensor.alfred_bateria": "battery",
+            "sensor.alfred_deposito": "moisture",
+        },
+    )
+    out, report = resolve_declared_entities(
+        hass, "vacuum.alfred",
+        {"battery": "sensor.alfred_battery", "water_tank": "sensor.alfred_water_tank"},
+        device_classes={"water_tank": "moisture"},
+    )
+
+    assert out["battery"] == "sensor.alfred_bateria"
+    assert out["water_tank"] == "sensor.alfred_deposito"
+    assert {r: v["via"] for r, v in report.items()} == {
+        "battery": "device_class", "water_tank": "device_class"
+    }
+
+
+def test_dc10_rung_four_never_repairs_a_role_onto_its_own_declared_id(monkeypatch):
+    """[DC-10] The same refusal as [TK-7], one rung lower, where the self-match is by
+    device class rather than translation key.
+
+    A disabled or orphaned registry entry for the declared id keeps its
+    `original_device_class`, so it is the single class match for its own role. Without
+    the exclude, `report["battery"]` gains a row saying declared == resolved -- a repair
+    that did not happen, written to `entity_remaps` and shown to the user, pointing at
+    an entity with no state.
+
+    THE REPORT IS THE OBSERVABLE, NOT THE ENTITY MAP. `out["battery"]` is UNCHANGED
+    under the mutation -- the self-match writes the same string back -- so an assertion
+    on the entities alone is a pure identity. And `report == {}` is the fallback, so the
+    charging role is rescued in the same call to make the expected report the asymmetric
+    `{"charging"}`.
+    """
+    hass = _install(
+        monkeypatch,
+        present={"binary_sensor.alfred_cargando"},
+        registry_ids=["sensor.alfred_battery", "binary_sensor.alfred_cargando"],
+        classes={
+            "sensor.alfred_battery": "battery",          # the declared id itself
+            "binary_sensor.alfred_cargando": "battery_charging",
+        },
+    )
+    out, report = resolve_declared_entities(
+        hass, "vacuum.alfred",
+        {
+            "battery": "sensor.alfred_battery",
+            "charging": "binary_sensor.alfred_charging",
+        },
+    )
+
+    assert out["charging"] == "binary_sensor.alfred_cargando"
+    assert set(report) == {"charging"}, (
+        "battery was reported repaired onto its own unresolvable declared id"
+    )

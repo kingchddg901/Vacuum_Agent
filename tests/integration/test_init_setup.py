@@ -1272,3 +1272,327 @@ async def test_init_panel_2_the_panel_survives_the_override_reload(
     # And the ledger must survive too, or setup rebuilds it from nothing and the next
     # genuine unload has no panels to tear down.
     assert hass.data.get(DOMAIN, {}).get(f"_panels_{mock_config_entry.entry_id}") == panels
+
+
+# ---------------------------------------------------------------------------
+# [INIT-16]..[INIT-22] the sensor orchestrator's unreached arms.
+#
+# [INIT-5] is the standing positive control for the latch trio: same storage seed, a
+# successful finalize, and it asserts the latch IS cleared. Each test below is that
+# input with exactly one thing changed, so the expected values are asymmetric against
+# a test already in this file rather than against a fallback.
+# ---------------------------------------------------------------------------
+
+def _boot_storage_with_latch(latch):
+    """The [INIT-5] seed with the active-run latch supplied by the caller."""
+    return {"version": 1, "data": {
+        "vacuums": {_VAC: {"name": "Alfred"}},
+        "maps": {_VAC: {"6": {
+            "map_id": "6", "metadata": {}, "summary": {},
+            "rooms": {"1": {"room_id": 1, "name": "Kitchen", "enabled": True}},
+        }}},
+        "error_tracker": {_VAC: {
+            "active_run_error": latch,
+            "last_device_error": None, "recent_errors": [],
+        }},
+    }}
+
+
+_RECOVERED = {"current_message": "", "recovered": True, "errors": []}
+_JOB_PATH = "/config/eufy_vacuum/jobs/job_x.json"
+
+
+async def test_init16_a_run_that_wrote_no_record_keeps_its_error_latch(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-16] A cancel fires EVENT_JOB_FINISHED with finalize_result=None, so the
+    payload carries no `job_path` -- and on that path the latch was deliberately never
+    harvested, which makes it the run's ONLY surviving evidence of the fault.
+
+    The comment at sensor/__init__.py:589-597 records that this door already threw away
+    "exactly what the peek/commit split exists to preserve" once: the commit keeps the
+    latch when the record write fails, and this handler then cleared it anyway.
+
+    THE PAIR IS THE POINT. The same boot, the same latch, two events differing only in
+    `job_path`: without it the latch must survive, with it the latch must clear. One
+    assertion alone would be satisfied by a handler that never clears or always clears;
+    the two together pin the gate. Removing `_finalized_ok` from line 600 reddens the
+    first half while leaving the second green.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_with_latch(dict(_RECOVERED))
+    assert await _setup(hass, mock_config_entry) is True
+    tracker = hass.data[DOMAIN][DATA_ERROR_TRACKER]
+
+    hass.bus.async_fire(EVENT_JOB_FINISHED, {"vacuum_entity_id": _VAC, "map_id": "6"})
+    await hass.async_block_till_done()
+    latch = tracker.get_active_run_latch(_VAC)
+    assert isinstance(latch, dict) and latch.get("recovered") is True, (
+        "a run that wrote no record had its only error evidence auto-cleared"
+    )
+
+    hass.bus.async_fire(EVENT_JOB_FINISHED, {
+        "vacuum_entity_id": _VAC, "map_id": "6", "job_path": _JOB_PATH,
+    })
+    await hass.async_block_till_done()
+    assert tracker.get_active_run_latch(_VAC) is None, (
+        "the control half: a finalize that DID write a record must clear the latch"
+    )
+
+
+async def test_init17_an_active_error_latch_survives_the_end_of_the_job(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-17] A latch whose `current_message` is non-empty means the fault is still
+    live, and sensor/__init__.py:587-588 states the rule: it is left in place so the
+    user still sees the error after the job ends and must acknowledge it themselves.
+
+    THE MESSAGE STRING IS THE ASSERTION, not the latch's presence. "Brush stuck" is a
+    value nothing in this module can produce by default, so it cannot be satisfied by a
+    latch that was rebuilt or by a default dict. [INIT-5] is the asymmetric twin: a
+    BLANK message on the same seeding path and the same successful finalize, asserted to
+    clear. Dropping the `not latch.get("current_message")` half of line 602 reddens this
+    and leaves [INIT-5] green.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_with_latch(
+        {"current_message": "Brush stuck", "recovered": False, "errors": []}
+    )
+    assert await _setup(hass, mock_config_entry) is True
+    tracker = hass.data[DOMAIN][DATA_ERROR_TRACKER]
+
+    hass.bus.async_fire(EVENT_JOB_FINISHED, {
+        "vacuum_entity_id": _VAC, "map_id": "6", "job_path": _JOB_PATH,
+    })
+    await hass.async_block_till_done()
+
+    latch = tracker.get_active_run_latch(_VAC)
+    assert isinstance(latch, dict), "an ACTIVE error latch was cleared by the job ending"
+    assert latch.get("current_message") == "Brush stuck"
+
+
+async def test_init18_a_job_finished_event_without_a_map_is_dropped(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-18] EVENT_JOB_FINISHED is a public HA bus event, so any automation can fire
+    it -- and the integration itself can too: `FINALIZE_LEARNING_JOB_SCHEMA` declares
+    `map_id` as vol.Optional (learning/services.py:105), the handler finalizes through
+    the RESOLVED map, and the event at :502-514 then fires `str(call.data["map_id"])` --
+    the RAW value. A service call with `map_id: ""` on a vacuum whose active map
+    resolves therefore finalizes successfully and emits this exact payload: a real
+    `job_path` beside a blank map id.
+
+    THE LATCH IS THE OBSERVABLE, and it is what makes the early return more than
+    tidiness: the drop happens BEFORE the acknowledge, so a payload that named no map
+    cannot clear a latch. The control is the second fire with the map present, which
+    clears it -- so the first assertion is not the absence of an effect nothing was
+    going to have.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_with_latch(dict(_RECOVERED))
+    assert await _setup(hass, mock_config_entry) is True
+    tracker = hass.data[DOMAIN][DATA_ERROR_TRACKER]
+
+    hass.bus.async_fire(EVENT_JOB_FINISHED, {
+        "vacuum_entity_id": _VAC, "map_id": "", "job_path": _JOB_PATH,
+    })
+    await hass.async_block_till_done()
+    assert isinstance(tracker.get_active_run_latch(_VAC), dict), (
+        "an event naming no map was allowed to acknowledge a latch"
+    )
+
+    hass.bus.async_fire(EVENT_JOB_FINISHED, {
+        "vacuum_entity_id": _VAC, "map_id": "6", "job_path": _JOB_PATH,
+    })
+    await hass.async_block_till_done()
+    assert tracker.get_active_run_latch(_VAC) is None
+
+
+def test_init19_the_state_write_funnel_skips_an_entity_with_no_hass():
+    """[INIT-19] Every callback-driven refresh in this module funnels through
+    `_request_entity_state_write`, and the manager's callbacks can arrive from worker
+    threads. An entity not (yet) attached to hass must be skipped rather than
+    dereferenced -- one detached entity would otherwise take out whichever notification
+    channel touched it, for every other entity on it.
+
+    THE PAIR IS 0 AND 1, NOT TWO ZEROS. Asserting only that nothing was scheduled is
+    invariant under a funnel that schedules nothing ever; attaching a hass to the SAME
+    entity and asserting exactly one scheduled write is what makes the first half mean
+    something. Under the named red input (`if hass is False:`) the detached half raises
+    AttributeError on `None.loop`.
+
+    The entity is a REAL `EufyVacuumRoomCleaningHistorySensor`, constructed and never
+    added, because "has no hass" is a property of the real class's lifecycle -- HA's
+    Entity declares `hass` and leaves it unset until `async_add_entities` runs.
+    """
+    from types import SimpleNamespace
+
+    from custom_components.eufy_vacuum.sensor import _request_entity_state_write
+    from custom_components.eufy_vacuum.sensor.room_history import (
+        EufyVacuumRoomCleaningHistorySensor,
+    )
+
+    entity = EufyVacuumRoomCleaningHistorySensor(
+        coordinator_key="k", vacuum_entity_id=_VAC, map_id="6", room_id=1,
+        room_data={"room_id": 1, "name": "Kitchen", "enabled": True},
+    )
+    assert getattr(entity, "hass", None) is None, (
+        "precondition: a freshly constructed entity is detached"
+    )
+
+    _request_entity_state_write(entity)          # must not raise
+
+    scheduled = []
+    entity.hass = SimpleNamespace(
+        loop=SimpleNamespace(call_soon_threadsafe=scheduled.append)
+    )
+    _request_entity_state_write(entity)
+    assert len(scheduled) == 1, (
+        "the funnel scheduled %d writes for an ATTACHED entity" % len(scheduled)
+    )
+
+
+async def test_init20_one_vacuums_overlay_failure_does_not_abort_the_tick(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-20] The 60-second overlay tick warms the map_state_source cache for
+    automations and templates. `async_refresh_map_state_source` does real file and
+    introspect I/O, so an unreadable or unparsable map file is a live raise -- and the
+    comment on line 648 states the property: "never let one vacuum break the tick".
+
+    THE OBSERVABLE IS THE PER-ITERATION TAIL, not the absence of an exception. Line 650
+    pushes state to the overlay sensor and runs AFTER the handler, so a caught failure
+    still leaves the sensor refreshed while an escaping one aborts the coroutine before
+    it. Narrowing the handler to `except KeyError:` lets the RuntimeError out and the
+    tail never runs.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_with_latch(dict(_RECOVERED))
+    assert await _setup(hass, mock_config_entry) is True
+
+    import custom_components.eufy_vacuum.sensor as sensor_mod
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    written = []
+
+    async def _boom(**kwargs):
+        raise RuntimeError("the stored map file is unreadable")
+
+    with patch.object(manager, "async_refresh_map_state_source", _boom), \
+            patch.object(sensor_mod, "_request_entity_state_write", written.append):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=61))
+        await hass.async_block_till_done()
+
+    assert written, (
+        "the refresh raised and took the rest of the tick with it -- the overlay "
+        "sensor was never pushed"
+    )
+
+
+async def test_init21_an_unreadable_active_map_falls_back_to_the_stored_one(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-21] The tick prefers the LIVE active map and falls back to the first STORED
+    one, for the reason the comment gives: otherwise the sensor sticks at
+    `present: false` with no cache at all until the active-map entity is ready.
+
+    `get_active_map_id` reads stored data through its own helpers, so it can raise. The
+    INNER catch is what keeps the fallback reachable -- narrowed to `except KeyError:`,
+    a RuntimeError escapes to the OUTER handler instead and lines 641-647 are skipped
+    entirely, so the refresh never happens.
+
+    THE ASSERTION IS THE CALL AND ITS ARGUMENT, not that nothing raised: the stored map
+    "6" is what proves the fallback ran, and `("vacuum.alfred", "6")` is a value the
+    live path could not have produced here because the live read is the thing raising.
+    It is imported INSIDE the tick (sensor/__init__.py:629), so the patch has to land on
+    the source module.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_with_latch(dict(_RECOVERED))
+    assert await _setup(hass, mock_config_entry) is True
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    refreshed = []
+
+    async def _record(*, vacuum_entity_id, map_id):
+        refreshed.append((vacuum_entity_id, map_id))
+
+    def _boom(_hass, _vac):
+        raise RuntimeError("the active-map entity is unresolvable")
+
+    with patch("custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+               _boom), \
+            patch.object(manager, "async_refresh_map_state_source", _record):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=61))
+        await hass.async_block_till_done()
+
+    assert (_VAC, "6") in refreshed, (
+        "the live-map failure skipped the stored-map fallback; refreshed=%r" % (refreshed,)
+    )
+
+
+async def test_init22_a_stale_active_job_sensor_is_removed_on_reload(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-22] ENT-ORPHAN-1. A per-(vacuum, map) active-job sensor whose map no longer
+    exists would otherwise sit in the registry permanently `unavailable` -- found with
+    two real orphans on the maintainer's box and reported independently from the 2.1.0
+    beta. The sweep's whole body, the log line and the `async_remove`, had never run.
+
+    IT GOES THROUGH A RELOAD because a registry row cannot be linked to a config entry
+    hass has not been told about, and `_setup` is what adds it. The removal is the claim:
+    replacing `async_remove` with `pass` reddens this.
+
+    THE LIVE-ROW LINE BELOW IS NOT A CHECK ON THE SWEEP, and saying so is the point of
+    this paragraph. I expected the reload path to make it one -- by then the first boot
+    has created `vacuum_alfred_active_job_6`, so a sweep that over-collected should be
+    visible. Measured with `live_pairs=set()`, which classifies EVERY active-job row as
+    an orphan: the test stayed green. The sweep does remove the live row, and
+    `async_add_entities` (sensor/__init__.py:328) then re-creates the sensor with the
+    same unique_id twelve lines later, so the lookup finds it again either way. The
+    clause is invariant under the mutation it looks like it would catch, and it is kept
+    only as a true statement about the end state.
+
+    The deletion-safety property it resembles -- doc 37 §4, where the naive version of
+    this cleanup registry-deleted a SIBLING vacuum's entities, a prefix scan for
+    `vacuum.alfred` sweeping everything belonging to `vacuum.alfred_2`, demonstrated
+    rather than theorised -- belongs to `orphaned_active_job_unique_ids` itself and is
+    held by its own tests, where the forward-built complement can actually be observed.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.eufy_vacuum.entity_helpers import active_job_unique_id
+
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_with_latch(dict(_RECOVERED))
+    assert await _setup(hass, mock_config_entry) is True
+
+    reg = er.async_get(hass)
+    live = active_job_unique_id(vacuum_entity_id=_VAC, map_id="6")
+    stale = active_job_unique_id(vacuum_entity_id=_VAC, map_id="99")
+    assert reg.async_get_entity_id("sensor", DOMAIN, live) is not None, (
+        "precondition: the first boot built the live map's active-job sensor"
+    )
+
+    reg.async_get_or_create(
+        "sensor", DOMAIN, stale,
+        suggested_object_id="alfred_active_job_99", config_entry=mock_config_entry,
+    )
+    assert reg.async_get_entity_id("sensor", DOMAIN, stale) is not None
+
+    patches = _patch_frontend()
+    for p in patches:
+        p.start()
+    try:
+        assert await hass.config_entries.async_reload(mock_config_entry.entry_id)
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+
+    assert reg.async_get_entity_id("sensor", DOMAIN, stale) is None, (
+        "the active-job sensor for a map that no longer exists was left behind"
+    )
+    # NOT a check on the sweep -- see the docstring. The sensor is re-created at
+    # sensor/__init__.py:328 regardless, so this records the end state only.
+    assert reg.async_get_entity_id("sensor", DOMAIN, live) is not None
