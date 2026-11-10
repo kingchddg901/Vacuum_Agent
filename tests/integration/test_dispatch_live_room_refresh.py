@@ -25,9 +25,19 @@ Coverage targets
          classified PERMANENT (sticky-disable + one WARNING) like ServiceNotFound/
          ServiceNotSupported, not swallowed by the generic transient branch below
          it (which would retry forever, every pulse interval, silently).
+[LRR-12] a declared block with NO local_gate is inert rather than fatal. The signal is
+         the absence of a raise: `calls == []` is every skipped path's value.
+[LRR-13] a gate naming an identifier domain the device does not carry reads as CLOUD.
+         Here `calls == []` IS a differential -- ablated, a pulse fires.
+[LRR-14] ...and so does a gate with no issue template or no issue domain. Two cases,
+         because that guard is an `or` and one case would leave half of it unablated.
+[LRR-15] a template that cannot be formatted is caught, not propagated -- three
+         templates for the three exception types the `except` tuple names.
 """
 
 from __future__ import annotations
+
+import pytest
 
 from homeassistant.core import SupportsResponse
 from homeassistant.exceptions import (
@@ -329,4 +339,128 @@ async def test_gate_failsafe_no_device(hass, manager, mock_config_entry):
     hass.states.async_set(_VAC, "cleaning")
     manager.maybe_pulse_live_room_refresh(_VAC)
     await hass.async_block_till_done()
+    assert calls == []
+
+
+# ---------------------------------------------------------------------------
+# [LRR-12]..[LRR-15] the local-gate walk. EVERY guard here returns False and False
+# means "skip", so `calls == []` is the value [LRR-2]/[LRR-4]/[LRR-6]/[LRR-9] already
+# assert. Each test below therefore names what ELSE distinguishes it, and [LRR-3] --
+# same device, same gate, pulse FIRES -- is the positive control for all of them.
+# ---------------------------------------------------------------------------
+
+async def test_lrr12_a_block_with_no_local_gate_is_inert_not_fatal(hass, manager, mock_config_entry):
+    """[LRR-12] An adapter may declare the refresh block and omit `local_gate`.
+
+    The gate is what decides local-vs-cloud; with none declared there is nothing to
+    decide on, and the module's choice is to treat that as "not local" and skip rather
+    than to pulse blindly. Skipping is the safe direction -- pulsing a cloud-connected
+    vacuum is what the whole gate exists to prevent.
+
+    THE DISCRIMINATOR IS THE ABSENCE OF A RAISE, not the empty call list. The walk
+    continues to `gate.get("device_identifier_domain")`, so without this guard it
+    dereferences None and raises AttributeError out of `maybe_pulse_live_room_refresh`.
+    The device IS linked here deliberately: with no linked device the walk would return
+    at the entity check two lines earlier and never reach the dereference, so the test
+    would pass against the ablation.
+    """
+    vid = _link_device(hass, mock_config_entry)
+    gate_less = {k: v for k, v in _LRR.items() if k != "local_gate"}
+    _register(hass, live_room_refresh=gate_less)
+    calls = _capture(hass)
+    hass.states.async_set(vid, "cleaning")
+
+    manager.maybe_pulse_live_room_refresh(vid)
+    await hass.async_block_till_done()
+
+    assert calls == []
+
+
+async def test_lrr13_a_gate_naming_an_unknown_identifier_domain_reads_as_cloud(
+    hass, manager, mock_config_entry
+):
+    """[LRR-13] No device identifier in the declared domain means no duid to check.
+
+    The gate walks entity -> device -> identifier -> issue registry, and the identifier
+    domain is adapter-declared. If it names a domain this device does not carry there is
+    no duid, so no issue id can be built and localness cannot be established -- which
+    must read as "not local", not as "local by default".
+
+    HERE `calls == []` IS A REAL DIFFERENTIAL, unlike [LRR-12]: with this guard removed
+    the walk continues with `duid=None`, the template formats, the issue lookup misses,
+    and a pulse FIRES. So the empty list distinguishes the guard working from the guard
+    absent, which is why no extra observable is needed.
+    """
+    vid = _link_device(hass, mock_config_entry)
+    wrong_domain = dict(_LRR, local_gate=dict(_LRR["local_gate"],
+                                              device_identifier_domain="not_roborock"))
+    _register(hass, live_room_refresh=wrong_domain)
+    calls = _capture(hass)
+    hass.states.async_set(vid, "cleaning")
+
+    manager.maybe_pulse_live_room_refresh(vid)
+    await hass.async_block_till_done()
+
+    assert calls == []
+
+
+@pytest.mark.parametrize("gate_override", [
+    {"issue_id_template": ""},
+    {"issue_domain": None},
+], ids=["no_template", "no_issue_domain"])
+async def test_lrr14_a_gate_missing_either_issue_field_reads_as_cloud(
+    hass, manager, mock_config_entry, gate_override
+):
+    """[LRR-14] Both halves of `if not template or not issue_domain`.
+
+    The issue id is built from the template and looked up in the declared domain; with
+    either missing there is no lookup to make, so localness is unestablished and the
+    pulse is skipped.
+
+    TWO CASES BECAUSE THE GUARD IS AN `or`. A single case would leave the other half
+    unablated -- dropping `not template` would still be caught by `not issue_domain` and
+    the test would stay green. As with [LRR-13] the empty call list is a differential:
+    ablated, each of these fires a pulse.
+    """
+    vid = _link_device(hass, mock_config_entry)
+    _register(hass, live_room_refresh=dict(
+        _LRR, local_gate=dict(_LRR["local_gate"], **gate_override)))
+    calls = _capture(hass)
+    hass.states.async_set(vid, "cleaning")
+
+    manager.maybe_pulse_live_room_refresh(vid)
+    await hass.async_block_till_done()
+
+    assert calls == []
+
+
+@pytest.mark.parametrize("template", [
+    "cloud_api_used_{wrong_field}",
+    "cloud_api_used_{0}",
+    "cloud_api_used_{",
+], ids=["KeyError", "IndexError", "ValueError"])
+async def test_lrr15_an_unformattable_issue_template_is_caught(
+    hass, manager, mock_config_entry, template
+):
+    """[LRR-15] A declared template is adapter data, so it can be wrong.
+
+    `template.format(duid_slug=...)` raises three different ways depending on how the
+    declaration is wrong: an unknown placeholder (KeyError), a positional one
+    (IndexError), and an unclosed brace (ValueError). All three are adapter-authoring
+    mistakes that must not take down a pulse attempt on a live run.
+
+    THREE CASES FOR THREE EXCEPTIONS, because the `except` names a tuple: narrowing it
+    to any one of them would leave the other two propagating, and a single-template
+    test would not notice. The discriminator is again the ABSENCE of a raise out of
+    `maybe_pulse_live_room_refresh` -- the empty call list is the fallback.
+    """
+    vid = _link_device(hass, mock_config_entry)
+    _register(hass, live_room_refresh=dict(
+        _LRR, local_gate=dict(_LRR["local_gate"], issue_id_template=template)))
+    calls = _capture(hass)
+    hass.states.async_set(vid, "cleaning")
+
+    manager.maybe_pulse_live_room_refresh(vid)
+    await hass.async_block_till_done()
+
     assert calls == []
