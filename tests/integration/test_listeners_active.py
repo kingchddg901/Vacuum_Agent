@@ -64,6 +64,8 @@ from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from tests._factories import spec_manager, spec_tracker
 
+from homeassistant.core import callback
+
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import (
     DATA_RUNTIME,
@@ -110,7 +112,7 @@ def _mgr(hass):
 
 def _collect(hass, event_type):
     events = []
-    hass.bus.async_listen(event_type, lambda e: events.append(e))
+    hass.bus.async_listen(event_type, callback(lambda e: events.append(e)))
     return events
 
 

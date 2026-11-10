@@ -49,6 +49,16 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+# A bus listener these tests ASSERT ON must be a `callback`. Measured: a plain
+# lambda is a HassJobType.Executor job, so `async_fire` hands it to a worker
+# THREAD and returns -- and a sync test reading the collected list is racing
+# that thread, winning only by luck. CI went red on 53e09632 when the race was
+# lost for the first time (test_progress_skipped_conservative, `assert 0 == 1`),
+# after seven green pushes and two green local runs of the very same tree.
+# `callback(...)` is a HassJobType.Callback job, which HA runs inline on the
+# firing thread -- which is what every assertion here already assumed.
+from homeassistant.core import callback
+
 from custom_components.eufy_vacuum.const import (
     DATA_LEARNING,
     DOMAIN,
@@ -145,7 +155,9 @@ def test_progress_unreadable_battery_does_not_crash(manager, hass):
     )
     hass.states.async_set(_VAC, "cleaning")  # deliberately no battery_level attr
     events: list = []
-    hass.bus.async_listen(EVENT_ROOM_SKIPPED, lambda e: events.append(e.data))
+    hass.bus.async_listen(
+        EVENT_ROOM_SKIPPED, callback(lambda e: events.append(e.data))
+    )
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
     assert snap["status"] == "started"
     assert 1 in snap["skipped_room_ids"]  # skip-detection unaffected by the unreadable battery
@@ -180,7 +192,9 @@ def test_progress_stall(manager, hass):
     _seed_job(manager, minutes_ago=60)
     hass.states.async_set(_VAC, "cleaning")
     events = []
-    hass.bus.async_listen(EVENT_STALL_DETECTED, lambda e: events.append(e))
+    hass.bus.async_listen(
+        EVENT_STALL_DETECTED, callback(lambda e: events.append(e))
+    )
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
     # whichever path the timing engine takes, the snapshot stays well-formed
     assert "current_room_overdue" in snap
@@ -206,7 +220,9 @@ def test_progress_stall_fires_once(manager, hass):
     )
     hass.states.async_set(_VAC, "cleaning")
     events = []
-    hass.bus.async_listen(EVENT_STALL_DETECTED, lambda e: events.append(e))
+    hass.bus.async_listen(
+        EVENT_STALL_DETECTED, callback(lambda e: events.append(e))
+    )
 
     # a pure read reports the anomaly field but fires + persists nothing
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
@@ -418,7 +434,9 @@ def test_progress_skipped_conservative(manager, hass):
     )
     hass.states.async_set(_VAC, "cleaning")
     events: list = []
-    hass.bus.async_listen(EVENT_ROOM_SKIPPED, lambda e: events.append(e.data))
+    hass.bus.async_listen(
+        EVENT_ROOM_SKIPPED, callback(lambda e: events.append(e.data))
+    )
 
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
     assert 1 in snap["skipped_room_ids"]

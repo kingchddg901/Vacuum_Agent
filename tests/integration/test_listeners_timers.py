@@ -24,6 +24,8 @@ import pytest
 import homeassistant.util.dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
+from homeassistant.core import callback
+
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import (
     DOMAIN,
@@ -44,7 +46,7 @@ _MAP = "1"
 def _collect(hass, event_type):
     """Capture every event of one type fired for the rest of the test."""
     events = []
-    hass.bus.async_listen(event_type, lambda e: events.append(e))
+    hass.bus.async_listen(event_type, callback(lambda e: events.append(e)))
     return events
 
 

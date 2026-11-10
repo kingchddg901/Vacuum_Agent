@@ -30,6 +30,7 @@ is a defect in genuinely unclaimed code: no rule, no guard, no test, no anchor.
 from __future__ import annotations
 
 import pytest
+from homeassistant.core import callback
 
 _VAC = "vacuum.alfred"
 _MAP = "6"
@@ -235,7 +236,9 @@ def _capture_stalls(hass):
     from custom_components.eufy_vacuum.const import EVENT_STALL_DETECTED
 
     seen: list[dict] = []
-    hass.bus.async_listen(EVENT_STALL_DETECTED, lambda e: seen.append(dict(e.data)))
+    hass.bus.async_listen(
+        EVENT_STALL_DETECTED, callback(lambda e: seen.append(dict(e.data)))
+    )
     return seen
 
 
