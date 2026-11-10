@@ -27,6 +27,12 @@ Coverage targets
          stored rooms does (nothing to come back for).
 [MIG-12] a target that can NEVER be adjudicated defers quietly (DEBUG), and still
          defers — the C61 ruling moved the volume, not the latch.
+[MIG-13] three corrupt shapes in the SAME walk — a non-dict maps bucket, a non-dict map
+         bucket and two non-dict rooms — are skipped, not fatal, and not a `break`.
+[MIG-14] the per-axis residue wrappers each pass their OWN field set. Asymmetric on
+         purpose: swapping the two would redden both.
+[MIG-15] an adapter declaring an empty `builtins` judges nothing, rather than treating
+         every stored value as undeclared and dropping it.
 """
 
 from __future__ import annotations
@@ -38,7 +44,9 @@ import pytest
 from custom_components.eufy_vacuum.rooms.vocabulary_migration import (
     MIGRATION_KEY,
     migrate_room_vocabulary,
+    plan_fan_speed_residue_repair,
     plan_room_vocabulary_migration,
+    plan_water_level_residue_repair,
 )
 
 from tests.brand_catalogs import EUFY_BLOCK, SYNTHETIC_BLOCK, SYNTHETIC_VOCABULARY
@@ -489,3 +497,103 @@ def test_mig_12_a_target_that_can_never_be_adjudicated_defers_quietly(caplog):
     assert dict(data.get("migrations", {})) == {}, (
         "the rejected fix was a persisted disposition; no key may appear here"
     )
+
+
+def test_mig13_corrupt_shapes_do_not_stop_the_plan():
+    """[MIG-13] Three skips in one walk, each with its junk row FIRST.
+
+    This is the persisted room store, so every one of these shapes is something an
+    older version or a hand-edit can leave behind: a vacuum whose `maps` is not a
+    mapping, a map bucket that is not a mapping, and room entries that are not dicts.
+    Each guard protects the dereference on the next line.
+
+    THE ORDER IS THE INPUT. The junk vacuum precedes the real one, the junk map
+    precedes the real map, and both junk rooms precede the real room -- so a `break` in
+    place of any of the three `continue`s loses the one change this must find. With the
+    junk last, all three would be invisible.
+
+    THE EXPECTED VALUE IS A ONE-ELEMENT LIST, NOT A COUNT. `[]` is what this function
+    returns for every malformed input, so asserting "no exception" or a length would
+    pass against a walk that found nothing. Naming the vacuum, map, room and field is
+    what shows it walked past three corruptions and still adjudicated the one real
+    room.
+    """
+    data = {
+        "maps": {
+            "vacuum.junk_maps": "not-a-dict",
+            _VAC: {
+                "map0": "not-a-dict",
+                "map1": {
+                    "rooms": {
+                        "0": None,
+                        "1": 5,
+                        "2": _room(room_id=2, name="Lounge", clean_mode="ZZZ"),
+                    }
+                },
+            },
+        }
+    }
+
+    planned = plan_room_vocabulary_migration(data=data, get_config=_getter(_config()))
+
+    assert [
+        (c["vacuum_entity_id"], c["map_id"], c["room_id"], c["field"], c["action"])
+        for c in planned
+    ] == [(_VAC, "map1", "2", "clean_mode", "reset")]
+
+
+def test_mig14_each_residue_wrapper_passes_its_own_field_set():
+    """[MIG-14] The per-axis wrappers, and why they are tested rather than deleted.
+
+    `plan_residue_repair` is generic over `fields`; the three `plan_*_residue_repair`
+    wrappers name one axis each. Only the `path_type` one had a test, so a classifier
+    reading call sites alone proposed deleting the other two as orphans. They ARE
+    uncalled -- one tracked reference each, their own `def`. But all three AXES ship:
+    `migrate_path_type_residue`, `migrate_fan_speed_residue` and
+    `migrate_water_level_residue` are each called from `__init__.py`, each reads its own
+    `*_RESIDUE_FIELDS`, and the docstrings cite live hardware. The wrappers are the
+    planning half of a live symmetric set -- the dry-run door -- so the gap was a
+    missing test, not dead weight.
+
+    ASYMMETRIC BY CONSTRUCTION, which is the whole design of this input. The room
+    carries an out-of-vocabulary value on BOTH axes, so each wrapper must return
+    exactly its own one. Had the room carried only one bad axis, or had both
+    assertions expected the same shape, swapping the two field sets would leave the
+    test green -- the symmetric-assertion trap.
+
+    A RESET, NOT A DROP: both axes ARE declared by the synthetic profile, so an
+    out-of-vocabulary value is reset to the brand's default rather than removed. That
+    is also what makes `plan_residue_repair` the right generic here -- it filters to
+    resets only.
+    """
+    data = _data({"1": _room(water_level="NotAWaterLevel", fan_speed="NotAFanSpeed")})
+    get_config = _getter(_config())
+
+    water = plan_water_level_residue_repair(data=data, get_config=get_config)
+    fan = plan_fan_speed_residue_repair(data=data, get_config=get_config)
+
+    assert [(c["field"], c["action"]) for c in water] == [("water_level", "reset")]
+    assert [(c["field"], c["action"]) for c in fan] == [("fan_speed", "reset")]
+
+
+def test_mig15_an_adapter_declaring_no_profile_fields_judges_nothing():
+    """[MIG-15] An empty `builtins` must not read as "every field is undeclared".
+
+    The planner drops a field no declared profile carries ([MIG-1]) and resets one whose
+    value is out of vocabulary ([MIG-2]). Both decisions rest on the DECLARED field set,
+    so an adapter whose `builtins` is empty would, without this guard, have every stored
+    field treated as undeclared and dropped -- a silent wipe of the user's room
+    settings on an adapter that simply has not declared its profiles yet.
+
+    [MIG-4] covers the adjacent case, an adapter that declares NOTHING AT ALL. This one
+    is the adapter that declares a profiles block whose builtins are empty, which is a
+    different shape and reaches a different guard.
+
+    The room carries two values that WOULD otherwise be judged -- `clean_mode` out of
+    vocabulary and `water_level` out of vocabulary -- so an empty plan is the guard
+    talking rather than an input nothing could act on.
+    """
+    config = _config(room_profiles={"default_profile": "standard", "builtins": {}})
+    data = _data({"1": _room(clean_mode="ZZZ", water_level="NotAWaterLevel")})
+
+    assert plan_room_vocabulary_migration(data=data, get_config=_getter(config)) == []
