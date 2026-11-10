@@ -812,3 +812,222 @@ def test_ready_preflight_declares_the_same_keys(rp):
     assert pf["blocked"] is False
     assert pf["reason_params"] == {}
     assert pf["blocking_rooms"] == []
+
+
+# ---------------------------------------------------------------------------
+# [RPS-25]..[RPS-27] the RUNTIME sibling, `get_runtime_path_block_report`.
+#
+# Everything above drives `_build_effective_start_plan`, which runs at job start. This
+# one re-evaluates the same rules MID-JOB, so a window opening behind a running vacuum
+# pauses it. Its ignorable-rule walk had never been exercised: a corrupt room row, a
+# disabled rule, a modifier, a blocker with no entity, an unmatched blocker and an
+# INDETERMINATE one all reach it, and every one of those arms was asserted by absence.
+# ---------------------------------------------------------------------------
+
+def _start_job(manager, map_id, queue_room_ids, **extra):
+    """Put a started job on the map, the way the progress tests seed one."""
+    job = {
+        "status": "started", "job_id": "rpsj1",
+        "queue_room_ids": list(queue_room_ids),
+        "completed_room_ids": [],
+    }
+    job.update(extra)
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[map_id] = job
+    return job
+
+
+def test_rps25_the_runtime_walk_files_only_the_rule_that_actually_matched(rp, hass):
+    """[RPS-25] One job, seven rule shapes, one block.
+
+    Five of the six must contribute NOTHING, and each is ignorable for a different
+    reason -- a rule that is not a dict, a disabled rule, a modifier rather than a
+    blocker, a blocker naming no entity, and a blocker whose entity is off. The sixth
+    matches. Driving them in ONE call is the point: five separate tests would each
+    prove only that its own shape is survivable, while this bites the SET, which is
+    where near-identical guards drift apart.
+
+    THE CORRUPT ROOM ROW IN THE FIXTURE DOES NOT REACH THIS MODULE, measured: ablating
+    `run_plan.py`'s own `if not isinstance(room, dict)` left this green, because
+    `access_graph.py:283-284` drops every non-dict row while building the normalised
+    view this method reads. The row is kept because it is a realistic thing to find in
+    storage, but what it proves is the UPSTREAM guard, which [AG-22] owns; the copy
+    here is unreachable and is recorded as a ceiling rather than claimed.
+
+    THE ASSERTION IS THE EXACT BLOCKED LIST, NOT ITS LENGTH. `["2"]` names which room
+    was filed; a count of one is satisfied by filing the wrong room, and that is the
+    failure that matters here -- a mid-job pause attributed to a room the user can see
+    is fine, one attributed to the wrong room sends them looking at the wrong window.
+
+    THE INDETERMINATE RULE IS HERE BECAUSE IT CANNOT BE OBSERVED ALONE. Room 4's
+    blocker names an entity that does not exist, so `_room_rule_matches_known` reports
+    unknown and RP-008 says HOLD-PREVIOUS: neither block nor clear. But a report with
+    nothing blocked returns None at :1956 and the diagnostics go with it -- so the
+    indeterminate rule is only visible beside a real block, which is exactly how it
+    reaches a reader in production too.
+
+    Room 1 grants access, which is required: with blocker rules present and no room
+    granting anything, the method bails at :1879-1884 ([RPS-27] pins that).
+    """
+    rp_, mgr = rp
+    _seed(mgr, "rpm25", [
+        # 1: the dock room, and the only grant -- without it [RPS-27]'s bail fires
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2, 3, 4]},
+        # 2: the one real block
+        {"enabled": True, "rules": [_blocker("binary_sensor.rps25_open")]},
+        # 3: four shapes that must all be ignored
+        {"enabled": True, "rules": [
+            "not-a-dict",
+            dict(_blocker("binary_sensor.rps25_disabled"), id="b_disabled",
+                 enabled=False),
+            _modifier("binary_sensor.rps25_mod", {"fan_speed": "Max"}),
+            dict(_blocker(""), id="b_noentity"),
+            dict(_blocker("binary_sensor.rps25_shut"), id="b_unmatched"),
+        ]},
+        # 4: a blocker whose entity is absent from the state machine entirely
+        {"enabled": True, "rules": [
+            dict(_blocker("binary_sensor.rps25_vanished"), id="b_indeterminate"),
+        ]},
+    ])
+    # a corrupt room row, which `_normalized_managed_rooms_with_automation` passes
+    # through and the walk must step over
+    mgr.data["maps"][_VAC]["rpm25"]["rooms"]["junk"] = "not-a-dict"
+
+    hass.states.async_set("binary_sensor.rps25_open", "on")
+    hass.states.async_set("binary_sensor.rps25_disabled", "on")
+    hass.states.async_set("binary_sensor.rps25_mod", "on")
+    hass.states.async_set("binary_sensor.rps25_shut", "off")
+    # rps25_vanished is deliberately never set
+
+    _start_job(mgr, "rpm25", [1, 2, 3, 4])
+    report = rp_.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="rpm25",
+        trigger_entity_id="binary_sensor.rps25_open", trigger_entity_state="on",
+    )
+
+    assert report is not None, "the matched blocker produced no runtime report at all"
+    assert report["directly_blocked_room_ids"] == ["2"], (
+        "the wrong rooms were filed as directly blocked: %r"
+        % (report["directly_blocked_room_ids"],)
+    )
+    assert report["job_id"] == "rpsj1"
+
+    assert [r["entity_id"] for r in report["indeterminate_rules"]] == [
+        "binary_sensor.rps25_vanished"
+    ], "the dropout was not recorded, or a resolvable rule was recorded with it"
+    assert report["indeterminate_rules"][0]["room_id"] == 4
+    assert "4" not in report["directly_blocked_room_ids"], (
+        "RP-008: an INDETERMINATE rule must neither block nor clear -- treating it as "
+        "matched is GUARD-1's bug inverted"
+    )
+
+
+def test_rps26_the_runtime_report_is_deduped_by_its_own_signature(rp, hass):
+    """[RPS-26] The method is called on every blocker state change, and the caller
+    fires an event on whatever it returns -- so returning the same block twice would
+    re-pause a run already paused for that reason.
+
+    THE PAIR IS THE CLAIM: the first call reports, the identical second call returns
+    None, and then a DIFFERENT trigger state reports again. Two calls alone could not
+    separate "deduped" from "only ever answers once"; the third call is what shows the
+    signature is about the content and not a one-shot latch.
+    """
+    rp_, mgr = rp
+    _seed(mgr, "rpm26", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2]},
+        {"enabled": True, "rules": [_blocker("binary_sensor.rps26_open")]},
+    ])
+    hass.states.async_set("binary_sensor.rps26_open", "on")
+    _start_job(mgr, "rpm26", [1, 2])
+
+    first = rp_.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="rpm26",
+        trigger_entity_id="binary_sensor.rps26_open", trigger_entity_state="on",
+    )
+    assert first is not None and first["directly_blocked_room_ids"] == ["2"]
+
+    again = rp_.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="rpm26",
+        trigger_entity_id="binary_sensor.rps26_open", trigger_entity_state="on",
+    )
+    assert again is None, "the same block was reported twice -- the run would re-pause"
+
+    moved = rp_.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="rpm26",
+        trigger_entity_id="binary_sensor.rps26_open", trigger_entity_state="on-again",
+    )
+    assert moved is not None, (
+        "a genuinely different trigger state was swallowed by the dedup"
+    )
+
+
+def test_rps27_blocker_rules_with_no_access_graph_authored_report_nothing(rp, hass):
+    """[RPS-27] A map where someone wrote blocker rules but no room grants access to
+    any other.
+
+    There is no graph to walk, so a mid-job re-evaluation has nothing to say about
+    reachability and bails. The contrast with [RPS-25] is one field: that fixture's
+    room 1 carries `grants_access_to`, this one's carries none, and the blocker is
+    identical and matched in both.
+
+    THE MATCHED BLOCKER IS WHAT MAKES THIS MORE THAN A NULL. `None` is also what an
+    idle job, an empty queue and a deduped repeat return, so the input has to be one
+    that WOULD report -- the same shape [RPS-25] reports on -- with the grant removed.
+    """
+    rp_, mgr = rp
+    _seed(mgr, "rpm27", [
+        {"enabled": True, "is_dock_room": True},
+        {"enabled": True, "rules": [_blocker("binary_sensor.rps27_open")]},
+    ])
+    hass.states.async_set("binary_sensor.rps27_open", "on")
+    _start_job(mgr, "rpm27", [1, 2])
+
+    assert rp_.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="rpm27",
+        trigger_entity_id="binary_sensor.rps27_open", trigger_entity_state="on",
+    ) is None, (
+        "blocker rules with no grants anywhere produced a reachability report"
+    )
+
+
+def test_rps28_the_three_pure_helpers_agree_with_their_core_manager_twins():
+    """[RPS-28] `_safe_int`, `_safe_float` and `_display_label` are copied into this
+    module from `core/manager.py` -- the comment above them at :75 says so.
+
+    THE CLAIM IS AGREEMENT, NOT BEHAVIOUR. Each copy's behaviour is already pinned on
+    the manager side; what nothing checked is that the two copies still answer the same
+    way, which is the only property a duplicate can break on its own. A divergence here
+    is silent: the planner would read a sentinel one way and the manager the other, and
+    both would look locally correct.
+
+    THE NAMED RED INPUT IS `int(float(v))` -> `int(v)` IN THE PLANNER'S COPY, which
+    makes `"12.7"` answer 0 here and 12 in the manager. Finding that took a measurement
+    and the obvious mutation was DEAD: dropping `"unavailable"` from this copy's
+    sentinel tuple changes nothing observable, because `float("unavailable")` then
+    raises and the `except (TypeError, ValueError)` returns the same default. FOR EVERY
+    STRING SENTINEL IN THAT TUPLE THE GUARD IS SUBSUMED BY ITS OWN EXCEPT -- it is an
+    optimisation, not a behaviour, and a divergence test built on it cannot bite.
+
+    So the table carries inputs whose answers differ by ROUTE, not only by guard:
+    `"12.7"` (string float), `12.7` (real float), `True` (a bool is an int) and `[]`
+    (no conversion at all). `"_"` is the `_display_label` case that normalises to empty
+    AFTER passing the first emptiness check -- the arm reached only by a value that is
+    non-blank but contains nothing but separators.
+    """
+    from custom_components.eufy_vacuum.core import manager as core_manager
+    from custom_components.eufy_vacuum.planning import run_plan as planner
+
+    sentinels = [None, "", "unknown", "unavailable", "12", "12.7", 12, 12.7, "abc",
+                 True, []]
+    for value in sentinels:
+        assert planner._safe_int(value) == core_manager._safe_int(value), value
+        assert planner._safe_float(value) == core_manager._safe_float(value), value
+
+    for value in [None, "", "   ", "_", "-", "__--__", "by_time", "vacuum mop", 7]:
+        assert planner._display_label(value) == core_manager._display_label(value), value
+
+    # and the arms those sentinels reach, stated so the table is not just a diff of two
+    # unknowns: the absence spellings fall back, junk falls back, "_" normalises to None
+    assert planner._safe_int("unavailable", 9) == 9
+    assert planner._safe_float("abc", 1.5) == 1.5
+    assert planner._display_label("_") is None
+    assert planner._display_label("by_time") == "By Time"

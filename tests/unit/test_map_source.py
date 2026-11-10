@@ -22,6 +22,14 @@ parsed-map path, and the presence gate.
 [MS-18] eufy_version_of: content version = 12-char sha1 of the raster; stable per map, changes on re-map; no raster -> "".
 [MS-19] vacuum_to_normalized: vacuum-frame point -> main grid ((v-origin)/res) then rendered normalization; non-numeric/bool/no-dims -> None.
 [MS-20] hazards_from_mapdata: device hazard layers -> normalized overlays (walls/no_go/no_mop); degenerate/scalar-drift degrade, never raise.
+[MS-22] normalize_rendered: rejection is OPT-IN -- the same off-grid pixel clamps to the
+        wall by default and comes back None for the callers that ask (doc 12 §3).
+[MS-23] the companion half: a map whose required geometry is missing, whose raster will
+        not decode, or whose raster is truncated makes current_room_for_pixel (and
+        rooms_from_room_pixels) ABSTAIN rather than name the room owning that wall.
+[MS-24] zone_membership is best-effort per its own docstring: a raster it cannot read
+        leaves room_number None WITHOUT disturbing area_m2, which depends only on the
+        dims; malformed geometry loses both.
 """
 import base64
 from types import SimpleNamespace
@@ -46,6 +54,7 @@ from custom_components.eufy_vacuum.mapping.map_source import (
     render_data_from_storage,
     resolve_overlay_visibility,
     rooms_from_room_pixels,
+    zone_membership,
     _CATCH_ALL_RID,
     _decimate_step,
 )
@@ -588,3 +597,133 @@ def test_rooms_from_room_pixels_emits_only_real_rids():
         assert isinstance(r["area_m2"], float), (
             "a non-float area would make external_run's float() able to raise"
         )
+
+
+# ---------------------------------------------------------------------------
+# [MS-22]..[MS-24] the refusals. Doc 12 §3: for a pose or anchor caller "a clamped
+# point is indistinguishable from a legitimate point AT THE EDGE, so clamping silently
+# reports 'off the map' as 'at the wall'", and the companion current-room lookup is
+# handed the RAW pixel so an off-grid anchor yields None rather than the room owning
+# that wall. The observed failure is the pair disagreeing -- a confident edge position
+# beside no room at all.
+# ---------------------------------------------------------------------------
+
+def test_ms22_rejection_is_opt_in_and_clamping_is_the_default():
+    """[MS-22] One off-grid pixel, two answers, chosen by the caller.
+
+    THE SAME INPUT IS READ BOTH WAYS IN ONE TEST, which is what makes either answer
+    meaningful. `[0.0, 0.0]`-ish is a legitimate value for a point genuinely at the
+    origin corner, and `None` is what every other failure in this module returns, so
+    neither alone distinguishes "clamped" from "rejected" -- the pair does.
+
+    The pixel is off-grid on BOTH axes and in the negative direction, because the clamp
+    and the Y-flip interact: ny is `(height - 1 - py) / height`, so a negative py
+    produces an ny ABOVE 1.0 while a negative px produces an nx below 0.0. One pixel
+    exercises both ends of `_clamp01`.
+
+    Deleting the `reject_out_of_grid` condition is the named red input: the None half
+    then returns the clamped pair and the assertion fails on a value, not on a type.
+    """
+    clamped = normalize_rendered(-5, -5, 10, 10)
+    assert clamped == [0.0, 1.0], (
+        "the default must clamp an off-grid pixel to the grid edge, not reject it"
+    )
+
+    assert normalize_rendered(-5, -5, 10, 10, reject_out_of_grid=True) is None, (
+        "a pose/anchor caller asked for rejection and got a point at the wall"
+    )
+
+    # and a point genuinely inside is unaffected by either choice
+    inside = normalize_rendered(2, 2, 10, 10)
+    assert inside == normalize_rendered(2, 2, 10, 10, reject_out_of_grid=True)
+
+
+def test_ms23_an_unreadable_map_makes_the_room_lookup_abstain():
+    """[MS-23] Three malformed maps, two readers, and a control that proves both read.
+
+    `None` is the abstain value for `current_room_for_pixel` and `[]` for
+    `rooms_from_room_pixels`, and both are also what an un-run function returns -- so
+    the intact map comes FIRST and asserts the real answers. Without that control every
+    assertion below is satisfied by a reader that never worked.
+
+    THE THREE SHAPES ARE INDEPENDENT FAILURES, not three spellings of one:
+
+      - the required dims are missing, so `_outline_geometry` returns None. Doc 12 §4
+        names the four it hard-requires, and `room_outline_width` is one of them.
+        `resolution` is deliberately NOT in that set, which is why dropping it instead
+        would be a different (and passing) test.
+      - the raster is not decodable base64, which `.storage` can hold after a partial
+        write; the decode raises and the lookup abstains rather than propagating.
+      - the raster decodes but is SHORTER than the index the geometry implies -- a
+        truncated file, where the bounds check is the only thing between the reader and
+        an IndexError on a real byte string.
+
+    The pixel asked about is the same in all four calls, so the only variable is the
+    map. It is inside the grid, so none of these answers can be the off-grid refusal.
+    """
+    intact = _md([(5, 2, 2, 2, 2)])
+    assert current_room_for_pixel(intact, 2, 2) == 5, (
+        "the control failed: this fixture must resolve a room before its malformed "
+        "variants mean anything"
+    )
+    assert [r["number"] for r in rooms_from_room_pixels(intact)] == [5]
+
+    no_dims = _md([(5, 2, 2, 2, 2)])
+    del no_dims["room_outline_width"]
+    assert current_room_for_pixel(no_dims, 2, 2) is None
+    assert rooms_from_room_pixels(no_dims) == []
+
+    bad_b64 = _md([(5, 2, 2, 2, 2)], room_pixels="!! not base64 !!")
+    assert current_room_for_pixel(bad_b64, 2, 2) is None
+
+    truncated = _md([(5, 2, 2, 2, 2)], room_pixels=base64.b64encode(b"\x00").decode())
+    assert current_room_for_pixel(truncated, 2, 2) is None, (
+        "the raster is one byte long and the index is 22 -- the bounds check is the "
+        "only thing standing between this and an IndexError"
+    )
+
+
+def test_ms24_a_zone_keeps_its_area_when_its_raster_cannot_be_read():
+    """[MS-24] `zone_membership`'s own docstring is the claim: area_m2 "depends ONLY on
+    width/height/resolution, never on the room_outline offset, so it is immune to any
+    raster-alignment issue", while room_number is FILING ONLY and goes None when the
+    map cannot be read.
+
+    THREE OUTCOMES, ALL DIFFERENT, which is what separates the two failure modes from
+    each other and from success:
+
+        intact map        -> (4.0, 5)      both halves answer
+        undecodable raster-> (4.0, None)   the size survives, the filing abstains
+        malformed geometry-> (None, None)  the zone itself is unusable
+
+    A test asserting only `room_number is None` on the middle case could not tell it
+    from the bottom one, and that difference is the whole point of the docstring's
+    claim: a zone whose raster is unreadable still shows the user the size that
+    `clean_saved_zone` will dispatch.
+
+    `resolution=50` is chosen so the area is a clean 4.0 rather than a rounding artefact
+    -- 0.4 x 0.4 of a 10x10 grid at 50 cm/cell is 200 x 200 cm. At the fixture's default
+    res=5 it would round to 0.0, which is both ugly and indistinguishable from a
+    computed zero.
+    """
+    zone = [[0.2, 0.2], [0.6, 0.2], [0.6, 0.6], [0.2, 0.6]]
+    full_floor = [(5, 0, 9, 0, 9)]
+
+    intact = zone_membership(_md(full_floor, resolution=50), zone)
+    assert intact == {"area_m2": 4.0, "room_number": 5}, (
+        "the control failed; nothing below is attributable to the malformed input"
+    )
+
+    unreadable = zone_membership(
+        _md(full_floor, resolution=50, room_pixels="!! not base64 !!"), zone
+    )
+    assert unreadable == {"area_m2": 4.0, "room_number": None}, (
+        "an unreadable raster cost the zone its SIZE, which depends only on the dims"
+    )
+
+    bad_geometry = zone_membership(
+        _md(full_floor, resolution=50), [["left", "top"], [0.6, 0.2], [0.6, 0.6]]
+    )
+    assert bad_geometry == {"area_m2": None, "room_number": None}, (
+        "a zone whose own points are not numbers must yield nothing, not raise"
+    )
