@@ -1596,3 +1596,392 @@ async def test_init22_a_stale_active_job_sensor_is_removed_on_reload(
     # NOT a check on the sweep -- see the docstring. The sensor is re-created at
     # sensor/__init__.py:328 regardless, so this records the end state only.
     assert reg.async_get_entity_id("sensor", DOMAIN, live) is not None
+
+
+# ---------------------------------------------------------------------------
+# [INIT-23..28] setup paths a healthy boot never reaches
+# ---------------------------------------------------------------------------
+
+async def test_init23_storage_that_will_not_initialise_asks_HA_to_RETRY(
+    hass, mock_config_entry
+):
+    """[INIT-23] ConfigEntryNotReady, not a crash and not a half-loaded entry.
+
+    `async_initialize` reads the store. A disk that is busy, a storage file being
+    written by something else, a transient permission problem -- none of those are
+    permanent, and the contract for "try me again shortly" is ConfigEntryNotReady.
+    Raising anything else marks the entry FAILED, which HA does not retry: the user
+    then has a broken integration until they restart, over a condition that would
+    have cleared on its own.
+
+    THE TEARDOWN IS THE SECOND HALF OF THE CLAIM, and the comment above the raise
+    says why: `entry.async_on_unload(manager.async_shutdown)` is registered BEFORE
+    `async_initialize` precisely so a failure here still tears down. So this asserts
+    the retry state AND that the runtime left nothing behind in hass.data.
+    """
+    from homeassistant.config_entries import ConfigEntryState
+
+    with patch(
+        "custom_components.eufy_vacuum.core.manager.EufyVacuumManager"
+        ".async_initialize",
+        side_effect=OSError("storage is busy"),
+    ):
+        ok = await _setup(hass, mock_config_entry)
+
+    assert ok is False
+    assert mock_config_entry.state is ConfigEntryState.SETUP_RETRY, (
+        "state is %r -- anything but SETUP_RETRY means HA will not try again"
+        % (mock_config_entry.state,)
+    )
+    assert not hass.data.get(DOMAIN, {}).get(DATA_RUNTIME), (
+        "a manager survived a failed setup; the next attempt would find a "
+        "half-built runtime already in place"
+    )
+
+
+async def test_init24_orphaned_icon_selects_from_older_versions_are_removed(
+    hass, mock_config_entry
+):
+    """[INIT-24] The per-room icon pickers were dropped; their registry rows were not.
+
+    The entities were removed when the card stopped surfacing those pickers, but a
+    registry entry outlives the entity that made it. HA shows an orphan as
+    `unavailable` FOREVER -- it never expires on its own -- so an upgrader is left
+    with a row of permanently broken entities per room and no way to tell they are
+    ours to clean up.
+
+    The match is on the unique_id prefix the deleted class used. A NEIGHBOUR IS
+    SEEDED TOO, with the same platform and a different prefix: without it, a sweep
+    that removed every entity this integration owns would pass, and that sweep would
+    delete the live select platform -- which is still in use as the debug
+    flight-recorder target.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    orphan = registry.async_get_or_create(
+        "select", DOMAIN, "eufy_vacuum_icon_alfred_1",
+        suggested_object_id="alfred_room_1_icon",
+    )
+    keeper = registry.async_get_or_create(
+        "select", DOMAIN, "eufy_vacuum_debug_target_alfred",
+        suggested_object_id="alfred_debug_target",
+    )
+
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    assert await _setup(hass, mock_config_entry)
+
+    assert registry.async_get(orphan.entity_id) is None, (
+        "the orphaned icon-select survived; it shows as unavailable forever"
+    )
+    assert registry.async_get(keeper.entity_id) is not None, (
+        "the sweep took a live select with it -- that one is the debug "
+        "flight-recorder target, not an orphan"
+    )
+
+
+async def test_init25_a_device_that_is_not_ours_is_handed_straight_back(hass):
+    """[INIT-25] `async_remove_config_entry_device` guards on BOTH halves.
+
+    Two ways to reach this: a device whose identifiers belong to another
+    integration, and our own device at a moment when nothing is loaded (removal
+    during or after teardown). Either way the answer is True -- let HA remove it --
+    because refusing would leave the user unable to delete a device we are not in a
+    position to say anything about.
+
+    Both halves are exercised: the first device is a stranger's, the second is ours
+    with no runtime in hass.data.
+    """
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum import async_remove_config_entry_device
+
+    class _Device:
+        def __init__(self, identifiers):
+            self.identifiers = identifiers
+
+    entry = MockConfigEntry(domain=DOMAIN, entry_id="init25")
+    entry.add_to_hass(hass)
+
+    # not ours at all
+    assert await async_remove_config_entry_device(
+        hass, entry, _Device({("some_other_integration", "whatever")})
+    ) is True
+
+    # ours, but nothing is loaded
+    hass.data.pop(DOMAIN, None)
+    assert await async_remove_config_entry_device(
+        hass, entry, _Device({(DOMAIN, "vacuum_alfred")})
+    ) is True
+
+
+async def test_init26_a_fallback_panel_that_already_exists_is_not_an_error(
+    hass, mock_entry_no_vacuum
+):
+    """[INIT-26] Registering the same panel twice raises ValueError, and that is fine.
+
+    The fallback panel is registered when there is no managed vacuum yet. A reload,
+    or a second config entry, finds it already there -- HA answers that with
+    ValueError, which is a statement that the panel exists, not that setup failed.
+    Letting it propagate would fail the whole entry over a panel that is present and
+    working.
+
+    The assertion is that setup still reports LOADED, because the panel is the last
+    thing registered and an escaping error would unwind everything before it.
+    """
+    from homeassistant.config_entries import ConfigEntryState
+
+    await async_setup_component(hass, "http", {})
+    mock_entry_no_vacuum.add_to_hass(hass)
+    with patch(
+        "homeassistant.components.panel_custom.async_register_panel",
+        side_effect=ValueError("Overwriting panel vacuum-agent"),
+    ), patch("homeassistant.components.frontend.async_remove_panel"):
+        ok = await hass.config_entries.async_setup(mock_entry_no_vacuum.entry_id)
+        await hass.async_block_till_done()
+
+    assert ok is True
+    assert mock_entry_no_vacuum.state is ConfigEntryState.LOADED, (
+        "an already-registered panel failed the entry; the user loses the whole "
+        "integration over a panel that is present and working"
+    )
+
+
+async def test_init27_an_entry_update_reloads_the_entry(hass, mock_config_entry):
+    """[INIT-27] The options listener's only job, and it has to actually reload.
+
+    Settings that change what setup builds -- the managed vacuum, the panel title --
+    only take effect on a reload, so the update listener exists to force one. A
+    listener that recorded the change without reloading would leave the user looking
+    at a saved setting that does nothing until they restart HA.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    assert await _setup(hass, mock_config_entry)
+
+    # autospec, not a bare AsyncMock: the double is built from the real method, so
+    # it checks the call SHAPE as well as the fact of the call -- and the mock
+    # ratchet in this repo is shrink-only, so a bare one here reddens [MR-2].
+    with patch.object(
+        hass.config_entries, "async_reload", autospec=True, return_value=True
+    ) as reload:
+        hass.config_entries.async_update_entry(
+            mock_config_entry, options={"panel_title": "Upstairs"}
+        )
+        await hass.async_block_till_done()
+
+    assert reload.await_count >= 1, "an options change did not trigger a reload"
+    assert mock_config_entry.entry_id in reload.await_args[0], (
+        "the listener reloaded something other than the entry that changed: %r"
+        % (reload.await_args,)
+    )
+
+
+async def test_init28_a_legacy_maintenance_key_is_migrated_and_PERSISTED_on_boot(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-28] The interval carry-over has to reach disk, not just memory.
+
+    `rolling_brush` was renamed to `main_brush` in the September 2026
+    canonicalisation and never migrated at the time, so a user's custom interval was
+    lost. The migration carries it forward on the next load.
+
+    ONLY THE INTERVAL MOVES. Reset timestamps self-heal on the next reset; a
+    preference does not, and the old value lives only in .storage, which the user is
+    told never to open.
+
+    ⚠ THE CLAIM IS THE MIGRATION, NOT THE SAVE BESIDE IT. Measured: ablating
+    `await manager.async_save()` on that branch leaves this test GREEN, because
+    setup saves in several other places and the migrated data reaches storage
+    anyway. Neutering `migrate_maintenance_component_renames` reddens it exactly.
+    So that save is an optimisation on the setup path -- it would only matter if
+    nothing else saved before the process ended -- and is crossed here, not claimed.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = {"version": 1, "data": {
+        "vacuums": {_VAC: {"name": "Alfred"}},
+        "maintenance": {_VAC: {
+            # the legacy key, carrying a user-set interval and nothing else
+            "rolling_brush": {"interval_hours": 250, "reset_at": "2026-01-01T00:00:00+00:00"},
+        }},
+    }}
+
+    assert await _setup(hass, mock_config_entry)
+    await hass.async_block_till_done()
+
+    stored = hass_storage[_STORAGE_KEY]["data"]["maintenance"][_VAC]
+    assert (stored.get("main_brush") or {}).get("interval_hours") == 250, (
+        "the user's 250 h interval did not reach the renamed component on disk: %r"
+        % (stored,)
+    )
+
+
+async def test_init29_records_naming_a_vacuum_this_install_does_not_have_are_swept(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-29] The set only ever GREW, which is why a one-shot sweep exists.
+
+    Two of these reached a live install. One is the CARD'S OWN PLACEHOLDER,
+    `vacuum.your_vacuum`, persisted because a status query created the very record
+    it was asking about; the other was a truncated entity id carrying a whole setup
+    record. Individually harmless -- nothing reads them -- but nothing removed them
+    either, so every stray query left another one behind.
+
+    THE REAL VACUUM IS SEEDED ALONGSIDE, and that is the assertion that matters. A
+    sweep with its predicate inverted, or one that could not tell a real vacuum from
+    a placeholder, would delete the user's actual stored record: their maps, their
+    room names, their per-room settings. "The placeholder is gone" is satisfied by
+    a sweep that removed everything.
+
+    ⚠ THE CLAIM IS THE SWEEP, NOT THE SAVE BENEATH IT. Measured, same as [INIT-28]:
+    ablating that `await manager.async_save()` leaves this test green -- setup saves
+    elsewhere and the result persists regardless -- while neutering
+    `sweep_orphaned_vacuums` reddens it exactly. The save is crossed, not claimed.
+
+    ⚠ THE ORPHAN IS SEEDED INTO `setup_progress`, NOT `vacuums`, AND THAT IS THE
+    WHOLE FIXTURE. `is_real_vacuum` accepts "we already have a record for it" as
+    proof of realness -- a key in `vacuums`, `maps` or `active_jobs` -- because a
+    vacuum renamed or removed in HA must keep its stored history reachable. Written
+    with the placeholder in `vacuums`, this test DECLARED IT REAL: the integration
+    built its whole entity stack for it (`sensor.your_vacuum_*`, its own sidebar
+    panel) and swept nothing. The docstring's second real case is the right shape --
+    "a truncated entity id carrying a full SETUP record" -- a record in a bucket
+    that confers no identity, with nothing behind it.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = {"version": 1, "data": {
+        "vacuums": {_VAC: {"name": "Alfred"}},
+        "maps": {_VAC: {"6": {
+            "map_id": "6", "metadata": {}, "summary": {},
+            "rooms": {"1": {"room_id": 1, "name": "Kitchen", "enabled": True}},
+        }}},
+        # a full setup record for a vacuum that does not exist and has no identity
+        # record behind it -- what a stray status query left on a live install
+        "setup_progress": {
+            _VAC: {"step": "done"},
+            "vacuum.your_vacuum": {"step": "awaiting_map", "attempts": 3},
+        },
+    }}
+
+    assert await _setup(hass, mock_config_entry)
+    await hass.async_block_till_done()
+
+    progress = hass_storage[_STORAGE_KEY]["data"].get("setup_progress") or {}
+    assert "vacuum.your_vacuum" not in progress, (
+        "the placeholder's setup record survived the sweep and the set keeps "
+        "growing: %r" % (progress,)
+    )
+    assert _VAC in progress, (
+        "the sweep took the REAL vacuum's setup record with it"
+    )
+    assert _VAC in hass_storage[_STORAGE_KEY]["data"]["vacuums"], (
+        "the sweep reached the identity record -- that one holds the user's maps, "
+        "room names and per-room settings"
+    )
+    assert hass_storage[_STORAGE_KEY]["data"]["maps"].get(_VAC), (
+        "the real vacuum's maps were swept away"
+    )
+
+
+async def test_init30_the_rebaseline_service_with_no_battery_manager_does_nothing(
+    hass, mock_config_entry
+):
+    """[INIT-30] A registered service outliving the thing it drives.
+
+    Services are registered during setup and torn down on unload, but the ordering
+    inside a teardown -- or a partially-built runtime -- can leave the service
+    callable with `DATA_BATTERY` already gone. Calling it then must return quietly:
+    the alternative is an AttributeError surfacing in the user's log from a service
+    THEY invoked, with nothing they can do about it.
+
+    The assertion is that the call completes. `blocking=True` means an exception
+    inside the handler propagates here, so a handler that reached for `bm.rebaseline`
+    on None would fail this test rather than pass silently.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    assert await _setup(hass, mock_config_entry)
+
+    from custom_components.eufy_vacuum.const import DATA_BATTERY
+
+    assert hass.data[DOMAIN].pop(DATA_BATTERY, None) is not None, (
+        "the battery manager was not there to remove -- this test would then be "
+        "asserting nothing about the guard"
+    )
+
+    await hass.services.async_call(
+        DOMAIN, "battery_rebaseline", {"vacuum_entity_id": _VAC}, blocking=True
+    )
+    await hass.async_block_till_done()
+
+
+async def test_init31_a_panel_that_fails_to_register_unwinds_the_ones_before_it(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-31] Mid-setup failure during the panel loop removes the earlier panels.
+
+    Panels are registered one per managed vacuum, and the undo is pushed onto the
+    unwind stack BEFORE the loop runs -- so a failure partway through has earlier
+    panels to take back. Without that, a retried setup finds the first vacuum's
+    panel already registered and the sidebar keeps an entry pointing at an
+    integration that did not load.
+
+    TWO VACUUMS, AND THE SECOND REGISTRATION RAISES. One vacuum cannot exercise
+    this: the list would be empty when the undo runs, and the test would pass
+    against an undo that does nothing. ValueError is deliberately NOT used -- that
+    one is caught and tolerated ([INIT-26]); this is the unexpected kind that must
+    unwind.
+
+    The assertion is that the FIRST panel was removed by url, which is the only
+    observable that distinguishes an unwind from a bail-out.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    second = "vacuum.bertie"
+    er.async_get(hass).async_get_or_create(
+        "vacuum", "robovac_mqtt", "bertie_unique_id", suggested_object_id="bertie"
+    )
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass.states.async_set(second, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = {"version": 1, "data": {
+        "vacuums": {_VAC: {"name": "Alfred"}, second: {"name": "Bertie"}},
+    }}
+
+    await async_setup_component(hass, "http", {})
+    mock_config_entry.add_to_hass(hass)
+
+    removed: list[str] = []
+    calls = {"n": 0}
+
+    async def _register(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] >= 2:
+            raise RuntimeError("the frontend refused the second panel")
+
+    with patch(
+        "homeassistant.components.panel_custom.async_register_panel",
+        side_effect=_register,
+    ), patch(
+        "homeassistant.components.frontend.async_remove_panel",
+        side_effect=lambda _hass, url, **kw: removed.append(url),
+    ):
+        ok = await hass.config_entries.async_setup(mock_config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert ok is False, "setup reported success after a panel registration raised"
+    assert removed, (
+        "the first panel was left registered; a retry finds it already there and "
+        "the sidebar keeps an entry for an integration that did not load"
+    )
+    assert not hass.data.get(DOMAIN, {}).get(f"_panels_{mock_config_entry.entry_id}"), (
+        "the panel marker survived a failed setup"
+    )
+
+
+# [INIT-32] WAS WRITTEN HERE AND REMOVED, 2026-11-10. It asserted that a stored
+# capabilities snapshot keyed by pre-rename component ids comes back canonical after
+# a boot, and credited `migrate_maintenance_source_keys` for it. ABLATED: with that
+# migration neutered to `return {"moved": []}` the test STAYED GREEN -- capability
+# re-detection rebuilds `maintenance_sources` during the same setup and converges the
+# keys on its own. The tell was there before the ablation: __init__.py:1087, the save
+# guarded by `_source_keys["moved"]`, stayed uncovered while the test passed.
+# The migration's own behaviour is covered in
+# tests/core/test_maintenance_component_rename_migration.py, where nothing else can
+# supply the answer. Do not re-add it here without a harness that stops detection.
