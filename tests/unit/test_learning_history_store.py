@@ -1477,6 +1477,93 @@ def test_rekey_accuracy_refuses_a_collision(tmp_path):
         vacuum_entity_id="v.a", map_id="12", slug_remap={"office": "study"}) == 0
     rooms = store.load_accuracy_stats(vacuum_entity_id="v.a")["rooms"]
     assert rooms[old_key] == {"n": 1} and rooms[new_key] == {"n": 99}
+# ---------------------------------------------------------------------------
+# [HS-T8]..[HS-T10] -- rekey_accuracy_slugs reads a file off disk, so its shape is
+# whatever a past version (or a half-written save) left there. The collision test
+# above drives the happy path and the refusal; these three drive the shapes.
+# ---------------------------------------------------------------------------
+
+def test_hst8_a_missing_or_non_dict_accuracy_file_rekeys_nothing(tmp_path):
+    """[HS-T8] No stats yet, and a stats file that is not an object, both answer 0.
+
+    `load_accuracy_stats` is documented `dict | None` and returns None for an absent
+    file, so the FIRST case is the ordinary one: a rename arriving before any accuracy
+    history exists. That happens on every rename of a freshly discovered room.
+
+    THE SECOND CASE IS WHY THE GUARD IS `isinstance` AND NOT A TRUTHINESS TEST. A file
+    holding a bare JSON array parses fine and is truthy, so only the type check
+    declines it; without the guard `payload.get("rooms")` raises AttributeError on a
+    list. A separate vacuum id is used so the store's own read cache cannot serve the
+    first case's None in place of the file.
+    """
+    store = _make_store(tmp_path)
+
+    assert store.rekey_accuracy_slugs(
+        vacuum_entity_id="v.a", map_id="12", slug_remap={"office": "study"}) == 0
+
+    path = store.get_accuracy_stats_path(vacuum_entity_id="v.b")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("[1, 2]", encoding="utf-8")
+
+    assert store.rekey_accuracy_slugs(
+        vacuum_entity_id="v.b", map_id="12", slug_remap={"office": "study"}) == 0
+
+
+def test_hst9_a_rooms_block_that_is_not_a_mapping_rekeys_nothing(tmp_path):
+    """[HS-T9] `rooms` present but not a dict is declined, and the file is untouched.
+
+    THE INPUT IS CHOSEN TO DEFEAT AN IDENTITY. Every malformed `rooms` makes this
+    function return 0, so the return value alone cannot tell the guard from its
+    absence. `rooms` is therefore a LIST CONTAINING A WELL-FORMED KEY: with the guard
+    removed the walk proceeds, the key splits into exactly `_ROOM_KEY_PARTS`, the remap
+    matches, and `rooms[new_key] = rooms.pop(key)` raises on a list. A `rooms` of `[]`
+    or `"abc"` would have returned 0 either way and proved nothing.
+
+    The second assertion is that the stored payload is unchanged -- `save_accuracy_stats`
+    is only called `if moved`, so a guard that returned 0 after mutating in place would
+    still leave a rewritten file.
+    """
+    store = _make_store(tmp_path)
+    original = {"rooms": ["12::office::vacuum::1::0::narrow::0"]}
+    store.save_accuracy_stats(vacuum_entity_id="v.a", payload=dict(original))
+
+    assert store.rekey_accuracy_slugs(
+        vacuum_entity_id="v.a", map_id="12", slug_remap={"office": "study"}) == 0
+    assert store.load_accuracy_stats(vacuum_entity_id="v.a") == original
+
+
+def test_hst10_a_key_for_another_map_is_skipped_not_renamed(tmp_path):
+    """[HS-T10] The rename is scoped to ONE map, and the scan continues past the rest.
+
+    Accuracy keys are `map::slug::...`, so one vacuum's file holds every map it has
+    ever had. A rename on map 12 must not touch an identically-named room on map 7 --
+    they are different rooms that happen to share a name, which is exactly what the
+    per-map prefix exists to distinguish.
+
+    POSITIONAL, AND THAT IS THE WHOLE INPUT DESIGN. The foreign-map key is inserted
+    FIRST and the matching key second, so a `break` in place of the `continue` would
+    never reach the rename and `moved` would be 0. With the rows the other way round
+    the two would be indistinguishable.
+
+    Each map's key is asserted individually rather than comparing whole dicts, so the
+    failure names which one moved.
+    """
+    store = _make_store(tmp_path)
+    foreign = "7::office::vacuum::1::0::narrow::0"
+    target = "12::office::vacuum::1::0::narrow::0"
+    renamed = "12::study::vacuum::1::0::narrow::0"
+    store.save_accuracy_stats(
+        vacuum_entity_id="v.a",
+        payload={"rooms": {foreign: {"n": 7}, target: {"n": 12}}},
+    )
+
+    assert store.rekey_accuracy_slugs(
+        vacuum_entity_id="v.a", map_id="12", slug_remap={"office": "study"}) == 1
+
+    rooms = store.load_accuracy_stats(vacuum_entity_id="v.a")["rooms"]
+    assert rooms[foreign] == {"n": 7}, "map 7's identically-named room was rewritten"
+    assert rooms[renamed] == {"n": 12}
+    assert target not in rooms
 
 
 # ---------------------------------------------------------------------------

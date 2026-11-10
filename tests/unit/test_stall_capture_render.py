@@ -23,6 +23,15 @@ Coverage targets
         historical 30 s so a fast brand's picture does not change.
 [SC-13] sparse samples render as breadcrumbs, never a line — what lets the window widen
 [SC-14] C16: a NON-FINITE pose point is rejected by `_norm_to_px`, and an infinite
+[SC-20] a trail point whose ELEMENTS are not numbers is skipped -- the shoulder
+        just past [SC-5]'s shape guard, which answers None/str before the float().
+[SC-21] room_id <= 0 yields no cells. The raster background IS 0, so the ablated
+        guard selects the whole floor.
+[SC-22] a buffer shorter than its declared size is refused whole, not salvaged.
+[SC-23] a room entirely off the canvas returns None, never a blank image.
+[SC-24] cells outside the clamped crop are clipped, pinned by a width PAIR (4 on a
+        6-wide canvas, 8 on a 12-wide one).
+[SC-25] Pillow < 10.1 has no `size=` on load_default; the no-arg form answers.
         segment cannot reach the chevron loop. `while d < seg` with seg=inf never
         terminates — a HANG on an executor thread, on the job-lifecycle path, not a
         wrong picture. `Infinity` is reachable because the pose ring is parsed with a
@@ -586,3 +595,161 @@ def test_sc14_json_loads_really_does_accept_infinity():
     import json
 
     assert json.loads('{"p": [Infinity, 0.5]}')["p"][0] == float("inf")
+
+
+# ---------------------------------------------------------------------------
+# [SC-20]..[SC-25] -- the guards no test reached. Every expected value below was
+# derived by RUNNING the real function, not reasoned out; the clipped widths and the
+# byte-identity in [SC-20] in particular are measurements, not predictions.
+# ---------------------------------------------------------------------------
+
+def test_sc20_a_point_whose_ELEMENTS_are_not_numbers_is_skipped():
+    """[SC-20] The shoulder just past [SC-5]'s guard.
+
+    [SC-5] already pins "a bad sample must not drag the line to a corner" and feeds
+    `None`, `"nope"` and a NaN. NONE OF THEM REACHES THE `float()` CALL: `_norm_to_px`
+    opens with `if not isinstance(pt, (list, tuple)) or len(pt) < 2: return None`, so a
+    None and a bare string are answered by the SHAPE guard two lines earlier, and the
+    NaN tuple converts fine and is caught by the non-finite check afterwards.
+
+    The `except (TypeError, ValueError)` around the conversion therefore had no test at
+    all, and reaching it needs what this uses: a well-shaped tuple of length 2 whose
+    ELEMENTS cannot be floated. `("abc", 0.5)` raises ValueError and `(None, 0.2)`
+    raises TypeError, which is both arms of the one `except`.
+
+    THE ASSERTION IS BYTE-IDENTITY WITH THE JUNK-FREE RENDER, which is stronger than
+    "it returned a PNG": an all-junk trail ALSO returns a PNG, just without a trail
+    drawn. Measured -- junk-free and junk-interleaved both come back at 178 bytes and
+    compare equal, while the all-junk render is 97 bytes. The third assertion is what
+    makes the second one mean something.
+    """
+    pytest.importorskip("PIL")
+    rast = _raster(20, 20, {5: (4, 4, 7, 9)})
+    kw = dict(room_pixels=rast, ro_width=20, ro_height=20, room_id=5,
+              canvas_width=20, canvas_height=20, scale=2, padding_px=1)
+
+    clean = [(0.1, 0.1), (0.2, 0.2), (0.3, 0.3), (0.4, 0.4)]
+    # The junk rows are INTERLEAVED, not trailing, so a `break` in place of the skip
+    # would lose the points after them and change the drawing.
+    dirty = [(0.1, 0.1), ("abc", 0.5), (None, 0.2), (0.2, 0.2), (0.3, 0.3), (0.4, 0.4)]
+
+    assert scr.render_room_capture(trail=dirty, **kw) == scr.render_room_capture(
+        trail=clean, **kw
+    ), "an unfloatable element changed the drawing instead of being dropped"
+
+    # ...and the comparison above is not vacuous: losing the whole trail DOES differ.
+    assert scr.render_room_capture(trail=[("abc", 0.5), (None, 0.2)], **kw) != (
+        scr.render_room_capture(trail=clean, **kw)
+    )
+
+
+def test_sc21_a_non_positive_room_id_yields_no_cells():
+    """[SC-21] `room_id <= 0` is refused, and 0 is a REAL input, not a paranoid one.
+
+    The raster's background is 0, so a room id of 0 would select every unassigned
+    pixel in the image -- measured: ablating the guard turns this from an empty list
+    into the whole background. That is the difference between "no room" and "the entire
+    floor is one room".
+
+    Both halves of `<=` are driven, because `0` and `-1` reach it by different
+    arithmetic and a `< 0` typo would pass the second while failing the first.
+    """
+    rast = _raster(20, 20, {5: (4, 4, 7, 9)})
+    kw = dict(room_pixels=rast, ro_width=20, ro_height=20)
+
+    # The control: the real room is found, so the empties below are the guard talking.
+    assert len(scr.room_cells(room_id=5, **kw)) == 24
+
+    assert scr.room_cells(room_id=0, **kw) == []
+    assert scr.room_cells(room_id=-1, **kw) == []
+
+
+def test_sc22_a_buffer_shorter_than_its_declared_size_yields_no_cells():
+    """[SC-22] A raster shorter than `ro_width * ro_height` is refused whole.
+
+    The guard protects an index walk that would otherwise read off the end of the
+    buffer. The truncation here KEEPS THE ROOM'S OWN ROWS: the room occupies rows 4-9
+    and the buffer is cut at row 10, so a partial walk would still find all 24 of its
+    cells and the test would pass for the wrong reason. The claim is that a short
+    buffer is refused on its DECLARED size rather than salvaged, so the input has to
+    be one where salvaging would have succeeded.
+    """
+    rast = _raster(20, 20, {5: (4, 4, 7, 9)})
+    assert len(scr.room_cells(room_pixels=rast, ro_width=20, ro_height=20,
+                              room_id=5)) == 24
+
+    short = rast[:200]          # rows 0-9 only; the room's rows 4-9 are all present
+    assert scr.room_cells(room_pixels=short, ro_width=20, ro_height=20, room_id=5) == []
+
+
+def test_sc23_a_room_entirely_off_the_canvas_returns_none():
+    """[SC-23] An empty crop returns None, and None must stay distinguishable.
+
+    `ro_dx` offsets the room into canvas space, so a large enough offset puts every
+    cell past the right edge. `cx1` is clamped to `cvw - 1` while `cx0` is clamped at
+    0, so the width goes non-positive and there is nothing to draw.
+
+    The module's contract is that None means "nothing could be drawn" and is never a
+    blank image -- absence has to stay distinguishable from "an empty room was
+    rendered". A test that accepted either would not notice the day this started
+    returning a transparent PNG. `padding_px=0` so the pad cannot drag the crop back
+    inside the canvas and hide the case.
+    """
+    pytest.importorskip("PIL")
+    rast = _raster(10, 10, {5: (2, 2, 5, 5)})
+    assert scr.render_room_capture(
+        room_pixels=rast, ro_width=10, ro_height=10, room_id=5,
+        ro_dx=100, ro_dy=0, canvas_width=50, canvas_height=50, padding_px=0,
+    ) is None
+
+
+def test_sc24_cells_outside_the_crop_are_clipped_not_drawn():
+    """[SC-24] The per-cell bounds test inside the paint loop.
+
+    The crop is clamped to the canvas, but `rendered` still holds every cell of the
+    room -- including the ones the clamp cut off. Without the bounds test those cells
+    index outside the new image.
+
+    PINNED BY THE EXACT WIDTH, as a PAIR. The same room (x 2..9) on a 6-wide canvas
+    renders 4 pixels across and on a 12-wide canvas renders 8; both measured by running
+    it. One figure alone would be a magic number, and the pair shows the width tracking
+    the canvas rather than the room. `scale=1` so the PNG dimensions are the crop
+    dimensions, with no upscale in between.
+    """
+    pytest.importorskip("PIL")
+    rast = _raster(12, 12, {5: (2, 2, 9, 9)})
+    kw = dict(room_pixels=rast, ro_width=12, ro_height=12, room_id=5,
+              canvas_height=12, scale=1, padding_px=0)
+
+    clipped = scr.render_room_capture(canvas_width=6, **kw)
+    assert _png_size(clipped) == (4, 8), "the clip did not follow the narrow canvas"
+
+    whole = scr.render_room_capture(canvas_width=12, **kw)
+    assert _png_size(whole) == (8, 8), "the wide canvas should fit the whole room"
+
+
+def test_sc25_an_old_pillow_without_the_size_argument_still_gets_a_font(monkeypatch):
+    """[SC-25] `ImageFont.load_default(size=...)` is Pillow >= 10.1 only.
+
+    The floor in `hacs.json` is older than that, so the keyword call raises TypeError
+    on a supported install and the no-argument form is what has to answer. This is the
+    same shape as the HA-API floor problem: the test image runs ONE Pillow version and
+    cannot see the other, so the fallback is reachable in the field and unreachable
+    here unless it is forced.
+
+    The sentinel is a bare `object()` on purpose. A real font would compare equal to
+    what the modern path returns, and `None` is what the next fallback yields -- so
+    neither would show WHICH branch answered.
+    """
+    import PIL.ImageFont as image_font
+
+    pytest.importorskip("PIL")
+    sentinel = object()
+
+    def old_pillow(*args, **kwargs):
+        if kwargs:
+            raise TypeError("load_default() takes no keyword arguments")
+        return sentinel
+
+    monkeypatch.setattr(image_font, "load_default", old_pillow)
+    assert scr._load_font(14) is sentinel
