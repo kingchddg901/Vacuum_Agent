@@ -11,9 +11,14 @@ Coverage targets
 [CAP-3]  detect_capabilities: hint OR entity presence for mop/dust/path flags.
 [CAP-4]  detect_capabilities: robot position needs both x and y.
 [CAP-5]  _detect_maintenance_sources: suffix entity, None suffix, swivel proxy.
-[CAP-5b] _detect_maintenance_sources: a user override wins while it resolves (state or
-         registry), and a STALE one falls through to derivation and reports
-         `override_unresolved` instead of pinning a dead id (C14).
+[CAP-5b] _detect_maintenance_sources: ONE user-picked clock backs every component the
+         integration counts nothing for (replaced `proxy_for`).
+         CORRECTED 2026-11-10: this entry used to describe the maintenance OVERRIDE
+         pair -- "a user override wins while it resolves ... and a STALE one falls
+         through and reports override_unresolved". No such test existed, and the
+         lines it claimed (capabilities.py:378-381) measured UNCOVERED. The second
+         instance in this one header of the failure [CAP-6] records below; the real
+         override tests are [CAP-26] and they are written now, not described.
 [CAP-6]  RETIRED 2026-11-09 with `_find_registry_entity_by_tokens` itself -- a
          23-line orphan with zero call sites, and the PRE-#49 shape of its live
          twin `core/manager.py::_find_button_entity_by_tokens` (same scan, minus
@@ -1551,3 +1556,373 @@ def test_cap_available_is_true_on_a_real_value(hass):
     )
     assert caps["supports_active_map"] is True
     assert caps["active_map_available"] is True
+
+
+# ---------------------------------------------------------------------------
+# [CAP-21..26] the sibling-rescue ladder's untested rungs
+#
+# `augment_candidates_from_device` and the helpers under it carry the repair for
+# issues #48/#49/#51 -- companions that the derived name cannot find. The ladder's
+# ENTRY and its REFUSALS had tests; several of its middle rungs did not, including
+# both tie-breakers that pick a winner and the merge that rescues a localized id.
+# ---------------------------------------------------------------------------
+
+def _traits_registry(hass, companions=()):
+    """A registry carrying `companions`, plus the helpers' own imports."""
+    from custom_components.eufy_vacuum.core.capabilities import _sibling_traits
+    registry = _vacuum_on_device(hass, companions=companions)
+    return registry, _sibling_traits
+
+
+async def test_cap21_a_sibling_with_no_registry_row_is_stepped_over(hass):
+    """[CAP-21] `_sibling_traits` reads the REGISTRY, and a caller's list can outrun it.
+
+    The sibling list is assembled from a device/config-entry sweep; by the time traits
+    are read an id in it may have no row -- removed mid-setup, or a caller passing a
+    derived name that was never registered. `async_get` answers None for those and the
+    loop must skip them, because every consumer indexes `traits[entity_id]` only for
+    ids it finds in the returned dict.
+
+    RED IF THE `entry is None` GUARD GOES: `getattr(None, "capabilities", None)` is
+    None, so the absent id lands in the dict with every trait None -- a sibling that
+    does not exist, carrying a full set of null discriminators into the tie-breakers
+    below, where `state_class not in ("total", "total_increasing")` is TRUE for None
+    and a phantom can win a rung.
+    """
+    registry, _sibling_traits = _traits_registry(
+        hass, companions=[("sensor", "alfred_mop_life")]
+    )
+
+    traits = _sibling_traits(
+        registry, ["sensor.alfred_mop_life", "sensor.never_registered"]
+    )
+
+    assert "sensor.alfred_mop_life" in traits
+    assert "sensor.never_registered" not in traits, (
+        "an unregistered id was given a full row of None traits"
+    )
+
+
+async def test_cap22_the_candidate_carrying_the_vacuums_own_object_id_wins(hass):
+    """[CAP-22] Rung 1 of the tie-breaker, and the only one needing no registry data.
+
+    Two companions end in the same suffix: one named after the vacuum, one after the
+    dock. The vacuum's own object_id is the strongest signal available and it is tried
+    first, before any trait is consulted.
+
+    THE REJECTION TRAIL IS ASSERTED, not just the winner. `_narrow_competing` returns
+    the reason each loser lost because that trail is what the System screen shows a
+    user asking why a role bound where it did; a winner with an empty trail would look
+    identical to a guess.
+
+    RED IF RUNG 1 IS DROPPED: the two fall to rung 3, both have state_class None, two
+    survivors, no winner -- the role goes ambiguous and the user is asked a question
+    the object_id already answered.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        BY_OBJECT_ID,
+        _narrow_competing,
+    )
+
+    matches = ["sensor.alfred_mop_life", "sensor.dock_mop_life"]
+    chosen, by, rejected = _narrow_competing(
+        hass, role="mop_life", object_id="alfred", matches=matches, traits={}
+    )
+
+    assert chosen == "sensor.alfred_mop_life"
+    assert by == BY_OBJECT_ID
+    assert rejected == {
+        "sensor.dock_mop_life": "does not carry the vacuum's object_id"
+    }
+
+
+async def test_cap23_magnitude_decides_only_on_an_unmistakable_gap(hass):
+    """[CAP-23] Rung 4, and the refusal that stops it firing on a new vacuum.
+
+    When neither the name, the translation_key nor the state_class separates two
+    candidates, the LAST resort is how big the numbers are: a per-run counter is tiny
+    beside a lifetime one. The ratio is 10x and the code requires `runner_up > 0`,
+    which is the whole safety property -- A BRAND-NEW VACUUM READS 0 FOR BOTH, and
+    0 vs 0 is not evidence of anything.
+
+    THREE CASES, AND EACH ONE EXISTS BECAUSE A DIFFERENT ABLATION NEEDS IT. Measured,
+    not reasoned: with only the gap and the 0-vs-0 pair, deleting the 10x ratio
+    entirely left this test GREEN -- 12 vs 480 is picked either way and 0 vs 0 is
+    already refused by the `runner_up > 0` half, so neither input could see the ratio.
+
+      gap    12 vs 480  -> picks the smaller            (the rung works at all)
+      zeros   0 vs 0    -> refuses                      (`runner_up > 0`)
+      close  40 vs 44   -> refuses                      (`_MAGNITUDE_RATIO`)
+
+    The close pair is the one the constant's own comment describes -- "two similar
+    readings stay ambiguous" -- and it is what makes the ratio ablatable. Two counters
+    4 apart are two readings of the same KIND of thing, and guessing between them
+    binds a per-run role to a lifetime counter on a coin flip.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        BY_MAGNITUDE,
+        _narrow_competing,
+    )
+
+    matches = ["sensor.alfred_run_time", "sensor.alfred_total_time"]
+    traits = {m: {"translation_key": None, "state_class": None} for m in matches}
+
+    # An unmistakable gap: 12 against 480 is 40x, well past the 10x bar.
+    hass.states.async_set("sensor.alfred_run_time", "12")
+    hass.states.async_set("sensor.alfred_total_time", "480")
+    chosen, by, rejected = _narrow_competing(
+        hass, role="run_time", object_id="shared", matches=matches, traits=traits
+    )
+    assert chosen == "sensor.alfred_run_time", "the smaller counter is the per-run one"
+    assert by == BY_MAGNITUDE
+    assert rejected == {"sensor.alfred_total_time": "value=480"}
+
+    # A vacuum out of the box: both counters read 0 and the gap is meaningless.
+    hass.states.async_set("sensor.alfred_run_time", "0")
+    hass.states.async_set("sensor.alfred_total_time", "0")
+    chosen, by, _ = _narrow_competing(
+        hass, role="run_time", object_id="shared", matches=matches, traits=traits
+    )
+    assert chosen is None, (
+        "0 vs 0 picked a winner -- on a new vacuum this binds the roles by coin flip "
+        "and the binding sticks"
+    )
+    assert by is None
+
+    # Two readings of the same kind: close enough that the gap is not evidence.
+    hass.states.async_set("sensor.alfred_run_time", "40")
+    hass.states.async_set("sensor.alfred_total_time", "44")
+    chosen, by, _ = _narrow_competing(
+        hass, role="run_time", object_id="shared", matches=matches, traits=traits
+    )
+    assert chosen is None, (
+        "40 vs 44 picked a winner -- without the 10x bar any two numbers decide the "
+        "binding, which is the guess this whole ladder exists to refuse"
+    )
+    assert by is None
+
+
+async def test_cap24_malformed_declared_candidates_teach_the_sweep_nothing(hass):
+    """[CAP-24] Three skips in the candidate walk, each a different kind of useless id.
+
+    The sweep learns the adapter's SUFFIX by stripping the vacuum's object_id off each
+    declared candidate. Three shapes carry no suffix to learn:
+
+      - not a string, or carrying no domain dot at all
+      - an id not built from this vacuum's object_id (another vacuum's, or a bare name)
+      - an id that IS exactly the object_id, leaving an empty suffix
+
+    ONLY THE FIRST OF THE THREE HAS A RED, and the ablation established that rather
+    than reading:
+
+      - the isinstance half BITES. Without it `"." not in 12345` raises TypeError, so
+        one malformed entry in one adapter's declaration takes down candidate
+        augmentation for the whole vacuum. That is this test's claim.
+      - the object_id-prefix guard and the empty-suffix guard are SUBSUMED. The
+        sibling loop also requires `_claimed_by(sib_object) == suffix`, and the
+        universe `_claimed_by` tests against is built only from candidates starting
+        with the object_id. A foreign-prefixed candidate therefore yields a suffix
+        that is not in the universe, and an empty suffix claims nothing, so removing
+        either changes no answer this function can give. Crossed here, and said to be
+        crossed; not claimed.
+
+    Both were predicted to bite and came back DEAD -- the second time against a sample
+    built specifically to reach the companion. `bertie_humidity` is six characters of
+    another vacuum's name, so stripping the object_id's length yields exactly the
+    `_humidity` that claims the companion on this device: the sample COULD contain the
+    effect, and the effect was not there to contain.
+
+    The assertion is the exact merged list, so a sweep that started admitting any of
+    these would be visible whatever made it do so.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    _vacuum_on_device(hass, companions=[("sensor", "alfred_humidity")])
+
+    out = augment_candidates_from_device(
+        hass,
+        _VAC,
+        {
+            "task_status": [
+                12345,                    # not a string
+                "notanentityid",          # no domain dot
+                "sensor.bertie_humidity",  # ANOTHER vacuum, same length prefix
+                "sensor.alfred",          # object_id with an empty suffix
+            ]
+        },
+    )
+
+    merged = out["task_status"]
+    assert "sensor.alfred_humidity" not in merged, (
+        "an unrelated companion was swept in -- a malformed candidate taught the "
+        "sweep a suffix it should have refused to learn: %r" % (merged,)
+    )
+    assert merged == [
+        12345, "notanentityid", "sensor.bertie_humidity", "sensor.alfred"
+    ], (
+        "the declared list came back changed: %r. Nothing here is a usable candidate, "
+        "so nothing should have been added to it" % (merged,)
+    )
+
+
+async def test_cap25_a_localized_companion_is_rescued_by_its_translation_key(hass):
+    """[CAP-25] Issue #51 -- the rung that survives a translated entity name.
+
+    A German install names the sensor `..._verbleibende_filterzeit` while the adapter
+    declares `filter_time_left`. No suffix bridges that, so the suffix rung finds
+    nothing and the role reads Unknown. `translation_key` is the upstream provider's
+    own UNTRANSLATED word, so it survives both the language and a split dock device.
+
+    This rung runs only after the suffix path has failed, which is why the companion
+    here deliberately shares no suffix with the declared id -- a companion that the
+    suffix rung could find would prove nothing about this one.
+
+    THE ORIGIN IS ASSERTED TOO (live:ENT-12): a rescued entity reported as a plain
+    name match is a visible falsehood on the one screen built to be trusted.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    registry = _vacuum_on_device(hass)
+    device_id = registry.async_get(_VAC).device_id
+    # The provider's own word for the concept, supplied at registration the way the
+    # upstream integration supplies it -- independent of the display language, which
+    # is the entire reason this rung works where the suffix rung cannot.
+    registry.async_get_or_create(
+        "sensor", "eufy_vacuum", "uid_de_filter",
+        suggested_object_id="verbleibende_filterzeit",
+        device_id=device_id,
+        translation_key="filter_time_left",
+    )
+
+    report = {}
+    out = augment_candidates_from_device(
+        hass,
+        _VAC,
+        {"filter_time_left": ["sensor.alfred_filter_time_left"]},
+        report=report,
+    )
+
+    assert "sensor.verbleibende_filterzeit" in out["filter_time_left"], (
+        "the translated companion was not rescued; roles fall back to Unknown and "
+        "every consumable row goes quiet on a non-English install"
+    )
+    assert out["filter_time_left"][0] == "sensor.alfred_filter_time_left", (
+        "the derived name must stay first -- that is the safety property"
+    )
+
+
+# ---------------------------------------------------------------------------
+# [CAP-26] the maintenance OVERRIDE pair -- the tests [CAP-5b]'s header entry
+# used to describe without anyone having written them
+# ---------------------------------------------------------------------------
+
+async def test_cap26_a_maintenance_override_wins_while_it_resolves(hass):
+    """[CAP-26] live:ENT-7 on the maintenance path: the user's pick outranks derivation.
+
+    REGISTERED COUNTS, NOT JUST STATED. A disabled entity is a toggle in the user's own
+    UI, not a dead id, and the same bar is used on the role path. So this asserts both
+    shapes: one override with a state, one that exists only in the registry.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        _detect_maintenance_sources,
+    )
+
+    _vacuum_on_device(hass, companions=[("sensor", "my_own_filter_pick")])
+    hass.states.async_set("sensor.alfred_filter_remaining", "90")
+    hass.states.async_set("sensor.my_stated_pick", "77")
+
+    reasons = {}
+    sources = _detect_maintenance_sources(
+        hass,
+        object_id="alfred",
+        maintenance_components={
+            "filter": {"sensor_suffix": "filter_remaining"},
+            "brush": {"sensor_suffix": "brush_remaining"},
+        },
+        overrides={
+            "filter": "sensor.my_stated_pick",          # has a state
+            "brush": "sensor.my_own_filter_pick",       # registry only, no state
+        },
+        reasons=reasons,
+    )
+
+    assert sources["filter"] == "sensor.my_stated_pick", (
+        "the user's explicit choice lost to the derived name"
+    )
+    assert sources["brush"] == "sensor.my_own_filter_pick", (
+        "a REGISTERED but stateless override was treated as a dead id -- that is a "
+        "disabled entity, which is a toggle in the user's own UI"
+    )
+
+
+async def test_cap26b_a_stale_maintenance_override_falls_through_and_says_so(hass):
+    """[CAP-26b] A pinned id that no longer exists must not be pinned anyway.
+
+    This path used to take the user's id and `continue` with no existence check at
+    all, and PINNING IT COSTS MORE HERE THAN ON A ROLE because nothing downstream
+    complains: `get_maintenance_remaining` finds no state, leaves `source_available`
+    False and reports 0 usage hours, so the component's Replacement row AND its
+    Maintenance row both go quiet. The user renames the sensor they pinned, their
+    stated choice stops working, and the System screen built to explain bindings
+    says nothing.
+
+    RED IF THE EXISTENCE CHECK GOES: `sources["filter"]` becomes the dead id and the
+    reason stays unset.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        REASON_OVERRIDE_UNRESOLVED,
+        _detect_maintenance_sources,
+    )
+
+    hass.states.async_set("sensor.alfred_filter_remaining", "90")
+
+    reasons = {}
+    sources = _detect_maintenance_sources(
+        hass,
+        object_id="alfred",
+        maintenance_components={"filter": {"sensor_suffix": "filter_remaining"}},
+        overrides={"filter": "sensor.renamed_away_last_tuesday"},
+        reasons=reasons,
+    )
+
+    assert sources["filter"] == "sensor.alfred_filter_remaining", (
+        "a stale override pinned a dead id instead of falling through to derivation"
+    )
+    assert reasons.get("filter") == REASON_OVERRIDE_UNRESOLVED, (
+        "the fall-through happened silently -- the user is never told their pick "
+        "stopped resolving"
+    )
+
+
+async def test_cap26c_the_suffix_rescue_finds_a_renamed_maintenance_sensor(hass):
+    """[CAP-26c] live:ENT-8 / issue #49 -- the maintenance path's own sibling rescue.
+
+    Maintenance sources were derived as `sensor.{object_id}_{suffix}` with NO fallback
+    of any kind, the fourth code path carrying the naming assumption repaired
+    elsewhere. An area-prefixed or renamed sensor made the mop and brush life rows
+    read Unknown, and per doc 13 one unresolved source kills BOTH the Replacement row
+    and the integration's own Maintenance row.
+
+    THE EXCLUSIVITY UNIVERSE IS PASSED, because this was the third copy of the suffix
+    predicate and the only one that lacked the live:ENT-4 guard: without it a short
+    declared suffix can bind to a longer entity, the shape that once put a lifetime
+    counter into a per-run role at 17,975 ft².
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        _rescue_maintenance_source,
+    )
+
+    found = _rescue_maintenance_source(
+        ["sensor.downstairs_alfred_filter_remaining", "sensor.alfred_humidity"],
+        "filter_remaining",
+        universe=("_filter_remaining", "_humidity"),
+    )
+
+    assert found == "sensor.downstairs_alfred_filter_remaining", (
+        "the renamed maintenance sensor was not rescued; both the Replacement and "
+        "the Maintenance row for this component go quiet"
+    )
