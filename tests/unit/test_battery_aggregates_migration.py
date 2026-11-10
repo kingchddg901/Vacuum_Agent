@@ -420,19 +420,27 @@ def test_bam14_a_junk_vacuum_record_does_not_hide_the_next_one():
 def test_bam15_a_healthy_sub_bucket_is_not_reported_as_stale():
     """[BAM-15] The sub-bucket loop reports only the stale members.
 
-    [BAM-5] proves sub-buckets are examined; it does not prove a HEALTHY one is left
-    out, because every sub-bucket in its fixture is stale. An `_is_stale_bucket` that
-    returned True unconditionally would satisfy it.
+    [BAM-5] proves sub-buckets are examined. What it does NOT pin is that a healthy
+    SUB-bucket is declined: its `all_jobs` is healthy and its assertion is an exact
+    list, so forcing `_is_stale_bucket` True only inside the sub-bucket loop leaves it
+    green. That is the gap this closes.
+
+    A first draft of this paragraph said an always-True `_is_stale_bucket` "would
+    satisfy" [BAM-5] -- an audit showed that is false, since such a detector would also
+    report `all_jobs` and break BAM-5's exact-list assertion, along with [BAM-3] and
+    [BAM-4]. The claim was about the wrong half of the function.
 
     The clean bucket is placed FIRST and the stale one after, so the exact expected
     list also shows the loop continued past the member it declined to report.
 
     SHARED SENSITIVITY, measured rather than assumed: forcing `_is_stale_bucket` to
-    True reddens [BAM-13] as well as this test. That was an UNPREDICTED result from the
-    ablation sweep and the prediction was the thing at fault -- BAM-13 also puts a
+    True reddens [BAM-13] as well as this test -- an UNPREDICTED result from the
+    ablation sweep, where the prediction was the thing at fault. BAM-13 also puts a
     non-reportable sub-bucket before a stale one and asserts the exact resulting list.
     The two cover the same line from different directions, a non-dict member and a
-    healthy post-C17 member, so neither is redundant.
+    healthy post-C17 member, so neither is redundant. That same mutation also reddens
+    [BAM-3], [BAM-4] and [BAM-5], all of which assert exact lists over a healthy
+    `all_jobs`; this test is the one that reaches the SUB-BUCKET loop specifically.
     """
     data = _data()
     aggs = data["battery"]["vacuums"]["vacuum.alfred"]["job_aggregates"]
@@ -487,9 +495,13 @@ def test_bam16_a_corrupt_all_jobs_bucket_does_not_crash_the_planner():
         assert plan[0]["count_before"] is None
         assert plan[0]["means_before"] == {k: None for k in _MEAN_FIELDS}
 
-    # The FALSY shapes `or {}` already handled must keep behaving identically.
+    # The FALSY shapes `or {}` already handled must keep behaving identically. The
+    # count assertion alone would be vacuous -- None is the default for a missing key --
+    # so the stale sub-bucket is asserted too, which a planner that dropped the vacuum
+    # would fail.
     for falsy in (None, {}, 0):
         data = _data()
         data["battery"]["vacuums"]["vacuum.alfred"]["job_aggregates"]["all_jobs"] = falsy
         plan = plan_battery_aggregates_migration(data=data)
+        assert plan[0]["stale_buckets"] == ["by_clean_mode[vacuum]"], f"falsy={falsy!r}"
         assert plan[0]["count_before"] is None

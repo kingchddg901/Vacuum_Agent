@@ -80,6 +80,16 @@ def _outer_family(type_str: str) -> str:
     return spec.split("[", 1)[0].strip()
 
 
+def _permits_none(type_str: str) -> bool:
+    """Whether `_type_ok` would accept None for this declared type.
+
+    The `| null` suffix is stripped BEFORE the family lookup, so a nullable container
+    reads as a container while still admitting a value that is neither dict nor list.
+    """
+    low = type_str.strip().lower()
+    return any(low.endswith(s) for s in ("| null", "| none", "|null", "|none"))
+
+
 def _declared_type_strings(node: Any, seen: set[int] | None = None) -> list[str]:
     """Every `"type"` string declared anywhere in the schema."""
     if seen is None:
@@ -326,28 +336,38 @@ class TestValidatorItself:
         `entries = []` arm -- the else taken when an `entry_fields` value is neither
         dict nor list -- is unreachable from this schema.
 
-        THE REASON IS A GUARD ELEVEN LINES EARLIER, not the arm itself: a type mismatch
+        THE REASON IS A GUARD TWENTY-SEVEN LINES EARLIER, not the arm itself: a type mismatch
         `continue`s before `entry_fields` is read. So reaching the else needs a spec
         declaring `entry_fields` AND either no `type` or a SCALAR type, which would let
         a non-container value past the type gate. Measured: all 9 `entry_fields` specs
         declare `list[dict]` or `dict[str, dict]`.
 
-        WHAT MAKES IT RED: give any `entry_fields` spec a scalar type, or drop its
-        `type`. The arm is then reachable and needs a test of its own -- and it is not
-        merely defensive: without it `entries` would carry the PREVIOUS loop
-        iteration's value, so the walk would recurse into the wrong catalogue rather
-        than raise.
+        A NULLABLE CONTAINER COUNTS AS WEAK, which a first draft of this check missed --
+        found by an adversarial audit. `_outer_family` strips a `"| null"` suffix before
+        looking up the family, so `"dict[str, dict] | null"` would have passed as a
+        container; but `_type_ok(None, ...)` returns True for a nullable type, so a
+        stored `None` sails through the type gate, is neither dict nor list, and lands
+        in the `entries = []` arm. The schema already uses nullable containers elsewhere
+        (`"dict[str, Any] | null"`), so that is the natural way for someone to make the
+        arm live, and the first version of this test would have stayed green through it.
+
+        WHAT MAKES IT RED: give any `entry_fields` spec a scalar type, drop its `type`,
+        or append `| null` to it. The arm is then reachable and needs a test of its own
+        -- and it is not merely defensive: without it `entries` would carry the PREVIOUS
+        loop iteration's value, so the walk would recurse into the wrong catalogue
+        rather than raise.
         """
         specs = _entry_field_specs(ADAPTER_CONFIG_SCHEMA)
         assert specs, "the walk found no entry_fields specs -- the check below is vacuous"
-        scalar = sorted(
+        weak = sorted(
             path for path, type_str in specs
-            if not (isinstance(type_str, str)
-                    and _outer_family(type_str) in ("dict", "list"))
+            if not isinstance(type_str, str)
+            or _outer_family(type_str) not in ("dict", "list")
+            or _permits_none(type_str)
         )
-        assert scalar == [], (
-            "these entry_fields specs do not declare a container type, so a "
-            "non-container value reaches the `entries = []` arm: " + str(scalar)
+        assert weak == [], (
+            "these entry_fields specs let a non-container value past the type gate, so "
+            "it reaches the `entries = []` arm: " + str(weak)
         )
 
 

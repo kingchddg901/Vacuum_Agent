@@ -279,6 +279,11 @@ async def test_zone_clean_proceeds_when_ready(jc):
 
 
 # Async action handler ↔ manager method ↔ error prefix.
+# goto and start_zone_clean are deliberately NOT in this list, and [JCW-17]/[JCW-18]
+# test them separately. [JCW-4] shares these rows and asserts `async_save` was
+# awaited; goto carries no room ids and touches no store, and start_zone_clean
+# consults an in-flight gate before dispatching, so a row here would redden for a
+# reason unrelated to the claim.
 _ASYNC_ACTIONS = [
     (_handle_start_selected_rooms, "start_selected_rooms", "Failed to start cleaning"),
     (_handle_start_run_profile, "start_run_profile", "Failed to start run profile"),
@@ -408,7 +413,9 @@ async def test_cancel_manager_raises(jc):
 
 # ---------------------------------------------------------------------------
 # [JCW-17]/[JCW-18] the two handlers whose failure path had no test. Separate from
-# [JCW-5]'s parametrize on purpose -- see this file's note on _ASYNC_ACTIONS.
+# [JCW-5]'s parametrize on purpose -- the reason is on the comment above
+# _ASYNC_ACTIONS, which an audit pointed out this line used to promise and the
+# file did not carry.
 # ---------------------------------------------------------------------------
 
 async def test_jcw17_goto_wraps_a_dispatch_failure(jc):
@@ -422,7 +429,8 @@ async def test_jcw17_goto_wraps_a_dispatch_failure(jc):
 
     THREE ASSERTIONS, BECAUSE THE TYPE ALONE IS NOT THE CLAIM. The exception type says
     it was wrapped; the message prefix says it was wrapped by THIS handler rather than
-    one of the six siblings that raise the same class with different text; and
+    one of the SEVEN siblings that raise the same class with different text (eight
+    `raise HomeAssistantError` sites in the module, counted); and
     `__cause__` says the original was chained rather than swallowed and re-raised,
     which is what keeps the underlying reason in the log.
     """

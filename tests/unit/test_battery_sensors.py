@@ -395,11 +395,16 @@ def test_bs13_corrupt_aggregates_do_not_break_the_attribute_set():
     BOTH LEVELS ARE DRIVEN because nothing upstream of this property checks either:
     `_record()` returns the persisted battery record as-is.
 
-    `last_job` IS DELIBERATELY INTACT IN EVERY CASE. It is the source of ten of the
-    twelve attributes, so asserting those survive is what distinguishes "the aggregate
-    read degraded gracefully" from "the property returned a mostly-empty dict". The
-    mean/count pair degrading to None is the narrow claim; the rest of the set carrying
-    on is what makes it a graceful degradation rather than a silent loss.
+    `last_job` IS DELIBERATELY INTACT IN EVERY CASE. The attribute dict has SIXTEEN
+    keys -- counted, after an audit found a first draft saying "ten of the twelve" --
+    of which 10 come from `last_job` and 6 are aggregate-derived. Asserting the
+    `last_job` ones survive is what distinguishes "the aggregate read degraded
+    gracefully" from "the property returned a mostly-empty dict".
+
+    ALL SIX AGGREGATE-DERIVED KEYS ARE NOW ASSERTED, not just the mean/count pair: the
+    three `by_*` means route through `_bucket_means`, which is the TWIN of the read
+    this test is about (RNFT127G), so a degraded `agg` has to leave those empty too
+    rather than raising on its way through them.
     """
     last = {"job_id": "j9", "drain_per_min": 0.5, "duration_min": 12.0}
 
@@ -414,6 +419,11 @@ def test_bs13_corrupt_aggregates_do_not_break_the_attribute_set():
 
         assert attrs["all_jobs_mean"] is None, f"aggregates={aggregates!r}"
         assert attrs["all_jobs_count"] is None
+        assert attrs["all_jobs_samples"] is None
+        # The `by_*` means go through `_bucket_means`, the twin read (RNFT127G).
+        assert attrs["by_clean_mode_mean"] == {}
+        assert attrs["by_fan_speed_mean"] == {}
+        assert attrs["by_water_level_mean"] == {}
         # The ten attributes that come from `last_job` are untouched.
         assert attrs["job_id"] == "j9"
         assert attrs["duration_min"] == 12.0

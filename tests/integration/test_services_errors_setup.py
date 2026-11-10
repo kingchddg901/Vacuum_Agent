@@ -959,12 +959,16 @@ async def test_svs21_setup_handlers_answer_instead_of_raising_without_a_runtime(
     payload with no `status` key at all. A parametrised row per handler is what makes a
     future copy-paste that returns the wrong SHAPE visible.
 
-    THE EXACT MESSAGE IS ASSERTED, NOT JUST `status == "error"`. Six of these handlers
-    have a SECOND error branch a few lines later for an unmanaged vacuum, which also
-    returns `status: "error"` with a different message -- and two existing tests
-    (`test_setup_set_panel_title_not_managed`, `test_setup_set_map_camera_not_managed`)
-    already cover that one. Asserting only the status would let this test pass on the
-    wrong branch.
+    THE EXACT MESSAGE IS ASSERTED, NOT JUST `status == "error"`, because these handlers
+    have OTHER error branches that return the same status with different text. Counted
+    rather than guessed, after an audit found a first draft claiming "six ... for an
+    unmanaged vacuum": exactly TWO carry the unmanaged-vacuum branch
+    (`setup_set_panel_title` and `setup_set_map_camera`, both already covered by
+    `test_setup_set_panel_title_not_managed` / `..._map_camera_not_managed`), while
+    `setup_reject_rooms` and `setup_unreject_rooms` can return a `map_ambiguous` error
+    and `setup_save_rooms` has a refusal when the save returns False.
+    `setup_force_remove_room` has no second error branch at all. Asserting only the
+    status would let this test pass on any of them.
     """
     hass.data[DOMAIN].pop(DATA_RUNTIME)
     assert await _call(hass, service, payload) == expected

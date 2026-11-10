@@ -1132,12 +1132,18 @@ def test_jf14_a_junk_phase_or_room_is_skipped_without_abandoning_the_rest():
     `break` in either place yields `[]` and the expected value is `[7, 9]`.
 
     THE EXPECTED VALUE IS NOT THE FALLBACK. An empty list is what this function returns
-    for every malformed input, so `[7, 9]` is the only kind of assertion that can tell
-    "the guards skipped the junk and collected the rest" from "the guards swallowed
-    everything". Each element earns its place: `{"room_id": 0}` proves `rid > 0`
-    rejects non-positive ids, `{"id": 7}` proves the `id` fallback key is read, the
-    second `{"room_id": 7}` proves the duplicate check, and `{"room_id": 9}` proves
-    collection continued past all of them.
+    for every malformed input, so `[7, 8, 9]` is the only kind of assertion that can
+    tell "the guards skipped the junk and collected the rest" from "the guards
+    swallowed everything". Each element earns its place: `{"room_id": 0}` proves
+    `rid > 0` rejects non-positive ids, `{"id": 7}` proves the `id` FALLBACK key is
+    read, the repeated `{"room_id": 8}` proves the duplicate check, and
+    `{"room_id": 9}` proves collection continued past all of them.
+
+    THE FALLBACK ROW CARRIES AN ID NO OTHER ROW SUPPLIES, which a first draft got wrong
+    -- found by an adversarial audit and confirmed by ablation. It used `{"id": 7}`
+    followed by `{"room_id": 7}`, so removing the fallback dropped the first row and the
+    second supplied 7 anyway: the expected list was unchanged and the test stayed GREEN
+    against the very behaviour it named. Each claim now needs its own id.
 
     `current_phase_index` is 2 so `phases[:2]` admits the junk phase and the real one
     and excludes the trailing `{}` -- with index 1 the real phase would fall outside
@@ -1149,15 +1155,16 @@ def test_jf14_a_junk_phase_or_room_is_skipped_without_abandoning_the_rest():
             {"resolved_rooms": [
                 "junk",
                 {"room_id": 0},
-                {"id": 7},
-                {"room_id": 7},
+                {"id": 7},            # only this row can supply 7
+                {"room_id": 8},
+                {"room_id": 8},       # only a dedupe failure can repeat 8
                 {"room_id": 9},
             ]},
             {},
         ],
         "current_phase_index": 2,
     }
-    assert known_completed_room_ids(state, None) == [7, 9]
+    assert known_completed_room_ids(state, None) == [7, 8, 9]
 
 
 def test_jf15_room_timings_still_contribute_when_the_job_state_is_not_a_dict():

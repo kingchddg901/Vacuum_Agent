@@ -651,17 +651,24 @@ def test_sc21_a_non_positive_room_id_yields_no_cells():
     into the whole background. That is the difference between "no room" and "the entire
     floor is one room".
 
-    Both halves of `<=` are driven, because `0` and `-1` reach it by different
-    arithmetic and a `< 0` typo would pass the second while failing the first.
+    THE `-1` CASE NEEDS A 255 BYTE IN THE RASTER, which a first draft of this test did
+    not have -- found by an adversarial audit and confirmed by ablation. The fast path
+    masks `target = room_id & 0xFF`, so `-1` becomes 255; with no 255 byte present the
+    lookup finds nothing and returns [] whether the guard exists or not. Narrowing the
+    guard to `== 0` left the test GREEN, so the assertion was an identity and the
+    claim that "both halves are driven" was false. The raster now carries a 255 block,
+    so a guard that admitted negative ids would select it.
     """
-    rast = _raster(20, 20, {5: (4, 4, 7, 9)})
+    rast = _raster(20, 20, {5: (4, 4, 7, 9), 255: (12, 12, 14, 14)})
     kw = dict(room_pixels=rast, ro_width=20, ro_height=20)
 
     # The control: the real room is found, so the empties below are the guard talking.
     assert len(scr.room_cells(room_id=5, **kw)) == 24
 
     assert scr.room_cells(room_id=0, **kw) == []
-    assert scr.room_cells(room_id=-1, **kw) == []
+    assert scr.room_cells(room_id=-1, **kw) == [], (
+        "a negative id was masked to 255 and selected the 255 block"
+    )
 
 
 def test_sc22_a_buffer_shorter_than_its_declared_size_yields_no_cells():
@@ -710,11 +717,19 @@ def test_sc24_cells_outside_the_crop_are_clipped_not_drawn():
     room -- including the ones the clamp cut off. Without the bounds test those cells
     index outside the new image.
 
-    PINNED BY THE EXACT WIDTH, as a PAIR. The same room (x 2..9) on a 6-wide canvas
-    renders 4 pixels across and on a 12-wide canvas renders 8; both measured by running
-    it. One figure alone would be a magic number, and the pair shows the width tracking
-    the canvas rather than the room. `scale=1` so the PNG dimensions are the crop
-    dimensions, with no upscale in between.
+    WHAT EACH ASSERTION ACTUALLY PINS, corrected after an audit pointed out the
+    mis-attribution. The width PAIR pins the crop CLAMP at `cx1 = min(cvw - 1, ...)`,
+    which runs before the paint loop: the same room (x 2..9) renders 4 pixels across on
+    a 6-wide canvas and 8 on a 12-wide one, both measured. One figure alone would be a
+    magic number; the pair shows the width tracking the CANVAS rather than the room.
+
+    The per-cell bounds test inside the loop is pinned by this test too, but through
+    the EXCEPTION its absence raises rather than through the size: `rendered` still
+    holds every cell of the room including the ones the clamp cut off, so without the
+    test `px[x - cx0, y - cy0]` indexes outside the new image and Pillow raises. That
+    is what the ablation reddens. Both claims are real; only the labels were wrong.
+
+    `scale=1` so the PNG dimensions are the crop dimensions, with no upscale between.
     """
     pytest.importorskip("PIL")
     rast = _raster(12, 12, {5: (2, 2, 9, 9)})
@@ -741,9 +756,9 @@ def test_sc25_an_old_pillow_without_the_size_argument_still_gets_a_font(monkeypa
     what the modern path returns, and `None` is what the next fallback yields -- so
     neither would show WHICH branch answered.
     """
+    pytest.importorskip("PIL")
     import PIL.ImageFont as image_font
 
-    pytest.importorskip("PIL")
     sentinel = object()
 
     def old_pillow(*args, **kwargs):
