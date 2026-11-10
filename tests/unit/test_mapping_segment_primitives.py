@@ -34,6 +34,12 @@ Coverage targets
 [SP-26] estimate_alignment: a strictly-better shifted candidate takes the best-update branch (recovers the shift).
 [SP-RAST-1] rasterize_primitives: a pct rect -> rectangle polygon in map px; empty -> [].
 [SP-RAST-2] rasterize_primitives: subtract clears an edge; polygon primitive round-trips.
+[SP-RAST-3] rasterize_primitives: the circle branch draws an ELLIPSE -- pi/4 of its own bbox.
+[SP-RAST-4] rasterize_primitives: a non-dict primitive and an unknown type each draw nothing.
+[SP-RAST-5] rasterize_primitives: a 2-point polygon is not drawable; a junk vertex is dropped.
+[SP-RAST-6] rasterize_primitives: A2-POLYGO-8 -- a malformed shape mid-segment is silent.
+[SP-RAST-7] rasterize_primitives: A2-POLYGO-2 -- libs-missing and all-subtracted return the
+            same [], so the caller cannot tell them apart.
 """
 
 from __future__ import annotations
@@ -42,6 +48,7 @@ import math
 
 import pytest
 
+from custom_components.eufy_vacuum.mapping import segment_primitives as sp_module
 from custom_components.eufy_vacuum.mapping.segment_primitives import (
     aspect_ratio,
     agreement_score,
@@ -445,3 +452,255 @@ def test_normalized_color_features_has_no_luminance_weighting(np):
     assert np.allclose(normalized_color_features(rgb), expected, atol=1e-6)
     # and the defining property still holds for a non-uint8 caller
     assert np.allclose(normalized_color_features(rgb.astype(np.float32)).sum(axis=2), 1.0)
+
+
+# ---------------------------------------------------------------------------
+# [SP-RAST-3]..[SP-RAST-7]. `rasterize_primitives` is reached from
+# mapping_services.py::_handle_set_custom_segments, which feeds it the card's
+# authored pct shapes one segment at a time and keeps the polygon it returns.
+# ---------------------------------------------------------------------------
+
+def _area(poly):
+    return abs(polygon_area([(float(x), float(y)) for x, y in poly]))
+
+
+def test_rast3_the_circle_branch_draws_an_ellipse_not_its_bounding_box(np):
+    """[SP-RAST-3] The circle primitive, which had no test at all.
+
+    THE ASSERTION IS THE AREA RATIO, not that a polygon came back. "A circle
+    rasterises to something" is satisfied by `draw.rectangle` just as well, and the
+    rect branch two lines above is already proven -- so a shape-blind assertion here
+    would pass against the branch drawing the WRONG primitive. A disc fills pi/4 of
+    its bounding square, so the ratio is what separates an ellipse from a box.
+
+    It also pins `r` being scaled through `_p` like a coordinate: a radius is a
+    LENGTH, and reading it with the position helper is only correct because `_p` is a
+    pure pct->px scale. If `r` were left unscaled the disc would be a few px across
+    at the 512 working resolution and the area assertion would collapse.
+
+    The square control is authored to the circle's own bbox (30..70 pct), so the two
+    numbers are comparable without computing anything from the circle itself.
+    """
+    pytest.importorskip("PIL")
+    circle = rasterize_primitives(
+        [{"type": "circle", "cx": 50, "cy": 50, "r": 20}], width=100, height=100
+    )
+    square = rasterize_primitives(
+        [{"type": "rect", "x": 30, "y": 30, "w": 40, "h": 40}], width=100, height=100
+    )
+    assert circle, "the circle branch produced no polygon at all"
+
+    xs = [p[0] for p in circle]
+    ys = [p[1] for p in circle]
+    assert min(xs) == pytest.approx(30, abs=2)
+    assert max(xs) == pytest.approx(70, abs=2)
+    assert min(ys) == pytest.approx(30, abs=2)
+    assert max(ys) == pytest.approx(70, abs=2)
+
+    assert _area(circle) == pytest.approx(math.pi * 20 * 20, rel=0.1)
+    assert _area(circle) < _area(square) * 0.85, (
+        "the circle filled its whole bounding box -- an ellipse was not drawn"
+    )
+
+
+def test_rast4_a_non_dict_primitive_and_an_unknown_type_both_draw_nothing(np):
+    """[SP-RAST-4] Two ways a primitive contributes nothing, kept apart.
+
+    `primitives` arrives from the card over a service call, so a row can be a string
+    or a None -- and the next statement calls `.get` on it.
+
+    THE JUNK COMES FIRST, which is what makes this more than a no-raise test: with a
+    `break` in place of the skip the trailing rect is never drawn and the result is
+    []. The rect is the discriminator; the absence of an exception is not.
+
+    THE UNKNOWN TYPE CARRIES A FULL SET OF RECT FIELDS, which is the half of this my
+    first draft got wrong. A blob with only `x` and `y` proves nothing: route it into
+    the rect branch and it dies on `prim["w"]` regardless, so the ablation came back
+    DEAD -- the test passed whether or not the type was checked at all. Given `w` and
+    `h` spanning the whole canvas, a chain that fell through to the rect branch would
+    paint over everything, and the area assertion sees it.
+
+    It is paired with a small real rect for the same reason: the claim is that the
+    blob contributes NOTHING, and only a drawn shape beside it can distinguish that
+    from "nothing was drawn at all".
+    """
+    pytest.importorskip("PIL")
+    rect = {"type": "rect", "x": 10, "y": 10, "w": 30, "h": 30}
+
+    survived = rasterize_primitives(["junk", None, 7, rect], width=100, height=100)
+    assert survived, "a non-dict row stopped the walk instead of being skipped"
+    assert _area(survived) == pytest.approx(900, rel=0.15)
+
+    blob = {"type": "blob", "x": 0, "y": 0, "w": 100, "h": 100}
+    assert rasterize_primitives([blob], width=100, height=100) == [], (
+        "an unrecognised primitive type drew something"
+    )
+    with_blob = rasterize_primitives([blob, rect], width=100, height=100)
+    assert _area(with_blob) == pytest.approx(900, rel=0.15), (
+        "the unknown type painted the canvas, so its `type` was never checked"
+    )
+
+
+def test_rast5_a_two_point_polygon_is_not_drawable_but_a_junk_vertex_is_dropped(np):
+    """[SP-RAST-5] The `len(pts) >= 3` gate, asserted as an asymmetric pair.
+
+    A polygon needs three vertices to enclose anything, and `draw.polygon` on two
+    would raise. The empty return here DOES equal the fallback, so on its own it
+    proves nothing -- the third point is added in the second call and the SAME shape
+    then draws. That pair is what the gate's two arms are measured against.
+
+    THE JUNK VERTICES ARE CHOSEN ONE PER HALF of `isinstance(pt, (list, tuple)) and
+    len(pt) == 2`, and the first draft's were not: `len("nope")` is 4 and
+    `len([1, 2, 3])` is 3, so the LENGTH half rejected both on its own and dropping
+    isinstance changed nothing -- that ablation came back DEAD. `"ab"` is the shape
+    that separates them: a sequence of length two that is not a list, which slips past
+    a length-only filter and then dies in `float("a")`, taking the whole polygon with
+    it.
+
+    AND THE BBOX IS WHAT MAKES THE LENGTH HALF BITE in the other direction. `[1, 2, 3]`
+    passes isinstance, so a filter missing the length check reads `pt[0], pt[1]` off it
+    and adds a vertex at (1, 2) pct -- a spike into the far corner. The triangle still
+    has three or more points and still draws, so only its bounding box shows the
+    difference.
+    """
+    pytest.importorskip("PIL")
+    two = [[20, 20], [60, 20]]
+    assert rasterize_primitives(
+        [{"type": "polygon", "points": two}], width=100, height=100
+    ) == []
+    assert rasterize_primitives(
+        [{"type": "polygon", "points": two + [[40, 60]]}], width=100, height=100
+    ), "three points did not draw, so the empty result above was not the count gate"
+
+    salvaged = rasterize_primitives(
+        [{"type": "polygon",
+          "points": [[20, 20], "nope", [60, 20], [1, 2, 3], "ab", [40, 60]]}],
+        width=100, height=100,
+    )
+    assert salvaged, "one malformed vertex discarded the whole polygon"
+    assert len(salvaged) >= 3
+    assert min(p[0] for p in salvaged) == pytest.approx(20, abs=3)
+    assert min(p[1] for p in salvaged) == pytest.approx(20, abs=3), (
+        "a 3-element vertex was read as a point, spiking the outline to (1, 2)"
+    )
+    assert max(p[0] for p in salvaged) == pytest.approx(60, abs=3)
+
+
+@pytest.mark.parametrize(
+    "bad,raises",
+    [
+        ({"type": "rect", "x": 10, "y": 10, "h": 30}, "KeyError"),
+        ({"type": "rect", "x": 10, "y": 10, "w": None, "h": 30}, "TypeError"),
+        ({"type": "rect", "x": 10, "y": 10, "w": "wide", "h": 30}, "ValueError"),
+    ],
+    ids=["missing_key", "none_value", "unparseable_value"],
+)
+def test_rast6_a_malformed_shape_mid_segment_is_silently_dropped(np, bad, raises):
+    """[SP-RAST-6] A2-POLYGO-8, measured down to what is still true of it.
+
+    The finding recorded in this module's invariant block says a malformed primitive
+    is silently skipped so "a partially-drawn room saves as a success with no signal
+    in the response". The SERVICE-level half of that is no longer true: the caller
+    counts whole segments that yielded no polygon and returns `skipped`.
+
+    WHAT SURVIVES IS THE PARTIAL CASE, and it is what this test pins. One bad shape
+    among three leaves a polygon that is NOT the one the user authored, and the
+    segment still produced a polygon -- so the caller's `skipped` counter stays at
+    zero and nothing anywhere reports the missing third of the room.
+
+    THE THREE SHAPES OVERLAP, and that is load-bearing rather than tidy. The first
+    draft authored three DISJOINT columns and failed: `mask_to_polygon` returns one
+    loop, `max(loops, key=area)`, so disjoint shapes never union into a single
+    outline and both rooms came back as the same lone column -- a fixture that could
+    not contain the effect it was measuring. Overlapping them makes the middle shape
+    the BRIDGE, so losing it is what the assertions can see.
+
+    WHAT THAT MAKES VISIBLE IS WORSE THAN THE DROPPED SHAPE. With the bridge gone the
+    mask holds two components, only the larger is kept, and the right-hand third of
+    the room disappears as well -- so the saved room is not a damaged version of the
+    authored one, it is a DIFFERENT room. The bbox assertion is what pins that: the
+    outline stops at 45 rather than reaching 95. The area gap alone would read as
+    "slightly smaller".
+
+    THREE CASES FOR THE THREE MEMBERS of the `except (KeyError, TypeError, ValueError)`
+    tuple -- a missing key, a None where a number belongs, and an unparseable string.
+    Narrowing the tuple to any one member leaves the other two escaping, which is how
+    each case is shown to earn its place rather than repeat its neighbours.
+    """
+    pytest.importorskip("PIL")
+    left = {"type": "rect", "x": 5, "y": 40, "w": 40, "h": 20}
+    middle = {"type": "rect", "x": 35, "y": 40, "w": 30, "h": 20}
+    right = {"type": "rect", "x": 60, "y": 40, "w": 35, "h": 20}
+
+    whole = rasterize_primitives([left, middle, right], width=100, height=100)
+    damaged = rasterize_primitives([left, bad, right], width=100, height=100)
+
+    assert max(p[0] for p in whole) == pytest.approx(95, abs=3), (
+        "the authored room does not span the full width, so the fixture cannot show "
+        "what losing the bridge costs"
+    )
+    assert damaged, "the %s shape took the whole segment down" % raises
+    assert min(p[0] for p in damaged) == pytest.approx(5, abs=3)
+    assert max(p[0] for p in damaged) == pytest.approx(45, abs=3), (
+        "the right-hand piece survived, so the bridge shape was not dropped"
+    )
+    assert _area(damaged) < _area(whole) * 0.6
+
+
+def test_rast7_libs_missing_and_all_subtracted_are_the_same_empty_answer(
+    np, monkeypatch
+):
+    """[SP-RAST-7] A2-POLYGO-2, asserted as the conflation it is.
+
+    numpy and Pillow are OPTIONAL and undeclared, so "not installed" is a real
+    shipped configuration and the module-level `np` / `PIL_Image` globals ARE how it
+    is represented -- patching them is the only in-process way to reach the install
+    this guard exists for.
+
+    THE POINT IS THAT THE THREE ANSWERS ARE IDENTICAL. A user whose host has no
+    numpy, a user whose host has no Pillow, and a user who subtracted away everything
+    they drew all get exactly `[]`, and the caller treats all three as "degenerate
+    shape": it counts the segment as skipped, writes `custom_segments` with an empty
+    `segments` list, and returns `saved: True`. The previously saved layout is gone
+    and nothing distinguishes a missing library from a bad drawing.
+
+    THIS TEST PINS THE DEFECT RATHER THAN THE FIX, deliberately -- separating the two
+    changes a service's response over existing saved layouts, which is not a call to
+    make inside a coverage pass. It will redden the moment the conflation is fixed,
+    which is the signal wanted.
+
+    THE `if not poly` GUARD IT CROSSES IS UNOBSERVABLE, measured: replacing it with
+    `if False` leaves every test in all three files reaching this function green,
+    because the scaling comprehension below it maps an empty polygon to the same `[]`.
+    The subtracted-away case is here to execute that guard and to be one of the three
+    indistinguishable answers -- the bite in this test comes from the two library
+    halves, not from it.
+
+    THE TWO LIBRARY HALVES ARE SEPARATE PATCHES because the guard is an `or`: dropping
+    either half of `PIL_Image is None or np is None` leaves the other patch sailing
+    past it into real work.
+    """
+    pytest.importorskip("PIL")
+    shapes = [{"type": "rect", "x": 10, "y": 10, "w": 30, "h": 30}]
+    assert rasterize_primitives(shapes, width=100, height=100), (
+        "the control did not draw, so the empty answers below mean nothing"
+    )
+
+    all_subtracted = rasterize_primitives(
+        shapes + [{"type": "rect", "x": 0, "y": 0, "w": 100, "h": 100,
+                   "op": "subtract"}],
+        width=100, height=100,
+    )
+    assert all_subtracted == [], "a fully subtracted drawing left a polygon behind"
+
+    monkeypatch.setattr(sp_module, "PIL_Image", None)
+    no_pil = rasterize_primitives(shapes, width=100, height=100)
+    monkeypatch.undo()
+
+    monkeypatch.setattr(sp_module, "np", None)
+    no_numpy = rasterize_primitives(shapes, width=100, height=100)
+
+    assert no_pil == [] and no_numpy == []
+    assert no_pil == all_subtracted == no_numpy, (
+        "A2-POLYGO-2: the caller cannot tell a missing library from a bad shape"
+    )
