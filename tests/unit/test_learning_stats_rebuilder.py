@@ -11,6 +11,7 @@ from custom_components.eufy_vacuum.learning.stats_rebuilder import (
     LearningStatsRebuilder,
     _canonical_clean_mode,
     _captured_minutes,
+    _gate_minutes_by_area,
     _room_baseline_key,
     _room_key,
     _stddev,
@@ -1171,3 +1172,154 @@ def test_rebuild_leaves_an_unrenamed_room_alone(tmp_path):
         jobs=[_job(job_id="j-k", room_slugs=["kitchen"])],
     )
     assert {r["room_slug"] for r in payload["room_stats"]} == {"kitchen"}
+
+
+# ---------------------------------------------------------------------------
+# The guards with no test. Each junk/edge row is placed BEFORE a real one, because
+# `continue` and `break` are indistinguishable when the interesting row is last.
+# ---------------------------------------------------------------------------
+
+def test_area_gate_never_returns_an_empty_sample():
+    """`_gate_minutes_by_area` falls back to every minute rather than nothing.
+
+    Its docstring states the contract outright -- "Never returns empty when given
+    inputs -- falls back to all minutes" -- and that arm had no test. It is reachable
+    whenever every area sits further than the tolerance from the median, which is what
+    a set of runs that were ALL partial cleans looks like: the median is then itself
+    unrepresentative and the gate has nothing legitimate to keep.
+
+    Returning `([], n)` there would publish a room baseline computed over zero samples.
+
+    THREE INPUTS, because the fallback has to be distinguished from the gate simply not
+    firing. The first keeps everything by falling back; the second keeps everything
+    because nothing is out of band; the third is the one that proves the gate works at
+    all, excluding the outlier and reporting the count. Without the third, a gate that
+    was removed entirely would satisfy the first two.
+    """
+    # _AREA_GATE_TOL_M2 is 1.5. Median 6.0, every |a - 6| == 4.0, so `kept` is empty.
+    kept, excluded = _gate_minutes_by_area([10.0, 10.0, 20.0, 20.0],
+                                           [2.0, 2.0, 10.0, 10.0], 6.0)
+    assert kept == [10.0, 10.0, 20.0, 20.0], "the all-excluded case lost every sample"
+    assert excluded == 0, "a fallback excluded nothing, so it must report 0"
+
+    # Nothing out of band: kept unchanged, still 0 excluded -- the same ANSWER by a
+    # different route, which is why the third case below is needed.
+    kept, excluded = _gate_minutes_by_area([10.0, 20.0], [5.5, 6.0], 6.0)
+    assert (kept, excluded) == ([10.0, 20.0], 0)
+
+    # The gate biting: one area far out of band is dropped and counted.
+    kept, excluded = _gate_minutes_by_area([10.0, 20.0, 99.0],
+                                           [6.0, 5.5, 50.0], 6.0)
+    assert (kept, excluded) == ([10.0, 20.0], 1)
+
+
+def test_clean_times_below_one_is_floored(tmp_path):
+    """A stored `clean_times` of 0 is read as one pass, not zero.
+
+    `clean_times` reaches the room key, so a 0 would mint a baseline bucket keyed on a
+    pass count no robot ever performs -- and the stats for that room would then be
+    split across a real bucket and a phantom one. The floor is what keeps a corrupt or
+    older-schema record folding into the right bucket.
+
+    0 is used rather than a negative, because 0 is what an uninitialised counter
+    actually writes, and the default is 1 so the expected answer differs from the
+    input.
+    """
+    rebuilder = _make_rebuilder(tmp_path)
+    job = _job(room_slugs=["kitchen"])
+    job["job_profile"]["rooms"][0]["clean_times"] = 0
+
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=[job]
+    )
+
+    assert payload["room_stats"][0]["clean_times"] == 1
+
+    # The baseline's `clean_times` is a HISTOGRAM keyed on pass count, so the claim is
+    # that the run landed under "1" and that no "0" BUCKET was minted. A first draft
+    # asserted `"0" not in str(...)` and failed correctly: the histogram legitimately
+    # carries `{'1': 1, '2': 0}`, and a substring test on a dict's repr cannot tell a
+    # phantom key from a real key holding a zero count.
+    histogram = payload["room_baselines"][0]["clean_times"]
+    assert histogram.get("1") == 1
+    assert "0" not in histogram, "a zero-pass bucket was minted from a corrupt record"
+
+
+def test_carpet_and_non_carpet_runs_are_counted_separately(tmp_path):
+    """Both carpet counters move, which one job cannot show.
+
+    The baseline carries `carpet_true_count` and `carpet_false_count` so a consumer can
+    tell "this room is carpeted" from "we have only ever seen it one way". A single job
+    leaves one counter at 1 and the other at 0, which is also what an increment wired to
+    the wrong counter produces -- so more than one job is needed.
+
+    THE COUNTS MUST BE ASYMMETRIC, AND A FIRST DRAFT GOT THIS WRONG. It used one carpet
+    job and one plain, asserting both counters at 1 -- and (1, 1) is INVARIANT under
+    swapping the two increments, so the ablation that swaps them left the test green.
+    The docstring even claimed a swap "gives (0, 2) or (2, 0)", which is true for a
+    one-sided input and false for the balanced one actually used. Two carpet runs and
+    one plain gives (2, 1), which a swap turns into (1, 2).
+    """
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = []
+    for job_id, is_carpet in (("j-carpet-1", True), ("j-carpet-2", True),
+                              ("j-plain", False)):
+        job = _job(job_id=job_id, room_slugs=["kitchen"])
+        job["job_profile"]["rooms"][0]["is_carpet"] = is_carpet
+        jobs.append(job)
+
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+
+    baseline = payload["room_baselines"][0]
+    assert baseline["carpet_true_count"] == 2
+    assert baseline["carpet_false_count"] == 1
+
+
+def test_jobs_index_skips_records_that_are_not_completed_jobs(tmp_path):
+    """The archive holds more record types than completed jobs.
+
+    A phased-job record is a real neighbour in that store, not an invented one, and it
+    carries a `job_id` -- so without the type filter it would appear in the index as a
+    job the user could select, with none of the fields a completed job has.
+
+    The non-completed record is placed FIRST so a `break` would drop the real job
+    behind it, and the surviving entry is named rather than counted, so a failure says
+    WHICH record came through.
+    """
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = [
+        {"record_type": "phased_job", "job_id": "p1"},
+        _job(job_id="j1", room_slugs=["kitchen"]),
+    ]
+
+    payload = rebuilder.build_jobs_index_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+
+    assert [j["job_id"] for j in payload["jobs"]] == ["j1"]
+
+
+def test_a_corrupt_room_timing_row_does_not_stop_the_rest(tmp_path):
+    """`room_timings` comes off disk, so a row can be any shape.
+
+    The timings decide whether a room's minutes are a MEASUREMENT or an allocation of
+    the job's total, so losing the walk to one bad row would silently re-allocate every
+    room in that job. The junk row is first and a real timing for room 1 follows; the
+    assertion is that the real row was still read.
+    """
+    rebuilder = _make_rebuilder(tmp_path)
+    job = _job(
+        job_id="j-timings",
+        room_slugs=["kitchen"],
+        transit_capture_valid=True,
+        room_timings=["junk", {"room_id": 1, "cleaning_seconds": 300.0}],
+    )
+
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=[job]
+    )
+
+    assert len(payload["room_stats"]) == 1
+    assert payload["room_stats"][0]["room_slug"] == "kitchen"
