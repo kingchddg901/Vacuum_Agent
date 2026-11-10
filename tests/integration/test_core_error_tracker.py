@@ -24,6 +24,12 @@ Coverage targets
 [ET-15] RF-DOCK clause 4: error_source_for_code resolves dock/robot/unknown from the
         adapter tables, independently of the evidence axis.
 [ET-15b] a brand declaring no source tables reports every fault unattributed.
+[ET-27] doc 35 §2: commit_active_run REFUSES when the latch moved on between peek and
+        commit, so a fault that arrived during the durable write is not discarded.
+[ET-28] doc 35 §4: the grace window is armed ONCE per fault and skipped entirely when
+        the message is already there; _cancel_grace actually cancels.
+[ET-29] ...and what expiry refuses to latch: the error cleared, or the message arrived
+        between the timer firing and the callback running.
 """
 
 from __future__ import annotations
@@ -1035,3 +1041,234 @@ async def test_numeric_attribute_still_wins_over_the_message(tracker, hass):
     await hass.async_block_till_done()
 
     assert t.get_record(_VAC)["active_run_error"]["current_code"] == 6013
+
+
+# ---------------------------------------------------------------------------
+# [ET-27] the two-phase handoff (doc 35 §2).
+#
+# A read-and-clear would destroy the run's error history at the moment it was consumed,
+# so a save that then failed would leave the run recorded with no faults and no way to
+# recover them. The peek is non-destructive and the clear is a separate call -- and the
+# interesting branch is the one where the latch CHANGED in between.
+# ---------------------------------------------------------------------------
+
+async def test_et27_commit_refuses_a_latch_that_moved_on(tracker, hass):
+    """[ET-27] The borrow, and the case where returning it would lose evidence.
+
+    THE MOVED-ON BRANCH IS THE CLAIM. Between the finalizer's peek and its commit the
+    durable write happens, and a fault can land in that window. Clearing then would
+    discard a fault that was never recorded anywhere -- the new rising edge is in the
+    latch, not in the job record that was just written from the peeked copy. So the
+    commit declines and leaves it for the next harvest.
+
+    FOUR OUTCOMES, AND `False` IS THREE OF THEM, which is why each is paired with the
+    latch's own state rather than read alone: the moved-on refusal must leave the latch
+    STANDING (that is the evidence being protected), while the no-latch refusal has
+    nothing to leave. A test asserting only the booleans would pass against a commit
+    that cleared on every path and returned False.
+
+    AND ORDER MATTERS AMONG THE REFUSALS, which the ablation had to tell me. The
+    non-dict check is asserted while a latch is still standing; placed after the
+    successful commit it was reading the NEXT guard's answer -- an absent latch returns
+    False by itself -- so removing the isinstance check left the test green.
+
+    THE PEEK IS ASSERTED NON-DESTRUCTIVE FIRST, because every refusal below is
+    meaningless if the peek already emptied the latch -- that would be the
+    read-and-clear this design exists to avoid, and the commit would then be refusing a
+    latch nobody still had.
+    """
+    t, mgr = tracker
+    _seed_active_job(mgr)
+    t._record_rising_edge(_VAC, message="Stuck", code=5, attribute_code=None)
+
+    peeked = t.peek_active_run(_VAC, "j1")
+    assert isinstance(peeked, dict) and peeked["current_message"] == "Stuck"
+    assert t.get_record(_VAC)["active_run_error"] is not None, (
+        "the peek cleared the latch -- that is the read-and-clear doc 35 §2 refuses"
+    )
+
+    # a second fault lands while the durable record is being written
+    t._record_rising_edge(_VAC, message="Brush jammed", code=7, attribute_code=None)
+
+    assert t.commit_active_run(_VAC, peeked) is False, (
+        "the commit cleared a latch that had moved on since the peek"
+    )
+    still = t.get_record(_VAC)["active_run_error"]
+    assert isinstance(still, dict) and still["current_message"] == "Brush jammed", (
+        "the fault that arrived during the write was discarded"
+    )
+
+    # the non-dict refusal is asserted HERE, while the latch is still standing, and
+    # that placement is the whole claim. Asserted after a successful commit it reads
+    # the NEXT guard's answer instead -- an absent latch returns False on its own, so
+    # removing the isinstance check left this green. With a latch present, losing it
+    # means `peeked.get(...)` lands on a string and raises.
+    assert t.commit_active_run(_VAC, "not-a-dict") is False
+    assert t.get_record(_VAC)["active_run_error"] is not None
+
+    # committing what is ACTUALLY there does clear it -- the asymmetric control
+    current = t.peek_active_run(_VAC, "j1")
+    assert t.commit_active_run(_VAC, current) is True
+    assert t.get_record(_VAC)["active_run_error"] is None
+
+    # and with nothing left to commit, the same call refuses
+    assert t.commit_active_run(_VAC, current) is False
+
+
+# ---------------------------------------------------------------------------
+# [ET-28] / [ET-29] the grace window (doc 35 §4).
+# ---------------------------------------------------------------------------
+
+def _wire_secondary(t, *, message="unknown"):
+    """vacuum in error with an error_message entity holding `message`."""
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err",
+                                "task_status": None}
+    t._hass.states.async_set(_VAC, "error")
+    t._hass.states.async_set("sensor.alfred_err", message)
+
+
+async def test_et28_the_grace_window_is_armed_once_per_fault(tracker, hass):
+    """[ET-28] One sustained fault must arm one timer.
+
+    THE COST OF LOSING THIS IS SPELLED OUT IN THE SOURCE (error_tracker.py:759-769): the
+    expiry callback pops its own `_grace_cancels` entry before doing anything, so the
+    pending-guard is false again the moment it fires, and the rising edge it records
+    carries no dedup key. One sustained fault would re-arm on every upstream state write
+    and manufacture a run of identical "Unknown error during run" edges -- error_count in
+    the tens for a single physical fault, and the fifty-entry `recent_errors` ring, the
+    only shadow copy that survives a harvest, flushed of all real history.
+
+    IDENTITY IS THE ASSERTION, NOT PRESENCE. `_VAC in t._grace_cancels` is true of a
+    tracker that re-armed, which is exactly the state being prevented -- the second call
+    would replace the handle with a fresh `async_call_later` one. `is` on the stored
+    cancel is what distinguishes "still the first timer" from "a second timer".
+
+    THE ALREADY-POPULATED CASE IS THE OTHER SKIP, and it is a different reason for the
+    same non-action: there is no need for a window at all because the message handler
+    will latch. Asserting no timer was armed at all separates it from the pending guard.
+
+    `_cancel_grace` is asserted last because its guard is the shoulder of both: it must
+    call the cancel it holds, which is what makes either skip recoverable when the fault
+    actually clears.
+    """
+    t, mgr = tracker
+    _seed_active_job(mgr)
+
+    _wire_secondary(t)
+    t._handle_secondary_error_signal(_VAC)
+    first = t._grace_cancels.get(_VAC)
+    assert first is not None, "no grace timer was armed for a vacuum in error"
+
+    t._handle_secondary_error_signal(_VAC)
+    assert t._grace_cancels.get(_VAC) is first, (
+        "the grace window was re-armed: one sustained fault would manufacture a run of "
+        "identical unknown-error edges and flush recent_errors of real history"
+    )
+
+    # cancelling forgets the handle -- and the REAL one has to go through here, or
+    # HA's own verify_cleanup fails the teardown on a lingering timer. That is the
+    # second reason this guard matters: `_cancel_grace` is the only route by which an
+    # armed window is ever released.
+    t._cancel_grace(_VAC)
+    assert _VAC not in t._grace_cancels
+
+    # and it CALLS what it holds, not merely drops it
+    cancelled = []
+    t._grace_cancels[_VAC] = lambda: cancelled.append(_VAC)
+    t._cancel_grace(_VAC)
+    assert cancelled == [_VAC], "the pending timer was dropped without being cancelled"
+
+    # a message that is ALREADY an error needs no window -- the message handler latches
+    _wire_secondary(t, message="Brush stuck")
+    t._handle_secondary_error_signal(_VAC)
+    assert _VAC not in t._grace_cancels, (
+        "a window was armed although the message was already populated"
+    )
+
+
+async def test_et29_expiry_latches_nothing_when_there_is_nothing_to_latch(
+    tracker, hass
+):
+    """[ET-29] Expiry re-checks BOTH channels, and refuses twice.
+
+    The timer is armed on a vacuum in error with no message. Five seconds later either
+    may have changed, so expiry re-reads both -- and each refusal protects a different
+    thing:
+
+      - the error cleared in the window, so there is no fault to describe. Latching a
+        generic "unknown error" for a fault that has gone is a notification the user
+        cannot act on and cannot dismiss as wrong.
+      - the message arrived after the timer fired but before this callback ran, so the
+        message handler has already latched the REAL text. Latching here would overwrite
+        a described fault with a generic placeholder.
+
+    THE CONTROL COMES FIRST. It is not a new claim -- ablating the adapter not-error
+    set at expiry also reddens `test_grace_expiry_latches_when_message_sits_at_the_brand
+    _idle_value`, so that property is already pinned -- but the two refusals below are
+    satisfied by an expiry that never latches anything, so they need it standing here.
+    Its comment (error_tracker.py:829-834) records the shipped defect: these checks use the ADAPTER's not-error set, and with the
+    generic set a brand's own idle word read as an error, so expiry returned early and
+    latched nothing "for exactly the fault class the secondary channels exist to catch
+    ... That was total evidence loss." Both refusals below are satisfied by an expiry
+    that never latches anything, so the case that MUST latch is asserted before them --
+    and leading with it also keeps the two refusals from depending on state an earlier
+    case left behind, which the first draft of this test did.
+
+    A BRAND IS REGISTERED, AND THAT IS THE MEASUREMENT RATHER THAN SET-DRESSING. The
+    framework fallback is `_NOT_ERROR = {"", "unknown", "unavailable"}` -- it does NOT
+    carry `normal`, which doc 35 §5 names as Eufy's idle word, because the not-error set
+    is brand vocabulary and the fallback is "a last-resort ... not the default answer".
+    Without the adapter, `normal` reads as an ERROR at the ARMING door too (:756 returns
+    early, on the grounds that the message handler will latch) and no window is armed at
+    all -- which is how the first draft of this test failed. So this fixture pins
+    `_get_not_error_set` reading the brand's set at BOTH doors.
+    """
+    t, mgr = tracker
+    _seed_active_job(mgr)
+
+    # the brand declares its own idle words; see the docstring for why this is
+    # load-bearing rather than decoration
+    register_adapter_config(_VAC, {
+        "adapter_id": "et29", "source": "code",
+        "entities": {"error_message": "sensor.alfred_err"},
+        "vocabulary": {"not_error_sentinels": ["", "none", "normal", "unknown"]},
+    })
+
+    # 1. THE CONTROL, FIRST: still in error, message still at the brand's idle word ->
+    # expiry MUST latch. Without this the two refusals below are both satisfied by an
+    # expiry that never latches anything at all.
+    _wire_secondary(t, message="normal")
+    t._handle_secondary_error_signal(_VAC)
+    assert _VAC in t._grace_cancels, "no window was armed for a live fault"
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+    latched = t.get_record(_VAC)["active_run_error"]
+    assert isinstance(latched, dict), (
+        "expiry latched nothing for a live fault whose message never arrived -- the "
+        "evidence-loss case the adapter not-error set exists to prevent"
+    )
+    assert latched["current_message"] == "Unknown error during run"
+
+    # 2. the error cleared before the window elapsed
+    t.get_record(_VAC)["active_run_error"] = None
+    _wire_secondary(t, message="normal")
+    t._handle_secondary_error_signal(_VAC)
+    assert _VAC in t._grace_cancels
+    hass.states.async_set(_VAC, "cleaning")
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+    assert t.get_record(_VAC)["active_run_error"] is None, (
+        "expiry latched a generic fault for an error that had already cleared"
+    )
+
+    # 3. the real message arrived between the timer firing and the callback running,
+    # so the message handler owns the latch and expiry must not overwrite it
+    _wire_secondary(t, message="normal")
+    t._handle_secondary_error_signal(_VAC)
+    assert _VAC in t._grace_cancels
+    hass.states.async_set("sensor.alfred_err", "Side brush tangled")
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+    assert t.get_record(_VAC)["active_run_error"] is None, (
+        "expiry overwrote a described fault with a generic placeholder"
+    )
