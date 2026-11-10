@@ -14,6 +14,11 @@ Coverage targets
 [REC-3]  slug matches + id changed -> id_changed review.
 [REC-4]  same id + new slug -> renamed review.
 [REC-5]  brand-new discovered room -> no review (drift owns it).
+[REC-23] a saved store holding non-dict rows is walked past, in BOTH entry points.
+         The same guard is written three times; one corrupt store reaches all of
+         them, and the junk rows come FIRST so `continue` is not a `break`.
+[REC-24] an id match whose saved room has NO name must not produce a rename review
+         'from nothing' -- the arm skips to the next discovered room instead.
 [MIG-1]  migrate re-keys by slug, preserves durable settings, updates name/slug.
 [MIG-2]  migrate rewrites grants through the old->new id remap.
 [MIG-3]  a saved slug absent from discovery is dropped + reported.
@@ -641,3 +646,88 @@ def test_migration_skips_the_same_unusable_entries():
     assert set(plan["rooms"]) == {"5"}, f"only the usable entry is written; got {sorted(plan['rooms'])}"
     assert "None" not in plan["rooms"]
     assert plan["dropped"] == []
+
+
+def test_rec23_a_saved_store_with_non_dict_rows_is_walked_past():
+    """[REC-23] Three copies of one guard, reached by one corrupt store.
+
+    `data["maps"][vac][map]["rooms"]` is persisted and user-editable, so a row can be a
+    string, a None or a number. The non-dict guard is written three times -- once in
+    `_existing_unique_by_slug` and once in each of the two `existing_by_id` walks, which
+    are byte-identical blocks in `compute_reconciliation` and `plan_migration`. Driving
+    ONE store through BOTH public entry points reaches all three.
+
+    THE JUNK ROWS COME FIRST. Python preserves dict insertion order, so a `break` in
+    place of any of the three `continue`s would never reach the real rows. With the junk
+    last, all three guards would be invisible.
+
+    IT TAKES TWO REAL ROOMS TO MAKE ALL THREE GUARDS BITE, which a first draft missed.
+    With only a slug-matching room, the slug path resolves it and `existing_by_id` is
+    never consulted -- so breaking BOTH of those walks changed nothing observable and
+    the ablation came back DEAD. Executing a line is not depending on it. Room 7 is
+    therefore an ID match with a CHANGED name, which is the one path that must read
+    `existing_by_id`: with a `break` there the dict is empty, room 7 looks brand-new,
+    and the rename review disappears.
+
+    THE EXPECTATIONS ARE NOT THE FALLBACK. An empty review list and empty plan are what
+    these functions return for a store they could not read at all, so the assertions
+    name content: an id_changed review for kitchen 5 -> 9, a renamed review for room 7,
+    and a plan carrying each room's saved settings onto its new key.
+    """
+    corrupt_store = {
+        "1": "junk",
+        "2": None,
+        "3": 7,
+        # slug match, id changed -> resolved by the SLUG path
+        "5": {"room_id": 5, "name": "Kitchen", "slug": "kitchen", "clean_passes": 3},
+        # id match, name changed -> resolved by the existing_by_id path
+        "7": {"room_id": 7, "name": "Den", "slug": "den", "clean_passes": 4},
+    }
+    discovered = _discovered((9, "Kitchen", "kitchen"), (7, "Lounge", "lounge"))
+
+    result = compute_reconciliation(
+        discovered_rooms=discovered, existing_rooms=corrupt_store
+    )
+    kinds = {r["kind"] for r in result["reviews"]}
+    assert kinds == {"id_changed", "renamed"}, (
+        f"both paths must report; got {sorted(kinds)}"
+    )
+    id_changed = next(r for r in result["reviews"] if r["kind"] == "id_changed")
+    assert (id_changed.get("slug"), id_changed.get("old_id"), id_changed.get("new_id"))         == ("kitchen", 5, 9)
+    renamed = next(r for r in result["reviews"] if r["kind"] == "renamed")
+    assert (renamed.get("room_id"), renamed.get("old_slug"), renamed.get("new_slug"))         == (7, "den", "lounge")
+    assert result["has_changes"] is True
+
+    plan = plan_migration(discovered_rooms=discovered, existing_rooms=corrupt_store)
+    assert set(plan["rooms"]) == {"9", "7"}
+    assert plan["rooms"]["9"]["clean_passes"] == 3, (
+        "the saved settings did not survive the walk past the junk rows"
+    )
+    assert plan["rooms"]["7"]["clean_passes"] == 4
+    assert plan["id_remap"] == {5: 9}
+    assert plan["dropped"] == []
+
+
+def test_rec24_an_id_match_with_no_saved_name_is_not_a_rename():
+    """[REC-24] A rename review needs an old slug to rename FROM.
+
+    The rename branch fires when a discovered id matches a saved id but the slugs
+    differ. A saved row carrying neither name nor slug has no slug to derive, so there
+    is nothing to report a rename from -- and the arm skips to the next discovered room.
+
+    WITHOUT THE GUARD THE USER SEES A REVIEW 'FROM NOTHING': the branch would append a
+    `renamed` entry whose `old_slug` and `old_name` are empty strings, asking them to
+    confirm a rename out of a blank. That is worse than silence, because a review is a
+    prompt for a decision.
+
+    THE EMPTY LIST HERE DOES EQUAL THE FALLBACK, so it only means something because the
+    mutant produces a NON-empty one -- which the ablation confirms. `has_changes` is
+    asserted too, since that is the flag the caller actually gates the prompt on.
+    """
+    result = compute_reconciliation(
+        discovered_rooms=_discovered((5, "Study", "study")),
+        existing_rooms={"5": {"room_id": 5}},
+    )
+
+    assert result["reviews"] == []
+    assert result["has_changes"] is False
