@@ -21,6 +21,11 @@ Coverage targets
 [MD-7]  notify-callback fan-out resilience: one raising callback is skipped, the rest still fire.
 [MD-8]  remaining manager seams + async job-control delegations forward without AttributeError.
 [MD-9]  async dock-action delegations forward to DockManager.
+[MD-10] doc 33 §5: all FIVE locally-held notification channels are idempotent in BOTH
+        directions -- registering twice adds one entry, unregistering something absent
+        is a no-op rather than a ValueError.
+[MD-11] async_shutdown cancels every registered background task and calls every
+        registered timer-cancel, and reports what it did.
 [CMR-1] _find_button_entity_by_tokens: prefix-skip + all-tokens match + None miss.
 [CMR-1d] _find_button_entity_by_tokens: a sibling a MORE SPECIFIC declaration owns is
         not a candidate here (issue #49, dry_mop vs stop_dry_mop).
@@ -29,6 +34,8 @@ Coverage targets
 """
 
 from __future__ import annotations
+
+import asyncio
 
 import pytest
 
@@ -424,3 +431,144 @@ def test_bindings_do_not_invent_provenance_for_an_unresolved_role(manager):
     assert rows["battery"]["chosen_by"] is None, (
         "an unresolved role must report no provenance at all"
     )
+
+
+# ---------------------------------------------------------------------------
+# [MD-10] the idempotence of the notification channels.
+#
+# Doc 33 §5 names five channels held HERE (room updates, run-profile updates,
+# room-history updates, room-rule-status updates, new managed vacuums) plus the theme
+# channel, which delegates to the subsystem owning its data. The five local ones are
+# the ones with guards to take.
+#
+# NOTE ON THE CHANNEL COUNT: the code also delegates `clean_order` the same way themes
+# does (manager.py:1071-1077), so there are SEVEN channels with TWO delegated, where
+# doc 33 §5 says six with one. The five asserted below are unaffected; the count is
+# recorded here because a reader trusting the doc's arithmetic would look for one
+# delegated channel and find two.
+# ---------------------------------------------------------------------------
+
+#: How long [MD-11]'s background task would run if shutdown failed to cancel it. Short
+#: BY NECESSITY, not for speed -- see that test's docstring: an uncancelled task is
+#: AWAITED by `async_shutdown`, so this bound is the difference between the ablation
+#: failing and the ablation hanging.
+_CANCEL_WAIT_SECONDS = 5
+
+_CHANNELS = [
+    ("room_update", "_room_update_callbacks"),
+    ("run_profile_update", "_run_profile_update_callbacks"),
+    ("room_history_update", "_room_history_update_callbacks"),
+    ("room_rule_status_update", "_room_rule_status_update_callbacks"),
+    ("vacuum_added", "_vacuum_added_callbacks"),
+]
+
+
+@pytest.mark.parametrize(
+    ("channel", "attr"), _CHANNELS, ids=[c[0] for c in _CHANNELS]
+)
+def test_md10_every_local_notification_channel_is_idempotent_both_ways(
+    manager, channel, attr
+):
+    """[MD-10] Five channels, ten guards, one table.
+
+    A PLATFORM RE-REGISTERS ON RELOAD, which is the reason doc 33 §5 gives, and the two
+    directions fail differently:
+
+      - register twice without the guard puts the SAME callback in the list twice, so
+        every notification fires it twice. On the room-history channel that is two
+        `async_write_ha_state` calls per room update, per duplicate, forever.
+      - unregister something absent without the guard reaches `list.remove`, which
+        raises ValueError on a missing element. That runs inside HA's unload path, so
+        the exception surfaces as a failed teardown rather than as a harmless no-op.
+
+    `count(cb) == 1` IS THE ASSERTION, not `cb in lst`. Membership is true of a list
+    holding the callback twice, which is precisely the state the guard exists to
+    prevent -- so the obvious assertion is invariant under the mutation it should catch.
+
+    THE COUNTS ARE DELTAS AGAINST THE FIXTURE, because the manager under test already
+    has real subscribers on some of these channels; an absolute length would be
+    asserting the fixture rather than the guard.
+
+    Ten guards and one table on purpose: a test per channel proves only that each copy
+    agrees with itself, and ten near-identical copies are exactly where one drifts.
+    """
+    lst = getattr(manager, attr)
+    register = getattr(manager, "register_%s_callback" % channel)
+    unregister = getattr(manager, "unregister_%s_callback" % channel)
+    before = len(lst)
+
+    def cb(**kwargs):
+        return None
+
+    register(cb)
+    register(cb)
+    assert lst.count(cb) == 1, (
+        "%s accumulated a duplicate: every notification would fire it twice" % channel
+    )
+    assert len(lst) == before + 1
+
+    unregister(cb)
+    assert cb not in lst and len(lst) == before
+
+    unregister(cb)          # absent now -- list.remove would raise ValueError here
+    assert len(lst) == before, (
+        "unregistering an absent callback disturbed the channel"
+    )
+
+
+async def test_md11_shutdown_cancels_every_task_and_timer_it_was_given(manager):
+    """[MD-11] `async_shutdown` exists so "a reloaded entry's previous manager can
+    neither run nor write" -- a task that survives teardown writes to a store the new
+    manager has replaced.
+
+    THE TASK IS A REAL `asyncio.Task` AND THE ASSERTION IS `cancelled()`, not that the
+    set was emptied. Clearing the collection is what a shutdown that forgot to cancel
+    anything also does, and it is the more likely regression: the loop and the clear
+    are separate statements. A task object that reports cancelled can only have got
+    there through `task.cancel()`.
+
+    THE TIMER CANCELS ARE RECORDED RATHER THAN RAISING, because this seam swallows: the
+    loop wraps each `cancel()` in its own try/except. A raising stub would be caught and
+    prove nothing -- the same distinction doc 12 §1 records paying for once already. So
+    the stubs append, and the assertion is that both were called.
+
+    THE RETURNED COUNTS ARE DELTAS, since the fixture's manager may already hold timers
+    of its own; and they are asserted because that dict is what `__init__.py` logs on
+    unload, so a shutdown that cancelled nothing but reported two would read as healthy.
+
+    THE TASK'S SLEEP IS BOUNDED AND THAT IS LOAD-BEARING, measured the hard way. With a
+    3600-second sleep this test did not FAIL under the `task.cancel()` mutation, it HUNG:
+    `async_shutdown` awaits `asyncio.gather(*cancelled_tasks, return_exceptions=True)`,
+    and a task that was never cancelled is simply awaited to completion. Two ablation
+    runs died on it. A mutation whose failure mode is an unbounded wait is not a bite --
+    in CI it is a job timeout with no assertion to read. At `_CANCEL_WAIT_SECONDS` the
+    healthy path still pays nothing (the cancel lands immediately) and the mutant waits
+    out the bound and then fails on `task.cancelled()`, which is a red with a message.
+    """
+    before_timers = len(manager._timers)
+    before_tasks = len(manager._background_tasks)
+
+    cancelled_timers = []
+    manager._timers.add(lambda: cancelled_timers.append("t1"))
+    manager._timers.add(lambda: cancelled_timers.append("t2"))
+
+    async def _pending():
+        await asyncio.sleep(_CANCEL_WAIT_SECONDS)
+
+    task = manager.hass.async_create_task(_pending())
+    manager._background_tasks.add(task)
+
+    out = await manager.async_shutdown()
+
+    assert task.cancelled(), "a registered background task survived shutdown"
+    assert sorted(cancelled_timers) == ["t1", "t2"], (
+        "not every registered timer-cancel was called: %r" % (cancelled_timers,)
+    )
+    assert out["tasks_cancelled"] == before_tasks + 1
+    assert out["timers_cancelled"] == before_timers + 2
+    assert not manager._background_tasks and not manager._timers
+
+    # idempotent, as the docstring claims: a second call reports nothing to do
+    assert await manager.async_shutdown() == {
+        "timers_cancelled": 0, "tasks_cancelled": 0,
+    }
