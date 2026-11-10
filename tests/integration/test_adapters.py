@@ -14,6 +14,9 @@ Coverage targets
 [RG-6]  adapter_honors_clean_order: only a literal False opts out (True/False/
         None/0/""/absent/non-dict block), on both registry surfaces; and the
         five consumer call sites all route through it.
+[RG-7]  _validate_adapter: the ten issue arms nothing had ever fired, as a SET --
+        every malformed block answers with its own sentence and NOTHING ELSE, and a
+        non-dict room_profiles is faulted twice because both gates read it.
 [CL-1]  load_stored_adapter_configs: non-dict store → 0; malformed skipped; counts.
 [CL-2]  load_stored_adapter_configs: register exception is swallowed.
 [CL-3]  save / delete / get_stored_adapter_config round-trip.
@@ -478,4 +481,105 @@ def test_known_capability_hints_matches_what_the_module_actually_reads():
         f"KNOWN_CAPABILITY_HINTS drifted from the reads:\n"
         f"  read but undeclared: {sorted(read - set(KNOWN_CAPABILITY_HINTS))}\n"
         f"  declared but unread: {sorted(set(KNOWN_CAPABILITY_HINTS) - read)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# [RG-7] the validator's negative arms.
+#
+# WHY THESE MATTER MORE THAN THEIR LINE COUNT, per doc 22 §1: `_validate_adapter` runs
+# on both registration paths, but `register_adapter_config` (registry.py:179) raises
+# ONLY when `config["source"] == "config"`. A code-declared brand -- which all three
+# shipped brands are -- gets a log line and registers anyway. So the issue list is not
+# decoration: it is the entire refusal mechanism for a config a USER saved, and a rule
+# that stops producing its sentence fails open.
+#
+# ONE TABLE, NOT TEN TESTS. The repo has paid for the difference before (see
+# _REBUILD_CLAIMING_SERVICES in test_learning_processing_toggle.py): a test per copy
+# proves only that each copy agrees with itself, while a table bites the SET. These
+# arms are six near-identical block families plus four field checks, and the failure
+# mode is one of them drifting out of step with its siblings.
+# ---------------------------------------------------------------------------
+
+#: (id, the fragment merged over a VALID baseline, the issue sentences it must produce)
+#:
+#: Each expected tuple is the COMPLETE set for that fragment, and the test asserts the
+#: count as well as the substrings -- so a row goes red both when its own arm stops
+#: firing and when a sibling arm starts firing on an input that is not its business.
+_VALIDATOR_ARMS = [
+    ("room_attribution_not_dict",
+     {"room_attribution": "swept_area_winding_v1"},
+     ("'room_attribution' must be a dict if present",)),
+    ("room_attribution_engine_missing",
+     {"room_attribution": {}},
+     ("room_attribution.engine is required",)),
+    ("room_profiles_not_dict",
+     {"room_profiles": ["vacuum_quick"]},
+     # BOTH gates read it: the "not written yet" gate (_validate_room_profiles, whose
+     # result is EXTENDED into the list at registry.py:394, not returned) and the
+     # field-type gate further down. The two sentences are spelled differently -- one
+     # with a colon, one with quotes -- which is why both are named here verbatim.
+     ("room_profiles: must be a dict", "'room_profiles' must be a dict if present")),
+    ("default_profile_not_a_string",
+     {"room_profiles": {"builtins": {}, "default_profile": 5}},
+     ("room_profiles.default_profile must be a string (got 5)",)),
+    ("vocabulary_key_not_dict",
+     {"room_profiles": {"builtins": {}, "normalize_defaults": ["standard"]}},
+     ("room_profiles.normalize_defaults must be a dict if present",)),
+    ("capability_hints_not_dict",
+     {"capability_hints": ["supports_passes"]},
+     ("'capability_hints' must be a dict if present",)),
+    ("dispatch_template_unknown",
+     {"dispatch": {"template": "brand4_room_clean"}},
+     ("dispatch.template 'brand4_room_clean' is unknown",)),
+    ("phase_timing_not_dict",
+     {"dispatch": {"phase_timing": "fast"}},
+     ("'dispatch.phase_timing' must be a dict if present",)),
+    ("setup_not_dict",
+     {"setup": "add_vacuum"},
+     ("'setup' must be a dict if present",)),
+]
+
+
+@pytest.mark.parametrize(
+    ("name", "fragment", "expected"), _VALIDATOR_ARMS, ids=[r[0] for r in _VALIDATOR_ARMS]
+)
+def test_rg7_every_malformed_block_answers_with_its_own_sentence(name, fragment, expected):
+    """[RG-7] Nine fragments, each faulted by exactly the arm that owns it.
+
+    THE BASELINE IS ASSERTED CLEAN IN EVERY ROW, which is what stops this being a
+    family of tests that pass on a validator that complains about everything. The
+    fragment is merged OVER a config the validator accepts, so the issues that come
+    back are attributable to the fragment and to nothing else -- and the row's
+    expectation is the COMPLETE list, by count as well as by content.
+
+    Asserting the count is the half that bites in the other direction. `any(... in i)`
+    -- the idiom [RG-4] uses -- cannot see a sibling arm firing on an input that is
+    not its business, which is exactly how six near-identical block families drift
+    apart. Here a spurious extra sentence fails the length check.
+
+    THE SENTENCES ARE QUOTED VERBATIM, including the inconsistent quoting of
+    `room_profiles` between its two gates ("room_profiles: must be a dict" from the
+    declaration gate, "'room_profiles' must be a dict if present" from the field-type
+    gate). That inconsistency is live and a reader greps for these strings; pinning the
+    prettified form would be pinning something nothing emits.
+
+    The `room_profiles_not_dict` row is the one that carries two sentences, and it is
+    not redundancy: `_validate_room_profiles`' answer is EXTENDED into the list at
+    registry.py:394 rather than returned, so validation continues and the second gate
+    reads the same bad value again. One input, two arms, both previously unfired.
+    """
+    baseline = {"adapter_id": "brand_four", **_RP}
+    assert _validate_adapter(baseline) == [], (
+        "the baseline is not clean, so nothing below is attributable to the fragment"
+    )
+
+    issues = _validate_adapter({**baseline, **fragment})
+
+    for sentence in expected:
+        assert any(sentence in i for i in issues), (
+            "%s: no issue contained %r -- got %r" % (name, sentence, issues)
+        )
+    assert len(issues) == len(expected), (
+        "%s: expected exactly %d issue(s), got %r" % (name, len(expected), issues)
     )

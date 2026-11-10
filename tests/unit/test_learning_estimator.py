@@ -33,6 +33,12 @@ Coverage targets
 [LE-27] _is_stats_stale: absent/empty stats read as stale, not fresh.
 [LE-28] _is_stats_stale: an unparseable `rebuilt_at` fails SAFE (stale).
 [LE-29] _is_stats_stale: honours `room_stats_data` instead of reading the store.
+[LE-30] estimate(): all FOUR transit tiers in one job, each a distinct number -- the
+        room_baselines/ingress index (tier 2) had never been built at all.
+[LE-31] estimate(): a job-stats read that RAISES costs the global tier and nothing else.
+[LE-32] _find_room_match: passes 3, 4 and 5 each WIN a contest against the rungs
+        below them -- which is the only way to pin a rung, since the function returns
+        no rung indicator and a broken rung hands its entry down intact.
 """
 
 from __future__ import annotations
@@ -1313,3 +1319,229 @@ def test_is_stats_stale_reads_the_store_only_when_not_handed_data(tmp_path):
         assert estimator._is_stats_stale(vacuum_entity_id="vacuum.alfred") is False
         assert loader.call_count == 1
         assert loader.call_args.kwargs == {"vacuum_entity_id": "vacuum.alfred"}
+
+
+# ---------------------------------------------------------------------------
+# [LE-30] / [LE-31] the transit fallback chain, all four tiers at once.
+#
+# Doc 29 §5 and `_lookup_transit_minutes`' own docstring name four tiers, most
+# specific first: learned_pairs (the exact from->to edge), learned_room (average
+# transit INTO the room, from room_baselines), learned_global (job-level average per
+# boundary) and default (the _TRANSITION_PER_ROOM constant). Tier 2 had never been
+# built: every existing estimate() test passes `room_baselines: []`.
+# ---------------------------------------------------------------------------
+
+def _four_rooms() -> list[dict]:
+    """kitchen -> bath -> hall -> den, so each boundary lands on a DIFFERENT tier."""
+    return [
+        {"slug": slug, "clean_mode": "vacuum", "clean_passes": 1,
+         "clean_intensity": "standard", "carpet": False,
+         "name": slug.title(), "room_id": rid}
+        for rid, slug in ((1, "kitchen"), (2, "bath"), (3, "hall"), (4, "den"))
+    ]
+
+
+#: room_stats shaped as `stats_rebuilder` emits it. The ingress keys and their UNIT are
+#: the producer's: `stats_rebuilder.py:842-846` spreads `_seconds_band(..., value_label=
+#: "ingress_transit_seconds", count_key="ingress_sample_count")`, and `_seconds_band`
+#: (:184-205) reduces SECONDS. 90.0 seconds is 1.5 minutes, which is the only reason
+#: that number is not round -- it is the /60.0 at estimator.py:1044 being exercised for
+#: the first time.
+def _transit_room_stats() -> dict:
+    return {
+        "room_stats": [],
+        "access_graph_edges": [
+            None,                                     # a torn element, tolerated
+            {"map_id": 1, "from_room_id": 1, "to_room_id": 2,
+             "sample_count": 3, "transit_minutes_mean": 2.0},
+        ],
+        "room_baselines": [
+            None,                                     # likewise
+            {"map_id": 1, "room_slug": "hall",
+             "ingress_sample_count": 4, "avg_ingress_transit_seconds": 90.0},
+            {"map_id": 1, "room_slug": "den",         # measured, but not yet usably
+             "ingress_sample_count": 0, "avg_ingress_transit_seconds": 600.0},
+        ],
+        "rebuilt_at": "2026-01-01T00:00:00+00:00",
+    }
+
+
+#: 2.4 minutes of inter-room overhead per job over an average of 3.0 rooms is 2 boundaries
+#: a job, so the per-boundary global is 1.2. `avg_room_count` has to clear
+#: `_MIN_BOUNDARIES_PER_JOB` (0.25) above 1.0 or the whole tier is refused.
+_JOB_STATS = {
+    "job_stats": {
+        "avg_overhead_inter_room_minutes": 2.4,
+        "overhead_inter_room_sample_count": 5,
+        "avg_room_count": 3.0,
+    }
+}
+
+
+def test_le30_all_four_transit_tiers_in_one_job(tmp_path, monkeypatch):
+    """[LE-30] One job whose three boundaries resolve on three different tiers.
+
+    THE FOUR NUMBERS ARE DELIBERATELY DISTINCT AND THE WHOLE LIST IS ASSERTED. Every
+    tier here returns a float, and the default tier returns 0.75, so a single-boundary
+    fixture asserting "1.5" could coincide with a fallback and prove nothing. With
+    0.0 / 2.0 / 1.5 / 1.2 in one call, no two tiers can be confused and the assertion
+    is not invariant under swapping any pair of them -- which is what rules out both
+    the equals-the-fallback and the symmetric-under-the-mutation traps.
+
+    POSITION IS WHAT MAKES THE INGRESS TIER DEPEND ON THE INDEX rather than merely
+    execute it: the bath->hall leg has NO access_graph edge, so the ingress index is
+    the only thing that can produce 1.5 for it. Skip the index and that leg reads the
+    global 1.2 instead -- a different number, not a missing one.
+
+    1.5 IS THE UNIT CONVERSION, not a round number chosen for looks. The producer
+    stores seconds (`stats_rebuilder.py:842-846`), the index divides by 60
+    (`estimator.py:1044`), and nothing had ever run that divide: at /1.0 the leg reads
+    90.0 and this goes red.
+
+    The two `None` elements are the tolerant-reader guards on both indices, reached
+    because the learned stores are derived JSON on disk that doc 28 calls disposable
+    precisely because a reader may meet a torn one. They come FIRST in each list, so a
+    `break` in place of either `continue` loses the real entry behind it.
+
+    THE ZERO-SAMPLE `den` BASELINE IS EXECUTED BUT NOT DEPENDED ON, and this test does
+    not claim otherwise: the `ing_count <= 0` skip at estimator.py:1035 cannot be
+    observed from here, because `_lookup_transit_minutes` independently requires
+    `sample_count >= 1` (:536) and would reject the entry anyway. It is here to be the
+    realistic shape of a room whose transits have not yet been captured, and its 600.0
+    seconds would read as 10.0 minutes if BOTH guards were lost.
+
+    `learned_mixed` falls out of the same input and is asserted because it is the
+    job-level provenance a reader uses to judge the transition minutes: three distinct
+    learned tiers in one job must not be reported as any single one of them.
+    """
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    monkeypatch.setattr(estimator.store, "load_room_stats", lambda **kw: _transit_room_stats())
+    monkeypatch.setattr(estimator.store, "load_job_stats", lambda **kw: _JOB_STATS)
+
+    result = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=_four_rooms()
+    )
+    tl = result["room_timeline"]
+
+    assert [r["transit_source"] for r in tl] == [
+        "none", "learned_pairs", "learned_room", "learned_global"
+    ]
+    assert [r["estimated_transit_minutes_before"] for r in tl] == [0.0, 2.0, 1.5, 1.2]
+
+    assert result["overhead"]["transition_source"] == "learned_mixed"
+    assert result["overhead"]["transition_minutes"] == 4.7
+    assert sum(r["estimated_transit_minutes_before"] for r in tl) == (
+        result["overhead"]["transition_minutes"]
+    )
+
+
+def test_le31_a_failing_job_stats_read_costs_only_the_global_tier(tmp_path, monkeypatch):
+    """[LE-31] `estimate()` runs on the event loop; `load_job_stats` touches disk.
+
+    On this install that disk is an SMB share, so a read that raises is not exotic. The
+    `except Exception` around it exists so the estimate DEGRADES -- the global tier is
+    lost and the leg falls to the constant -- rather than the whole estimate failing.
+
+    THE ASSERTION IS SCOPED, which is the whole claim: the den leg drops from 1.2 to
+    the 0.75 constant, and the two legs that came from `room_stats` are UNCHANGED at
+    2.0 and 1.5. "It did not raise" would be satisfied by an estimate that lost
+    everything; naming the surviving legs is what separates degraded from broken.
+
+    It is the asymmetric twin of [LE-30]: identical room_stats, identical rooms, one
+    monkeypatch different. Narrowing the `except` to anything but Exception lets the
+    RuntimeError escape and this errors out at teardown rather than failing -- which is
+    why the harness counts ERROR as red too.
+    """
+    def _boom(**kwargs):
+        raise RuntimeError("the learning share went away mid-estimate")
+
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    monkeypatch.setattr(estimator.store, "load_room_stats", lambda **kw: _transit_room_stats())
+    monkeypatch.setattr(estimator.store, "load_job_stats", _boom)
+
+    tl = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=_four_rooms()
+    )["room_timeline"]
+
+    assert [r["transit_source"] for r in tl] == [
+        "none", "learned_pairs", "learned_room", "default"
+    ]
+    assert [r["estimated_transit_minutes_before"] for r in tl] == [
+        0.0, 2.0, 1.5, _TRANSITION_PER_ROOM
+    ]
+
+
+# ---------------------------------------------------------------------------
+# [LE-32] / [LE-33] the relaxation ladder below pass 2.
+#
+# Passes 1 and 2 are held by [LE-15]/[LE-16] and the tiebreak test. Passes 3, 4 and 5
+# had never returned a match, so three fifths of the documented ladder was asserted by
+# absence -- and the ORDER, which doc 29 §1 says is an effect-size ranking rather than
+# an arbitrary sequence, was not asserted at all.
+# ---------------------------------------------------------------------------
+
+_QUERY = {
+    "map_id": 1, "slug": "kitchen", "clean_mode": "vacuum",
+    "clean_passes": 2, "is_carpet": True, "clean_intensity": "standard",
+    "edge_mopping": True,
+}
+
+#: One stored entry per pass, each differing from the query on EXACTLY the dimension
+#: that pass drops -- so each is unmatchable by every earlier pass.
+_LADDER_ROWS = [
+    ("pass3_ignores_carpet",
+     {"clean_times": 2, "edge_mopping": True, "is_carpet": False}, 30.0),
+    ("pass4_ignores_edge",
+     {"clean_times": 2, "edge_mopping": False, "is_carpet": True}, 40.0),
+    ("pass5_ignores_passes",
+     {"clean_times": 1, "edge_mopping": True, "is_carpet": True}, 50.0),
+]
+
+
+@pytest.mark.parametrize(
+    ("shelf", "winner", "rung"),
+    [
+        ((2, 1, 0), 30.0, "pass 3 (ignore carpet)"),
+        ((2, 1), 40.0, "pass 4 (ignore edge_mopping)"),
+        ((2,), 50.0, "pass 5 (ignore clean_passes)"),
+    ],
+    ids=["pass3_wins", "pass4_wins", "pass5_wins"],
+)
+def test_le32_each_relaxation_pass_wins_against_the_rungs_below_it(shelf, winner, rung):
+    """[LE-32] Passes 3, 4 and 5, pinned by contest because nothing else can pin them.
+
+    THE FIRST DRAFT OF THIS TEST WAS DEAD AND THE ABLATION SAID SO. It offered ONE
+    crafted entry per pass and asserted the entry came back. `_find_room_match` returns
+    `(match, mismatch)` and no rung indicator, so breaking pass 3 did not redden it --
+    the same entry simply fell through to pass 4, which returned it with an identical
+    `avg_minutes` and an identical `mismatch=True`. Only the pass-5 row reddened,
+    because pass 5 has no rung beneath it to catch the fall. A fixture that one rung
+    matches is found by whichever rung now carries that filter; it cannot say which.
+
+    A CONTEST CAN. Each row offers a shelf of candidates and names the winner: with all
+    three present pass 3 must win, with pass 3 withdrawn pass 4 must, and alone pass 5
+    must. Each expected value is WRONG for the other two rows, so no permutation of the
+    ladder satisfies all three -- which is what makes this an assertion about ORDER and
+    not merely about membership. Doc 29 §1 says the order is an effect-size ranking and
+    that "reordering this would silently make relaxed estimates worse without changing
+    any threshold"; this is the test that would notice.
+
+    SAMPLE COUNT IS HELD EQUAL ACROSS THE CANDIDATES on purpose. The relaxed passes
+    break ties with `_best_by_sample_count`, so a shelf whose preferred entry also had
+    the most samples could not distinguish "took the earlier pass" from "took the
+    better-evidenced entry" -- the tiebreak would carry the test and the order would go
+    unasserted.
+
+    The shelf is handed over in REVERSE rung order (pass 5 first) so that a ladder
+    which iterated the shelf rather than the rungs would answer 50.0 and go red.
+    """
+    candidates = [
+        _make_stat(sample_count=5, avg_minutes=m, **o) for _, o, m in _LADDER_ROWS
+    ]
+    offered = [candidates[i] for i in shelf]
+
+    match, mismatch = _find_room_match(room_stats=offered, **_QUERY)
+
+    assert match is not None, "the ladder reached no rung at all"
+    assert match["avg_minutes"] == winner, "%s should have won" % rung
+    assert mismatch is True, "every pass below the first is a relaxed match"
