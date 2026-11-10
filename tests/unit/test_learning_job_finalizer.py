@@ -1,4 +1,15 @@
-"""Unit tests for learning/job_finalizer.py — pure-function helpers."""
+"""Unit tests for learning/job_finalizer.py — pure-function helpers.
+
+[JF-16] _apply_snapshot_estimates_to_completed_job: the estimate join matches by room_id
+        then by slug, enriches both copies of the room list, and PRESERVES every row it
+        cannot enrich rather than dropping it.
+[JF-17] ...and it declines without touching anything when the snapshot's estimate block
+        or the job's resolved_rooms are the wrong shape.
+[JF-18] the byte-identical name-lookup loops in _write_incomplete_run_log and
+        _update_trouble_rooms_log both step over a torn resolved_rooms row, and a
+        stored trouble-rooms log whose `rooms` is not a dict is rebuilt rather than
+        indexed.
+"""
 
 from __future__ import annotations
 
@@ -1189,3 +1200,202 @@ def test_jf15_room_timings_still_contribute_when_the_job_state_is_not_a_dict():
     timings = ["junk", {"room_id": 5, "cleaning_seconds": 30.0}]
     assert known_completed_room_ids(None, timings) == [5]
     assert known_completed_room_ids(["not a dict"], timings) == [5]
+
+
+# ---------------------------------------------------------------------------
+# [JF-16] / [JF-17] the estimate-vs-actual join.
+#
+# `_apply_snapshot_estimates_to_completed_job` writes the dispatch-time estimate onto
+# each finalized room, which is what lets `record_estimate_accuracy` compare prediction
+# against outcome later (doc 29 §4). Every row it loses is a room whose estimate can
+# never be scored.
+# ---------------------------------------------------------------------------
+
+def _snapshot(timeline):
+    return {"planned_job_estimate": {"room_timeline": timeline}}
+
+
+def test_jf16_the_estimate_join_matches_by_id_then_slug_and_loses_nothing(finalizer):
+    """[JF-16] Four rooms, four different fates, one call.
+
+    THE ROW COUNT IS ASSERTED FIRST and it is the claim the others hang off: this
+    method REPLACES `resolved_rooms` wholesale with a list it rebuilds, so any row it
+    fails to append is a room that silently stops existing in the archive -- and with
+    it, the estimate that room was given at dispatch. A join that enriched two rooms
+    correctly and dropped the other two would satisfy every per-room assertion below.
+
+    THE FOUR FATES ARE DISTINGUISHABLE BY VALUE, not by presence:
+
+      - matched by room_id      -> 5.0, the id-keyed entry's minutes
+      - matched by SLUG         -> 9.0, and its room_id is absent from the timeline, so
+                                  9.0 can only have come through the slug fallback
+      - matched by neither      -> no estimate keys at all, preserved as-is
+      - not a dict              -> preserved unchanged, at its position
+
+    The slug-matched room is the one that proves the fallback runs rather than merely
+    exists: give it an id the timeline also carries and the id lookup would answer
+    first, and the assertion would pass with the fallback deleted.
+
+    BOTH COPIES OF THE LIST ARE ASSERTED. The method writes the enriched list to
+    `resolved_rooms` AND to `job_profile["rooms"]`; the archive readers use different
+    ones, so enriching only one leaves half the consumers reading pre-estimate rows.
+    """
+    completed_job = {
+        "resolved_rooms": [
+            {"room_id": 1, "slug": "kitchen", "name": "Kitchen"},
+            {"room_id": 7, "slug": "hallway", "name": "Hallway"},
+            {"room_id": 3, "slug": "study", "name": "Study"},
+            "torn-row",
+        ],
+        "job_profile": {"rooms": []},
+    }
+    snapshot = _snapshot([
+        None,                                             # a torn timeline entry
+        {"room_id": 1, "slug": "kitchen", "minutes": 5.0, "battery": 11.0,
+         "confidence_score": 0.9125, "confidence_label": "high", "source": "learned"},
+        {"slug": "hallway", "minutes": 9.0, "battery": 22.0,
+         "confidence_score": 0.5, "confidence_label": "medium", "source": "default"},
+    ])
+
+    finalizer._apply_snapshot_estimates_to_completed_job(
+        completed_job=completed_job, snapshot=snapshot
+    )
+
+    rooms = completed_job["resolved_rooms"]
+    assert len(rooms) == 4, (
+        "the join rebuilt the room list and lost rows: %r" % (rooms,)
+    )
+    assert rooms[3] == "torn-row", "a row it could not enrich was dropped or rewritten"
+
+    by_id = rooms[0]
+    assert by_id["estimated_minutes"] == 5.0
+    assert by_id["estimated_battery"] == 11.0
+    assert by_id["estimate_confidence_score"] == 0.9125
+    assert by_id["estimate_confidence_label"] == "high"
+    assert by_id["estimate_source"] == "learned"
+
+    by_slug = rooms[1]
+    assert by_slug["estimated_minutes"] == 9.0, (
+        "the slug fallback did not run -- this room's id is not in the timeline"
+    )
+    assert by_slug["estimate_source"] == "default"
+
+    unmatched = rooms[2]
+    assert "estimated_minutes" not in unmatched and unmatched["name"] == "Study"
+
+    assert completed_job["job_profile"]["rooms"] is rooms, (
+        "job_profile kept a pre-estimate copy of the room list"
+    )
+
+
+def test_jf17_the_estimate_join_declines_on_a_shape_it_cannot_read(finalizer):
+    """[JF-17] Two refusals, each asserted as "nothing changed" against a control.
+
+    `resolved_rooms` IS THE OBSERVABLE AND IT IS COMPARED BY IDENTITY. This method's
+    only effect is replacing that list, so the test of a refusal is that the ORIGINAL
+    object is still in place -- not that it is equal to something, which a rebuilt copy
+    of the same content would also satisfy.
+
+    The two shapes fail at different doors: a `planned_job_estimate` that is not a dict
+    returns before the timeline is read at all, and a `resolved_rooms` that is not a
+    list returns after the timeline has been indexed but before anything is written.
+    Reaching the second requires a VALID timeline, which is why it is supplied.
+    """
+    original = [{"room_id": 1, "slug": "kitchen"}]
+    valid_timeline = [{"room_id": 1, "slug": "kitchen", "minutes": 5.0}]
+
+    job = {"resolved_rooms": original, "job_profile": {"rooms": []}}
+    finalizer._apply_snapshot_estimates_to_completed_job(
+        completed_job=job, snapshot={"planned_job_estimate": "not-a-dict"}
+    )
+    assert job["resolved_rooms"] is original, "a torn estimate block was acted on"
+
+    job2 = {"resolved_rooms": "not-a-list", "job_profile": {"rooms": []}}
+    finalizer._apply_snapshot_estimates_to_completed_job(
+        completed_job=job2, snapshot=_snapshot(valid_timeline)
+    )
+    assert job2["resolved_rooms"] == "not-a-list", (
+        "a torn resolved_rooms was replaced with an enriched list"
+    )
+
+    # the control: the same valid timeline over a valid list DOES enrich
+    job3 = {"resolved_rooms": [dict(original[0])], "job_profile": {"rooms": []}}
+    finalizer._apply_snapshot_estimates_to_completed_job(
+        completed_job=job3, snapshot=_snapshot(valid_timeline)
+    )
+    assert job3["resolved_rooms"][0]["estimated_minutes"] == 5.0
+
+
+# ---------------------------------------------------------------------------
+# [JF-18] the replica pair.
+#
+# `_write_incomplete_run_log` (:1824-1833) and `_update_trouble_rooms_log` (:1903-1912)
+# each build `name_by_id` from `resolved_rooms` with a byte-identical loop. One corrupt
+# row driven through BOTH is what bites the pair rather than one copy of it.
+# ---------------------------------------------------------------------------
+
+def test_jf18_both_name_lookups_step_over_a_torn_room_row(finalizer):
+    """[JF-18] Two logs, one corrupt archive row, and a third guard beneath.
+
+    `resolved_rooms` comes off a completed-job record, so a torn row is a real shape --
+    and the statement after each guard reads `room.get(...)`, so losing the guard is an
+    AttributeError inside a `try` that logs and swallows. The log would simply not be
+    written, with no failure anywhere a user could see: a missed room would stop being
+    reported as missed.
+
+    THE TORN ROW COMES FIRST so a `break` in place of either `continue` would lose the
+    real room behind it, and the expectations NAME the surviving room rather than
+    counting: an empty log and a log naming the wrong room are both "one entry".
+
+    THE THIRD GUARD IS THE STORED LOG'S OWN SHAPE. `_update_trouble_rooms_log` reads
+    `existing["rooms"]` and indexes it; seeded as a list, the guard rebuilds it as a
+    dict rather than raising. That is a different producer from the archive row -- the
+    trouble-rooms log is a file this method itself wrote on a previous run -- so it is
+    asserted in the same test but from its own seed.
+    """
+    vac = "vacuum.jf18"
+    completed_job = {
+        "outcome": {"status": "interrupted"},
+        "resolved_rooms": [
+            "torn-row",
+            {"room_id": 4, "name": "Conservatory"},
+        ],
+        "queue": {"queue_room_ids": [4]},
+        "job_profile": {"room_slugs": ["conservatory"]},
+        "job": {"started_at": "2026-01-01T09:00:00+00:00"},
+    }
+    active = {"job_id": "jf18", "queue_room_ids": [4], "completed_room_ids": []}
+
+    written = finalizer._write_incomplete_run_log(
+        vacuum_entity_id=vac, map_id="6", completed_job=completed_job,
+        active_job_state=active, ended_at="2026-01-01T09:30:00+00:00",
+    )
+    assert isinstance(written, dict), (
+        "the incomplete-run log was not written at all -- the torn row raised into the "
+        "swallowing try"
+    )
+    assert "Conservatory" in str(written), (
+        "the log was written but the real room's name was lost: %r" % (written,)
+    )
+
+    # the trouble-rooms log, with its own stored shape corrupted as well. This is a
+    # DIFFERENT producer from the archive row above: the file this method wrote on a
+    # previous run, which it reads back and indexes.
+    finalizer.store.save_trouble_rooms(
+        vacuum_entity_id=vac, payload={"rooms": ["not-a-dict"]}
+    )
+
+    finalizer._update_trouble_rooms_log(
+        vacuum_entity_id=vac, completed_job=completed_job,
+        active_job_state=active, ended_at="2026-01-01T09:30:00+00:00",
+    )
+
+    log = finalizer.store.load_trouble_rooms(vacuum_entity_id=vac) or {}
+    rooms = log.get("rooms")
+    assert isinstance(rooms, dict), (
+        "a stored log whose `rooms` was a list was indexed instead of rebuilt: %r"
+        % (log,)
+    )
+    assert "4" in rooms and rooms["4"].get("name") == "Conservatory", (
+        "the torn archive row cost the real room its trouble entry: %r" % (rooms,)
+    )
