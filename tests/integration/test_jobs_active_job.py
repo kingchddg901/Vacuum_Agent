@@ -5,6 +5,19 @@ with a seeded active job; no real robot-position entities required.
 Coverage targets
 ----------------
 [AJI-1]  get_active_job returns a normalized idle default when none is stored.
+[AJI-46] record_counter_sample refuses a torn bucket and a job with no counters at all,
+         and the "no counters" test is an AND not an OR -- one counter is enough.
+[AJI-47] external runs: the settings-select snapshot is deduped per flip and its ring
+         is trimmed, and a save that raises does not lose the sample.
+[AJI-48] record_pose_sample refuses a map with no job, and RECORDS a docked tick whose
+         current_room is None -- the parked-dock exclusion depends on those existing.
+[AJI-49] _snapshot_settings_selects skips every select it cannot read and applies
+         value_map only where one is declared.
+[AJI-50] _access_graph_path steps over a torn room row and an unusable id, and answers
+         [] for a source room the graph does not contain.
+[AJI-51] seed_counter_baseline: an unreadable clean clock degrades to None through the
+         caller's own guard, an unreadable area through the converter's, and only BOTH
+         being None refuses the baseline.
 [AJI-2]  update_active_job_mop_wash_observation: counts + 60s debounce.
 [AJI-3]  update_active_job_mop_wash_observation: idle job → no-op.
 [AJI-4]  record_active_job_transition: appends; ignores same-state / empty.
@@ -57,7 +70,10 @@ from tests._factories import spec_tracker
 import pytest
 
 from custom_components.eufy_vacuum.const import DOMAIN
-from custom_components.eufy_vacuum.jobs.active_job import ActiveJobTracker
+from custom_components.eufy_vacuum.jobs.active_job import (
+    ActiveJobTracker,
+    _MAX_COUNTER_SAMPLES,
+)
 
 
 _VAC = "vacuum.alfred"
@@ -1122,3 +1138,322 @@ def test_job_status_summary_names_room(tracker):
     out = tracker._job_status_summary(
         active_job=active_job, progress_snapshot={"current_room_id": 1})
     assert out == "Cleaning Kitchen"
+
+
+# ---------------------------------------------------------------------------
+# [AJI-46]..[AJI-49] the live observation buffers (doc 43).
+#
+# These are JOB-SCOPED: doc 43 §2 notes the buffer "lives until the next run on the same
+# map overwrites it, and it never reaches the finalized record", so anything a recorder
+# declines to record is gone the moment the run ends.
+# ---------------------------------------------------------------------------
+
+def test_aji46_the_counter_recorder_refuses_a_torn_bucket_and_an_empty_job(tracker,
+                                                                          manager):
+    """[AJI-46] Two refusals, and the second is an AND rather than an OR.
+
+    THE CONTROL CARRIES ONLY ONE COUNTER, deliberately. The guard is
+    `if ct is None and ca is None`, so a job with a clean clock but no area reading --
+    which is every adapter that declares `cleaning_time` and not `cleaning_area` -- must
+    still be sampled. Loosening the guard to `or` reddens the control and nothing else,
+    which is the precise half this fixture exists to catch.
+
+    `False` IS BOTH REFUSALS' ANSWER, so each is paired with the buffer: a refusal must
+    leave `counter_samples` absent or empty, and the control must leave exactly one
+    sample in it. The boolean alone would pass against a recorder that always refused.
+    """
+    # an in-flight job that has never had a counter pushed into it
+    _seed(manager)
+    assert tracker.record_counter_sample(vacuum_entity_id=_VAC) is False
+    job = manager.data["active_jobs"][_VAC][_MAP]
+    assert not job.get("counter_samples"), (
+        "a job with no counter readings had a sample recorded anyway"
+    )
+
+    # the control: ONE counter is enough
+    job["last_cleaning_time_seconds"] = 120
+    assert tracker.record_counter_sample(vacuum_entity_id=_VAC) is True
+    assert len(job["counter_samples"]) == 1
+
+    # the torn per-vacuum bucket LAST, because it replaces the bucket everything above
+    # needs -- `.get(vacuum_entity_id, {})` returns whatever storage holds
+    manager.data["active_jobs"][_VAC] = "not-a-dict"
+    assert tracker.record_counter_sample(vacuum_entity_id=_VAC) is False
+
+
+def test_aji47_external_settings_samples_are_deduped_trimmed_and_save_safe(
+    tracker, manager, monkeypatch
+):
+    """[AJI-47] The per-room settings mirror, which only external runs have.
+
+    The code calls these selects "our only window into what the app set per room", and
+    it records one entry PER FLIP rather than per tick -- a counter sample arrives on
+    every counter change, so an undeduped buffer would be thousands of identical rows
+    and the real flips would rotate out of the cap.
+
+    THREE CALLS, THREE DIFFERENT ANSWERS, which is what separates dedup from "records
+    nothing" and from "records everything": same settings twice must leave ONE entry,
+    and a changed value must add a second. One call could not tell those apart.
+
+    THE RING TRIM IS SEEDED AT THE CAP rather than driven to it, because the cap is
+    2000 and the claim is about the boundary, not about the loop. With 2000 already
+    present a single new flip must leave 2000, not 2001.
+
+    THE SAVE IS MADE TO RAISE at the end: the recorder wraps `async_create_task` in a
+    bare `except` because losing the sample would be worse than losing the save -- the
+    buffer is in-memory either way and the next save picks it up. So the assertion is
+    that it still returns True and still appended.
+    """
+    _seed(manager, status="external", last_cleaning_time_seconds=60)
+    job = manager.data["active_jobs"][_VAC][_MAP]
+
+    settings = {"clean_mode": "vacuum"}
+    monkeypatch.setattr(tracker, "_snapshot_settings_selects", lambda _v: dict(settings))
+
+    assert tracker.record_counter_sample(vacuum_entity_id=_VAC) is True
+    assert [e["settings"] for e in job["settings_samples"]] == [{"clean_mode": "vacuum"}]
+
+    job["last_cleaning_time_seconds"] = 61
+    assert tracker.record_counter_sample(vacuum_entity_id=_VAC) is True
+    assert len(job["settings_samples"]) == 1, (
+        "an unchanged settings read was recorded again -- one entry per FLIP"
+    )
+
+    settings["clean_mode"] = "mop"
+    job["last_cleaning_time_seconds"] = 62
+    assert tracker.record_counter_sample(vacuum_entity_id=_VAC) is True
+    assert [e["settings"]["clean_mode"] for e in job["settings_samples"]] == [
+        "vacuum", "mop"
+    ]
+
+    # the ring, seeded at the cap
+    job["settings_samples"] = [
+        {"t": "2026-01-01T09:00:00+00:00", "settings": {"clean_mode": "vacuum"}}
+        for _ in range(_MAX_COUNTER_SAMPLES)
+    ]
+    settings["clean_mode"] = "vacuum_and_mop"
+    job["last_cleaning_time_seconds"] = 63
+    assert tracker.record_counter_sample(vacuum_entity_id=_VAC) is True
+    assert len(job["settings_samples"]) == _MAX_COUNTER_SAMPLES, (
+        "the settings ring grew past its cap"
+    )
+    assert job["settings_samples"][-1]["settings"]["clean_mode"] == "vacuum_and_mop"
+
+    # a save that raises must not cost the sample
+    def _boom(coro, *args, **kwargs):
+        # close the coroutine we are refusing to schedule, or the suite logs
+        # "coroutine 'async_save' was never awaited" on every run
+        getattr(coro, "close", lambda: None)()
+        raise RuntimeError("the loop is gone")
+
+    monkeypatch.setattr(manager.hass, "async_create_task", _boom)
+    before = len(job["counter_samples"])
+    job["last_cleaning_time_seconds"] = 64
+    assert tracker.record_counter_sample(vacuum_entity_id=_VAC) is True, (
+        "a failed save was reported as a failed sample"
+    )
+    assert len(job["counter_samples"]) == before + 1
+
+
+def test_aji48_the_pose_recorder_refuses_an_unknown_map_but_records_a_docked_tick(
+    tracker, manager
+):
+    """[AJI-48] One refusal, and one thing that must NOT be refused.
+
+    The docstring states the half that matters: `current_room` is None "while docked /
+    off-raster -- those ticks ARE recorded (the parked-dock exclusion depends on `None`
+    runs existing)". So a reader optimising away the None ticks would not lose detail,
+    it would break an exclusion that depends on their presence.
+
+    THE PAIR IS A REFUSAL AND A RECORD over the same tracker: an unknown map id answers
+    False and writes nothing, while a None-room tick on the seeded map answers True and
+    appends a sample whose `current_room` is None. Asserting only the refusal would pass
+    against a recorder that refused everything.
+    """
+    _seed(manager)
+
+    assert tracker.record_pose_sample(
+        vacuum_entity_id=_VAC, map_id="no-such-map", current_room=1,
+        anchor=[0.5, 0.5], cleaning_area=1.0,
+    ) is False
+
+    assert tracker.record_pose_sample(
+        vacuum_entity_id=_VAC, map_id=_MAP, current_room=None,
+        anchor=None, cleaning_area=None,
+    ) is True
+    samples = manager.data["active_jobs"][_VAC][_MAP]["pose_samples"]
+    assert len(samples) == 1 and samples[0]["current_room"] is None, (
+        "a docked tick was dropped -- the parked-dock exclusion needs it"
+    )
+
+
+def test_aji49_the_settings_snapshot_skips_every_select_it_cannot_read(tracker, manager):
+    """[AJI-49] Five declared selects, two readable, and a value_map on one of them.
+
+    This is read off the ADAPTER, so each shape is something a brand can declare or a
+    provider can fail to supply: a spec that is not a dict at all, a spec with no
+    entity_id, and an entity whose state is one of HA's absence spellings. Recording
+    any of them would put a junk value into the only record of what the app chose.
+
+    THE EXPECTATION IS THE EXACT DICT. A membership check would not notice an extra
+    junk key, and extra keys are precisely what the three skips prevent. `value_map` is
+    declared on one select and not the other, so the output distinguishes a mapped
+    value from a raw one -- applying the map everywhere, or nowhere, moves exactly one
+    of the two.
+
+    The not-a-dict `settings_selects` case is asserted separately because it returns
+    before any select is read.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "aji49", "source": "code",
+        "settings_selects": {
+            "clean_mode": {"entity_id": "select.alfred_mode",
+                           "value_map": {"sweep": "vacuum"}},
+            "fan_speed": {"entity_id": "select.alfred_fan"},
+            "torn_spec": "not-a-dict",
+            "no_entity": {"value_map": {"a": "b"}},
+            "unavailable": {"entity_id": "select.alfred_missing"},
+        },
+    })
+    manager.hass.states.async_set("select.alfred_mode", "sweep")
+    manager.hass.states.async_set("select.alfred_fan", "Max")
+    manager.hass.states.async_set("select.alfred_missing", "unavailable")
+
+    assert tracker._snapshot_settings_selects(_VAC) == {
+        "clean_mode": "vacuum",      # value_map applied
+        "fan_speed": "Max",          # no value_map -> raw state kept
+    }
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "aji49b", "source": "code",
+        "settings_selects": ["clean_mode"],
+    })
+    assert tracker._snapshot_settings_selects(_VAC) == {}
+
+
+def test_aji50_the_access_graph_walk_steps_over_rows_it_cannot_use(tracker):
+    """[AJI-50] The BFS's own room walk, and the answer for a source it never indexed.
+
+    `managed_rooms` comes off stored map state, so a torn row and a row whose id will
+    not resolve are both real shapes -- and the statement after each guard reads
+    `room.get(...)` or indexes by the id.
+
+    `[]` IS ALSO THE ANSWER FOR "DIRECTLY ADJACENT" AND FOR "NO PATH", which the
+    docstring says explicitly, so the empty list is never asserted alone: the control
+    is a real three-room chain whose middle room comes back. The torn row sits in the
+    SAME payload as that chain, so a walk that gave up on it would lose the path and the
+    control would redden -- that is the one arm here with a red.
+
+    TWO OF THE THREE ARMS ARE UNOBSERVABLE, and the ablation is what established it
+    rather than reading:
+
+      - `if room_id <= 0: continue` -- a non-positive id only ever adds an UNREACHABLE
+        key to `grants_map`. Nothing walks from it, so deleting the guard changes no
+        answer this function can give. The `ghost` row is here to cross it, not to
+        assert it.
+      - `if from_room_id not in grants_map: return []` -- without it the BFS pops the
+        lone start path, `grants_map.get(99, [])` is empty, the loop ends, and the
+        function returns `[]` at the bottom. The same answer by a longer road, so the
+        early return is an optimisation rather than a behaviour.
+
+    Both were predicted to bite and came back DEAD. They are crossed and said to be
+    crossed; the only claim this test carries a red for is the torn row.
+    """
+    rooms = {
+        "rooms": {
+            "1": {"room_id": 1, "grants_access_to": [2]},
+            "2": {"room_id": 2, "grants_access_to": [1, 3]},
+            "3": {"room_id": 3, "grants_access_to": [2]},
+            "torn": "not-a-dict",
+            "ghost": {"grants_access_to": [1]},      # no room_id, key not numeric
+        }
+    }
+
+    assert tracker._access_graph_path(rooms, 1, 3) == [2], (
+        "the walk lost the real chain -- a torn row took the path with it"
+    )
+    assert tracker._access_graph_path(rooms, 1, 2) == []        # directly adjacent
+    assert tracker._access_graph_path(rooms, 99, 3) == [], (
+        "a source room the graph never indexed must answer [], not raise"
+    )
+
+
+def test_aji51_an_unreadable_counter_degrades_rather_than_raising(tracker, manager):
+    """[AJI-51] The baseline's two conversions, each guarded on its own.
+
+    This is the floor a run's first phase is measured from -- without it the first
+    increment "arrives already-accrued and is credited to nothing: kitchen measured
+    90 s / 1 m² against a recorder-verified 120 s / 2 m², on every run". So a garbage
+    state on ONE counter must not cost the other, and the refusal is only when both
+    come back None.
+
+    THE MIDDLE CASE IS THE CLAIM. Both-garbage returning False and both-good returning
+    True are satisfied by a single shared guard; the ONE-garbage case is what shows the
+    two counters are independent, and the recorded sample is asserted to carry the
+    readable one with the unreadable one as None.
+
+    THE TWO COUNTERS REACH `None` BY DIFFERENT ROUTES, measured rather than assumed,
+    and only one of them is this module's doing:
+
+        cleaning_area_to_m2("not-a-number", "m2")         -> None
+        _duration_state_to_seconds("not-a-number", "min") -> raises ValueError
+
+    `cleaning_area_to_m2` catches `(TypeError, ValueError)` inside itself
+    (learning/utils.py:59-62), so the caller's identical handler at active_job.py:2512
+    can NEVER fire -- it is the outer of two copies of one handler and the inner one
+    always wins. That line is recorded as a ceiling, not claimed here. The clean clock's
+    converter does propagate, so the handler at :2504 is the one with a red: narrowing
+    it to TypeError alone lets the ValueError escape and reddens this test.
+
+    The states are real HA shapes -- a non-numeric string with a declared unit is what
+    an adapter sees when firmware emits a placeholder.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "aji51", "source": "code",
+        "entities": {"cleaning_time": "sensor.alfred_ct",
+                     "cleaning_area": "sensor.alfred_ca"},
+    })
+
+    # 1. both unreadable -> no baseline at all
+    manager.hass.states.async_set("sensor.alfred_ct", "not-a-number",
+                                  {"unit_of_measurement": "min"})
+    manager.hass.states.async_set("sensor.alfred_ca", "not-a-number",
+                                  {"unit_of_measurement": "m²"})
+    job = {"status": "started", "vacuum_entity_id": _VAC, "map_id": _MAP}
+    assert tracker.seed_counter_baseline(
+        vacuum_entity_id=_VAC, active_job=job,
+        observed_at="2026-01-01T09:00:00+00:00",
+    ) is False
+    assert not job.get("counter_samples"), (
+        "a baseline was written from two unreadable counters"
+    )
+
+    # 2. ONE unreadable -> the other still lands, which is the independence claim
+    manager.hass.states.async_set("sensor.alfred_ct", "2",
+                                  {"unit_of_measurement": "min"})
+    job2 = {"status": "started", "vacuum_entity_id": _VAC, "map_id": _MAP}
+    assert tracker.seed_counter_baseline(
+        vacuum_entity_id=_VAC, active_job=job2,
+        observed_at="2026-01-01T09:00:00+00:00",
+    ) is True, "an unreadable AREA cost the readable clean clock its baseline"
+    sample = job2["counter_samples"][-1]
+    assert sample["cleaning_time"] == 120, (
+        "2 min should convert to 120 s; got %r" % (sample["cleaning_time"],)
+    )
+    # None from the CONVERTER's own guard, not from this module's -- see the docstring
+    assert sample["cleaning_area"] is None
+
+    # 3. both readable -> the control
+    manager.hass.states.async_set("sensor.alfred_ca", "6",
+                                  {"unit_of_measurement": "m²"})
+    job3 = {"status": "started", "vacuum_entity_id": _VAC, "map_id": _MAP}
+    assert tracker.seed_counter_baseline(
+        vacuum_entity_id=_VAC, active_job=job3,
+        observed_at="2026-01-01T09:00:00+00:00",
+    ) is True
+    sample3 = job3["counter_samples"][-1]
+    assert sample3["cleaning_time"] == 120 and sample3["cleaning_area"] == 6.0
