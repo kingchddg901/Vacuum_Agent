@@ -33,6 +33,19 @@ Coverage targets
          loop relies on to stay inert.
 [MNT-20] an OVERDUE consumable (negative hours) does not crash get_upkeep_snapshot —
          the summary call sites must guard the RESULT of _hours_text, not the input.
+[MNT-21] the pure helpers' EXCEPT arms, which the sentinel list hides: a value that is
+         not a sentinel and still will not convert.
+[MNT-22] _display_label: punctuation-only input normalizes to empty and answers None.
+[MNT-23] _hours_text: an unconvertible value is None, not 0 hours.
+[MNT-24] get_maintenance_source_candidates: no hass → [], never a raise.
+[MNT-25] the candidate filter's four skips — our own entities, stateless, non-duration,
+         non-numeric — and the stored clock pick read before the bound-source scan.
+[MNT-26] _device_consumed_hours: three unreadable shapes, all None (never 0).
+[MNT-27] _consumed_hours: a None state is None.
+[MNT-28] _consumed_hours with no component identity answers from the reading alone and
+         refuses a DOWN direction.
+[MNT-29] the accumulator's move tallies and the glitch warning that is reported, never
+         absorbed.
 """
 
 from __future__ import annotations
@@ -976,3 +989,414 @@ def test_the_current_clock_is_not_labelled_a_part_counter(hass, manager, mock_co
     assert by_id[part]["caveat_key"] == "maintenance.clock_candidate.saturates_at_zero"
     assert by_id[part]["bound_components"] == ["filter"]
     assert by_id[part]["is_current"] is False
+
+
+# ---------------------------------------------------------------------------
+# [MNT-21..23] the pure helpers, past their sentinel lists
+#
+# Each helper opens with `if value in (None, "", "unknown", "unavailable")`, and
+# every existing test supplies one of those four. That arm and the `except` arm
+# return the SAME default, so the sentinel tests cannot tell whether the except
+# exists at all.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("bad", ["abc", [], {}, object()])
+def test_mnt21_a_value_that_is_not_a_sentinel_and_will_not_convert(bad):
+    """[MNT-21] The except arm, reached only by a non-sentinel unconvertible value.
+
+    `"unknown"` takes the SENTINEL branch, not this one, and both return the
+    default -- so the existing cases pass with the `except` deleted. A list, a
+    dict or a bare object reaches `int(float(...))` and raises TypeError; "abc"
+    reaches it and raises ValueError. Both members of the tuple are therefore
+    exercised across the parameters.
+
+    The defaults are asserted explicitly rather than trusting the signature,
+    because the whole point of these helpers is that a caller never has to check.
+    """
+    assert _safe_int(bad) == 0
+    assert _safe_int(bad, default=7) == 7
+    assert _safe_float(bad) == 0.0
+    assert _safe_float(bad, default=1.5) == 1.5
+
+
+@pytest.mark.parametrize("value", ["_", "-", "__--__", "   ", "---"])
+def test_mnt22_punctuation_only_labels_normalize_to_nothing(value):
+    """[MNT-22] A label made only of separators has no words left after normalizing.
+
+    `_display_label` strips, then replaces `_` and `-` with spaces, then re-joins
+    on whitespace -- so a value that is nothing but separators survives the first
+    empty check and becomes empty at the second. Without the second check the
+    result is `" ".join([])` fed to the capitalize walk, which yields an EMPTY
+    STRING rather than None, and an empty string is a value: it renders as a
+    blank label where None renders as "no label".
+
+    This is a REPLICA (RNJ9YQF7) -- byte-identical copies live in
+    planning/run_plan.py and core/manager.py -- so the behaviour pinned here is
+    the behaviour all three must keep.
+    """
+    assert _display_label(value) is None
+
+
+@pytest.mark.parametrize("bad", ["abc", [], {}, object()])
+def test_mnt23_unreadable_hours_are_None_not_zero(bad):
+    """[MNT-23] UNKNOWN is not 0 h, which is this module's recurring failure.
+
+    `_hours_text` feeds user-facing summary lines. Returning "0 hours" for a value
+    it could not read states a fact about the part; returning None states that
+    there is nothing to say. The module docstring records the cost of getting this
+    backwards once already.
+    """
+    assert _hours_text(bad) is None
+
+
+# ---------------------------------------------------------------------------
+# [MNT-24..25] the clock picker's candidate filter
+#
+# The picker exists because a lifetime clock CANNOT be derived -- the docstring
+# records the measurement: on a Roborock S6 `main_brush_time_left` reads 293 h
+# against a 206 h `total_cleaning_time`, so magnitude, device_class and
+# state_class all fail to separate them. What the filter CAN do is refuse
+# entities that are definitely not clocks, and that is what these pin.
+# ---------------------------------------------------------------------------
+
+def test_mnt24_no_hass_yields_no_candidates(mnt, manager, monkeypatch):
+    """[MNT-24] The picker is asked during setup, before hass is necessarily there.
+
+    An empty list is the honest answer and a raise is not: this feeds a UI list,
+    so the failure mode without the guard is an exception inside a snapshot that
+    several other panels share.
+
+    ⚠ SUBSUMED, measured: deleting this guard does NOT redden this test, because
+    `er.async_get(None)` then raises into the pragma'd `except Exception: return
+    []` one frame out and the answer is the same empty list. Crossed here and
+    said to be crossed. The same holds for [MNT-24b]'s registry-miss guard.
+    """
+    monkeypatch.setattr(manager, "hass", None, raising=False)
+    assert mnt.get_maintenance_source_candidates(vacuum_entity_id=_VAC) == []
+
+
+def test_mnt25_the_filter_refuses_four_kinds_of_non_clock(
+    mnt, manager, hass, monkeypatch
+):
+    """[MNT-25] Four skips, four different reasons, one survivor.
+
+    The candidates are siblings of the vacuum on its device. Four are offered and
+    must each be refused for its own reason, with ONE real clock left to prove the
+    filter is selective rather than empty:
+
+      ours        a sensor from THIS integration -- "offering it would point the
+                  counter at its own output", a loop with no error
+      stateless   registered but with no state; nothing to read a direction from
+                  (SUBSUMED, measured: deleting that guard alone changes nothing,
+                  because `getattr(None, "attributes", None) or {}` is `{}` and the
+                  device_class check on the next line rejects it. Crossed, not
+                  claimed.)
+      not-duration  a device_class that is not `duration`; a percentage or a
+                  temperature is not a clock whatever it is called
+      non-numeric a duration sensor reading `unavailable`
+
+    THE SURVIVOR IS THE ASSERTION. A filter that returned [] would satisfy every
+    "X is not offered" check on its own, so the test would pass against a picker
+    that offers the user nothing at all -- which is precisely the bug that leaves
+    an uncounted component permanently unbacked.
+    """
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.eufy_vacuum.const import DOMAIN
+
+    ours = MockConfigEntry(domain=DOMAIN, entry_id="mnt25_ours")
+    ours.add_to_hass(hass)
+    theirs = MockConfigEntry(domain="robovac_mqtt", entry_id="mnt25_theirs")
+    theirs.add_to_hass(hass)
+
+    devices = dr.async_get(hass)
+    registry = er.async_get(hass)
+    device = devices.async_get_or_create(
+        config_entry_id=theirs.entry_id,
+        identifiers={("robovac_mqtt", "alfred-device")},
+    )
+    registry.async_get_or_create(
+        "vacuum", "robovac_mqtt", "alfred_vac",
+        suggested_object_id="alfred", device_id=device.id,
+    )
+
+    def _sibling(platform, object_id, entry):
+        registry.async_get_or_create(
+            "sensor", platform, "uid_" + object_id,
+            suggested_object_id=object_id, device_id=device.id,
+            config_entry=entry,
+        )
+        return "sensor." + object_id
+
+    ours_id = _sibling(DOMAIN, "alfred_our_own_counter", ours)
+    stateless = _sibling("robovac_mqtt", "alfred_never_reported", theirs)
+    not_duration = _sibling("robovac_mqtt", "alfred_battery_pct", theirs)
+    non_numeric = _sibling("robovac_mqtt", "alfred_flaky_clock", theirs)
+    good = _sibling("robovac_mqtt", "alfred_total_cleaning_time", theirs)
+
+    hass.states.async_set(ours_id, "12", {"device_class": "duration"})
+    # `stateless` is deliberately never given a state
+    hass.states.async_set(not_duration, "87", {"device_class": "battery"})
+    hass.states.async_set(non_numeric, "unavailable", {"device_class": "duration"})
+    hass.states.async_set(
+        good, "206", {"device_class": "duration", "unit_of_measurement": "h",
+                      "friendly_name": "Total cleaning time"},
+    )
+
+    monkeypatch.setattr(
+        manager, "get_vacuum_capabilities_snapshot",
+        lambda **kw: {"maintenance_sources": {}},
+    )
+
+    out = mnt.get_maintenance_source_candidates(vacuum_entity_id="vacuum.alfred")
+    offered = [c["entity_id"] for c in out]
+
+    assert good in offered, (
+        "the one real clock was filtered out; the picker offers nothing and every "
+        "uncounted component stays unbacked"
+    )
+    for rejected, why in (
+        (ours_id, "our own sensor -- the counter would read its own output"),
+        (stateless, "no state to read"),
+        (not_duration, "device_class is not duration"),
+        (non_numeric, "state is not a number"),
+    ):
+        assert rejected not in offered, "%s was offered (%s)" % (rejected, why)
+
+
+def test_mnt25b_the_users_own_clock_pick_is_not_labelled_a_part_counter(
+    mnt, manager, hass, monkeypatch
+):
+    """[MNT-25b] The stored pick is read FIRST, and the docstring says why.
+
+    "THE CURRENT CLOCK IS ALSO 'SOME COMPONENT'S SOURCE' -- that is literally its
+    job, so a naive is-this-bound test labels the lifetime clock a part counter and
+    hangs the saturation caveat on the one candidate that cannot saturate. Caught
+    by listing real candidates across three machines, not by reasoning."
+
+    So: the same entity is both the user's stored clock AND a component's source.
+    It must come back WITHOUT the bound-component caveat, while a genuine part
+    counter beside it keeps one.
+    """
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.eufy_vacuum.const import ENTITY_OVERRIDES_KEY
+    from custom_components.eufy_vacuum.core.capabilities import MAINTENANCE_CLOCK_ROLE
+
+    entry = MockConfigEntry(domain="robovac_mqtt", entry_id="mnt25b")
+    entry.add_to_hass(hass)
+    devices = dr.async_get(hass)
+    registry = er.async_get(hass)
+    device = devices.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("robovac_mqtt", "alfred-device-b")},
+    )
+    registry.async_get_or_create(
+        "vacuum", "robovac_mqtt", "alfred_vac_b",
+        suggested_object_id="alfred", device_id=device.id,
+    )
+    for obj in ("alfred_total_cleaning_time", "alfred_main_brush_time_left"):
+        registry.async_get_or_create(
+            "sensor", "robovac_mqtt", "uid_b_" + obj,
+            suggested_object_id=obj, device_id=device.id, config_entry=entry,
+        )
+        hass.states.async_set(
+            "sensor." + obj, "206",
+            {"device_class": "duration", "unit_of_measurement": "h"},
+        )
+
+    clock = "sensor.alfred_total_cleaning_time"
+    part = "sensor.alfred_main_brush_time_left"
+
+    manager.data.setdefault(ENTITY_OVERRIDES_KEY, {})["vacuum.alfred"] = {
+        MAINTENANCE_CLOCK_ROLE: clock
+    }
+    monkeypatch.setattr(
+        manager, "get_vacuum_capabilities_snapshot",
+        lambda **kw: {"maintenance_sources": {"dustbin": clock, "main_brush": part}},
+    )
+
+    by_id = {
+        c["entity_id"]: c
+        for c in mnt.get_maintenance_source_candidates(vacuum_entity_id="vacuum.alfred")
+    }
+
+    assert not (by_id[clock].get("bound_components") or []), (
+        "the user's own clock pick was labelled a part counter: %r. The saturation "
+        "caveat would then sit on the one candidate that cannot saturate."
+        % (by_id[clock].get("bound_components"),)
+    )
+    assert "main_brush" in (by_id[part].get("bound_components") or []), (
+        "a genuine part counter lost its caveat -- these saturate, and an overdue "
+        "part that is never reset freezes the clock for every component at once"
+    )
+
+
+# ---------------------------------------------------------------------------
+# [MNT-26..29] UNKNOWN is never zero, and a glitch is never absorbed
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("state,meta,readable,why", [
+    (None, {"default_interval_hours": 300}, False, "no state at all"),
+    (object(), {"default_interval_hours": "not-a-number"}, False, "life unreadable"),
+    (object(), {"default_interval_hours": 0}, False, "life zero, state unreadable"),
+    (object(), {"default_interval_hours": 300}, False, "life known, state unreadable"),
+    (object(), {"default_interval_hours": 0}, True, "life ZERO, state READABLE"),
+])
+def test_mnt26_an_unreadable_device_reading_is_None_not_zero(
+    mnt, state, meta, readable, why, monkeypatch
+):
+    """[MNT-26] The REPLACEMENT row's point reading, in each shape it cannot answer.
+
+    "Returns None when neither form is readable -- callers must treat that as
+    UNKNOWN, never as zero. Defaulting to 0 is what made a countdown brand report
+    '0 hours used' beside a permanently full maintenance row."
+
+    `object()` stands in for a state whose `.attributes` and `.state` are both
+    unusable: the attribute lookup raises, so the countdown branch is taken, and
+    the meta then decides. EACH PARAMETER STOPS AT A DIFFERENT LINE, which is the
+    point of having four:
+
+      no state                      -> the first guard
+      life unreadable               -> the meta conversion's handler
+      life zero, state unreadable   -> the `life <= 0` refusal
+      life known, state unreadable  -> the countdown's own read
+      life ZERO, state READABLE     -> the `life <= 0` refusal, OBSERVABLY
+
+    THE LAST TWO EXIST BECAUSE THE ABLATION SAID THEY HAD TO. With an unreadable
+    state in every case, deleting the `life <= 0` refusal changed nothing:
+    `float(state.state)` raised and the function returned None anyway, so the
+    guard had no red. A READABLE state separates them, and it separates them
+    exactly where this module's stated hazard is -- without the refusal,
+    `max(0 - 100, 0.0)` is **0.0**, and "0 hours used" beside a permanently full
+    row is the sentence the docstring records as the original defect. A component
+    whose service life is unknown has an unknown consumption, not a zero one.
+    """
+    if state is not None:
+        class _S:
+            attributes = {}
+            state = "100" if readable else "not-a-number"
+        state = _S()
+    assert mnt._device_consumed_hours(state, meta) is None, (
+        "%s: expected UNKNOWN, got a number" % why
+    )
+
+
+def test_mnt27_consumed_hours_of_a_missing_state_is_None(mnt):
+    """[MNT-27] No state means no reading; the accumulated total is untouched.
+
+    "Returns None when THIS reading is unusable, which keeps `source_available`
+    meaning what it says. The accumulated total is not lost -- it is persisted and
+    returns on the next good reading." A zero here would be booked as a reading
+    and would re-baseline the counter against nothing.
+
+    ⚠ SUBSUMED, measured: the guard has no red of its own. Without it every read
+    downstream degrades to None -- the attributes become `{}`, the reading None,
+    the number None -- and the function returns None by the longer road. Crossed
+    here and said to be crossed.
+    """
+    assert mnt._consumed_hours(None, {"default_interval_hours": 300}) is None
+
+
+def test_mnt28_without_a_component_identity_it_answers_from_the_reading_alone(mnt):
+    """[MNT-28] The seam the code keeps honest rather than pretending is static.
+
+    "A caller with no component identity cannot persist; fold nothing and answer
+    from the reading alone. Nothing does this today -- the parameter keeps the
+    seam honest." So the method must not reach for a storage bucket it has no key
+    for, and it must refuse a COUNTDOWN reading, because a countdown's point value
+    is hours REMAINING and returning it as hours CONSUMED inverts the figure.
+
+    Both halves are asserted, exactly. Measured rather than hedged:
+
+        state_class         declared  -> result
+        total_increasing    up           the value passes through
+        measurement         down         None
+
+    THIS BRANCH HAD NEVER RUN BEFORE THIS TEST. It read `direction`, which is
+    assigned eleven lines further down, so it raised UnboundLocalError on every
+    call -- and both live call sites pass an identity, so nothing ever entered
+    it. The comment above it ("Nothing does this today -- the parameter keeps the
+    seam honest") is why: a seam nobody enters is a seam nobody checks. Fixed in
+    this commit to ask `learned_direction(declared, 0, 0)`, which is what the
+    identity path computes for a bucket with no history, so the two agree by
+    construction rather than by reading.
+    """
+    class _Up:
+        state = "41.8"
+        attributes = {"state_class": "total_increasing", "unit_of_measurement": "h"}
+
+    class _Down:
+        state = "41.8"
+        attributes = {"state_class": "measurement", "unit_of_measurement": "h"}
+
+    assert mnt._consumed_hours(_Up(), {"default_interval_hours": 300}) == 41.8
+    assert mnt._consumed_hours(_Down(), {"default_interval_hours": 300}) is None, (
+        "a countdown's point reading is hours REMAINING; returning it as hours "
+        "CONSUMED inverts the figure"
+    )
+
+
+def test_mnt29_a_one_reading_jump_is_warned_about_and_not_absorbed(
+    mnt, manager, caplog
+):
+    """[MNT-29] "REPORTED, NEVER ABSORBED."
+
+    A reading that jumps further in one step than any part's service life is a
+    glitch, and the accumulator refuses to book it. The refusal alone is not
+    enough: "A glitch that books a whole service life and re-baselines leaves a
+    permanent overcount with nothing to show it happened." So it warns, naming the
+    vacuum, the component and the size of the jump.
+
+    The assertion is on the LOG as well as the total, because the total being
+    unchanged is also what a reading that was simply ignored looks like. The
+    warning is the only thing that distinguishes "we saw something impossible"
+    from "nothing happened".
+    """
+    import logging
+
+    class _S:
+        def __init__(self, value):
+            self.state = str(value)
+            self.attributes = {"state_class": "total_increasing",
+                               "unit_of_measurement": "h"}
+
+    meta = {"default_interval_hours": 300}
+    mnt._consumed_hours(_S(10), meta, vacuum_entity_id=_VAC, component="main_brush")
+    mnt._consumed_hours(_S(12), meta, vacuum_entity_id=_VAC, component="main_brush")
+
+    with caplog.at_level(logging.WARNING):
+        mnt._consumed_hours(
+            _S(99999), meta, vacuum_entity_id=_VAC, component="main_brush"
+        )
+
+    bucket = mnt.get_maintenance_state(vacuum_entity_id=_VAC)["main_brush"]
+    assert float(bucket.get("usage_total") or 0.0) < 1000.0, (
+        "a 99999 h jump was booked: usage_total is %r" % (bucket.get("usage_total"),)
+    )
+    assert "glitch" in caplog.text and "main_brush" in caplog.text, (
+        "the impossible reading was dropped silently -- indistinguishable from "
+        "nothing having happened"
+    )
+
+
+def test_mnt24b_a_vacuum_with_no_registry_row_yields_no_candidates(
+    mnt, manager, hass, monkeypatch
+):
+    """[MNT-24b] The sibling sweep needs a registry entry to sweep FROM.
+
+    A vacuum entity_id that is not in the registry -- a stale id in stored
+    config, or a brand integration that has not finished setting up -- has no
+    device and therefore no siblings. The answer is an empty list, and the
+    alternative is `sweep_siblings(registry, None)` reaching into None.
+
+    Distinct from [MNT-24]: that one has no hass at all, this one has a working
+    registry that simply does not know this entity.
+    """
+    assert mnt.get_maintenance_source_candidates(
+        vacuum_entity_id="vacuum.never_registered_anywhere"
+    ) == []

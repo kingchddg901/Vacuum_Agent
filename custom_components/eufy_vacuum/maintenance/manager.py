@@ -1042,7 +1042,14 @@ class MaintenanceManager:
         # than pretending the method is still static.
         if vacuum_entity_id is None or component is None:
             value = usage_accumulator._number(reading)
-            return value if direction == usage_accumulator.UP else None
+            # No bucket means no move history, so the direction is whatever the
+            # declaration says -- which is what `learned_direction` answers for a
+            # fresh component below. Asking it with zero moves keeps the two paths
+            # agreeing by construction. (This read `direction`, assigned eleven
+            # lines further down, so the branch raised UnboundLocalError on every
+            # call; both live call sites pass an identity, so it had never run.)
+            _direction = usage_accumulator.learned_direction(declared, 0, 0)
+            return value if _direction == usage_accumulator.UP else None
 
         bucket = self.get_maintenance_state(
             vacuum_entity_id=vacuum_entity_id
