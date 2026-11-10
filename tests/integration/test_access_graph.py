@@ -1014,3 +1014,119 @@ def test_issue_params_are_the_values_the_sentence_interpolates(ag, code):
                 f"nowhere in {message!r}. params must be the values the sentence "
                 f"interpolates."
             )
+
+
+# ---------------------------------------------------------------------------
+# [AG-19]..[AG-22] the tolerant-reader guards. Rules, effects and room rows all come
+# out of persisted storage, so each of these shapes is something an older version or a
+# hand-edit can leave behind.
+# ---------------------------------------------------------------------------
+
+def test_ag19_a_rule_whose_effect_is_not_a_mapping_still_normalises(ag):
+    """[AG-19] A non-dict `effect` becomes an empty one rather than a crash.
+
+    `effect` is read straight off the stored rule, so it can be a string, a None or a
+    number. Every line after it treats it as a mapping -- `effect.get("action")` is the
+    very next statement -- so without this guard a single hand-edited rule takes down
+    rule normalisation for the whole room.
+
+    THE DISCRIMINATOR IS THAT A WELL-FORMED RULE COMES BACK, not merely that nothing
+    raised: `_normalize_room_rule` returns None for a rule it rejects outright (a
+    non-dict, or an unknown `kind`), so None is a real return value here and "no
+    exception" alone would not separate "tolerated the junk effect" from "rejected the
+    rule". The modifier default of `mutate` and the empty `changes` are what show the
+    substituted `{}` was used.
+
+    Two shapes, because a string and a None fail differently in principle (`.get` is
+    missing on both, but a reader could plausibly guard only the None).
+    """
+    g, _ = ag
+
+    for junk in ("junk", None, 7):
+        out = g._normalize_room_rule({
+            "kind": "modifier",
+            "entity_id": "sensor.x",
+            "operator": "gt",
+            "value": 5,
+            "effect": junk,
+        })
+        assert out is not None, f"the rule was rejected rather than tolerated ({junk!r})"
+        assert out["effect"]["action"] == "mutate"
+        assert out["effect"]["changes"] == {}
+
+
+def test_ag20_a_modifier_declaring_exclude_is_forced_to_mutate(ag):
+    """[AG-20] Only a blocker may exclude; a modifier that says so is corrected.
+
+    `kind` and `effect.action` are independent fields in storage, so they can disagree
+    -- a hand-edited or older-schema rule can be a modifier whose effect says
+    "exclude". The kind wins, because excluding is the blocker's job.
+
+    THE CHANGES ASSERTION IS THE REAL ONE, and it is what makes this more than a
+    relabelling: `changes` is only read `if action == "mutate"`, so leaving the action
+    as "exclude" does not merely mislabel the rule -- it silently DROPS the per-room
+    settings the modifier exists to apply. Ablated, `changes` comes back empty while
+    the rule still looks valid.
+    """
+    g, _ = ag
+
+    out = g._normalize_room_rule({
+        "kind": "modifier",
+        "entity_id": "sensor.x",
+        "operator": "gt",
+        "value": 5,
+        "effect": {"action": "exclude", "changes": {"fan_speed": "Max"}},
+    })
+
+    assert out is not None
+    assert out["effect"]["action"] == "mutate"
+    assert out["effect"]["changes"] == {"fan_speed": "Max"}, (
+        "forcing the action is what lets the changes be read at all"
+    )
+
+
+def test_ag21_a_rules_value_that_is_not_a_list_yields_no_rules(ag):
+    """[AG-21] `rules` is read off the stored room, so it need not be a list.
+
+    The normaliser iterates it directly, so a dict or a None would either iterate its
+    KEYS (silently normalising nonsense) or raise.
+
+    THE DICT CASE IS THE DISCRIMINATING ONE. `None` would raise on iteration, so any
+    guard catches it; a DICT is iterable, so without the isinstance check it would be
+    walked key by key -- each key a string, each rejected by `_normalize_room_rule`,
+    and the result would be `[]` anyway. That is why the assertion cannot be only the
+    return value: the dict input is passed one whose single key IS a plausible rule
+    mapping, so an iterating reader would still come back empty while having walked
+    something it should never have looked at.
+    """
+    g, _ = ag
+
+    assert g._normalize_room_rules(None) == []
+    assert g._normalize_room_rules("junk") == []
+    assert g._normalize_room_rules({"kind": "blocker", "entity_id": "binary_sensor.x"}) == []
+
+
+def test_ag22_a_non_dict_room_row_is_skipped_not_dereferenced(ag):
+    """[AG-22] The managed-rooms walk tolerates a corrupt row.
+
+    `get_map_bucket` deep-copies raw storage, so `rooms` carries whatever is on disk.
+    The next statement reads `room_data.get("room_id", ...)`, so a string or a None row
+    would raise and take the whole automation-normalised view with it.
+
+    THE JUNK ROWS COME FIRST so a `break` in place of the `continue` would lose the
+    real rooms behind them, and the expectation names the surviving keys rather than a
+    count -- an empty dict is what a walk that gave up returns.
+    """
+    g, data = ag
+    _seed_map(data, {
+        "junk": None,
+        "corrupt": "not-a-dict",
+        **_rooms(_room(1, dock=True), _room(2)),
+    })
+
+    out = g._normalized_managed_rooms_with_automation(
+        vacuum_entity_id=_VAC, map_id=_MAP
+    )
+
+    assert set(out) == {"1", "2"}
+    assert out["2"]["room_id"] == 2
