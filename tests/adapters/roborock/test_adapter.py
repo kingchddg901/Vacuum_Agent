@@ -2106,3 +2106,122 @@ def test_rbsdk1_the_vendor_sdk_is_imported_during_collection():
 # THE ARITHMETIC: 3 statements and 3 branch arms of 95 units, so the file measures
 # 93.68% and needs 2 units to cross. There are none to take honestly.
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("old_core", [False, True], ids=["core_2026_10", "core_at_floor"])
+def test_rd7_a_vacuum_with_no_config_entry_resolves_to_none(hass, monkeypatch, old_core):
+    """[RD-7] The config-entry scope, from the side where it is absent.
+
+    The lookup scopes its identifier search to the vacuum ENTITY's own config entry,
+    because HA 2026.10 made identifiers unique only within an entry. `find_dock_device`
+    states the consequence directly: "An entity with no config entry cannot be the
+    upstream integration's, so it resolves to None rather than to an unscoped search."
+    That sentence had no test.
+
+    THE DOCK IS REGISTERED AND FINDABLE, which is what makes this more than a None
+    assertion. The registry holds a `(roborock, rd7_duid_dock)` device the identifier
+    search WOULD hit; the only thing between the lookup and it is the entity's missing
+    config entry.
+
+    IT RUNS AT BOTH ENDS OF THE SUPPORTED RANGE, AND ONLY ONE OF THEM CAN SEE THE
+    GUARD. On this core the mutation is invisible: measured,
+    `async_get_device_by_identifier` declares `config_entry_id: str` and resolves
+    through an entry-keyed index, so a None entry id matches nothing and the guard's
+    fallthrough agrees with it -- the first ablation of this test came back DEAD for
+    exactly that reason. Below 2026.8 the method does not exist and the fallback
+    `async_get_device(identifiers=...)` is UNSCOPED, so without the guard the dock
+    comes back. The floor case is the one that reddens, and the newer case is kept to
+    record which core sees what.
+
+    The floor is simulated as [RD-6] does it -- delattr on the real class, so the
+    instance reads as a 2026.7 instance would -- because the test image runs ONE HA
+    version and cannot otherwise reach the branch the hacs.json floor still supports.
+
+    THE PRECONDITION USES THE SCOPED LOOKUP, and not because it reads better: calling
+    the deprecated `async_get_device` from a TEST is a RuntimeError on this core
+    (ReportBehavior.ERROR, removed in 2027.8.0), since the deprecation is reported
+    against the calling frame and a test is not an integration. Production may still
+    call it -- `custom_components/eufy_vacuum/...` is an integration frame, which is
+    why [RD-6] exercises that same fallback without complaint. The first draft of this
+    test used it and went red before any mutation.
+
+    An entity with no config entry is the YAML / manually-created shape, which is why
+    the registry permits it at all.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.roborock import dock as rb_dock
+
+    entry = MockConfigEntry(domain="roborock", entry_id="rd7_entry")
+    entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    robot = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd7_duid")},
+    )
+    planted_dock = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd7_duid_dock")},
+    )
+    # no `config_entry=` -- the entity exists, carries the right device, owns no entry
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", "roborock", "rd7_uid",
+        suggested_object_id="rd7", device_id=robot.id,
+    )
+    assert er.async_get(hass).async_get(vac.entity_id).config_entry_id is None, (
+        "the fixture gained a config entry, so this test no longer reaches the guard"
+    )
+    assert dev_reg.async_get_device_by_identifier(
+        ("roborock", "rd7_duid_dock"), entry.entry_id
+    ) is planted_dock, (
+        "precondition: the dock IS in the registry under the robot's entry, so the "
+        "only thing keeping the lookup off it is the entity owning no entry"
+    )
+
+    if old_core:
+        monkeypatch.delattr(dr.DeviceRegistry, "async_get_device_by_identifier")
+        assert not hasattr(dev_reg, "async_get_device_by_identifier"), (
+            "precondition: the registry must look like a core older than 2026.8"
+        )
+
+    assert rb_dock.find_dock_device(hass, vac.entity_id) is None
+
+
+def test_rd8_a_device_with_no_roborock_identifier_resolves_to_none(hass):
+    """[RD-8] The duid is read off the vacuum's own device, and may not be there.
+
+    `find_dock_device` collects identifiers whose domain is `roborock` and gives up if
+    there are none. That is reachable without anything being broken: the dock profile
+    is consulted for a vacuum through the Roborock adapter, but the device carrying
+    that entity can be registered by another integration -- and a device's identifiers
+    are whatever its creator wrote.
+
+    THE OTHER-DOMAIN IDENTIFIER IS THE WHOLE POINT, so the device here carries a real
+    one (`("other", "rd8_duid")`) rather than none at all. A lookup that read
+    identifiers without filtering by domain would form `rd8_duid_dock`, find the
+    planted dock, and return it -- so the registered dock is again what gives the None
+    its meaning, and dropping `if domain == ROBOROCK_DOMAIN` is the named red input.
+
+    THE `if not duids` GUARD IT CROSSES IS UNOBSERVABLE, measured: with `if False` in
+    its place, an empty `duids` makes `wanted` empty and the loop below falls straight
+    to `return None`. The guard is an early exit whose fallthrough agrees with it, so
+    this test executes it without being able to see it -- the bite is in the filter
+    above, not in the guard.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.roborock import dock as rb_dock
+
+    entry = MockConfigEntry(domain="roborock", entry_id="rd8_entry")
+    entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    robot = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("other", "rd8_duid")},
+    )
+    dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd8_duid_dock")},
+    )
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", "roborock", "rd8_uid",
+        suggested_object_id="rd8", device_id=robot.id, config_entry=entry,
+    )
+
+    assert rb_dock.find_dock_device(hass, vac.entity_id) is None

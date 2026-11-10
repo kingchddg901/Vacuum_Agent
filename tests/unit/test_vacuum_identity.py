@@ -27,6 +27,9 @@ Coverage targets
 [VI-9] a REGISTERED vacuum with no state is real — an offline one must not be swept.
 [VI-10] a non-dict bucket contributes NOTHING to a delete plan — the filter that makes
        the sweep loop's own type re-check unreachable.
+[VI-11] `hass=None` — the bare-manager fallback the docstring promises: a stored record
+       is still proof, an unknown id is still rejected, and neither raises.
+[VI-12] a `hass` with no `states` at all is tolerated rather than dereferenced.
 """
 
 from __future__ import annotations
@@ -271,3 +274,57 @@ def test_vi_10_a_non_dict_bucket_never_reaches_the_sweep_loop():
 # one would take a vacuous test or a pragma on a non-logger line. Stated here rather
 # than papered over.
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# [VI-11]/[VI-12] the two harness-tolerance guards. The module's own docstring
+# promises an "unknown hass" falls back to the stored record "rather than rejecting
+# everything", and both guards are written with that in mind.
+# ---------------------------------------------------------------------------
+
+def test_vi_11_a_none_hass_falls_back_to_the_stored_record():
+    """[VI-11] `hass=None`, asserted as the asymmetry the docstring describes.
+
+    The promise is not "returns False"; it is that the stored record ALONE still
+    decides. So the pair is what matters: with no hass at all a vacuum we have
+    records for is still real, and one we do not is still rejected. Asserting only
+    the False half would be satisfied by a function that rejected everything, which
+    is precisely the behaviour the guard exists to avoid.
+
+    THE GUARD'S EXISTENCE IS UNOBSERVABLE; ITS VERDICT IS NOT. Measured: replacing
+    `if hass is None: return False` with `if False` keeps this green, because
+    `getattr(None, "states", None)` is None and the registry lookup below then raises
+    into the broad `except` and returns False anyway -- the same answer by a longer
+    road. So the named red input is the guard answering WRONGLY: `return True` in
+    place of `return False` reddens the unknown-id assertion while leaving the
+    stored-record one untouched, which is the asymmetry this test exists for.
+
+    Worth being exact about, because the obvious candidate does not reach: narrowing
+    the `except Exception` below cannot affect this test at all, since a None hass
+    returns two lines ABOVE the try and never enters it.
+    """
+    stored = _data(vacuums={_GONE: {}})
+    assert is_real_vacuum(None, stored, _GONE) is True, (
+        "a stored record stopped being proof once hass was unknown"
+    )
+    assert is_real_vacuum(None, stored, _FAKE) is False
+    assert is_real_vacuum(None, _data(), _REAL) is False
+
+
+def test_vi_12_a_hass_with_no_states_is_tolerated_not_dereferenced():
+    """[VI-12] The `getattr(hass, "states", None)` guard, which is not decoration.
+
+    Every other test in this file passes a `SimpleNamespace` carrying `states`, so
+    the FALSE arm of that guard -- a hass object without the attribute at all -- had
+    never been taken. It is the shape a partially-built harness or a stand-in object
+    has, and the guard is why it gets a verdict instead of an AttributeError.
+
+    THE STORED-RECORD HALF IS THE CONTROL: the same stateless hass still resolves a
+    vacuum we have records for, which separates "tolerated the missing attribute"
+    from "gave up on everything". Removing the guard (`if True:`) reddens this by
+    raising on `hass.states`, which is the named red input.
+    """
+    stateless = SimpleNamespace()
+
+    assert is_real_vacuum(stateless, _data(maps={_GONE: {}}), _GONE) is True
+    assert is_real_vacuum(stateless, _data(), _FAKE) is False

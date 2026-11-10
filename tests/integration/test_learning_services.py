@@ -68,6 +68,10 @@ Coverage targets
 [LS-54] _auto_record_accuracy returns None when no room yields a usable actual (manager 685, 711).
 [LS-55] finalize_learning_for_active_job derives battery_end from the live adapter battery entity when omitted (manager 3598-3599).
 [LS-58] accuracy normalization prefers EXPLICIT avg_abs_error_percent/confidence_weight over derived (manager 813, 822).
+[LS-73] get_external_pending_runs attaches the FULL per-map room list, numeric room
+       keys coerced to int so the wizard's ids match the queue's.
+[LS-74] ...and a NON-NUMERIC room key empties that list, because the dead eager default
+       in get_managed_rooms calls int() on it and raises into the handler's except.
 [LS-60] get_learning_history_snapshot profile_key + used_for_learning filters prune room_profiles rows (manager 971, 978).
 [LS-64] profile_key filter swaps summary.selected_profile for the matching ENRICHED entry (manager 1321).
 [LS-67] restore_learning_job coerces malformed outcome/learning_blockers before restoring (manager 1664, 1668).
@@ -82,6 +86,7 @@ Coverage targets
 from __future__ import annotations
 
 import pytest
+from homeassistant.core import callback
 
 from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
@@ -213,7 +218,7 @@ def _listen_job_finished(hass) -> list:
     from custom_components.eufy_vacuum.const import EVENT_JOB_FINISHED
 
     events: list = []
-    hass.bus.async_listen(EVENT_JOB_FINISHED, lambda e: events.append(e))
+    hass.bus.async_listen(EVENT_JOB_FINISHED, callback(lambda e: events.append(e)))
     return events
 
 
@@ -4245,3 +4250,119 @@ async def test_metrics_snapshot_takes_the_same_profile_name_axis(hass, learning_
         "vacuum_deep" in {sig.get("selected_profile_name"), sig.get("resolved_profile_name")}
         for sig in deep_sigs
     ), f"a signature from another profile survived: {deep_sigs}"
+
+
+# ---------------------------------------------------------------------------
+# [LS-73] / [LS-74] the room list attached to every pending run. The wizard offers
+# these rooms, so an empty list is not a cosmetic loss -- it is a review the user
+# cannot complete.
+# ---------------------------------------------------------------------------
+
+async def test_ls73_pending_runs_carry_the_full_room_list_with_int_ids(
+    hass, learning_services
+):
+    """[LS-73] The attach loop, and the `int(rid)` that makes the ids usable.
+
+    Managed rooms are stored keyed by STRING ("1", "2") because JSON has no integer
+    keys, while the queue and every room_id the wizard posts back are ints. The
+    coercion is what makes the offered list comparable to the shortlist beside it; a
+    list of `"1"` against a shortlist of `1` matches nothing and the wizard offers
+    rooms that cannot be selected.
+
+    THE ASSERTION IS ON THE TYPE AS WELL AS THE VALUE, which is the whole point -- `==`
+    would not separate `1` from `"1"` in a set membership check written loosely, so the
+    ids are compared to a set of real ints and the room_id of a named room is checked
+    with `is` against its int.
+
+    `name or slug` is asserted on a room with NO name, because that fallback is what
+    stops the wizard drawing a blank row for a room the user never renamed.
+    """
+    from tests.integration.conftest import setup_map
+    from custom_components.eufy_vacuum.learning.services import (
+        SERVICE_GET_EXTERNAL_PENDING_RUNS,
+    )
+
+    setup_map(learning_services, _VAC, _MAP, count=2)
+    rooms_bucket = (
+        learning_services.data["maps"][_VAC][_MAP]["rooms"]
+    )
+    rooms_bucket["1"]["slug"] = "kitchen"
+    rooms_bucket["1"]["name"] = "Kitchen"
+    rooms_bucket["2"]["slug"] = "hallway"
+    rooms_bucket["2"].pop("name", None)
+
+    _write_v2_pending(hass, "job_2026-06-07T05-00-00Z")
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_EXTERNAL_PENDING_RUNS,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True,
+    )
+    rec = next(
+        r for r in result["pending"]
+        if r["pending_job_id"] == "job_2026-06-07T05-00-00Z"
+    )
+
+    offered = rec["rooms"]
+    assert offered, "the wizard was offered no rooms at all"
+    assert {r["room_id"] for r in offered} == {1, 2}, (
+        "the room ids are not ints, so nothing the wizard offers matches the queue"
+    )
+    by_id = {r["room_id"]: r for r in offered}
+    assert by_id[1]["slug"] == "kitchen" and by_id[1]["name"] == "Kitchen"
+    assert by_id[2]["name"] == "hallway", (
+        "a room with no name must fall back to its slug, not a blank row"
+    )
+
+
+async def test_ls74_a_non_numeric_room_key_empties_the_offered_room_list(
+    hass, learning_services
+):
+    """[LS-74] The broad `except` round that loop, and what reaches it.
+
+    A non-numeric room key is not hypothetical: `set_custom_segments` mints segment
+    ids as `custom_1`, `custom_2`. The handler's own `int(rid)` fallback is written for
+    exactly that shape -- and it never gets the chance, because
+    `get_managed_rooms` raises FIRST.
+
+    MEASURED, AND ALREADY DESCRIBED IN THE CODE: `room_crud.py` passes
+    `build_room_selection_summary(managed_rooms=rooms)` as the DEFAULT argument to
+    `map_bucket.get("summary", ...)`. Python evaluates that eagerly on every call, so
+    the summary is computed and thrown away each time -- and it calls `int()` on every
+    room key. The comment at `room_crud.py:629` says so in as many words. The
+    exception lands in this handler's `except Exception`, which logs and leaves the
+    room list as it found it.
+
+    SO THE WIZARD IS OFFERED NOTHING, not even the numeric rooms that were fine: the
+    list is built in place and the raise happens before any append. That is the claim
+    here, and it is asserted as the ASYMMETRY against [LS-73] -- same seeded map, same
+    pending record, one extra room key, and a list that goes from two rooms to none.
+
+    This pins current behaviour. The one-token repair is named in that comment and is
+    deliberately unlanded, so a fix is a decision about a read path every map goes
+    through, not a coverage-pass edit.
+    """
+    from tests.integration.conftest import setup_map
+    from custom_components.eufy_vacuum.learning.services import (
+        SERVICE_GET_EXTERNAL_PENDING_RUNS,
+    )
+
+    setup_map(learning_services, _VAC, _MAP, count=2)
+    rooms_bucket = learning_services.data["maps"][_VAC][_MAP]["rooms"]
+    rooms_bucket["1"]["slug"] = "kitchen"
+    rooms_bucket["custom_1"] = {"slug": "hallway_nook", "name": "Hallway nook"}
+
+    _write_v2_pending(hass, "job_2026-06-07T06-00-00Z")
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_EXTERNAL_PENDING_RUNS,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True,
+    )
+    rec = next(
+        r for r in result["pending"]
+        if r["pending_job_id"] == "job_2026-06-07T06-00-00Z"
+    )
+
+    assert rec["rooms"] == [], (
+        "the room list survived a non-numeric key -- re-read "
+        "room_crud.py::get_managed_rooms, the eager summary default may have been "
+        "repaired, and [LS-73]'s sibling claim now needs rewriting rather than this "
+        "assertion loosening"
+    )

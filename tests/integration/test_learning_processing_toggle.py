@@ -14,6 +14,10 @@
        sequence -- accumulators, cache invalidate, cache preload -- against the
        archive as it stands AFTER the write.
 [LP-11] ...and the cache half is not optional just because the runtime is.
+[LP-12] the `set_learning_processing` SERVICE -- the toggle's own handler, which had no
+       test: the response's `caught_up` is what separates the two directions.
+[LP-13] the `process_pending_runs` SERVICE -- likewise untested; the pending counter
+       going back to zero is what proves the catch-up ran rather than returned.
 """
 
 from __future__ import annotations
@@ -27,8 +31,10 @@ from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
 from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
 from custom_components.eufy_vacuum.learning.services import (
     SERVICE_EXCLUDE_LEARNING_JOB,
+    SERVICE_PROCESS_PENDING_RUNS,
     SERVICE_REBUILD_LEARNING_STATS,
     SERVICE_RESTORE_LEARNING_JOB,
+    SERVICE_SET_LEARNING_PROCESSING,
     _get_learning_manager,
     async_register_learning_services,
     async_unregister_learning_services,
@@ -477,3 +483,148 @@ async def test_a_rebuild_claiming_service_without_a_runtime_still_refreshes_the_
     )
     spy_invalidate.assert_called_once_with(vacuum_entity_id=_VAC)
     spy_preload.assert_called_once_with(vacuum_entity_id=_VAC)
+
+
+# ---------------------------------------------------------------------------
+# [LP-12] / [LP-13] the two SERVICE handlers for this toggle, which had no test of
+# any kind -- both whole bodies were uncovered, so the registry wiring, the parameter
+# plumbing and the no-runtime answer were all unasserted. They are driven through
+# `hass.services.async_call` against the REAL runtime, because the handlers are
+# closures inside `async_register_learning_services` and the registry is the only way
+# in; calling the manager method directly walks past the wiring under test.
+# ---------------------------------------------------------------------------
+
+async def test_lp12_the_set_learning_processing_service(
+    hass, learning_services, archived_job, monkeypatch
+):
+    """[LP-12] The toggle's own service, in both directions and with no runtime.
+
+    `caught_up` IS THE DISCRIMINATOR, and it is why both directions are asserted in one
+    test. Turning the toggle OFF must not run a catch-up -- collection continues and
+    there is nothing to process -- while turning it ON from OFF must, because that is
+    the whole reason the backlog exists. Both calls return a dict with `enabled` set, so
+    `enabled` alone cannot tell a working handler from one that flipped a flag and
+    stopped; `caught_up` being None one way and a result the other is what does.
+
+    THE PENDING COUNTER IS THE SECOND, INDEPENDENT READ. `caught_up` is what the handler
+    SAYS; the counter reaching zero is what the catch-up DID. A bumped counter before
+    the ON call and a zero after it cannot both be satisfied by a response shape.
+
+    `was` is asserted on both calls because it is the field a card uses to decide
+    whether anything changed, and it is read BEFORE the write -- a handler that read it
+    after would report the new value as the old one and both flips would look like
+    no-ops.
+
+    THE NO-RUNTIME ANSWER IS A DISTINCT PAYLOAD, not an empty one: during setup or after
+    a failed entry load `hass.data` has no runtime, and the card needs to tell "the
+    toggle is off" from "nobody answered".
+
+    TWO PRECONDITIONS, AND BOTH HAD TO BE MEASURED RATHER THAN ASSUMED. The catch-up
+    walks `data["vacuums"]`, and the `manager` fixture registers an ADAPTER for
+    vacuum.alfred without a managed-vacuum record -- so `ensure_vacuum_record`, the
+    real producer of that record. And `CoreManager._get_learning_manager()` reads
+    `hass.data[DOMAIN][DATA_LEARNING]`, which production creates at setup
+    (`__init__.py:887`) and the fixture does not, so the catch-up answered
+    `learning_unavailable`.
+
+    BOTH FAILURES RENDER AS `processed == []`, which is why the empty list is never the
+    assertion here: an unmanaged vacuum, an absent learning manager and a handler that
+    does not delegate at all are three different bugs with one appearance. The vacuum
+    is named in the expectation and `reason` is asserted absent.
+    """
+    core_manager = hass.data[DOMAIN][DATA_RUNTIME]
+    core_manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _get_learning_manager(hass)          # the setup-time wiring, via its own accessor
+    assert core_manager.learning_processing_enabled is True, "precondition: starts ON"
+
+    off = await hass.services.async_call(
+        DOMAIN, SERVICE_SET_LEARNING_PROCESSING,
+        {"enabled": False}, blocking=True, return_response=True,
+    )
+    assert off == {"enabled": False, "was": True, "caught_up": None}
+    assert core_manager.learning_processing_enabled is False, (
+        "the service reported the flip but the flag did not move"
+    )
+
+    core_manager._bump_learning_pending(_VAC)
+    assert core_manager.get_learning_pending_runs(_VAC) == 1
+
+    on = await hass.services.async_call(
+        DOMAIN, SERVICE_SET_LEARNING_PROCESSING,
+        {"enabled": True}, blocking=True, return_response=True,
+    )
+    assert on["enabled"] is True and on["was"] is False
+    assert isinstance(on["caught_up"], dict), (
+        "turning processing back on did not run the catch-up, so the backlog collected "
+        "while it was off stays unprocessed and the estimator stays dark"
+    )
+    assert _VAC in on["caught_up"]["processed"]
+    assert "reason" not in on["caught_up"], (
+        "the catch-up bailed early (%s) rather than processing the vacuum"
+        % on["caught_up"].get("reason")
+    )
+    assert core_manager.get_learning_pending_runs(_VAC) == 0, (
+        "the catch-up reported success without clearing the pending counter"
+    )
+
+    monkeypatch.delitem(hass.data[DOMAIN], DATA_RUNTIME)
+    assert await hass.services.async_call(
+        DOMAIN, SERVICE_SET_LEARNING_PROCESSING,
+        {"enabled": True}, blocking=True, return_response=True,
+    ) == {"error": "manager_unavailable"}
+
+
+async def test_lp13_the_process_pending_runs_service(
+    hass, learning_services, archived_job, monkeypatch
+):
+    """[LP-13] The catch-up button's service, also previously untested.
+
+    This is the path [LP-6] describes from the manager side -- a catch-up that clears
+    the backlog without touching the toggle -- reached through the service a card
+    actually calls.
+
+    THE THREE READS ARE DELIBERATELY INDEPENDENT. `count` is what the handler returns,
+    `processed` names WHICH vacuum it did (a count of 1 is satisfied by processing the
+    wrong one), and the pending counter dropping to zero is the side effect, observed
+    on the manager rather than in the response. A handler returning a plausible dict
+    without delegating satisfies none of the last two.
+
+    THE TOGGLE MUST NOT MOVE: this service processes the backlog, it does not turn
+    processing on, and conflating them would silently re-enable per-run rebuilds for a
+    user who only wanted to clear a queue.
+
+    THE SAME TWO PRECONDITIONS AS [LP-12], for the reasons set out there: a managed
+    vacuum record (an adapter registration is not one) and the setup-time learning
+    manager. Without either, this service returns `processed: []` and a `reason`, which
+    is why the vacuum is named and the reason asserted absent.
+    """
+    core_manager = hass.data[DOMAIN][DATA_RUNTIME]
+    core_manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _get_learning_manager(hass)
+    core_manager.data["learning_processing_enabled"] = False
+    core_manager._bump_learning_pending(_VAC)
+    core_manager._bump_learning_pending(_VAC)
+    assert core_manager.get_learning_pending_runs(_VAC) == 2
+
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_PROCESS_PENDING_RUNS,
+        {}, blocking=True, return_response=True,
+    )
+    assert "reason" not in result, (
+        "the catch-up bailed early (%s) rather than processing the vacuum"
+        % result.get("reason")
+    )
+    assert _VAC in result["processed"]
+    assert result["count"] == len(result["processed"])
+    assert core_manager.get_learning_pending_runs(_VAC) == 0, (
+        "the service claimed the backlog was processed but left the counter standing"
+    )
+    assert core_manager.learning_processing_enabled is False, (
+        "clearing the backlog also switched processing on, which the user did not ask for"
+    )
+
+    monkeypatch.delitem(hass.data[DOMAIN], DATA_RUNTIME)
+    assert await hass.services.async_call(
+        DOMAIN, SERVICE_PROCESS_PENDING_RUNS,
+        {}, blocking=True, return_response=True,
+    ) == {"error": "manager_unavailable"}
