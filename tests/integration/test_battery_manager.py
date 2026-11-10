@@ -69,6 +69,7 @@ from custom_components.eufy_vacuum.battery.manager import (
     REGIME_PCT_MAX,
     REGIME_PCT_MIN,
     BatteryHealthManager,
+    _parse_iso,
 )
 
 
@@ -985,3 +986,100 @@ def test_bm32_the_delayed_path_is_the_coalescing_one(bm, manager):
     bm._schedule_save_delayed()
 
     assert reached == ["delayed"], reached
+
+
+def test_bm34_parse_iso_passes_aware_through_and_coerces_naive():
+    """[BM-34] Every timestamp in this module arrives through `_parse_iso`.
+
+    It reads session starts and ends, pending post-job stamps and job metrics -- all of
+    which come off persisted storage as strings, but some of which arrive as real
+    `datetime` objects from live code. Both shapes have to land in the same tz-aware
+    form, because the arithmetic downstream subtracts them.
+
+    THE AWARE AND NAIVE CASES ARE ASSERTED DIFFERENTLY ON PURPOSE. An already-aware
+    value is returned UNCHANGED -- asserted with `is`, which also shows no copy is made
+    -- while a naive one is coerced to UTC, asserted by equality plus its tzinfo. Using
+    `==` for both would not distinguish passing a value through from rebuilding it, and
+    the two arms are separate statements.
+
+    The junk string is the third arm: `datetime.fromisoformat` raises ValueError on it,
+    and returning None rather than propagating is what lets one corrupt stored stamp be
+    skipped instead of taking down a whole health update.
+    """
+    aware = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
+    assert _parse_iso(aware) is aware, "an aware datetime must pass through untouched"
+
+    naive = datetime(2026, 1, 1, 10, 0)
+    coerced = _parse_iso(naive)
+    assert coerced == aware
+    assert coerced.tzinfo is timezone.utc
+
+    assert _parse_iso("not-a-date") is None
+    assert _parse_iso("2026-01-01T10:00:00Z") == aware, (
+        "a trailing Z is rewritten to +00:00 before parsing"
+    )
+
+
+def test_bm35_a_corrupt_session_row_and_a_duplicate_are_both_skipped(bm):
+    """[BM-35] The retained-qualifying scan walks persisted session history.
+
+    `session_history_recent` is storage, so a row can be a string or a None, and the
+    next statement calls `.get` on it. The scan also runs on EVERY health update, so
+    without the duplicate check a session would be re-appended on each pass and the
+    retained set would grow without bound until the 500-row trim caught it.
+
+    TWO CALLS ARE THE DUPLICATE CLAIM. One call cannot distinguish "appended once" from
+    "appends every time"; the second call is what shows the key check works. The junk
+    rows come FIRST so a `break` in place of the skip would never reach the qualifying
+    session at all.
+
+    The expectation is the exact one-element list, not a length: an empty list is what
+    a scan that gave up returns, and `[session]` names which row survived.
+    """
+    rec = bm.ensure_record(_VAC)
+    session = {
+        "start_ts": "2026-01-01T10:00:00+00:00",
+        "end_ts": "2026-01-01T11:00:00+00:00",
+        "start_battery": 40,          # <= HEALTH_QUALIFY_START_MAX
+        "cc_min_per_pct": 2.0,        # ...and real CC attribution
+    }
+    rec["session_history_recent"] = ["junk", None, session]
+
+    bm._update_health(rec)
+    assert rec["health_qualifying_sessions"] == [session]
+
+    bm._update_health(rec)
+    assert rec["health_qualifying_sessions"] == [session], (
+        "the same session was retained twice; the duplicate key check did not fire"
+    )
+
+
+def test_bm36_rebaseline_clears_a_legacy_key_without_inventing_one(bm):
+    """[BM-36] The legacy `min_per_pct` field, present only on pre-regime-split records.
+
+    Rebaseline exists for a battery swap, and its contract is that a cleared record
+    looks consistently empty "regardless of upgrade history". A record written before
+    the CC/CV split carries a single `min_per_pct`; leaving it populated would show a
+    stale pre-swap charge speed beside freshly-nulled CC and CV figures.
+
+    THE PAIR IS ASYMMETRIC, which is what makes both halves of `if "min_per_pct" in
+    baseline` bite. An upgraded record has the key and must come back None; a record
+    that never had it must NOT GAIN one. Forcing the condition true adds the key to the
+    second record and reddens the control; removing the block leaves the first
+    populated and reddens the first assertion. Asserting only the first would pass
+    against an unconditional assignment.
+    """
+    upgraded = bm.ensure_record(_VAC)
+    upgraded["baseline"]["min_per_pct"] = 0.7
+
+    fresh_vac = "vacuum.bm36_fresh"
+    fresh = bm.ensure_record(fresh_vac)
+    assert "min_per_pct" not in fresh["baseline"]
+
+    assert bm.rebaseline(_VAC) is True
+    assert bm.rebaseline(fresh_vac) is True
+
+    assert upgraded["baseline"]["min_per_pct"] is None
+    assert "min_per_pct" not in fresh["baseline"], (
+        "a record with no upgrade history gained a legacy field it never had"
+    )
