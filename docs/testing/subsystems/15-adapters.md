@@ -1130,18 +1130,36 @@ guard, and defensive continues — each geometry-sensitive or best-effort.
 Tested in `test_segmentor.py` + `test_segmentor_splitters.py`; held here on
 purpose, a known thin spot rather than a framework miss.
 
-### `eufy/segmentor.py` — 92.38%, and the ceiling is NOT YET ESTABLISHED
+### `eufy/segmentor.py` — 92.38%, and the honest ceiling is 95.59%
 
 Measured 2026-11-10: 868 statements and 378 branches, of which **53 statements and 42
 partial branches are uncovered — 1151/1246 = 92.38%.** The paragraph above says 91% and
 calls what remains "splitter-internal *alternative* sub-branches … each geometry-sensitive
-or best-effort." Both halves are now wrong, and the second one mattered: it reads as a
-statement that the rest is unreachable, and **ten of those statements are reachable from
-the public entry point.**
+or best-effort." Both halves are wrong, and the second one mattered: it reads as a
+statement that the rest is unreachable, and **95% is reachable here with honest tests.**
 
-This section deliberately records a ceiling that is **open**, because the honest number is
-not yet known and a recorded ceiling is exactly the artifact that gets cited later as
-authority. What is settled:
+**EVERY UNCOVERED UNIT IS NOW CLASSIFIED, and the arithmetic closes exactly:** 53
+statements partition into 23 pipeline-reachable, 7 unit-tier-only and 23 unreachable; the
+42 partial branches into 36 paired with an uncovered statement (they close together with
+it, so they are not separate units) and 6 orphan arcs whose uncovered arm jumps to an
+already-covered line.
+
+| | units | coverage |
+|---|---|---|
+| today | — | 1151/1246 = **92.38%** |
+| + every pipeline-reachable unit | +40 | 1191/1246 = **95.59%** |
+| + unit-tier tests as well | +15 | 1206/1246 = 96.79% |
+
+95% needs 1183 units and the pipeline-honest route reaches 1191, so it clears by **8
+units**. The second row is weaker evidence and is recorded only for completeness: those
+tests assert against states the production caller cannot produce — a disconnected
+`component_mask`, a `(h, w, 0)` channel array, an `ndarray` subclass whose `nonzero()`
+lies — so they would raise the number without pinning any behaviour a user can reach.
+
+Every reachable claim below was produced by one agent and then **rebuilt from its recipe
+alone by a second**, which is why the recipes are recorded rather than the probes: 10 of 10
+reproduced, and where a verifier re-derived something the recipe omitted, the recipe was
+corrected here. What is settled:
 
 **TEN STATEMENTS ARE PIPELINE-REACHABLE — verified, with recipes.** Each reaches its line
 through `detect_room_segments()` on a synthetic PNG, with nothing patched. Synthetic
@@ -1213,21 +1231,64 @@ above 4. It is **not applied**: raising it makes the tag start firing into
 `_component_should_keep`, so regions currently kept could start being dropped, and users
 have linked rooms to those segments.
 
-**WHAT IS NOT CLASSIFIED, AND WHY THE CEILING STAYS OPEN.** Nineteen statements in the
-pipeline body — `:1123/1124`, `:1177`, `:1189`, `:1302/1303`, `:1415`–`:1429`, `:1510`,
-`:1518`, `:1533` — were outside this pass's scope and have had no reachability verdict. If
-most are reachable, 95% is back in range (≈96.3% if all are). Anyone closing this out
-starts there, not with the ten above.
+**THIRTEEN MORE STATEMENTS AND THREE ARCS IN THE PIPELINE BODY ARE ALSO REACHABLE**, which
+is what moves the ceiling over 95%. Same standard — produced, then rebuilt from the recipe
+by a second agent.
 
-Five more statements (`:186`, `:236`, `:277`, `:465`, `:886`) fire **only** when a helper is
-called directly with a state its sole caller cannot produce — a disconnected
-`component_mask`, a `(h, w, 0)` channel array, or an `ndarray` subclass whose `nonzero()`
-lies. Those are recorded as reached-but-not-worth-asserting rather than as coverage.
+| symbol · line | what it refuses | the input that reaches it |
+|---|---|---|
+| `segmentor.py::_detect_room_segments_pipeline` `:1123`, `:1124` | the assist-registration `except` | **an assist path that does not resolve.** A truncated PNG works (the boundary is tight: 99% of the bytes decodes, 95% raises `OSError: image file is truncated`), as does a forged IHDR (`DecompressionBombError`), but the cheap route needs no corrupt file at all — see the defect note below |
+| …same function `:1418`, `:1419` | `low_saturation_large_parent` | 400² white canvas, a 240² block of `(255,230,230)`. The saturation ladder is sharp: mean sat 30/31 keeps the segment, 29/25/21/19 drops it, and at 17 the room gate discards the block entirely |
+| …same function `:1423`–`:1425` | `localized_child_too_small` | a localized-bins accept whose child is under both `area_percent < 0.0025` and `max(1100, min_area*0.9)` |
+| …same function `:1427`–`:1429` | `localized_child_sparse` | the `elif` arm — a child that is sparse (`fill_ratio < 0.12`) but **not** tiny, so a large bounding box holding few pixels |
+| …same function `:1510` | `break` once the deficit closes | recovery must actually succeed first, then leave another candidate behind it |
+| …same function `:1518` | a deferred candidate over 20% of frame | — |
+| …same function `:1533` | `_component_should_keep` refusing in `recovery_mode` | — |
+| arcs `532→529`, `646→658`, `854→856` | three orphan branch arms | the uncovered arm jumps to an already-covered line, so only the arc is missing |
 
-Not pursued further because the CV path is **best-effort by design** — the user guide's own
-remedy for "rooms detected wrong (merged/split) and won't nudge right" is *switch to a
-custom layout*, non-destructively — and because every brand VA now supports can supply a
-live map, which makes the whole screenshot-upload path a removal candidate. Recorded rather
+**A DEFECT FOUND BY ASKING HOW `:1123` IS REACHED.** The cheapest real route to that handler
+is a **stale `assist_image_path`**, and it is a live user path, not a probe artifact:
+`mapping/mapping_services.py` writes `tuning["assist_image_path"]` **only when the light
+variant is on disk**, so deleting the light variant leaves the previous path persisted;
+`mapping/segmenter_engines.py` reads it straight into the `detect_room_segments` kwargs; and
+`validate_tuning` accepts the key as a known tuning key with no existence check. So a user
+who removes their light variant keeps a dangling path, the registration raises
+`FileNotFoundError`, and the run silently degrades to single-image mode with the error
+buried in the registration dict. Not fixed here — it is a mapping-services defect, not a
+test gap.
+
+**THREE MORE GUARDS JOIN THE UNREACHABLE SET**, and one is an architectural finding:
+
+| symbol · guard | why it cannot be reached |
+|---|---|
+| `_split_suspicious_component` — `opening_split` accepted `:894`, `:895` | **strategy 7 of 7 is unreachable because strategy 6 subsumes it.** Erosion is tried first and regrows seeds the same way under the same lower-area floor, so any mask that opening can split, erosion already split |
+| `_detect_room_segments_pipeline` — `assist_hue_child_rejected` `:1415`, `:1416` | `_split_component_via_assist_hue`'s own `grown_area > active*0.82` guard means it can never return a child bad enough to be rejected downstream |
+| `_detect_room_segments_pipeline` — degenerate polygon `:1302`, `:1303` | `segment_primitives.py::mask_to_polygon` unconditionally restores the best loop when simplification drops below 4 points, so the `< 4` test downstream can never see one |
+| `_detect_room_segments_pipeline` — empty cluster mask `:1177` | exact duality: `active_bins` is built *from* `hue_bin[room_mask]`, so every bin in it has at least one pixel |
+| `_detect_room_segments_pipeline` — `label_slice is None` `:1189` | `ndimage.label` relabels to a consecutive 1…n set, so `find_objects` never returns a `None` entry. It *can* for a gapped label array, so the guard defends against a producer other than `label()` |
+
+Seven statements (`:186`, `:236`, `:277`, `:465`, `:874`, `:875`, `:886`) and two arcs
+(`430→434`, `436→440`) fire **only** when a helper is called directly with a state its sole
+caller cannot produce. `:874/:875` are the clearest case: `_split_component_via_local_support`
+can never *accept* on a connected mask, because `binary_propagation` re-floods the whole
+component and every grown mask then trips the upper-area guard — and the pipeline's
+`component_mask` is connected by construction.
+
+**AN INSTRUMENT WORTH KEEPING.** The fixture pair was thought to be the only input that makes
+`localized_bins` accept. It is not: a 700² white canvas with a 450² block painted as six equal
+vertical stripes of `(255,x,x)` for `x` in {0,40,80,120,160,230} accepts with 6 candidates and
+no assist image at all. That makes the localized child geometry *chosen* rather than inherited,
+which is the right instrument for the `_reclaim_localized_child_mask` arms.
+
+**95% IS AVAILABLE AND WAS DECLINED, which is a different thing from a ceiling.** The forty
+units are recorded above with reproduced recipes, so building them is bounded work rather
+than exploration. It was not done because the CV path is **best-effort by design** — the
+user guide's own remedy for "rooms detected wrong (merged/split) and won't nudge right" is
+*switch to a custom layout*, non-destructively — and because every brand VA now supports can
+supply a live map, which makes the whole screenshot-upload path a removal candidate. Spending
+forty units of test on a subsystem under removal review is the trade being declined; if the
+CV path stays, the recipes are here and the cheapest ones first are `:1418/:1419` (one flat
+pale block) and `:1123/:1124` (a path that does not resolve). Recorded rather
 than `pragma: no cover`'d, since the programme admits a pragma for logger lines only — and
 because an unreachable guard with no written reason is the one that gets "simplified" later.
 
