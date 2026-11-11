@@ -44,6 +44,8 @@ split evenly with an exact-sum-preserving distribution, allocated=True, allocati
 
 from __future__ import annotations
 
+import pytest
+
 import custom_components.eufy_vacuum.jobs.phase_runner as phase_runner_mod
 
 _VAC = "vacuum.ivy"
@@ -839,3 +841,365 @@ async def test_skipped_rooms_dedupes_across_timestamp_ticks(hass, manager, monke
         f"same room, same phase, two different `at` values -> ONE entry; got {skipped}"
     )
     assert skipped[0]["at"] == "2026-01-01T00:00:01Z", "the FIRST refusal's time is kept"
+
+
+# ---------------------------------------------------------------------------
+# [SOPT-24..26] the counter helpers, on inputs a stored sample list really holds
+#
+# `slice_samples` comes out of .storage, so its shape is whatever any past
+# version wrote. These three helpers are the boundary between that and the
+# arithmetic the phase timing does, and each carries refusals that the happy
+# path cannot reach.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("bad", [
+    # the SENTINELS, which take the early return...
+    None, "", "unknown", "unavailable",
+    # ...and the junk, which reaches the conversion and raises
+    "abc", [], {}, object(),
+])
+def test_sopt24_the_conversion_helpers_refuse_a_non_sentinel_junk_value(bad):
+    """[SOPT-24] The except arm, which the sentinel list hides.
+
+    Both helpers open with `if value in (None, "", "unknown", "unavailable")`,
+    and that arm returns THE SAME DEFAULT as the `except` below it -- so a test
+    passing one of those four sentinels cannot tell whether the except exists.
+    A list, a dict or a bare object reaches the conversion and raises TypeError;
+    "abc" raises ValueError, so both members of the caught tuple are exercised.
+
+    BOTH ARMS ARE PARAMETRISED, and that is deliberate: the first four values are
+    the sentinels and the last four are junk. Written with junk alone, the early
+    return at :78 was never taken -- the same mirror-image gap the paragraph above
+    describes, in the test written to close it.
+
+    ⚠ THE SENTINEL SHORT-CIRCUIT IS SUBSUMED, measured. Deleting it changes NO
+    answer: `float(None)` raises TypeError and `float("")` / `float("unknown")`
+    raise ValueError, all caught by the except below, which returns the same
+    default. The tuple is an optimisation that avoids raising, not a behaviour.
+    It is crossed by these parameters and said to be crossed; the except arm
+    beneath it is what carries the red.
+
+    The non-zero defaults are asserted as well, because the whole point of these
+    helpers is that a caller never has to check -- and a default silently pinned
+    to 0 would turn an unreadable counter into a measured zero, which is this
+    codebase's recurring failure rather than a hypothetical one.
+    """
+    assert phase_runner_mod._safe_int(bad) == 0
+    assert phase_runner_mod._safe_int(bad, default=7) == 7
+    assert phase_runner_mod._safe_float(bad) == 0.0
+    assert phase_runner_mod._safe_float(bad, default=1.5) == 1.5
+
+
+def test_sopt25_elapsed_seconds_is_zero_for_unreadable_or_reversed_stamps():
+    """[SOPT-25] A clock skew must never hand the parent a NEGATIVE hold.
+
+    The docstring says it outright: "Clamped at zero: a clock skew must never
+    hand the parent a NEGATIVE hold to subtract from a boundary." So two shapes
+    both answer 0 -- a stamp that will not parse, and a pair in the wrong order --
+    and a real pair still measures.
+
+    THE REAL PAIR IS THE ASSERTION THAT MATTERS. Without it, a helper that
+    returned 0 unconditionally passes every refusal case, and a phase runner that
+    measures every hold as zero looks exactly like one with no holds at all.
+    """
+    assert phase_runner_mod._elapsed_seconds("not-a-timestamp", "2026-01-01T00:05:00Z") == 0
+    assert phase_runner_mod._elapsed_seconds("2026-01-01T00:05:00Z", "nonsense") == 0
+    assert phase_runner_mod._elapsed_seconds("", "") == 0
+
+    # reversed: b before a -> clamped, never negative
+    assert phase_runner_mod._elapsed_seconds(
+        "2026-01-01T00:05:00Z", "2026-01-01T00:00:00Z"
+    ) == 0
+
+    # and a real pair still measures
+    assert phase_runner_mod._elapsed_seconds(
+        "2026-01-01T00:00:00Z", "2026-01-01T00:05:00Z"
+    ) == 300
+
+
+def test_sopt26_a_torn_sample_is_stepped_over_by_every_counter_reader():
+    """[SOPT-26] Three readers walk the same stored list, and all three must survive it.
+
+    `slice_samples` is persisted, so one bad row in it is not hypothetical -- it
+    is whatever an older writer, or a truncated write, left behind. Three
+    functions walk that list and each has its own skip:
+
+      _isolated_spike_indices   non-dict rows
+      _phase_progress_samples   non-dict rows
+      _last_counter_value       non-dict rows, missing values, unconvertible ones
+
+    ⚠ THE MISSING-VALUE SKIP IS SUBSUMED, measured: without `if value is None`,
+    `float(None)` raises TypeError into the except two lines below, which also
+    continues. Same answer, longer road. Crossed, not claimed -- the non-dict
+    skip and the except arm are the two that carry reds here.
+
+    THE GOOD ROWS AROUND THE TORN ONE ARE THE ASSERTION. A reader that gave up at
+    the first bad row would satisfy "no crash" and lose every sample after it --
+    and the phase would then be measured off a truncated slice, which is not an
+    error anywhere downstream: it is simply a smaller number.
+    """
+    # ⚠ THE UNREADABLE ROWS SIT AFTER THE LAST GOOD ONE, because
+    # `_last_counter_value` walks BACKWARDS. With a readable row last it returns
+    # on its first step and never visits the junk -- measured, that ordering left
+    # both of its skip arms uncovered while the test passed.
+    torn = [
+        {"cleaning_time": 10, "cleaning_area": 1.0},
+        "not-a-dict",
+        {"cleaning_time": 20, "cleaning_area": 2.0},
+        {"cleaning_time": 30, "cleaning_area": 3.0},   # <- the last READABLE row
+        {"cleaning_time": None, "cleaning_area": None},
+        {"cleaning_time": "not-a-number", "cleaning_area": "nope"},
+        # a LIST value raises TypeError rather than ValueError, so the caught
+        # tuple's other member is exercised too -- with only the string above,
+        # narrowing `except (TypeError, ValueError)` to ValueError changed no
+        # answer, because the sole TypeError source (None) is pre-empted by the
+        # `value is None` guard. Measured.
+        {"cleaning_time": [], "cleaning_area": {}},
+        None,
+    ]
+
+    # the spike finder walks it without raising
+    muted = phase_runner_mod._isolated_spike_indices(torn, "cleaning_time", 0.0)
+    assert isinstance(muted, set)
+
+    # the rebaser keeps every readable row and drops only the torn ones
+    out = phase_runner_mod._phase_progress_samples([], torn)
+    assert len(out) == 6, (
+        "expected the six dict rows and neither of the two non-dict ones, got %d"
+        % len(out)
+    )
+
+    # the last-value reader walks BACKWARDS past the unreadable tail to row 30
+    assert phase_runner_mod._last_counter_value(torn, "cleaning_time") == 30.0, (
+        "the reader stopped at the unreadable rows instead of stepping over them"
+    )
+    assert phase_runner_mod._last_counter_value(torn, "never_reported") is None, (
+        "a counter that never reported must be None, not 0 -- zero is a reading"
+    )
+
+
+async def test_sopt27_the_capture_refuses_an_index_that_is_not_a_phase(
+    hass, manager, monkeypatch
+):
+    """[SOPT-27] `current_phase_index` can outrun `phases`, and indexing it would raise.
+
+    The index is persisted and advanced by a different code path, so after a
+    truncated write or a migration that dropped a phase it can point past the end
+    — or at a row that is not a dict at all. `phases[idx]` would then raise out
+    of the capture, which runs on the completion path: the phase would not be
+    recorded AND the completion would not finish.
+
+    THE JOB MUST COME BACK UNTOUCHED, which is the assertion here rather than
+    "no raise": a capture that partially wrote before noticing would leave a
+    phase with `room_timing` set and no `_timing_end_t`, and the idempotence
+    guard keys on exactly that.
+    """
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:05:00Z")
+    samples = [
+        _cs(f"2026-01-01T00:04:{s:02d}Z", ct, ca)
+        for s, ct, ca in [(10, 30, 1.0), (50, 120, 4.0)]
+    ]
+
+    for bad_index, why in ((99, "past the end"), (-1, "negative")):
+        job = {
+            "vacuum_entity_id": _VAC, "map_id": _MAP,
+            "started_at": "2026-01-01T00:04:00Z", "ended_at": None,
+            "phases": [_phase(5, "kitchen")],
+            "current_phase_index": bad_index,
+            "resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+            "queue_room_ids": [5],
+            "counter_samples": samples,
+        }
+        _seed_job(manager, job)
+
+        manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+
+        assert "room_timing" not in job["phases"][0], (
+            "an index %s wrote timing onto phase 0 anyway" % why
+        )
+        assert "_timing_end_t" not in job["phases"][0], (
+            "an index %s stamped the idempotence key" % why
+        )
+
+    # a torn phase ROW, not just a bad index
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "started_at": "2026-01-01T00:04:00Z", "ended_at": None,
+        "phases": ["not-a-dict"],
+        "current_phase_index": 0,
+        "resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+        "queue_room_ids": [5],
+        "counter_samples": samples,
+    }
+    _seed_job(manager, job)
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+    assert job["phases"] == ["not-a-dict"], "a torn phase row was written to"
+
+
+async def test_sopt28_an_unreadable_area_falls_back_and_says_so_when_it_cannot(
+    hass, manager, monkeypatch
+):
+    """[SOPT-28] The area fallback has a failure of its own, and it must stay silent-safe.
+
+    [SOPT-3] covers the flat-sensor case where a LEARNED area exists. Two things
+    it does not:
+
+      an `area_m2` that will not convert at all — the `float(...)` raises and
+      `area_ok` has to become False rather than propagate;
+      a room with NO learned area to fall back ON — the row keeps whatever it
+      had and is logged as unresolved, rather than being given a fabricated
+      number.
+
+    THE SECOND IS THE ONE THAT MATTERS FOR LEARNING. Inventing an area here
+    teaches the estimator a size this room never had, and that number then
+    outlives the run. The sibling test above
+    (`test_never_cleaned_phase_records_empty_not_phantom`) names the same hazard
+    from the other direction.
+
+    ⚠ ONLY THE SECOND HALF IS CLAIMED. The `except (TypeError, ValueError)`
+    around `float(rt.get("area_m2") or 0.0)` has no red available: `area_m2` is
+    COMPUTED by the timing code immediately above and is always a float or
+    absent, so no caller can hand it an unconvertible value. Measured --
+    narrowing that except changes no answer. It is a defensive handler over an
+    input its own producer cannot emit.
+    """
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:05:00Z")
+    # NO learned area for room 5 -- the registry knows the room but not its size
+    manager.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {
+        "rooms": {"5": {"slug": "kitchen"}}
+    }
+    flat = [
+        _cs(f"2026-01-01T00:04:{s:02d}Z", ct, 4.0)      # cleaning_area FLAT
+        for s, ct in [(10, 30), (20, 60), (40, 90), (50, 120)]
+    ]
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "started_at": "2026-01-01T00:04:00Z", "ended_at": None,
+        "phases": [_phase(5, "kitchen")],
+        "current_phase_index": 0,
+        "resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+        "queue_room_ids": [5],
+        "counter_samples": flat,
+    }
+    _seed_job(manager, job)
+
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+
+    rt = job["phases"][0].get("room_timing")
+    assert rt and rt[0]["room_id"] == 5
+    assert rt[0].get("area_source") != "learned_fallback", (
+        "an area was invented for a room with no learned size; the estimator "
+        "would be taught a number this room never had"
+    )
+    assert not rt[0].get("area_m2"), (
+        "a flat sensor produced a non-zero area with nothing to source it from: "
+        "%r" % (rt[0].get("area_m2"),)
+    )
+
+
+async def test_sopt29_a_zone_with_no_usable_size_is_skipped_not_counted(hass, manager):
+    """[SOPT-29] Saved zone areas come from a backfill that may not have reached one.
+
+    `_saved_zone_area_sum` returns None "when no zone carries a usable size — a
+    zone the backfill couldn't reach yet". Three shapes it must step over: a zone
+    row that is not a dict, one whose `area_m2` will not convert, and one whose
+    area is zero or negative.
+
+    THE GOOD ZONE BESIDE THEM IS THE ASSERTION. A summer that gave up on the
+    first unusable row would return None for a group that has a perfectly good
+    zone in it, and the caller would then treat a known area as unknown — which
+    is not an error anywhere, just a smaller number fed to learning.
+    """
+    manager.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {
+        "saved_zones": {
+            "1": {"area_m2": 12.5},            # usable
+            "2": "not-a-dict",
+            "3": {"area_m2": "not-a-number"},
+            "4": {"area_m2": 0},               # present but not usable
+        }
+    }
+
+    total = manager.phase_runner._saved_zone_area_sum(
+        _VAC, _MAP, ["1", "2", "3", "4"]
+    )
+    assert total == 12.5, (
+        "expected only the one usable zone to count, got %r" % (total,)
+    )
+
+    none_usable = manager.phase_runner._saved_zone_area_sum(_VAC, _MAP, ["2", "3", "4"])
+    assert none_usable is None, (
+        "a group whose every zone is unusable must report None, not 0.0 -- zero "
+        "is a measured area and None is 'we do not know'"
+    )
+
+
+async def test_sopt30_the_battery_reader_steps_over_unreadable_samples(hass, manager):
+    """[SOPT-30] `_vals` keeps its handler BECAUSE it is also called with "battery".
+
+    The comment beside `_first` says why the two differ: the producer sanitises
+    both counter keys to float-or-None ([SOPT-21]), so `_first` needs no handler
+    — but `battery` is left RAW, and `_vals` reads it. So a battery that arrives
+    as a string, or missing, has to be stepped over here and nowhere else.
+
+    A battery_delta computed off a stream containing one junk reading would
+    otherwise raise out of the timing path, and the phase records nothing.
+    """
+    samples = [
+        {"t": "2026-01-01T00:04:10Z", "cleaning_time": 30, "cleaning_area": 1.0,
+         "battery": 90},
+        {"t": "2026-01-01T00:04:20Z", "cleaning_time": 60, "cleaning_area": 2.0,
+         "battery": None},                      # missing -> skipped
+        {"t": "2026-01-01T00:04:30Z", "cleaning_time": 90, "cleaning_area": 3.0,
+         "battery": "not-a-number"},            # unreadable -> skipped
+        {"t": "2026-01-01T00:04:50Z", "cleaning_time": 120, "cleaning_area": 4.0,
+         "battery": 80},
+    ]
+
+    out = manager.phase_runner._phase_room_timing(5, "kitchen", samples)
+
+    assert out["room_id"] == 5
+    assert out.get("battery_delta") == 10, (
+        "expected 90 - 80 across the two readable samples; got %r -- the junk "
+        "readings were counted or the whole stream was abandoned"
+        % (out.get("battery_delta"),)
+    )
+
+
+async def test_sopt31_segmentation_refuses_a_slice_with_no_counter_baseline(
+    hass, manager
+):
+    """[SOPT-31] No baseline, no segmentation -- and the caller then APPORTIONS.
+
+    `_segment_group_room_timing` returns None when the split could not be
+    observed, and the caller falls back to splitting the measured totals evenly.
+    A slice carrying no readable counter channel has no baseline to rebase from,
+    so there is nothing to segment.
+
+    Returning None rather than empty rows is what keeps the fallback reachable:
+    an empty list reads as "segmented into nothing", and the group would record
+    no rooms at all rather than apportioned ones. The reject is logged with WHICH
+    channel was missing, because absent-entirely and one-channel-absent are
+    different hardware faults.
+
+    ⚠ THE BASELINE GATE ITSELF IS SUBSUMED for this input, measured: a slice with
+    no counter channel is already refused by an earlier segmentation gate, so
+    removing `if base_ct is None or base_area is None` changes no answer here.
+    What this test holds is the REFUSAL -- that the method answers None and the
+    caller's apportioning fallback stays reachable -- not which of the two gates
+    produced it.
+    """
+    no_counters = [
+        {"t": "2026-01-01T00:04:10Z", "battery": 90},
+        {"t": "2026-01-01T00:04:50Z", "battery": 80},
+    ]
+
+    out = manager.phase_runner._segment_group_room_timing(
+        _VAC, [8, 4], {8: "bath", 4: "hall"}, no_counters,
+        {"cleaning_seconds": 120, "area_m2": 4.0, "battery_delta": 10},
+    )
+
+    assert out is None, (
+        "a slice with no counter baseline returned %r instead of None; the "
+        "caller's apportioning fallback is only reached on None, so the group "
+        "would record no rooms at all" % (out,)
+    )

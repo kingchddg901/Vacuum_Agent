@@ -10,6 +10,7 @@ synthesis/DESIGN-phased-jobs.md wave 1. Kept from the pre-wiring probe.
 
 from __future__ import annotations
 
+import copy
 import json
 from unittest.mock import MagicMock
 
@@ -719,3 +720,178 @@ def test_a_phased_run_whose_children_all_failed_keeps_its_merged_record(store):
         result={"completed_job": record},
     )
     assert record["outcome"]["used_for_learning"] is True
+
+
+# ---------------------------------------------------------------------------
+# The skip paths. "Best-effort by design: the parent is review telemetry, and
+# failing to write it must never stop the next phase from dispatching."
+#
+# Every assertion below is that the call RETURNS -- and that it wrote nothing.
+# Returning quietly is the whole contract, so a test that only checked for an
+# absent record would pass against a method that raised before reaching it.
+# ---------------------------------------------------------------------------
+
+def test_parent_record_skips_an_atomic_job_without_raising(store, runner):
+    """A job with no `phases` list is atomic, and atomic runs have no parent.
+
+    `phases` is read straight off the active job, which comes from .storage --
+    so "not a list" is an older writer's shape, not a hypothetical. The method
+    must return rather than index it.
+    """
+    job = _job()
+    _open(store, job)
+    before = copy.deepcopy(_slots(store))
+
+    job["phases"] = None
+    runner._record_phase_to_parent(_VAC, _MAP, job)          # must not raise
+
+    assert _slots(store) == before, (
+        "an atomic job attached a phase to a parent it does not have"
+    )
+
+
+def test_parent_record_skips_a_job_with_no_phased_job_id(store, runner):
+    """No `phased_job_id` means nothing to attach TO.
+
+    A phased job without its own id is the shape a half-written migration leaves
+    behind. The record would otherwise be keyed on an empty string, which collides
+    with every other such job on the same store.
+    """
+    job = _job()
+    _open(store, job)
+    before = copy.deepcopy(_slots(store))
+
+    job["phased_job_id"] = ""
+    runner._record_phase_to_parent(_VAC, _MAP, job)
+
+    assert _slots(store) == before, (
+        "a phase was attached despite an empty phased_job_id -- it would be "
+        "keyed on the empty string, colliding with every other half-written job "
+        "on this store"
+    )
+
+
+@pytest.mark.parametrize("idx", [-1, 99, "not-a-number"])
+def test_parent_record_skips_an_index_that_is_not_a_phase(store, runner, idx):
+    """[index_out_of_range] Three shapes, one refusal.
+
+    `current_phase_index` is persisted and advanced by a different code path, so
+    it can outrun `phases` after a truncated write or a migration that dropped a
+    phase. `_safe_int(..., 0)` turns the unparseable case into 0, which is why
+    the RANGE check and not the parse is what refuses -1 and 99.
+
+    Indexing `phases[99]` would raise IndexError out of a method documented never
+    to interrupt dispatch, which is the specific thing this guards.
+    """
+    job = _job()
+    _open(store, job)
+    before = copy.deepcopy(_slots(store))
+
+    job["current_phase_index"] = idx
+    runner._record_phase_to_parent(_VAC, _MAP, job)
+
+    if idx == "not-a-number":
+        # `_safe_int(..., 0)` turns this into phase 0, which IS a real phase, so
+        # the parent is written. That is the point of the default and it is
+        # asserted rather than skipped: the unparseable case must not become a
+        # refusal, or a job whose index was written as a string stops recording.
+        assert _slots(store) != before, (
+            "an unparseable index refused instead of falling back to phase 0"
+        )
+        return
+    assert _slots(store) == before, (
+        "phase index %r was treated as a real phase" % (idx,)
+    )
+
+
+def test_rearm_refuses_an_atomic_job_and_an_impossible_index(store, runner):
+    """`rearm_dock_phase_if_needed` returns a BOOLEAN, and False is the refusal.
+
+    It re-asserts the dispatch guard a restart cleared. Both refusals answer
+    False rather than raising, because the caller treats False as "nothing to
+    re-arm" and carries on -- a raise here would take down a restart path.
+    """
+    job = _job()
+    job["status"] = "started"
+    job["phases"] = None
+    runner._manager.get_active_job = lambda **kw: job
+    assert runner.rearm_dock_phase_if_needed(
+        vacuum_entity_id=_VAC, map_id=_MAP
+    ) is False, "an atomic job reported something to re-arm"
+
+    job2 = _job()
+    job2["status"] = "started"
+    job2["current_phase_index"] = 99
+    runner._manager.get_active_job = lambda **kw: job2
+    assert runner.rearm_dock_phase_if_needed(
+        vacuum_entity_id=_VAC, map_id=_MAP
+    ) is False, "an out-of-range phase index reported something to re-arm"
+
+
+def test_a_child_finalizer_that_writes_nothing_reports_no_record(store, runner):
+    """The finalizer can decline, and declining is not an error.
+
+    `finalize_from_inputs` returns a dict carrying `completed_job`. A result that
+    is not a dict, or one with no `completed_job`, means no record was written --
+    so there is no child id to report and the phase simply has none.
+
+    THE PHASE MUST NOT GET A `_child_record_id` EITHER. That key is what
+    downstream treats as "this phase has its own record", so stamping it for a
+    record that was never written points a consumer at a store entry that does
+    not exist.
+
+    ⚠ THE EARLY RETURN IS SUBSUMED, measured. Without it `child` is None and
+    `child["phase_key"] = ...` raises TypeError into this method's own
+    `except Exception`, which also returns None. The guard avoids a logged
+    exception, not a wrong answer. Crossed here and said to be crossed; the
+    catch-all below is what carries the red (see the raising test).
+    """
+    job = _job()
+    _open(store, job)
+    learning = runner._manager._get_learning_manager()
+    learning.finalizer.finalize_from_inputs = lambda **kw: {"completed_job": None}
+
+    phase = job["phases"][0]
+    out = runner._finalize_phase_as_child(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        phases=job["phases"], idx=0, phase=phase,
+    )
+
+    assert out is None
+    assert "_child_record_id" not in phase, (
+        "the phase was stamped with a record id for a record that was never "
+        "written; a consumer would look it up and find nothing"
+    )
+
+
+def test_a_child_finalizer_that_RAISES_does_not_stop_the_next_phase(store, runner):
+    """The swallowed-exception case whose comment says it "cost two live runs".
+
+    A child that fails must not stop the next phase from dispatching, so the
+    exception is caught and None returned. The comment beside it records why the
+    TYPE is logged: "AttributeError vs TypeError were two different bugs wearing
+    the same silence."
+
+    RED IF THE except GOES: the exception propagates into the advance path and
+    the run stops at the phase that failed to finalize -- the user's vacuum stays
+    docked mid-run with no error they can see.
+    """
+    job = _job()
+    _open(store, job)
+    learning = runner._manager._get_learning_manager()
+
+    def _boom(**kw):
+        raise AttributeError("the finalizer lost its store")
+
+    learning.finalizer.finalize_from_inputs = _boom
+
+    phase = job["phases"][0]
+    out = runner._finalize_phase_as_child(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        phases=job["phases"], idx=0, phase=phase,
+    )
+
+    assert out is None, (
+        "a raising finalizer escaped the phase runner; the run would stop at the "
+        "phase that failed to write its record"
+    )
