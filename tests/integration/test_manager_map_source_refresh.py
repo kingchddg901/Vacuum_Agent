@@ -917,3 +917,363 @@ def test_lmi_4_a_per_map_entry_pointing_at_nothing_falls_through(hass, manager):
         vacuum_entity_id=_VAC, map_id="Upstairs"
     )
     assert got == "camera.pinned_everywhere", "a dead per-map entry must not win"
+
+
+# ---------------------------------------------------------------------------
+# [GLM-5..6] get_live_mapdata_obj -- the arms zone dispatch depends on
+#
+# "Returns the object, or None when no live map is available -- the caller MUST
+# then refuse to dispatch." Every existing caller of this method mocks it, so the
+# dispatch decision has been tested and the thing it decides on has not.
+# ---------------------------------------------------------------------------
+
+def test_glm5_camera_attrs_yields_the_decoded_mapdata_or_None(manager, monkeypatch):
+    """[GLM-5] The Dreame arm: the decoded MapData reached via the vacuum entity.
+
+    Unlike the other two backends there is no live-image entity involved -- the
+    MapData lives on the base integration's coordinator device, which is the
+    render's own source. `.segments` + `.dimensions` is all the go-to / zone affine
+    needs, so no pose is resolved here.
+
+    BOTH OUTCOMES, because a method whose contract is "object or None" is only
+    half-tested by either alone, and the None is the half that stops a dispatch:
+    a zone sent against a map we could not read goes to the wrong coordinates.
+    """
+    _register(source={"backend": "camera_attrs"})
+    md = object()
+
+    monkeypatch.setattr(
+        msr, "dreame_mapdata_candidates",
+        lambda *a, **k: {"present": True, "map_data": md},
+    )
+    assert manager.map_source.get_live_mapdata_obj(
+        vacuum_entity_id=_VAC, map_id="6"
+    ) is md
+
+    monkeypatch.setattr(
+        msr, "dreame_mapdata_candidates",
+        lambda *a, **k: {"present": False, "reason": "no_coordinator"},
+    )
+    assert manager.map_source.get_live_mapdata_obj(
+        vacuum_entity_id=_VAC, map_id="6"
+    ) is None, "an absent Dreame map must refuse, not return a half-built object"
+
+
+def test_glm6_a_candidate_with_no_mapdata_is_stepped_over_not_fatal(
+    manager, monkeypatch
+):
+    """[GLM-6] The memory arm walks several roots, and the early ones can be empty.
+
+    `_roborock_candidates` returns every plausible root for this vacuum; some hold
+    no MapData at all (a coordinator mid-setup, a sibling device). The loop must
+    keep going rather than take the first answer, which here is None.
+
+    RED IF THE `md is not None` CHECK GOES: the first root's None is returned and
+    zone dispatch refuses on a vacuum whose map is present on the very next
+    candidate. The ORDER is the test -- a single good candidate would pass against
+    a loop that returns on the first iteration whatever it holds.
+    """
+    _register(source={"backend": "memory"})
+    monkeypatch.setattr(manager, "_resolve_live_map_image_entity", lambda **k: "camera.x")
+    md = object()
+    seen: list[str] = []
+
+    monkeypatch.setattr(
+        msr, "roborock_candidates",
+        lambda *a, **k: [("h", "p", "empty_root"), ("h", "p", "good_root")],
+    )
+
+    def _find(root):
+        seen.append(root)
+        return (md, "path") if root == "good_root" else (None, None)
+
+    monkeypatch.setattr(msr, "find_mapdata", _find)
+
+    assert manager.map_source.get_live_mapdata_obj(
+        vacuum_entity_id=_VAC, map_id="6"
+    ) is md
+    assert seen == ["empty_root", "good_root"], (
+        "the walk stopped early or skipped a root: %r" % (seen,)
+    )
+
+
+# ---------------------------------------------------------------------------
+# [MDD-1..3] async_get_map_data_dict -- the raster every pure reader consumes
+# ---------------------------------------------------------------------------
+
+async def test_mdd1_a_non_raster_backend_has_no_map_data_dict(manager, monkeypatch):
+    """[MDD-1] Roborock's memory backend carries no per-pixel room mask.
+
+    The dict this returns feeds `rooms_from_room_pixels`, `current_room_for_pixel`
+    and `zone_membership` -- all of which read a room_pixels raster. The Roborock
+    memory backend has no such thing, so None is the correct answer and not a
+    failure. Returning anything else would have those readers interpret a map of
+    the wrong shape.
+
+    ⚠ THE STORE READ IS MADE TO SUCCEED, and that is the whole fixture. Written
+    without it the guard had NO red: with no store path the read failed anyway and
+    the catch-all answered None, which is the guarded answer too. A reader that
+    returns a raster for any path makes the refusal visible -- unguarded, a
+    Roborock is handed a Eufy raster and the pure readers interpret a map of the
+    wrong shape instead of being told there is none.
+    """
+    monkeypatch.setattr(msr, "eufy_store_path", lambda *a, **k: "/tmp/store.json")
+    monkeypatch.setattr(
+        msr, "load_store_json",
+        lambda path: {"data": {"map_data": {"room_pixels": "AAAA"}}},
+    )
+
+    _register(source={"backend": "memory"})
+    assert await manager.map_source.async_get_map_data_dict(
+        vacuum_entity_id=_VAC
+    ) is None, (
+        "a Roborock memory backend was handed a Eufy raster; the pure readers "
+        "would parse a map of the wrong shape as though it were this vacuum's"
+    )
+
+    _register(source=None)
+    assert await manager.map_source.async_get_map_data_dict(
+        vacuum_entity_id=_VAC
+    ) is None, "a vacuum with no map_state_source block answered with a raster"
+
+
+async def test_mdd2_memory_is_primary_and_storage_is_the_fallback(
+    manager, monkeypatch
+):
+    """[MDD-2] Memory-PRIMARY with an off-loop .storage fallback, in that order.
+
+    The in-memory `_map_data` is the same dict shape and FRESHER than the file, so
+    it wins when present. The file read goes through an executor because it is
+    blocking, and it only happens when memory has nothing.
+
+    THE EXECUTOR CALL IS COUNTED, not just the returned value: both paths can
+    return an equivalent dict, so the count is what proves the precedence. A
+    memory hit that still read the file would be a blocking read on every call for
+    a value it already had.
+    """
+    _register(source={"backend": "storage", "memory": {"mapdata_attrs": ["_map_data"]}})
+    monkeypatch.setattr(
+        manager.map_source, "_inmem_candidates", lambda *a, **k: [("h", "p", "root")]
+    )
+    reads: list[str] = []
+    monkeypatch.setattr(msr, "eufy_store_path", lambda *a, **k: "/tmp/store.json")
+    monkeypatch.setattr(
+        msr, "load_store_json",
+        lambda path: reads.append(path) or {"data": {"map_data": {"from": "file"}}},
+    )
+
+    # memory present -> used, and the file is never touched
+    monkeypatch.setattr(
+        msr, "eufy_mapdata_from_candidates",
+        lambda *a, **k: {"present": True, "map_data": {"from": "memory"}},
+    )
+    assert await manager.map_source.async_get_map_data_dict(
+        vacuum_entity_id=_VAC
+    ) == {"from": "memory"}
+    assert reads == [], "the memory hit still read the store file: %r" % (reads,)
+
+    # memory absent -> the file
+    monkeypatch.setattr(
+        msr, "eufy_mapdata_from_candidates",
+        lambda *a, **k: {"present": False, "reason": "no_candidates"},
+    )
+    assert await manager.map_source.async_get_map_data_dict(
+        vacuum_entity_id=_VAC
+    ) == {"from": "file"}
+    assert reads == ["/tmp/store.json"]
+
+
+async def test_mdd3_every_unreadable_shape_degrades_to_None(manager, monkeypatch):
+    """[MDD-3] "Never raises" -- and each failure answers None, not a partial dict.
+
+    Four shapes, all of which a real install produces: no store path at all (an old
+    install with no map yet), a store whose JSON has no map_data, a map_data that
+    is not a dict, and a reader that raises outright.
+
+    Returning a partial or empty dict instead of None is the dangerous failure:
+    `rooms_from_room_pixels` on `{}` yields no rooms, which reads as "this map has
+    no rooms" rather than "we could not read this map".
+    """
+    _register(source={"backend": "storage"})
+
+    # THE READER IS MOCKED TO SUCCEED FOR ANY PATH, including None. Without that,
+    # the no-path case proved nothing: the real reader raised on `None` and the
+    # catch-all answered None, which is the guarded answer too, so the refusal had
+    # no red of its own. Measured -- that ablation came back DEAD.
+    monkeypatch.setattr(
+        msr, "load_store_json", lambda path: {"data": {"map_data": {"any": "thing"}}}
+    )
+    monkeypatch.setattr(msr, "eufy_store_path", lambda *a, **k: None)
+    assert await manager.map_source.async_get_map_data_dict(
+        vacuum_entity_id=_VAC
+    ) is None, (
+        "a vacuum with no store path still produced a raster -- read from where?"
+    )
+
+    monkeypatch.setattr(msr, "eufy_store_path", lambda *a, **k: "/tmp/s.json")
+    monkeypatch.setattr(msr, "load_store_json", lambda path: {"data": {}})
+    assert await manager.map_source.async_get_map_data_dict(
+        vacuum_entity_id=_VAC
+    ) is None, "store with no map_data"
+
+    monkeypatch.setattr(
+        msr, "load_store_json", lambda path: {"data": {"map_data": "not-a-dict"}}
+    )
+    assert await manager.map_source.async_get_map_data_dict(
+        vacuum_entity_id=_VAC
+    ) is None, "map_data that is not a dict"
+
+    def _boom(path):
+        raise RuntimeError("the store file is a directory")
+
+    monkeypatch.setattr(msr, "load_store_json", _boom)
+    assert await manager.map_source.async_get_map_data_dict(
+        vacuum_entity_id=_VAC
+    ) is None, "a raising reader escaped the accessor"
+
+
+# ---------------------------------------------------------------------------
+# [RRN-1] the render's room labels -- cosmetic, and therefore never fatal
+# ---------------------------------------------------------------------------
+
+def test_rrn1_torn_map_storage_costs_labels_not_the_render(manager, monkeypatch):
+    """[RRN-1] "Best-effort: {} on any missing piece; never raises."
+
+    These labels are what the render raster maps its resolved room ids onto. They
+    are cosmetic -- an unnamed room still renders -- so a torn storage bucket must
+    cost the LABEL and nothing else. Raising here would take down the whole render
+    for a map whose pixels are perfectly fine.
+
+    A GOOD ROOM SITS BESIDE EVERY TORN ONE. Three defects in one payload (a bucket
+    that is not a dict, a room that is not a dict, a room with no name) and the
+    readable room still comes back -- without that, a builder that gave up on the
+    first defect would pass every "the torn one is absent" assertion.
+    """
+    manager.data["maps"] = {_VAC: {
+        "6": "not-a-dict",
+        "7": {"rooms": {
+            "1": {"room_id": 1, "name": "Kitchen"},
+            "2": "not-a-dict",
+            "3": {"room_id": 3},             # no name
+            "4": {"name": "No id"},          # no room_id
+        }},
+    }}
+
+    out = manager.map_source._roborock_render_room_names(_VAC)
+
+    assert out == {"1": "Kitchen"}, (
+        "expected only the one readable room, got %r" % (out,)
+    )
+
+
+def test_rrn2_an_unreadable_store_degrades_to_no_labels(manager, monkeypatch):
+    """[RRN-2] The catch-all, which is the promise "never raises" rests on.
+
+    `manager.data` is a plain dict here, so the only way to make the walk raise is
+    to put something in its place that does -- which is what a storage object
+    mid-reload, or a data attribute replaced by a coroutine, looks like from here.
+    """
+    class _Hostile:
+        def get(self, *a, **k):
+            raise RuntimeError("storage is being reloaded")
+
+    monkeypatch.setattr(manager, "data", _Hostile(), raising=False)
+
+    assert manager.map_source._roborock_render_room_names(_VAC) == {}, (
+        "a raising store took the render down with it; the labels are cosmetic "
+        "and the pixels were fine"
+    )
+
+
+# ---------------------------------------------------------------------------
+# [MSC-1] the module's own stat helper
+# ---------------------------------------------------------------------------
+
+def test_msc1_stat_mtime_answers_None_for_a_file_that_is_not_there(tmp_path):
+    """[MSC-1] The mtime cache's input, and the whole cache turns on it.
+
+    `_load_live_pose_geom` re-reads only when the mtime MOVES, so this answering
+    None for a missing file is what makes "no file yet" distinguishable from "the
+    file has not changed". An exception here instead would propagate out of a
+    pre-warm that runs on every refresh tick.
+
+    The present-file arm is asserted against `os.stat` rather than a literal,
+    because a hard-coded timestamp would be a different test every time it ran.
+    """
+    import os
+
+    real = tmp_path / "store.json"
+    real.write_text("{}", encoding="utf-8")
+
+    assert msc._stat_mtime(str(real)) == os.stat(str(real)).st_mtime
+    assert msc._stat_mtime(str(tmp_path / "never_written.json")) is None
+    assert msc._stat_mtime(str(tmp_path)) is not None, (
+        "a directory stats fine and must not be confused with a missing path"
+    )
+
+
+async def test_rnd7_the_dreame_render_builds_room_pixels_from_the_decoded_mapdata(
+    manager, monkeypatch
+):
+    """[RND-7] The third brand's path to the SAME shared frontend decode.
+
+    Eufy reads its raster from .storage and Roborock from an in-memory parser;
+    Dreame's comes from the base integration's decoded MapData (a pixel_type grid)
+    reached via the PUBLIC `coordinator.device`. All three end at `room_pixels_v1`,
+    which is the point -- the card has one decoder, not three.
+
+    THREE OUTCOMES, because two of them are absent markers that must not be
+    confused:
+
+      MapData present and convertible  -> the render data
+      MapData present, conversion empty -> absent, and the reason survives
+      MapData absent                    -> absent, with the candidate's own reason
+
+    The middle one is the subtle one: `dreame_render_data_from_mapdata` can return
+    a falsy result for a grid it cannot use, and the code falls through to the same
+    absent marker rather than returning an empty render. A card handed `{}` as
+    render data draws an empty map, which looks like a vacuum that has mapped
+    nothing rather than a read that did not work.
+    """
+    _register(
+        source={"backend": "camera_attrs"},
+        render={"format": "room_pixels_v1"},
+    )
+    md = {"pixel_type": "grid"}
+
+    monkeypatch.setattr(
+        msr, "dreame_mapdata_candidates",
+        lambda *a, **k: {"present": True, "map_data": md},
+    )
+    monkeypatch.setattr(
+        msr, "dreame_render_data_from_mapdata",
+        lambda m: {"present": True, "rooms": [1, 2], "from": m},
+    )
+    out = await manager.map_source.async_get_map_render_data(
+        vacuum_entity_id=_VAC
+    )
+    assert out.get("present") is True and out.get("from") is md
+
+    # present, but the grid yields nothing usable
+    monkeypatch.setattr(msr, "dreame_render_data_from_mapdata", lambda m: {})
+    out = await manager.map_source.async_get_map_render_data(
+        vacuum_entity_id=_VAC
+    )
+    assert out.get("present") is False, (
+        "an unusable grid produced a render payload; the card would draw an empty "
+        "map and show it as a vacuum that has mapped nothing"
+    )
+    assert out.get("reason") == "no_mapdata"
+
+    # no MapData at all -- the candidate's own reason has to survive
+    monkeypatch.setattr(
+        msr, "dreame_mapdata_candidates",
+        lambda *a, **k: {"present": False, "reason": "coordinator_not_ready"},
+    )
+    out = await manager.map_source.async_get_map_render_data(
+        vacuum_entity_id=_VAC
+    )
+    assert out == {"present": False, "reason": "coordinator_not_ready"}, (
+        "the absent marker lost the reason, which is the only thing telling a user "
+        "whether to wait or to check their setup: %r" % (out,)
+    )
