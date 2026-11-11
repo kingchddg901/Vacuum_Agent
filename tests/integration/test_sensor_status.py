@@ -330,3 +330,60 @@ def test_active_job_callbacks_reject_the_other_three_mismatches():
     assert len(writes) == 2, (
         "the filters reject everything, so the zero above says nothing about them"
     )
+
+
+async def test_mn5_async_update_is_the_poll_path_and_refreshes_the_cache():
+    """[MN-5] `async_update` is how Home Assistant drives this sensor, and it had no test.
+
+    Every other test here calls `_refresh_cache()` directly. HA never does: it
+    calls `async_update()` on the platform's poll interval, and that is the only
+    route by which a running install's value ever changes. A sensor whose
+    `async_update` stopped refreshing would freeze at its first reading and look
+    perfectly healthy -- the state is present, it is just never updated again.
+
+    THE VALUE MUST MOVE, which is the assertion. Asserting that the call returns
+    passes against an `async_update` whose body was deleted.
+    """
+    s = _maint(remaining=42.0, source_available=True)
+    assert s.native_value is None, "the cache should be cold before the first poll"
+
+    await s.async_update()
+    assert s.native_value == pytest.approx(42.0), (
+        "the poll did not prime the cache; a real install's sensor would never "
+        "produce a value at all"
+    )
+
+    # the manager now answers differently -- a later poll must pick that up
+    s._manager.get_maintenance_remaining.return_value = {
+        "remaining_hours": 7.5, "source_available": True,
+        "used_since_reset_hours": 20, "interval_hours": 150,
+        "current_usage_hours": 120, "reset_at_usage_hours": 100,
+        "reset_at": "2026-01-01", "source_entity": "sensor.x",
+    }
+    await s.async_update()
+    assert s.native_value == pytest.approx(7.5), (
+        "a second poll kept the first reading; the sensor freezes at whatever it "
+        "saw first and nothing about its state says so"
+    )
+
+
+@pytest.mark.parametrize("bad", ["abc", [], {}, object()])
+def test_mn6_an_unreadable_stored_interval_falls_back_to_the_default(bad):
+    """[MN-6] The interval is persisted, so its shape is whatever any past version wrote.
+
+    `interval_hours` is a user setting carried in `.storage`. A value that will
+    not convert -- a string from an older schema, a dict from a half-written
+    migration -- must degrade to the component's declared default rather than
+    raise out of a property that Home Assistant calls while rendering state.
+
+    THE DEFAULT IS ASSERTED BY VALUE, not merely as "not an error": falling back
+    to 0 would make `interval - used` negative and show every component as
+    overdue the moment one stored value went bad.
+    """
+    s = _maint()
+    s._manager.data = {"maintenance": {_VAC: {"main_brush": {"interval_hours": bad}}}}
+
+    assert s._get_interval() == pytest.approx(150.0), (
+        "an unreadable stored interval %r did not fall back to the declared "
+        "default" % (bad,)
+    )

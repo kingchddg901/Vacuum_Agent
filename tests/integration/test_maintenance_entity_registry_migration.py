@@ -30,6 +30,8 @@ Coverage targets
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.eufy_vacuum.const import DOMAIN
@@ -284,3 +286,69 @@ def test_plan_reports_without_writing(hass):
     assert reg.async_get_entity_id(
         "number", DOMAIN, "vacuum_alfred_swivel_wheel_maintenance_interval"
     ) is not None, "planning must not mutate the registry"
+
+
+def test_mer11_a_row_that_cannot_be_carried_is_LOUD_and_does_not_stop_the_others(
+    hass, caplog
+):
+    """[MER-11] The failure that was `debug` and hid a real one.
+
+    The comment at the site is the specification: on the first live upgrade test
+    "the pass planned nine renames, applied zero, and set its own completion flag
+    -- and said NOTHING at any level a user or maintainer would ever see. The
+    failure was indistinguishable from 'there was nothing to do', which is the
+    worst possible way for a one-shot migration to fail: the latch means it never
+    tries again."
+
+    Three things have to hold together, and each is a separate assertion:
+
+      the other rows still migrate -- one bad row must not abort the pass;
+      the bad row is REPORTED at warning, naming the entity and both ids;
+      a summary at ERROR says how many could not be carried.
+
+    THE LATCH IS STILL SET, DELIBERATELY, and that is asserted too. Retrying every
+    startup would hammer a registry that is refusing us, and "we tried once and
+    could not" is the honest state -- but it is only defensible BECAUSE the
+    failure is loud now. Asserting the latch without asserting the noise would
+    pin exactly the shape the comment calls the worst possible failure.
+    """
+    import logging
+
+    from custom_components.eufy_vacuum.core.maintenance_entity_registry_migration import (
+        migrate_maintenance_entity_registry,
+    )
+
+    doomed = _seed(hass, "mop_cloth")
+    healthy = _seed(hass, "caster_wheel")
+
+    registry = er.async_get(hass)
+    real_update = registry.async_update_entity
+
+    def _update(entity_id, **kw):
+        if entity_id == doomed:
+            raise ValueError("Unique id is already in use by something else")
+        return real_update(entity_id, **kw)
+
+    with patch.object(registry, "async_update_entity", side_effect=_update):
+        with caplog.at_level(logging.WARNING):
+            data = _data()
+            out = migrate_maintenance_entity_registry(hass, data=data)
+
+    assert healthy not in [m["entity_id"] for m in out.get("failed") or []], (
+        "a healthy row was dragged down by the failing one"
+    )
+    assert any(m["entity_id"] == doomed for m in out.get("failed") or []), (
+        "the row that raised was not reported as failed: %r" % (out,)
+    )
+    assert doomed in caplog.text, (
+        "the failure did not name the entity it could not carry; a user cannot "
+        "report what the log does not say"
+    )
+    assert "could not be carried" in caplog.text, (
+        "no ERROR summary was written, so a partial migration reads like a "
+        "successful one -- the exact failure the comment at the site records"
+    )
+    assert data["migrations"].get(REGISTRY_MIGRATION_KEY) is True, (
+        "the latch was not set after a failure; the pass would hammer a registry "
+        "that is refusing it on every startup"
+    )
