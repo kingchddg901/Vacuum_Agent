@@ -36,6 +36,15 @@ Coverage targets
         existence-checked entity-ids (setting_entities) for the zone-clean panel's
         live controls: only entities that actually exist are included, a declared-
         but-missing one is dropped, and no settings_selects declared -> empty.
+[LS-12] get_dashboard_snapshot live-map backdrop: when the pattern misses because
+        the provider's image entity id does not follow the map's CURRENT name
+        (Roborock `image.<vac>_map_<flag>` after the map was named), the adapter's
+        declared `roborock_map_flag` resolver finds the image by map flag; a map
+        with no image, or no resolver declared, still yields None.
+[LS-13] the `roborock_map_flag` resolver degrades to None (never raises) on an
+        unknown vacuum, a blank map, no image component, a raising lookup, a
+        non-Roborock image or a raising resolver; it reads the map list through
+        the coordinator when `_home_trait` is absent.
 [EXT-1] maybe_handle_external_run: cleaning with no dispatched job opens an
         "external" capture slot.
 [EXT-2] maybe_handle_external_run: a mid-run dock resume cancels the pending
@@ -240,6 +249,153 @@ async def test_dashboard_snapshot_live_map_override(manager, hass):
     # Clearing the override -> the declared pattern resolves again.
     manager.data["vacuums"][_VAC].pop("live_map_image_entity", None)
     assert _snap(_pat)["live_map_image_entity"] == "image.alfred_6"
+
+
+class _FakeImageComponent:
+    """Stands in for HA's `image` EntityComponent: only `get_entity` is read."""
+
+    def __init__(self, entities):
+        self._entities = entities
+
+    def get_entity(self, entity_id):
+        return self._entities.get(entity_id)
+
+
+async def test_dashboard_snapshot_live_map_resolver_by_map_flag(
+    manager, hass, mock_config_entry, monkeypatch
+):
+    """[LS-12] A Roborock map named after HA created its image keeps the entity id
+    `image.<vac>_map_<flag>`, so the name-derived pattern misses; the declared
+    `roborock_map_flag` resolver matches the image by its map flag instead."""
+    from types import SimpleNamespace
+
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    mock_config_entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=mock_config_entry.entry_id,
+        identifiers={("roborock", "duid1")},
+    )
+    ent_reg = er.async_get(hass)
+    ent_reg.async_get_or_create(
+        "vacuum", "roborock", "duid1", device_id=device.id, suggested_object_id="alfred"
+    )
+    images = {}
+    for flag in (0, 1):
+        entry = ent_reg.async_get_or_create(
+            "image", "roborock", f"duid1_map_Map {flag}",
+            device_id=device.id, suggested_object_id=f"alfred_map_{flag}",
+        )
+        hass.states.async_set(entry.entity_id, "2026-01-01T00:00:00+00:00")
+        images[entry.entity_id] = flag
+    assert set(images) == {"image.alfred_map_0", "image.alfred_map_1"}
+
+    # The maps' CURRENT names, as the Roborock home trait reports them.
+    home = SimpleNamespace(home_map_info={
+        0: SimpleNamespace(name="Main Floor"),
+        1: SimpleNamespace(name="Upstairs"),
+    })
+    monkeypatch.setitem(hass.data, "image", _FakeImageComponent({
+        eid: SimpleNamespace(map_flag=flag, _home_trait=home)
+        for eid, flag in images.items()
+    }))
+
+    def _snap(cfg, map_id):
+        setup_map(manager, _VAC, map_id, count=1)
+        register_adapter_config(_VAC, adapter_config(adapter_id="x", **cfg))
+        try:
+            return manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=map_id)
+        finally:
+            unregister_adapter_config(_VAC)
+
+    mapping = {
+        "live_map_image_entity_pattern": "image.{object_id}_{map_slug}",
+        "live_map_image_entity_resolver": "roborock_map_flag",
+    }
+    # Pattern derives image.alfred_upstairs (absent) -> the resolver finds flag 1.
+    assert _snap({"mapping": mapping}, "Upstairs")["live_map_image_entity"] == (
+        "image.alfred_map_1"
+    )
+    assert _snap({"mapping": mapping}, "Main Floor")["live_map_image_entity"] == (
+        "image.alfred_map_0"
+    )
+    # A map with no image of its own -> None, as before.
+    assert _snap({"mapping": mapping}, "Garage")["live_map_image_entity"] is None
+    # No resolver declared -> the pattern alone, which misses -> None (unchanged).
+    no_resolver = {"live_map_image_entity_pattern": "image.{object_id}_{map_slug}"}
+    assert _snap({"mapping": no_resolver}, "Upstairs")["live_map_image_entity"] is None
+    # An unknown resolver name is ignored, never raises.
+    bogus = dict(mapping, live_map_image_entity_resolver="nope")
+    assert _snap({"mapping": bogus}, "Upstairs")["live_map_image_entity"] is None
+
+
+async def test_live_map_resolver_by_map_flag_degrades_to_none(
+    hass, mock_config_entry, monkeypatch
+):
+    """[LS-13] The `roborock_map_flag` resolver never raises and returns None for
+    every input it cannot read; it also finds the map list through the entity's
+    coordinator when the private `_home_trait` is absent."""
+    from types import SimpleNamespace
+
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+
+    from custom_components.eufy_vacuum.mapping import live_map_image as lmi
+
+    # Unknown vacuum (not in the entity registry) and a blank map name -> None.
+    assert lmi.roborock_map_flag_image(hass, _VAC, "Upstairs") is None
+    assert lmi.roborock_map_flag_image(hass, _VAC, "") is None
+
+    mock_config_entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=mock_config_entry.entry_id,
+        identifiers={("roborock", "duid1")},
+    )
+    ent_reg = er.async_get(hass)
+    ent_reg.async_get_or_create(
+        "vacuum", "roborock", "duid1", device_id=device.id, suggested_object_id="alfred"
+    )
+    img = ent_reg.async_get_or_create(
+        "image", "roborock", "duid1_map_Map 1",
+        device_id=device.id, suggested_object_id="alfred_map_1",
+    ).entity_id
+    hass.states.async_set(img, "2026-01-01T00:00:00+00:00")
+
+    # No image component loaded at all -> None.
+    monkeypatch.delitem(hass.data, "image", raising=False)
+    assert lmi.roborock_map_flag_image(hass, _VAC, "Upstairs") is None
+
+    # A component whose lookup raises -> None, not an exception.
+    class _Raising:
+        def get_entity(self, entity_id):
+            raise RuntimeError("boom")
+
+    monkeypatch.setitem(hass.data, "image", _Raising())
+    assert lmi.roborock_map_flag_image(hass, _VAC, "Upstairs") is None
+
+    # An image entity that is not a Roborock map (no map_flag) is skipped.
+    monkeypatch.setitem(hass.data, "image", _FakeImageComponent({img: SimpleNamespace()}))
+    assert lmi.roborock_map_flag_image(hass, _VAC, "Upstairs") is None
+
+    # The map list read through coordinator.properties_api.home; names compare
+    # case- and whitespace-insensitively.
+    home = SimpleNamespace(home_map_info={1: SimpleNamespace(name="Upstairs")})
+    coordinator = SimpleNamespace(properties_api=SimpleNamespace(home=home))
+    monkeypatch.setitem(hass.data, "image", _FakeImageComponent({
+        img: SimpleNamespace(map_flag=1, coordinator=coordinator),
+    }))
+    assert lmi.roborock_map_flag_image(hass, _VAC, " upstairs ") == img
+
+    # A resolver that raises is contained by the dispatcher.
+    def _boom(*_args):
+        raise RuntimeError("boom")
+
+    monkeypatch.setitem(lmi.LIVE_MAP_IMAGE_RESOLVERS, "boom", _boom)
+    assert lmi.resolve_declared_live_map_image(hass, "boom", _VAC, "Upstairs") is None
+    # No map id -> None without calling the resolver.
+    assert lmi.resolve_declared_live_map_image(
+        hass, "roborock_map_flag", _VAC, None
+    ) is None
 
 
 async def test_dashboard_snapshot_setting_entities(manager, hass):
