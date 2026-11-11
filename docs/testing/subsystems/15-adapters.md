@@ -942,7 +942,7 @@ work ends; the rest would be tests written to a number.
 | `config_schema.py` | 64 | 94% | `test_adapters.py` | integration | clean |
 | `brands.py` | 53 | 100% | `test_brand_selection.py` | integration | clean |
 | `entity_resolve.py` | 228 | 91% | `tests/unit/test_entity_resolve.py` + `tests/adapters/test_entity_resolve.py` + `tests/unit/test_disabled_action_warn_once.py` | unit + adapter | clean |
-| `eufy/segmentor.py` | 868 | 92% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/segmentor.py` | 868 | 95% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/adapter.py` | 60 | 91% | `tests/adapters/eufy/` + `../integration/test_core_manager_registry.py` | adapter | - |
 | `eufy/entities.py` | 29 | 100% | `test_buttons_entities.py` + `test_suffix_vocabulary.py` | adapter | clean |
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter | clean |
@@ -1130,7 +1130,7 @@ guard, and defensive continues — each geometry-sensitive or best-effort.
 Tested in `test_segmentor.py` + `test_segmentor_splitters.py`; held here on
 purpose, a known thin spot rather than a framework miss.
 
-### `eufy/segmentor.py` — 92.38%, and the honest ceiling is 95.59%
+### `eufy/segmentor.py` — 92.38% → 95.43%, against a ceiling of 95.59%
 
 Measured 2026-11-10: 868 statements and 378 branches, of which **53 statements and 42
 partial branches are uncovered — 1151/1246 = 92.38%.** The paragraph above says 91% and
@@ -1146,15 +1146,27 @@ already-covered line.
 
 | | units | coverage |
 |---|---|---|
-| today | — | 1151/1246 = **92.38%** |
-| + every pipeline-reachable unit | +40 | 1191/1246 = **95.59%** |
-| + unit-tier tests as well | +15 | 1206/1246 = 96.79% |
+| before | — | 1151/1246 = 92.38% |
+| **built — `[ECV-21]`…`[ECV-37]`** | **+38** | **1189/1246 = 95.43%** |
+| ceiling (the one remaining reachable unit) | +2 | 1191/1246 = 95.59% |
+| if unit-tier tests were allowed too | +15 | 1206/1246 = 96.79% |
 
-95% needs 1183 units and the pipeline-honest route reaches 1191, so it clears by **8
-units**. The second row is weaker evidence and is recorded only for completeness: those
-tests assert against states the production caller cannot produce — a disconnected
-`component_mask`, a `(h, w, 0)` channel array, an `ndarray` subclass whose `nonzero()`
-lies — so they would raise the number without pinning any behaviour a user can reach.
+**The module is over 95%.** 16 tests closed 38 of the 40 reachable units; the 2 that
+remain are `:446`, which is reachable but **unassertable** — see `[ECV-30]`'s note in
+`test_segmentor.py`, which is why the achieved figure sits 0.16 pp under the ceiling
+rather than at it.
+
+The last row is weaker evidence and is recorded only for completeness: those tests assert
+against states the production caller cannot produce — a disconnected `component_mask`, a
+`(h, w, 0)` channel array, an `ndarray` subclass whose `nonzero()` lies — so they would
+raise the number without pinning any behaviour a user can reach.
+
+**15 OF 15 ABLATIONS REDDENED THEIR TEST**, each a single named source edit, with the file
+verified byte-identical after every restore. Two tests make no bite claim and say so in
+their own docstrings rather than letting their coverage imply one: `[ECV-29]` covers a
+defensive guard whose removal changes no observable, and `[ECV-25]` discriminates against
+its control but survived three different ablations because the refusal it asserts is
+over-determined three layers deep.
 
 Every reachable claim below was produced by one agent and then **rebuilt from its recipe
 alone by a second**, which is why the recipes are recorded rather than the probes: 10 of 10
@@ -1280,15 +1292,13 @@ vertical stripes of `(255,x,x)` for `x` in {0,40,80,120,160,230} accepts with 6 
 no assist image at all. That makes the localized child geometry *chosen* rather than inherited,
 which is the right instrument for the `_reclaim_localized_child_mask` arms.
 
-**95% IS AVAILABLE AND WAS DECLINED, which is a different thing from a ceiling.** The forty
-units are recorded above with reproduced recipes, so building them is bounded work rather
-than exploration. It was not done because the CV path is **best-effort by design** — the
-user guide's own remedy for "rooms detected wrong (merged/split) and won't nudge right" is
-*switch to a custom layout*, non-destructively — and because every brand VA now supports can
-supply a live map, which makes the whole screenshot-upload path a removal candidate. Spending
-forty units of test on a subsystem under removal review is the trade being declined; if the
-CV path stays, the recipes are here and the cheapest ones first are `:1418/:1419` (one flat
-pale block) and `:1123/:1124` (a path that does not resolve). Recorded rather
+**WHAT THE REMAINING 31 STATEMENTS ARE.** 23 unreachable by any input, 7 reachable only by
+handing a helper a state its caller cannot produce, and 1 (`:446`) reachable but with no
+observable to assert on. Nothing is unaccounted, and nothing is waiting to be tried.
+
+The recipes stay in this section even though they are now tests, because the GEOMETRY IS
+THE CLAIM: each dimension solves for one threshold, and a reader who adjusts a number
+without reading the arithmetic will silently stop testing the arm. Recorded rather
 than `pragma: no cover`'d, since the programme admits a pragma for logger lines only — and
 because an unreachable guard with no written reason is the one that gets "simplified" later.
 

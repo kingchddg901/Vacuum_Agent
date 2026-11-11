@@ -26,6 +26,23 @@ Coverage targets
 [ECV-17] detect_room_segments: expected_room_count recovery rescues a deferred region (deficit marker + confidence floor).
 [ECV-18] detect_room_segments: per-region scoring block populates every derived key (role/state/confidence/edit_readiness).
 [ECV-19] detect_room_segments: accepted split child masks are APPLIED to the emitted segments, not discarded in favour of the parent.
+[ECV-21] colour_distance: a grown mask outside its area window at BOTH ends.
+[ECV-22] colour_distance: two centres growing into one region are deduped.
+[ECV-23] colour_distance: a split covering under 38% of the component is refused.
+[ECV-24] colour_distance: the second centre is the FARTHEST bin, whatever the order.
+[ECV-25] localized_bins: a bin with no solid core (checkerboard) is refused.
+[ECV-26] localized_bins: a candidate over 22% of the component is refused.
+[ECV-27] localized_bins: one candidate (or none) is not a split.
+[ECV-28] localized_bins: declining hands the component on to colour_distance.
+[ECV-29] assist: a blank assist registers and agrees on nothing (guard is defensive-only).
+[ECV-30] local_support: NOT WRITTEN - reachable but unassertable, see the note below.
+[ECV-31] keep/drop: a large washed-out region (mean sat < 30) is not a room.
+[ECV-32] keep/drop: a localized child the RECLAIM shrank below the floor is refused.
+[ECV-33] keep/drop: a localized child the reclaim made SPARSE is refused.
+[ECV-34] assist registration: an unresolvable assist degrades, named, not fatal.
+[ECV-35] recovery: stops once the count deficit is satisfied.
+[ECV-36] recovery: refuses a candidate over 20% of the frame.
+[ECV-37] recovery: relaxes the keep rules, does not remove them.
 [SEG-1]  _issue_quality: issue/confidence → quality label.
 [SEG-2]  _structural_role: geometry → role label.
 [SEG-3]  _segmentation_state: issues/fill/compactness → state label.
@@ -897,3 +914,713 @@ def test_ecv20_expected_room_count_is_a_HINT_and_never_a_QUOTA():
         {"structural_role", "segmentation_state", "confidence", "issues"} <= set(seg)
         for seg in detailed["segments"]
     ), "a segment skipped the classification surface"
+
+
+# ---------------------------------------------------------------------------
+# [ECV-21..37] The split cascade's refusal arms, driven through the PUBLIC entry
+# point with synthetic PNGs.
+#
+# WHY THESE EXIST AND WHY THEY LOOK LIKE THIS. Every arm below was previously
+# recorded as unreachable or geometry-sensitive. It is neither: each one fires
+# from `detect_room_segments()` on a constructed image with nothing patched, and
+# the ceiling this module can honestly reach is 95.59% rather than the 92.38% it
+# sat at. The recipes are preserved in the docstrings because the GEOMETRY IS THE
+# CLAIM — these are not arbitrary pictures, each dimension is solving for one
+# threshold, and a reader who changes a number without reading the arithmetic
+# will silently stop testing the arm.
+#
+# TWO MECHANISMS DO MOST OF THE WORK, and neither is obvious from the source:
+#
+#   ONE HUE BIN, MANY COLOUR BINS. `hue_bin = (hue + 8) // 16` on PIL's 0-255
+#   hue, so every RGB (255, x, x) has hue 0 and lands in a single cluster —
+#   arriving as ONE connected component — while `normalized_color_features`
+#   divides out brightness but NOT saturation, so those same shades quantise to
+#   DISTINCT colour bins. That is how a single component can be handed to the
+#   colour-distance and localized-bins arms with internal structure to find.
+#
+#   `binary_fill_holes` RE-ABSORBS AN ENCLOSED ISLAND of a different hue, so one
+#   component can carry two far-apart chromaticities despite the 16-wide hue
+#   binning. The island must be FULLY enclosed; a notch open to the edge is a
+#   separate component and the arm goes untested.
+#
+# EACH TEST ASSERTS THE DIFFERENCE AGAINST A ONE-VARIABLE CONTROL, not just that
+# the refusal happened. A refusal can be reached by more than one route, so
+# "the reason string appeared" is satisfiable by the wrong branch; "it appeared
+# here and not in the near-identical image" is not.
+# ---------------------------------------------------------------------------
+
+
+def _write(img, tmp_path, name):
+    path = os.path.join(tmp_path, name)
+    img.save(path)
+    return path
+
+
+def _canvas(size, fill=(255, 255, 255)):
+    """A white canvas: saturation 0, so the background is excluded by the room gate."""
+    from PIL import Image
+
+    return Image.new("RGB", (size, size), fill)
+
+
+def _paint(tmp_path, name, size, boxes):
+    """Write a PNG from a list of (box, colour); boxes are [x0, y0, x1, y1] inclusive."""
+    from PIL import ImageDraw
+
+    img = _canvas(size)
+    draw = ImageDraw.Draw(img)
+    for box, colour in boxes:
+        draw.rectangle(box, fill=colour)
+    return _write(img, tmp_path, name)
+
+
+#: Six shades of one hue. Distinct colour bins, one hue bin, all above the room gate.
+_SHADES = [(255, 0, 0), (255, 40, 40), (255, 80, 80),
+           (255, 120, 120), (255, 160, 160), (255, 230, 230)]
+
+
+def _split_debug_reasons(result):
+    """Every per-method `reason` the split pass recorded, across all clusters."""
+    stage = (result.get("segmentation") or {}).get("stages") or {}
+    reasons = set()
+    for entry in (stage.get("suspicious_region_split_pass") or {}).get("debug") or []:
+        for method in entry.get("methods") or []:
+            if method.get("reason"):
+                reasons.add("%s:%s" % (method.get("method"), method["reason"]))
+    return reasons
+
+
+def _localized_drop_reasons(result):
+    """Every drop reason the localized-child pass recorded."""
+    stage = (result.get("segmentation") or {}).get("stages") or {}
+    out = set()
+    for item in (stage.get("suspicious_region_split_pass") or {}).get("localized_drop_debug") or []:
+        out.update(item.get("drop_reasons") or [])
+    return out
+
+
+def _colour_debug(result):
+    """The color_distance method record: seed/grown areas and how many survived."""
+    stage = (result.get("segmentation") or {}).get("stages") or {}
+    for entry in (stage.get("suspicious_region_split_pass") or {}).get("debug") or []:
+        for method in entry.get("methods") or []:
+            if method.get("method") == "color_distance":
+                return method
+    return {}
+
+
+def _localized_debug(result):
+    """The localized_bins method record, which names how many bins RANKED versus how
+    many became candidates -- the only place a bin's rejection is observable."""
+    stage = (result.get("segmentation") or {}).get("stages") or {}
+    for entry in (stage.get("suspicious_region_split_pass") or {}).get("debug") or []:
+        for method in entry.get("methods") or []:
+            if method.get("method") == "localized_bins":
+                return method
+    return {}
+
+
+def _registration(result):
+    """The assist-registration record. It sits on `segmentation`, NOT under `stages`."""
+    return (result.get("segmentation") or {}).get("registration") or {}
+
+
+def _scoring(result):
+    stage = (result.get("segmentation") or {}).get("stages") or {}
+    return stage.get("candidate_scoring") or {}
+
+
+def _recovery(result):
+    stage = (result.get("segmentation") or {}).get("stages") or {}
+    return stage.get("recovery_pass") or {}
+
+
+# --- colour-distance refusals ----------------------------------------------
+
+
+def test_ecv21_colour_distance_refuses_a_grown_mask_outside_its_area_window(tmp_path):
+    """[ECV-21] A colour pocket is only a room if its GROWN extent is room-sized.
+
+    `_split_component_via_color_distance` grows a seed per colour centre and then
+    applies a window at both ends: below `max(min_area*0.7, 900)` the pocket is
+    noise, above `active*0.84` it is the whole component wearing a second colour's
+    name. Both refusals are on the same image here, which is the point — the
+    carrier grows to 4676 of 5476 px (over the upper bound) while the enclosed
+    island grows to 800 (under the lower one), so neither survives and the
+    strategy declines rather than inventing two rooms out of one.
+
+    GEOMETRY: a 78x78 block with a 20x40 island of a far-apart chromaticity fully
+    ENCLOSED inside it, so `binary_fill_holes` re-absorbs the island and both
+    colours arrive in one component.
+    """
+    path = _paint(str(tmp_path), "pocket.png", 170, [
+        ([40, 40, 117, 117], (254, 50, 50)),
+        ([60, 60, 99, 79], (50, 50, 254)),      # fully enclosed
+    ])
+    result = detect_room_segments(image_path=path, min_area_pixels=1200)
+    assert result["available"] is True
+    debug = _colour_debug(result)
+    assert debug.get("grown_mask_count") == 0, debug
+    areas = sorted(debug["grown_areas"])
+    assert len(areas) == 2, "expected one mask per colour centre, got %s" % areas
+    # Asserted against the thresholds themselves, not against measured literals, so each
+    # end of the window is pinned independently: deleting either guard admits one mask.
+    assert areas[0] < max(int(1200 * 0.7), 900), (
+        "the island at %d is not below the lower area floor" % areas[0])
+    assert areas[1] > int(debug["active_area"] * 0.84), (
+        "the carrier at %d is not above the upper area bound" % areas[1])
+
+
+def test_ecv22_colour_distance_refuses_two_masks_that_are_the_same_region(tmp_path):
+    """[ECV-22] Two colour centres that grow into each other are ONE room.
+
+    A ring whose chromaticity sits inside BOTH centres' `allowed` sets is claimed
+    by both, so the two grown masks overlap by 11040 of 14884 px = 0.7417, over
+    the 0.72 dedup bar, and the second is dropped. Without this the user gets two
+    rooms stacked on the same floor.
+
+    GEOMETRY: concentric squares — carrier (84,254,254), a mid ring (118,220,254)
+    equidistant-ish from both centres (0.0808 and 0.1212), and a core
+    (169,169,254). mid+core form one enclosed hole, so fill_holes re-absorbs them.
+    """
+    path = _paint(str(tmp_path), "concentric.png", 330, [
+        ([80, 80, 231, 231], (84, 254, 254)),
+        ([95, 95, 216, 216], (118, 220, 254)),
+        ([125, 125, 186, 186], (169, 169, 254)),
+    ])
+    result = detect_room_segments(image_path=path, min_area_pixels=1200)
+    assert result["available"] is True
+    assert "color_distance:insufficient_grown_masks" in _split_debug_reasons(result)
+
+
+def test_ecv23_colour_distance_refuses_a_split_that_leaves_most_of_the_floor_out(tmp_path):
+    """[ECV-23] A split has to ACCOUNT for the component, not nibble at it.
+
+    `used_area < active*0.38` refuses a split whose accepted masks cover only a
+    fraction of what they claim to partition — the remainder would belong to no
+    room at all. Here only the two 10000-px islands rank (the eight mosaic bands
+    are each 8176 px, under the 9000 bin floor), so used_area is 20000 of 90000 =
+    0.22 and the strategy declines.
+    """
+    import numpy as np
+    from PIL import Image
+
+    canvas = np.full((600, 600, 3), 255, np.uint8)
+    canvas[150:450, 150:450] = (254, 50, 50)
+    inner = canvas[154:446, 154:446]                 # 4-px red ring survives outside this
+    inner[0:50, 0:200] = (50, 50, 254)               # 10000 px, ranks
+    inner[50:100, 0:200] = (50, 254, 50)             # 10000 px, ranks
+    bands = [(254, 254, 50), (50, 254, 254), (254, 50, 254), (150, 254, 50),
+             (50, 150, 254), (254, 150, 50), (150, 50, 254), (50, 254, 150)]
+    for index, colour in enumerate(bands):           # 8176 px each, all sub-floor
+        top = 100 + index * 28
+        if top + 28 > inner.shape[0]:
+            break                                    # a band past the interior would
+        inner[top:top + 28, 0:292] = colour          # land on the BACKGROUND instead
+    path = _write(Image.fromarray(canvas, mode="RGB"), str(tmp_path), "mosaic.png")
+    result = detect_room_segments(image_path=path, min_area_pixels=1200)
+    assert result["available"] is True
+    assert "color_distance:insufficient_coverage" in _split_debug_reasons(result)
+
+
+def test_ecv24_the_farthest_colour_bin_wins_regardless_of_arrival_order(tmp_path):
+    """[ECV-24] The second colour centre is the FARTHEST bin, not the last one seen.
+
+    `if distance > best_distance` keeps a running maximum over the ranked bins,
+    and the arm that was never exercised is the FALSE one — a candidate closer
+    than the best so far. Order of arrival is by pixel count, so making the
+    farthest bin the SECOND-largest means iteration 2 must be rejected.
+
+    This asserts the invariant rather than the branch: the chosen pair is the same
+    whichever order the bins arrive in. Both images hold the same three colours in
+    one component; only the stripe widths (hence the ranking) differ.
+    """
+    def _stripes(name, widths_and_colours):
+        from PIL import ImageDraw
+
+        img = _canvas(400)
+        draw = ImageDraw.Draw(img)
+        left = 30
+        for width, colour in widths_and_colours:
+            draw.rectangle([left, 30, left + width - 1, 330], fill=colour)
+            left += width
+        return _write(img, str(tmp_path), name)
+
+    far, near = (255, 230, 230), (255, 40, 40)
+    descending = _stripes("desc.png", [(170, (255, 0, 0)), (102, far), (68, near)])
+    ascending = _stripes("asc.png", [(170, (255, 0, 0)), (102, near), (68, far)])
+
+    first = detect_room_segments(image_path=descending, min_area_pixels=1200)
+    second = detect_room_segments(image_path=ascending, min_area_pixels=1200)
+    assert first["available"] is True and second["available"] is True
+    # Same decision either way: the ranking order must not change the outcome.
+    assert _split_debug_reasons(first) == _split_debug_reasons(second), (
+        "the colour-distance verdict changed when the bins were merely reordered, "
+        "so the running maximum is picking the last candidate rather than the farthest"
+    )
+
+
+# --- localized-bins refusals ------------------------------------------------
+
+
+def _chromaticity_png(tmp_path, name, layout):
+    """A 500x500 white canvas with a 400x400 block painted from a bin-index layout.
+
+    `layout` is a 400x400 int array of indices into `_SHADES`. Every shade is hue
+    0, so the block arrives as ONE component carrying six distinct colour bins.
+    """
+    import numpy as np
+    from PIL import Image
+
+    block = np.zeros((400, 400, 3), np.uint8)
+    for index, colour in enumerate(_SHADES):
+        block[layout == index] = colour
+    canvas = np.full((500, 500, 3), 255, np.uint8)
+    canvas[50:450, 50:450] = block
+    return _write(Image.fromarray(canvas, mode="RGB"), tmp_path, name)
+
+
+def test_ecv25_a_colour_bin_with_no_solid_core_is_not_a_room(tmp_path):
+    """[ECV-25] A bin that survives only as scattered pixels is refused.
+
+    `_localize_oversized_component` opens each bin's seed with a 3x3 structure
+    before trusting it. A checkerboard bin has 10000 px — comfortably inside the
+    bucket window — but no pixel has an 8-neighbour, so the opening empties it and
+    the candidate is dropped. Area alone does not make a room; it has to hold
+    together.
+
+    NOT BITE-PROVEN, and the reason is worth knowing. This assertion
+    DISCRIMINATES -- the control image gives equal counts -- but no single source
+    edit falsifies it, because the refusal is over-determined three deep: remove
+    the `np.any(opened)` check and the empty mask reaches `label()`, whose count of
+    0 is caught by the next guard; remove that too and `range(1, 0 + 1)` is empty
+    so the loop adds nothing anyway; and neutering the structuring element to 1x1
+    still leaves the count short. Three ablations tried, all green. Recorded as
+    covering the OUTCOME (a bin with no solid core yields no candidate) rather than
+    any one branch -- do not read this arm's coverage as proof it is load-bearing.
+    """
+    import numpy as np
+
+    layout = np.zeros((400, 400), np.int8)
+    for stripe in range(5):
+        layout[:, stripe * 80:(stripe + 1) * 80] = stripe
+    rows, cols = np.mgrid[0:200, 0:200]
+    layout[0:200, 0:200] = np.where((rows + cols) % 2 == 0, 5, 0)
+    checker = _chromaticity_png(str(tmp_path), "checker.png", layout)
+
+    even = np.zeros((400, 400), np.int8)              # control: five solid stripes
+    for stripe in range(5):
+        even[:, stripe * 80:(stripe + 1) * 80] = stripe
+    solid = _chromaticity_png(str(tmp_path), "even.png", even)
+
+    result = detect_room_segments(image_path=checker, min_area_pixels=1200)
+    control = detect_room_segments(image_path=solid, min_area_pixels=1200)
+    assert result["available"] is True and control["available"] is True
+    scattered, intact = _localized_debug(result), _localized_debug(control)
+    # Six bins RANK and only five become candidates: the checkerboard bin was admitted
+    # on area and then produced nothing once opened.
+    assert scattered["ranked_color_bins"] > scattered["candidate_count"], (
+        "every ranked bin became a candidate (%s ranked, %s candidates), so the opening "
+        "did not refuse the scattered one"
+        % (scattered["ranked_color_bins"], scattered["candidate_count"])
+    )
+    assert intact["ranked_color_bins"] == intact["candidate_count"], (
+        "the control also lost a bin, so the pair is not one-variable"
+    )
+
+
+def test_ecv26_a_localized_candidate_over_a_fifth_of_the_component_is_refused(tmp_path):
+    """[ECV-26] A 'pocket' that is a quarter of the floor is not a pocket.
+
+    There is a 3200-px window between two constants in one function: a bin is
+    ADMITTED while its count is at most `active*0.24` (38400) and the grown
+    candidate is REFUSED above `active*0.22` (35200). A single connected bin of
+    37240 px sits inside it, so it is ranked and then dropped — the arm that
+    stops an over-large colour pocket from being promoted to a room.
+    """
+    import numpy as np
+
+    layout = np.zeros((400, 400), np.int8)
+    layout[10:206, 10:200] = 1          # 196 x 190 = 37240 px
+    layout[250:330, 10:390] = 2         # 30400
+    layout[340:390, 10:390] = 3         # 19000
+    path = _chromaticity_png(str(tmp_path), "window.png", layout)
+    result = detect_room_segments(image_path=path, min_area_pixels=1200)
+    assert result["available"] is True
+    debug = _localized_debug(result)
+    # Three bins rank; the 37240-px one is admitted and then dropped, so it must not
+    # appear among the candidate areas while the two smaller ones do.
+    assert debug["ranked_color_bins"] == 3, debug
+    assert sorted(debug["candidate_areas"]) == [19000, 30400], (
+        "candidate areas were %s -- the 37240-px bin was not refused"
+        % debug["candidate_areas"]
+    )
+
+
+def test_ecv27_localized_bins_needs_two_candidates_or_it_declines(tmp_path):
+    """[ECV-27] One pocket is not a split.
+
+    `len(candidate_masks) < 2` refuses to "split" a component into itself. Two
+    independent routes reach it and both are asserted: one in-range bin (the rest
+    of the block is above the bucket ceiling and filtered out), and a plain solid
+    block where no bin ranks at all so the candidate loop is never entered.
+    """
+    import numpy as np
+
+    layout = np.zeros((400, 400), np.int8)
+    layout[0:100, 0:320] = 1            # the only in-range bin
+    one_bin = _chromaticity_png(str(tmp_path), "onebin.png", layout)
+    solid = _paint(str(tmp_path), "solid500.png", 500, [([50, 50, 449, 449], (254, 50, 50))])
+
+    for path in (one_bin, solid):
+        result = detect_room_segments(image_path=path, min_area_pixels=1200)
+        assert result["available"] is True
+        assert "localized_bins:insufficient_localized_candidates" in _split_debug_reasons(result)
+
+
+def test_ecv28_localized_bins_declining_hands_the_component_to_colour_distance(tmp_path):
+    """[ECV-28] The cascade falls THROUGH a strategy that ran and found nothing.
+
+    The oversized gate opens on a 198916-px component, `_localize_oversized_component`
+    runs, and on a uniform block its single bin is above the bucket ceiling so
+    nothing ranks — it declines, and control must continue to colour-distance
+    rather than stopping. The control paints the same block as six stripes, which
+    ACCEPTS, so the same gate is reached either way and only the verdict differs.
+    """
+    import numpy as np
+
+    solid = _paint(str(tmp_path), "solid700.png", 700, [([120, 120, 569, 569], (255, 0, 0))])
+    layout = np.zeros((450, 450), np.int8)
+    for stripe in range(6):
+        layout[:, stripe * 75:(stripe + 1) * 75] = stripe
+    from PIL import Image
+    canvas = np.full((700, 700, 3), 255, np.uint8)
+    block = np.zeros((450, 450, 3), np.uint8)
+    for index, colour in enumerate(_SHADES):
+        block[layout == index] = colour
+    canvas[120:570, 120:570] = block
+    striped = _write(Image.fromarray(canvas, mode="RGB"), str(tmp_path), "striped700.png")
+
+    declined = detect_room_segments(image_path=solid, min_area_pixels=1200)
+    accepted = detect_room_segments(image_path=striped, min_area_pixels=1200)
+    assert declined["available"] is True and accepted["available"] is True
+    assert "localized_bins:insufficient_localized_candidates" in _split_debug_reasons(declined)
+    # THE CLAIM IS THE FALL-THROUGH, so the observable is that the NEXT strategy ran:
+    # colour-distance must have recorded a verdict on the declined image.
+    assert _colour_debug(declined), (
+        "localized_bins declined and nothing ran after it, so the cascade stopped "
+        "instead of falling through to colour-distance"
+    )
+    # The control reaches the same gate and passes it, so the decline above is a
+    # verdict about the image and not about the gate being shut.
+    assert "localized_bins:insufficient_localized_candidates" not in _split_debug_reasons(accepted)
+
+
+def test_ecv29_an_assist_showing_nothing_registers_and_contributes_nothing(tmp_path):
+    """[ECV-29] An assist image that shows no rooms must not be believed OR break the run.
+
+    An all-black light variant is a real upload mistake and a VALID image: it decodes, it
+    aligns, every assist array is built. What it must not do is contribute agreement it
+    does not have. Here it registers successfully and yields zero agreeing pixels, while
+    the same image with one saturated patch inside the component agrees on that patch.
+
+    HONEST SCOPE. This exercises the empty-assist-hue guard inside the oversized
+    localizer, but it does NOT prove that guard is load-bearing: measured, replacing it
+    with an unconditional `if True` changes no observable, because `np.unique` over an
+    empty array is harmless and the ranking loop simply does not iterate. It is a
+    defensive guard, and this test pins the surrounding CONTRACT (a blank assist costs
+    the assist, not the analysis) rather than that branch. Recorded so nobody later reads
+    the coverage as evidence the branch was proven.
+    """
+    primary = _paint(str(tmp_path), "primary700.png", 700,
+                     [([120, 120, 569, 569], (255, 0, 0))])
+    blank = _paint(str(tmp_path), "assist_black.png", 700, [([0, 0, 699, 699], (0, 0, 0))])
+    patched = _paint(str(tmp_path), "assist_patch.png", 700, [
+        ([0, 0, 699, 699], (0, 0, 0)),
+        ([300, 300, 379, 379], (255, 0, 0)),
+    ])
+
+    def _agreement(assist):
+        result = detect_room_segments(
+            image_path=primary, min_area_pixels=1200, image_variant="dark",
+            assist_image_path=assist, assist_variant="light",
+        )
+        assert result["available"] is True, "a degenerate assist must not fail the run"
+        assert _registration(result).get("enabled") is True, (
+            "a decodable assist must still register"
+        )
+        stage = (result.get("segmentation") or {}).get("stages") or {}
+        return (stage.get("variant_reconciliation") or {}).get("agreement_pixel_count")
+
+    assert _agreement(blank) == 0, "a blank assist agreed with something"
+    assert _agreement(patched) > 0, (
+        "the control agreed on nothing either, so the pair is not one-variable"
+    )
+
+
+# [ECV-30] NOT WRITTEN, AND THE REASON IS A DEFECT, NOT A GAP IN THE SUITE.
+#
+# `_split_component_via_local_support`'s "no supported body" refusal IS reachable from
+# the pipeline: three colours in hue bin 6, a 5-row period of 2 rows at both-votes /
+# 1 at saturation-only / 2 at value-only, so the score>=2 intersection is 2-px stripes
+# that the 3x3 opening erases. Measured — the 2-px image executes that line and the
+# otherwise identical 3-px image does not.
+#
+# It cannot be ASSERTED. That function is the only splitter returning a bare `list`
+# instead of `(masks, debug)`, so all three of its refusals — the active-area floor, the
+# empty-channel guard and this one — are indistinguishable from each other AND from the
+# full-body reject. The cascade logs `local_support:no_split` for every one of them, and
+# both images here produce an identical reason set and an identical single segment. A
+# test over that pair would stay green with the opening deleted, which makes it a
+# preference rather than a claim.
+#
+# This repo has already ruled on exactly this shape once: D20 / [SP-wall-dbg] in
+# test_segmentor_splitters.py, where the first-tried strategy appended a debug row only
+# on success "so its failure left no row and read as never-attempted". Giving
+# local_support the same `(masks, debug)` surface as its siblings would make this arm
+# assertable and is following that decision rather than proposing a new one. Until then
+# the line stays uncovered on purpose, and the 2 units it carries are excluded from the
+# reachable ceiling.
+
+
+# --- candidate keep/drop arms -----------------------------------------------
+
+
+def test_ecv31_a_large_washed_out_region_is_not_a_room(tmp_path):
+    """[ECV-31] A third of the frame in a colour barely above the gate is refused.
+
+    `area_percent > 0.3 and mean_saturation < 30 and not split_method` drops a big
+    pale component — the shape a map takes when the capture has washed out and the
+    floor reads as one faint wash rather than rooms. It clears the room gate
+    (saturation >= 18) and is still not a room.
+
+    The saturation boundary is sharp and the control sits one step the other side
+    of it: mean saturation 25 drops, 31 keeps, on identical geometry.
+    """
+    dropped = detect_room_segments(
+        image_path=_paint(str(tmp_path), "pale.png", 400,
+                          [([80, 80, 319, 319], (255, 230, 230))]),
+        min_area_pixels=1200)
+    kept = detect_room_segments(
+        image_path=_paint(str(tmp_path), "lesspale.png", 400,
+                          [([80, 80, 319, 319], (255, 224, 224))]),
+        min_area_pixels=1200)
+    assert dropped["available"] is True and kept["available"] is True
+    # The drop reason is not observable here: `localized_drop_debug` is filtered to
+    # candidates whose split method was localized_bins, and this parent has none. The
+    # segment itself is the observable, which is the user-visible effect anyway.
+    assert not dropped["segments"], "the washed-out region was kept as a room"
+    assert len(kept["segments"]) == 1, (
+        "the control lost its segment too, so the pair is not one-variable"
+    )
+    assert _scoring(dropped)["dropped_regions"] == 1
+    assert _scoring(kept)["dropped_regions"] == 0
+
+
+def test_ecv32_a_localized_child_the_reclaim_shrank_below_the_floor_is_refused(tmp_path):
+    """[ECV-32] A child admitted at 1408 px can arrive at the keep gate as 1008.
+
+    This arm looks dead from the source: the admission floor
+    (`max(min_area*0.9, 1400)`) is never below the reject floor
+    (`max(1100, min_area*0.9)`). The step between them is
+    `_reclaim_localized_child_mask`, whose sparse-top trim deletes leading rows and
+    only guarantees the survivor keeps 68% — so the child SHRINKS after admission
+    and the reject arm is what catches it.
+
+    GEOMETRY: a 20-px-wide stem above a 48-px-wide block. The stem's row count
+    (20) falls under the trim threshold (20.16) so it is deleted; one pixel wider
+    and the trim stops at the first row, which is the control.
+    """
+    def _child(name, stem_width):
+        return _paint(str(tmp_path), name, 700, [
+            ([30, 20, 629, 299], (255, 120, 120)),                       # parent
+            ([130, 60, 130 + stem_width - 1, 79], (255, 0, 0)),          # stem
+            ([116, 80, 163, 100], (255, 0, 0)),                          # block
+            ([400, 200, 459, 249], (255, 0, 0)),                         # sibling
+        ])
+
+    shrunk = detect_room_segments(image_path=_child("shrunk.png", 20), min_area_pixels=1200)
+    intact = detect_room_segments(image_path=_child("intact.png", 21), min_area_pixels=1200)
+    assert shrunk["available"] is True and intact["available"] is True
+    assert "localized_child_too_small" in _localized_drop_reasons(shrunk)
+    assert "localized_child_too_small" not in _localized_drop_reasons(intact)
+
+
+def test_ecv33_a_localized_child_the_reclaim_made_sparse_is_refused(tmp_path):
+    """[ECV-33] Growing a child can make it LESS of a room than it was.
+
+    A child cannot be born sparse — the admission gate refuses fill_ratio < 0.16.
+    The sparse arm fires because the reclaim grows the child DOWNWARD through
+    room-like support: few pixels are added but the bounding box extends a long
+    way, and fill_ratio is recomputed from the grown box. The support stripe must
+    be a DIFFERENT colour bin from the child (or it joins the child's own seed and
+    the candidate is born sparse, failing admission) while still clearing the
+    reclaim's saturation floor of 237.
+
+    The control moves the tendril one unit of green — saturation 235 against that
+    floor of 237 — so the reclaim cannot see it, the child is not grown, and the
+    arm is not taken. One channel step, opposite verdict.
+    """
+    def _sparse(name, tendril):
+        return _paint(str(tmp_path), name, 700, [
+            ([40, 20, 339, 619], (255, 120, 120)),      # parent
+            ([60, 60, 309, 65], (255, 0, 0)),           # child bar, 1500 px
+            ([180, 66, 185, 99], (255, 0, 0)),          # child tooth, 204 px
+            ([180, 100, 185, 147], tendril),            # support tendril, 288 px
+            ([100, 400, 159, 459], (255, 0, 0)),        # sibling
+        ])
+
+    grown = detect_room_segments(image_path=_sparse("sparse.png", (255, 10, 10)),
+                                 min_area_pixels=1200)
+    ungrown = detect_room_segments(image_path=_sparse("dense.png", (255, 20, 20)),
+                                   min_area_pixels=1200)
+    assert grown["available"] is True and ungrown["available"] is True
+    assert "localized_child_sparse" in _localized_drop_reasons(grown)
+    assert "localized_child_sparse" not in _localized_drop_reasons(ungrown)
+
+
+# --- assist registration ----------------------------------------------------
+
+
+def test_ecv34_an_assist_path_that_does_not_resolve_degrades_instead_of_failing(tmp_path):
+    """[ECV-34] A bad assist must cost the assist, not the whole analysis.
+
+    The registration block is wrapped so that anything it raises leaves the run
+    alive in single-image mode, with the failure NAMED in the registration record
+    rather than swallowed. Two inputs are asserted because they fail at different
+    depths: a path that does not exist (`FileNotFoundError`) and a truncated PNG
+    that begins to decode and then cannot (`OSError`).
+
+    THE FIRST IS A LIVE USER ROUTE, not a contrivance: the tuning dict's
+    `assist_image_path` is written only when the light variant is on disk, so
+    deleting that variant leaves the previous path persisted and the next analysis
+    arrives here. The control is the same primary with a readable assist, which
+    registers normally.
+    """
+    primary = _paint(str(tmp_path), "reg_primary.png", 240, [
+        ([28, 28, 110, 211], (200, 60, 60)),
+        ([129, 28, 211, 211], (60, 80, 200)),
+    ])
+    good = _paint(str(tmp_path), "reg_assist.png", 240, [
+        ([28, 28, 110, 211], (200, 60, 60)),
+        ([129, 28, 211, 211], (60, 80, 200)),
+    ])
+    missing = os.path.join(str(tmp_path), "no_such_assist.png")
+    truncated = os.path.join(str(tmp_path), "truncated_assist.png")
+    with open(good, "rb") as handle:
+        payload = handle.read()
+    with open(truncated, "wb") as handle:
+        handle.write(payload[: int(len(payload) * 0.55)])
+
+    for assist in (missing, truncated):
+        result = detect_room_segments(
+            image_path=primary, min_area_pixels=200, image_variant="dark",
+            assist_image_path=assist, assist_variant="light",
+        )
+        assert result["available"] is True, "a bad assist must not fail the analysis"
+        registration = _registration(result)
+        assert registration.get("enabled") is False
+        assert registration.get("error"), "the failure was swallowed without being named"
+
+    control = detect_room_segments(
+        image_path=primary, min_area_pixels=200, image_variant="dark",
+        assist_image_path=good, assist_variant="light",
+    )
+    assert _registration(control).get("enabled") is True
+    assert not _registration(control).get("error")
+
+
+# --- the deferred-recovery loop ---------------------------------------------
+
+
+def _plus_png(tmp_path, name, canvas, centres, outer, arm, colour=(255, 60, 60)):
+    """Plus signs, whose fill_ratio is one knob at constant compactness.
+
+    A plus of outer extent `s` and arm width `t` has the SAME taxicab perimeter as
+    an s x s square (4s), so compactness = pi*fill/4 and fill = 2u - u^2 for
+    u = t/s. That makes arm width the only thing moving fill_ratio across the 0.42
+    recovery boundary while compactness stays far above the 0.08 fragmented floor.
+    """
+    from PIL import ImageDraw, Image
+
+    img = Image.new("RGB", (canvas, canvas), (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    for cx, cy in centres:
+        draw.rectangle([cx - outer // 2, cy - arm // 2, cx + outer // 2, cy + arm // 2], fill=colour)
+        draw.rectangle([cx - arm // 2, cy - outer // 2, cx + arm // 2, cy + outer // 2], fill=colour)
+    return _write(img, tmp_path, name)
+
+
+def test_ecv35_recovery_stops_once_the_count_is_satisfied(tmp_path):
+    """[ECV-35] Asking for one room does not recover three.
+
+    The recovery loop walks the deferred regions best-first and must STOP when the
+    deficit closes, or a user who says "I have one more room than you found" gets
+    every leftover fragment promoted. Three identical candidates with a deficit of
+    one: exactly one is recovered.
+
+    The control asks for three, so the deficit never closes and the loop runs to
+    the end of the list instead of breaking — same image, same floor, one argument
+    different.
+    """
+    path = _plus_png(str(tmp_path), "pluses.png", 560,
+                     [(120, 120), (320, 120), (120, 320)], 160, 42)
+    stopped = detect_room_segments(image_path=path, expected_room_count=1,
+                                   min_area_pixels=16000)
+    exhausted = detect_room_segments(image_path=path, expected_room_count=3,
+                                     min_area_pixels=16000)
+    assert stopped["available"] is True and exhausted["available"] is True
+    assert _recovery(stopped).get("recovered_regions") == 1, (
+        "a deficit of one recovered %s regions" % _recovery(stopped).get("recovered_regions")
+    )
+    assert _recovery(exhausted).get("recovered_regions") == 3
+
+
+def test_ecv36_recovery_refuses_a_candidate_that_is_most_of_the_map(tmp_path):
+    """[ECV-36] A deficit is not a licence to promote a region covering the floor.
+
+    A deferred candidate over 20% of the frame is refused by area before
+    `_component_should_keep` is even asked. The discrimination is on the FRAME,
+    not the region: the same 103625-px plus at the same fill and compactness is
+    0.2005 of a 719-px frame (refused, nothing recovered) and 0.1945 of a 730-px
+    frame (recovered). Only the denominator moves.
+    """
+    def _one_plus(name, canvas):
+        return _plus_png(str(tmp_path), name, canvas, [(canvas // 2, canvas // 2)], 480, 124)
+
+    refused = detect_room_segments(image_path=_one_plus("big719.png", 719),
+                                   expected_room_count=2, min_area_pixels=200000)
+    recovered = detect_room_segments(image_path=_one_plus("big730.png", 730),
+                                     expected_room_count=2, min_area_pixels=200000)
+    assert refused["available"] is True and recovered["available"] is True
+    assert _recovery(refused).get("recovered_regions") == 0
+    assert _recovery(recovered).get("recovered_regions") == 1, (
+        "the control recovered nothing either, so the 20%% area bar is not what "
+        "separated these two runs"
+    )
+
+
+def test_ecv37_recovery_still_applies_the_keep_rules_it_relaxed(tmp_path):
+    """[ECV-37] Recovery mode lowers the bar; it does not remove it.
+
+    The only thing `recovery_mode=True` changes is one extra way to qualify
+    (`area_percent >= 0.002 and fill_ratio >= 0.42`). A candidate that fails that
+    too is still refused, so a deficit cannot drag in a region nothing else wanted.
+
+    Arm width is the single knob: 26 px gives fill 0.3144 and the candidate is
+    refused; 42 px gives 0.4728 on otherwise identical pluses and it is recovered.
+    Compactness moves only 0.247 -> 0.371 and every other field is unchanged.
+    """
+    centres = [(120, 120), (320, 120), (120, 320)]
+    refused = detect_room_segments(
+        image_path=_plus_png(str(tmp_path), "thin_plus.png", 560, centres, 160, 26),
+        expected_room_count=3, min_area_pixels=12000)
+    recovered = detect_room_segments(
+        image_path=_plus_png(str(tmp_path), "thick_plus.png", 560, centres, 160, 42),
+        expected_room_count=3, min_area_pixels=12000)
+    assert refused["available"] is True and recovered["available"] is True
+    assert _recovery(refused).get("recovered_regions") == 0
+    assert _recovery(recovered).get("recovered_regions") == 3, (
+        "thickening the arms recovered %s, so fill_ratio is not the knob under test"
+        % _recovery(recovered).get("recovered_regions")
+    )
