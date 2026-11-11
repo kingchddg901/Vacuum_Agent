@@ -1186,6 +1186,91 @@ async def test_msv28d_caller_tuning_reaches_the_engine_and_omitted_fields_do_not
     )
 
 
+async def test_msv35_a_declared_assist_path_that_is_not_a_file_is_dropped_and_named(
+    hass, mapping_services, monkeypatch, caplog
+):
+    """[MSV-35] A stored assist path that is not on disk must not reach the engine.
+
+    `tuning` starts from the adapter's `segmenter_tuning`, and the branch that
+    fills `assist_image_path` only ever SETS it -- so a path declared in a stored
+    config survived into every run untouched. `save_adapter_config` accepts one
+    (`assist_image_path` is in the CV engine's `_KNOWN_TUNING_KEYS`) and
+    `validate_tuning` deliberately does not check that the file exists ([SE-19]),
+    so the route is real: a hand-authored adapter config, or a light variant
+    deleted after the config named it.
+
+    WHAT MADE IT WORTH FIXING rather than documenting is where it landed. The
+    segmentor's registration block catches the FileNotFoundError and leaves the
+    run alive in single-image mode ([ECV-34]) -- correct, and completely silent:
+    the reason sits in a debug dict nobody reads, so the user gets an analysis
+    that is quietly worse with nothing to explain it.
+
+    THE CONTROL IS THE SAME CONFIG WITH THE LIGHT VARIANT ON DISK. Without it
+    this test passes just as well against a handler that drops the key
+    unconditionally, which would disable the assist for everyone.
+    """
+    import logging
+
+    manager = mapping_services
+    _seed_image(hass, manager)
+
+    missing = os.path.join(hass.config.config_dir, "no_such_light.png")
+    assert not os.path.isfile(missing)
+    stored = {
+        "mapping": {
+            "segmenter_tuning": {
+                "assist_image_path": missing,
+                "assist_variant": "light",
+                "min_area_pixels": 900,
+            }
+        }
+    }
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.adapters.registry.get_adapter_config",
+        lambda vacuum_entity_id: stored,
+    )
+    engine = _with_engine(monkeypatch, {"available": True, "segments": []})
+
+    with caplog.at_level(logging.WARNING):
+        out = await _call(hass, ms.SERVICE_ANALYZE_MAP_IMAGE,
+                          {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                           "force_reanalyze": True})
+
+    assert out.get("available") is True
+    seen = engine.seen_tuning
+    assert "assist_image_path" not in seen, (
+        "a declared path that is not a file reached the engine: %r" % (seen,)
+    )
+    assert "assist_variant" not in seen, (
+        "the variant label outlived the path it labels: %r" % (seen,)
+    )
+    assert seen.get("min_area_pixels") == 900, (
+        "dropping the assist path took the rest of the adapter's tuning with it: "
+        "%r" % (seen,)
+    )
+    assert missing in caplog.text and "single-image" in caplog.text, (
+        "the degradation was silent, which is the whole point of the fix: %r"
+        % (caplog.text,)
+    )
+
+    # CONTROL: the same stored config, with the light variant actually present.
+    caplog.clear()
+    _seed_image(hass, manager, variant="light")
+    control = _with_engine(monkeypatch, {"available": True, "segments": []})
+    await _call(hass, ms.SERVICE_ANALYZE_MAP_IMAGE,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                 "force_reanalyze": True})
+
+    seen = control.seen_tuning
+    assert seen.get("assist_image_path", "").endswith("_light.png"), (
+        "a readable light variant must still reach the engine: %r" % (seen,)
+    )
+    assert seen.get("assist_variant") == "light"
+    assert "single-image" not in caplog.text, (
+        "a working assist was reported as a degradation"
+    )
+
+
 async def test_msv29_deleting_a_layout_sweeps_its_backdrop_AND_its_furnished_art(
     hass, mapping_services, monkeypatch
 ):

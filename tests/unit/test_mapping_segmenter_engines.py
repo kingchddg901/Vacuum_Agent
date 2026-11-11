@@ -21,6 +21,10 @@ Coverage targets
 [SE-16] EufyCVSegmenter.segment_map_image: detect raises → engine_exception unavailable.
 [SE-17] EufyCVSegmenter._reshape: runtime block but no segmentation → only runtime hoisted.
 [SE-18] EufyCVSegmenter._reshape: neither segmentation nor runtime → empty engine_diagnostics.
+[SE-19] EufyCVSegmenter.validate_tuning: assist_image_path is type-checked (blank or
+        non-str flagged) but deliberately NOT existence-checked -- an absent path
+        validates clean, because the file question is asked at use, by
+        analyze_map_image ([MSV-35]).
 """
 
 from __future__ import annotations
@@ -141,6 +145,37 @@ def test_cv_validate_valid():
 def test_cv_validate_simplify_epsilon_none_ok():
     """[SE-8] None is an allowed simplify_epsilon value."""
     assert EufyCVSegmenter().validate_tuning({"simplify_epsilon": None}) == []
+
+
+@pytest.mark.parametrize("value", ["", "   ", 5, None, True, b"/light.png", []])
+def test_cv_validate_bad_assist_image_path(value):
+    """[SE-19] assist_image_path is TYPE-checked here and nowhere else.
+
+    It is the one tuning key naming a file, and it was the only known key with no
+    check at all -- so a stored config could carry a number, a blank string or a
+    bytes object and validate clean, then reach the pipeline where only the
+    registration block's blanket `except` stood between it and a silent
+    single-image run.
+    """
+    issues = EufyCVSegmenter().validate_tuning({"assist_image_path": value})
+    assert any("assist_image_path" in i for i in issues)
+
+
+def test_cv_validate_assist_image_path_absent_file_is_valid():
+    """[SE-19] The DELIBERATE non-check: a path with nothing at it validates.
+
+    Whether the file exists has a different answer a minute later -- a config may
+    legitimately be saved before the light variant is uploaded -- so refusing an
+    absent path here would reject a correct config. The existence question is
+    asked AT USE, by analyze_map_image, which drops the path for that run and
+    names it in the log ([MSV-35]).
+
+    This is the assertion that makes the type check above safe to tighten: it
+    pins which half of the question validation owns.
+    """
+    assert EufyCVSegmenter().validate_tuning(
+        {"assist_image_path": "/definitely/not/here.png", "assist_variant": "light"}
+    ) == []
 
 
 # ---------------------------------------------------------------------------

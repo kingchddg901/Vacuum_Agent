@@ -1549,11 +1549,16 @@ def test_ecv34_an_assist_path_that_does_not_resolve_degrades_instead_of_failing(
     depths: a path that does not exist (`FileNotFoundError`) and a truncated PNG
     that begins to decode and then cannot (`OSError`).
 
-    THE FIRST IS A LIVE USER ROUTE, not a contrivance: the tuning dict's
-    `assist_image_path` is written only when the light variant is on disk, so
-    deleting that variant leaves the previous path persisted and the next analysis
-    arrives here. The control is the same primary with a readable assist, which
-    registers normally.
+    THE FIRST IS A LIVE USER ROUTE, not a contrivance, though not the one first
+    recorded here. `analyze_map_image` rebuilds its tuning dict every run, so
+    deleting a light variant strands nothing; what persists is a STORED adapter
+    config that declares `assist_image_path` itself, which `save_adapter_config`
+    accepts and which used to reach the pipeline unchecked. The service now drops
+    such a path and says so ([MSV-35]), which closes that route -- and leaves this
+    test covering the half the service cannot: a path that is readable when it is
+    checked and broken when it is opened, and any caller reaching
+    `detect_room_segments` directly. The control is the same primary with a
+    readable assist, which registers normally.
     """
     primary = _paint(str(tmp_path), "reg_primary.png", 240, [
         ([28, 28, 110, 211], (200, 60, 60)),

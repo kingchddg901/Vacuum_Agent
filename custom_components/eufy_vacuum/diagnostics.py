@@ -607,6 +607,17 @@ def _pattern_resolution(
     works: a manual override (or the ENT-2 device-sibling fallback) can make the live
     map work while the derived id is still wrong, and that combination is exactly what
     hid this for so long.
+
+    THERE ARE NOW THREE WAYS THE TWO CAN DIVERGE, and the third has to be reported here
+    or this dump sends its reader hunting for a cause that is not in it. #80 added a
+    brand-declared RESOLVER (``mapping.live_map_image_entity_resolver``), tried after the
+    override, the pattern and the sibling search have all missed. Roborock declares one
+    because core builds the map image's entity id when the image is CREATED, so naming or
+    renaming a map in the app leaves the id behind and the pattern derives something that
+    does not exist — permanently, until that integration reloads. On such an install the
+    derivation below is genuinely wrong AND the live map works, with no override and no
+    sibling in sight. Without the ``resolver`` field a reader would conclude the dump was
+    inconsistent with itself.
     """
     from .adapters.registry import get_adapter_config
 
@@ -627,12 +638,17 @@ def _pattern_resolution(
     except Exception:  # pragma: no cover - defensive
         vac_record = {}
     override = vac_record.get("live_map_image_entity")
+    resolver = (config.get("mapping") or {}).get("live_map_image_entity_resolver")
     out["live_map_image"] = {
         "pattern": str(pattern),
         "derived": derived,
         "derived_exists": bool(derived) and hass.states.get(derived) is not None,
         "override": _redact(override) if override else None,
         "override_exists": bool(override) and hass.states.get(override) is not None,
+        # The third rescue path (see the docstring). Named, not called: resolving needs a
+        # map_id and this report is map-agnostic, so what matters to the reader is that a
+        # resolver EXISTS to explain a working live map beside a wrong derivation.
+        "resolver": str(resolver) if resolver else None,
     }
     return out
 

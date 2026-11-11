@@ -1131,7 +1131,7 @@ tests and the `_prune_localized_siblings` extraction), and that `[ECV-8]`
 (`adversarial_map.png`) can only make localized-bins run-and-reject while `[ECV-9]` (the
 real dark+light pair) reaches accept. The current account is immediately below.
 
-### `eufy/segmentor.py` — 92.38% → 95.66%, past the ceiling it was measured against
+### `eufy/segmentor.py` — 92.38% → 96.41%, past the ceiling it was measured against
 
 Measured 2026-11-10: 868 statements and 378 branches, of which **53 statements and 42
 partial branches are uncovered — 1151/1246 = 92.38%.** The paragraph above says 91% and
@@ -1151,6 +1151,7 @@ already-covered line.
 | built — `[ECV-21]`…`[ECV-37]` | +38 | 1189/1246 = 95.43% |
 | the recorded ceiling | +2 | 1191/1246 = 95.59% |
 | **after the `local_support` debug refactor** | — | **1211/1266 = 95.66%** |
+| **after the four dead-guard deletions (2026-11-11)** | — | **1207/1252 = 96.41%** |
 | if unit-tier tests were allowed too | +15 | 1206/1246 = 96.79% |
 
 **The module is over 95%, and then past the ceiling.** 16 tests closed 38 of the 40
@@ -1211,19 +1212,40 @@ colour-distance arms look unreachable.
 Covering those ten and the eight branches they close is **+18 units → 93.82%**. That is a
 measured *lower bound* on the ceiling, not the ceiling.
 
-**FOURTEEN STATEMENTS ACROSS TEN GUARDS ARE UNREACHABLE BY ANY REAL INPUT.** Four fire only
-under injection — monkeypatching an intermediate so the guard sees a value the real path
-cannot produce — which is not a refutation.
+**FOUR OF THESE GUARDS WERE DELETED ON 2026-11-11, AND TWO WERE NEVER UNREACHABLE.** The
+table below is what survives, and the counts that stood here — "fourteen statements across
+ten guards" — were stale *and* incomplete, so they are not patched but replaced. They
+missed that two of the guards have a **second site each**: `ys.size == 0` appears in both
+`_reclaim_localized_child_mask` and its nested `_trim_sparse_top_rows`, and
+`label_slice is None` in both `_try_add_candidate` and `_detect_room_segments_pipeline`.
+Measured over the full `tests` scope: **12 uncovered statements across 6 surviving guard
+families**, with `segmentor.py` at **1207/1252 = 96.41%**.
 
-| symbol · guard | why it cannot be reached |
-|---|---|
-| `_split_component_via_color_distance` — `insufficient_feature_values` `:506/507` | its own active-area floor already requires `active >= max(m*2, 3200)` and `len(feature_values) == active`; `max(m*1.2, 1800) < max(m*2, 3200)` for every `min_area_pixels` in 0…20000, swept |
-| `_split_component_via_local_support` — empty sat/value `:420` | same shape against that function's own floor; the two clauses differ — the first is a caller contract, the second a numpy one |
-| `_split_component_via_color_distance` — empty `active_distances` `:550`; `_localize_oversized_component` — `no_feature_values` `:622/623`; `_split_component_via_assist_hue` — `no_active_hue_values` `:746/747` | `len(...) == 0` after each function's own upstream `active_area` floor of 3200 / 120000 / 3500 |
-| `_reclaim_localized_child_mask::_trim_sparse_top_rows` — empty `baseline_rows` `:205` | the ≥6-occupied-rows floor holds, and the baseline index is itself drawn from `occupied_rows`, so `row_counts[lower_start] > 0` is always inside the slice |
-| `_reclaim_localized_child_mask` — empty after trim `:229` | `_trim_sparse_top_rows` retains ≥68% or returns the mask untouched |
-| `_split_component_via_color_distance` — `center_distance_too_small` `:537/538` | the two ranked bin centres cannot land within 0.09 of each other on any real palette |
-| `_localize_oversized_component` — `count <= 0` `:670`, `label_slice is None` `:675` | scipy's contract: `label()` on a non-empty mask returns `count >= 1`, and `find_objects` returns exactly one slice per label |
+Line citations are gone from this table on purpose. Every one of them had rotted — `:420`
+was `:444` by the time the deletion pass read it and `:486` by the time the comments
+landed — which is the repo's own standing rule (`pytest.ini`: targets are
+`file.py::symbol`, never a line number) arriving where it was not yet applied.
+
+| symbol · guard | fate | why it cannot be reached |
+|---|---|---|
+| `_split_component_via_assist_hue` — `no_active_hue_values` | **DELETED** | its own `max(m*1.8, 3500)` floor cannot evaluate below 3500, so the hue sample is never empty. The net moved to that floor, which `[SP-hue-floor]`/`[SP-hue-sample]` now test. Measured: the floor at 0 reddens them, the floor at 1000 does **not** — a downward retune as such was never the hazard |
+| `_localize_oversized_component` — `no_feature_values` | **DELETED** | the absolute `max(m*10, 120000)` floor refuses an empty `active`, and `len(quantized[active]) == count_nonzero(active)`. `[SP-oversize-floor]`/`[SP-oversize-dominance]`/`[SP-oversize-identity]` carry it |
+| `_localize_oversized_component::_try_add_candidate` — `count <= 0` | **DELETED** | `np.any(opened)` two lines above guarantees `count >= 1`. `[SP-D3-1..4]` ratchet scipy's contract; honestly labelled a preference, since a copy of the predicate cannot see the source change |
+| `_split_component_via_local_support` — `or len(primary_value_values) == 0` | **CLAUSE DELETED** | both slices index one `active`, so the lengths are equal by construction and the `or` described a divergence that cannot be built. The saturation clause survives as documentation; `[SP-local-5]` tests the floor that kills it |
+| `_split_component_via_local_support` — `len(primary_sat_values) == 0` | kept + commented | `active_area >= max(m*2.0, 3200)` and the slice holds exactly `active_area` elements. Stands in front of a **crash**, not a soft refusal: `np.percentile` of an empty slice raises `IndexError` on numpy 2.3.2 |
+| `_split_component_via_color_distance` — `insufficient_feature_values` | kept + commented | `max(m*1.2, 1800) < max(m*2.0, 3200)` for every `min_area_pixels`, swept. **Two independent floors that dominate by accident of the constants, not by design** — merging them would let a lowered component floor feed 8³ colour binning ~1000 samples silently. Its reason string can never be emitted, which is said beside it |
+| `_split_component_via_color_distance` — empty `active_distances` | kept + commented | the house idiom in all four splitters, and the precondition for the `np.percentile` on the next line. Waking it is correct and cheap; the cheap replacement test **cannot see** the edit that wakes it |
+| `_split_component_via_color_distance` — `center_distance_too_small` | kept + commented | the two ranked bin centres cannot land within 0.09 of each other on any real palette |
+| `_reclaim_localized_child_mask` — `ys.size == 0`, **both sites** | kept + commented | `_trim_sparse_top_rows` retains ≥68% or returns the mask untouched; its own `baseline_rows` site is held by the ≥6-occupied-rows floor, the baseline index being drawn from `occupied_rows` |
+| `_try_add_candidate` / `_detect_room_segments_pipeline` — `label_slice is None`, **both sites** | kept + commented | scipy's contract: `label()` relabels to a consecutive 1…n set, so `find_objects` returns exactly one slice per label. It *can* return `None` for a gapped array, so the guard defends against a producer other than `label()` |
+
+**TWO ENTRIES WERE WRONG, AND BOTH WERE IN ONE FUNCTION.**
+`_split_component_via_local_support`'s `no_supported_body` and its `>= 0.74` overlap dedup
+were carried as unreachable. Both fire on ordinary numpy input, and **both are now
+covered** — the first by `[ECV-30]`, the second by `[SP-local-4]`, whose fixture is the
+sibling that breaks `_support_scored_blobs`'s stated assumption: one seed per blob is the
+only reason the dedup had never run. Uncovered is not dead, and two of five here proved
+it. Any future deletion argued from an uncovered line needs its own refutation pass first.
 
 **`:229` IS ONE NUMBER FROM LIVE, AND TWO OF THESE ARE NOT SAFE TO DELETE.** Lower `:221`'s
 0.68 to ≤0.16, or `:197`'s 6 to 1, and `:229` becomes reachable — these are the thresholds
@@ -1274,16 +1296,41 @@ by a second agent.
 | …same function `:1533` | `_component_should_keep` refusing in `recovery_mode` | — |
 | arcs `532→529`, `646→658`, `854→856` | three orphan branch arms | the uncovered arm jumps to an already-covered line, so only the arc is missing |
 
-**A DEFECT FOUND BY ASKING HOW `:1123` IS REACHED.** The cheapest real route to that handler
-is a **stale `assist_image_path`**, and it is a live user path, not a probe artifact:
-`mapping/mapping_services.py` writes `tuning["assist_image_path"]` **only when the light
-variant is on disk**, so deleting the light variant leaves the previous path persisted;
-`mapping/segmenter_engines.py` reads it straight into the `detect_room_segments` kwargs; and
-`validate_tuning` accepts the key as a known tuning key with no existence check. So a user
-who removes their light variant keeps a dangling path, the registration raises
-`FileNotFoundError`, and the run silently degrades to single-image mode with the error
-buried in the registration dict. Not fixed here — it is a mapping-services defect, not a
-test gap.
+**A DEFECT FOUND BY ASKING HOW `:1123` IS REACHED — AND A CORRECTION TO HOW IT WORKS.**
+The cheapest real route to that handler is an `assist_image_path` that names nothing, and it
+is a live user path rather than a probe artifact. **The mechanism first recorded here was
+wrong**, and the wrong one is worth keeping because it is the plausible one: it said
+`mapping/mapping_services.py` writes `tuning["assist_image_path"]` only when the light
+variant is on disk, *so deleting that variant leaves the previous path persisted*. It does
+not. `tuning` is rebuilt from scratch on every run (`dict(adapter_tuning)`, `:1319`) and
+`assist_path` is recomputed from `os.path.isfile` (`:1306`), so a run leaves nothing behind
+for the next one — deleting the light variant simply ends the assist. A handler that writes
+a key per run cannot strand it; only something **persistent** can, which is the question the
+first pass never asked.
+
+The real route is the **stored adapter config itself**. `assist_image_path` is in the CV
+engine's `_KNOWN_TUNING_KEYS`, so `save_adapter_config` accepts one inside
+`mapping.segmenter_tuning`, `validate_tuning` applied **no check of any kind** to it, and
+`tuning` starts from that block while the branch above only ever *sets* the key. A config
+that declares a path therefore carried it into every analysis untouched, forever. No shipped
+adapter declares one, so this is a hand-authored or UI-authored config — which is exactly the
+input `save_adapter_config` exists to accept.
+
+Where it landed is what made it worth fixing rather than documenting. The registration
+`except` catches the `FileNotFoundError` and leaves the run alive in single-image mode —
+correct behaviour, tested as `[ECV-34]`, and completely silent: the reason sits in a debug
+dict nobody reads. The user gets an analysis that is quietly worse with nothing to explain
+it.
+
+**FIXED, in the two places that own the two halves of the question.** `validate_tuning` now
+type-checks the key (blank or non-string flagged) and **deliberately does not check that the
+file exists** — a config may legitimately be saved before the variant is uploaded, so
+refusing an absent path would reject a correct config (`[SE-19]` pins both halves).
+`analyze_map_image` asks the existence question at use: a declared path that is not a file is
+dropped for that run, along with its now-meaningless `assist_variant`, and named in a warning
+that tells the user what to do about it (`[MSV-35]`, whose control is the same config with the
+variant present — without it the test passes against a handler that drops the key for
+everyone).
 
 **THREE MORE GUARDS JOIN THE UNREACHABLE SET**, and one is an architectural finding:
 
@@ -1318,6 +1365,72 @@ THE CLAIM: each dimension solves for one threshold, and a reader who adjusts a n
 without reading the arithmetic will silently stop testing the arm. Recorded rather
 than `pragma: no cover`'d, since the programme admits a pragma for logger lines only — and
 because an unreachable guard with no written reason is the one that gets "simplified" later.
+
+#### The CV geometry baseline — ✅ RULED 2026-11-11: A TOOL, NOT A CI GATE
+
+`tests/adapters/eufy/fixtures/cv_geometry_baseline.json` (4 cases, 43 segments) pins what
+`detect_room_segments` **actually** produces on the committed fixtures: every
+`polygon_pixel` point, bbox, area, role, state, quality, confidence and `issues` list, the
+six stage counters, and the mode `message`. It is written and compared by
+`scripts/gen_cv_geometry_baseline.py`, run **by hand** inside the test image:
+
+```
+docker run --rm -v "<repo>:/workspace" --workdir /workspace eufy-vacuum-test \
+    python scripts/gen_cv_geometry_baseline.py --check
+```
+
+**It is deliberately not wired into CI, and no test reads it.** His call. The reasoning it
+rests on: a diff here is *a finding to investigate*, not a failure to clear, and the two
+want opposite handling. A gate's job is to be made green, which is the one response this
+file must never get — regenerating it to clear a red build destroys the only record of what
+the algorithm used to do, and the programme has no second copy. Determinism was measured
+and holds (byte-identical under `coverage.Coverage(branch=True)` and without it, across
+repeated calls and separate processes), so the obstacle is not flakiness; it is that the
+artifact's value is historical and a gate would spend it.
+
+That leaves the generator as an investigative instrument: run it when a segmentor change is
+expected to move geometry, read which segments moved, and regenerate **in the same commit**
+as the change that caused it, with the message naming what moved and why. The rule is
+printed in the generator's own docstring and inside the JSON, because the file's failure
+mode is somebody hitting it under time pressure with no context.
+
+Revisit this only if the baseline starts catching real regressions that review missed — the
+evidence for a gate would be a diff nobody intended, found late. There is none yet.
+
+
+#### `[SP-oversize-xsite]` — the replica anchor, which buys detection and no coverage
+
+`max(int(min_area_pixels * 10), 120000)` is written **twice**: as the `>=` gate in
+`_split_suspicious_component` that decides whether to call `_localize_oversized_component`
+at all, and as the `<` floor inside that function. Both read `np.count_nonzero` of the
+**same mask object** — measured equal across 8 dtypes including NaN and inf — with the same
+`min_area_pixels` forwarded unchanged. They are therefore not two validations of one value
+but **complementary halves of one decision**: when the gate admits, the floor cannot fire.
+
+That is why the floor's early return is **unreachable from the cascade and reachable only
+by a direct unit call**, which is a different statement from "dead code" and is how its
+comment is worded. `_localize_oversized_component` has exactly one call site.
+
+What drift costs is **silence**. Retune one copy and a band of component areas either
+reaches localize and is turned away on its floor, or never reaches it though its floor
+would have passed — either way the localized-bins strategy quietly stops running for that
+band, the cascade falls through, and the return value is identical. Both directions redden
+the anchor, through different assertions.
+
+A source-text or AST anchor was built and **rejected on measurement**, not on argument:
+simulating a comment beside the floor that names the shared expression took the occurrence
+count from 2 to 3, so a "contains it exactly twice" check goes red on a pure documentation
+edit — which is exactly the edit this programme then made. The behavioural form stayed
+green. It closes **no new lines at all**: every path it walks was already covered, and
+judging it by coverage would score it zero.
+
+Its sibling `[SP-local-4]` is the opposite case — it closed one statement and one partial
+branch, the overlap dedup that `_support_scored_blobs` could never reach.
+
+**A SECOND REPLICA PAIR IS NOW KNOWN AND NOT ANCHORED.** `_split_component_via_local_support`
+and `_split_component_via_color_distance` carry **byte-identical** six-line active-area
+floor blocks (`max(int(min_area_pixels * 2.0), 3200)`). It surfaced when an ablation anchor
+matched 2 occurrences instead of 1 and silently hit both functions. Recorded, not actioned.
 
 The Roborock adapter has no comparable known gap — it is a much smaller,
 declarative-config module (no CV pipeline), and every source file except

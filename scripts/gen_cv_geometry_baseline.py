@@ -1,6 +1,6 @@
 """Generator -- the CV geometry baseline: what the segmentor ACTUALLY produces, per fixture.
 
-    python scripts/gen_cv_geometry_baseline.py --check   # compare, change nothing (CI//local gate)
+    python scripts/gen_cv_geometry_baseline.py --check   # compare, change nothing
     python scripts/gen_cv_geometry_baseline.py           # REWRITE the baseline (read the warning)
 
 Run inside the test image, which is the only place scipy exists:
@@ -17,6 +17,13 @@ before a human finished the job, including its known geometric imperfections.
 So a fresh run must reproduce the same imperfect segments, not improved ones. A change
 that makes the output "better" is still a change, and it has to be understood before it
 is accepted.
+
+RULED 2026-11-11 (his call): THIS IS A HAND-RUN TOOL, NOT A CI GATE, and no test reads
+the baseline. The two want opposite handling -- a gate's job is to be made green, which
+is the one response this file must never get, because regenerating it to clear a red
+build destroys the only record of what the algorithm used to do. Determinism is not the
+obstacle (measured below, and it holds); the artifact's value is historical, and a gate
+would spend it. Run it when a segmentor change is expected to move geometry.
 
     ### THE RULE: NEVER REGENERATE THIS FILE TO MAKE A TEST PASS. ###
 

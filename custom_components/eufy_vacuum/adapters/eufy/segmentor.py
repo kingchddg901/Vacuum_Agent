@@ -201,6 +201,11 @@ def _reclaim_localized_child_mask(
         lower_start = int(occupied_rows[lower_start_index])
         baseline_rows = row_counts[lower_start : local_bottom + 1]
         baseline_rows = baseline_rows[baseline_rows > 0]
+        # Dead: `lower_start` is itself an entry of `occupied_rows` and the window above starts
+        # on it, so the `> 0` filter always keeps at least row_counts[lower_start] (0 fires over
+        # 341k masks; moving that window off lower_start fires 51644). Thin net if dropped — the
+        # np.median of an empty slice is NaN and max(6.0, NaN) returns 6.0, so the trim would
+        # silently fall back to the hard floor instead of the measured baseline.
         if baseline_rows.size == 0:
             return mask
         dense_row_baseline = float(np.median(baseline_rows))
@@ -225,6 +230,12 @@ def _reclaim_localized_child_mask(
     # Trim sparse top rows before attempting downward reclaim.
     local_mask = _trim_sparse_top_rows(local_mask, pass_strength=0.42)
     ys, _ = np.nonzero(local_mask)
+    # Dead: _trim_sparse_top_rows returns either `mask` untouched — non-empty per the np.any()
+    # gate at the top of this function — or a trim that cleared its own 0.68 retention clamp,
+    # which with >= 6 occupied rows demands >= 4 surviving pixels (0 empty returns over 341k
+    # masks; relax that clamp to 0.0 and 2946 appear). Loosening it is the wake, and nothing
+    # below catches an empty mask — ys.min() raises ValueError. `parent_mask & False` is the
+    # deliberate empty-mask-of-the-right-shape idiom, not a bug.
     if ys.size == 0:
         return parent_mask & False
     top = int(ys.min())
@@ -441,7 +452,38 @@ def _split_component_via_local_support(
 
     primary_sat_values = primary_sat[active]
     primary_value_values = primary_value[active]
-    if len(primary_sat_values) == 0 or len(primary_value_values) == 0:
+    # UNREACHABLE. Kept as the SHAPE of the contract, not as a live net: the active-area
+    # floor above returns `below_active_area_floor` unless
+    # `active_area >= max(int(min_area_pixels * 2.0), 3200)`, and `primary_sat[active]`
+    # holds exactly `active_area` elements -- so this length is at least 3200 for any
+    # `min_area_pixels` whatsoever, because the constant arm of that `max` floors it.
+    #
+    # THE FLOOR IS THE NET, which makes the floor load-bearing. `[SP-local-5]` tests it
+    # behaviourally, bisecting the boundary out of this function's own verdicts, and goes
+    # red when the floor is DELETED, neutralised, loses its constant arm, or has that arm
+    # lowered under the proportional one -- all four measured. It deliberately does NOT
+    # pin the magnitudes: `3200 -> 5000` and `2.0 -> 2.5` both leave it green, because
+    # what makes this length non-zero is the floor's SHAPE, not its value.
+    #
+    # Keeping the SATURATION clause rather than the value one is what makes one check
+    # sufficient: the two lengths are equal, so a non-empty saturation slice means a
+    # non-empty value slice, and both `np.percentile` calls below are covered. On numpy
+    # 2.3.2 an empty slice makes `np.percentile` raise IndexError, so what this clause
+    # stands in front of is a crash, not a soft refusal.
+    #
+    # A second clause `or len(primary_value_values) == 0` stood here once; `git log -S`
+    # on that string finds its removal. Both slices index the SAME `active`, over
+    # channels the `missing_support_channels` guard above has already required to share
+    # `component_mask`'s shape, so the two lengths are equal by construction -- measured
+    # over 37 real pipeline calls, never once apart. The `or` implied they could diverge
+    # and sent the next reader hunting for a saturation-empty-but-value-not case that
+    # cannot be built. `[SP-local-6]` holds the two slices to one mask through the
+    # percentile floor they feed.
+    #
+    # The same identity-dead `or` still stands in `_reclaim_localized_child_mask`
+    # (`if sat_values.size == 0 or value_values.size == 0`), which this pass did not
+    # touch and the census in docs/testing/subsystems/15-adapters.md does not list.
+    if len(primary_sat_values) == 0:
         debug["reason"] = "empty_support_values"
         return [], debug
 
@@ -451,6 +493,12 @@ def _split_component_via_local_support(
     score += (primary_sat >= sat_floor).astype(np.uint8)
     score += (primary_value >= value_floor).astype(np.uint8)
 
+    # The two `if len(...)` guards below cannot take their FALSE edge: the enclosing shape
+    # check makes each slice exactly `active_area` long, and TWO things in this function
+    # already keep that above zero - the active-area floor (`below_active_area_floor`,
+    # >= 3200) and the `empty_support_values` guard. Both would have to go before these
+    # wake, and an empty slice does not degrade quietly: `np.percentile` over one raises
+    # IndexError (measured, numpy 2.3.2).
     if assist_sat is not None and getattr(component_mask, "shape", None) == getattr(assist_sat, "shape", None):
         assist_sat_values = assist_sat[active]
         if len(assist_sat_values):
@@ -459,6 +507,7 @@ def _split_component_via_local_support(
 
     if assist_value is not None and getattr(component_mask, "shape", None) == getattr(assist_value, "shape", None):
         assist_value_values = assist_value[active]
+        # Unreachable false edge, same reason and same two nets as the assist_sat guard above.
         if len(assist_value_values):
             assist_value_floor = float(np.percentile(assist_value_values, 36))
             score += (assist_value >= assist_value_floor).astype(np.uint8)
@@ -471,6 +520,12 @@ def _split_component_via_local_support(
     supported = _NDIMAGE.binary_opening(supported, structure=structure, iterations=1)
     supported = _NDIMAGE.binary_closing(supported, structure=structure, iterations=1)
     debug["opened_support_area"] = int(np.count_nonzero(supported))
+    # REACHABLE, and covered - not a dead guard, do not delete it as one. The floors are
+    # percentiles of `active`, so the scored mask always has area (swept: never below 20% of
+    # it); only the 3x3 opening above can empty it, which is what `[ECV-30]` in
+    # tests/adapters/eufy/test_segmentor.py builds. Delete this and `label` on an empty mask
+    # returns 0 components, so the decline below still fires - as
+    # `insufficient_support_components`. The net holds, the diagnosis does not.
     if not bool(np.any(supported)):
         # The support mask had area but no BODY: nothing in it survived a 3x3 opening, so
         # `scored_support_area` above is non-zero while this is 0. That pair is the only
@@ -500,6 +555,12 @@ def _split_component_via_local_support(
             continue
         if grown_area > int(active_area * 0.8):
             continue
+        # REACHABLE, just unfixtured: `binary_propagation` is bounded by `component_mask`, so
+        # two supported seeds inside ONE connected sub-blob both reflood it and come back
+        # IDENTICAL. Measured with this removed, a dim-banded blob at exactly 80% of active
+        # turns the `insufficient_grown_masks` decline below into an accept of two identical
+        # masks - and an accept stops the cascade, which the downstream segment dedup cannot
+        # undo. `_support_scored_blobs` gives each blob one seed; hence this has never run.
         if any(_component_overlap_ratio(grown, existing)[0] >= 0.74 for existing in grown_masks):
             continue
         grown_masks.append(grown)
@@ -547,6 +608,18 @@ def _split_component_via_color_distance(
 
     feature_values = features[active]
     debug["feature_value_count"] = int(len(feature_values))
+    # TWO INDEPENDENT FLOORS - sample size here, component size at this function's
+    # `below_active_area_floor` gate - and the second dominates today by accident of the
+    # constants, not by identity: `len(feature_values) == active_area`, and
+    # `max(int(m*1.2), 1800) <= max(int(m*2.0), 3200)` for every `min_area_pixels` (swept
+    # 0..1e6 plus -1/-5/-20000/1e9, no violations). That gate is therefore the only net, and
+    # the bin floor below is no substitute - at `min_area_pixels` 200 two bins of 100 px
+    # clear it out of 1000 samples. So lower the `* 2.0` / 3200 expression for a legitimate
+    # tuning reason and this wakes; merge the two questions instead and 8-cubed colour
+    # binning runs over as few as 1000 samples with no complaint. Standing cost of keeping
+    # it: `insufficient_feature_values` is a published decline reason that can never be
+    # emitted, and in the per-method debug list a reason that cannot fire reads as a thing
+    # that happens - the argument `_split_component_via_wall_cuts` makes in its docstring.
     if len(feature_values) < max(int(min_area_pixels * 1.2), 1800):
         debug["reason"] = "insufficient_feature_values"
         return [], debug
@@ -578,6 +651,14 @@ def _split_component_via_color_distance(
             best_distance = distance
             best_second = candidate_center
     debug["best_center_distance"] = round(float(best_distance), 4)
+    # BOTH halves are dead at HEAD, for DIFFERENT reasons — do not collapse this to one note.
+    # `best_second is None`: ranked[1:] is non-empty (the `len(ranked) < 2` refusal above) and
+    # np.unique(axis=0) rows are distinct, so the first candidate always beats best_distance 0.0.
+    # Dropping that refusal, or weakening `distance > best_distance`, wakes this half.
+    # `best_distance < 0.09`: 0.09 sits BELOW the quantizer's own granularity — the two closest
+    # distinct `* 7.0` bins lie 1/7 = 0.1429 apart, which was also the minimum over the 256 probe
+    # runs that reached here. Re-quantizing to 16 drops that floor to 0.0625 and 0.09 starts to
+    # bite. No net below either way: an almost-identical centre pair would just split on noise.
     if best_second is None or best_distance < 0.09:
         debug["reason"] = "center_distance_too_small"
         return [], debug
@@ -591,6 +672,14 @@ def _split_component_via_color_distance(
     for center in centers:
         distance_map = np.sqrt(np.sum((features - center[None, None, :]) ** 2, axis=2))
         active_distances = distance_map[active]
+        # KEEP — the precondition for the percentile below, not an early-out: np.percentile
+        # RAISES on an empty slice ("IndexError: index -1 is out of bounds for axis 0 with
+        # size 0", numpy 2.3.2; same for (0,), float32 and (0, 2)). Dead only because `active`
+        # is loop-invariant and floored at 3200 by below_active_area_floor — narrow the
+        # `active_distances` slice and it wakes at once (254 of 402 probe runs; with the guard
+        # gone those same inputs raised). Waking it is CORRECT: skipping a centre with no pixels
+        # is what the loop wants. Six further percentile calls carry the same precondition, in
+        # _reclaim_localized_child_mask and _split_component_via_local_support.
         if len(active_distances) == 0:
             continue
         threshold = float(np.percentile(active_distances, 46)) + 0.018
@@ -653,6 +742,25 @@ def _localize_oversized_component(
     active = component_mask.astype(bool)
     active_area = int(np.count_nonzero(active))
     debug["active_area"] = active_area
+    # LOAD-BEARING, AND ABSOLUTE. The `max(..., 120000)` makes this an absolute
+    # floor, not a proportional one: the service admits any `min_area_pixels >= 1`
+    # and the 10x term only overtakes 120000 above 12000, so NOTHING smaller than
+    # 120000 active pixels enters this body at any admissible tuning. That is what
+    # retired the `len(feature_values) == 0` re-check below the quantize step --
+    # an empty `active` cannot get past here -- so this floor now carries that net
+    # alone. [SP-oversize-floor] / [SP-oversize-dominance] measure it by bisecting
+    # this function's own behaviour; soften it to a purely proportional bound and
+    # both go red -- so does the older `test_localize_oversized_below_floor`.
+    #
+    # AND IT IS ITSELF UNREACHABLE FROM ITS ONE CALL SITE. The gate in
+    # `_split_suspicious_component` applies the SAME threshold expression to the
+    # SAME mask before calling, and `active_area` is that mask's non-zero count, so
+    # by the time control arrives here the test has already passed. `[SP-oversize-xsite]`
+    # pins that the gate and this floor are one threshold, so a one-sided retune of the
+    # pair reddens. This floor therefore fires only for a DIRECT caller, and it stays
+    # for two reasons: it is the same-function invariant holder for the empty-`active`
+    # case, and it is the net if that gate is ever loosened. Retune one of the pair
+    # without the other and components between the two floors change behaviour.
     if active_area < max(int(min_area_pixels * 10), 120000):
         debug["reason"] = "below_oversized_floor"
         return [], debug
@@ -663,10 +771,13 @@ def _localize_oversized_component(
 
     quantized = np.clip(np.rint(features * 7.0), 0, 7).astype(np.int16)
     feature_values = quantized[active]
-    if len(feature_values) == 0:
-        debug["reason"] = "no_feature_values"
-        return [], debug
-
+    # There is deliberately no `len(feature_values) == 0` check here. ONE reason
+    # it could not fire, with a second condition closing the only other
+    # mechanism: the absolute floor in this same function refuses an empty
+    # `active` -- measured, ablating that floor alone makes this check FIRE --
+    # and a boolean index over the leading
+    # axes yields one ROW per live pixel, so `len` is `count_nonzero(active)`
+    # whatever the feature axis holds -- including a zero-width one.
     unique_bins, counts = np.unique(feature_values, axis=0, return_counts=True)
     min_bucket = max(int(min_area_pixels * 0.9), int(active_area * 0.025))
     max_bucket = int(active_area * 0.24)
@@ -708,14 +819,40 @@ def _localize_oversized_component(
 
     def _try_add_candidate(seed_mask: Any) -> None:
         opened = _NDIMAGE.binary_opening(seed_mask, structure=structure, iterations=1)
+        # KEEP. This early-out is what made a `count <= 0` guard below it
+        # unreachable: `label()` reports at least one feature for any mask holding a
+        # True pixel, so past this line `count >= 1`. That guard is deleted:
+        # measured over 847 arrivals at the `label()` below -- the committed fixture
+        # maps through `detect_room_segments`, plus a direct `min_area_pixels` sweep
+        # of 1..1000000 -- it never fired once, and the lowest count seen past this
+        # line was 1, exactly the bound it was testing. 847 counts arrivals PAST
+        # this line; arrivals AT it are strictly more whenever this early-out fires,
+        # which on dithered colour seeds is every time.
+        #
+        # Be clear about what this line is, though, because it is NOT the net.
+        # Deleting it would not change which candidates this closure appends, only
+        # how much work it does: `find_objects` of an all-zero label array is `[]`
+        # and `range(1, 0 + 1)` is empty, so the loop below is already a no-op at
+        # count 0. The sibling `label()` call in `_detect_room_segments_pipeline`
+        # leans on exactly that and carries no count guard at all -- it took
+        # count == 0 154 times in those same runs. So the real net under
+        # `_try_add_candidate` is the empty range; this line is an early-out that
+        # saves the label and find_objects work and kills the guard as a
+        # side-effect. Inverting its sense DOES change behaviour, and that is the
+        # edit [SP-D3-4] catches. See [SP-D3-1..4] in test_segmentor_splitters.py.
         if not bool(np.any(opened)):
             return
         labeled, count = _NDIMAGE.label(opened, structure=structure)
-        if count <= 0:
-            return
         slices = _NDIMAGE.find_objects(labeled)
         for label_index in range(1, count + 1):
             label_slice = slices[label_index - 1] if label_index - 1 < len(slices) else None
+            # Dead for `_NDIMAGE.label` output: label() relabels to a consecutive 1..n set, so
+            # find_objects returns exactly `count` slices, no None entry (400 random runs, scipy
+            # 1.18.1). Both arms document the contract for any OTHER producer — find_objects on a
+            # GAPPED label array does return None. No net below: `labeled[None]` adds an axis
+            # rather than raising, so the area floors would silently judge the WHOLE array before
+            # the `y_slice, x_slice` unpack finally raises TypeError. Equally unreachable twin in
+            # _detect_room_segments_pipeline: keep the pair reading the same.
             if label_slice is None:
                 continue
             local_mask = labeled[label_slice] == label_index
@@ -782,15 +919,33 @@ def _split_component_via_assist_hue(
     active = component_mask & (assist_sat >= 16) & (assist_value >= 70)
     active_area = int(np.count_nonzero(active))
     debug["active_area"] = active_area
+    # LOAD-BEARING FLOOR -- it is the only thing keeping the hue sample below non-empty,
+    # and that sample carries no emptiness check of its own. Two facts do the work:
+    #   1. `max(int(min_area_pixels * 1.8), 3500)` sits at or above 3500 for every value
+    #      the `min_area_pixels` service field admits
+    #      (`vol.All(vol.Coerce(int), vol.Range(min=1))`, no upper bound), and for 0 or a
+    #      negative too -- so passing here means `active_area >= 3500`. The deletion
+    #      needs only `>= 1`, and that margin is what a retune has to spend.
+    #   2. `active` is a BOOLEAN ndarray of `assist_hue`'s shape, so
+    #      `len(assist_hue[active]) == active_area`.
+    # An `if len(hue_values) == 0` guard sat just below until 2026-11-11 and was deleted
+    # as unreachable; that transferred the whole net to this line.
+    # WHAT BREAKS (1) IS A FLOOR THAT CAN EVALUATE TO 0 -- retuning 3500 to 0, or dropping
+    # the `max` wrapper so `int(min_area_pixels * 1.8)` stands alone -- and NOT a downward
+    # retune as such: measured, 3500 -> 1000 leaves this guard exactly as unreachable.
+    # Even a 0 floor then needs a caller passing `min_area_pixels <= 0`, which the service
+    # schema refuses and `detect_room_segments` clamps away with `int(max(..., 1))`.
+    # Breaking (2) is subtler: `active` here is boolean only because it is built by
+    # comparison, where two sibling splitters and `_localize_oversized_component` write
+    # `component_mask.astype(bool)` -- and with an INTEGER `active` that sample silently
+    # becomes FANCY INDEXING of length `shape[0]` instead of a masked selection
+    # (measured on one 200x200 mask: bool -> 26, uint8 -> 200). [SP-hue-floor] and
+    # [SP-hue-sample] pin both facts.
     if active_area < max(int(min_area_pixels * 1.8), 3500):
         debug["reason"] = "below_active_area_floor"
         return [], debug
 
     hue_values = assist_hue[active]
-    if len(hue_values) == 0:
-        debug["reason"] = "no_active_hue_values"
-        return [], debug
-
     hue_bins = ((hue_values.astype(np.int16) + 6) // 12).astype(np.int16)
     unique_bins, counts = np.unique(hue_bins, return_counts=True)
     ranked_bins = sorted(

@@ -254,6 +254,21 @@ class EufyCVSegmenter:
                     f"int (got {value!r})"
                 )
 
+        if "assist_image_path" in tuning:
+            value = tuning["assist_image_path"]
+            if not isinstance(value, str) or not value.strip():
+                issues.append(
+                    f"{self.engine_name}: assist_image_path must be a non-empty "
+                    f"string (got {value!r})"
+                )
+            # DELIBERATELY NOT AN EXISTENCE CHECK. A stored config may be written
+            # before the image is uploaded, and a path that is absent today can be
+            # valid tomorrow, so refusing it here would reject a correct config. The
+            # existence question is asked AT USE instead -- analyze_map_image drops a
+            # declared path that is not on disk and says so in the log, rather than
+            # handing it to the segmenter where the failure is swallowed by the
+            # registration `except` and buried in the result's debug dict.
+
         if "simplify_epsilon" in tuning:
             value = tuning["simplify_epsilon"]
             if value is not None and not isinstance(value, (int, float)):

@@ -1706,6 +1706,61 @@ async def test_diag27_a_working_override_beside_a_wrong_derivation(hass):
     assert block["derived_exists"] is False, block
     assert block["override_exists"] is True, block
     assert block["override"], block
+    # THE THIRD DIVERGENCE PATH, reported so a working live map beside a wrong
+    # derivation is explainable. This adapter declares no resolver, so the field must
+    # be PRESENT and None -- absent and None read identically to a reader, and a
+    # missing key is what sends them looking for a cause the dump does not carry.
+    assert "resolver" in block, block
+    assert block["resolver"] is None, block
+
+
+async def test_diag27b_a_declared_live_map_resolver_is_reported(hass):
+    """[DIAG-27b] A declared resolver must appear in the dump, or the dump misleads.
+
+    `live:ENT-2` reports whether the DERIVATION is healthy, separately from whether the
+    live map works, and names the ways those two can diverge. #80 added a third: a
+    brand-declared resolver, tried after the override, the pattern and the sibling search
+    have all missed. On a Roborock whose map was renamed in the app, the derived id is
+    permanently wrong and the live map works anyway — with no override and no sibling.
+
+    THE PAIR IS THE POINT. `[DIAG-27]` asserts the field is present and None when no
+    resolver is declared; this asserts the declared NAME comes through. Asserting only
+    one of those would pass on a hardcoded value.
+
+    RED: drop the `resolver` key from the block and this fails; report it as a bool
+    instead of the name and it fails too, because the name is what tells a reader WHICH
+    resolver to go and read.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import (
+        clear_registry,
+        register_adapter_config,
+    )
+
+    clear_registry()
+    register_adapter_config(VACUUM, {
+        "adapter_id": "rb", "source": "code",
+        "mapping": {
+            "live_map_image_entity_pattern": "image.{object_id}_map",
+            "live_map_image_entity_resolver": "roborock_map_flag",
+        },
+    })
+
+    manager = _make_manager()
+    manager.data = {"vacuums": {VACUUM: {}}}
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+    try:
+        diag = await async_get_config_entry_diagnostics(hass, entry)
+    finally:
+        clear_registry()
+
+    block = diag["vacuums"][0]["pattern_resolution"]["live_map_image"]
+    assert block["resolver"] == "roborock_map_flag", block
+    # and the derivation is still reported as wrong, which is the whole combination
+    assert block["derived_exists"] is False, block
 
 
 async def test_diag28_an_unformattable_pattern_is_dropped_not_raised(hass):

@@ -1327,6 +1327,24 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
         tuning["simplify_epsilon"] = simplify_epsilon
     if assist_path:
         tuning["assist_image_path"] = assist_path
+    elif tuning.get("assist_image_path"):
+        # A DECLARED assist path survives into every run, because `tuning` starts from
+        # the adapter's segmenter_tuning and the branch above only ever SETS the key.
+        # `save_adapter_config` accepts one (it is in the engine's known-tuning keys) and
+        # validation deliberately does not check the file exists, so a stored config can
+        # carry a path that is not there -- and the only other thing that reads it is the
+        # segmentor's registration block, whose `except` swallows the FileNotFoundError
+        # and leaves the run silently in single-image mode with the reason buried in a
+        # debug dict. Drop it for THIS run and say so, which is the difference between a
+        # degraded analysis a user can explain and one they cannot.
+        declared = tuning.pop("assist_image_path")
+        tuning.pop("assist_variant", None)
+        _LOGGER.warning(
+            "analyze_map_image: %s declares assist_image_path %s, which is not a file; "
+            "running single-image. Upload a light variant, or correct the path in the "
+            "stored adapter config.",
+            vacuum_entity_id, declared,
+        )
     # No `is not None` guard: image_variant and image_path are assigned together in the
     # same loop iteration before the break, and the function returns early when image_path
     # is falsy -- so the false edge was unreachable. Coverage found it as a partial branch.
