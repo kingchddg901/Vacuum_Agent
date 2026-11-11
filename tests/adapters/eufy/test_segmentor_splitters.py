@@ -1217,3 +1217,197 @@ def test_sp_wall_dbg_the_cascade_surfaces_the_decline():
         "the first-tried strategy is missing from the per-method debug list, so a reader "
         "would conclude it was never attempted: " + repr(methods)
     )
+
+
+# ---------------------------------------------------------------------------
+# [SP-local-2..4] local_support: the three ways a candidate is discarded
+#
+# The accept path is exercised elsewhere. These are the discards, and each one
+# is asserted by a COUNT rather than by emptiness, because "no split" is also
+# what a strategy that silently did nothing returns.
+# ---------------------------------------------------------------------------
+
+def _blobs(*rects):
+    """A mask holding one rectangle per (top, bottom, left, right)."""
+    m = np.zeros((300, 300), dtype=bool)
+    for top, bottom, left, right in rects:
+        m[top:bottom, left:right] = True
+    return m
+
+
+def test_sp_local3_a_region_below_the_grown_floor_is_dropped_not_returned():
+    """[SP-local-3] A third region too small to be a room is discarded, not kept.
+
+    Three disjoint blobs, all fully supported: two large enough to be rooms and
+    one of ~400 px. Propagation is masked by the component, so each blob grows to
+    itself and no two merge.
+
+    THE ASSERTION IS len == 2, NOT "no crash". Without the grown-area floor the
+    small blob is appended too and the caller receives THREE room candidates from
+    a component that holds two rooms and a fleck -- and the fleck becomes a room
+    on the user's map with a name and a cleaning order.
+    """
+    mask = _blobs(
+        (20, 80, 20, 80),      # 60x60 = 3600
+        (120, 180, 20, 80),    # 60x60 = 3600
+        (220, 240, 20, 40),    # 20x20 =  400  <- below the 1000 floor
+    )
+    sat = np.full((300, 300), 200, dtype=np.uint8)
+    value = np.full((300, 300), 200, dtype=np.uint8)
+
+    out = S._split_component_via_local_support(mask, sat, value, None, None, _MIN)
+
+    assert len(out) == 2, (
+        "expected the two room-sized regions and not the 400px fleck, got %d"
+        % len(out)
+    )
+
+
+
+# TWO TESTS WERE WRITTEN HERE AND REMOVED, 2026-11-10, and the arithmetic is the
+# reason. They aimed at local_support's "no supported pixels" refusal (:445) and its
+# duplicate-grown-mask skip (:464); both asserted `== []` and both actually got it
+# from `component_count < 2`, a path already covered. Measured: neither moved either
+# line.
+#
+# `sat_floor` is `percentile(active_sat, 42)` and the test is `>= floor`, so AT LEAST
+# 58% of active pixels always satisfy it; `value_floor` is percentile 38, so at least
+# 62% satisfy that. At least 20% of any component therefore satisfies BOTH, whatever
+# the channels hold -- `supported` cannot be empty before morphology. And a half-zero
+# channel puts the percentile AT zero, making `>= 0` true everywhere, which is what
+# those fixtures did.
+#
+# So :445 is reachable only if the agreeing pixels are scattered finely enough for the
+# 3x3 `binary_opening` to erase them, and :464 only with two support regions that
+# survive labelling separately and then grow into the same component. Constructible,
+# not constructed. Left uncovered rather than covered by a test that asserts a
+# different path -- which is the shape `[CAP-6]` in test_core_capabilities.py records.
+
+# ---------------------------------------------------------------------------
+# [RCL-1..2] _reclaim_localized_child_mask -- the sparse-top trim
+#
+# The reclaim grows a clipped child downward. Before it does, it trims sparse
+# rows off the TOP -- bleed from whatever clipped it. The trim has a refusal of
+# its own, and that refusal is the interesting half.
+# ---------------------------------------------------------------------------
+
+def _sparse_topped(top_rows: int, top_width: int, dense_rows: int, dense_width: int):
+    """A child mask with `top_rows` thin rows above `dense_rows` full ones."""
+    m = np.zeros((120, 120), dtype=bool)
+    row = 2
+    for _ in range(top_rows):
+        m[row, 10:10 + top_width] = True
+        row += 1
+    for _ in range(dense_rows):
+        m[row, 10:10 + dense_width] = True
+        row += 1
+    return m
+
+
+def _no_support(shape=(120, 120)):
+    """Channels that cannot support any reclaim, so the result is the trim alone."""
+    return np.zeros(shape, dtype=np.uint8), np.zeros(shape, dtype=np.uint8)
+
+
+def test_rcl1_the_trim_refuses_when_it_would_take_too_much():
+    """[RCL-1] Trimming is capped: a trim that would cost a third of the mask is refused.
+
+    The sparse top rows are usually bleed. But a child that is MOSTLY sparse rows
+    is not a clipped room with bleed on top -- it is a thin region, and trimming
+    it would delete the thing itself. So the trim keeps its result only if at
+    least 68% of the pixels survive.
+
+    BOTH SIDES IN ONE TEST, because the threshold is the claim and either side
+    alone is satisfied by a trim that always refuses (or always accepts):
+
+      sparse top = 30 of 90 px  -> trimming leaves 66%  -> REFUSED, rows survive
+      sparse top = 10 of 70 px  -> trimming leaves 86%  -> accepted, rows gone
+
+    The channels are zeroed so no reclaim can happen: the returned mask is the
+    trim's answer and nothing else.
+    """
+    sat, value = _no_support()
+    parent = np.ones((120, 120), dtype=bool)
+
+    refused = S._reclaim_localized_child_mask(
+        _sparse_topped(top_rows=10, top_width=3, dense_rows=6, dense_width=10),
+        parent, primary_sat=sat, primary_value=value,
+    )
+    assert bool(np.any(refused[2:12, :])), (
+        "the trim removed the sparse top of a mostly-sparse child -- that child "
+        "is a thin region, not a clipped room with bleed above it"
+    )
+
+    accepted = S._reclaim_localized_child_mask(
+        _sparse_topped(top_rows=10, top_width=1, dense_rows=6, dense_width=10),
+        parent, primary_sat=sat, primary_value=value,
+    )
+    assert not bool(np.any(accepted[2:12, :])), (
+        "a child with a genuinely thin bleed on top kept it"
+    )
+
+
+def test_rcl2_an_empty_child_and_a_bottom_edge_child_are_returned_untouched():
+    """[RCL-2] Two early exits, and neither is an error.
+
+    An empty child has nothing to reclaim. A child already sitting at the bottom
+    edge has nowhere DOWNWARD to grow -- this reclaim only ever grows down, by
+    design, because the failure it repairs is upward clipping during localization.
+
+    ⚠ THE BOTTOM-EDGE GUARD IS SUBSUMED, and the probe says by what. Deleting it
+    changes NO answer even with support to grow into. Measured on this fixture
+    with the guard skipped:
+
+        support pixels: 174   seed pixels: 500   RECLAIMED pixels: 24
+        added_area: -34
+
+    The reclaim finds its 24 pixels, and then `binary_closing` -- a dilation
+    followed by an erosion -- loses more than that at the ARRAY BORDER, where the
+    erosion has no neighbours to keep. `added_area <= 0` then returns the original
+    mask, which is exactly what the guard would have returned. Two refusals, one
+    answer.
+
+    The guard is therefore an early-out that saves the work, not a behaviour this
+    test can see. It is crossed here and said to be crossed. [RCL-3] reaches the
+    fallback it hides behind.
+
+    Returning the input unchanged is what lets the caller treat the reclaim as
+    always-safe to apply.
+    """
+    parent = np.ones((120, 120), dtype=bool)
+    sat = np.zeros((120, 120), dtype=np.uint8)
+    value = np.zeros((120, 120), dtype=np.uint8)
+    sat[:, 10:90] = 200
+    value[:, 10:90] = 200
+
+    empty = np.zeros((120, 120), dtype=bool)
+    assert not bool(np.any(
+        S._reclaim_localized_child_mask(
+            empty, parent, primary_sat=sat, primary_value=value
+        )
+    )), "an empty child came back non-empty"
+
+    at_bottom = np.zeros((120, 120), dtype=bool)
+    at_bottom[110:120, 10:60] = True
+    out = S._reclaim_localized_child_mask(
+        at_bottom, parent, primary_sat=sat, primary_value=value
+    )
+    assert np.array_equal(out, at_bottom), (
+        "a child already at the bottom edge was altered; there is nowhere "
+        "downward for it to grow, so any change is sideways bleed"
+    )
+
+
+# [RCL-3] WAS WRITTEN HERE AND REMOVED, 2026-11-10, after a THIRD attempt at
+# `added_area <= 0` (:276). It asserted that the reclaim never shrinks the child it
+# was asked to complete -- a true property -- but measured, it never reached that
+# line: the left-edge fixture found no reclaim at all and returned at the
+# `not np.any(reclaimed)` guard above, so the assertion held for a reason it did not
+# name. Same failure as the two local_support tests removed above.
+#
+# WHAT THE PROBE DID ESTABLISH, and it is the useful part: `binary_closing` is a
+# dilation then an erosion, so AT THE ARRAY BORDER it takes more than it gives. On a
+# bottom-edge child the reclaim found 24 pixels and netted -34, which is why that
+# fallback exists and why the bottom-edge guard above it is subsumed. Reaching the
+# fallback deliberately needs a fixture where a reclaim IS found and the closing
+# still loses more -- constructible, not constructed.
