@@ -32,6 +32,31 @@ Coverage targets
 
 from __future__ import annotations
 
+# THE SDK IS IMPORTED HERE, AT COLLECTION, AND THE REASON IS A TEARDOWN FAILURE.
+# [PROV-2] below makes the configured vacuum look like a Roborock, so setup calls
+# `adapters/roborock/dock.py::load_dock_library` -- and python-roborock's
+# module-level rate limiters start two daemon `PyrateLimiter's Leaker` threads on
+# first import. Done inside a test body, HA's autouse `verify_cleanup` fixture
+# fails that test's TEARDOWN while the test itself PASSES, which is what makes the
+# symptom unreadable: "2 passed, 1 error", pointing at a test with nothing wrong
+# with it.
+#
+# THIS IS THE FOURTH SITE. The full history is in
+# tests/integration/test_vocabulary_catchup_wiring.py, whose note ends: "NOTHING
+# ENUMERATES THESE SITES, and that is the open half" -- a census gate was
+# considered there and deliberately not built, because the only discriminator
+# available was `brands._vacuum_platform` and a future test might force a Roborock
+# another way. [PROV-2] forces it by exactly that discriminator, so the gate that
+# was deferred would have caught this module. Recorded, not re-proposed.
+#
+# A PLAIN import, never `importorskip`: this module fakes every SDK answer and must
+# still run when the SDK is absent.
+try:
+    import roborock  # noqa: F401
+    _ROBOROCK_SDK = True
+except ImportError:
+    _ROBOROCK_SDK = False
+
 from unittest.mock import patch
 
 import pytest
@@ -196,3 +221,104 @@ async def test_capabilities_are_redetected_once_the_provider_is_up(
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
+
+
+async def test_prov2_the_started_hop_refreshes_the_ROOM_ENTITIES_too(
+    hass, mock_config_entry, monkeypatch
+):
+    """[PROV-2] A corrected config is not a corrected card -- on THIS hop as well.
+
+    Issue #71 has two hops and each needs its own nudge:
+
+      hop 1  EVENT_HOMEASSISTANT_STARTED  -> this test
+      hop 2  the late provider's state change -> [VCW-1]/[VCW-2]
+
+    Both end at the same place and both were broken the same way. The code comment
+    on this one records the measurement: room entities compute their attributes
+    from the adapter config, but only when they WRITE state -- and they had
+    already written, ~15 seconds into the boot, from the DECLARED lists. The
+    re-registration fixed the config and nothing asked them to look again, so the
+    config held the device's own suction list while every room switch still served
+    the fallback. "The feature was correct and invisible."
+
+    So the assertion is on the STATE MACHINE, not the config: the card reads
+    states. A test that checked `get_adapter_config` would pass on exactly the
+    build this exists to catch.
+
+    A MAP WITH A ROOM IS SEEDED because the refresh loops over the vacuum's stored
+    maps -- with none, the loop body never runs and there is no room switch to
+    observe. [VCW-2] needed the same thing for hop 2 and says so.
+    """
+    from custom_components.eufy_vacuum.adapters.eufy import adapter as _eufy
+    from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
+    from custom_components.eufy_vacuum.adapters.roborock import adapter as rb
+    from custom_components.eufy_vacuum.adapters import brands
+
+    from .conftest import setup_map
+
+    _FAN_LIVE = ["quiet", "balanced", "turbo", "max", "max_plus"]
+
+    class _Dev:
+        manufacturer = "Roborock"
+        model = "roborock.vacuum.a147"
+
+    def _as_roborock(fan_list=None):
+        """Make the configured vacuum look like a Roborock, optionally mid-publish."""
+        monkeypatch.setattr(rb, "_device_for_vacuum", lambda h, v: _Dev())
+        # Brand resolution keys on which INTEGRATION owns the vacuum entity, not on
+        # the device record -- patching the device alone leaves this a Eufy and the
+        # whole test silently exercises the wrong adapter.
+        monkeypatch.setattr(brands, "_vacuum_platform", lambda h, v: "roborock")
+        attrs = {"supported_features": 30524, "fan_speed": "max"}
+        if fan_list is not None:
+            attrs["fan_speed_list"] = fan_list
+        hass.states.async_set(_VAC, "docked", attrs)
+
+    def _fan_options():
+        return [
+            str(o.get("value"))
+            for o in ((get_adapter_config(_VAC) or {}).get("vocabulary") or {}).get(
+                "fan_speed_options"
+            ) or []
+        ]
+
+    _as_roborock(fan_list=None)
+    assert await _setup_on_a_cold_boot(hass, mock_config_entry) is True
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    setup_map(manager, _VAC, "1", count=1)
+    manager._notify_rooms_updated(vacuum_entity_id=_VAC, map_id="1")  # noqa: SLF001
+    await hass.async_block_till_done()
+
+    before = _fan_options()
+    assert "max_plus" not in before, (
+        "the cold-boot config already holds the live list; there is no catch-up "
+        "left to observe: %r" % (before,)
+    )
+
+    room_switches = [
+        st for st in hass.states.async_all("switch")
+        if st.attributes.get("fan_speed_options") is not None
+    ]
+    assert room_switches, (
+        "no room switch exposed fan_speed_options -- this test cannot observe the "
+        "hop it exists for, and a skip here would make it worthless"
+    )
+
+    # The provider's coordinator finally polls, then HA finishes starting.
+    _as_roborock(fan_list=_FAN_LIVE)
+    hass.set_state(CoreState.running)
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+
+    assert _fan_options() == _FAN_LIVE, (
+        "the re-registration did not pick up the device's own list"
+    )
+
+    after = hass.states.get(room_switches[0].entity_id)
+    assert [
+        str(o.get("value")) for o in after.attributes["fan_speed_options"]
+    ] == _FAN_LIVE, (
+        "the config was corrected and the room switch still serves the fallback -- "
+        "correct and invisible, which is the shape of the original defect"
+    )

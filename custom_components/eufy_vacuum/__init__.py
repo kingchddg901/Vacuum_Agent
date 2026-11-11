@@ -576,6 +576,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         # switch still served the fallback. The feature was correct and
                         # invisible. The switch platform already refreshes on this
                         # callback; it simply was never fired for this reason.
+                        #
+                        # anchor: RN8H4ZPP  a vocabulary change must refresh the
+                        # ROOM ENTITIES, not just the adapter config — the replica
+                        # set. Issue #71 has TWO hops and this rule runs on both:
+                        # here on EVENT_HOMEASSISTANT_STARTED, and again in
+                        # `_on_publish` below when a late provider finally reports.
+                        # Each hop reaches the same broken state by a different
+                        # route, so neither copy can be deleted in favour of the
+                        # other — a provider that publishes BEFORE the started
+                        # event is caught only here, one that publishes after only
+                        # there. Pinned independently: [PROV-2] reddens on this
+                        # copy alone, [VCW-2] on the other (measured, 2026-11-10).
                         if _vocab_before != (get_adapter_config(_vid) or {}).get(
                             "vocabulary"
                         ):
@@ -713,6 +725,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         # model — would get a corrected config and a card showing the
                         # fallback forever, because the pending set never empties. Found
                         # by [VCW-2]; every other test passed.
+                        #
+                        # REPLICA RN8H4ZPP — the twin is the started-hop copy in
+                        # `_redetect_when_providers_are_up` above, which carries
+                        # the reasoning. Changing one means checking the other.
                         if _vocab_before != (get_adapter_config(_vid) or {}).get(
                             "vocabulary"
                         ):

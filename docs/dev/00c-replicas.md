@@ -371,6 +371,41 @@ Found while writing a coverage test, not by a gate — the same way `RNF2RCXP`'s
 copy was found. Pinned by `[BAM-16]` and `[BS-13]`; `[BAM-13]` documents why it routes
 around the planner read rather than through it.
 
+### `RN8H4ZPP` — a vocabulary change must refresh the ROOM ENTITIES · **2 copies**
+
+Issue #71 has **two hops**, and this rule runs on both. The adapter reads its option
+lists off the provider's own entities; at setup time the provider has often published
+nothing, so the adapter keeps its DECLARED transcript and is re-registered later. A
+corrected config is not a corrected card: room entities compute their attributes from
+the config but only when they WRITE state, and they had already written — about fifteen
+seconds into the boot, from the fallback lists. So each hop must ALSO tell the room
+entities to look again.
+
+| Copy | Fires on | Catches a provider that publishes |
+|---|---|---|
+| `_redetect_when_providers_are_up` (primary) | `EVENT_HOMEASSISTANT_STARTED` | **before** the started event |
+| `_on_publish` inside `_arm_vocabulary_catchup` | the watched entity's state change | **after** it |
+
+**Neither copy can be deleted in favour of the other** — that is what makes this a set
+rather than a dissolvable duplicate. The two hops are reached by different routes from
+the same broken state, and a provider lands on exactly one of them depending on when its
+coordinator first polls.
+
+Both copies are byte-identical today and both were previously unanchored. The pair was
+found on 2026-11-10 while ablating a coverage test: the mutation anchor matched **twice**
+and the driver aborted rather than mutating both at once, which would have made the
+verdict about neither. Before that, nothing could see the pair — `replica_census.py`
+harvests notices already written in comments, and no comment named the twin.
+
+**Declared at** `__init__.py::_redetect_when_providers_are_up`, the copy whose comment
+carries the reasoning ("this is the whole defect the live box found"). Pinned
+INDEPENDENTLY, and measured: ablating the started-hop copy reddens
+`test_init_provider_readiness.py::test_prov2_the_started_hop_refreshes_the_ROOM_ENTITIES_too`
+and **not** `[VCW-2]`; ablating the publish-hop copy reddens `[VCW-2]` and **not**
+`[PROV-2]`. Before `[PROV-2]` existed the started-hop copy had no test at all, so a fix
+landing in one copy and not the other is precisely the failure this register was built
+for — and it was one ablation away from happening here.
+
 ## Finding sets: four ways to ask, and three axes to judge
 
 Derived 2026-08-18 and **tested before being written down** — five mixed candidates run
