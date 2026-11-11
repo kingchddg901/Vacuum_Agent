@@ -828,3 +828,72 @@ def test_segmentation_state(issues, fill_ratio, compactness, expected):
     assert _segmentation_state(
         issues=issues, fill_ratio=fill_ratio, compactness=compactness
     ) == expected
+
+
+def test_ecv20_expected_room_count_is_a_HINT_and_never_a_QUOTA():
+    """[ECV-20] A deficit must not be satisfied by manufacturing rooms.
+
+    `expected_room_count` is the user saying how many rooms their map has. When
+    the pipeline finds fewer, it re-walks the regions it deferred and rescues the
+    ones that are plausibly rooms -- but the deficit is NOT a licence to promote
+    whatever is left. Each candidate still has to pass:
+
+      not already tagged `dock_dark_artifact`, `thin_artifact`, `oversized_region`
+      or `fragmented_candidate` -- a region judged not-a-room does not become one
+      because a count says so;
+      no more than 20% of the frame;
+      at least `max(220, min_area_pixels * 0.4)` pixels.
+
+    Without those, a user who says "I have 20 rooms" gets twenty things called
+    rooms -- dock shadows, wall slivers, whatever remains -- each with a name and
+    a place in the cleaning order.
+
+    MEASURED ACROSS THE WHOLE RANGE, at a FIXED min_area_pixels so only the hint
+    varies: asking for 16, 18, 20, 24, 30, 40 or 60 rooms all return the SAME
+    count as asking for nothing. The loop runs and refuses everything; the hint
+    moves no rooms into existence on this map.
+
+    ⚠ THE FIXED min_area_pixels IS THE POINT. An earlier draft compared
+    `min=1200, no hint` (15 segments) against `min=200, hint=20` (17) and credited
+    the recovery with the difference -- two variables changed and the wrong one got
+    the credit. The area floor moved it; the hint never does.
+
+    ⚠ ONLY THE AREA-FLOOR GUARD CARRIES A RED HERE, measured. Ablating the
+    sub-floor skip reddens this test; ablating the artifact-tag skip or the
+    20%-of-frame skip changes nothing, because no deferred candidate on THIS map
+    is artifact-tagged or oversized -- they execute without being observable.
+    They are crossed and said to be crossed. A map whose deferred set contains
+    one of those shapes would pin them; this one does not, and the fixture it
+    would need no longer exists.
+
+    Structural assertions only, per this module's convention: `--cov` can perturb
+    CV, so this asserts EQUALITY ACROSS HINTS rather than any absolute count.
+    """
+    fixture = os.path.join(os.path.dirname(__file__), "fixtures", "adversarial_map.png")
+
+    def _n(**kw):
+        result = detect_room_segments(
+            image_path=fixture, min_area_pixels=200, **kw
+        )
+        assert result["available"] is True
+        return len(result["segments"])
+
+    unhinted = _n()
+    assert unhinted > 0, "the fixture produced no segments at all"
+
+    for asked in (18, 24, 60):
+        got = _n(expected_room_count=asked)
+        assert got == unhinted, (
+            "asking for %d rooms changed the result from %d to %d -- the deficit "
+            "is being filled with regions the guards were meant to refuse"
+            % (asked, unhinted, got)
+        )
+
+    # and the rescued set, had anything been rescued, stays fully classified
+    detailed = detect_room_segments(
+        image_path=fixture, min_area_pixels=200, expected_room_count=24
+    )
+    assert all(
+        {"structural_role", "segmentation_state", "confidence", "issues"} <= set(seg)
+        for seg in detailed["segments"]
+    ), "a segment skipped the classification surface"
