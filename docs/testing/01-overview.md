@@ -14,11 +14,11 @@ moves can happen without silently breaking behavior.
 
 ## The three layers
 
-`pytest.ini`'s `testpaths` collects only two of these three — `tests/unit`
-and `tests/integration`; `tests/adapters` is excluded there and must be
-requested explicitly (see below). A fourth, separate harness — **replay** —
-lives under `tests/replay/`; it is not one of the three layers pytest
-defaults to, and is described in its own section below.
+`pytest.ini`'s `testpaths` collects `tests/unit`, `tests/integration` and
+`tests/core`; `tests/adapters` is excluded there and must be requested
+explicitly (see below). A fourth, separate harness — **replay** — lives under
+`tests/replay/`; it is not one of the layers pytest defaults to, and is
+described in its own section below.
 
 | Layer | Directory | Needs `hass`? | What it covers |
 |-------|-----------|---------------|----------------|
@@ -101,7 +101,7 @@ Declared in `requirements_test.txt`:
 
 Config lives in two files:
 
-- **`pytest.ini`** — `asyncio_mode = auto`, `testpaths = tests/unit tests/integration`, and the coverage `addopts` (term-missing + branch). A default run does **not** write HTML; the canonical `htmlcov/` is produced only by an explicit `--cov-report=html:htmlcov`.
+- **`pytest.ini`** — `asyncio_mode = auto`, `testpaths = tests/unit tests/integration tests/core`, and the coverage `addopts` (term-missing + branch). A default run does **not** write HTML; the canonical `htmlcov/` is produced only by an explicit `--cov-report=html:htmlcov`.
 - **`.coveragerc`** — coverage `source` is `custom_components/eufy_vacuum` (no `omit` — the eufy adapter is counted too); `exclude_lines` drops `TYPE_CHECKING`, `__repr__`, `NotImplementedError`, `pragma: no cover`, bare `...` stub bodies (`^\s*\.\.\.\s*$`), and `@overload`-decorated signatures (`@(typing\.)?overload`).
 
 Note that `testpaths` deliberately **excludes** `tests/adapters` and
@@ -109,6 +109,17 @@ Note that `testpaths` deliberately **excludes** `tests/adapters` and
 [02](02-running-tests.md)). CI's behavior gate passes `tests` explicitly
 (`.github/workflows/tests.yml`), which walks the whole `tests/` tree, so both
 excluded paths are still gated on every push.
+
+> **`tests/core` was a THIRD exclusion that nobody decided.** It is not named
+> above because it was never a choice: the directory postdates the `testpaths`
+> line and holds the only tests for
+> `core/maintenance_component_rename_migration.py` and
+> `core/usage_accumulator.py`. Being outside `testpaths` it was also outside
+> `scripts/update_test_docs.py`'s scope, so both modules published as the
+> package's worst files while sitting at 100% (see
+> [Coverage status](#coverage-status)). Added 2026-11-11 — 2 files, 40 tests,
+> no measurable cost to the inner loop. The adapters and replay exclusions are
+> unchanged, because those ARE decisions and CI still gates them.
 
 ## The replay harness
 
@@ -205,28 +216,42 @@ belief.
 
 ## Coverage status
 
-**Coverage: 97.6% statement** (96% combined with `--cov-branch`, which the
+**Coverage: 97.7% statement** (96% combined with `--cov-branch`, which the
 default `addopts` enables), across the brand-agnostic core **and** the shipped
 brand adapters (Eufy + Roborock) — the adapters are counted in the number (see
 [subsystems/15-adapters](subsystems/15-adapters.md)).
 
 **Every subsystem in the per-subsystem table is now at or above 95%**, and of the
-140 modules carrying at least 30 units, four sit below it on combined coverage:
+140 modules carrying at least 30 units, two sit below it on combined coverage —
+both within half a point, and neither an outlier:
 
 | module | combined | stmts |
 |---|---|---|
-| `core/maintenance_component_rename_migration.py` | **79.65%** | 71 |
-| `core/usage_accumulator.py` | 91.67% | 62 |
 | `core/error_tracker.py` | 94.56% | 455 |
 | `battery/manager.py` | 94.94% | 547 |
 
-Only the first is a real outlier; the other three are within half a point of the
-bar.
+> **A PARTIAL SCOPE DOES NOT READ AS PARTIAL — IT READS AS A GAP IN THE CODE.**
+> Hours before this was written, this table had four rows and named
+> `core/maintenance_component_rename_migration.py` at **79.65%** as "the one real
+> outlier", with `core/usage_accumulator.py` at 91.67% behind it. Both are at
+> **100%**. Their only tests live in `tests/core/`, which was in neither
+> `pytest.ini`'s `testpaths` nor `scripts/update_test_docs.py`'s `TEST_PATHS`, so the
+> generator measured the package with those two modules' tests switched off and
+> published the result as their coverage. Adding `tests/core` moved exactly those two
+> (+20.35 pp and +8.33 pp) and the package total +0.08 pp; nothing else shifted.
+>
+> Two things made it convincing. The excluded directory held **exactly** the tests for
+> the two modules that then appeared worst, so the artifact looked like a finding with
+> a cause. And the migration's uncovered lines were its most load-bearing branch — the
+> "THE DESTINATION WINS" rule that stops a rename overwriting a user's newer setting —
+> which is precisely the sort of gap worth alarm. It was covered the whole time, by
+> `[MCR-3]` and `[MSK-2]`. Both scopes are fixed, each with the reason recorded at the
+> line that was wrong.
 
-> **This sentence previously named the CV `segmentor` (91%) and
+> **This section previously named the CV `segmentor` (91%) and
 > `rooms/reconciliation.py` (78%) as the visible thin spots. Both have cleared.**
 > The segmentor is at 95.43% ([15-adapters](subsystems/15-adapters.md)), and
-> reconciliation.py no longer appears below the bar at all -- so the 78% here was two
+> reconciliation.py no longer appears below the bar at all -- so the 78% was two
 > revisions stale, and even 04-rooms' own 92% had already been overtaken. A named
 > thin spot is the kind of claim that rots quietly, because fixing the file never
 > touches the sentence that names it.

@@ -33,7 +33,7 @@ docker run --rm ^
 ### Examples
 
 ```
-scripts\test.bat                                          REM default testpaths (unit + integration)
+scripts\test.bat                                          REM default testpaths (unit + integration + core)
 scripts\test.bat tests/integration/test_config_flow.py -v
 scripts\test.bat --no-cov -k test_setup_flow
 scripts\test.bat tests/unit                               REM just the unit layer

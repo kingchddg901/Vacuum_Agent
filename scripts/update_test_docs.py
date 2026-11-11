@@ -35,7 +35,16 @@ DOCS = REPO / "docs" / "testing"
 PKG_PREFIX = "custom_components/eufy_vacuum/"
 COV_JSON = REPO / "coverage.json"
 
-TEST_PATHS = ["tests/unit", "tests/integration", "tests/adapters"]
+#: THE SCOPE MUST MATCH THE GATE, which is `pytest tests` (CLAUDE.md, and the Docker
+#: command CI runs). This listed three directories and so silently EXCLUDED
+#: tests/core, whose two files are the only tests for
+#: core/maintenance_component_rename_migration.py and core/usage_accumulator.py.
+#: Both modules therefore published as the package's worst files -- 79.65% and
+#: 91.67% -- while actually sitting at 100%, and 01-overview named the first as the
+#: one real outlier. A partial scope does not read as partial: it reads as a gap in
+#: the code. Measured 2026-11-11: adding tests/core moved exactly those two modules
+#: (+20.35 pp and +8.33 pp) and the package total +0.08 pp.
+TEST_PATHS = ["tests/unit", "tests/integration", "tests/adapters", "tests/core"]
 
 # Top-level source directory -> subsystem doc stem. Anything not listed here
 # (root-level modules, models/, maps/, sensor/, brand/, ...) is 18-platforms.
@@ -152,7 +161,7 @@ def count_tests() -> tuple[dict[str, int], dict[str, int]]:
     files: dict[str, int] = {}
     funcs: dict[str, int] = {}
     for rel in TEST_PATHS:
-        key = rel.split("/")[-1]  # unit / integration / adapters
+        key = rel.split("/")[-1]  # unit / integration / adapters / core
         base = REPO / rel
         paths = list(base.rglob("test_*.py"))
         files[key] = len(paths)
@@ -419,9 +428,9 @@ def update_readme(totals: dict, files: dict, funcs: dict, cases: int | None,
     editor.sub(f, r"(\*\*)\d+( source modules\*\*)",
                rf"\g<1>{n_modules}\g<2>", label="source modules")
     editor.sub(
-        f, r"\(\d+ unit, \d+ integration, \d+ adapter\)",
+        f, r"\(\d+ unit, \d+ integration, \d+ adapter(?:, \d+ core)?\)",
         f"({files['unit']} unit, {files['integration']} integration, "
-        f"{files['adapters']} adapter)", label="per-dir files")
+        f"{files['adapters']} adapter, {files['core']} core)", label="per-dir files")
     if cases is not None:
         editor.sub(f, r"[\d,]+( cases after parametrization)",
                    rf"{cases:,}\g<1>", label="cases")
