@@ -518,3 +518,311 @@ def test_render_text_is_readable():
     assert "ERROR" in text and "boom" in text
     assert "ValueError" in text
     assert text.endswith("\n")
+
+
+# ---------------------------------------------------------------------------
+# [DBG-SVC] the four services, end to end through hass.services
+#
+# These are the whole user-facing surface of the flight recorder, and the
+# RESPONSE is the product: `supports_response=True` on all four, and the forum
+# post that documents the feature describes those payloads. A handler that works
+# but answers the wrong shape is a published false claim, not a cosmetic bug.
+# ---------------------------------------------------------------------------
+
+async def test_dbgsvc1_start_then_status_then_stop_round_trips(hass):
+    """[DBG-SVC-1] The ordinary session: start, look, stop.
+
+    Each response is asserted for the field a user reads, not merely for being a
+    dict. `status` additionally carries `traceable`, the list of services the
+    recorder can annotate -- it is computed separately from the capture's own
+    status and merged in, so a status that lost it would still look healthy.
+    """
+    register_debug_services(hass, domain="eufy_vacuum")
+
+    started = await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_start", {}, blocking=True,
+        return_response=True,
+    )
+    assert started.get("active") is True, "start did not report an active capture"
+
+    live = await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_status", {}, blocking=True,
+        return_response=True,
+    )
+    assert live.get("active") is True
+    assert "traceable" in live, (
+        "status lost the traceable-service list, which is merged in separately "
+        "from the capture's own status"
+    )
+
+    stopped = await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_stop", {}, blocking=True,
+        return_response=True,
+    )
+    assert "captured" in stopped, (
+        "stop must report how much it caught -- that number is what tells the "
+        "user whether the window they chose was the right one"
+    )
+
+    # STOP'S OWN RESPONSE DESCRIBES THE RUN THAT JUST ENDED, deliberately: it is
+    # read before the run's fields are reset, so `active` is still True in it.
+    # Whether the capture really stopped is a question for the NEXT status call,
+    # and the code comment makes that the contract -- "a LATER status() call must
+    # not go on reporting a previous run's start_at/areas/services alongside
+    # active:False". So that is what is asserted.
+    after = await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_status", {}, blocking=True,
+        return_response=True,
+    )
+    assert after.get("active") is False, "stop left the capture running"
+    assert not after.get("started_at"), (
+        "a stopped capture still reports the previous run's started_at"
+    )
+
+
+async def test_dbgsvc2_an_armed_auto_stop_fires_and_stops_the_capture(hass):
+    """[DBG-SVC-2] `max_minutes` is the guard against a capture left running.
+
+    A debug capture holds the package logger at DEBUG with propagate off. Left
+    armed, it quietly suppresses the user's own log for the life of the process --
+    the same failure the clean-order lock exists to prevent elsewhere in this
+    repo. `max_minutes` is the promise that it stops by itself.
+
+    The timer is driven by moving the clock rather than waiting, and the
+    assertion is the OBSERVABLE end state: the capture is no longer active.
+
+    THIS TEST HOLDS THE FIRING, NOT THE ARMING, and the ablation is what drew the
+    line. Replacing `capture.arm_autostop(async_call_later(...))` with a bare
+    `async_call_later(...)` leaves this GREEN -- the timer is scheduled either way
+    and fires on the clock change; `arm_autostop` stores the CANCEL handle, so it
+    governs whether a stop or an entry unload can call the timer off. That half is
+    held by `test_autostop_joins_entry_unload_ledger` and
+    `test_switch_turn_off_cancels_a_service_armed_autostop`, both of which did go
+    red on that mutation. Dropping `if minutes:` reddens this one.
+    """
+    from datetime import timedelta
+    import homeassistant.util.dt as dt_util
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+    register_debug_services(hass, domain="eufy_vacuum")
+
+    started = await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_start", {"max_minutes": 1}, blocking=True,
+        return_response=True,
+    )
+    assert started.get("auto_stop_minutes") == 1, (
+        "the response did not tell the user the capture is on a timer: %r"
+        % (started,)
+    )
+
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=61))
+    await hass.async_block_till_done()
+
+    after = await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_status", {}, blocking=True,
+        return_response=True,
+    )
+    assert after.get("active") is False, (
+        "the auto-stop never fired; the logger stays at DEBUG with propagate off "
+        "for the life of the process"
+    )
+
+
+async def test_dbgsvc3_dump_writes_a_file_by_default_and_can_be_told_not_to(
+    hass, tmp_path, monkeypatch
+):
+    """[DBG-SVC-3] `write_file` DEFAULTS TO TRUE, and that default is the feature.
+
+    The point of the recorder is handing someone a file: a user who runs the
+    service with no options should get something they can attach to an issue
+    rather than a JSON blob in the developer-tools response pane.
+
+    ⚠ THE DEFAULT IS DECLARED TWICE AND ONLY ONE COPY CAN APPLY. Measured:
+    flipping the handler's `call.data.get("write_file", True)` to False changes
+    NOTHING, because `vol.Optional("write_file", default=True)` in `_DUMP_SCHEMA`
+    fills the key on every validated call -- the handler never sees it absent.
+    Flipping the SCHEMA's default reddens this test exactly, so that is where the
+    behaviour lives and what this test holds. The handler's fallback is reachable
+    only by calling the coroutine directly with a bare dict, which nothing in
+    production does. Same for `clear`.
+
+    Both arms are asserted because the default is the claim: with `write_file`
+    False there must be NO file key at all, not an empty one.
+    """
+    register_debug_services(hass, domain="eufy_vacuum")
+    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
+
+    await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_start", {}, blocking=True,
+        return_response=True,
+    )
+    logging.getLogger(f"{PKG}.mapping.inner").debug("something worth keeping")
+
+    dumped = await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_dump", {}, blocking=True,
+        return_response=True,
+    )
+    assert dumped.get("file"), (
+        "an options-free dump wrote no file; the user is handed a response pane "
+        "instead of something they can attach to an issue"
+    )
+    assert dumped["count"] == len(dumped["records"])
+
+    no_file = await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_dump", {"write_file": False}, blocking=True,
+        return_response=True,
+    )
+    assert "file" not in no_file, (
+        "write_file=False still wrote a file: %r" % (no_file.get("file"),)
+    )
+
+    await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_stop", {}, blocking=True, return_response=True
+    )
+
+
+async def test_dbgsvc4_dump_with_clear_empties_the_buffer_it_just_reported(hass):
+    """[DBG-SVC-4] `clear` happens AFTER the records are read, not before.
+
+    The ordering is the whole claim: the response must still carry the records
+    that were just discarded, otherwise "dump and clear" hands the user an empty
+    file and throws away the evidence. A second dump then proves the buffer really
+    is empty.
+    """
+    register_debug_services(hass, domain="eufy_vacuum")
+
+    await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_start", {}, blocking=True, return_response=True
+    )
+    logging.getLogger(f"{PKG}.mapping.inner").debug("the only record")
+
+    first = await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_dump",
+        {"write_file": False, "clear": True}, blocking=True, return_response=True,
+    )
+    assert first["count"] >= 1, (
+        "clear ran before the records were read -- the evidence is gone and the "
+        "user has an empty dump"
+    )
+
+    second = await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_dump",
+        {"write_file": False}, blocking=True, return_response=True,
+    )
+    assert second["count"] == 0, "clear did not empty the buffer"
+
+    await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_stop", {}, blocking=True, return_response=True
+    )
+
+
+def test_dbgsvc5_clear_resets_the_ring_as_well_as_the_recent_window(capture):
+    """[DBG-SVC-5] Two buffers, and both have to be emptied.
+
+    The capture keeps a RING (the bounded history) and `_last` (the recent
+    window). `clear()` empties both, and the ring's bookkeeping -- `seen` and
+    `full` -- has to go back to zero with it: a ring reporting `full` over an
+    empty record list makes the next status lie about how much was captured and
+    makes eviction behave as though the buffer were already at capacity.
+
+    Asserted through `status()` as well as `records()`, because the counters are
+    what a user reads and they are a separate thing from the records themselves.
+    """
+    capture.start(capacity=4)
+    for i in range(6):
+        logging.getLogger(f"{PKG}.mapping.inner").debug("record %d", i)
+
+    assert capture.records(), "nothing was captured; this test cannot see a clear"
+
+    capture.clear()
+
+    assert capture.records() == [], "records survived the clear"
+    status = capture.status()
+    assert not status.get("captured"), (
+        "the ring still reports %r captured after a clear" % (status.get("captured"),)
+    )
+
+
+def test_dbgsvc6_the_span_summariser_truncates_and_survives_a_broken_repr():
+    """[DBG-SVC-6] `_summarize` annotates spans, so it runs on arbitrary user data.
+
+    It is called with whatever a traced service was handed. Three behaviours, and
+    the last one is why it has a try at all:
+
+      short values      pass through unchanged
+      long values       are cut at the limit AND say how much was dropped
+      an unreprable one degrades to a marker instead of raising
+
+    THE "+N" SUFFIX IS ASSERTED, not just the length. A silent truncation looks
+    identical to a short value in a dump, and someone reading that dump needs to
+    know the rest existed -- a coordinate list cut at 300 characters with no
+    marker reads as a complete short list.
+
+    The raising object is a real shape: a class whose __repr__ fails is what a
+    half-constructed object from a brand SDK looks like mid-exception, which is
+    exactly when a trace is being read.
+    """
+    from custom_components.eufy_vacuum.debug_capture import _summarize
+
+    assert _summarize({"x": 1}) == repr({"x": 1})
+
+    # DERIVED, not hand-computed: repr() adds the surrounding quotes, so the
+    # dropped count is 202 and not the 200 the string length suggests. Computing
+    # it from repr() also keeps this correct if the 300-character limit moves.
+    raw = "A" * 500
+    dropped = len(repr(raw)) - 300
+    long_text = _summarize(raw)
+    assert len(long_text) < len(repr(raw)), "the value was not truncated"
+    assert f"(+{dropped})" in long_text, (
+        "a truncated value did not say how much was dropped: %r" % (long_text[-40:],)
+    )
+
+    class _Broken:
+        def __repr__(self):
+            raise RuntimeError("half-constructed")
+
+    assert _summarize(_Broken()) == "<unreprable>", (
+        "a broken repr escaped the summariser -- and it is called while a trace "
+        "is being written, which is already an unhappy path"
+    )
+
+
+def test_dbgsvc7_redaction_pairs_can_be_replaced_and_restored():
+    """[DBG-SVC-7] `configure_redaction` is the seam for a host with its own secrets.
+
+    The file is written to be dropped into any integration, and the default
+    redactors cover this one's shapes. A host with a different secret format
+    replaces them; passing None restores the defaults. The restore half matters
+    most -- without it, one integration configuring redaction would silently
+    disarm the defaults for everything else in the process, since the list is
+    module-global.
+
+    The restore is asserted by BEHAVIOUR, on a message the defaults do redact,
+    rather than by comparing the list to itself.
+    """
+    import re
+
+    from custom_components.eufy_vacuum.debug_capture import (
+        _redact,
+        configure_redaction,
+    )
+
+    secretish = "token=abcdef0123456789abcdef0123456789"
+    default_result = _redact(secretish)
+
+    try:
+        configure_redaction([(re.compile(r"banana"), "«fruit»")])
+        assert _redact("a banana here") == "a «fruit» here", (
+            "the replacement redactor never ran"
+        )
+        assert _redact(secretish) == secretish, (
+            "replacing the redactors left a default one armed, so the set is "
+            "additive rather than a replacement"
+        )
+    finally:
+        configure_redaction(None)
+
+    assert _redact(secretish) == default_result, (
+        "None did not restore the defaults -- the module-global list stays as the "
+        "last caller left it and every other consumer loses its redaction"
+    )
