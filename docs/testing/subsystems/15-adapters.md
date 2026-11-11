@@ -1239,10 +1239,18 @@ below 4 and the predicate needs `x <= 1`. `local_touches_border` (`:1305`) is ne
 either. So `_issue_quality`'s `"usable"` downgrade (`:95`) is unreachable via this tag,
 `:971`'s `not touches_border` is always True, `:1455`'s drop never fires, and `:1528`
 always passes False. The *intent* is live — the capture guide's step 8 is "Do not clip any
-part of the map itself" — so this is a defect, not dead weight, and the fix is a tolerance
-above 4. It is **not applied**: raising it makes the tag start firing into
-`_component_should_keep`, so regions currently kept could start being dropped, and users
-have linked rooms to those segments.
+part of the map itself" — so the predicate is defeated rather than redundant, and the
+fix would be a tolerance above 4.
+
+✅ **RULED 2026-11-11: LEAVE IT ALONE.** Not deferred, not awaiting a decision — decided.
+Do not re-raise it, and diff a fresh code walk against this paragraph, because the walk
+WILL find it again: five sites read a tag that can never be set, which looks exactly like
+a bug worth fixing. The reason it is not worth fixing is the blast radius, not the
+diagnosis. Raising the tolerance makes the tag start firing into
+`_component_should_keep`, so regions that are kept today could start being dropped — and
+users have linked rooms to those segments, so a dropped region orphans a link on an
+install that was working. The tag being inert is the behaviour users have, and it is
+harmless; making it live is a change to what the segmenter keeps.
 
 **THIRTEEN MORE STATEMENTS AND THREE ARCS IN THE PIPELINE BODY ARE ALSO REACHABLE**, which
 is what moves the ceiling over 95%. Same standard — produced, then rebuilt from the recipe

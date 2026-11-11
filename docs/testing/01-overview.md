@@ -14,11 +14,10 @@ moves can happen without silently breaking behavior.
 
 ## The three layers
 
-`pytest.ini`'s `testpaths` collects `tests/unit`, `tests/integration` and
-`tests/core`; `tests/adapters` is excluded there and must be requested
-explicitly (see below). A fourth, separate harness — **replay** — lives under
-`tests/replay/`; it is not one of the layers pytest defaults to, and is
-described in its own section below.
+`pytest.ini`'s `testpaths` collects all three layers — `tests/unit`,
+`tests/integration` and `tests/adapters` — plus `tests/core`. A fourth, separate
+harness — **replay** — lives under `tests/replay/`; it is not one of the layers
+pytest defaults to, and is described in its own section below.
 
 | Layer | Directory | Needs `hass`? | What it covers |
 |-------|-----------|---------------|----------------|
@@ -101,14 +100,21 @@ Declared in `requirements_test.txt`:
 
 Config lives in two files:
 
-- **`pytest.ini`** — `asyncio_mode = auto`, `testpaths = tests/unit tests/integration tests/core`, and the coverage `addopts` (term-missing + branch). A default run does **not** write HTML; the canonical `htmlcov/` is produced only by an explicit `--cov-report=html:htmlcov`.
+- **`pytest.ini`** — `asyncio_mode = auto`, `testpaths = tests/unit tests/integration tests/core tests/adapters`, and the coverage `addopts` (term-missing + branch). A default run does **not** write HTML; the canonical `htmlcov/` is produced only by an explicit `--cov-report=html:htmlcov`.
 - **`.coveragerc`** — coverage `source` is `custom_components/eufy_vacuum` (no `omit` — the eufy adapter is counted too); `exclude_lines` drops `TYPE_CHECKING`, `__repr__`, `NotImplementedError`, `pragma: no cover`, bare `...` stub bodies (`^\s*\.\.\.\s*$`), and `@overload`-decorated signatures (`@(typing\.)?overload`).
 
-Note that `testpaths` deliberately **excludes** `tests/adapters` and
-`tests/replay` — run those paths explicitly when you want them (see
-[02](02-running-tests.md)). CI's behavior gate passes `tests` explicitly
-(`.github/workflows/tests.yml`), which walks the whole `tests/` tree, so both
-excluded paths are still gated on every push.
+Note that `testpaths` deliberately **excludes** `tests/replay` — run it
+explicitly when you want it (see [02](02-running-tests.md)). CI's behavior gate
+passes `tests` explicitly (`.github/workflows/tests.yml`), which walks the whole
+`tests/` tree, so the excluded path is still gated on every push.
+
+⚠ **`tests/adapters` JOINED the default on 2026-11-11**, by Chris's call: the brand
+adapters we ship are not an optional extra to test, and a default run that skipped
+them meant the inner loop disagreed with the gate about what "the tests" are. A bare
+`pytest` went from 5,386 to 5,990 collected. `tests/core` was added days earlier for
+a different reason — it was never a decision at all, just a directory that postdated
+the `testpaths` line, and its absence published two 100% modules as the worst in the
+package (see [Coverage status](#coverage-status)).
 
 > **`tests/core` was a THIRD exclusion that nobody decided.** It is not named
 > above because it was never a choice: the directory postdates the `testpaths`
