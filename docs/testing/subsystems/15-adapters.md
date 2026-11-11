@@ -1130,6 +1130,107 @@ guard, and defensive continues — each geometry-sensitive or best-effort.
 Tested in `test_segmentor.py` + `test_segmentor_splitters.py`; held here on
 purpose, a known thin spot rather than a framework miss.
 
+### `eufy/segmentor.py` — 92.38%, and the ceiling is NOT YET ESTABLISHED
+
+Measured 2026-11-10: 868 statements and 378 branches, of which **53 statements and 42
+partial branches are uncovered — 1151/1246 = 92.38%.** The paragraph above says 91% and
+calls what remains "splitter-internal *alternative* sub-branches … each geometry-sensitive
+or best-effort." Both halves are now wrong, and the second one mattered: it reads as a
+statement that the rest is unreachable, and **ten of those statements are reachable from
+the public entry point.**
+
+This section deliberately records a ceiling that is **open**, because the honest number is
+not yet known and a recorded ceiling is exactly the artifact that gets cited later as
+authority. What is settled:
+
+**TEN STATEMENTS ARE PIPELINE-REACHABLE — verified, with recipes.** Each reaches its line
+through `detect_room_segments()` on a synthetic PNG, with nothing patched. Synthetic
+fixtures are already this file's convention (`_l_shape_map_png`, and `adversarial_map.png`
+itself). Every recipe below was reproduced from scratch before being written here, and
+each one's control does *not* fire, so the probes discriminate.
+
+Line numbers are given with their enclosing symbol, because the lines move: the existing
+note's `:1111` had already rotted to `:1225` by the time this pass read it, and three
+separate line mappings in this pass were off by four before being checked against
+`segmentor.py::_detect_room_segments_pipeline` directly.
+
+| symbol · line | what it refuses | the input that reaches it |
+|---|---|---|
+| `segmentor.py::_split_component_via_local_support` `:446` | `supported` empty after the 3×3 opening | 300² blob, three colours all in hue bin 6; sat p42 selects 60%, value p38 selects 80%, and the `score >= 2` intersection is **2-px stripes** the opening erases. A 5-row period of 2 Z / 1 X / 2 Y gives Z=40%. The 3-px control does not fire |
+| `segmentor.py::_split_component_via_color_distance` `:565` | a grown mask below the area floor | 170² PNG, 78² `(254,50,50)` block with an **enclosed** 20×40 `(50,50,254)` island |
+| …same function `:567` | a grown mask above `active*0.84` | same image — the carrier grows to 4676 of 5476 |
+| …same function `:569` | the ≥0.72 overlap dedup | 330² concentric squares: carrier `(84,254,254)`, mid ring `(118,220,254)` lying inside **both** centres' `allowed` sets, core `(169,169,254)`; shared ring 11040/14884 = 0.7417 |
+| …same function `:581`, `:582` | `used_area < active*0.38` | 600² PNG, 300² block whose interior is a mosaic of eight sub-floor bands, so only two 10000-px islands rank |
+| `segmentor.py::_localize_oversized_component` `:667` | `opened` empty | 500² PNG, one hue bin, six chromaticity sub-bins; a **checkerboard** bin whose pixels have no 8-neighbour |
+| …same function `:681` | a candidate above `active*0.22` | same recipe, a single connected 37240-px bin — admitted by the `max_bucket` gate (`<= active*0.24` = 38400) and then rejected here (`> active*0.22` = 35200). A 3200-px window between two constants in one function |
+| …same function `:709`, `:710` | fewer than two candidates | one in-range bin, or a plain solid block where the closure is never entered at all |
+
+The mechanism that makes four of these possible is worth keeping: **`binary_fill_holes` at
+`:1182` re-absorbs an enclosed island of a different hue**, which is how one component ends
+up carrying two far-apart chromaticities despite 16-wide hue binning. Without that, the
+colour-distance arms look unreachable.
+
+Covering those ten and the eight branches they close is **+18 units → 93.82%**. That is a
+measured *lower bound* on the ceiling, not the ceiling.
+
+**FOURTEEN STATEMENTS ACROSS TEN GUARDS ARE UNREACHABLE BY ANY REAL INPUT.** Four fire only
+under injection — monkeypatching an intermediate so the guard sees a value the real path
+cannot produce — which is not a refutation.
+
+| symbol · guard | why it cannot be reached |
+|---|---|
+| `_split_component_via_color_distance` — `insufficient_feature_values` `:506/507` | its own active-area floor already requires `active >= max(m*2, 3200)` and `len(feature_values) == active`; `max(m*1.2, 1800) < max(m*2, 3200)` for every `min_area_pixels` in 0…20000, swept |
+| `_split_component_via_local_support` — empty sat/value `:420` | same shape against that function's own floor; the two clauses differ — the first is a caller contract, the second a numpy one |
+| `_split_component_via_color_distance` — empty `active_distances` `:550`; `_localize_oversized_component` — `no_feature_values` `:622/623`; `_split_component_via_assist_hue` — `no_active_hue_values` `:746/747` | `len(...) == 0` after each function's own upstream `active_area` floor of 3200 / 120000 / 3500 |
+| `_reclaim_localized_child_mask::_trim_sparse_top_rows` — empty `baseline_rows` `:205` | the ≥6-occupied-rows floor holds, and the baseline index is itself drawn from `occupied_rows`, so `row_counts[lower_start] > 0` is always inside the slice |
+| `_reclaim_localized_child_mask` — empty after trim `:229` | `_trim_sparse_top_rows` retains ≥68% or returns the mask untouched |
+| `_split_component_via_color_distance` — `center_distance_too_small` `:537/538` | the two ranked bin centres cannot land within 0.09 of each other on any real palette |
+| `_localize_oversized_component` — `count <= 0` `:670`, `label_slice is None` `:675` | scipy's contract: `label()` on a non-empty mask returns `count >= 1`, and `find_objects` returns exactly one slice per label |
+
+**`:229` IS ONE NUMBER FROM LIVE, AND TWO OF THESE ARE NOT SAFE TO DELETE.** Lower `:221`'s
+0.68 to ≤0.16, or `:197`'s 6 to 1, and `:229` becomes reachable — these are the thresholds
+most likely to be retuned. Deleting it then lets `:230`'s `int(ys.min())` raise
+`ValueError`, which escapes to `mapping/segmenter_engines.py:313` and fails the **whole
+run** as `engine_unavailable`, where the guard loses one room and `:1285`'s
+`if local_area <= 0: continue` absorbs it. Deleting `:205` is worse than it looks for a
+different reason: `np.median([])` is `nan`, and `max(6.0, nan * pass_strength)` returns
+**6.0** — because `nan > 6.0` is False — so the trim rule silently degrades into a fixed
+threshold, and the `RuntimeWarning` is invisible (`pytest.ini` sets no
+`filterwarnings = error`). Both are classified **keep-with-comment**: they read today as
+evidence their state can occur, which is the false half a comment has to fix.
+
+**`touches_border` CANNOT FIRE AT ALL, AND FIVE SITES DEPEND ON IT.** The note at
+`test_segmentor.py:622-629` already records `:1226` as uncovered on purpose, with a stale
+line reference (`:1111`) and an inset of "~6px"; measured across 5 configurations and 225
+samples, the inset is **4px on all four sides**, invariant to crop depth — cropping 120px
+into the rooms moves the frame but the morphology rebuilds the gap. `min_x` never goes
+below 4 and the predicate needs `x <= 1`. `local_touches_border` (`:1305`) is never True
+either. So `_issue_quality`'s `"usable"` downgrade (`:95`) is unreachable via this tag,
+`:971`'s `not touches_border` is always True, `:1455`'s drop never fires, and `:1528`
+always passes False. The *intent* is live — the capture guide's step 8 is "Do not clip any
+part of the map itself" — so this is a defect, not dead weight, and the fix is a tolerance
+above 4. It is **not applied**: raising it makes the tag start firing into
+`_component_should_keep`, so regions currently kept could start being dropped, and users
+have linked rooms to those segments.
+
+**WHAT IS NOT CLASSIFIED, AND WHY THE CEILING STAYS OPEN.** Nineteen statements in the
+pipeline body — `:1123/1124`, `:1177`, `:1189`, `:1302/1303`, `:1415`–`:1429`, `:1510`,
+`:1518`, `:1533` — were outside this pass's scope and have had no reachability verdict. If
+most are reachable, 95% is back in range (≈96.3% if all are). Anyone closing this out
+starts there, not with the ten above.
+
+Five more statements (`:186`, `:236`, `:277`, `:465`, `:886`) fire **only** when a helper is
+called directly with a state its sole caller cannot produce — a disconnected
+`component_mask`, a `(h, w, 0)` channel array, or an `ndarray` subclass whose `nonzero()`
+lies. Those are recorded as reached-but-not-worth-asserting rather than as coverage.
+
+Not pursued further because the CV path is **best-effort by design** — the user guide's own
+remedy for "rooms detected wrong (merged/split) and won't nudge right" is *switch to a
+custom layout*, non-destructively — and because every brand VA now supports can supply a
+live map, which makes the whole screenshot-upload path a removal candidate. Recorded rather
+than `pragma: no cover`'d, since the programme admits a pragma for logger lines only — and
+because an unreachable guard with no written reason is the one that gets "simplified" later.
+
 The Roborock adapter has no comparable known gap — it is a much smaller,
 declarative-config module (no CV pipeline), and every source file except
 `adapter.py` is at 100%.
