@@ -1216,7 +1216,8 @@ measured *lower bound* on the ceiling, not the ceiling.
 table below is what survives, and the counts that stood here — "fourteen statements across
 ten guards" — were stale *and* incomplete, so they are not patched but replaced. They
 missed that two of the guards have a **second site each**: `ys.size == 0` appears in both
-`_reclaim_localized_child_mask` and its nested `_trim_sparse_top_rows`, and
+`_reclaim_localized_child_mask`'s own body **twice** — the nested `_trim_sparse_top_rows`
+contains no `ys` identifier at all, its guard being `baseline_rows.size == 0` — and
 `label_slice is None` in both `_try_add_candidate` and `_detect_room_segments_pipeline`.
 Measured over the full `tests` scope: **12 uncovered statements across 6 surviving guard
 families**, with `segmentor.py` at **1207/1252 = 96.41%**.
@@ -1236,7 +1237,7 @@ landed — which is the repo's own standing rule (`pytest.ini`: targets are
 | `_split_component_via_color_distance` — `insufficient_feature_values` | kept + commented | `max(m*1.2, 1800) < max(m*2.0, 3200)` for every `min_area_pixels`, swept. **Two independent floors that dominate by accident of the constants, not by design** — merging them would let a lowered component floor feed 8³ colour binning ~1000 samples silently. Its reason string can never be emitted, which is said beside it |
 | `_split_component_via_color_distance` — empty `active_distances` | kept + commented | the house idiom in all four splitters, and the precondition for the `np.percentile` on the next line. Waking it is correct and cheap; the cheap replacement test **cannot see** the edit that wakes it |
 | `_split_component_via_color_distance` — `center_distance_too_small` | kept + commented | the two ranked bin centres cannot land within 0.09 of each other on any real palette |
-| `_reclaim_localized_child_mask` — `ys.size == 0`, **both sites** | kept + commented | `_trim_sparse_top_rows` retains ≥68% or returns the mask untouched; its own `baseline_rows` site is held by the ≥6-occupied-rows floor, the baseline index being drawn from `occupied_rows` |
+| `_reclaim_localized_child_mask` — `ys.size == 0`, **both sites** | kept + commented | the post-trim site is held because `_trim_sparse_top_rows` retains ≥68% or returns the mask untouched; **the earlier site is IDENTITY-DEAD**, killed by the `np.any(local_mask)` four lines above it — 0 fires over 8085 masks against a floor of 103 once that `np.any` is ablated. It went uncommented until 2026-11-11 because this table mislocated it. Its killer is untested, which is the live gap. Separately, `baseline_rows.size == 0` is held by the ≥6-occupied-rows floor, the baseline index being drawn from `occupied_rows` |
 | `_try_add_candidate` / `_detect_room_segments_pipeline` — `label_slice is None`, **both sites** | kept + commented | scipy's contract: `label()` relabels to a consecutive 1…n set, so `find_objects` returns exactly one slice per label. It *can* return `None` for a gapped array, so the guard defends against a producer other than `label()` |
 
 **TWO ENTRIES WERE WRONG, AND BOTH WERE IN ONE FUNCTION.**
@@ -1250,9 +1251,11 @@ it. Any future deletion argued from an uncovered line needs its own refutation p
 **`:229` IS ONE NUMBER FROM LIVE, AND TWO OF THESE ARE NOT SAFE TO DELETE.** Lower `:221`'s
 0.68 to ≤0.16, or `:197`'s 6 to 1, and `:229` becomes reachable — these are the thresholds
 most likely to be retuned. Deleting it then lets `:230`'s `int(ys.min())` raise
-`ValueError`, which escapes to `mapping/segmenter_engines.py:313` and fails the **whole
-run** as `engine_unavailable`, where the guard loses one room and `:1285`'s
-`if local_area <= 0: continue` absorbs it. Deleting `:205` is worse than it looks for a
+`ValueError`, which escapes to `mapping/segmenter_engines.py` and fails the **whole
+run** with `reason: "engine_exception"` — *not* `engine_unavailable`, which is only the
+name of the private helper that builds that result, so grepping the reason string for it
+finds nothing. Where the guard fires instead, the caller's
+`if local_area <= 0: continue` absorbs it and the cost is one room. Deleting `:205` is worse than it looks for a
 different reason: `np.median([])` is `nan`, and `max(6.0, nan * pass_strength)` returns
 **6.0** — because `nan > 6.0` is False — so the trim rule silently degrades into a fixed
 threshold, and the `RuntimeWarning` is invisible (`pytest.ini` sets no

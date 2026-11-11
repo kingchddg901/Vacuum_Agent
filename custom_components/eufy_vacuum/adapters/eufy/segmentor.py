@@ -182,9 +182,20 @@ def _reclaim_localized_child_mask(
         return local_mask
 
     ys, _ = np.nonzero(local_mask)
+    # IDENTITY-DEAD, and killed by the line four above: `not bool(np.any(local_mask))` already
+    # returns for an empty mask, so `np.nonzero` cannot come back empty here. Measured: 0 fires
+    # over 8085 masks including 100 all-False ones, against a detection floor of 103 fires once
+    # that `np.any` is ablated away — so the zero is a property of the guard above, not of the
+    # sample. THE KILLER IS THEREFORE LOAD-BEARING AND UNTESTED, which is the live gap here.
+    #
+    # This is byte-for-byte the argument used to DELETE `_try_add_candidate`'s `count <= 0` on
+    # 2026-11-11 ("`np.any(opened)` two lines above guarantees `count >= 1`"). It is kept rather
+    # than deleted only because nothing yet tests the `np.any` that kills it; delete this and
+    # the net transfers to a guard with no behavioural test in front of it. Same reasoning
+    # applies to `sat_values.size == 0 or value_values.size == 0` further down, whose WHOLE `if`
+    # is dead — both arms, not just the `or` — for the same reason plus the `ys.size` guard.
     if ys.size == 0:
         return local_mask
-
     height, width = local_mask.shape
     bottom = int(ys.max())
     if bottom >= height - 2:
@@ -203,9 +214,22 @@ def _reclaim_localized_child_mask(
         baseline_rows = baseline_rows[baseline_rows > 0]
         # Dead: `lower_start` is itself an entry of `occupied_rows` and the window above starts
         # on it, so the `> 0` filter always keeps at least row_counts[lower_start] (0 fires over
-        # 341k masks; moving that window off lower_start fires 51644). Thin net if dropped — the
-        # np.median of an empty slice is NaN and max(6.0, NaN) returns 6.0, so the trim would
-        # silently fall back to the hard floor instead of the measured baseline.
+        # 341k masks). Provable, not merely sampled: lower_start_index = min(n//3, max(n-3, 0))
+        # lands in [0, n-3] for every n >= 6, so lower_start is an occupied row with at least two
+        # more occupied rows after it -- the window in fact retains >= 4 of them, never just one.
+        #
+        # NO EDIT TO THE WINDOW'S START CAN WAKE THIS. The window ends at local_bottom + 1 and
+        # row_counts[local_bottom] > 0, so every start a <= local_bottom keeps that entry. Swept
+        # every legal start over 60k masks: 0 empty windows. Eight named start edits (local_top,
+        # lower_start_index as a row, len//3, lower_start +/- 1, occupied_rows[-3], no anchor at
+        # all, and the window above) each fire 0. The wake is the window's END, or the `> 0`
+        # filter: `[lower_start : trim_limit]` fires 67%, `[lower_start : local_top + 10]` 69%,
+        # `[ls : ls]` 100%, and `> 0` -> `> 1` fires on masks whose rows all hold one pixel.
+        #
+        # Thin net if dropped -- the np.median of an empty slice is NaN and max(6.0, NaN) returns
+        # 6.0, so the trim would fall back to the hard floor instead of the measured baseline.
+        # Silent in control flow only: numpy raises two RuntimeWarnings there, which pytest.ini
+        # does not turn into errors.
         if baseline_rows.size == 0:
             return mask
         dense_row_baseline = float(np.median(baseline_rows))
@@ -231,11 +255,23 @@ def _reclaim_localized_child_mask(
     local_mask = _trim_sparse_top_rows(local_mask, pass_strength=0.42)
     ys, _ = np.nonzero(local_mask)
     # Dead: _trim_sparse_top_rows returns either `mask` untouched — non-empty per the np.any()
-    # gate at the top of this function — or a trim that cleared its own 0.68 retention clamp,
-    # which with >= 6 occupied rows demands >= 4 surviving pixels (0 empty returns over 341k
-    # masks; relax that clamp to 0.0 and 2946 appear). Loosening it is the wake, and nothing
-    # below catches an empty mask — ys.min() raises ValueError. `parent_mask & False` is the
-    # deliberate empty-mask-of-the-right-shape idiom, not a bug.
+    # gate at the top of this function — or a trim that cleared its own 0.68 retention clamp.
+    # TWO EDITS WAKE IT, and the one nothing guards is not the obvious one:
+    #   * relax the 0.68 clamp (to 0.0, 518 fires) — ALREADY GUARDED, behaviourally, by
+    #     `test_rcl1_the_trim_refuses_when_it_would_take_too_much`, which goes red on it.
+    #   * lower `occupied_rows.size < 6` to `< 1` (3 fires) — GUARDED BY NOTHING: the whole
+    #     adapters suite passes with that edit, 335 passed / 0 failed. At one occupied row
+    #     `int(np.count_nonzero(mask) * 0.68) == 0`, so the clamp cannot refuse anything and a
+    #     single sparse row trims to empty. The clamp is BYPASSED rather than loosened, which
+    #     is why [RCL-1]'s 16-row fixtures cannot see it.
+    # Per the project's own rule, a guard with two killers needs both tested; this one has one.
+    # WHAT IT COSTS EITHER WAY. Firing returns `parent_mask & False` — the deliberate
+    # empty-mask-of-the-right-shape idiom, not a bug — to the sole caller, which drops it at
+    # `if local_area <= 0: continue`: ONE ROOM, silently. Deleting the guard instead lets
+    # `int(ys.min())` raise ValueError, which escapes `detect_room_segments` and is caught in
+    # mapping/segmenter_engines.py as `reason: "engine_exception"` — the WHOLE run, every
+    # segment, measured end-to-end on a real pipeline input. One room against all of them is
+    # the trade, and it is why the idiom is kept.
     if ys.size == 0:
         return parent_mask & False
     top = int(ys.min())
@@ -443,6 +479,14 @@ def _split_component_via_local_support(
         debug["reason"] = "missing_support_channels"
         return [], debug
 
+    # anchor: RN6M6W3H  the splitters' active-area floor — the replica set
+    # `max(int(min_area_pixels * 2.0), 3200)` is written TWICE, here and in
+    # `_split_component_via_color_distance`, as BYTE-IDENTICAL four-line blocks down to the
+    # `below_active_area_floor` reason. Unlike the oversized gate/floor pair that
+    # `[SP-oversize-xsite]` anchors, these are not complementary halves of one decision —
+    # they are two INDEPENDENT floors that happen to agree, so retuning one is silent in
+    # both directions: no caller compares them and no test reads both.
+    # `python scripts/doc_anchor.py --show RN6M6W3H` lists every site.
     active = component_mask.astype(bool)
     active_area = int(np.count_nonzero(active))
     debug["active_area"] = active_area
@@ -494,11 +538,17 @@ def _split_component_via_local_support(
     score += (primary_value >= value_floor).astype(np.uint8)
 
     # The two `if len(...)` guards below cannot take their FALSE edge: the enclosing shape
-    # check makes each slice exactly `active_area` long, and TWO things in this function
-    # already keep that above zero - the active-area floor (`below_active_area_floor`,
-    # >= 3200) and the `empty_support_values` guard. Both would have to go before these
-    # wake, and an empty slice does not degrade quietly: `np.percentile` over one raises
-    # IndexError (measured, numpy 2.3.2).
+    # check makes each slice exactly `active_area` long (measured: that identity held over
+    # 400 random masks), and THREE things in this function keep that above zero. Two are
+    # refusals, and EITHER ALONE suffices - ablate the active-area floor and an all-False
+    # `component_mask` comes back `empty_support_values`; ablate `empty_support_values` and
+    # it comes back `below_active_area_floor`. The third is a CRASH, and it is why those two
+    # are not the whole answer: with BOTH of them ablated the call still never reaches these
+    # arcs, it dies at `np.percentile(primary_sat_values, 42)` above with IndexError
+    # (measured, numpy 2.3.2). ALL THREE have to go - both refusals plus an empty-safe
+    # percentile - before either arc takes its false edge; measured at that rung, each one
+    # does. With detectors on both arcs the whole adapters suite passes, so nothing in the
+    # tests takes either edge today either.
     if assist_sat is not None and getattr(component_mask, "shape", None) == getattr(assist_sat, "shape", None):
         assist_sat_values = assist_sat[active]
         if len(assist_sat_values):
@@ -507,7 +557,9 @@ def _split_component_via_local_support(
 
     if assist_value is not None and getattr(component_mask, "shape", None) == getattr(assist_value, "shape", None):
         assist_value_values = assist_value[active]
-        # Unreachable false edge, same reason and same two nets as the assist_sat guard above.
+
+        # Unreachable false edge, same reason and the same THREE nets as the assist_sat
+        # guard above; measured waking with a detector on this arc alone.
         if len(assist_value_values):
             assist_value_floor = float(np.percentile(assist_value_values, 36))
             score += (assist_value >= assist_value_floor).astype(np.uint8)
@@ -555,12 +607,34 @@ def _split_component_via_local_support(
             continue
         if grown_area > int(active_area * 0.8):
             continue
-        # REACHABLE, just unfixtured: `binary_propagation` is bounded by `component_mask`, so
-        # two supported seeds inside ONE connected sub-blob both reflood it and come back
-        # IDENTICAL. Measured with this removed, a dim-banded blob at exactly 80% of active
+        # REACHABLE FROM A DIRECT CALLER, NOT FROM THIS MODULE'S PIPELINE, and fixtured since
+        # 2026-11-11 by `[SP-local-4]` in tests/adapters/eufy/test_segmentor_splitters.py,
+        # which goes red (`grown_mask_count` 3, not 2) when this clause is removed.
+        # `binary_propagation` is bounded by `component_mask`, so two supported seeds inside
+        # ONE connected sub-blob both reflood it and come back IDENTICAL, overlap 1.0 against
+        # the 0.74 here. Measured with this removed: a dim-banded sub-blob at 80% of active
         # turns the `insufficient_grown_masks` decline below into an accept of two identical
-        # masks - and an accept stops the cascade, which the downstream segment dedup cannot
-        # undo. `_support_scored_blobs` gives each blob one seed; hence this has never run.
+        # masks - and 75% does it too, 80% is only the ceiling the area guard above imposes.
+        #
+        # WHAT IT PROTECTS IS THE CASCADE, NOT THE DUPLICATE MASK. An accept returns from
+        # `_split_suspicious_component`, so `assist_hue`, `erosion_seeds` and `opening_split`
+        # never run and each child carries a `split_local_support` label that changes its
+        # keep/drop path. The duplicate itself does NOT reach the user: the segment dedup at
+        # the end of `_detect_room_segments_pipeline` drops a candidate at `overlap >= 0.8`
+        # and two identical masks sit at 1.0 - measured by ablating this clause together with
+        # the area guard above, which accepted 36 identical masks (`split_generated_regions`
+        # 36) and emitted ONE segment, `deduped_regions` 35.
+        #
+        # The pipeline cannot reach this line at all: it hands the cascade ONE 8-connected
+        # component, because the 3x3 opening at the cluster stage erases any neck thin enough
+        # for the bbox-crop closing to cut (1 px and 2 px necks arrive as two separate
+        # components instead; 3 px and thicker survive the crop). Every reflood therefore
+        # equals the whole component and the `> int(active_area * 0.8)` guard above
+        # `continue`s on every candidate first - measured, the pipeline's own rows read
+        # `grown` = 36 x `active_area`, `grown_mask_count` 0, `insufficient_grown_masks`, and
+        # a detector raising unless that piece count is 1 passes all 335 adapter tests. Keep
+        # this as the CONTRACT for a caller that hands over a multi-piece mask, which is the
+        # only way the duplicate can arise.
         if any(_component_overlap_ratio(grown, existing)[0] >= 0.74 for existing in grown_masks):
             continue
         grown_masks.append(grown)
@@ -593,6 +667,11 @@ def _split_component_via_color_distance(
         debug["reason"] = "missing_primary_rgb"
         return [], debug
 
+    # REPLICA RN6M6W3H — the splitters' active-area floor, 2 copies, must agree
+    # Byte-identical to the block in `_split_component_via_local_support`, which holds the
+    # primary anchor. Retune one and this splitter admits a band of components the other
+    # refuses, which changes which strategy wins the cascade and nothing reports it.
+    # `python scripts/doc_anchor.py --show RN6M6W3H` lists every site.
     active = component_mask.astype(bool)
     active_area = int(np.count_nonzero(active))
     debug["active_area"] = active_area
@@ -611,15 +690,22 @@ def _split_component_via_color_distance(
     # TWO INDEPENDENT FLOORS - sample size here, component size at this function's
     # `below_active_area_floor` gate - and the second dominates today by accident of the
     # constants, not by identity: `len(feature_values) == active_area`, and
-    # `max(int(m*1.2), 1800) <= max(int(m*2.0), 3200)` for every `min_area_pixels` (swept
-    # 0..1e6 plus -1/-5/-20000/1e9, no violations). That gate is therefore the only net, and
-    # the bin floor below is no substitute - at `min_area_pixels` 200 two bins of 100 px
-    # clear it out of 1000 samples. So lower the `* 2.0` / 3200 expression for a legitimate
-    # tuning reason and this wakes; merge the two questions instead and 8-cubed colour
-    # binning runs over as few as 1000 samples with no complaint. Standing cost of keeping
-    # it: `insufficient_feature_values` is a published decline reason that can never be
-    # emitted, and in the per-method debug list a reason that cannot fire reads as a thing
-    # that happens - the argument `_split_component_via_wall_cuts` makes in its docstring.
+    # `max(int(m*1.2), 1800) < max(int(m*2.0), 3200)` STRICTLY for every `min_area_pixels`
+    # (swept 0..1e6 plus negatives and up to 2**53: no violations and no ties; 80 calls aimed
+    # straight at the empty window [component floor, feature floor) never reached this
+    # reason). That gate is therefore the only net, and the bin floor below is no substitute -
+    # at `min_area_pixels` 200 two bins of 100 px clear it out of 1000 samples. TWO edits wake
+    # this, not one: lower the `* 2.0` / 3200 expression (measured at `min_area_pixels` 1:
+    # fires at areas 400, 500, 1000 and 1799, stops at 1800), or raise THIS floor's own 1800
+    # (measured: 1800 -> 4000 fires at 3200 and 3999, not at 4000). Merge the two questions
+    # and 8-cubed colour binning runs silently over whatever the surviving floor admits - 400
+    # samples at `min_area_pixels` 200, so 1000 is the worked example above, not a bound. The
+    # cost is NOISE, not a bad split: with the component floor lowered and this guard removed,
+    # areas 400, 500, 1000, 1072 and 2000 all still decline `insufficient_grown_masks`,
+    # because a centre's `grown_area` has to clear 900 and stay under `active_area * 0.84` at
+    # the same time. Standing cost of keeping it: `insufficient_feature_values` can never be
+    # emitted, so it never enters the per-method debug list at all - what reads as a live
+    # decline is the string HERE and its census row in docs/testing/subsystems/15-adapters.md.
     if len(feature_values) < max(int(min_area_pixels * 1.2), 1800):
         debug["reason"] = "insufficient_feature_values"
         return [], debug
@@ -654,11 +740,21 @@ def _split_component_via_color_distance(
     # BOTH halves are dead at HEAD, for DIFFERENT reasons — do not collapse this to one note.
     # `best_second is None`: ranked[1:] is non-empty (the `len(ranked) < 2` refusal above) and
     # np.unique(axis=0) rows are distinct, so the first candidate always beats best_distance 0.0.
-    # Dropping that refusal, or weakening `distance > best_distance`, wakes this half.
-    # `best_distance < 0.09`: 0.09 sits BELOW the quantizer's own granularity — the two closest
-    # distinct `* 7.0` bins lie 1/7 = 0.1429 apart, which was also the minimum over the 256 probe
-    # runs that reached here. Re-quantizing to 16 drops that floor to 0.0625 and 0.09 starts to
-    # bite. No net below either way: an almost-identical centre pair would just split on noise.
+    # Weakening `distance > best_distance` wakes this half cleanly (measured: 158 of 400
+    # palettes, no raises). Dropping the `len(ranked) < 2` refusal wakes it too, but it does
+    # something else first: with `ranked` EMPTY it crashes two lines up at `ranked[0][0]` with
+    # "IndexError: list index out of range" — of the same 400 palettes, 162 woke this half and
+    # 80 crashed. `best_distance < 0.09`: 0.09 sits BELOW the quantizer's own granularity —
+    # exhaustively over all 512 `* 7.0` bins the closest distinct pair is 1/7 = 0.142857, and
+    # best_distance is only ever 0.0 or >= 1/7, so today this clause is subsumed by the one to
+    # its left. Re-quantizing to 16 LEVELS (`* 15.0`, clip 0..15) drops the floor to 1/15 =
+    # 0.0667 and 0.09 does start to bite (measured: 8 of 400); 1/16 = 0.0625 is the 17-level
+    # `* 16.0` figure, not this one. THERE IS A NET BELOW, so this clause is not what stands
+    # between a close pair and a split on noise: woken at 16 levels with only this clause
+    # removed, all 8 close pairs came back seed_areas [0, 0] — the 3x3 opening empties both
+    # seeds, the per-centre `seed_area` floor refuses them, and the function declines
+    # `insufficient_grown_masks` with zero masks. Note the dead reason is also in the accepted
+    # set of test_color_distance_uniform_color_rejects, where it cannot be the value.
     if best_second is None or best_distance < 0.09:
         debug["reason"] = "center_distance_too_small"
         return [], debug
@@ -674,12 +770,19 @@ def _split_component_via_color_distance(
         active_distances = distance_map[active]
         # KEEP — the precondition for the percentile below, not an early-out: np.percentile
         # RAISES on an empty slice ("IndexError: index -1 is out of bounds for axis 0 with
-        # size 0", numpy 2.3.2; same for (0,), float32 and (0, 2)). Dead only because `active`
-        # is loop-invariant and floored at 3200 by below_active_area_floor — narrow the
-        # `active_distances` slice and it wakes at once (254 of 402 probe runs; with the guard
-        # gone those same inputs raised). Waking it is CORRECT: skipping a centre with no pixels
-        # is what the loop wants. Six further percentile calls carry the same precondition, in
-        # _reclaim_localized_child_mask and _split_component_via_local_support.
+        # size 0" — verbatim, re-measured in the pinned test image at numpy 2.3.2 for (0,),
+        # float32 and (0, 2)). Dead because `active` is loop-invariant (assigned once, above
+        # the loop) and floored at 3200 by below_active_area_floor. NOT every narrowing of the
+        # `active_distances` slice wakes it — only one tight enough to exclude every active
+        # pixel from some centre: `distance_map[active & (distance_map <= 0.05)]` skipped a
+        # centre in 152 of the 158 runs that reached this loop over 400 generated palettes,
+        # and with the guard also removed those same 152 raised that IndexError. A `<= 0.35`
+        # cut, a `[::2]` subsample and a nearest-1% cut each left it dead, all three with the
+        # guard removed and still no crash. Waking it is CORRECT: skipping a centre with no
+        # pixels is what the loop wants. Six further percentile calls carry the same
+        # precondition - two in _reclaim_localized_child_mask and four in
+        # _split_component_via_local_support, which together are every percentile-family call
+        # in this file besides this one (counted from the AST, not by eye).
         if len(active_distances) == 0:
             continue
         threshold = float(np.percentile(active_distances, 46)) + 0.018
@@ -847,12 +950,26 @@ def _localize_oversized_component(
         for label_index in range(1, count + 1):
             label_slice = slices[label_index - 1] if label_index - 1 < len(slices) else None
             # Dead for `_NDIMAGE.label` output: label() relabels to a consecutive 1..n set, so
-            # find_objects returns exactly `count` slices, no None entry (400 random runs, scipy
-            # 1.18.1). Both arms document the contract for any OTHER producer — find_objects on a
-            # GAPPED label array does return None. No net below: `labeled[None]` adds an axis
-            # rather than raising, so the area floors would silently judge the WHOLE array before
-            # the `y_slice, x_slice` unpack finally raises TypeError. Equally unreachable twin in
-            # _detect_room_segments_pipeline: keep the pair reading the same.
+            # find_objects returns exactly `count` slices, no None entry (400 random runs on
+            # scipy 1.18.1: 0 None entries, 0 `len(slices) != count`, nonzero labels exactly
+            # 1..count in 200/200). Both arms document the contract for any OTHER producer --
+            # find_objects on a GAPPED label array does return None (labels {1,3} give
+            # [slice, None, slice]).
+            #
+            # The net below is the AREA FLOOR, not a crash. A None entry means that label has no
+            # pixels, so `labeled[None] == label_index` -- numpy adds an axis rather than raising
+            # -- counts 0, and :860 continues on the hard 1400 arm of
+            # `max(int(min_area_pixels * 0.9), 1400)` for every min_area_pixels. MEASURED: gap this
+            # label() output and delete this guard and the full pipeline is byte-identical (11
+            # candidates, same areas, no exception). The `y_slice, x_slice` unpack is NOT reachable
+            # from a gapped producer. It raises TypeError only for a SHORT-LIST producer
+            # (`len(slices) < count` with the labels present), which this guard also covers -- that
+            # ablation does raise, at :864. So this line buys clarity and a little work, not a crash.
+            #
+            # The twin in _detect_room_segments_pipeline is equally unreachable but its net is the
+            # OPPOSITE: it unpacks at :1397 with no area floor in between, so deleting it there
+            # kills the whole run with TypeError (measured, same gapped producer). DO NOT make the
+            # pair read the same -- that site is the one that needs the crash warning.
             if label_slice is None:
                 continue
             local_mask = labeled[label_slice] == label_index
@@ -1388,6 +1505,22 @@ def _detect_room_segments_pipeline(
         slices = _NDIMAGE.find_objects(labeled)
         for label_index in range(1, component_count + 1):
             label_slice = slices[label_index - 1] if label_index - 1 < len(slices) else None
+            # Dead here for the same scipy contract as the twin in `_try_add_candidate`:
+            # `label()` relabels to a consecutive 1..n set, so `find_objects` returns exactly
+            # `component_count` slices and never a None entry. DELIBERATELY NOT WORDED THE SAME
+            # AS THAT TWIN, because the two do not net the same thing — measured through
+            # `EufyCVSegmenter.segment_map_image` on the committed fixture pair, with a
+            # short-list producer applied at each site's own `find_objects`:
+            #     _try_add_candidate   guard present -> 8 of 10 segments; deleted -> TypeError
+            #     HERE                 guard present -> 0 segments, `reason: "ready"`
+            #                          deleted       -> available False, "engine_exception"
+            # Firing here swallows EVERY component in the hue bin and the run still reports
+            # success with zero segments — indistinguishable from "this map has no rooms", which
+            # is the absence trap rather than a visible failure. That makes this the worse of
+            # the two to wake and the more important of the two to keep.
+            # The None has TWO producers, not one: a foreign producer whose `find_objects` is
+            # gapped, and the ternary on the line directly above, whose `else None` arm is dead
+            # by the same contract. Four dead arms across the two sites.
             if label_slice is None:
                 continue
             stage_counts["components_seen"] += 1

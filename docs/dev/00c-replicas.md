@@ -106,6 +106,36 @@ pairing needs no guard, because equality is impossible there by construction and
 (the store call). Both go red if the pairing stops reporting the alias; before the fix the
 first test passed while asserting every other field.
 
+### `RN6M6W3H` — the splitters' active-area floor · **2 copies**
+
+`max(int(min_area_pixels * 2.0), 3200)` is written twice, as **byte-identical four-line
+blocks** down to the `below_active_area_floor` reason string.
+
+| Copy | Feeds |
+|---|---|
+| `_split_component_via_local_support` | whether a component is big enough to score per-pixel support |
+| `_split_component_via_color_distance` | whether a component is big enough to cluster by colour |
+
+**Not unified because the two questions are genuinely separate** — one asks whether there is
+enough area to take percentiles of saturation and value, the other whether there is enough to
+quantise into colour bins. They agree today by accident of the constants, not by identity.
+That is exactly why they need an anchor: a retune of one is **silent in both directions**, since
+no caller compares them and no test reads both. The consequence is not a crash but a cascade
+re-ordering — one splitter starts admitting a band of components the other still refuses, so a
+different strategy wins, and the run reports success either way.
+
+**Distinguish this from `[SP-oversize-xsite]`**, which anchors the *other* replicated threshold
+in the same file, `max(int(min_area_pixels * 10), 120000)`. Those two sites are a **gate and the
+floor it guards** — complementary predicates on one quantity, so drift there creates a dead band
+that a behavioural test can detect end-to-end. These two are independent peers, which is why
+this set gets a register entry and a marker pair rather than a behavioural test: there is no
+single call path that sees both.
+
+**Declared at** `adapters/eufy/segmentor.py::_split_component_via_local_support`.
+
+*Found 2026-11-11 while ablating a different guard: a substitution anchored on the floor block
+matched 2 occurrences instead of 1 and silently hit both functions, so the first ablation's bite
+was unattributable until it was re-run disambiguated by the following line.*
 ### `RNF2RCXP` — `translation_key` rescue · **3 copies**
 
 The rescue function is shared; **the decision to call it is written out three times**, and
