@@ -18,6 +18,9 @@ Coverage targets
 [BTN-5]  _build_button_block: absent from BOTH maps -> None, present in EITHER
          -> a block. The `and` is the claim; an `or` would return None for a
          component that has tokens but no suffix list.
+[RMC-1]  _registry_model_code: the model code comes off the DEVICE registry, and
+         all three ways the walk can end early answer None -- including a
+         device_id the device registry does not have.
 [ENT-1]  build_entity_id default strategy -> sensor.<obj><suffix>.
 [ENT-2]  build_entity_id honors an explicit domain.
 [ENT-3]  build_entity_id raises NotImplementedError for other strategies.
@@ -192,3 +195,136 @@ def test_btn5_a_component_with_no_reset_button_yields_none():
 # rule forbids precisely because it makes the percentage flattering by exactly as much
 # as it hides.
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# [RMC-1] _registry_model_code -- the device-registry read behind model_family
+# ---------------------------------------------------------------------------
+
+async def test_rmc1_the_model_code_comes_off_the_device_registry(hass):
+    """[RMC-1] Why the registry and not the entity attribute.
+
+    `robovac_mqtt`'s novel-API path mirrors the model onto a `detected_model`
+    attribute; the scalar/Tuya path does NOT. Reading only the attribute pinned
+    every scalar device to model_family "generic" -- so the code is read from the
+    device registry, which carries it either way.
+
+    The return is `str(model).strip() or None`, so whitespace and an empty model
+    both degrade to None rather than becoming a model_family lookup for "" --
+    `detect_model_family("")` answers "generic", which is the same word a genuinely
+    unknown model gets, so without this the two become indistinguishable in the
+    logs and in the stored capabilities.
+
+    THOSE TWO INPUTS ARE SUPPLIED HERE. Written without them, replacing the whole
+    expression with a bare `str(device_entry.model)` left this test GREEN -- the
+    claim was in the docstring and nowhere else.
+    """
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.eufy_vacuum.adapters.eufy.adapter import (
+        _registry_model_code,
+    )
+
+    entry = MockConfigEntry(domain="robovac_mqtt", entry_id="rmc1")
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("robovac_mqtt", "alfred")},
+        model="T2351",
+    )
+    er.async_get(hass).async_get_or_create(
+        "vacuum", "robovac_mqtt", "alfred_uid",
+        suggested_object_id="alfred", device_id=device.id,
+    )
+
+    assert _registry_model_code(hass, "vacuum.alfred") == "T2351"
+
+    for object_id, model in (("blankmodel", ""), ("spacemodel", "   ")):
+        dev = dr.async_get(hass).async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={("robovac_mqtt", object_id)},
+            model=model,
+        )
+        er.async_get(hass).async_get_or_create(
+            "vacuum", "robovac_mqtt", object_id + "_uid",
+            suggested_object_id=object_id, device_id=dev.id,
+        )
+        assert _registry_model_code(hass, "vacuum." + object_id) is None, (
+            "model %r became a model-family lookup instead of 'no model known'"
+            % (model,)
+        )
+
+
+async def test_rmc1b_every_broken_link_in_the_walk_answers_None(hass, monkeypatch):
+    """[RMC-1b] Three ways the walk ends early, and the third is the subtle one.
+
+      no entity row          an id that is not in the entity registry at all
+      entity with no device  registered, but attached to no device
+      DANGLING device_id     the entity registry hands us a device_id and the
+                             DEVICE registry does not have it
+
+    THE THIRD ARM WAS THE ONE UNCOVERED BRANCH IN THIS MODULE, and it had been
+    recorded as an unreachable ceiling. It is not unreachable: the two registries
+    are separate stores, and one holding a reference the other has lost is exactly
+    the inconsistency this guard is written for -- a window during device removal,
+    or a hand-edited registry. Without it `device_entry.model` raises
+    AttributeError on None, out of adapter registration, which runs during setup.
+
+    The dangling case is built by replacing the DEVICE registry lookup rather than
+    by corrupting storage: `.storage` is not to be edited directly, and the guard
+    cares about the answer it gets back, not how the inconsistency arose.
+
+    ⚠ THE SECOND ARM IS SUBSUMED, measured: dropping `not entity_entry.device_id`
+    from the first guard changes no answer, because `async_get(None)` returns None
+    and the dangling-device guard below catches it. That half saves a registry
+    lookup; it is not a behaviour. Crossed here and said to be crossed.
+    """
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.eufy_vacuum.adapters.eufy import adapter as eufy_adapter
+    from custom_components.eufy_vacuum.adapters.eufy.adapter import (
+        _registry_model_code,
+    )
+
+    # 1. no entity row at all
+    assert _registry_model_code(hass, "vacuum.never_registered") is None
+
+    # 2. registered, attached to no device
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "vacuum", "robovac_mqtt", "orphan_uid", suggested_object_id="orphan",
+    )
+    assert _registry_model_code(hass, "vacuum.orphan") is None
+
+    # 3. the entity names a device the DEVICE registry does not have
+    entry = MockConfigEntry(domain="robovac_mqtt", entry_id="rmc1b")
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("robovac_mqtt", "bertie")},
+        model="T2351",
+    )
+    registry.async_get_or_create(
+        "vacuum", "robovac_mqtt", "bertie_uid",
+        suggested_object_id="bertie", device_id=device.id,
+    )
+    assert _registry_model_code(hass, "vacuum.bertie") == "T2351", (
+        "the control failed; the dangling case below would prove nothing"
+    )
+
+    class _ForgetfulDeviceRegistry:
+        def async_get(self, _device_id):
+            return None
+
+    monkeypatch.setattr(
+        eufy_adapter.dr, "async_get", lambda _hass: _ForgetfulDeviceRegistry()
+    )
+    assert _registry_model_code(hass, "vacuum.bertie") is None, (
+        "a device_id the device registry has lost was followed anyway -- "
+        "`device_entry.model` on None raises out of adapter registration, which "
+        "runs during setup"
+    )
