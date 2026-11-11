@@ -35,7 +35,7 @@ Coverage targets
 [ECV-27] localized_bins: one candidate (or none) is not a split.
 [ECV-28] localized_bins: declining hands the component on to colour_distance.
 [ECV-29] assist: a blank assist registers and agrees on nothing (guard is defensive-only).
-[ECV-30] local_support: NOT WRITTEN - reachable but unassertable, see the note below.
+[ECV-30] local_support: 2-px support is erased by the opening; 3-px is not.
 [ECV-31] keep/drop: a large washed-out region (mean sat < 30) is not a room.
 [ECV-32] keep/drop: a localized child the RECLAIM shrank below the floor is refused.
 [ECV-33] keep/drop: a localized child the reclaim made SPARSE is refused.
@@ -1153,8 +1153,18 @@ def test_ecv24_the_farthest_colour_bin_wins_regardless_of_arrival_order(tmp_path
     first = detect_room_segments(image_path=descending, min_area_pixels=1200)
     second = detect_room_segments(image_path=ascending, min_area_pixels=1200)
     assert first["available"] is True and second["available"] is True
-    # Same decision either way: the ranking order must not change the outcome.
-    assert _split_debug_reasons(first) == _split_debug_reasons(second), (
+
+    # COMPARE ONLY COLOUR-DISTANCE's verdict. This asserted the WHOLE reason set, which
+    # was over-broad: the two images are different pictures, so a LATER strategy in the
+    # cascade is entitled to refuse them for different reasons. It passed only while
+    # local_support reported one generic `no_split` for all six of its refusals; the
+    # moment that function started naming them, the two runs legitimately diverged on
+    # `insufficient_grown_masks` vs `insufficient_support_components` and this test went
+    # red without the claim it tests having changed at all.
+    def _colour_only(result):
+        return {r for r in _split_debug_reasons(result) if r.startswith("color_distance:")}
+
+    assert _colour_only(first) == _colour_only(second), (
         "the colour-distance verdict changed when the bins were merely reordered, "
         "so the running maximum is picking the last candidate rather than the farthest"
     )
@@ -1358,29 +1368,77 @@ def test_ecv29_an_assist_showing_nothing_registers_and_contributes_nothing(tmp_p
     )
 
 
-# [ECV-30] NOT WRITTEN, AND THE REASON IS A DEFECT, NOT A GAP IN THE SUITE.
-#
-# `_split_component_via_local_support`'s "no supported body" refusal IS reachable from
-# the pipeline: three colours in hue bin 6, a 5-row period of 2 rows at both-votes /
-# 1 at saturation-only / 2 at value-only, so the score>=2 intersection is 2-px stripes
-# that the 3x3 opening erases. Measured — the 2-px image executes that line and the
-# otherwise identical 3-px image does not.
-#
-# It cannot be ASSERTED. That function is the only splitter returning a bare `list`
-# instead of `(masks, debug)`, so all three of its refusals — the active-area floor, the
-# empty-channel guard and this one — are indistinguishable from each other AND from the
-# full-body reject. The cascade logs `local_support:no_split` for every one of them, and
-# both images here produce an identical reason set and an identical single segment. A
-# test over that pair would stay green with the opening deleted, which makes it a
-# preference rather than a claim.
-#
-# This repo has already ruled on exactly this shape once: D20 / [SP-wall-dbg] in
-# test_segmentor_splitters.py, where the first-tried strategy appended a debug row only
-# on success "so its failure left no row and read as never-attempted". Giving
-# local_support the same `(masks, debug)` surface as its siblings would make this arm
-# assertable and is following that decision rather than proposing a new one. Until then
-# the line stays uncovered on purpose, and the 2 units it carries are excluded from the
-# reachable ceiling.
+def _local_support_debug(result):
+    """local_support's method record. It only EXISTS as of the (masks, debug) refactor —
+    before that the cascade synthesised a bare `no_split` for all six of its refusals."""
+    stage = (result.get("segmentation") or {}).get("stages") or {}
+    for entry in (stage.get("suspicious_region_split_pass") or {}).get("debug") or []:
+        for method in entry.get("methods") or []:
+            if method.get("method") == "local_support":
+                return method
+    return {}
+
+
+def test_ecv30_support_with_no_body_is_refused_and_says_so(tmp_path):
+    """[ECV-30] Support that is one pixel wide is not support.
+
+    `_split_component_via_local_support` scores each pixel on saturation and value
+    percentiles, requires two votes, then OPENS the result with a 3x3 structure before
+    trusting it. Stripes 2 px wide satisfy both percentiles and are then erased entirely,
+    so there is support AREA but no support BODY and the strategy declines.
+
+    THE OBSERVABLE IS THE PAIR, which is the only way to tell this refusal from the two
+    below it: `scored_support_area` is non-zero (the pixels did score) while
+    `opened_support_area` is 0 (none of them survived). The control thickens the same
+    stripes to 3 px on an otherwise identical image, so the difference is attributable to
+    the width and nothing else.
+
+    GEOMETRY: three colours all in hue bin 6 so they form one component. A 5-row period of
+    2 rows Z / 1 row X / 2 rows Y puts 40% at both-votes, 20% at saturation only and 40% at
+    value only, which is what places the score>=2 intersection exactly on the thin stripes.
+
+    ⚠ THIS TEST WAS UNWRITEABLE UNTIL THE FUNCTION STARTED NAMING ITS REFUSALS. It was the
+    only splitter returning a bare list, so all six of its refusals were indistinguishable
+    from each other AND from the full-body reject — the cascade logged one invented
+    `local_support:no_split` for every case. The 2-px and 3-px images produced an identical
+    reason set and an identical single segment, so a test over them stayed green with the
+    opening deleted: a preference, not a claim. The repo had already ruled on that shape
+    once (D20 / `[SP-wall-dbg]`), and this arm is what the ruling was worth.
+    """
+    from PIL import Image
+    import numpy as np
+
+    def _periodic(name, z_rows, x_rows, y_rows):
+        period = z_rows + x_rows + y_rows
+        hsv = np.zeros((460, 460, 3), np.uint8)          # sat 0 -> excluded by the gate
+        blob = np.zeros((300, 300, 3), np.uint8)
+        for row in range(300):
+            phase = row % period
+            blob[row, :] = ((96, 200, 220) if phase < z_rows
+                            else (95, 200, 80) if phase < z_rows + x_rows
+                            else (96, 30, 220))
+        hsv[80:380, 80:380] = blob
+        rgb = np.asarray(Image.fromarray(hsv, mode="HSV").convert("RGB"))
+        return _write(Image.fromarray(rgb, mode="RGB"), str(tmp_path), name)
+
+    thin = detect_room_segments(image_path=_periodic("thin.png", 2, 1, 2),
+                                min_area_pixels=1200)
+    thick = detect_room_segments(image_path=_periodic("thick.png", 3, 2, 3),
+                                 min_area_pixels=1200)
+    assert thin["available"] is True and thick["available"] is True
+
+    thin_debug = _local_support_debug(thin)
+    assert thin_debug.get("reason") == "no_supported_body", thin_debug
+    assert thin_debug["scored_support_area"] > 0, (
+        "nothing scored as supported, so the opening is not what refused this"
+    )
+    assert thin_debug["opened_support_area"] == 0, thin_debug
+
+    # The control reaches the same function and gets PAST that gate, so the refusal above
+    # is about the stripe width rather than the strategy being unreachable.
+    thick_debug = _local_support_debug(thick)
+    assert thick_debug.get("reason") != "no_supported_body", thick_debug
+    assert thick_debug["opened_support_area"] > 0, thick_debug
 
 
 # --- candidate keep/drop arms -----------------------------------------------

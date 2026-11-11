@@ -1131,7 +1131,7 @@ tests and the `_prune_localized_siblings` extraction), and that `[ECV-8]`
 (`adversarial_map.png`) can only make localized-bins run-and-reject while `[ECV-9]` (the
 real dark+light pair) reaches accept. The current account is immediately below.
 
-### `eufy/segmentor.py` — 92.38% → 95.43%, against a ceiling of 95.59%
+### `eufy/segmentor.py` — 92.38% → 95.66%, past the ceiling it was measured against
 
 Measured 2026-11-10: 868 statements and 378 branches, of which **53 statements and 42
 partial branches are uncovered — 1151/1246 = 92.38%.** The paragraph above says 91% and
@@ -1148,14 +1148,21 @@ already-covered line.
 | | units | coverage |
 |---|---|---|
 | before | — | 1151/1246 = 92.38% |
-| **built — `[ECV-21]`…`[ECV-37]`** | **+38** | **1189/1246 = 95.43%** |
-| ceiling (the one remaining reachable unit) | +2 | 1191/1246 = 95.59% |
+| built — `[ECV-21]`…`[ECV-37]` | +38 | 1189/1246 = 95.43% |
+| the recorded ceiling | +2 | 1191/1246 = 95.59% |
+| **after the `local_support` debug refactor** | — | **1211/1266 = 95.66%** |
 | if unit-tier tests were allowed too | +15 | 1206/1246 = 96.79% |
 
-**The module is over 95%.** 16 tests closed 38 of the 40 reachable units; the 2 that
-remain are `:446`, which is reachable but **unassertable** — see `[ECV-30]`'s note in
-`test_segmentor.py`, which is why the achieved figure sits 0.16 pp under the ceiling
-rather than at it.
+**The module is over 95%, and then past the ceiling.** 16 tests closed 38 of the 40
+reachable units. The last 2 were `local_support`'s "no supported body" arm — reachable but
+**unassertable**, because that function was the only splitter returning a bare `list`, so
+all six of its refusals were indistinguishable from each other AND from the full-body
+reject. Giving it the `(masks, debug)` shape its siblings already had (D20 /
+`[SP-wall-dbg]`, the same ruling) made `[ECV-30]` writeable and took the module to
+**95.66%** — *above* the 95.59% recorded here, because the refactor's own debug lines are
+covered too, so the numerator grew faster than the denominator. The ceiling moved rather
+than being reached, which is worth noting: a ceiling is a measurement of a fixed shape,
+and changing the shape changes the ceiling.
 
 The last row is weaker evidence and is recorded only for completeness: those tests assert
 against states the production caller cannot produce — a disconnected `component_mask`, a
@@ -1187,7 +1194,7 @@ separate line mappings in this pass were off by four before being checked agains
 
 | symbol · line | what it refuses | the input that reaches it |
 |---|---|---|
-| `segmentor.py::_split_component_via_local_support` `:446` | `supported` empty after the 3×3 opening | 300² blob, three colours all in hue bin 6; sat p42 selects 60%, value p38 selects 80%, and the `score >= 2` intersection is **2-px stripes** the opening erases. A 5-row period of 2 Z / 1 X / 2 Y gives Z=40%. The 3-px control does not fire |
+| `segmentor.py::_split_component_via_local_support` — `no_supported_body` (`[ECV-30]`) | `supported` empty after the 3×3 opening | 300² blob, three colours all in hue bin 6; sat p42 selects 60%, value p38 selects 80%, and the `score >= 2` intersection is **2-px stripes** the opening erases. A 5-row period of 2 Z / 1 X / 2 Y gives Z=40%. The 3-px control does not fire |
 | `segmentor.py::_split_component_via_color_distance` `:565` | a grown mask below the area floor | 170² PNG, 78² `(254,50,50)` block with an **enclosed** 20×40 `(50,50,254)` island |
 | …same function `:567` | a grown mask above `active*0.84` | same image — the carrier grows to 4676 of 5476 |
 | …same function `:569` | the ≥0.72 overlap dedup | 330² concentric squares: carrier `(84,254,254)`, mid ring `(118,220,254)` lying inside **both** centres' `allowed` sets, core `(169,169,254)`; shared ring 11040/14884 = 0.7417 |
@@ -1302,8 +1309,9 @@ no assist image at all. That makes the localized child geometry *chosen* rather 
 which is the right instrument for the `_reclaim_localized_child_mask` arms.
 
 **WHAT THE REMAINING 31 STATEMENTS ARE.** 23 unreachable by any input, 7 reachable only by
-handing a helper a state its caller cannot produce, and 1 (`:446`) reachable but with no
-observable to assert on. Nothing is unaccounted, and nothing is waiting to be tried.
+handing a helper a state its caller cannot produce. The one that used to sit in a third
+category — reachable but with no observable to assert on — is now tested, which is what the
+`local_support` refactor bought. Nothing is unaccounted, and nothing is waiting to be tried.
 
 The recipes stay in this section even though they are now tests, because the GEOMETRY IS
 THE CLAIM: each dimension solves for one threshold, and a reader who adjusts a number

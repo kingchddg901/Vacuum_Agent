@@ -399,25 +399,51 @@ def _split_component_via_local_support(
     assist_sat: Any | None,
     assist_value: Any | None,
     min_area_pixels: int,
-) -> list[Any]:
-    """Try to split a merged component by scoring pixels against per-channel support thresholds."""
+) -> tuple[list[Any], dict[str, Any]]:
+    """Try to split a merged component by scoring pixels against per-channel support thresholds.
+
+    RETURNS ``(masks, debug)`` LIKE EVERY SIBLING, and the shape is the point rather than a
+    convenience. This was the only splitter returning a bare list, so all six of its
+    refusals were indistinguishable from each other AND from the full-body reject — the
+    cascade logged ``local_support:no_split`` for every one, a reason it had to INVENT
+    because the callee supplied none. This repo already ruled on that shape once: D20 /
+    ``[SP-wall-dbg]``, where the first-tried strategy appended a debug row only on success,
+    "so its failure left no row and read as never-attempted".
+
+    The practical cost was a whole arm nobody could test. ``no_supported_body`` — the 3x3
+    opening erasing a support mask that is real but too thin to hold together — is reachable
+    from the pipeline and was measured firing, but a test over it stayed green with the
+    opening deleted, because both inputs produced an identical reason set and an identical
+    segment. ``[ECV-30]`` records that history; this is what makes it assertable.
+
+    BEHAVIOUR IS UNCHANGED. Every threshold, every ``continue`` and the masks returned are
+    byte-for-byte what they were; only the second element of the tuple is new.
+    """
+    debug: dict[str, Any] = {
+        "method": "local_support",
+        "accepted": False,
+    }
     if (
         primary_sat is None
         or primary_value is None
         or getattr(component_mask, "shape", None) != getattr(primary_sat, "shape", None)
         or getattr(component_mask, "shape", None) != getattr(primary_value, "shape", None)
     ):
-        return []
+        debug["reason"] = "missing_support_channels"
+        return [], debug
 
     active = component_mask.astype(bool)
     active_area = int(np.count_nonzero(active))
+    debug["active_area"] = active_area
     if active_area < max(int(min_area_pixels * 2.0), 3200):
-        return []
+        debug["reason"] = "below_active_area_floor"
+        return [], debug
 
     primary_sat_values = primary_sat[active]
     primary_value_values = primary_value[active]
     if len(primary_sat_values) == 0 or len(primary_value_values) == 0:
-        return []
+        debug["reason"] = "empty_support_values"
+        return [], debug
 
     sat_floor = float(np.percentile(primary_sat_values, 42))
     value_floor = float(np.percentile(primary_value_values, 38))
@@ -438,25 +464,38 @@ def _split_component_via_local_support(
             score += (assist_value >= assist_value_floor).astype(np.uint8)
 
     required_score = 3 if (assist_sat is not None and assist_value is not None) else 2
+    debug["required_score"] = int(required_score)
     supported = active & (score >= required_score)
+    debug["scored_support_area"] = int(np.count_nonzero(supported))
     structure = np.ones((3, 3), dtype=bool)
     supported = _NDIMAGE.binary_opening(supported, structure=structure, iterations=1)
     supported = _NDIMAGE.binary_closing(supported, structure=structure, iterations=1)
+    debug["opened_support_area"] = int(np.count_nonzero(supported))
     if not bool(np.any(supported)):
-        return []
+        # The support mask had area but no BODY: nothing in it survived a 3x3 opening, so
+        # `scored_support_area` above is non-zero while this is 0. That pair is the only
+        # way to tell this refusal from the two below it.
+        debug["reason"] = "no_supported_body"
+        return [], debug
 
     labeled, component_count = _NDIMAGE.label(supported, structure=structure)
+    debug["support_component_count"] = int(component_count)
     if component_count < 2:
-        return []
+        debug["reason"] = "insufficient_support_components"
+        return [], debug
 
     grown_masks: list[Any] = []
+    seed_areas: list[int] = []
+    grown_areas: list[int] = []
     for label_index in range(1, component_count + 1):
         seed_mask = labeled == label_index
         seed_area = int(np.count_nonzero(seed_mask))
+        seed_areas.append(seed_area)
         if seed_area < max(int(min_area_pixels * 0.35), 180):
             continue
         grown = _NDIMAGE.binary_propagation(seed_mask, structure=structure, mask=component_mask)
         grown_area = int(np.count_nonzero(grown))
+        grown_areas.append(grown_area)
         if grown_area < max(int(min_area_pixels * 0.8), 1000):
             continue
         if grown_area > int(active_area * 0.8):
@@ -465,9 +504,15 @@ def _split_component_via_local_support(
             continue
         grown_masks.append(grown)
 
+    debug["seed_areas"] = seed_areas
+    debug["grown_areas"] = grown_areas
+    debug["grown_mask_count"] = int(len(grown_masks))
     if len(grown_masks) < 2:
-        return []
-    return grown_masks
+        debug["reason"] = "insufficient_grown_masks"
+        return [], debug
+    debug["accepted"] = True
+    debug["reason"] = "accepted"
+    return grown_masks, debug
 
 
 def _split_component_via_color_distance(
@@ -862,7 +907,7 @@ def _split_suspicious_component(
     debug_entries.append(debug)
     if len(split_masks) >= 2:
         return split_masks, "color_distance", debug_entries
-    split_masks = _split_component_via_local_support(
+    split_masks, debug = _split_component_via_local_support(
         component_mask,
         primary_sat,
         primary_value,
@@ -870,10 +915,13 @@ def _split_suspicious_component(
         assist_value,
         min_area_pixels,
     )
+    # Take the callee's OWN debug row, as every other strategy here does. This block
+    # used to synthesise one -- "accepted" on success, a bare "no_split" otherwise --
+    # because the function returned no reason to append, which is what made all six of
+    # its refusals read identically (D20 / [SP-wall-dbg] is the same shape).
+    debug_entries.append(debug)
     if len(split_masks) >= 2:
-        debug_entries.append({"method": "local_support", "accepted": True, "reason": "accepted", "grown_mask_count": len(split_masks)})
         return split_masks, "local_support", debug_entries
-    debug_entries.append({"method": "local_support", "accepted": False, "reason": "no_split"})
     split_masks, debug = _split_component_via_assist_hue(
         component_mask,
         assist_hue,

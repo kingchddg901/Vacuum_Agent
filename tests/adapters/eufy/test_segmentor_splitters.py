@@ -134,14 +134,17 @@ def test_wall_cuts_splits_on_neck_band():
 
 def test_local_support_none_channels():
     """[SP-local] missing channels -> []."""
-    assert S._split_component_via_local_support(_two_region_mask(), None, None, None, None, _MIN) == []
+    masks, debug = S._split_component_via_local_support(
+        _two_region_mask(), None, None, None, None, _MIN)
+    assert masks == [] and debug["reason"] == "missing_support_channels"
 
 
 def test_local_support_shape_mismatch():
     """[SP-local] channel shape mismatch -> []."""
     comp = _two_region_mask()
     bad = np.zeros((10, 10), dtype=np.uint8)
-    assert S._split_component_via_local_support(comp, bad, bad, None, None, _MIN) == []
+    masks, debug = S._split_component_via_local_support(comp, bad, bad, None, None, _MIN)
+    assert masks == [] and debug["reason"] == "missing_support_channels"
 
 
 def test_local_support_below_area_floor():
@@ -150,7 +153,8 @@ def test_local_support_below_area_floor():
     small[0:20, 0:20] = True  # 400 px, below 3200
     sat = np.full((200, 200), 200, dtype=np.uint8)
     val = np.full((200, 200), 200, dtype=np.uint8)
-    assert S._split_component_via_local_support(small, sat, val, None, None, _MIN) == []
+    masks, debug = S._split_component_via_local_support(small, sat, val, None, None, _MIN)
+    assert masks == [] and debug["reason"] == "below_active_area_floor"
 
 
 def test_local_support_full_body_runs():
@@ -162,8 +166,12 @@ def test_local_support_full_body_runs():
     val[40:160, 40:100] = 220
     sat[40:160, 100:160] = 40   # right half low
     val[40:160, 100:160] = 40
-    result = S._split_component_via_local_support(comp, sat, val, None, None, _MIN)
-    assert isinstance(result, list)  # connected re-flood -> [] but body covered
+    result, debug = S._split_component_via_local_support(comp, sat, val, None, None, _MIN)
+    # connected re-flood -> [] but the body is covered; the reason now says WHICH
+    # refusal that was rather than leaving all six looking alike.
+    assert isinstance(result, list)
+    assert debug["reason"] in {"insufficient_grown_masks", "no_supported_body",
+                               "insufficient_support_components"}
 
 
 def _support_scored_blobs():
@@ -196,9 +204,10 @@ def test_local_support_splits_supported_blobs():
     and rejects the dim one, and the label+grow loop returns one mask per survivor."""
     comp, bright_a, bright_b, dim_c, sat, val = _support_scored_blobs()
 
-    result = S._split_component_via_local_support(comp, sat, val, None, None, _MIN)
+    result, debug = S._split_component_via_local_support(comp, sat, val, None, None, _MIN)
 
     assert len(result) == 2                                   # a real split, not []
+    assert debug["accepted"] is True and debug["reason"] == "accepted"
     # each returned mask is exactly one of the two supported blobs ...
     recovered = sorted(result, key=lambda m: int(np.flatnonzero(np.any(m, axis=1))[0]))
     assert np.array_equal(recovered[0], bright_a)
@@ -217,10 +226,11 @@ def test_local_support_assist_channels_raise_required_score():
 
     # Control: assist channels that agree with the primary keep the same 2-way split
     # (so the demotion below is attributable to disagreement, not to assist per se).
-    agreeing = S._split_component_via_local_support(
+    agreeing, agree_debug = S._split_component_via_local_support(
         comp, sat, val, sat.copy(), val.copy(), _MIN
     )
     assert len(agreeing) == 2
+    assert agree_debug["required_score"] == 3  # both assist channels present
 
     # Assist reads blob B as dim: B now scores 2 (primary only) against a
     # required_score of 3, leaving a single supported component -> no split.
@@ -231,10 +241,11 @@ def test_local_support_assist_channels_raise_required_score():
     assist_sat[bright_b] = 20
     assist_value[bright_b] = 20
 
-    disagreeing = S._split_component_via_local_support(
+    disagreeing, disagree_debug = S._split_component_via_local_support(
         comp, sat, val, assist_sat, assist_value, _MIN
     )
     assert disagreeing == []
+    assert disagree_debug["reason"] != "accepted"
 
 
 # --- color distance ---------------------------------------------------------
@@ -807,7 +818,7 @@ def _two_bar_component():
 def test_local_support_with_assist_channels():
     """[SP-local] both assist channels present -> required_score=3 + grow loop."""
     comp, sat, val = _two_bar_component()
-    result = S._split_component_via_local_support(
+    result, _debug = S._split_component_via_local_support(
         comp, sat, val, sat.copy(), val.copy(), _MIN
     )
     assert isinstance(result, list)
@@ -1255,7 +1266,7 @@ def test_sp_local3_a_region_below_the_grown_floor_is_dropped_not_returned():
     sat = np.full((300, 300), 200, dtype=np.uint8)
     value = np.full((300, 300), 200, dtype=np.uint8)
 
-    out = S._split_component_via_local_support(mask, sat, value, None, None, _MIN)
+    out, _debug = S._split_component_via_local_support(mask, sat, value, None, None, _MIN)
 
     assert len(out) == 2, (
         "expected the two room-sized regions and not the 400px fleck, got %d"
