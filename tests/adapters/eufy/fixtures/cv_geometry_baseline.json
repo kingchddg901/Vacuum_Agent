@@ -1,0 +1,2513 @@
+{
+ "_generator": "scripts/gen_cv_geometry_baseline.py",
+ "_rule": "NEVER regenerate this file to make a test pass. A diff is a finding. Investigate, confirm the new output is intended, then regenerate in the same commit as the change that caused it.",
+ "_what": "What the Eufy CV segmentor ACTUALLY produces per fixture, imperfections included. These are not ideal polygons; they are the algorithm's own output before a human corrects it with the adjustment tools.",
+ "cases": {
+  "adversarial_min1200": {
+   "available": true,
+   "message": "Image-assisted room segments generated via the Pillow/NumPy/SciPy pipeline.",
+   "reason": "ready",
+   "segment_count": 15,
+   "segments": [
+    {
+     "area_pixels": 3929,
+     "bbox": {
+      "height": 79,
+      "width": 106,
+      "x": 146,
+      "y": 34
+     },
+     "confidence": 0.68,
+     "issues": [
+      "tiny_region"
+     ],
+     "polygon_pixel": [
+      [
+       173.0,
+       104.0
+      ],
+      [
+       146.0,
+       62.0
+      ],
+      [
+       146.0,
+       34.0
+      ],
+      [
+       162.0,
+       34.0
+      ],
+      [
+       163.0,
+       62.0
+      ],
+      [
+       252.0,
+       62.0
+      ],
+      [
+       252.0,
+       78.0
+      ],
+      [
+       238.0,
+       78.0
+      ],
+      [
+       207.0,
+       113.0
+      ]
+     ],
+     "quality": "poor",
+     "segment_id": "segment_1",
+     "segmentation_state": "review",
+     "structural_role": "uncertain"
+    },
+    {
+     "area_pixels": 728,
+     "bbox": {
+      "height": 26,
+      "width": 28,
+      "x": 338,
+      "y": 162
+     },
+     "confidence": 0.8,
+     "issues": [
+      "tiny_region"
+     ],
+     "polygon_pixel": [
+      [
+       366.0,
+       167.0
+      ],
+      [
+       366.0,
+       188.0
+      ],
+      [
+       338.0,
+       188.0
+      ],
+      [
+       338.0,
+       162.0
+      ],
+      [
+       366.0,
+       162.0
+      ]
+     ],
+     "quality": "poor",
+     "segment_id": "segment_10",
+     "segmentation_state": "review",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 268,
+     "bbox": {
+      "height": 31,
+      "width": 11,
+      "x": 190,
+      "y": 396
+     },
+     "confidence": 0.8,
+     "issues": [
+      "tiny_region"
+     ],
+     "polygon_pixel": [
+      [
+       190.0,
+       423.0
+      ],
+      [
+       194.0,
+       396.0
+      ],
+      [
+       201.0,
+       396.0
+      ],
+      [
+       199.0,
+       427.0
+      ]
+     ],
+     "quality": "poor",
+     "segment_id": "segment_11",
+     "segmentation_state": "review",
+     "structural_role": "connector"
+    },
+    {
+     "area_pixels": 16464,
+     "bbox": {
+      "height": 163,
+      "width": 119,
+      "x": 10,
+      "y": 71
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       10.0,
+       162.0
+      ],
+      [
+       10.0,
+       71.0
+      ],
+      [
+       91.0,
+       71.0
+      ],
+      [
+       74.0,
+       90.0
+      ],
+      [
+       84.0,
+       119.0
+      ],
+      [
+       107.0,
+       117.0
+      ],
+      [
+       118.0,
+       137.0
+      ],
+      [
+       129.0,
+       234.0
+      ],
+      [
+       10.0,
+       234.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_19",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 3444,
+     "bbox": {
+      "height": 70,
+      "width": 52,
+      "x": 370,
+      "y": 116
+     },
+     "confidence": 0.8,
+     "issues": [
+      "tiny_region"
+     ],
+     "polygon_pixel": [
+      [
+       422.0,
+       152.0
+      ],
+      [
+       412.0,
+       186.0
+      ],
+      [
+       370.0,
+       186.0
+      ],
+      [
+       370.0,
+       116.0
+      ],
+      [
+       422.0,
+       116.0
+      ]
+     ],
+     "quality": "poor",
+     "segment_id": "segment_2",
+     "segmentation_state": "review",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 6471,
+     "bbox": {
+      "height": 132,
+      "width": 74,
+      "x": 179,
+      "y": 252
+     },
+     "confidence": 0.8,
+     "issues": [
+      "tiny_region"
+     ],
+     "polygon_pixel": [
+      [
+       252.0,
+       263.0
+      ],
+      [
+       253.0,
+       384.0
+      ],
+      [
+       236.0,
+       384.0
+      ],
+      [
+       207.0,
+       309.0
+      ],
+      [
+       179.0,
+       298.0
+      ],
+      [
+       179.0,
+       252.0
+      ],
+      [
+       252.0,
+       252.0
+      ]
+     ],
+     "quality": "poor",
+     "segment_id": "segment_20",
+     "segmentation_state": "review",
+     "structural_role": "spine"
+    },
+    {
+     "area_pixels": 16964,
+     "bbox": {
+      "height": 97,
+      "width": 193,
+      "x": 426,
+      "y": 465
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       427.0,
+       512.0
+      ],
+      [
+       426.0,
+       466.0
+      ],
+      [
+       605.0,
+       465.0
+      ],
+      [
+       619.0,
+       562.0
+      ],
+      [
+       430.0,
+       558.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_21",
+     "segmentation_state": "clean",
+     "structural_role": "spine"
+    },
+    {
+     "area_pixels": 6040,
+     "bbox": {
+      "height": 89,
+      "width": 94,
+      "x": 125,
+      "y": 146
+     },
+     "confidence": 0.8,
+     "issues": [
+      "tiny_region"
+     ],
+     "polygon_pixel": [
+      [
+       205.0,
+       162.0
+      ],
+      [
+       219.0,
+       223.0
+      ],
+      [
+       207.0,
+       235.0
+      ],
+      [
+       158.0,
+       229.0
+      ],
+      [
+       145.0,
+       194.0
+      ],
+      [
+       131.0,
+       194.0
+      ],
+      [
+       125.0,
+       146.0
+      ],
+      [
+       187.0,
+       149.0
+      ]
+     ],
+     "quality": "poor",
+     "segment_id": "segment_25",
+     "segmentation_state": "review",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 30165,
+     "bbox": {
+      "height": 208,
+      "width": 384,
+      "x": 259,
+      "y": 252
+     },
+     "confidence": 0.68,
+     "issues": [
+      "possible_merge"
+     ],
+     "polygon_pixel": [
+      [
+       303.0,
+       310.0
+      ],
+      [
+       259.0,
+       310.0
+      ],
+      [
+       259.0,
+       252.0
+      ],
+      [
+       330.0,
+       252.0
+      ],
+      [
+       329.0,
+       273.0
+      ],
+      [
+       355.0,
+       280.0
+      ],
+      [
+       636.0,
+       332.0
+      ],
+      [
+       643.0,
+       362.0
+      ],
+      [
+       613.0,
+       365.0
+      ],
+      [
+       610.0,
+       414.0
+      ],
+      [
+       531.0,
+       414.0
+      ],
+      [
+       527.0,
+       456.0
+      ],
+      [
+       426.0,
+       460.0
+      ],
+      [
+       426.0,
+       312.0
+      ]
+     ],
+     "quality": "usable",
+     "segment_id": "segment_3",
+     "segmentation_state": "merged_candidate",
+     "structural_role": "spine"
+    },
+    {
+     "area_pixels": 11874,
+     "bbox": {
+      "height": 175,
+      "width": 69,
+      "x": 351,
+      "y": 504
+     },
+     "confidence": 0.8,
+     "issues": [
+      "oversized_region",
+      "split_localized_bins"
+     ],
+     "polygon_pixel": [
+      [
+       352.0,
+       654.0
+      ],
+      [
+       352.0,
+       505.0
+      ],
+      [
+       420.0,
+       504.0
+      ],
+      [
+       420.0,
+       679.0
+      ],
+      [
+       356.0,
+       679.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_30",
+     "segmentation_state": "clean",
+     "structural_role": "connector"
+    },
+    {
+     "area_pixels": 26505,
+     "bbox": {
+      "height": 152,
+      "width": 175,
+      "x": 461,
+      "y": 566
+     },
+     "confidence": 0.8,
+     "issues": [
+      "oversized_region",
+      "split_localized_bins"
+     ],
+     "polygon_pixel": [
+      [
+       461.0,
+       700.0
+      ],
+      [
+       462.0,
+       566.0
+      ],
+      [
+       636.0,
+       566.0
+      ],
+      [
+       636.0,
+       718.0
+      ],
+      [
+       461.0,
+       718.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_31",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 3496,
+     "bbox": {
+      "height": 94,
+      "width": 50,
+      "x": 307,
+      "y": 586
+     },
+     "confidence": 0.8,
+     "issues": [
+      "oversized_region",
+      "split_localized_bins"
+     ],
+     "polygon_pixel": [
+      [
+       308.0,
+       611.0
+      ],
+      [
+       308.0,
+       592.0
+      ],
+      [
+       349.0,
+       586.0
+      ],
+      [
+       356.0,
+       680.0
+      ],
+      [
+       352.0,
+       672.0
+      ],
+      [
+       307.0,
+       673.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_34",
+     "segmentation_state": "clean",
+     "structural_role": "spine"
+    },
+    {
+     "area_pixels": 4650,
+     "bbox": {
+      "height": 143,
+      "width": 72,
+      "x": 180,
+      "y": 308
+     },
+     "confidence": 0.58,
+     "issues": [
+      "possible_merge",
+      "tiny_region"
+     ],
+     "polygon_pixel": [
+      [
+       202.0,
+       407.0
+      ],
+      [
+       211.0,
+       368.0
+      ],
+      [
+       180.0,
+       372.0
+      ],
+      [
+       180.0,
+       308.0
+      ],
+      [
+       199.0,
+       313.0
+      ],
+      [
+       232.0,
+       389.0
+      ],
+      [
+       252.0,
+       394.0
+      ],
+      [
+       252.0,
+       440.0
+      ],
+      [
+       231.0,
+       451.0
+      ],
+      [
+       204.0,
+       432.0
+      ]
+     ],
+     "quality": "poor",
+     "segment_id": "segment_4",
+     "segmentation_state": "merged_candidate",
+     "structural_role": "spine"
+    },
+    {
+     "area_pixels": 4882,
+     "bbox": {
+      "height": 125,
+      "width": 54,
+      "x": 200,
+      "y": 87
+     },
+     "confidence": 0.8,
+     "issues": [
+      "tiny_region"
+     ],
+     "polygon_pixel": [
+      [
+       207.0,
+       163.0
+      ],
+      [
+       200.0,
+       120.0
+      ],
+      [
+       233.0,
+       87.0
+      ],
+      [
+       254.0,
+       87.0
+      ],
+      [
+       254.0,
+       212.0
+      ],
+      [
+       238.0,
+       211.0
+      ],
+      [
+       231.0,
+       184.0
+      ]
+     ],
+     "quality": "poor",
+     "segment_id": "segment_7",
+     "segmentation_state": "review",
+     "structural_role": "spine"
+    },
+    {
+     "area_pixels": 1440,
+     "bbox": {
+      "height": 40,
+      "width": 36,
+      "x": 427,
+      "y": 113
+     },
+     "confidence": 0.8,
+     "issues": [
+      "tiny_region"
+     ],
+     "polygon_pixel": [
+      [
+       427.0,
+       140.0
+      ],
+      [
+       427.0,
+       113.0
+      ],
+      [
+       463.0,
+       113.0
+      ],
+      [
+       463.0,
+       153.0
+      ],
+      [
+       427.0,
+       153.0
+      ]
+     ],
+     "quality": "poor",
+     "segment_id": "segment_8",
+     "segmentation_state": "review",
+     "structural_role": "room"
+    }
+   ],
+   "stages": {
+    "base_mask_generation": {
+     "left_right": {
+      "left": 244357,
+      "right": 234125
+     },
+     "room_pixel_count": 478482
+    },
+    "candidate_scoring": {
+     "deduped_regions": 16,
+     "dropped_regions": 18,
+     "kept_regions": 34
+    },
+    "connected_components": {
+     "clusters_seen": 17,
+     "components_seen": 100
+    },
+    "recovery_pass": {
+     "count_deficit_after_recovery": 0,
+     "recovered_regions": 0
+    },
+    "suspicious_region_split_pass": {
+     "debug": [
+      {
+       "area_percent": 0.0598,
+       "area_pixels": 30165,
+       "bbox": {
+        "height": 212,
+        "width": 388,
+        "x": 257,
+        "y": 250
+       },
+       "cluster_index": 0,
+       "fill_ratio": 0.3667,
+       "methods": [
+        {
+         "accepted": false,
+         "method": "wall_cuts",
+         "reason": "no_wall_hint"
+        },
+        {
+         "accepted": false,
+         "active_area": 30165,
+         "feature_value_count": 30165,
+         "method": "color_distance",
+         "ranked_bin_count": 1,
+         "reason": "insufficient_color_bins"
+        },
+        {
+         "accepted": false,
+         "method": "local_support",
+         "reason": "no_split"
+        },
+        {
+         "accepted": false,
+         "method": "assist_hue",
+         "reason": "missing_assist_inputs"
+        },
+        {
+         "accepted": false,
+         "method": "erosion_seeds",
+         "reason": "no_split"
+        },
+        {
+         "accepted": false,
+         "method": "opening_split",
+         "reason": "no_split"
+        }
+       ]
+      },
+      {
+       "area_percent": 0.0189,
+       "area_pixels": 9534,
+       "bbox": {
+        "height": 163,
+        "width": 115,
+        "x": 13,
+        "y": 71
+       },
+       "cluster_index": 5,
+       "fill_ratio": 0.5086,
+       "methods": [
+        {
+         "accepted": false,
+         "method": "wall_cuts",
+         "reason": "no_wall_hint"
+        },
+        {
+         "accepted": false,
+         "active_area": 9534,
+         "best_center_distance": 0.1429,
+         "feature_value_count": 9534,
+         "grown_areas": [],
+         "grown_mask_count": 0,
+         "method": "color_distance",
+         "ranked_bin_count": 2,
+         "reason": "insufficient_grown_masks",
+         "seed_areas": [
+          0,
+          0
+         ],
+         "used_area": 0
+        },
+        {
+         "accepted": false,
+         "method": "local_support",
+         "reason": "no_split"
+        },
+        {
+         "accepted": false,
+         "method": "assist_hue",
+         "reason": "missing_assist_inputs"
+        },
+        {
+         "accepted": true,
+         "grown_mask_count": 2,
+         "method": "erosion_seeds",
+         "reason": "accepted"
+        }
+       ]
+      },
+      {
+       "area_percent": 0.8931,
+       "area_pixels": 450500,
+       "bbox": {
+        "height": 722,
+        "width": 683,
+        "x": 4,
+        "y": 4
+       },
+       "cluster_index": 10,
+       "fill_ratio": 0.9136,
+       "methods": [
+        {
+         "accepted": false,
+         "method": "wall_cuts",
+         "reason": "no_wall_hint"
+        },
+        {
+         "accepted": true,
+         "active_area": 450500,
+         "candidate_areas": [
+          8873,
+          6492,
+          30970,
+          5474,
+          11805,
+          26503,
+          7046,
+          16581,
+          3834
+         ],
+         "candidate_count": 9,
+         "method": "localized_bins",
+         "ranked_color_bins": 3,
+         "ranked_hue_bins": 0,
+         "reason": "accepted"
+        }
+       ]
+      }
+     ],
+     "localized_drop_debug": [],
+     "split_candidates": 3,
+     "split_generated_regions": 11
+    },
+    "variant_reconciliation": {
+     "agreement_pixel_count": 0,
+     "assist_enabled": false,
+     "reconciled_left_right": {
+      "left": 244357,
+      "right": 234125
+     },
+     "reconciled_room_pixel_count": 478482,
+     "removed_by_wall_cut_left_right": {
+      "left": 0,
+      "right": 0
+     },
+     "removed_by_wall_cut_pixel_count": 0,
+     "seam_wall_pixel_count": 0,
+     "wall_pixel_count": 0
+    }
+   }
+  },
+  "dark_alone_min1200_degraded": {
+   "available": true,
+   "message": "Image-assisted room segments generated via the Pillow/NumPy/SciPy pipeline.",
+   "reason": "ready",
+   "segment_count": 8,
+   "segments": [
+    {
+     "area_pixels": 45494,
+     "bbox": {
+      "height": 198,
+      "width": 242,
+      "x": 35,
+      "y": 30
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       217.0,
+       30.0
+      ],
+      [
+       277.0,
+       30.0
+      ],
+      [
+       277.0,
+       228.0
+      ],
+      [
+       180.0,
+       228.0
+      ],
+      [
+       179.0,
+       197.0
+      ],
+      [
+       105.0,
+       197.0
+      ],
+      [
+       93.0,
+       228.0
+      ],
+      [
+       35.0,
+       228.0
+      ],
+      [
+       35.0,
+       30.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_1",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 10695,
+     "bbox": {
+      "height": 116,
+      "width": 119,
+      "x": 359,
+      "y": 23
+     },
+     "confidence": 0.8,
+     "issues": [
+      "oversized_region",
+      "split_localized_bins"
+     ],
+     "polygon_pixel": [
+      [
+       359.0,
+       114.0
+      ],
+      [
+       359.0,
+       23.0
+      ],
+      [
+       478.0,
+       24.0
+      ],
+      [
+       478.0,
+       70.0
+      ],
+      [
+       435.0,
+       75.0
+      ],
+      [
+       433.0,
+       139.0
+      ],
+      [
+       360.0,
+       136.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_12",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 29412,
+     "bbox": {
+      "height": 307,
+      "width": 169,
+      "x": 185,
+      "y": 238
+     },
+     "confidence": 0.8,
+     "issues": [
+      "oversized_region",
+      "split_localized_bins"
+     ],
+     "polygon_pixel": [
+      [
+       354.0,
+       274.0
+      ],
+      [
+       350.0,
+       312.0
+      ],
+      [
+       282.0,
+       315.0
+      ],
+      [
+       280.0,
+       488.0
+      ],
+      [
+       257.0,
+       489.0
+      ],
+      [
+       270.0,
+       545.0
+      ],
+      [
+       185.0,
+       545.0
+      ],
+      [
+       185.0,
+       485.0
+      ],
+      [
+       218.0,
+       483.0
+      ],
+      [
+       203.0,
+       478.0
+      ],
+      [
+       203.0,
+       238.0
+      ],
+      [
+       353.0,
+       238.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_13",
+     "segmentation_state": "review",
+     "structural_role": "spine"
+    },
+    {
+     "area_pixels": 18455,
+     "bbox": {
+      "height": 178,
+      "width": 108,
+      "x": 332,
+      "y": 496
+     },
+     "confidence": 0.8,
+     "issues": [
+      "oversized_region",
+      "split_localized_bins"
+     ],
+     "polygon_pixel": [
+      [
+       333.0,
+       646.0
+      ],
+      [
+       333.0,
+       496.0
+      ],
+      [
+       440.0,
+       496.0
+      ],
+      [
+       435.0,
+       674.0
+      ],
+      [
+       332.0,
+       674.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_14",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 15229,
+     "bbox": {
+      "height": 97,
+      "width": 157,
+      "x": 35,
+      "y": 241
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       35.0,
+       332.0
+      ],
+      [
+       35.0,
+       241.0
+      ],
+      [
+       192.0,
+       241.0
+      ],
+      [
+       192.0,
+       338.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_2",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 43395,
+     "bbox": {
+      "height": 219,
+      "width": 232,
+      "x": 35,
+      "y": 488
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       35.0,
+       579.0
+      ],
+      [
+       35.0,
+       488.0
+      ],
+      [
+       267.0,
+       496.0
+      ],
+      [
+       267.0,
+       545.0
+      ],
+      [
+       243.0,
+       549.0
+      ],
+      [
+       243.0,
+       629.0
+      ],
+      [
+       198.0,
+       632.0
+      ],
+      [
+       197.0,
+       707.0
+      ],
+      [
+       35.0,
+       707.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_3",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 44975,
+     "bbox": {
+      "height": 193,
+      "width": 321,
+      "x": 359,
+      "y": 23
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       434.0,
+       135.0
+      ],
+      [
+       434.0,
+       79.0
+      ],
+      [
+       484.0,
+       74.0
+      ],
+      [
+       484.0,
+       23.0
+      ],
+      [
+       680.0,
+       23.0
+      ],
+      [
+       680.0,
+       205.0
+      ],
+      [
+       655.0,
+       203.0
+      ],
+      [
+       652.0,
+       167.0
+      ],
+      [
+       557.0,
+       167.0
+      ],
+      [
+       552.0,
+       213.0
+      ],
+      [
+       359.0,
+       215.0
+      ],
+      [
+       359.0,
+       143.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_4",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 61372,
+     "bbox": {
+      "height": 259,
+      "width": 238,
+      "x": 442,
+      "y": 450
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       624.0,
+       450.0
+      ],
+      [
+       680.0,
+       450.0
+      ],
+      [
+       680.0,
+       709.0
+      ],
+      [
+       442.0,
+       709.0
+      ],
+      [
+       448.0,
+       453.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_5",
+     "segmentation_state": "clean",
+     "structural_role": "hub"
+    }
+   ],
+   "stages": {
+    "base_mask_generation": {
+     "left_right": {
+      "left": 255765,
+      "right": 247490
+     },
+     "room_pixel_count": 503255
+    },
+    "candidate_scoring": {
+     "deduped_regions": 6,
+     "dropped_regions": 4,
+     "kept_regions": 14
+    },
+    "connected_components": {
+     "clusters_seen": 16,
+     "components_seen": 27
+    },
+    "recovery_pass": {
+     "count_deficit_after_recovery": 0,
+     "recovered_regions": 0
+    },
+    "suspicious_region_split_pass": {
+     "debug": [
+      {
+       "area_percent": 0.9424,
+       "area_pixels": 494647,
+       "bbox": {
+        "height": 721,
+        "width": 712,
+        "x": 4,
+        "y": 4
+       },
+       "cluster_index": 10,
+       "fill_ratio": 0.9636,
+       "methods": [
+        {
+         "accepted": false,
+         "method": "wall_cuts",
+         "reason": "no_wall_hint"
+        },
+        {
+         "accepted": true,
+         "active_area": 494647,
+         "candidate_areas": [
+          10698,
+          24461,
+          18450
+         ],
+         "candidate_count": 3,
+         "method": "localized_bins",
+         "ranked_color_bins": 1,
+         "ranked_hue_bins": 0,
+         "reason": "accepted"
+        }
+       ]
+      }
+     ],
+     "localized_drop_debug": [],
+     "split_candidates": 1,
+     "split_generated_regions": 3
+    },
+    "variant_reconciliation": {
+     "agreement_pixel_count": 0,
+     "assist_enabled": false,
+     "reconciled_left_right": {
+      "left": 255765,
+      "right": 247490
+     },
+     "reconciled_room_pixel_count": 503255,
+     "removed_by_wall_cut_left_right": {
+      "left": 0,
+      "right": 0
+     },
+     "removed_by_wall_cut_pixel_count": 0,
+     "seam_wall_pixel_count": 0,
+     "wall_pixel_count": 0
+    }
+   }
+  },
+  "dark_with_light_assist_min1200": {
+   "available": true,
+   "message": "Image-assisted room segments generated via the Pillow/NumPy/SciPy pipeline using primary and assist image variants.",
+   "reason": "ready",
+   "segment_count": 10,
+   "segments": [
+    {
+     "area_pixels": 45494,
+     "bbox": {
+      "height": 198,
+      "width": 242,
+      "x": 35,
+      "y": 30
+     },
+     "confidence": 0.99,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       217.0,
+       30.0
+      ],
+      [
+       277.0,
+       30.0
+      ],
+      [
+       277.0,
+       228.0
+      ],
+      [
+       180.0,
+       228.0
+      ],
+      [
+       179.0,
+       197.0
+      ],
+      [
+       105.0,
+       197.0
+      ],
+      [
+       93.0,
+       228.0
+      ],
+      [
+       35.0,
+       228.0
+      ],
+      [
+       35.0,
+       30.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_1",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 23830,
+     "bbox": {
+      "height": 246,
+      "width": 148,
+      "x": 204,
+      "y": 240
+     },
+     "confidence": 0.99,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       204.0,
+       331.0
+      ],
+      [
+       204.0,
+       240.0
+      ],
+      [
+       352.0,
+       240.0
+      ],
+      [
+       351.0,
+       310.0
+      ],
+      [
+       282.0,
+       316.0
+      ],
+      [
+       280.0,
+       486.0
+      ],
+      [
+       204.0,
+       478.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_10",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 17660,
+     "bbox": {
+      "height": 175,
+      "width": 102,
+      "x": 334,
+      "y": 497
+     },
+     "confidence": 0.99,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       334.0,
+       588.0
+      ],
+      [
+       334.0,
+       497.0
+      ],
+      [
+       436.0,
+       497.0
+      ],
+      [
+       436.0,
+       672.0
+      ],
+      [
+       334.0,
+       672.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_11",
+     "segmentation_state": "clean",
+     "structural_role": "spine"
+    },
+    {
+     "area_pixels": 68295,
+     "bbox": {
+      "height": 251,
+      "width": 344,
+      "x": 361,
+      "y": 178
+     },
+     "confidence": 0.92,
+     "issues": [
+      "oversized_region",
+      "split_localized_bins"
+     ],
+     "polygon_pixel": [
+      [
+       533.0,
+       429.0
+      ],
+      [
+       459.0,
+       423.0
+      ],
+      [
+       459.0,
+       276.0
+      ],
+      [
+       362.0,
+       285.0
+      ],
+      [
+       362.0,
+       189.0
+      ],
+      [
+       703.0,
+       179.0
+      ],
+      [
+       702.0,
+       423.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_16",
+     "segmentation_state": "clean",
+     "structural_role": "hub"
+    },
+    {
+     "area_pixels": 18340,
+     "bbox": {
+      "height": 181,
+      "width": 114,
+      "x": 282,
+      "y": 291
+     },
+     "confidence": 0.92,
+     "issues": [
+      "oversized_region",
+      "split_localized_bins"
+     ],
+     "polygon_pixel": [
+      [
+       282.0,
+       382.0
+      ],
+      [
+       291.0,
+       291.0
+      ],
+      [
+       396.0,
+       292.0
+      ],
+      [
+       382.0,
+       471.0
+      ],
+      [
+       287.0,
+       472.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_17",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 15229,
+     "bbox": {
+      "height": 97,
+      "width": 157,
+      "x": 35,
+      "y": 241
+     },
+     "confidence": 0.99,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       35.0,
+       332.0
+      ],
+      [
+       35.0,
+       241.0
+      ],
+      [
+       192.0,
+       241.0
+      ],
+      [
+       192.0,
+       338.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_2",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 43395,
+     "bbox": {
+      "height": 219,
+      "width": 232,
+      "x": 35,
+      "y": 488
+     },
+     "confidence": 0.99,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       35.0,
+       579.0
+      ],
+      [
+       35.0,
+       488.0
+      ],
+      [
+       267.0,
+       496.0
+      ],
+      [
+       267.0,
+       545.0
+      ],
+      [
+       243.0,
+       549.0
+      ],
+      [
+       243.0,
+       629.0
+      ],
+      [
+       198.0,
+       632.0
+      ],
+      [
+       197.0,
+       707.0
+      ],
+      [
+       35.0,
+       707.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_3",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 44975,
+     "bbox": {
+      "height": 193,
+      "width": 321,
+      "x": 359,
+      "y": 23
+     },
+     "confidence": 0.99,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       434.0,
+       135.0
+      ],
+      [
+       434.0,
+       79.0
+      ],
+      [
+       484.0,
+       74.0
+      ],
+      [
+       484.0,
+       23.0
+      ],
+      [
+       680.0,
+       23.0
+      ],
+      [
+       680.0,
+       205.0
+      ],
+      [
+       655.0,
+       203.0
+      ],
+      [
+       652.0,
+       167.0
+      ],
+      [
+       557.0,
+       167.0
+      ],
+      [
+       552.0,
+       213.0
+      ],
+      [
+       359.0,
+       215.0
+      ],
+      [
+       359.0,
+       143.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_4",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 61372,
+     "bbox": {
+      "height": 259,
+      "width": 238,
+      "x": 442,
+      "y": 450
+     },
+     "confidence": 0.99,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       624.0,
+       450.0
+      ],
+      [
+       680.0,
+       450.0
+      ],
+      [
+       680.0,
+       709.0
+      ],
+      [
+       442.0,
+       709.0
+      ],
+      [
+       448.0,
+       453.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_5",
+     "segmentation_state": "clean",
+     "structural_role": "hub"
+    },
+    {
+     "area_pixels": 8788,
+     "bbox": {
+      "height": 110,
+      "width": 110,
+      "x": 363,
+      "y": 26
+     },
+     "confidence": 0.99,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       432.0,
+       91.0
+      ],
+      [
+       432.0,
+       136.0
+      ],
+      [
+       385.0,
+       132.0
+      ],
+      [
+       363.0,
+       107.0
+      ],
+      [
+       363.0,
+       26.0
+      ],
+      [
+       473.0,
+       26.0
+      ],
+      [
+       473.0,
+       68.0
+      ],
+      [
+       436.0,
+       68.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_6",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    }
+   ],
+   "stages": {
+    "base_mask_generation": {
+     "left_right": {
+      "left": 255765,
+      "right": 247490
+     },
+     "room_pixel_count": 503255
+    },
+    "candidate_scoring": {
+     "deduped_regions": 6,
+     "dropped_regions": 7,
+     "kept_regions": 20
+    },
+    "connected_components": {
+     "clusters_seen": 16,
+     "components_seen": 28
+    },
+    "recovery_pass": {
+     "count_deficit_after_recovery": 0,
+     "recovered_regions": 0
+    },
+    "suspicious_region_split_pass": {
+     "debug": [
+      {
+       "area_percent": 0.7773,
+       "area_pixels": 408003,
+       "bbox": {
+        "height": 721,
+        "width": 710,
+        "x": 6,
+        "y": 4
+       },
+       "cluster_index": 10,
+       "fill_ratio": 0.797,
+       "methods": [
+        {
+         "accepted": false,
+         "method": "wall_cuts",
+         "reason": "no_split"
+        },
+        {
+         "accepted": true,
+         "active_area": 408003,
+         "candidate_areas": [
+          25098,
+          11721,
+          6239,
+          30259,
+          1966,
+          69109,
+          18340,
+          40487,
+          5022,
+          8234,
+          1566
+         ],
+         "candidate_count": 11,
+         "method": "localized_bins",
+         "ranked_color_bins": 1,
+         "ranked_hue_bins": 3,
+         "reason": "accepted"
+        }
+       ]
+      }
+     ],
+     "localized_drop_debug": [
+      {
+       "area_percent": 0.0223,
+       "area_pixels": 11721,
+       "compactness": 0.0287,
+       "drop_reasons": [
+        "localized_child_fragment"
+       ],
+       "fill_ratio": 0.2206,
+       "issues": [
+        "oversized_region",
+        "split_localized_bins"
+       ],
+       "segment_id": "segment_13"
+      },
+      {
+       "area_percent": 0.003,
+       "area_pixels": 1563,
+       "compactness": 0.3093,
+       "drop_reasons": [
+        "localized_child_connector"
+       ],
+       "fill_ratio": 0.9968,
+       "issues": [
+        "oversized_region",
+        "split_localized_bins"
+       ],
+       "segment_id": "segment_21"
+      }
+     ],
+     "split_candidates": 1,
+     "split_generated_regions": 11
+    },
+    "variant_reconciliation": {
+     "agreement_pixel_count": 503042,
+     "assist_enabled": true,
+     "reconciled_left_right": {
+      "left": 250485,
+      "right": 243390
+     },
+     "reconciled_room_pixel_count": 493875,
+     "removed_by_wall_cut_left_right": {
+      "left": 5280,
+      "right": 4100
+     },
+     "removed_by_wall_cut_pixel_count": 9380,
+     "seam_wall_pixel_count": 13460,
+     "wall_pixel_count": 319219
+    }
+   }
+  },
+  "light_min1200": {
+   "available": true,
+   "message": "Image-assisted room segments generated via the Pillow/NumPy/SciPy pipeline.",
+   "reason": "ready",
+   "segment_count": 10,
+   "segments": [
+    {
+     "area_pixels": 43521,
+     "bbox": {
+      "height": 190,
+      "width": 317,
+      "x": 344,
+      "y": 24
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       661.0,
+       32.0
+      ],
+      [
+       661.0,
+       204.0
+      ],
+      [
+       640.0,
+       202.0
+      ],
+      [
+       637.0,
+       166.0
+      ],
+      [
+       539.0,
+       166.0
+      ],
+      [
+       534.0,
+       211.0
+      ],
+      [
+       344.0,
+       214.0
+      ],
+      [
+       344.0,
+       142.0
+      ],
+      [
+       417.0,
+       138.0
+      ],
+      [
+       418.0,
+       80.0
+      ],
+      [
+       467.0,
+       76.0
+      ],
+      [
+       469.0,
+       24.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_1",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 75850,
+     "bbox": {
+      "height": 281,
+      "width": 394,
+      "x": 268,
+      "y": 204
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       343.0,
+       316.0
+      ],
+      [
+       344.0,
+       221.0
+      ],
+      [
+       662.0,
+       212.0
+      ],
+      [
+       659.0,
+       441.0
+      ],
+      [
+       446.0,
+       446.0
+      ],
+      [
+       434.0,
+       302.0
+      ],
+      [
+       375.0,
+       300.0
+      ],
+      [
+       359.0,
+       485.0
+      ],
+      [
+       271.0,
+       485.0
+      ],
+      [
+       274.0,
+       319.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_12",
+     "segmentation_state": "clean",
+     "structural_role": "hub"
+    },
+    {
+     "area_pixels": 330,
+     "bbox": {
+      "height": 6,
+      "width": 55,
+      "x": 20,
+      "y": 230
+     },
+     "confidence": 0.8,
+     "issues": [
+      "tiny_region"
+     ],
+     "polygon_pixel": [
+      [
+       70.0,
+       236.0
+      ],
+      [
+       20.0,
+       236.0
+      ],
+      [
+       20.0,
+       230.0
+      ],
+      [
+       75.0,
+       230.0
+      ]
+     ],
+     "quality": "poor",
+     "segment_id": "segment_13",
+     "segmentation_state": "review",
+     "structural_role": "connector"
+    },
+    {
+     "area_pixels": 45222,
+     "bbox": {
+      "height": 199,
+      "width": 240,
+      "x": 20,
+      "y": 28
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       86.0,
+       210.0
+      ],
+      [
+       76.0,
+       227.0
+      ],
+      [
+       20.0,
+       227.0
+      ],
+      [
+       20.0,
+       28.0
+      ],
+      [
+       260.0,
+       28.0
+      ],
+      [
+       260.0,
+       227.0
+      ],
+      [
+       164.0,
+       227.0
+      ],
+      [
+       162.0,
+       195.0
+      ],
+      [
+       89.0,
+       195.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_14",
+     "segmentation_state": "clean",
+     "structural_role": "hub"
+    },
+    {
+     "area_pixels": 15288,
+     "bbox": {
+      "height": 98,
+      "width": 156,
+      "x": 20,
+      "y": 239
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       20.0,
+       330.0
+      ],
+      [
+       20.0,
+       239.0
+      ],
+      [
+       176.0,
+       239.0
+      ],
+      [
+       176.0,
+       337.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_15",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 42718,
+     "bbox": {
+      "height": 218,
+      "width": 230,
+      "x": 20,
+      "y": 487
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       20.0,
+       578.0
+      ],
+      [
+       20.0,
+       487.0
+      ],
+      [
+       250.0,
+       495.0
+      ],
+      [
+       250.0,
+       545.0
+      ],
+      [
+       226.0,
+       548.0
+      ],
+      [
+       226.0,
+       627.0
+      ],
+      [
+       181.0,
+       631.0
+      ],
+      [
+       181.0,
+       705.0
+      ],
+      [
+       20.0,
+       705.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_16",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 60314,
+     "bbox": {
+      "height": 258,
+      "width": 235,
+      "x": 426,
+      "y": 450
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       589.0,
+       708.0
+      ],
+      [
+       426.0,
+       707.0
+      ],
+      [
+       435.0,
+       452.0
+      ],
+      [
+       661.0,
+       450.0
+      ],
+      [
+       661.0,
+       708.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_2",
+     "segmentation_state": "clean",
+     "structural_role": "hub"
+    },
+    {
+     "area_pixels": 10144,
+     "bbox": {
+      "height": 116,
+      "width": 115,
+      "x": 345,
+      "y": 24
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       428.0,
+       70.0
+      ],
+      [
+       416.0,
+       78.0
+      ],
+      [
+       414.0,
+       136.0
+      ],
+      [
+       345.0,
+       140.0
+      ],
+      [
+       345.0,
+       24.0
+      ],
+      [
+       460.0,
+       24.0
+      ],
+      [
+       460.0,
+       70.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_3",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 24036,
+     "bbox": {
+      "height": 248,
+      "width": 148,
+      "x": 188,
+      "y": 238
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       299.0,
+       311.0
+      ],
+      [
+       266.0,
+       315.0
+      ],
+      [
+       263.0,
+       485.0
+      ],
+      [
+       197.0,
+       486.0
+      ],
+      [
+       188.0,
+       238.0
+      ],
+      [
+       336.0,
+       238.0
+      ],
+      [
+       335.0,
+       309.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_4",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    },
+    {
+     "area_pixels": 17854,
+     "bbox": {
+      "height": 175,
+      "width": 104,
+      "x": 318,
+      "y": 496
+     },
+     "confidence": 0.9,
+     "issues": [],
+     "polygon_pixel": [
+      [
+       318.0,
+       587.0
+      ],
+      [
+       318.0,
+       496.0
+      ],
+      [
+       422.0,
+       496.0
+      ],
+      [
+       419.0,
+       671.0
+      ],
+      [
+       318.0,
+       671.0
+      ]
+     ],
+     "quality": "strong",
+     "segment_id": "segment_5",
+     "segmentation_state": "clean",
+     "structural_role": "room"
+    }
+   ],
+   "stages": {
+    "base_mask_generation": {
+     "left_right": {
+      "left": 243651,
+      "right": 244374
+     },
+     "room_pixel_count": 488025
+    },
+    "candidate_scoring": {
+     "deduped_regions": 4,
+     "dropped_regions": 7,
+     "kept_regions": 16
+    },
+    "connected_components": {
+     "clusters_seen": 16,
+     "components_seen": 28
+    },
+    "recovery_pass": {
+     "count_deficit_after_recovery": 0,
+     "recovered_regions": 0
+    },
+    "suspicious_region_split_pass": {
+     "debug": [
+      {
+       "area_percent": 0.9661,
+       "area_pixels": 476905,
+       "bbox": {
+        "height": 719,
+        "width": 671,
+        "x": 4,
+        "y": 4
+       },
+       "cluster_index": 9,
+       "fill_ratio": 0.9885,
+       "methods": [
+        {
+         "accepted": false,
+         "method": "wall_cuts",
+         "reason": "no_wall_hint"
+        },
+        {
+         "accepted": true,
+         "active_area": 476905,
+         "candidate_areas": [
+          61546,
+          16391,
+          2264,
+          5890,
+          3982,
+          5974
+         ],
+         "candidate_count": 6,
+         "method": "localized_bins",
+         "ranked_color_bins": 2,
+         "ranked_hue_bins": 0,
+         "reason": "accepted"
+        }
+       ]
+      }
+     ],
+     "localized_drop_debug": [],
+     "split_candidates": 1,
+     "split_generated_regions": 6
+    },
+    "variant_reconciliation": {
+     "agreement_pixel_count": 0,
+     "assist_enabled": false,
+     "reconciled_left_right": {
+      "left": 243651,
+      "right": 244374
+     },
+     "reconciled_room_pixel_count": 488025,
+     "removed_by_wall_cut_left_right": {
+      "left": 0,
+      "right": 0
+     },
+     "removed_by_wall_cut_pixel_count": 0,
+     "seam_wall_pixel_count": 0,
+     "wall_pixel_count": 0
+    }
+   }
+  }
+ }
+}
