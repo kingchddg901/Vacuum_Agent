@@ -450,6 +450,38 @@ non-English values are all out of scope too — this watches English string valu
 Re-shooting is cheap by design: the shots come from a permanent dashboard with one
 card pinned per language. See `.claude/notes/WORKFLOW-screenshots-and-languages.md`.
 
+### Annotation ratchet — `tests/test_annotation_ratchet.py`
+
+Nothing in this repo type-checks — no mypy/pyright step in `.github/workflows/`, no
+`.pre-commit-config.yaml` — so a return annotation is prose that happens to be parsed. It
+can drift arbitrarily far from the code and no gate, test or runtime notices.
+
+Found 2026-11-11: `segmentor.py::_split_suspicious_component` declared
+`tuple[list[Any], str | None]` against eight `return` statements that every one returned a
+3-tuple, **with its docstring already saying three**. That is the tell — the docstring was
+updated when the third element was added and the annotation beside it was not, so the two
+sat contradicting each other in one function header. A sweep then found a second, in an
+unrelated subsystem: `__init__.py::_prepare_static_dirs` declared a 4-tuple and returned
+five directories. Both call sites were already correct, so both fixes were
+behaviour-neutral. One is a slip; two is a class of defect with nothing watching for it.
+
+**ARITY ONLY, deliberately.** Element types need real inference and a ratchet that guesses
+is worse than none, so it is blind to a wrong element type at the right arity, to
+`return result` (a name carries no arity at the return site), and to `tuple[X, ...]`.
+`[AR-3]` pins that last exclusion specifically: read naively `tuple[int, ...]` has two
+subscript elements, so a `len(elts)` implementation would call every variadic in the
+package an arity-2 annotation and the gate would become a wall of false positives — the
+failure mode that gets a gate deleted rather than obeyed.
+
+`[AR-2]` is the bite test on the detector itself. `[AR-1]` asserts an empty list, and an
+empty list is also what a broken walker returns — a bad glob, a renamed package, a
+swallowed exception — which reads identically to a clean tree; `[AR-2]` injects the exact
+defect found here and confirms the analysis reports it. `[AR-4]` asserts the walk is
+non-empty and reaches both fixed files, because the denominator is the claim.
+
+⚠ **This is not a step towards a type checker.** The repo has deliberately not got one;
+that is the owner's call, not a side effect of a bug fix.
+
 ### Documentation ratchet — `tests/test_docs_ratchet.py`
 
 A test file that appears nowhere in `docs/testing/` produces no findings and reads

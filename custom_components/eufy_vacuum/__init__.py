@@ -153,7 +153,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     integration_dir = os.path.dirname(__file__)
 
-    def _prepare_static_dirs() -> tuple[str, str, str, str]:
+    def _prepare_static_dirs() -> tuple[str, str, str, str, str]:
         """Create the served directories and regenerate the auto-indexes.
 
         All filesystem work (makedirs / listdir / open) lives here so it runs in

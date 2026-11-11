@@ -1026,7 +1026,7 @@ def _split_suspicious_component(
     assist_hue: Any | None = None,
     assist_sat: Any | None = None,
     assist_value: Any | None = None,
-) -> tuple[list[Any], str | None]:
+) -> tuple[list[Any], str | None, list[dict[str, Any]]]:
     """Try each available split strategy in priority order and return the first that succeeds.
 
     Returns (split_masks, method_name, debug_entries). method_name is None if no split was found.
