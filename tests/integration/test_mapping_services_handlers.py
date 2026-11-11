@@ -18,6 +18,7 @@ Coverage targets
 
 from __future__ import annotations
 
+import io
 import os
 
 import pytest
@@ -993,3 +994,571 @@ async def test_msv27_a_failed_dispatch_is_raised_as_a_HomeAssistantError(
         "the plural dispatch failure did not surface as its own error: %r"
         % (caught_plural.value,)
     )
+
+
+# ---------------------------------------------------------------------------
+# [MSV-28] analyze_map_image -- the cache gate and the persist gate
+# ---------------------------------------------------------------------------
+
+class _StubEngine:
+    """A segmenter that returns exactly what the test tells it to, and records tuning."""
+
+    def __init__(self, result):
+        self.result = result
+        self.seen_tuning = None
+        self.calls = 0
+
+    def segment_map_image(self, *, image_path, tuning, context=None):
+        self.calls += 1
+        self.seen_tuning = dict(tuning or {})
+        return dict(self.result)
+
+
+def _with_engine(monkeypatch, result):
+    """Patch the engine registry at its SOURCE module.
+
+    `_handle_analyze_map_image` imports `get_segmenter_engine` locally, inside the
+    function body, so the name never exists on `mapping_services` to patch --
+    monkeypatching `ms.get_segmenter_engine` raises AttributeError rather than
+    silently missing, which is the behaviour to want from `monkeypatch.setattr`.
+    """
+    from custom_components.eufy_vacuum.mapping import segmenter_engines
+
+    engine = _StubEngine(result)
+    monkeypatch.setattr(
+        segmenter_engines, "get_segmenter_engine", lambda name=None: engine
+    )
+    return engine
+
+
+def _seed_image(hass, manager, variant="default"):
+    """A map bucket whose `default` variant points at a real file on disk."""
+    import os as _os
+    bucket = ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    object_id = _VAC.split(".", 1)[1]
+    base = _os.path.join(hass.config.config_dir, "eufy_vacuum", "maps", object_id)
+    _os.makedirs(base, exist_ok=True)
+    suffix = "" if variant == "default" else f"_{variant}"
+    path = _os.path.join(base, f"map_{_MAP}{suffix}.png")
+    with open(path, "wb") as fh:
+        fh.write(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)
+    bucket.setdefault("image_variants", {})[variant] = {
+        "path": path, "width": 10, "height": 10,
+    }
+    return bucket
+
+
+async def test_msv28_a_cached_FAILURE_is_never_served_as_an_analysis(
+    hass, mapping_services, monkeypatch
+):
+    """[MSV-28] RP-006/IMAGE--3: the gate checks `available`, not truthiness.
+
+    A failure envelope is a dict, and a dict is truthy. The gate that used to ask
+    "is there a cached result?" therefore served a FAILURE as a successful
+    analysis forever -- the segments never recovered without a forced
+    re-analysis, because the thing standing in the way was the failure itself.
+
+    The engine call COUNT is the assertion. Both paths can return a payload; only
+    the count distinguishes "served the cache" from "re-ran and succeeded", and
+    the whole bug was that the cache was served when it should not have been.
+    """
+    manager = mapping_services
+    bucket = _seed_image(hass, manager)
+    bucket["image_segments"] = {"available": False, "reason": "segmenter_unavailable"}
+
+    engine = _with_engine(monkeypatch, {"available": True, "segments": [{"id": 1}]})
+
+    out = await _call(hass, ms.SERVICE_ANALYZE_MAP_IMAGE,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP})
+
+    assert engine.calls == 1, (
+        "a cached FAILURE envelope satisfied the cache gate and was served as an "
+        "analysis; the segments never recover without force_reanalyze"
+    )
+    assert out.get("available") is True
+    assert bucket["image_segments"]["available"] is True
+
+
+async def test_msv28b_a_cache_marked_STALE_does_not_satisfy_the_gate(
+    hass, mapping_services, monkeypatch
+):
+    """[MSV-28b] A3-IMAGE--4: an upload or delete marks the cache stale, and stale must re-run.
+
+    The source variant changed underneath it, so the cached segments describe an
+    image that no longer exists. A fresh analysis assigns a whole new result dict,
+    which is why `stale_since` needs no manual reset -- it clears itself.
+
+    The CONTROL is the same bucket without the stale marker, which must be served
+    from cache: without it, a gate that never cached anything would pass this
+    test.
+    """
+    manager = mapping_services
+    bucket = _seed_image(hass, manager)
+    good = {"available": True, "segments": [{"id": 1}]}
+
+    engine = _with_engine(monkeypatch, {"available": True, "segments": [{"id": 2}]})
+
+    # control: a fresh, available cache IS served without re-running
+    bucket["image_segments"] = dict(good)
+    await _call(hass, ms.SERVICE_ANALYZE_MAP_IMAGE,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert engine.calls == 0, "a healthy cache was ignored and the engine re-ran"
+
+    # stale: must re-run
+    bucket["image_segments"] = dict(good, stale_since="2026-01-01T00:00:00Z")
+    await _call(hass, ms.SERVICE_ANALYZE_MAP_IMAGE,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert engine.calls == 1, (
+        "a cache marked stale by an upload/delete of its source variant was "
+        "served anyway; the segments describe an image that no longer exists"
+    )
+    assert "stale_since" not in bucket["image_segments"], (
+        "the fresh result kept the stale marker"
+    )
+
+
+async def test_msv28c_a_FAILED_analysis_does_not_replace_good_segments(
+    hass, mapping_services, monkeypatch
+):
+    """[MSV-28c] RP-006/IMAGE--2: persist only a SUCCESSFUL analysis.
+
+    Zones, custom layouts and furnished art all anchor to the stored segments. A
+    failure envelope overwriting them does not merely lose the analysis -- it
+    orphans everything the user built on top of it, and a re-run cannot restore
+    the anchors.
+
+    So the caller still RECEIVES the failure (it needs to surface it), while the
+    store keeps what it had. Both halves are asserted, because returning the
+    failure and persisting it are independent and only one of them is wrong.
+    """
+    manager = mapping_services
+    bucket = _seed_image(hass, manager)
+    bucket["image_segments"] = {"available": True, "segments": [{"id": "keep_me"}]}
+
+    _with_engine(monkeypatch, {"available": False, "reason": "no_room_pixels_detected"})
+
+    out = await _call(hass, ms.SERVICE_ANALYZE_MAP_IMAGE,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                       "force_reanalyze": True})
+
+    assert out.get("available") is False, "the caller was not told the analysis failed"
+    assert out.get("reason") == "no_room_pixels_detected"
+    assert bucket["image_segments"]["segments"] == [{"id": "keep_me"}], (
+        "a failure envelope replaced previously-good segments -- every zone, "
+        "layout and art anchor built on them is now orphaned"
+    )
+
+
+async def test_msv28d_caller_tuning_reaches_the_engine_and_omitted_fields_do_not(
+    hass, mapping_services, monkeypatch
+):
+    """[MSV-28d] IMAGE--11: an omitted field must leave the ADAPTER's tuning alone.
+
+    The comment records the defect: a default of 1200 on `min_area_pixels` made
+    the `is not None` guard dead code, so every call -- even one that omitted the
+    field -- clobbered the adapter's own configured value.
+
+    So both directions are asserted: what the caller DOES send arrives, and what
+    it omits does not appear at all. The second is the one that regressed, and it
+    is invisible to any test that only checks the values it passed.
+    """
+    manager = mapping_services
+    _seed_image(hass, manager)
+    engine = _with_engine(monkeypatch, {"available": True, "segments": []})
+
+    await _call(hass, ms.SERVICE_ANALYZE_MAP_IMAGE,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                 "expected_room_count": 5, "max_segments": 9,
+                 "force_reanalyze": True})
+
+    seen = engine.seen_tuning
+    assert seen.get("expected_room_count") == 5
+    assert seen.get("max_segments") == 9
+    assert "min_area_pixels" not in seen, (
+        "an omitted min_area_pixels still reached the engine and would clobber "
+        "the adapter's configured segmenter_tuning: %r" % (seen,)
+    )
+    assert "simplify_epsilon" not in seen, (
+        "an omitted simplify_epsilon still reached the engine: %r" % (seen,)
+    )
+    assert seen.get("image_variant") == "default", (
+        "the engine was not told which variant it is looking at"
+    )
+
+
+async def test_msv29_deleting_a_layout_sweeps_its_backdrop_AND_its_furnished_art(
+    hass, mapping_services, monkeypatch
+):
+    """[MSV-29] A layout owns files, and deleting it must take all of them.
+
+    A custom layout can carry a backdrop, a whole-home art image, and one art
+    image per room. Each is a PNG on disk plus an `image_variants` record. Delete
+    the layout and leave any of them behind and they orphan permanently: nothing
+    else references them, so no later delete can ever find them.
+
+    THE PER-ROOM ART IS THE ONE THAT REGRESSES. Backdrop and home art are single
+    fields; the room art is a loop over a dict, and a sweep that handled the two
+    scalars would look complete. Two rooms are seeded so a loop that ran once
+    would be visible.
+    """
+    import os as _os
+
+    manager = mapping_services
+    bucket = ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    object_id = _VAC.split(".", 1)[1]
+    base = _os.path.join(hass.config.config_dir, "eufy_vacuum", "maps", object_id)
+    _os.makedirs(base, exist_ok=True)
+
+    made = {}
+    for variant in ("custom_L1", "custom_L1_home_art",
+                    "custom_L1_room_3", "custom_L1_room_4"):
+        path = _os.path.join(base, f"map_{_MAP}_{variant}.png")
+        with open(path, "wb") as fh:
+            fh.write(b"\x89PNG\r\n\x1a\n")
+        made[variant] = path
+        bucket.setdefault("image_variants", {})[variant] = {"path": path}
+
+    bucket["custom_layouts"] = {"L1": {
+        "layout_id": "L1",
+        "backdrop_variant": "custom_L1",
+        "home_art": {"art_variant": "custom_L1_home_art"},
+        "rooms": {
+            "3": {"art_variant": "custom_L1_room_3"},
+            "4": {"art_variant": "custom_L1_room_4"},
+        },
+    }}
+
+    out = await _call(hass, ms.SERVICE_DELETE_CUSTOM_LAYOUT,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": "L1"})
+
+    assert out.get("deleted") is True or out.get("saved") is True, (
+        "the layout delete reported failure: %r" % out
+    )
+    left_on_disk = {v: p for v, p in made.items() if _os.path.exists(p)}
+    assert not left_on_disk, (
+        "files survived the layout that owned them and can never be reached "
+        "again: %r" % sorted(left_on_disk)
+    )
+    assert not (bucket.get("image_variants") or {}), (
+        "variant records survived: %r" % (bucket.get("image_variants"),)
+    )
+    assert "L1" not in (bucket.get("custom_layouts") or {})
+
+
+async def test_msv29b_an_unremovable_layout_file_does_not_block_the_delete(
+    hass, mapping_services, monkeypatch
+):
+    """[MSV-29b] The file sweep is best-effort; the record deletion is not.
+
+    Same contract as [MSV-24] on the single-image delete: a file that cannot be
+    removed must not leave the user with a layout they are unable to delete. The
+    `except OSError: pass` around each removal is what guarantees it.
+
+    RED IF EITHER except NARROWS: the error escapes and the layout survives, so
+    the user is stuck with an entry whose files they also cannot clear.
+    """
+    import os as _os
+
+    manager = mapping_services
+    bucket = ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    bucket["image_variants"] = {
+        "custom_L2": {"path": "/nonexistent/locked_backdrop.png"},
+        "custom_L2_home_art": {"path": "/nonexistent/locked_art.png"},
+    }
+    bucket["custom_layouts"] = {"L2": {
+        "layout_id": "L2",
+        "backdrop_variant": "custom_L2",
+        "home_art": {"art_variant": "custom_L2_home_art"},
+    }}
+
+    real_remove = _os.remove
+
+    def _denied(path, *a, **kw):
+        if "locked_" in str(path):
+            raise PermissionError(13, "Permission denied")
+        return real_remove(path, *a, **kw)
+
+    monkeypatch.setattr(ms.os, "remove", _denied)
+
+    await _call(hass, ms.SERVICE_DELETE_CUSTOM_LAYOUT,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": "L2"})
+
+    assert "L2" not in (bucket.get("custom_layouts") or {}), (
+        "a file that could not be removed blocked the layout deletion; the user "
+        "is left with a layout they cannot delete"
+    )
+
+
+async def test_msv30_zone_filing_is_advisory_and_respects_the_active_map(
+    hass, mapping_services, monkeypatch
+):
+    """[MSV-30] create_saved_zone sizes the zone when it safely can, and never fails on it.
+
+    "the compute must NEVER break create" and "the fork exposes only the CURRENT
+    map's raster, so only compute when the zone's map_id IS the active map — else
+    we'd file membership/size from the WRONG map". Three cases:
+
+      active map matches      -> area_m2 and room_number are filled
+      a DIFFERENT active map  -> the zone is created with both left None
+      the compute RAISES      -> the zone is still created
+
+    The zone existing in all three is the assertion that matters. An advisory
+    step that can fail the create turns a cosmetic gap into a lost user action --
+    they drew a zone and it vanished.
+    """
+    manager = mapping_services
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id="upstairs")
+
+    from custom_components.eufy_vacuum.rooms import room_discovery
+
+    async def _map_data(**kw):
+        return {"room_pixels": "x"}
+
+    monkeypatch.setattr(manager, "async_get_map_data_dict", _map_data, raising=False)
+    monkeypatch.setattr(
+        ms, "zone_membership", lambda md, geom: {"area_m2": 7.25, "room_number": 3}
+    )
+
+    geom = [[0, 0], [0, 10], [10, 10], [10, 0]]
+
+    def _create(name, map_id=_MAP):
+        return _call(hass, ms.SERVICE_CREATE_SAVED_ZONE,
+                     {"vacuum_entity_id": _VAC, "map_id": map_id,
+                      "name": name, "geometry": geom})
+
+    # 1. the zone's map IS active -> filed
+    monkeypatch.setattr(room_discovery, "get_active_map_id", lambda h, v: _MAP)
+    out = await _create("Rug")
+    zones = manager.data["maps"][_VAC][_MAP]["saved_zones"]
+    filed = [z for z in zones.values() if z.get("name") == "Rug"][0]
+    assert filed.get("area_m2") == 7.25 and filed.get("room_number") == 3
+
+    # 2. a DIFFERENT map is active -> created, but not filed off the wrong raster
+    monkeypatch.setattr(room_discovery, "get_active_map_id", lambda h, v: "upstairs")
+    await _create("Hallway")
+    unfiled = [z for z in zones.values() if z.get("name") == "Hallway"][0]
+    assert unfiled.get("area_m2") is None, (
+        "a zone was sized from the raster of a map it does not belong to"
+    )
+
+    # 3. the compute raises -> the zone still exists
+    monkeypatch.setattr(room_discovery, "get_active_map_id", lambda h, v: _MAP)
+
+    def _boom(md, geom_):
+        raise ValueError("membership blew up")
+
+    monkeypatch.setattr(ms, "zone_membership", _boom)
+    await _create("Landing")
+    assert any(z.get("name") == "Landing" for z in zones.values()), (
+        "an advisory sizing failure lost the zone the user had just drawn"
+    )
+
+
+async def test_msv31_acknowledge_map_frame_clears_the_gate_and_persists_nothing(
+    hass, mapping_services, monkeypatch
+):
+    """[MSV-31] A power-user override for the post-map-switch coordinate-frame gate.
+
+    The gate pauses zone drawing after a map switch until the frame is grounded.
+    This service force-clears it, and its docstring is explicit that the state is
+    "transient in-memory gate state only, so there is nothing to persist (no
+    async_save)".
+
+    THE ABSENCE OF A SAVE IS ASSERTED, not just the delegation. Persisting a
+    transient acknowledgement would survive a restart and leave the gate
+    permanently disarmed for that vacuum -- the opposite of "re-arms
+    automatically on the next map switch".
+    """
+    manager = mapping_services
+    seen = {}
+
+    def _ack(*, vacuum_entity_id):
+        seen["vac"] = vacuum_entity_id
+        return {"acknowledged": True, "vacuum_entity_id": vacuum_entity_id}
+
+    monkeypatch.setattr(manager, "acknowledge_map_frame", _ack, raising=False)
+
+    saves = []
+
+    async def _save(*a, **kw):
+        saves.append(1)
+
+    monkeypatch.setattr(manager, "async_save", _save, raising=False)
+
+    out = await _call(hass, ms.SERVICE_ACKNOWLEDGE_MAP_FRAME,
+                      {"vacuum_entity_id": _VAC})
+
+    assert seen.get("vac") == _VAC, "the handler did not reach the manager"
+    assert out.get("acknowledged") is True, (
+        "the manager's answer was not returned to the caller: %r" % out
+    )
+    assert saves == [], (
+        "a transient in-memory acknowledgement was persisted; it would survive a "
+        "restart and leave the gate disarmed instead of re-arming on the next "
+        "map switch"
+    )
+
+
+async def test_msv32_a_non_png_upload_is_CONVERTED_not_rejected(
+    hass, mapping_services
+):
+    """[MSV-32] The card can hand up a JPEG, and it is converted rather than refused.
+
+    Everything downstream reads PNG -- the stored variant, the segmenter, the
+    card's own render. So a non-PNG upload is opened with Pillow and re-saved as
+    PNG before anything else happens. Refusing instead would make the author UI
+    reject half the images a user might drag in, for a reason they cannot act on.
+
+    THE FILE'S MAGIC BYTES ARE THE ASSERTION. `saved: True` is satisfied by a
+    handler that wrote the JPEG through untouched, and the next consumer would
+    then fail on a file whose extension lies about its contents.
+    """
+    import os as _os
+
+    pytest.importorskip("PIL")
+    from PIL import Image as _Image
+
+    manager = mapping_services
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+
+    buf = io.BytesIO()
+    _Image.new("RGB", (4, 4), (120, 30, 30)).save(buf, format="JPEG")
+    import base64 as _b64
+    jpeg_b64 = _b64.b64encode(buf.getvalue()).decode()
+
+    out = await _upload(hass, image_base64=jpeg_b64)
+
+    assert out["saved"] is True, ("a JPEG upload was refused: %r" % out)
+
+    object_id = _VAC.split(".", 1)[1]
+    path = _os.path.join(
+        hass.config.config_dir, "eufy_vacuum", "maps", object_id, f"map_{_MAP}.png"
+    )
+    assert _os.path.exists(path), "nothing was written"
+    with open(path, "rb") as fh:
+        head = fh.read(8)
+    assert head == b"\x89PNG\r\n\x1a\n", (
+        "the file is named .png and is not one -- the JPEG was written through "
+        "unconverted, and every consumer reads PNG: %r" % (head,)
+    )
+
+
+async def test_msv33_unrasterizable_segments_are_SKIPPED_and_ids_de_duplicated(
+    hass, mapping_services, monkeypatch
+):
+    """[MSV-33] Two independent protections in one loop over caller-supplied segments.
+
+    The segments come from the author UI as primitive lists. Two things can go
+    wrong and neither may take the save down:
+
+      a primitive set that rasterizes to NOTHING -- a shape drawn with zero area,
+      or one entirely outside the map -- is skipped and counted, not stored as an
+      empty polygon that every consumer then has to guard against;
+      two segments arriving with the SAME id would silently overwrite one another,
+      so the second is renamed rather than lost.
+
+    The de-dup is the subtle one: both segments are the user's work, and dropping
+    one produces a layout that is missing a room with no error anywhere.
+    """
+    manager = mapping_services
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    bucket = manager.data["maps"][_VAC][_MAP]
+    # the handler requires the layout to own a custom BACKDROP -- custom segments
+    # are drawn against that image, so without one there is no frame to draw in
+    # and it refuses `no_custom_backdrop`.
+    bucket["custom_layouts"] = {
+        "L9": {"layout_id": "L9", "backdrop_variant": "custom_L9"}
+    }
+    bucket["image_variants"] = {
+        "custom_L9": {"path": "/tmp/custom_L9.png", "width": 100, "height": 100}
+    }
+    bucket["image_segments"] = {
+        "available": True, "image_width": 100, "image_height": 100, "segments": [],
+    }
+
+    def _raster(primitives, *, width, height):
+        # a marker primitive rasterizes to nothing; everything else to a square
+        if primitives and primitives[0].get("kind") == "empty":
+            return []
+        return [[0, 0], [0, 10], [10, 10], [10, 0]]
+
+    monkeypatch.setattr(ms, "rasterize_primitives", _raster)
+
+    out = await _call(hass, ms.SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": "L9",
+        "segments": [
+            {"id": "a", "primitives": [{"kind": "rect"}]},
+            {"id": "a", "primitives": [{"kind": "rect"}]},     # duplicate id
+            {"id": "gone", "primitives": [{"kind": "empty"}]},  # rasterizes to nothing
+        ],
+    })
+
+    assert out.get("saved") is True, out
+    assert out.get("skipped") == 1, (
+        "the segment that rasterized to nothing was not counted as skipped: %r" % out
+    )
+    ids = out.get("segment_ids") or []
+    assert len(ids) == 2, (
+        "expected the two rasterizable segments; got %d (%r)" % (len(ids), ids)
+    )
+    assert len(set(ids)) == 2, (
+        "two segments kept the same id, so one silently overwrote the other: %r"
+        % (ids,)
+    )
+    assert "gone" not in ids, "a segment that rasterized to nothing was stored"
+    stored = (
+        manager.data["maps"][_VAC][_MAP]["custom_layouts"]["L9"]
+        .get("custom_segments", {}).get("segments") or []
+    )
+    assert len(stored) == 2, "the response and the store disagree: %r" % (stored,)
+
+
+async def test_msv34_the_hidden_region_version_stamp_is_best_effort(
+    hass, mapping_services, monkeypatch
+):
+    """[MSV-34] FURNIS-5: stamp the authoring frame's version, or stamp None.
+
+    The version lets a later read tell whether the map has been RE-MAPPED since
+    the regions were drawn -- the raster is a different shape afterwards, so the
+    same normalized rects would mask the wrong content. There is no other
+    map-geometry-version mechanism in the codebase to mirror.
+
+    When the render is unavailable (no live map yet) the stamp is None, which the
+    read side treats as "no signal" rather than a mismatch. BOTH OUTCOMES ARE
+    ASSERTED, because a stamp that is always None is indistinguishable from the
+    failure path alone -- and it would disable the re-map detection entirely
+    while looking like it worked.
+    """
+    manager = mapping_services
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    bucket = manager.data["maps"][_VAC][_MAP]
+    # a region is FOUR numbers -- [x0, y0, x1, y1], normalized 0-1 -- not a
+    # dict; the handler sanitizes to that shape and silently drops anything else.
+    rects = [[0.1, 0.1, 0.4, 0.4]]
+
+    async def _render_ok(**kw):
+        return {"present": True, "version": "v-abc123"}
+
+    monkeypatch.setattr(manager, "async_get_map_render_data", _render_ok, raising=False)
+    await _call(hass, ms.SERVICE_SET_HIDDEN_REGIONS,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "regions": rects})
+    assert bucket.get("hidden_regions_version") == "v-abc123", (
+        "the authoring frame's version was not stamped, so a later re-map cannot "
+        "be detected and the regions would mask the wrong content"
+    )
+
+    async def _render_boom(**kw):
+        raise RuntimeError("no live map yet")
+
+    monkeypatch.setattr(manager, "async_get_map_render_data", _render_boom,
+                        raising=False)
+    await _call(hass, ms.SERVICE_SET_HIDDEN_REGIONS,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "regions": rects})
+    # re-read the bucket: the resolver hands the handler its own reference and
+    # the local one above can go stale across calls
+    bucket = manager.data["maps"][_VAC][_MAP]
+    assert bucket.get("hidden_regions_version") is None, (
+        "a failing render blocked the save or left a stale version behind"
+    )
+    assert bucket.get("hidden_regions"), "the regions themselves were lost"
