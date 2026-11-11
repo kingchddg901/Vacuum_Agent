@@ -205,12 +205,32 @@ belief.
 
 ## Coverage status
 
-**Coverage: 95.2% statement** (93% combined with `--cov-branch`, which the
+**Coverage: 97.6% statement** (96% combined with `--cov-branch`, which the
 default `addopts` enables), across the brand-agnostic core **and** the shipped
 brand adapters (Eufy + Roborock) — the adapters are counted in the number (see
-[subsystems/15-adapters](subsystems/15-adapters.md)). Most subsystems sit in the
-90–98% band; the most visible thin spots are the CV `segmentor` (91%) and
-`rooms/reconciliation.py` (78%, see [04 — rooms](subsystems/04-rooms.md#known-gaps)).
+[subsystems/15-adapters](subsystems/15-adapters.md)).
+
+**Every subsystem in the per-subsystem table is now at or above 95%**, and of the
+140 modules carrying at least 30 units, four sit below it on combined coverage:
+
+| module | combined | stmts |
+|---|---|---|
+| `core/maintenance_component_rename_migration.py` | **79.65%** | 71 |
+| `core/usage_accumulator.py` | 91.67% | 62 |
+| `core/error_tracker.py` | 94.56% | 455 |
+| `battery/manager.py` | 94.94% | 547 |
+
+Only the first is a real outlier; the other three are within half a point of the
+bar.
+
+> **This sentence previously named the CV `segmentor` (91%) and
+> `rooms/reconciliation.py` (78%) as the visible thin spots. Both have cleared.**
+> The segmentor is at 95.43% ([15-adapters](subsystems/15-adapters.md)), and
+> reconciliation.py no longer appears below the bar at all -- so the 78% here was two
+> revisions stale, and even 04-rooms' own 92% had already been overtaken. A named
+> thin spot is the kind of claim that rots quietly, because fixing the file never
+> touches the sentence that names it.
+
 The per-subsystem breakdown lives in
 [subsystems/README](subsystems/README.md).
 
@@ -226,6 +246,23 @@ the last few percent. The remaining misses are, by design, one of:
   only runs under a full integration boot.
 
 See [subsystems/README](subsystems/README.md#coverage-conventions-apply-everywhere)
-for the full convention. 95% is not pursued: reaching it on this codebase would
-mean either pragma-bombing real control flow or writing tests that exist only to
-move a number.
+for the full convention. **95% overall is still not pursued**: reaching it across
+the whole package would mean either pragma-bombing real control flow or writing
+tests that exist only to move a number.
+
+> **NARROWED 2026-11-11, by events rather than by error.** This read "95% is not
+> pursued" unqualified, and PER FILE that is no longer true: the last module under
+> the bar, `adapters/eufy/segmentor.py`, went 92.38% to 95.43% with **no new
+> pragmas**, 15 of 15 ablations reddening their test, and the two arms that could
+> not be proven recorded as unproven rather than faked
+> ([15-adapters](subsystems/15-adapters.md)).
+>
+> The original was CORRECT FOR THE CODEBASE IT DESCRIBED, which is why it is
+> narrowed and not deleted. Measured over the 2389 commits since it was written
+> (2026-06-01): shipped python grew 131 files / 44,945 lines to 205 / 105,013, while
+> the suite grew 107 files / 22,817 lines to 273 / 130,587 -- a test-to-source line
+> ratio of **0.51:1 to 1.24:1**. The code added since arrived far more densely
+> tested than the code this sentence was written about, so the aggregate rose and
+> the per-file bar became reachable on the newer material without the hard old code
+> moving. A claim about what a codebase permits has a subject, and the subject
+> changed.

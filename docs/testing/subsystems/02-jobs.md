@@ -5,7 +5,7 @@ The jobs subsystem owns active-job state and the start-time lifecycle gate:
 `active_job.py` tracks an in-flight job (room rollover, recharge/mop-wash
 observations, transition-room detection, live run-anomaly detection), and
 `phase_runner.py` runs strict-order (sequenced) per-room phase execution +
-per-phase timing capture. Covered by **267 tests across 5 files**.
+per-phase timing capture. Covered by **288 tests across 5 files**.
 
 Source: `custom_components/eufy_vacuum/jobs/`
 Architecture reference: [05 — While a Run Is Live](../../dev/05-run-live.md) and [06 — How a Run Ends](../../dev/06-run-end.md)
@@ -49,8 +49,8 @@ run.
 | Source module | Stmts | Cov | Test file(s) | Layer | Mocking |
 |---------------|------:|----:|--------------|-------|-------|
 | `job_monitor.py` | 151 | 98% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) | clean |
-| `active_job.py` | 1125 | 94% | `tests/unit/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job_spatial.py` | unit + integration | **bare x3** |
-| `phase_runner.py` | 754 | 91% | `tests/integration/test_strict_order_phase_timing.py` | integration | clean |
+| `active_job.py` | 1125 | 95% | `tests/unit/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job_spatial.py` | unit + integration | **bare x3** |
+| `phase_runner.py` | 754 | 95% | `tests/integration/test_strict_order_phase_timing.py` | integration | clean |
 
 ---
 

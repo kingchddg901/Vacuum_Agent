@@ -3,7 +3,7 @@
 The themes subsystem owns the dashboard-card theme library: preloaded built-in
 themes, the user library (save-as-new / overwrite / rename / delete), the active
 theme + working draft, import/export, and the update-callback fan-out that
-refreshes theme-bound entities. Covered by **89 tests across 5 files**.
+refreshes theme-bound entities. Covered by **93 tests across 5 files**.
 
 Source: `custom_components/eufy_vacuum/themes/`
 Architecture reference: [docs/dev/frontend/theme-system.md](../../dev/frontend/theme-system.md)
@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/frontend/theme-system.md](../../dev/frontend/t
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
 | `manager.py` | 353 | 96% | `test_themes_manager.py`, `test_themes_manager_deep.py`, `test_themes_import_scoped.py` | integration | clean |
-| `services.py` | 125 | 91% | `test_themes_services.py` | integration | **bare x1** |
+| `services.py` | 125 | 97% | `test_themes_services.py` | integration | **bare x1** |
 | `preloaded.py` | 32 | 98% | `test_themes_preloaded.py` (unit) | unit | clean |
 
 ---

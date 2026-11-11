@@ -3,7 +3,7 @@
 The platform layer is the HA-facing entity surface: the `sensor/` package, the
 `binary_sensor` / `button` / `number` / `switch` platforms, room entities, the
 config flow, and the small shared helpers (entity helpers, frontend URL,
-timestamp utils, models, map manager). Covered by **159 tests across 13 files**.
+timestamp utils, models, map manager). Covered by **178 tests across 13 files**.
 
 Source: `custom_components/eufy_vacuum/sensor/`, `binary_sensor.py`, `button.py`,
 `number.py`, `switch.py`, `room_entities.py`, `config_flow.py`,
@@ -17,8 +17,8 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | Source module | Stmts | Cov | Test files | Mocking |
 |---------------|------:|----:|------------|-------|
 | `sensor/error.py` | 82 | 96% | `test_sensor_status.py` | **bare x11** |
-| `sensor/lifecycle.py` | 91 | 92% | `test_sensor_status.py` | **bare x11** |
-| `sensor/maintenance.py` | 55 | 95% | `test_sensor_status.py` | **bare x11** |
+| `sensor/lifecycle.py` | 91 | 97% | `test_sensor_status.py` | **bare x11** |
+| `sensor/maintenance.py` | 55 | 100% | `test_sensor_status.py` | **bare x11** |
 | `sensor/onboarding.py` | 39 | 96% | `test_sensor_entities.py` | clean |
 | `sensor/profile.py` | 30 | 100% | `test_sensor_entities.py` | clean |
 | `sensor/theme.py` | 39 | 95% | `test_sensor_entities.py` | clean |
@@ -28,7 +28,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `sensor/map_overlays.py` | 57 | 99% | `test_sensor_map_overlays.py`, `test_map_overlays_sensor.py` (unit) | clean |
 | `button.py` | 143 | 96% | `test_button_entity.py` | **bare x1** |
 | `number.py` | 133 | 96% | `test_number_entity.py` | clean |
-| `switch.py` | 95 | 98% | `test_switch_entity.py` | clean |
+| `switch.py` | 95 | 99% | `test_switch_entity.py` | clean |
 | `binary_sensor.py` | 65 | 96% | `test_platform_files.py` | **bare x8** |
 | `room_entities.py` | 97 | 98% | `test_platform_files.py` | **bare x8** |
 | `config_flow.py` | 90 | 98% | `test_config_flow.py` | clean |

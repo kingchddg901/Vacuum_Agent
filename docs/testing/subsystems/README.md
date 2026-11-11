@@ -8,31 +8,38 @@ mapping) then peripheral subsystems and the HA-facing layers.
 
 | # | Subsystem | Map | Cov |
 |---|-----------|-----|----:|
-| 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 94% |
-| 02 | Jobs (start gate + active-job tracker) | [02-jobs](02-jobs.md) | 93% |
+| 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 95% |
+| 02 | Jobs (start gate + active-job tracker) | [02-jobs](02-jobs.md) | 95% |
 | 03 | Queue (ordered clean queue) | [03-queue](03-queue.md) | 95% |
-| 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 94% |
-| 05 | Planning (rule eval, fan-out, path-block) | [05-planning](05-planning.md) | 93% |
-| 06 | Learning (estimator, finalizer, history) | [06-learning](06-learning.md) | 95% |
-| 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 92% |
-| 08 | Battery (wear/health, sensors, sessions) | [08-battery](08-battery.md) | 95% |
-| 09 | Maintenance (wear tracking, care guides) | [09-maintenance](09-maintenance.md) | 91% |
+| 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 97% |
+| 05 | Planning (rule eval, fan-out, path-block) | [05-planning](05-planning.md) | 95% |
+| 06 | Learning (estimator, finalizer, history) | [06-learning](06-learning.md) | 96% |
+| 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 96% |
+| 08 | Battery (wear/health, sensors, sessions) | [08-battery](08-battery.md) | 96% |
+| 09 | Maintenance (wear tracking, care guides) | [09-maintenance](09-maintenance.md) | 98% |
 | 10 | Dock (action gating + dispatch) | [10-dock](10-dock.md) | 96% |
-| 11 | Setup (workflow, drift, delete, entry wiring) | [11-setup](11-setup.md) | 95% |
+| 11 | Setup (workflow, drift, delete, entry wiring) | [11-setup](11-setup.md) | 97% |
 | 12 | Profiles (per-room cleaning profiles) | [12-profiles](12-profiles.md) | 96% |
 | 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 97% |
-| 14 | Themes (card theme library) | [14-themes](14-themes.md) | 95% |
-| 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 93%¹ |
-| 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 94% |
-| 17 | Services (HA service-call layer) | [17-services](17-services.md) | 94% |
-| 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 95% |
+| 14 | Themes (card theme library) | [14-themes](14-themes.md) | 96% |
+| 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 96%¹ |
+| 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 98% |
+| 17 | Services (HA service-call layer) | [17-services](17-services.md) | 99% |
+| 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 98% |
 
 ¹ Includes both shipped brand adapters (`adapters/eufy/*` and
 `adapters/roborock/*`), counted in the number. The framework adapter code
 (registry/loader/schema/brands) sits in the low-90s to 100%, and the Roborock
-adapter is ~96-100% across the board; the subsystem figure is pulled down
-almost entirely by the CV `segmentor` (91%, 866 stmts) — see
-[15-adapters](15-adapters.md).
+adapter is ~96-100% across the board.
+
+> **REWRITTEN 2026-11-11.** This said the subsystem figure was "pulled down almost
+> entirely by the CV `segmentor` (91%, 866 stmts)". That is no longer the
+> explanation, and the figures were wrong besides: the segmentor has 868 statements,
+> not 866, and sits at 95.43%. Nothing pulls this subsystem down notably now -- the
+> remaining gap is `eufy/adapter.py` at 91.43%, which is almost all declaration dict
+> and carries its own **recorded ceiling** rather than a shortfall. Both ceilings,
+> and the arms that are reachable-but-unassertable, are written up in
+> [15-adapters](15-adapters.md).
 
 The per-subsystem Cov column is **combined** (statement + branch) coverage —
 the single number `pytest --cov-branch` prints per row — computed over exactly
@@ -41,7 +48,7 @@ re-export wiring) are deliberately not tabled, so they sit in the grand total
 but not the per-subsystem figures. The grand total below breaks out the
 statement-only figure too.
 
-**Total: 95.2% statement coverage** (93% combined with `--cov-branch`, adapters
+**Total: 97.6% statement coverage** (96% combined with `--cov-branch`, adapters
 included) over the source modules, all tests green. These numbers and the
 per-module tables are refreshed by `scripts/update_test_docs.py`.
 

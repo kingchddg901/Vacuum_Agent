@@ -4,7 +4,7 @@ The planning subsystem (`RunPlanManager`) is the authoritative rule-evaluation
 point for a job start: it builds the effective start plan (queue + payload +
 preflight), evaluates blocker/modifier rules and their fan-out, computes the
 confirmation token for a reduced run, and produces the runtime path-block report
-when a rule fires mid-job. Covered by **90 tests across 4 files**.
+when a rule fires mid-job. Covered by **94 tests across 4 files**.
 
 Source: `custom_components/eufy_vacuum/planning/`
 Architecture reference: [18 — The Access Graph](../../dev/18-access-graph.md)
@@ -15,7 +15,7 @@ Architecture reference: [18 — The Access Graph](../../dev/18-access-graph.md)
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `run_plan.py` | 608 | 93% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit), `test_water_vocabulary_boundary.py` (unit) | int + unit | **bare x1** |
+| `run_plan.py` | 608 | 95% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit), `test_water_vocabulary_boundary.py` (unit) | int + unit | **bare x1** |
 
 ---
 

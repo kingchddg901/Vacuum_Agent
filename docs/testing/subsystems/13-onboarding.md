@@ -3,7 +3,7 @@
 The onboarding subsystem tracks per-map setup completeness: whether rooms have
 been discovered and whether every enabled room has a confirmed floor type. It
 feeds the start-status `onboarding_required` gate and the onboarding sensor.
-Covered by **11 tests in 1 file** (plus the onboarding sensor in
+Covered by **15 tests in 1 file** (plus the onboarding sensor in
 [18 — platforms](18-platforms.md)).
 
 Source: `custom_components/eufy_vacuum/onboarding/`
@@ -15,7 +15,7 @@ Architecture reference: [44 — Onboarding and First Run](../../dev/44-onboardin
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `manager.py` | 100 | 97% | `test_onboarding_manager.py` | integration | **bare x1** |
+| `manager.py` | 109 | 97% | `test_onboarding_manager.py` | integration | **bare x1** |
 
 ---
 

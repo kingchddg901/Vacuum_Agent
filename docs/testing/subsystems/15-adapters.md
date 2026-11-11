@@ -7,7 +7,7 @@ Two concrete adapters now live behind this boundary — **Eufy**
 (`adapters/eufy/`) and **Roborock** (`adapters/roborock/`) — each with its own
 focused suite, plus `adapters/brands.py` (which registrar runs for a given
 vacuum) and the brand-agnostic conformance harness that runs every contract
-test once per shipped brand. Covered by **185 framework tests across 11 files**
+test once per shipped brand. Covered by **205 framework tests across 11 files**
 (`test_adapters.py`, `test_adapter_contract.py` — parametrized over both
 brands — and `test_brand_selection.py`), plus **212 Eufy-adapter tests** and
 **37 Roborock-adapter tests**.
@@ -937,13 +937,13 @@ work ends; the rest would be tests written to a number.
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `registry.py` | 236 | 92% | `test_adapters.py` | integration | clean |
+| `registry.py` | 236 | 97% | `test_adapters.py` | integration | clean |
 | `config_loader.py` | 33 | 100% | `test_adapters.py` | integration | clean |
-| `config_schema.py` | 64 | 94% | `test_adapters.py` | integration | clean |
+| `config_schema.py` | 64 | 96% | `test_adapters.py` | integration | clean |
 | `brands.py` | 53 | 100% | `test_brand_selection.py` | integration | clean |
-| `entity_resolve.py` | 228 | 91% | `tests/unit/test_entity_resolve.py` + `tests/adapters/test_entity_resolve.py` + `tests/unit/test_disabled_action_warn_once.py` | unit + adapter | clean |
+| `entity_resolve.py` | 228 | 95% | `tests/unit/test_entity_resolve.py` + `tests/adapters/test_entity_resolve.py` + `tests/unit/test_disabled_action_warn_once.py` | unit + adapter | clean |
 | `eufy/segmentor.py` | 868 | 95% | `tests/adapters/eufy/` | adapter | - |
-| `eufy/adapter.py` | 60 | 91% | `tests/adapters/eufy/` + `../integration/test_core_manager_registry.py` | adapter | - |
+| `eufy/adapter.py` | 60 | 97% | `tests/adapters/eufy/` + `../integration/test_core_manager_registry.py` | adapter | - |
 | `eufy/entities.py` | 29 | 100% | `test_buttons_entities.py` + `test_suffix_vocabulary.py` | adapter | clean |
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter | clean |
 | `eufy/constants.py` | 15 | 100% | `tests/adapters/eufy/` | adapter | - |
@@ -1111,24 +1111,25 @@ untested outright, not merely a defensive early return. `config_schema.py`
 (94%) is missing 3 lines
 (1866, 1893, 1958) in schema-validation branches not yet re-triaged this pass.
 
-The one remaining thin spot is **CV `segmentor` depth** (91%, up from 70% —
-first the splitter / recovery / scoring / issue-tag tests and the
-`_prune_localized_siblings` extraction (`[SP-prune]`), then two map fixtures
-that drive the full pipeline). The localized-bins SPLIT is the deepest tier,
-and it took two fixtures to pin: a dense **over-segmented** synthetic map
-(`[ECV-8]`, `adversarial_map.png`) covers the classification / scoring /
-overlap-dedup paths, but it can only make localized-bins *run-and-reject* —
-the accept gate is a narrow hue window. The one input that reaches localized
-**accept** plus its child-handling (reclaim / rank / prune of recovered room
-pockets) is a **real map run exactly as the integration runs it** — dark
-primary + light assist — where adjacent rooms fuse with the blue background
-into a single >120k-px component (`[ECV-9]`, `localized_map_*.png`);
-diagnostic-confirmed as the only input that hits accept. What's genuinely left
-is the splitter-internal *alternative* sub-branches the accepted path skips
-(assist-hue / colour-distance / erosion variants), the env-gated scipy-absent
-guard, and defensive continues — each geometry-sensitive or best-effort.
-Tested in `test_segmentor.py` + `test_segmentor_splitters.py`; held here on
-purpose, a known thin spot rather than a framework miss.
+✅ **SUPERSEDED 2026-11-11, and the retirement matters more than the figure.** A paragraph
+here called CV `segmentor` depth "the one remaining thin spot" at 91%, said what was left
+was "splitter-internal *alternative* sub-branches … each geometry-sensitive or
+best-effort", and closed "held here on purpose, a known thin spot rather than a framework
+miss". It sat directly above the section that contradicts it, which is the defect being
+fixed — a reader cites whichever account they reach first. Three of its claims were
+measured false:
+
+- the "geometry-sensitive" sub-branches are reachable from the public entry point with
+  constructed PNGs, and 16 tests now drive them;
+- "held on purpose" described a belief about reachability, not a decision;
+- "diagnostic-confirmed as the **only** input that hits localized-bins accept" was wrong —
+  a 700² canvas with a 450² block in six equal vertical stripes of `(255, x, x)` accepts
+  with six candidates, no fixtures and no assist image.
+
+What was true and is kept: the history (91% up from 70%, via the splitter/recovery/scoring
+tests and the `_prune_localized_siblings` extraction), and that `[ECV-8]`
+(`adversarial_map.png`) can only make localized-bins run-and-reject while `[ECV-9]` (the
+real dark+light pair) reaches accept. The current account is immediately below.
 
 ### `eufy/segmentor.py` — 92.38% → 95.43%, against a ceiling of 95.59%
 
