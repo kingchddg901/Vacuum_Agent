@@ -4,7 +4,7 @@ The core package is the orchestrator: `EufyVacuumManager` ties every subsystem
 together and owns the live read surfaces the dashboard polls (lifecycle, job
 progress, start-status), plus the storage layer, capability cache, error-tracker
 latch, the post-job water amendment, and the brand-agnostic charging /
-low-battery-return reads. Covered by **426 tests across 16 files**.
+low-battery-return reads. Covered by **428 tests across 16 files**.
 
 Source: `custom_components/eufy_vacuum/core/`
 Architecture reference: [33 — The Orchestrator](../../dev/33-the-orchestrator.md), [35 — The Fault Tracker](../../dev/35-the-fault-tracker.md)
@@ -170,8 +170,8 @@ unconditionally.
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `manager.py` | 2339 | 95% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit | **bare x10** |
-| `error_tracker.py` | 455 | 95% | `test_core_error_tracker.py` | integration | **bare x1** |
+| `manager.py` | 2343 | 95% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit | **bare x10** |
+| `error_tracker.py` | 455 | 96% | `test_core_error_tracker.py` | integration | **bare x1** |
 | `capabilities.py` | 339 | 98% | `test_core_capabilities.py` | integration | clean |
 | `charging.py` | 42 | 100% | `test_charging.py` (unit) | unit | clean |
 | `run_state.py` | 15 | 100% | `test_core_run_state.py` (unit) | unit | clean |

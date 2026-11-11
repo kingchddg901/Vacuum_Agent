@@ -7,7 +7,7 @@
 
 The learning subsystem records cleaning runs, rebuilds per-room/per-profile
 stats, estimates ETAs with a confidence model, and finalizes completed jobs. It
-is exercised by **750 tests across 18 files** (704 test functions, expanded by
+is exercised by **752 tests across 18 files** (706 test functions, expanded by
 parametrization).
 
 Source: `custom_components/eufy_vacuum/learning/`

@@ -221,40 +221,45 @@ default `addopts` enables), across the brand-agnostic core **and** the shipped
 brand adapters (Eufy + Roborock) — the adapters are counted in the number (see
 [subsystems/15-adapters](subsystems/15-adapters.md)).
 
-**Every subsystem in the per-subsystem table is now at or above 95%**, and of the
-140 modules carrying at least 30 units, two sit below it on combined coverage —
-both within half a point, and neither an outlier:
-
-| module | combined | stmts |
-|---|---|---|
-| `core/error_tracker.py` | 94.56% | 455 |
-| `battery/manager.py` | 94.94% | 547 |
+**Nothing in the package sits below 95%.** Of the 141 modules carrying at least 30
+units, zero are under the bar on combined coverage; the floor is
+`sensor/__init__.py` at exactly **95.00%**.
 
 > **A PARTIAL SCOPE DOES NOT READ AS PARTIAL — IT READS AS A GAP IN THE CODE.**
-> Hours before this was written, this table had four rows and named
-> `core/maintenance_component_rename_migration.py` at **79.65%** as "the one real
-> outlier", with `core/usage_accumulator.py` at 91.67% behind it. Both are at
-> **100%**. Their only tests live in `tests/core/`, which was in neither
-> `pytest.ini`'s `testpaths` nor `scripts/update_test_docs.py`'s `TEST_PATHS`, so the
-> generator measured the package with those two modules' tests switched off and
-> published the result as their coverage. Adding `tests/core` moved exactly those two
-> (+20.35 pp and +8.33 pp) and the package total +0.08 pp; nothing else shifted.
+> This section has been wrong twice in one day, in the same way, and the second time
+> was the instructive one.
 >
-> Two things made it convincing. The excluded directory held **exactly** the tests for
-> the two modules that then appeared worst, so the artifact looked like a finding with
-> a cause. And the migration's uncovered lines were its most load-bearing branch — the
-> "THE DESTINATION WINS" rule that stops a rename overwriting a user's newer setting —
-> which is precisely the sort of gap worth alarm. It was covered the whole time, by
-> `[MCR-3]` and `[MSK-2]`. Both scopes are fixed, each with the reason recorded at the
-> line that was wrong.
+> It first listed FOUR modules under 95%, naming
+> `core/maintenance_component_rename_migration.py` at **79.65%** as "the one real
+> outlier" with `core/usage_accumulator.py` at 91.67% behind it. Both are at
+> **100%**. Their only tests live in `tests/core/`, which was in neither
+> `pytest.ini`'s `testpaths` nor the generator's scope, so the package was measured
+> with those two modules' tests switched off and the result published as their
+> coverage. That one was at least loud: the excluded directory held EXACTLY the tests
+> for the two files that then appeared worst, and the migration's uncovered lines were
+> its most load-bearing branch — the "THE DESTINATION WINS" rule that stops a rename
+> overwriting a user's newer setting. Covered the whole time, by `[MCR-3]`/`[MSK-2]`.
+>
+> It then listed TWO, `core/error_tracker.py` at 94.56% and `battery/manager.py` at
+> 94.94%. Both are also above the bar — **95.52%** and **95.21%**. Adding `tests/core`
+> had closed one layer of the gap and left `tests/replay` and the root ratchet files
+> out, which cost `error_tracker.py` three statements and three branches: enough to
+> invent a module below a bar it had never been below. The justification for leaving
+> them out was that the residual was 0.02 pp — true of the PACKAGE TOTAL and
+> irrelevant per file. **An aggregate that barely moves can still hide a module
+> crossing the bar**, and that is the version of this mistake worth remembering,
+> because the first was visible and this one was not.
+>
+> Fixed by separating what gets MEASURED from what gets LABELLED:
+> `scripts/update_test_docs.py` now measures `MEASURE_PATHS = ["tests"]`, the scope
+> CI's gate actually runs, and keeps `LAYER_PATHS` only for the per-layer counts.
+> A figure in these docs should be reproducible by the documented command.
 
-> **This section previously named the CV `segmentor` (91%) and
-> `rooms/reconciliation.py` (78%) as the visible thin spots. Both have cleared.**
-> The segmentor is at 95.43% ([15-adapters](subsystems/15-adapters.md)), and
-> reconciliation.py no longer appears below the bar at all -- so the 78% was two
-> revisions stale, and even 04-rooms' own 92% had already been overtaken. A named
-> thin spot is the kind of claim that rots quietly, because fixing the file never
-> touches the sentence that names it.
+> **This section also once named the CV `segmentor` (91%) and
+> `rooms/reconciliation.py` (78%) as the visible thin spots. Both had cleared.**
+> The segmentor is at 95.43% ([15-adapters](subsystems/15-adapters.md)) and
+> reconciliation.py was two revisions stale. A named thin spot rots quietly, because
+> fixing the file never touches the sentence that names it.
 
 The per-subsystem breakdown lives in
 [subsystems/README](subsystems/README.md).

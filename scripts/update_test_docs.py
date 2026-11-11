@@ -44,7 +44,26 @@ COV_JSON = REPO / "coverage.json"
 #: one real outlier. A partial scope does not read as partial: it reads as a gap in
 #: the code. Measured 2026-11-11: adding tests/core moved exactly those two modules
 #: (+20.35 pp and +8.33 pp) and the package total +0.08 pp.
-TEST_PATHS = ["tests/unit", "tests/integration", "tests/adapters", "tests/core"]
+#: WHAT GETS MEASURED vs WHAT GETS LABELLED are two different things, and conflating them
+#: is what made these numbers wrong twice.
+#:
+#: MEASURE_PATHS must be the GATE's scope -- CI runs `python -m pytest tests`, so anything
+#: narrower publishes a figure nobody can reproduce with the documented command. It was
+#: three named layers, which silently excluded tests/core (the only home of the tests for
+#: core/maintenance_component_rename_migration.py and core/usage_accumulator.py: both
+#: published as the package's WORST files at 79.65% and 91.67% while sitting at 100%).
+#: Adding tests/core fixed those two and left a subtler one: tests/replay and the root
+#: ratchet files were still out, which cost core/error_tracker.py three statements and
+#: three branches -- enough to publish it at 94.56% when `pytest tests` puts it at 95.52%,
+#: i.e. to invent a module below the 95% bar that was never below it. The residual looked
+#: negligible on the PACKAGE total (0.02 pp) and was decisive PER FILE, which is the whole
+#: lesson: an aggregate that barely moves can still hide a module crossing the bar.
+#:
+#: LAYER_PATHS is only for the per-layer file/function counts in the docs, because
+#: count_tests keys on each path's basename. Setting MEASURE_PATHS to ["tests"] alone
+#: produced a single "tests" bucket and a KeyError on files['unit'].
+MEASURE_PATHS = ["tests"]
+LAYER_PATHS = ["tests/unit", "tests/integration", "tests/adapters", "tests/core"]
 
 # Top-level source directory -> subsystem doc stem. Anything not listed here
 # (root-level modules, models/, maps/, sensor/, brand/, ...) is 18-platforms.
@@ -78,7 +97,7 @@ ROW_RE = re.compile(
 
 def run_coverage() -> None:
     cmd = [
-        "python", "-m", "pytest", *TEST_PATHS,
+        "python", "-m", "pytest", *MEASURE_PATHS,
         "--cov=custom_components/eufy_vacuum", "--cov-branch",
         f"--cov-report=json:{COV_JSON}", "-p", "no:cacheprovider", "-q",
     ]
@@ -90,7 +109,7 @@ def cases_per_file() -> dict[str, int]:
     """relpath -> collected case count (post-parametrization), via --collect-only."""
     try:
         out = subprocess.run(
-            ["python", "-m", "pytest", *TEST_PATHS, "-p", "no:cacheprovider",
+            ["python", "-m", "pytest", *MEASURE_PATHS, "-p", "no:cacheprovider",
              "--co", "-q"],
             cwd=REPO, check=True, capture_output=True, text=True,
         ).stdout
@@ -110,7 +129,7 @@ def funcs_per_file() -> dict[str, int]:
     """relpath -> number of `def test_` functions in each test file."""
     func_re = re.compile(r"^\s*(?:async\s+)?def test_", re.MULTILINE)
     out: dict[str, int] = {}
-    for rel in TEST_PATHS:
+    for rel in MEASURE_PATHS:
         for p in (REPO / rel).rglob("test_*.py"):
             out[p.relative_to(REPO).as_posix()] = len(
                 func_re.findall(p.read_text(encoding="utf-8"))
@@ -160,7 +179,7 @@ def count_tests() -> tuple[dict[str, int], dict[str, int]]:
     func_re = re.compile(r"^\s*(?:async\s+)?def test_", re.MULTILINE)
     files: dict[str, int] = {}
     funcs: dict[str, int] = {}
-    for rel in TEST_PATHS:
+    for rel in LAYER_PATHS:
         key = rel.split("/")[-1]  # unit / integration / adapters / core
         base = REPO / rel
         paths = list(base.rglob("test_*.py"))
