@@ -8,6 +8,44 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.6.1] - 2026-11-11
+
+**Fixes and foundations.** Eight user-visible fixes, no new features, and no change to the card at all — so unlike 2.6.0, this one needs a Home Assistant restart rather than a hard refresh.
+
+> **Restart Home Assistant after updating.** Every change here is Python. The dashboard card ships byte-identical to 2.6.0, so there is nothing to hard-refresh and no panel to re-register.
+
+### Fixed
+
+- **A strict-order run chimed at the start of every room.** The device's global mop-intensity setting was pushed again at each room start even when the value had not changed, and the robot acknowledged every redundant write — which on a robot that announces its settings means a chime per room. Reported on a Roborock S6 MaxV, which takes the optimistic `mop_settable: True` default (#78/#79).
+
+- **After a zone clean, your global settings were sometimes never put back.** If the setting or gate entity had been renamed, removed or re-imported since the zone ran, the restore quietly did nothing: the earlier settings were dropped and the settings gate was left switched off, so later per-room cleans carried on using the zone's settings until you flipped it back by hand. A target that has vanished now says so rather than vanishing with it.
+
+- **Renaming a Roborock map in the app silently lost the live-map backdrop.** The map picture disappeared and `sensor.*_map_overlays` stayed unavailable until the Roborock integration was reloaded. Home Assistant names a map's image entity when the image is first created, so the entity id kept the old map name while the selected-map picker already reported the new one, and nothing reconciled the two. It now matches on the `map_flag` the image entity carries, which survives a rename. Found, fixed and verified on their own Qrevo-class robot by @drsassafras (#80).
+
+- **A mapping service called with a map id that does not exist no longer invents that map.** Sixteen handlers took a caller-supplied `map_id` and wrote against it through a helper whose `setdefault` created the address as a side effect: a typo'd or stale id wrote a durable bucket into storage, was saved, and answered success — after which "never configured" and "configured and empty" were indistinguishable for that map forever. Each handler now refuses with `map_not_found` under its own response key. Renaming a saved zone against an unknown map says `map_not_found` rather than the misleading `zone_not_found`, a layout-scoped `upload_map_image` to an unknown map reports `map_not_found` instead of `layout_not_found`, and no PNG is written for a map that does not exist.
+
+- **A declared assist image was dropped whenever no light variant existed.** `analyze_map_image` reads an optional second image to help segmentation. If you named one in the adapter config and there was no `_light` variant of the map, the handler discarded it and logged that your file "is not a file" — while the file was there and readable. The two-image run was silently downgraded to a single-image one in the only configuration where it was both asked for and possible. It now checks the declared file itself.
+
+- **A last-job battery sensor could drop all of its attributes.** When the stored `all_jobs` bucket held a non-empty value that was not a dictionary — a shape an older version could have written — the sensor raised instead of reading it, and the attributes disappeared with an error in the log.
+
+- **A re-mapped room could lose its learning history.** A room that was renamed *and* renumbered in the same re-map, and was the only room left to pair up, kept its floor type, passes, rules and access but lost the history behind them, so it read as never cleaned. Reachable through the `reconcile_room` service.
+
+- **Core no longer carries a brand's word for "no cleaning intensity".** An absent `clean_intensity` was projected using a literal belonging to one brand's vocabulary, which is not a word every brand has.
+
+### Changed
+
+- **The Eufy room splitter now says why it declined.** The segmentation debug showed a single generic `no_split` for the `local_support` strategy. It now reports `missing_support_channels`, `below_active_area_floor`, `empty_support_values`, `no_supported_body`, `insufficient_support_components` or `insufficient_grown_masks`, with the areas it measured alongside. Room detection itself is unchanged — every polygon, bounding box and area in the committed geometry baseline is identical.
+
+### Internal
+
+- **Adapter authors: `discovery.room_list_entity` now carries the default its schema has always documented.** A brand adapter that reads its room list from a vacuum-entity attribute, uses the per-map shape and omits the key — the realistic shape for a fourth-brand port — had the `[MAP-ANCHOR-1]` / #60 guard switched off rather than merely declining a room list, so a nonsense active-map value was accepted. All three shipped brands are unaffected: Eufy and Dreame declare the key, and Roborock reads its rooms from a service response, where the key is never consulted.
+
+- **The committed CV geometry baseline was stale and is regenerated.** The commit that named the splitter's refusals changed the strings that baseline records without regenerating it, and its check lives outside the test suite, so nothing in CI could see it. Verified before regenerating: of fifteen differences, none is geometric — two refusal strings and thirteen new diagnostic fields.
+
+- **The release workflow now polices the pre-release flag in both directions.** It already refused to publish a `-beta` version that was not marked as a pre-release. It did not refuse the inverse, a stable version marked *as* one — which is the quieter failure, because the release looks published and is never offered to default-store users at all. The checklist claimed both directions were covered.
+
+- **Two guards that could not fail are now fenced.** The `covers` gate checks two things — that a declaring test reaches the symbol it names, and that the declarations together leave no line of it uncovered. Deleting the second check left the gate's entire self-test suite green, so the half the gate exists for was unheld; `[CG-9]` reddens on exactly that edit and nothing else. Separately, the font loader applies one symlink-containment rule at three places and only one was tested, in a module this range published at 100.00% — which is line coverage, and a multi-condition `if` hides inside it. `[UF-11]` is now parametrised over all three, each case red on its own site alone. A fourth copy of the same rule lives outside the font loader and still has no test.
+
 ## [2.6.0] - 2026-11-04
 
 **Home Assistant 2026.11 changed how every entity's name is displayed, and HACS became the built-in Marketplace.** This release makes the card agree with the rest of your dashboard on what things are called, stops the fresh-install screen painting over your theme's panel background, and tells the new Marketplace what kind of integration this is.
