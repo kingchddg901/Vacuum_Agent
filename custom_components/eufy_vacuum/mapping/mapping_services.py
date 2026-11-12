@@ -1327,7 +1327,18 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
         tuning["simplify_epsilon"] = simplify_epsilon
     if assist_path:
         tuning["assist_image_path"] = assist_path
-    elif tuning.get("assist_image_path"):
+    elif tuning.get("assist_image_path") and not os.path.isfile(
+        str(tuning["assist_image_path"])
+    ):
+        # GATE ON THE DECLARED PATH, NOT ON `assist_path`. Until 2026-11-11 this `elif`
+        # tested only that the key was DECLARED, and `assist_path` above is the light
+        # variant -- so the branch fired whenever no light variant existed, dropping a
+        # declared file that was on disk and perfectly usable, while the warning below
+        # told the user it "is not a file" with `os.path.isfile` on it returning True.
+        # `[MSV-36]` is the case that pins the difference; `[MSV-35]`'s control could not,
+        # because re-seeding the light variant re-establishes `assist_path` instead of
+        # varying the declared path.
+        #
         # A DECLARED assist path survives into every run, because `tuning` starts from
         # the adapter's segmenter_tuning and the branch above only ever SETS the key.
         # `save_adapter_config` accepts one (it is in the engine's known-tuning keys) and

@@ -1186,6 +1186,69 @@ async def test_msv28d_caller_tuning_reaches_the_engine_and_omitted_fields_do_not
     )
 
 
+async def test_msv36_a_declared_assist_path_that_is_a_file_reaches_the_engine(
+    hass, mapping_services, monkeypatch, caplog
+):
+    """[MSV-36] A declared assist path that IS on disk reaches the engine, with no light variant.
+
+    THE CASE [MSV-35] NEVER VARIED, and its own docstring names the gap: its control
+    re-seeds the light variant, which re-establishes `assist_path` rather than varying the
+    DECLARED path, so it cannot tell "drops a path that is missing" from "drops whenever
+    there is no light variant". The handler did the second. The `elif` tested only that the
+    key was declared, so a declared file that was on disk was dropped and the warning said
+    it "is not a file" while `os.path.isfile` on it returned True -- the one state in which
+    a two-image run is both configured and possible.
+
+    THE EDIT THAT REDDENS THIS: remove `and not os.path.isfile(...)` from the `elif` in
+    `_handle_analyze_map_image`. That is the shipped state this pins against returning.
+    """
+    import logging
+
+    manager = mapping_services
+    _seed_image(hass, manager)          # default variant only -- deliberately NO light
+
+    declared = os.path.join(hass.config.config_dir, "my_own_assist.png")
+    with open(declared, "wb") as fh:
+        fh.write(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)
+    assert os.path.isfile(declared), "fixture failed to put the declared path on disk"
+
+    stored = {
+        "mapping": {
+            "segmenter_tuning": {
+                "assist_image_path": declared,
+                "assist_variant": "light",
+                "min_area_pixels": 900,
+            }
+        }
+    }
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.adapters.registry.get_adapter_config",
+        lambda vacuum_entity_id: stored,
+    )
+    engine = _with_engine(monkeypatch, {"available": True, "segments": []})
+
+    with caplog.at_level(logging.WARNING):
+        out = await _call(hass, ms.SERVICE_ANALYZE_MAP_IMAGE,
+                          {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                           "force_reanalyze": True})
+
+    assert out.get("available") is True
+    seen = engine.seen_tuning
+    assert seen.get("assist_image_path") == declared, (
+        "a declared path that IS a file was dropped because no light variant existed: %r"
+        % (seen,)
+    )
+    assert seen.get("assist_variant") == "light", (
+        "the variant label was dropped with a path that survived: %r" % (seen,)
+    )
+    assert seen.get("min_area_pixels") == 900, (
+        "the rest of the adapter's tuning did not survive: %r" % (seen,)
+    )
+    assert "is not a file" not in caplog.text, (
+        "the handler warned that an existing file is not a file: %r" % (caplog.text,)
+    )
+
+
 async def test_msv35_a_declared_assist_path_that_is_not_a_file_is_dropped_and_named(
     hass, mapping_services, monkeypatch, caplog
 ):
