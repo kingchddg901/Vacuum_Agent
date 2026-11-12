@@ -72,6 +72,13 @@ Coverage targets
 [SP-local-6]   local_support: both support slices index ONE `active` mask, pinned
                through the percentile floor they feed -- filtering or re-masking
                either slice changes the split.
+[RCL-4]        the sparse-top trim's occupied-row FLOOR is the SECOND killer of
+               `_reclaim_localized_child_mask`'s `ys.size == 0` fallback, and the
+               one nothing covered. At a one-pixel child the retention clamp that
+               `[RCL-1]` tests is BYPASSED, not loosened, so no retune of that
+               test's fixtures reaches this state. The floor is swept out of the
+               function's own answers and never named, so a retune moves what is
+               measured; dropping it, or lowering it onto a one-row child, reddens.
 """
 
 from __future__ import annotations
@@ -1374,9 +1381,21 @@ def test_sp_local4_two_seeds_in_one_sub_blob_return_one_mask_not_two():
     ``binary_propagation`` is bounded by ``component_mask``, not by the seed, so two
     supported seeds inside one connected sub-blob both reflood the WHOLE sub-blob and
     produce identical masks. ``_split_component_via_local_support`` drops the second
-    by overlap ratio. Without that skip the caller receives the same pixels twice and
-    the component is split into two rooms occupying one space -- two names, two
-    cleaning orders, one floor.
+    by overlap ratio.
+
+    WHAT THE SKIP IS ACTUALLY WORTH, corrected 2026-11-11 after the claim that stood here
+    was refuted. This docstring used to say the duplicate reaches the caller and becomes
+    "two rooms occupying one space -- two names, two cleaning orders, one floor". It does
+    not: measured, 36 identical accepted masks left the pipeline as ONE segment, 35 of them
+    dropped by ``_detect_room_segments_pipeline``'s own ``overlap >= 0.8`` dedup. The
+    duplicate never becomes a second room.
+
+    The skip earns its keep somewhere the downstream dedup cannot reach: an ACCEPT STOPS
+    THE CASCADE, so ``assist_hue``, ``erosion_seeds`` and ``opening_split`` never run on a
+    component that a later strategy might have split correctly, and the ``split_local_support``
+    labelling moves each child onto a different keep/drop path downstream. That is the
+    consequence worth asserting, and it is why this test pins ``grown_mask_count`` rather
+    than the segment count -- the segment count is the half the dedup repairs.
 
     THE ASSERTION IS NOT ``len(result) == 2``. That is equally true of a run in which
     only two seeds ever existed, which is precisely the fixture gap that kept this
@@ -2854,3 +2873,215 @@ def test_sp_local6_both_support_slices_index_one_active_mask():
     # above are the ones that bite.
     active = mask.astype(bool)
     assert len(sat[active]) == len(value[active]) == debug["active_area"]
+
+
+# ---------------------------------------------------------------------------
+# [RCL-4] The occupied-row FLOOR is the OTHER killer of the empty-mask fallback
+#
+# `_reclaim_localized_child_mask` keeps an `if ys.size == 0: return parent_mask
+# & False` after its first trim, and that line cannot fire. TWO refusals inside
+# `_trim_sparse_top_rows` keep it dead, and they are not alternatives -- they own
+# different regions of the input space:
+#
+#   * the RETENTION CLAMP, which throws a trim away unless enough of the mask
+#     survives it. `[RCL-1]` above is the test of that one: relax the clamp and
+#     the fallback wakes, and `[RCL-1]` goes red on the same edit.
+#   * the OCCUPIED-ROW FLOOR at the top of the trim, which refuses outright when
+#     a child has too few occupied rows to be read as a room with bleed above it.
+#     Lower that floor and the fallback wakes TOO -- and before this test the
+#     whole `tests/adapters/eufy` suite stayed green while it did.
+#
+# WHY `[RCL-1]` CANNOT SEE IT, which is why this is a second test and not a
+# second assertion in the first. At the state the floor owns, the clamp is not
+# LOOSENED, it is BYPASSED. The clamp asks that the survivors outnumber a
+# truncated fraction of the original pixel count, and at a child of exactly ONE
+# pixel that fraction truncates to zero -- so a trim that takes everything
+# leaves zero survivors against a requirement of zero, and the clamp ACCEPTS it.
+# `[RCL-1]`'s fixtures are 70-90 px over 16 rows, where the same requirement is
+# tens of pixels and the clamp does all the work; no retune of its fixtures
+# reaches the one-pixel state, because the floor turns that state away first.
+#
+# MEASURED, floor lowered to one occupied row and nothing else touched: a 1-px
+# child trims to empty, reaches the fallback and comes back as `parent_mask &
+# False`; every child of 2 px or more is still refused, by the clamp. One pixel
+# is the whole region the floor owns, and nothing was covering it.
+#
+# WHAT THAT REGION IS WORTH, said rather than implied, because a reader will
+# otherwise take it for a live state. One pixel cannot ARRIVE: the sole caller
+# only runs this reclaim on `localized_bins` children, and
+# `_localize_oversized_component` floors every candidate it emits at
+# `max(int(min_area_pixels * 0.9), 1400)` pixels -- a mask that reaches the
+# reclaim unaltered, since `_split_suspicious_component` returns the list as-is
+# and `_prune_localized_siblings` runs long afterwards on segment dicts. So what
+# is pinned below is the DOMINANCE relation inside the function, which is what
+# the rule asks of a killer, and not a reachable input. That is the same footing
+# as `[RCL-1]` and `[RCL-2]`, which drive this function directly too.
+#
+# NEITHER THRESHOLD IS NAMED BELOW. The floor is read off the function's own
+# answers by sweeping the occupied-row count on a family the clamp demonstrably
+# permits, so a deliberate retune (up or down, as long as it stays above one
+# row) MOVES what this test measures instead of needing a test edit; dropping
+# the floor, neutralising it, or lowering it onto the one-row child reddens it.
+# ---------------------------------------------------------------------------
+
+_RCL4_DENSE_WIDTH = 10   # as the `[RCL-1]` fixtures above
+_RCL4_ROW_SWEEP = tuple(range(1, 25))
+
+
+def _rcl4_child(occupied_rows, *, top_width=1):
+    """One thin top row over `occupied_rows - 1` dense ones.
+
+    The trim, when it runs at all, takes the thin row and keeps every dense one,
+    so over 90% of the pixels survive at every row count in the sweep -- far
+    above anything the retention clamp asks for. That is what makes this family
+    a probe of the ROW FLOOR rather than of the clamp: the occupied-row count is
+    the only thing moving across the sweep.
+    """
+    return _sparse_topped(
+        top_rows=1,
+        top_width=top_width,
+        dense_rows=max(occupied_rows - 1, 0),
+        dense_width=_RCL4_DENSE_WIDTH,
+    )
+
+
+def _rcl4_reclaim(child):
+    """The reclaim with channels that cannot support any growth: the trim alone."""
+    sat, value = _no_support(child.shape)
+    return S._reclaim_localized_child_mask(
+        child, np.ones(child.shape, dtype=bool), primary_sat=sat, primary_value=value
+    )
+
+
+def _rcl4_trim_map():
+    """{occupied-row count: did the trim actually act?}, from the reclaim's answers."""
+    acted = {}
+    for rows in _RCL4_ROW_SWEEP:
+        child = _rcl4_child(rows)
+        built = int(np.flatnonzero(np.count_nonzero(child, axis=1) > 0).size)
+        assert built == rows, (
+            "fixture built %d occupied rows, not %d" % (built, rows)
+        )
+        acted[rows] = not np.array_equal(_rcl4_reclaim(child), child)
+    return acted
+
+
+def _rcl4_floor_boundary(trim_map):
+    """The smallest occupied-row count the trim will act on at all. READ, not restated.
+
+    The floor lives inside a nested helper that nothing exports, so a test that
+    spelled its value would stay green for ever after someone edited that value.
+    Sweeping for the transition means a retune moves this number and the relations
+    asserted on it still hold.
+    """
+    acting = [rows for rows, did in sorted(trim_map.items()) if did]
+    assert acting, (
+        "the trim never acted at ANY occupied-row count up to %d, so there is no "
+        "floor to find and the family below is not trimmable any more -- either the "
+        "trim's own row threshold was retuned past this sweep or `_sparse_topped` "
+        "changed shape: %r" % (_RCL4_ROW_SWEEP[-1], trim_map)
+    )
+    boundary = acting[0]
+    assert all(trim_map[rows] is (rows >= boundary) for rows in _RCL4_ROW_SWEEP), (
+        "the trim's answer flips more than once across the occupied-row sweep, so "
+        "'the smallest count it acts on' is not a floor and the reading below is "
+        "meaningless: %r" % (trim_map,)
+    )
+    return boundary
+
+
+def test_rcl4_the_occupied_row_floor_is_what_keeps_a_trim_from_emptying_a_child():
+    """[RCL-4] BEHAVIOURAL, on the occupied-row floor in `_trim_sparse_top_rows`.
+
+    The floor is load-bearing because the `ys.size == 0` fallback above rests on
+    it, and what a load-bearing guard is at risk of is REMOVAL, not retuning --
+    which a behavioural test sees and dominance arithmetic does not. Both halves
+    are here.
+
+    THE SINGLE EDIT THAT REDDENS IT, measured: lower the floor until a single
+    occupied row passes it. Part 1's swept boundary collapses to one row and
+    part 2's one-pixel child comes back EMPTY, as `parent_mask & False`. Neutralising
+    the floor, or deleting its two lines outright, reddens it identically -- and
+    deletion is the edit that actually matters. A retune that still refuses a
+    one-row child leaves it green, measured, because the fallback stays dead there.
+
+    WHICH REFUSAL THIS REACHES, because "a sparse child came back untouched" is
+    also what the retention clamp returns and would pass for the wrong reason.
+    The floor is identified by the row count at which the answer FLIPS on a
+    family the clamp demonstrably permits: part 1 finds a boundary, so trims ARE
+    being accepted in this family, so the clamp's requirement is below the whole
+    mask -- and a requirement below the whole mask truncates to zero at a child
+    of one pixel, where it cannot refuse anything. The clamp is bypassed there,
+    not satisfied, and the floor is the only refusal left standing.
+
+    PART 3 IS DOMINANCE ARITHMETIC and it is deliberately not exclusive to the
+    floor: it pins the fallback's unreachability over the whole all-sparse
+    family, so a deep retune of the retention clamp reddens it as well. That is
+    correct -- what is being pinned there is that the fallback stays dead, not
+    which guard keeps it that way.
+    """
+    # 1. WHERE THE FLOOR SITS, read off the reclaim's own answers.
+    trim_map = _rcl4_trim_map()
+    boundary = _rcl4_floor_boundary(trim_map)
+    assert boundary > 1, (
+        "the trim now acts on a child with a single occupied row. That child can "
+        "be a single PIXEL, the retention clamp's requirement truncates to zero "
+        "there, and the trim returns an empty mask -- which wakes the "
+        "`ys.size == 0` fallback in `_reclaim_localized_child_mask` that this "
+        "floor is what keeps dead. Swept answers: %r" % (trim_map,)
+    )
+
+    # 2. THE PROTECTED STATE ITSELF: one occupied row holding one pixel. The
+    #    channels are zeroed so no reclaim can run -- what comes back is the
+    #    trim's answer and nothing else. This re-runs the `rows == 1` entry of
+    #    part 1's sweep rather than adding a measurement, and the refusal path
+    #    returns the input ARRAY ITSELF, so the comparisons below are against
+    #    that same object: they are a statement of the state being protected,
+    #    and they carry their weight on the RED side, where the fallback
+    #    substitutes a different array.
+    one_pixel = _rcl4_child(1)
+    assert int(np.count_nonzero(one_pixel)) == 1, "the fixture is not a one-pixel child"
+    assert 1 < boundary, (
+        "the one-pixel child's single occupied row is no longer below the floor "
+        "found at %d rows, so the assertions below have stopped exercising the "
+        "floor at all" % boundary
+    )
+    out = _rcl4_reclaim(one_pixel)
+    assert int(np.count_nonzero(out)) == 1, (
+        "a one-pixel child came back with %d pixels instead of 1. An EMPTY return "
+        "is the reclaim's `parent_mask & False` fallback firing, which is the state "
+        "the occupied-row floor exists to make impossible"
+        % int(np.count_nonzero(out))
+    )
+    assert np.array_equal(out, one_pixel), (
+        "a one-pixel child was moved rather than returned untouched"
+    )
+
+    # 3. DOMINANCE: across the all-sparse family -- every row thin enough to be
+    #    trim-eligible, so a completed trim would empty the mask -- the reclaim
+    #    never returns empty. Below the boundary the floor refuses; at and above
+    #    it the clamp does, because those masks hold more than one pixel and its
+    #    requirement no longer truncates away.
+    emptied = []
+    acted = []
+    for rows in range(1, 13):
+        for width in range(1, 6):
+            child = _sparse_topped(
+                top_rows=rows, top_width=width, dense_rows=0, dense_width=0
+            )
+            result = _rcl4_reclaim(child)
+            if not bool(np.any(result)):
+                emptied.append((rows, width, int(np.count_nonzero(child))))
+            elif not np.array_equal(result, child):
+                acted.append((rows, width, int(np.count_nonzero(result))))
+    assert not emptied, (
+        "the trim emptied an all-sparse child at (rows, width, pixels) %r, so the "
+        "`ys.size == 0` fallback in `_reclaim_localized_child_mask` is reachable "
+        "again" % (emptied,)
+    )
+    assert not acted, (
+        "an all-sparse child was partially trimmed at (rows, width, survivors) %r. "
+        "Every row in this family is trim-eligible, so a partial trim means the "
+        "row-walk stopped early -- the sweep is no longer measuring what it says"
+        % (acted,)
+    )

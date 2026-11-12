@@ -186,14 +186,21 @@ def _reclaim_localized_child_mask(
     # returns for an empty mask, so `np.nonzero` cannot come back empty here. Measured: 0 fires
     # over 8085 masks including 100 all-False ones, against a detection floor of 103 fires once
     # that `np.any` is ablated away — so the zero is a property of the guard above, not of the
-    # sample. THE KILLER IS THEREFORE LOAD-BEARING AND UNTESTED, which is the live gap here.
+    # sample.
     #
-    # This is byte-for-byte the argument used to DELETE `_try_add_candidate`'s `count <= 0` on
-    # 2026-11-11 ("`np.any(opened)` two lines above guarantees `count >= 1`"). It is kept rather
-    # than deleted only because nothing yet tests the `np.any` that kills it; delete this and
-    # the net transfers to a guard with no behavioural test in front of it. Same reasoning
-    # applies to `sat_values.size == 0 or value_values.size == 0` further down, whose WHOLE `if`
-    # is dead — both arms, not just the `or` — for the same reason plus the `ys.size` guard.
+    # THE KILLER IS WELL TESTED — the opposite of what this comment claimed when it was written,
+    # which was its whole stated reason for keeping the guard. Inverting `not bool(np.any(...))`
+    # to `bool(...)` reddens EIGHT adapter tests, and `np.any` → `np.all` reddens the same eight:
+    # `[ECV-32]`, `[ECV-33]`, `[RCL-1]`, `[RCL-4]`, `test_reclaim_with_assist_channels`,
+    # `test_reclaim_trims_sparse_top`, `test_reclaim_grows_and_trims` and
+    # `test_reclaim_overgrowth_falls_back_to_trim`. So deleting the two lines below does NOT
+    # transfer the net to an unguarded guard — measured, that deletion leaves `tests/adapters`
+    # at 336 passed, as does deleting `sat_values.size == 0 or value_values.size == 0` further
+    # down, whose WHOLE `if` is dead the same way — both arms, not just the `or`.
+    #
+    # Which means the argument that DELETED `_try_add_candidate`'s `count <= 0`
+    # ("`np.any(opened)` two lines above guarantees `count >= 1`") applies to both of these
+    # unchanged, and they stand on the ruling that kept them rather than on a missing test.
     if ys.size == 0:
         return local_mask
     height, width = local_mask.shape
@@ -256,15 +263,17 @@ def _reclaim_localized_child_mask(
     ys, _ = np.nonzero(local_mask)
     # Dead: _trim_sparse_top_rows returns either `mask` untouched — non-empty per the np.any()
     # gate at the top of this function — or a trim that cleared its own 0.68 retention clamp.
-    # TWO EDITS WAKE IT, and the one nothing guards is not the obvious one:
+    # TWO EDITS WAKE IT, and the one that went unguarded longest is not the obvious one:
     #   * relax the 0.68 clamp (to 0.0, 518 fires) — ALREADY GUARDED, behaviourally, by
     #     `test_rcl1_the_trim_refuses_when_it_would_take_too_much`, which goes red on it.
-    #   * lower `occupied_rows.size < 6` to `< 1` (3 fires) — GUARDED BY NOTHING: the whole
-    #     adapters suite passes with that edit, 335 passed / 0 failed. At one occupied row
-    #     `int(np.count_nonzero(mask) * 0.68) == 0`, so the clamp cannot refuse anything and a
-    #     single sparse row trims to empty. The clamp is BYPASSED rather than loosened, which
+    #   * lower `occupied_rows.size < 6` to `< 1` (3 fires) — GUARDED, since 2026-11-11, by
+    #     `test_rcl4_the_occupied_row_floor_is_what_keeps_a_trim_from_emptying_a_child`, which
+    #     reddens on that edit and on deleting the floor outright. Until it existed the whole
+    #     adapters suite passed with the edit in place, 335 passed / 0 failed. At one occupied
+    #     row `int(np.count_nonzero(mask) * 0.68) == 0`, so the clamp cannot refuse anything and
+    #     a single sparse row trims to empty. The clamp is BYPASSED rather than loosened, which
     #     is why [RCL-1]'s 16-row fixtures cannot see it.
-    # Per the project's own rule, a guard with two killers needs both tested; this one has one.
+    # Per the project's own rule, a guard with two killers needs both tested; both now are.
     # WHAT IT COSTS EITHER WAY. Firing returns `parent_mask & False` — the deliberate
     # empty-mask-of-the-right-shape idiom, not a bug — to the sole caller, which drops it at
     # `if local_area <= 0: continue`: ONE ROOM, silently. Deleting the guard instead lets
