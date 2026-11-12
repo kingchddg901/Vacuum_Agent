@@ -231,7 +231,7 @@ Vacuum Agent is a supervisory control layer — it consumes whatever your provid
 
 **Required**
 
-- Home Assistant **2025.6.0 or later** — that is the minimum HACS enforces. Development and testing happen on **2026.8+**; older cores are permitted and expected to work, but are not exercised, so reports from them are welcome.
+- Home Assistant **2025.6.0 or later** — `hacs.json` declares a 2025.6.0 floor, and the store enforces it. Development and testing happen on **2026.8+**; older cores are permitted and expected to work, but are not exercised, so reports from them are welcome.
 - A working `vacuum.*` entity for your robot, from your brand's upstream integration: [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) for Eufy, Home Assistant's built-in **Roborock** integration for Roborock, or [dreame-vacuum by Tasshack](https://github.com/Tasshack/dreame-vacuum) for Dreame. Vacuum Agent builds on top of it — it doesn't replace it.
 
 **Optional** *(Vacuum Agent works without these — they unlock extra capabilities)*
@@ -240,9 +240,9 @@ Vacuum Agent is a supervisory control layer — it consumes whatever your provid
 - The Python science stack (**numpy, Pillow, scipy**) for **Auto (CV) map segmentation** — bundled in Home Assistant OS, but not always present on Container / Core / Supervised installs. Without it, Auto (CV) is hidden and you set rooms up manually (draw bounds with primitive shapes, or compose over a live/custom map — a few minutes in the editor). Manual setup is fully supported and is the source of truth; it is never required to install or load the integration.
 - Brand-specific **companion entities** (dock, station, etc.) for richer controls and status.
 
-## Installation via HACS
+## Installation via the Marketplace (HACS)
 
-1. In Home Assistant, open **HACS** and search for **Vacuum Agent**.
+1. In Home Assistant, open the **Marketplace** and search for **Vacuum Agent**. The Marketplace is built into Home Assistant from **2026.11**; on earlier cores the same catalogue is **HACS**, which Home Assistant migrates to the Marketplace on the first start after you update to 2026.11. Same catalogue, same zip asset, same updates either way — HACS itself cannot be installed on 2026.11+, so a fresh install on a current core uses the Marketplace.
 2. Install it.
 3. Restart Home Assistant.
 4. Go to **Settings → Devices & Services → Add Integration** and search for **Vacuum Agent**.

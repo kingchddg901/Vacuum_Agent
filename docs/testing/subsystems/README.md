@@ -22,7 +22,7 @@ mapping) then peripheral subsystems and the HA-facing layers.
 | 12 | Profiles (per-room cleaning profiles) | [12-profiles](12-profiles.md) | 96% |
 | 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 97% |
 | 14 | Themes (card theme library) | [14-themes](14-themes.md) | 96% |
-| 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 96%¹ |
+| 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 97%¹ |
 | 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 98% |
 | 17 | Services (HA service-call layer) | [17-services](17-services.md) | 99% |
 | 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 98% |
@@ -48,7 +48,7 @@ re-export wiring) are deliberately not tabled, so they sit in the grand total
 but not the per-subsystem figures. The grand total below breaks out the
 statement-only figure too.
 
-**Total: 97.7% statement coverage** (96% combined with `--cov-branch`, adapters
+**Total: 97.8% statement coverage** (97% combined with `--cov-branch`, adapters
 included) over the source modules, all tests green. These numbers and the
 per-module tables are refreshed by `scripts/update_test_docs.py`.
 

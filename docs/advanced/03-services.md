@@ -86,7 +86,7 @@ Supports response.
 
 ### Saved Zones
 
-Named, persisted clean regions stored per map. Unlike `start_zone_clean` (ad-hoc, nothing persisted), a saved zone keeps its geometry and can be re-cleaned by ID. These six services create, rename, delete, file, and clean saved zones. Every one requires `map_id` explicitly — it is **not** auto-resolved from the active map — and all support response.
+Named, persisted clean regions stored per map. Unlike `start_zone_clean` (ad-hoc, nothing persisted), a saved zone keeps its geometry and can be re-cleaned by ID. These six services create, rename, delete, file, and clean saved zones. Every one requires `map_id` explicitly — it is **not** auto-resolved from the active map — and all support response. Every one also refuses a `map_id` that names no stored map, rather than creating it: `{"saved": false, "reason": "map_not_found", "known_maps": [...]}` for the four storage services, and the same under `cleaned` for the two clean services.
 
 Geometry is a list of at least three `[x, y]` points, each normalized `0–1` to the map image with a top-left origin (clamped server-side). The two clean services are **active-map-guarded** (a zone's geometry is only valid on its own map) — they return `{"cleaned": false, "reason": "map_not_active", "active_map_id": ...}` when a different map is loaded — and are fire-and-forget: like `start_zone_clean`, they touch no job, queue, or learning store. The clean geometry sent to the device is each zone's normalized bounding box, dispatched through the shared zone-clean path that enforces the per-brand zone count and size caps.
 
@@ -153,7 +153,7 @@ Cleans a single saved zone. Resolves the zone's geometry to its normalized bound
 | `zone_id` | Yes | The zone to clean. |
 | `clean_times` | No | Number of passes. Minimum `1`. Default `1`. |
 
-Supports response. Returns `{"cleaned": true, "zone_id", "dispatch": ...}`, or `{"cleaned": false, "reason": ...}` on `zone_not_found`, `bad_geometry`, `map_not_active`, or `active_map_indeterminate` (the active map could not be resolved).
+Supports response. Returns `{"cleaned": true, "zone_id", "dispatch": ...}`, or `{"cleaned": false, "reason": ...}` on `map_not_found` (with `known_maps`), `zone_not_found`, `bad_geometry`, `map_not_active`, or `active_map_indeterminate` (the active map could not be resolved).
 
 #### `clean_saved_zones`
 
@@ -166,7 +166,7 @@ Cleans several saved zones together in **one** dispatch — the selected set is 
 | `zone_ids` | Yes | List of zone IDs to clean together (minimum one). |
 | `clean_times` | No | Number of passes. Minimum `1`. Default `1`. |
 
-Supports response. Returns `{"cleaned": true, "zone_ids", "zone_count", "dispatch": ...}`, or `{"cleaned": false, "reason": ...}` on `zone_not_found`, `bad_geometry`, `no_zones`, `map_not_active`, or `active_map_indeterminate` (the active map could not be resolved).
+Supports response. Returns `{"cleaned": true, "zone_ids", "zone_count", "dispatch": ...}`, or `{"cleaned": false, "reason": ...}` on `map_not_found` (with `known_maps`), `zone_not_found`, `bad_geometry`, `no_zones`, `map_not_active`, or `active_map_indeterminate` (the active map could not be resolved).
 
 ---
 
@@ -390,8 +390,8 @@ These services manage map image uploads, segmentation (CV or manually authored),
 
 `map_id` is not uniform across this section, so read each service's table rather than assuming. The split is deliberate:
 
-- **Services that address a map you name** — the image, segmentation, and custom-layout services (`upload_map_image`, `delete_map_image`, `analyze_map_image`, `get_map_segments`, `adjust_map_segment`, `set_segmentation_mode`, `set_custom_segments`, and the four `*_custom_layout` services) — **require `map_id`**. There is no auto-resolution: they replace or delete stored content, so an omitted map would have to be guessed.
-- **Services that write display or overlay state** — `set_segment_room_link`, `set_companion_anchor`, `set_hidden_regions`, `set_live_map_rotation`, `set_furnished_art_placement`, `set_furnished_render_mode`, `set_room_viewport` — accept an **optional `map_id`**. Omitted, it resolves to the vacuum's active map, then to the first stored map; if neither exists the call refuses with `{"saved": false, "reason": "no_map"}` rather than inventing one. A `map_id` you *do* pass must name a map that exists — an unknown ID refuses with `{"saved": false, "reason": "map_not_found", "known_maps": [...]}` instead of silently creating an empty bucket for it. `set_map_overlay_visibility` resolves an omitted `map_id` the same way but reports its refusal as `{"saved": false, "error": "no_map"}`, and does not refuse an unknown ID.
+- **Services that address a map you name** — the image, segmentation, and custom-layout services (`upload_map_image`, `delete_map_image`, `analyze_map_image`, `get_map_segments`, `adjust_map_segment`, `set_segmentation_mode`, `set_custom_segments`, and the four `*_custom_layout` services) — **require `map_id`**. There is no auto-resolution: they replace or delete stored content, so an omitted map would have to be guessed. A `map_id` naming no stored map is **refused**, never created: the call answers `"reason": "map_not_found"` with a `known_maps` list of the IDs that do exist, under whichever outer key that service already uses — `saved`, or `deleted` for `delete_map_image` and `available` for `analyze_map_image`. `get_map_segments` is the one exception, because it is a read: an unknown map serves an empty segmentation rather than refusing, so its response shape never changes for a caller. The six [Saved Zones](#saved-zones) services refuse the same way, under `saved` or (for the two clean services) `cleaned`.
+- **Services that write display or overlay state** — `set_segment_room_link`, `set_companion_anchor`, `set_hidden_regions`, `set_live_map_rotation`, `set_furnished_art_placement`, `set_furnished_render_mode`, `set_room_viewport`, `set_map_overlay_visibility` — accept an **optional `map_id`**. Omitted, it resolves to the vacuum's active map, then to the first stored map; if neither exists the call refuses with `{"saved": false, "reason": "no_map"}` rather than inventing one. A `map_id` you *do* pass must name a map that exists — an unknown ID refuses with `{"saved": false, "reason": "map_not_found", "known_maps": [...]}` instead of silently creating an empty bucket for it. All eight go through one shared resolver, so those two refusals are identical across them, and the key is always `reason` — never `error`.
 - **Vacuum-scoped services** — `acknowledge_map_frame`, `get_map_render_data`, `get_map_live_pose`, `compare_map_sources` — take no `map_id` at all.
 
 All of these services support response.
@@ -424,7 +424,7 @@ Uploads a map background image variant. The `default`, `dark`, and `light` varia
 | `image_width` | No | Declared pixel width. The stored variant records the image's actual measured dimensions; for a custom/per-layout backdrop these define the rasterise canvas. |
 | `image_height` | No | Declared pixel height. |
 
-Supports response. Returns the saved variant's `path`, `browser_url`, measured `actual_width`/`actual_height`, and `size_bytes`. Returns `{"saved": false, "reason": ...}` on `invalid_base64` or `unsupported_format`.
+Supports response. Returns the saved variant's `path`, `browser_url`, measured `actual_width`/`actual_height`, and `size_bytes`. Returns `{"saved": false, "reason": ...}` on `map_not_found` (with `known_maps`), `invalid_base64`, `unsupported_format`, or `unreadable_image_dimensions` (no pixel size could be read from the PNG header, from Pillow, or from the declared fields — the PNG just written is removed again) — plus `layout_id_required`, `missing_room_id`, or `layout_not_found` for a layout- or art-scoped upload. The `map_not_found` check runs **first**, before any file is written, so a typo'd `map_id` never leaves an orphaned PNG on disk; `layout_not_found` is reserved for a known map whose layout is unknown.
 
 #### `delete_map_image`
 
@@ -436,7 +436,7 @@ Deletes one stored image variant — both the PNG file and its entry in the map'
 | `map_id` | Yes | Required — not auto-resolved. |
 | `variant` | No | `default`, `dark`, `light`, `custom`, or a per-layout `custom_<layout_id>`. Default `default`. |
 
-Supports response. Returns `{"deleted": true, "file_removed": bool, "remaining_variants": [...]}`, or `{"deleted": false, "reason": "not_found"}` when the variant is not recorded.
+Supports response. Returns `{"deleted": true, "file_removed": bool, "remaining_variants": [...]}`, or `{"deleted": false, "reason": "not_found"}` when the variant is not recorded. An unknown `map_id` is a different refusal — `{"deleted": false, "reason": "map_not_found", "known_maps": [...]}` — so a typo in the map is distinguishable from a variant that was already gone.
 
 ### Segmentation
 
@@ -454,7 +454,7 @@ Runs the CV segmenter on the map image and caches the result as `image_segments`
 | `simplify_epsilon` | No | Polygon simplification epsilon. |
 | `force_reanalyze` | No | Re-run even when a cached result exists. Default `false`. |
 
-Supports response. Returns the segments payload (the cached result enriched with `segment_room_links` and `companion_anchors`). With `force_reanalyze: false` and an existing cache, returns the cached payload without re-running. Returns `{"available": false, "reason": "image_not_found"}` when no `dark`/`default` image is stored.
+Supports response. Returns the segments payload (the cached result enriched with `segment_room_links` and `companion_anchors`). With `force_reanalyze: false` and an existing cache, returns the cached payload without re-running. Returns `{"available": false, "reason": "image_not_found"}` when no `dark`/`default` image is stored, or `{"available": false, "reason": "map_not_found", "known_maps": [...]}` when the `map_id` names no stored map.
 
 #### `get_map_segments`
 
@@ -479,7 +479,7 @@ Toggles a map between CV (auto-detected) and Custom (manually authored) segmenta
 | `map_id` | Yes | Required — not auto-resolved. |
 | `mode` | Yes | `cv` (auto-detected segments) or `custom` (authored polygons). |
 
-Supports response. Returns `{"saved": true, "mode": ..., "segment_count": N}` where the count reflects the now-active store.
+Supports response. Returns `{"saved": true, "mode": ..., "segment_count": N}` where the count reflects the now-active store, or `{"saved": false, "reason": "map_not_found", "known_maps": [...]}` when the `map_id` names no stored map.
 
 #### `set_custom_segments`
 
@@ -504,11 +504,11 @@ Each primitive is `{type: rect|circle|polygon, op?: subtract, ...coords}` with c
 
 Primitives without `op` fill (union); `op: subtract` clears.
 
-Supports response. Returns `{"saved": true, "segment_count": N, "skipped": N, "segment_ids": [...]}`, or `{"saved": false, "reason": ...}` on `layout_id_required`, `layout_not_found`, or `no_custom_backdrop` (the target layout has no uploaded backdrop and no `backdrop_width`/`backdrop_height` were supplied).
+Supports response. Returns `{"saved": true, "segment_count": N, "skipped": N, "segment_ids": [...]}`, or `{"saved": false, "reason": ...}` on `map_not_found` (with `known_maps`), `layout_id_required`, `layout_not_found`, or `no_custom_backdrop` (the target layout has no uploaded backdrop and no `backdrop_width`/`backdrop_height` were supplied).
 
 ### Custom Layouts
 
-A map's custom segmentation is a named collection of layouts. These four services create, rename, delete, and switch between them. The card surfaces them as the Auto (CV) / per-layout picker on the Map Configuration panel; you can also call them directly. All support response.
+A map's custom segmentation is a named collection of layouts. These four services create, rename, delete, and switch between them. The card surfaces them as the Auto (CV) / per-layout picker on the Map Configuration panel; you can also call them directly. All support response. All four resolve the map **before** any layout work and refuse `{"saved": false, "reason": "map_not_found", "known_maps": [...]}` when the `map_id` names no stored map, so none of the per-layout behaviour below is reached for a map that does not exist.
 
 #### `create_custom_layout`
 
@@ -603,7 +603,7 @@ Supports response. Returns `{"saved": true, "hidden_regions": [...]}` with the c
 
 #### `adjust_map_segment`
 
-Applies a per-segment geometry nudge to a CV segment — a whole-segment translate, per-edge grow/shrink, and/or individual vertex moves. Adjustments are stored against the map-bucket `image_segments` and are **cumulative**: each call's deltas add onto the segment's existing stored adjustment (a net-zero result drops that adjustment). Returns `{"saved": false, "reason": "segment_not_found"}` when the segment ID is unknown.
+Applies a per-segment geometry nudge to a CV segment — a whole-segment translate, per-edge grow/shrink, and/or individual vertex moves. Adjustments are stored against the map-bucket `image_segments` and are **cumulative**: each call's deltas add onto the segment's existing stored adjustment (a net-zero result drops that adjustment). Returns `{"saved": false, "reason": "segment_not_found"}` when the segment ID is unknown, or `{"saved": false, "reason": "map_not_found", "known_maps": [...]}` when the `map_id` names no stored map.
 
 | Parameter | Required | Notes |
 |---|---|---|
@@ -655,7 +655,7 @@ Persists which overlay layers are shown on the map backdrop (display only — ne
 | `visibility` | No | Partial map of overlay-layer name to bool, merged over the stored deltas. Unknown layer keys are rejected. Omit on a reset. |
 | `reset` | No | Clear all stored visibility deltas and fall back to the defaults. Default `false`. |
 
-Supports response. Returns `{"saved": true, "map_id", "overlay_visibility": {...}}` with the fully-resolved visibility for the card.
+Supports response. Returns `{"saved": true, "map_id", "overlay_visibility": {...}}` with the fully-resolved visibility for the card. It refuses like every other optional-`map_id` service above: `{"saved": false, "reason": "no_map"}` when the vacuum has no stored map at all, and `{"saved": false, "reason": "map_not_found", "known_maps": [...]}` when the `map_id` you passed names none. An unknown `map_id` used to be accepted here: the service created a bucket for it, stored the deltas there, and answered `"saved": true`. An automation passing a stale or typo'd ID therefore gets a refusal now where it previously got a false success over a map nobody has.
 
 ### Live Map Source
 

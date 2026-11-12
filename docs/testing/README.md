@@ -3,24 +3,28 @@
 How the test suite is built, how to run it, and how to add to it without
 rebuilding the scaffolding every time.
 
-The suite currently has **4,953 test functions** across **243 test files**
-(99 unit, 115 integration, 27 adapter, 2 core) — 6,100 cases after parametrization —
-running on Python 3.14 inside a Linux container. The CI behavior gate
-(`pytest tests --no-cov`, which also collects the fourth `tests/replay/`
-directory below — **3,869 cases** total) is all green. Prefer that number and
-that command when you need "is the suite green": running the doc-tool's
-narrower `tests/unit tests/integration tests/adapters` path set on its own has
-been observed to fail one adapter test
-(`tests/adapters/test_brand_selection.py::test_register_brand_adapter_refuses_loudly`,
-passes in isolation and under the full `tests` gate — see
-[bug signals](#known-test-suite-issues)) via an apparent cross-test state leak,
-not a real regression. Those 3,369/3,859 exercise the **206 source modules**
-under `custom_components/eufy_vacuum/` to **97.7% coverage** (96% combined
-with branch coverage, adapters included); see the
-[subsystems index](subsystems/README.md) for the per-subsystem breakdown. A
-separate fourth track, the **recorder-replay harness** (`tests/replay/` — real
-recorded device runs fired through the production listener layer), is
-described in [01 — overview](01-overview.md#the-replay-harness).
+The suite's four layers hold **4,975 test functions** across **243 test files**
+(99 unit, 115 integration, 27 adapter, 2 core), running on Python 3.14 inside a
+Linux container.
+
+**The CI behaviour gate is `pytest tests --no-cov`, and it is all green.** Prefer
+that command when you need "is the suite green". Its scope is the whole `tests/`
+tree, which is wider than those four layers — it also collects the
+**recorder-replay harness** (`tests/replay/`, 28 cases: real recorded device runs
+fired through the production listener layer, described in
+[01 — overview](01-overview.md#the-replay-harness)) and the seven ratchet files
+that sit directly under `tests/` (93 cases, the larger of the two additions — the
+annotation, covers, docs, mock, pragma, replica and vocabulary gates). The gate
+collects 6,206 cases after parametrization. `pytest.ini`'s default `testpaths`
+names the four layers and no loose files, so the inner loop collects 6,081 of
+those cases and cannot see the ratchets at all (6,081 + 28 + 93; measured
+2026-11-11).
+
+The gate's scope is also what the coverage figures are measured at, and what
+`scripts/update_test_docs.py` regenerates them from. They exercise the
+**206 source modules** under `custom_components/eufy_vacuum/` to
+**97.8% coverage** (97% combined with branch coverage, adapters included); see
+the [subsystems index](subsystems/README.md) for the per-subsystem breakdown.
 
 ---
 
@@ -81,7 +85,8 @@ coverage. Highlights:
 - **`tests/adapters/test_brand_selection.py::test_register_brand_adapter_refuses_loudly`**
   can fail with `AssertionError: assert 'not identified as any supported brand'
   in ''` when the suite is run as exactly `tests/unit tests/integration
-  tests/adapters` (the path set `scripts/update_test_docs.py` uses) — the
+  tests/adapters` (the path set `scripts/update_test_docs.py` used until
+  2026-11-11) — the
   `caplog` fixture sees no records even though the code under test does log.
   It passes standalone and under the CI gate (`pytest tests`, which also
   collects `tests/replay`). Reproduced twice, with and without `--cov`. This
@@ -93,18 +98,18 @@ coverage. Highlights:
   (or restored to the wrong prior value) would silently swallow this test's
   `caplog` records. Not confirmed as the exact mechanism; flagged as a
   **bug signal** per [00 §3](../dev/00-documentation-standard.md) rather than patched
-  here. Consequence: `scripts/update_test_docs.py`'s own coverage run
-  (`subprocess.run(..., check=True)`) raises on this path set, so a doc
-  regen currently needs `--no-run` against a `coverage.json` produced by a
-  manual `pytest tests/unit tests/integration tests/adapters --cov ...`
-  (accepting the same one failure) or by widening `TEST_PATHS` to `tests` (not
-  done here — out of this doc's scope).
+  here. Consequence, since 2026-11-11: none for a doc regen.
+  `scripts/update_test_docs.py` measures `MEASURE_PATHS = ["tests"]` — the gate's
+  scope — so its own coverage run no longer uses that three-directory path set and
+  no longer meets this failure. Do not narrow it back to reproduce the old
+  command: that scope is what published `core/error_tracker.py` below the 95% bar
+  when `pytest tests` puts it above it.
 
 ---
 
 ## TL;DR
 
-- **Run everything:** `scripts\test.bat` (from a Windows shell; it spins up the container for you). The default run covers `tests/unit` + `tests/integration`; pass `tests` to also gate `tests/adapters` and `tests/replay` the way CI does.
+- **Run everything:** `scripts\test.bat` (from a Windows shell; it spins up the container for you). The default run covers `tests/unit`, `tests/integration`, `tests/core` and `tests/adapters`; pass `tests` to also gate `tests/replay` and the top-level ratchet files the way CI does.
 - **Never run pytest directly on Windows** — `pytest-homeassistant-custom-component` imports `fcntl`, which does not exist on Windows. See [02](02-running-tests.md).
 - **Frontend / card tests are separate** — pure-JS logic units run with `npm run test:units` ([frontend/unit-tests](frontend/unit-tests.md)); the rendered card + visual baselines run with `npm run test:harness` ([frontend/render-harness](frontend/render-harness.md), Linux-only baselines, pinned Playwright image). Neither is pytest.
 - **New integration test** → use the `manager_with_services` fixture and the seeding helpers in `tests/integration/conftest.py`. Start from a template in [06](06-recipes.md).

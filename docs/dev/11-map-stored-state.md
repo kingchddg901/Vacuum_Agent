@@ -157,13 +157,32 @@ reference meant a read endpoint was writing derived fields back into the store.
 
 ## 4. Layout lifecycle · `#BNS7MCWP`
 
-Create, rename, delete, set-active — four handlers, 144 lines.
+Create, rename, delete, set-active — four handlers, 176 lines.
 
 ⚠ **This section is not independently reviewable, and its size is misleading.** Every one of
-the four handlers opens with `ensure_map_bucket` + `_migrate_custom_layouts`, and
-`_create_layout`, `_generate_custom_layout_id`, `_active_custom_layout` and
-`_resolve_active_scope` all live under `#BNC3PSH3`. A change to layout identity or resolution is
-a change to §3, wherever the handler happens to sit.
+the four handlers resolves its map through `require_map_bucket` and then calls
+`_migrate_custom_layouts`, and `_create_layout`, `_generate_custom_layout_id`,
+`_active_custom_layout` and `_resolve_active_scope` all live under `#BNC3PSH3`. A change to
+layout identity or resolution is a change to §3, wherever the handler happens to sit.
+
+**The refusal is the first thing each of the four does with storage.** A `map_id` that names no
+stored map answers `saved: False, reason: map_not_found, known_maps: [<the ids that exist>]`,
+and nothing below the resolution runs — so none of the layout behaviour in this section is
+reachable for a map that does not exist. `_handle_rename_custom_layout` has one earlier return
+(`missing_name`), and it and `_handle_create_custom_layout` both read `call.data` before
+resolving, so the refusal is the first *storage* step rather than literally the first line.
+
+⚠ **`require_map_bucket`, never `ensure_map_bucket` — and nothing enforces that.** For a
+caller-supplied map id `ensure_map_bucket` mints a phantom: its `setdefault` puts the unknown id
+into durable existence, the write lands in a bucket nobody has, and the handler answers as if it
+worked. `require_map_bucket` is the addressed-write form — it returns `None` and the handler
+refuses. Doc 45 (the shared layer) lists the opposite assumption in its common-wrong-assumptions
+table, and no test, lint or schema registers the rule, so the next handler added here can
+reintroduce the defect freely; reader attention is the only guard. Inside this file
+`ensure_map_bucket` now survives only in `_handle_upload_map_image`, which carries its own
+`require_map_bucket` check at the top of the handler *because* it writes a PNG to disk before the
+last of its three bucket calls — refusing at a bucket call would still leave an orphaned file
+named for a map that does not exist.
 
 **Deleting the last layout forces `segmentation_mode` back to `cv`**, and delete also pops the
 layout's backdrop and every art variant row from `image_variants` — reaching into §2's storage

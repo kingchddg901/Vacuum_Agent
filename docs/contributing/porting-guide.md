@@ -716,8 +716,9 @@ CV segmentor, your model catalog) live under `tests/adapters/<brand>/`.
 
 Run it with `scripts\test.bat tests/adapters` on Windows — the suite needs Linux,
 because `pytest-homeassistant-custom-component` imports `fcntl` — or
-`python -m pytest tests/adapters` on Linux/macOS. Name the directory explicitly
-either way: it sits outside the default `testpaths` in `pytest.ini`. See
+`python -m pytest tests/adapters` on Linux/macOS. Naming the directory only *scopes* the
+run — `tests/adapters` is in the default `testpaths` in `pytest.ini`, so a bare `pytest`
+collects it too. See
 [Building and testing a change](building-and-testing.md#the-python-suite-needs-linux).
 
 ---

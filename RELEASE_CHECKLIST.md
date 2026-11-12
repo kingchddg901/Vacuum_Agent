@@ -56,9 +56,10 @@ workflow; §4 is where you confirm it actually arrived.
 
 ## 5. Post-release
 
-- [ ] HACS offers the new version (a few minutes; users get the update banner). Spot-check a cold
-      HACS install for a notable release — that exercises the zip asset, which is the only path
-      real users take.
+- [ ] The store offers the new version (a few minutes; users get the update banner). Spot-check a
+      cold **Marketplace** install for a notable release — that exercises the zip asset, which is
+      the only path real users take. On cores below 2026.11 the same store is HACS; on 2026.11+
+      HACS cannot be installed, so a cold install there has to be done through the Marketplace.
 - [ ] If the release adds languages or notable card UI, mention it in the
       [translate discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).
 

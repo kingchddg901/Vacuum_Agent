@@ -3,31 +3,51 @@
 The adapter subsystem is the brand-abstraction boundary: a registry maps each
 vacuum entity to an adapter config (entities, vocabulary, water/upkeep models,
 maintenance components), loaded from storage and validated against a schema.
-Two concrete adapters now live behind this boundary — **Eufy**
-(`adapters/eufy/`) and **Roborock** (`adapters/roborock/`) — each with its own
-focused suite, plus `adapters/brands.py` (which registrar runs for a given
-vacuum) and the brand-agnostic conformance harness that runs every contract
-test once per shipped brand. Covered by **205 framework tests across 11 files**
-(`test_adapters.py`, `test_adapter_contract.py` — parametrized over both
-brands — and `test_brand_selection.py`), plus **212 Eufy-adapter tests** and
-**37 Roborock-adapter tests**.
+Three concrete adapters now live behind this boundary — **Eufy** (`adapters/eufy/`),
+**Roborock** (`adapters/roborock/`) and **Dreame** (`adapters/dreame/`) — each with
+its own focused suite, plus `adapters/brands.py` (which registrar runs for a given
+vacuum) and the brand-agnostic conformance harness that runs every contract test once
+per shipped brand. Covered by **205 framework tests across 11 files** — a regenerated
+figure, computed over every test file this page's coverage tables list, so it reaches
+wider than the three framework files themselves. Those three
+(`test_adapters.py`, `test_adapter_contract.py` and `test_brand_selection.py`) collect
+143 cases from 79 test functions between them, and `test_adapter_contract.py` is
+parametrized over **all three** brands — 22 contract cases each, of 85 cases in that file
+(the remainder are not brand-parametrized).
 
-A third adapter directory, `adapters/dreame/`, holds **data only and is deliberately
-not wired** — it has no `BRAND_REGISTRARS` row, so the conformance harness above does
-not reach it and none of those counts include it. Its 37 tests live in
-`tests/adapters/dreame/` and are documented below; they exist precisely because nothing
-else in the tree can fail on that directory.
+Per-brand suites, measured by collect-only — cases after parametrization / `def test_`
+functions: **Eufy 336 / 209** under `tests/adapters/eufy/`, **Roborock 132 / 118** under
+`tests/adapters/roborock/`, **Dreame 82 / 28** under `tests/adapters/dreame/`.
 
-<!-- The three bold counts above are HAND-MAINTAINED. update_test_docs.py's
-single-header model can't compute the framework/Eufy/Roborock split, so it WARNs
-and skips this doc's headline (the WARN is expected, not a bug). Update them by
-hand on adapter test changes — collect-only case counts:
+`adapters/dreame/` is a shipped brand, not held-back data. `adapters/brands.py` has
+carried its `BRAND_REGISTRARS` row since 2026-09-13, so the conformance harness above
+reaches it like the other two, and `tests/adapters/conftest.py`'s `ADAPTER_BUILDERS`
+carries it as well — that second table is what puts a brand into the contract
+parametrization. `tests/adapters/dreame/` additionally holds the upkeep-key gates
+documented below, which exist because a key guide is a join across three tables that
+nothing else in the tree can fail on.
+
+<!-- WHICH NUMBERS ABOVE ARE WHOSE — measured 2026-11-11.
+
+"205 framework tests across 11 files" is GENERATOR-OWNED. update_test_docs.py's HEADER_RE
+matches it and rewrites the two digits; the "framework" and file qualifiers are captured and
+replayed, so only the numbers are the generator's. Its scope is every test file THIS PAGE's
+coverage tables list — 11 files, six of them under tests/adapters/eufy/ — NOT the three
+framework files the prose names. Do not hand-edit those two digits; a doc regen refreshes them.
+The note that used to sit here said the generator WARNs and skips this headline. It does not,
+and has not since HEADER_RE learned to capture qualifiers.
+
+The per-brand counts ARE hand-maintained. Refresh each with a collect-only run (cases) and a
+`def test_` count (functions), and state both beside the number so the next reader can
+reproduce it:
   framework  = tests/integration/test_adapters.py + tests/adapters/test_adapter_contract.py + tests/adapters/test_brand_selection.py
   Eufy       = tests/adapters/eufy/
   Roborock   = tests/adapters/roborock/
-tests/adapters/dreame/ is NOT part of this split and must not be added to it — Dreame
-is unwired data, and folding it into a "Roborock-adapter tests"-style count would read
-as a third shipped brand. -->
+  Dreame     = tests/adapters/dreame/
+Dreame belongs in that split like the other two: it has had a BRAND_REGISTRARS row since
+2026-09-13 and runs the contract suite. The instruction that used to sit here — keep Dreame
+out, because folding it in "would read as a third shipped brand" — was written while the row
+was withheld. It is a third shipped brand. -->
 
 Source: `custom_components/eufy_vacuum/adapters/`
 Architecture reference: [22 — The Adapter Contract](../../dev/22-adapter-contract.md)
@@ -128,7 +148,7 @@ it cannot reach inward.
 | `ISO-5` | the detector is exercised against a MANUFACTURED leak (positive + negative), so it cannot silently stop working |
 
 **The SDK is two entries, both adjudicated from measurement:**
-`core.capabilities` (BOTH brands call `detect_capabilities` — a facility every
+`core.capabilities` (ALL THREE brands call `detect_capabilities` — a facility every
 adapter needs is API that happens to live in `core/`) and
 `mapping.segment_primitives` (brand-neutral geometry — `rdp`, `polygon_area`,
 `mask_iou`; any brand shipping a map IMAGE needs it, and Roborock supplies
@@ -610,21 +630,22 @@ Ablation, recorded: restoring the `sensor_suffix` exemption reddens MGT-2; colla
 `test_maintenance_manager`; returning an empty frozenset for an unresolved model reddens MGT-3
 and `test_an_unresolved_model_gates_the_cleanables_closed`.
 
-### `dreame/test_dreame_upkeep_keys.py` — the only gate on an UNWIRED adapter
+### `dreame/test_dreame_upkeep_keys.py` — the gate on the key-guide join
 
-9 test functions / 48 collected cases (DUK-3, DUK-6 and DUK-9 fan out over the 15
-regimes), added 2026-09-11 with the key system. Every other suite on this page reaches an
-adapter through its `BRAND_REGISTRARS` row. The Dreame adapter has no such row —
-deliberately, since that row *is* the release — so none of them touch it, and without
-this file the whole guide system could be emptied, renamed, or quietly disconnected from
-the card with the suite staying green throughout.
+11 test functions / 59 collected cases (DUK-3, DUK-6 and DUK-9 fan out over the 15
+regimes), added 2026-09-11 with the key system. Every other suite on this page reaches the
+Dreame adapter through its `BRAND_REGISTRARS` row, which it has had since 2026-09-13 — but
+none of them reach the *key guides*, and without this file the whole guide system could be
+emptied, renamed, or quietly disconnected from the card with the suite staying green
+throughout. Before that date the row was deliberately withheld, which is why this file was
+written as the only thing in the tree that touched the directory at all.
 
 It replaces `test_dreame_upkeep_guides.py` (below), which tested the retired family
 system and was deleted with it.
 
 | id | what it holds |
 |---|---|
-| `DUK-1` | there is NO `BRAND_REGISTRARS` row for Dreame — the release switch, still off (inherited from `DUG-1`) |
+| `DUK-1` | there IS a `BRAND_REGISTRARS` row for Dreame — the release switch, on since 2026-09-13, and this is the test that notices it being thrown back. **Inverted** from `DUG-1`'s polarity, which asserted the row's absence while the release was withheld; a row that can be added by accident can be dropped by accident, and a dropped row is silent — the adapter simply stops being reached and nothing else fails. The input that makes it red: remove the `dreame` row from `BRAND_REGISTRARS`. |
 | `DUK-2` | every model routes to a regime the key library actually holds — an unrouted regime is a KeyError waiting for the switch (`DUG-8` re-expressed) |
 | `DUK-3` | every component in every regime has a step, and no step or note is an empty string |
 | `DUK-4` | every component the key library emits has a `maintenance_components` row |
@@ -942,7 +963,7 @@ work ends; the rest would be tests written to a number.
 | `config_schema.py` | 64 | 96% | `test_adapters.py` | integration | clean |
 | `brands.py` | 53 | 100% | `test_brand_selection.py` | integration | clean |
 | `entity_resolve.py` | 228 | 95% | `tests/unit/test_entity_resolve.py` + `tests/adapters/test_entity_resolve.py` + `tests/unit/test_disabled_action_warn_once.py` | unit + adapter | clean |
-| `eufy/segmentor.py` | 868 | 95% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/segmentor.py` | 876 | 97% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/adapter.py` | 60 | 97% | `tests/adapters/eufy/` + `../integration/test_core_manager_registry.py` | adapter | - |
 | `eufy/entities.py` | 29 | 100% | `test_buttons_entities.py` + `test_suffix_vocabulary.py` | adapter | clean |
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter | clean |

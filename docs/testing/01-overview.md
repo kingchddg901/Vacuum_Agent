@@ -222,7 +222,7 @@ belief.
 
 ## Coverage status
 
-**Coverage: 97.7% statement** (96% combined with `--cov-branch`, which the
+**Coverage: 97.8% statement** (97% combined with `--cov-branch`, which the
 default `addopts` enables), across the brand-agnostic core **and** the shipped
 brand adapters (Eufy + Roborock) — the adapters are counted in the number (see
 [subsystems/15-adapters](subsystems/15-adapters.md)).

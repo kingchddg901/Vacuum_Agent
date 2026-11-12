@@ -43,11 +43,14 @@ scripts\test.bat tests --no-cov -p no:cacheprovider --tb=short   REM the exact C
 ```
 
 CI (`.github/workflows/tests.yml`) runs
-`python -m pytest tests --no-cov -p no:cacheprovider --tb=short`, which collects
-**all four** directories — `tests/unit`, `tests/integration`, `tests/adapters`,
-and `tests/replay` — plus `tests/core`. Since 2026-11-11 the default `testpaths`
-covers everything except `tests/replay`, so the inner loop and the gate now
-disagree only about the replay harness.
+`python -m pytest tests --no-cov -p no:cacheprovider --tb=short`, which collects the
+**whole** `tests/` tree: all five directories — `tests/unit`, `tests/integration`,
+`tests/core`, `tests/adapters`, `tests/replay` — **and** the seven ratchet files that sit
+directly under `tests/`. Since 2026-11-11 the default `testpaths` names four of those five
+directories and no loose files, so the inner loop and the gate disagree about `tests/replay`
+(28 cases) and those top-level ratchets (93) — 121 cases in all. The ratchets are the larger
+half, and `test_docs_ratchet.py` is one of them, so the inner loop cannot see the gate that
+requires a new test file to be documented in the same commit.
 
 ## Running it by hand
 

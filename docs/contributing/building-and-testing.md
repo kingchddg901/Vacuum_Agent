@@ -74,9 +74,11 @@ pip install -r requirements_test.txt
 python -m pytest tests --no-cov
 ```
 
-Name `tests` explicitly either way: `tests/adapters` and `tests/replay` sit outside the
-`testpaths` in `pytest.ini`, so a bare `pytest` collects neither. CI runs
-`python -m pytest tests --no-cov -p no:cacheprovider --tb=short`.
+Name `tests` explicitly either way. `testpaths` in `pytest.ini` lists four directories —
+`tests/unit`, `tests/integration`, `tests/core`, `tests/adapters` — and nothing else, so a bare
+`pytest` skips `tests/replay` and the seven ratchet files that sit directly under `tests/`: 121
+cases, 93 of them the project's own ratchets (the docs, covers, mock, pragma and replica gates
+among them). CI runs `python -m pytest tests --no-cov -p no:cacheprovider --tb=short`.
 
 Flag recipes, and the by-hand Docker invocation with its two Windows traps, are in
 [Running tests](../testing/02-running-tests.md).
