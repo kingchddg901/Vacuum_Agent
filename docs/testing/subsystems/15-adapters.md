@@ -1131,7 +1131,7 @@ tests and the `_prune_localized_siblings` extraction), and that `[ECV-8]`
 (`adversarial_map.png`) can only make localized-bins run-and-reject while `[ECV-9]` (the
 real dark+light pair) reaches accept. The current account is immediately below.
 
-### `eufy/segmentor.py` — 92.38% → 96.41%, past the ceiling it was measured against
+### `eufy/segmentor.py` — 92.38% → 96.70%, past the ceiling it was measured against
 
 Measured 2026-11-10: 868 statements and 378 branches, of which **53 statements and 42
 partial branches are uncovered — 1151/1246 = 92.38%.** The paragraph above says 91% and
@@ -1152,6 +1152,7 @@ already-covered line.
 | the recorded ceiling | +2 | 1191/1246 = 95.59% |
 | **after the `local_support` debug refactor** | — | **1211/1266 = 95.66%** |
 | **after the four dead-guard deletions (2026-11-11)** | — | **1207/1252 = 96.41%** |
+| **after the two further deletions, same day** | — | **1203/1244 = 96.70%** |
 | if unit-tier tests were allowed too | +15 | 1206/1246 = 96.79% |
 
 **The module is over 95%, and then past the ceiling.** 16 tests closed 38 of the 40
@@ -1212,15 +1213,24 @@ colour-distance arms look unreachable.
 Covering those ten and the eight branches they close is **+18 units → 93.82%**. That is a
 measured *lower bound* on the ceiling, not the ceiling.
 
-**FOUR OF THESE GUARDS WERE DELETED ON 2026-11-11, AND TWO WERE NEVER UNREACHABLE.** The
+**SIX OF THESE GUARDS WERE DELETED ON 2026-11-11, AND TWO WERE NEVER UNREACHABLE.** Four
+went in the first pass; two more went later the same day. Their dominators are NOT the same
+guard, which took three attempts to state correctly: the earlier `ys.size == 0` is held by the
+`np.any(local_mask)` gate at the top of its function, while `sat_values.size == 0 or
+value_values.size == 0` is held by the surviving `ys.size == 0` guard earlier in the same
+function, which tests an identical predicate and returns first. The
 table below is what survives, and the counts that stood here — "fourteen statements across
 ten guards" — were stale *and* incomplete, so they are not patched but replaced. They
-missed that two of the guards have a **second site each**: `ys.size == 0` appears in both
-`_reclaim_localized_child_mask`'s own body **twice** — the nested `_trim_sparse_top_rows`
+missed that two of the guards have a **second site each**: `ys.size == 0` appeared in
+`_reclaim_localized_child_mask`'s own body **twice** until the earlier of the two was
+deleted on 2026-11-11 — the nested `_trim_sparse_top_rows`
 contains no `ys` identifier at all, its guard being `baseline_rows.size == 0` — and
 `label_slice is None` in both `_try_add_candidate` and `_detect_room_segments_pipeline`.
-Measured over the full `tests` scope: **12 uncovered statements across 6 surviving guard
-families**, with `segmentor.py` at **1207/1252 = 96.41%**.
+Measured over the full `tests` scope, branch coverage included (the denominator is
+statements + branches): **11 uncovered statements across 6 surviving guard families**, with
+`segmentor.py` at **1203/1244 = 96.70%**. The two deletions of 2026-11-11 took one statement
+out of that count and three off the denominator's uncovered side; the second deleted guard was
+never in the eleven, because until this pass it had no row here at all.
 
 Line citations are gone from this table on purpose. Every one of them had rotted — `:420`
 was `:444` by the time the deletion pass read it and `:486` by the time the comments
@@ -1237,7 +1247,8 @@ landed — which is the repo's own standing rule (`pytest.ini`: targets are
 | `_split_component_via_color_distance` — `insufficient_feature_values` | kept + commented | `max(m*1.2, 1800) < max(m*2.0, 3200)` for every `min_area_pixels`, swept. **Two independent floors that dominate by accident of the constants, not by design** — merging them would let a lowered component floor feed 8³ colour binning ~1000 samples silently. Its reason string can never be emitted, which is said beside it |
 | `_split_component_via_color_distance` — empty `active_distances` | kept + commented | the house idiom in all four splitters, and the precondition for the `np.percentile` on the next line. Waking it is correct and cheap; the cheap replacement test **cannot see** the edit that wakes it |
 | `_split_component_via_color_distance` — `center_distance_too_small` | kept + commented | the two ranked bin centres cannot land within 0.09 of each other on any real palette |
-| `_reclaim_localized_child_mask` — `ys.size == 0`, **both sites** | kept + commented | the post-trim site is held because `_trim_sparse_top_rows` retains ≥68% or returns the mask untouched — and **both of that site's killers are now behaviourally tested**, the 0.68 retention clamp by `[RCL-1]` and the `occupied_rows.size < 6` floor by `[RCL-4]`. They partition the input space rather than overlapping: emptying requires every occupied row trimmed, so the clamp can only be bypassed where `int(n * 0.68) == 0`, which over `n` in 1..4999 solves to **`n = 1` exactly** — the floor's own territory. Neither is redundant, and `[RCL-1]` is measurably blind to the floor edit (`< 6` → `< 1` leaves it green); **the earlier site is IDENTITY-DEAD**, killed by the `np.any(local_mask)` four lines above it — 0 fires over 8085 masks against a floor of 103 once that `np.any` is ablated. It went uncommented until 2026-11-11 because this table mislocated it. Its killer is **well tested** — inverting `np.any(local_mask)`, or swapping it for `np.all`, reddens eight adapter tests (`[ECV-32]` `[ECV-33]` `[RCL-1]` `[RCL-4]` and the four `test_reclaim_*`) — so the earlier "untested killer, the live gap" reading of this row is **withdrawn**: deleting either dominated guard leaves `tests/adapters` at 336 passed and the net on a killer eight tests hold. Separately, `baseline_rows.size == 0` is held by the ≥6-occupied-rows floor, the baseline index being drawn from `occupied_rows` |
+| `_reclaim_localized_child_mask` — `ys.size == 0` | **EARLIER SITE DELETED** · post-trim site kept + commented | the post-trim site is held because `_trim_sparse_top_rows` retains ≥68% or returns the mask untouched — and **both of that site's killers are now behaviourally tested**, the 0.68 retention clamp by `[RCL-1]` and the `occupied_rows.size < 6` floor by `[RCL-4]`. They partition the input space rather than overlapping: emptying requires every occupied row trimmed, so the clamp can only be bypassed where `int(n * 0.68) == 0`, which over `n` in 1..4999 solves to **`n = 1` exactly** — the floor's own territory. Neither is redundant, and `[RCL-1]` is measurably blind to the floor edit (`< 6` → `< 1` leaves it green); **the earlier site WAS identity-dead and is now DELETED**, killed by the `np.any(local_mask)` at the top of the function — 0 fires over 8085 masks against a floor of 103 once that `np.any` is ablated, and it went uncommented until 2026-11-11 because this table mislocated it. That killer is **well held**: inverting `np.any(local_mask)` reddens ten adapter tests and swapping it for `np.all` reddens eight. The deletion is also what made the killer's OWN removal catchable — dropping the `or not bool(np.any(...))` clause now reddens two (`test_reclaim_empty_mask_returns_input`, `[RCL-2]`) where before the deletion it reddened NONE, because the dominated guard absorbed the empty mask and returned the same object. So the earlier "untested killer, the live gap" reading of this row is **withdrawn**. Separately, `baseline_rows.size == 0` is held by the ≥6-occupied-rows floor, the baseline index being drawn from `occupied_rows` |
+| `_reclaim_localized_child_mask` — `sat_values.size == 0 or value_values.size == 0` | **DELETED** | the whole `if`, both arms and not just the `or`. This row did not exist before 2026-11-11: the census never listed this guard at all, and segmentor.py's own cross-reference said so in as many words. It is **not** killed by the `np.any(local_mask)` gate at the top of the function — that was the attribution the deleting pass first wrote and had to withdraw, because `local_mask` is REASSIGNED by `_trim_sparse_top_rows` above this site, so the gate's guarantee covers the parameter and stops at the trim. Nor is it the trim's 0.68 clamp and occupied-row floor, which was the SECOND wrong answer: those are the killers of the post-trim `ys.size == 0` guard, one step further out again — ablate the floor and `[RCL-4]` reddens at that guard, with these slices never taken. What holds it is that guard ITSELF, earlier in the same function: indexing a 2-D array with a boolean mask yields one element per True, so `sat_values.size == 0` holds exactly when `ys.size == 0` does, and it returns first. (The identity is conditional on the channels being 2-D — a degenerate trailing axis would break it — and the sole caller passes 2-D slices, which the comment records.) A strict dominator, sufficient alone, with `int(ys.min())` and `int(ys.max())` behind it. Deleting it left `tests/adapters/eufy` at 336 passed; if it is ever argued back in, price it against `np.percentile` of an empty slice, which raises IndexError |
 | `_try_add_candidate` / `_detect_room_segments_pipeline` — `label_slice is None`, **both sites** | kept + commented | scipy's contract: `label()` relabels to a consecutive 1…n set, so `find_objects` returns exactly one slice per label. It *can* return `None` for a gapped array, so the guard defends against a producer other than `label()` |
 
 **TWO ENTRIES WERE WRONG, AND BOTH WERE IN ONE FUNCTION.**

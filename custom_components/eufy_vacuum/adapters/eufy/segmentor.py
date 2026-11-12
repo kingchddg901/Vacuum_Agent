@@ -178,31 +178,52 @@ def _reclaim_localized_child_mask(
     inside the already-detected parent component and only through pixels that
     still look room-like in saturation/value space.
     """
+    # LOAD-BEARING. This line is the net for `if ys.size == 0: return local_mask`, which was
+    # deleted from straight after the `np.nonzero` below on 2026-11-11, so what this line is
+    # at risk of is REMOVAL, not a retune. That guard was identity-dead behind this one: it
+    # read the very same parameter this line has just proved non-empty. Deleting it left
+    # `tests/adapters/eufy` at 336 passed, the same argument that deleted
+    # `_try_add_candidate`'s `count <= 0`.
+    #
+    # THE TWO HALVES OF THIS LINE HAVE DIFFERENT REACH, and conflating them is a mistake this
+    # comment has already made once.
+    #   * `not bool(np.any(local_mask))` stops being SUFFICIENT at the
+    #     `_trim_sparse_top_rows` call below, which REASSIGNS `local_mask`: with the
+    #     occupied-row floor ablated the trim returns an EMPTY mask for an input this half had
+    #     already passed. It is still NECESSARY past that point — the trim's pass-through arm
+    #     hands back the parameter untouched, so the `ys.size == 0` guard after it is dead only
+    #     because this half proved the parameter non-empty, which is what that guard's own
+    #     comment has always said. What the reassignment ends is sufficiency, not relevance.
+    #     The other guard deleted the same day, `if sat_values.size == 0 or
+    #     value_values.size == 0`, sits further down and is NOT held by this line directly:
+    #     what holds it is the `ys.size == 0` guard earlier in the same function, which tests
+    #     an identical predicate on the same mask.
+    #   * `_NDIMAGE is None` reaches the WHOLE function. It is the only such check here, and
+    #     `_NDIMAGE.binary_propagation` and `_NDIMAGE.binary_closing` below the trim both rest
+    #     on it — remove that clause alone and they raise AttributeError on NoneType. THE
+    #     SUITE DOES NOT CATCH THAT: `tests/adapters/eufy` stays at 336 passed, because the
+    #     test module calls `pytest.importorskip("scipy.ndimage")` and nothing sets `_NDIMAGE`
+    #     to None for this function. A real gap, named rather than implied.
+    #
+    # (The SECOND `ys.size == 0` in this function, the one returning `parent_mask & False`
+    # after the trim, is a different guard and still stands: its killers are the 0.68
+    # retention clamp and the occupied-row floor, held by `[RCL-1]` and `[RCL-4]`.)
+    #
+    # WHAT HOLDS IT, measured on these bytes three ways that DISAGREE — which is the point:
+    # one number repeated across different ablations would be a constant of the harness, not
+    # a property of the code.
+    #   * delete the `or not bool(np.any(...))` clause → 2 red,
+    #     `test_reclaim_empty_mask_returns_input` and `[RCL-2]`. THIS IS THE ONE THAT MATTERS,
+    #     and it was INVISIBLE until the two guards above went: they absorbed the empty mask
+    #     and returned the very same object, so removing the net changed nothing a test could
+    #     see. Deleting a dominated guard is what made its killer's removal catchable.
+    #   * invert it to `bool(np.any(...))` → 10 red, spanning both adapter test files.
+    #   * swap `np.any` for `np.all` → 8 red. Fewer on purpose: `np.all` of an all-False
+    #     mask is still False, so the empty-mask path alone keeps behaving correctly.
     if _NDIMAGE is None or not bool(np.any(local_mask)):
         return local_mask
 
     ys, _ = np.nonzero(local_mask)
-    # IDENTITY-DEAD, and killed by the line four above: `not bool(np.any(local_mask))` already
-    # returns for an empty mask, so `np.nonzero` cannot come back empty here. Measured: 0 fires
-    # over 8085 masks including 100 all-False ones, against a detection floor of 103 fires once
-    # that `np.any` is ablated away — so the zero is a property of the guard above, not of the
-    # sample.
-    #
-    # THE KILLER IS WELL TESTED — the opposite of what this comment claimed when it was written,
-    # which was its whole stated reason for keeping the guard. Inverting `not bool(np.any(...))`
-    # to `bool(...)` reddens EIGHT adapter tests, and `np.any` → `np.all` reddens the same eight:
-    # `[ECV-32]`, `[ECV-33]`, `[RCL-1]`, `[RCL-4]`, `test_reclaim_with_assist_channels`,
-    # `test_reclaim_trims_sparse_top`, `test_reclaim_grows_and_trims` and
-    # `test_reclaim_overgrowth_falls_back_to_trim`. So deleting the two lines below does NOT
-    # transfer the net to an unguarded guard — measured, that deletion leaves `tests/adapters`
-    # at 336 passed, as does deleting `sat_values.size == 0 or value_values.size == 0` further
-    # down, whose WHOLE `if` is dead the same way — both arms, not just the `or`.
-    #
-    # Which means the argument that DELETED `_try_add_candidate`'s `count <= 0`
-    # ("`np.any(opened)` two lines above guarantees `count >= 1`") applies to both of these
-    # unchanged, and they stand on the ruling that kept them rather than on a missing test.
-    if ys.size == 0:
-        return local_mask
     height, width = local_mask.shape
     bottom = int(ys.max())
     if bottom >= height - 2:
@@ -286,10 +307,41 @@ def _reclaim_localized_child_mask(
     top = int(ys.min())
     bottom = int(ys.max())
 
+    # Neither slice can be empty, and what guarantees it is the `if ys.size == 0: return
+    # parent_mask & False` guard earlier in this function. THE SAME PREDICATE, not a related
+    # one: indexing a 2-D array with a boolean mask yields one element per True, so
+    # `sat_values.size == 0` holds exactly when `ys.size == 0` does, `ys` being `np.nonzero`
+    # of this same post-trim `local_mask` with nothing reassigning it in between. That guard
+    # returns first, so it STRICTLY DOMINATES this site and suffices alone. Two more stand
+    # behind it: `int(ys.min())` and `int(ys.max())` above would both raise on an empty array.
+    #
+    # THE IDENTITY IS CONDITIONAL ON THE CHANNELS BEING 2-D, and that is the attack worth
+    # naming rather than leaving to a reader: `np.zeros((5, 5, 0))[mask]` has shape `(2, 0)`
+    # and size 0 while `ys.size` is 2, so a channel array with a degenerate trailing axis
+    # would break it. The sole caller passes `component_hsv_full[:, :, 1]` and `[:, :, 2]`,
+    # always 2-D, which is why the identity holds here — not because the shape cannot be
+    # built. NOTHING PINS THE `.size` FORM against that axis. The nearest test,
+    # `[SP-oversize-identity]`, is the CONTRAST rather than the precedent: it pins a `len`-based
+    # identity in `_localize_oversized_component` and says in as many words that a zero-width
+    # feature axis leaves `len` counting rows and not columns, so `len` SURVIVES the attack that
+    # breaks `.size`. That is the discriminator between the two sites, and the reason this one
+    # leans on the caller's shape instead of on numpy.
+    #
+    # TWO EARLIER DRAFTS OF THIS COMMENT NAMED SOMETHING FURTHER AWAY, and both were wrong in
+    # the same direction. First the `np.any(local_mask)` gate at the top of the function —
+    # but `local_mask` is reassigned by `_trim_sparse_top_rows` between them. Then the trim's
+    # own 0.68 clamp and occupied-row floor — but those are the killers of the guard above,
+    # one step further out again: ablate the floor and `[RCL-4]` reddens AT THAT GUARD, with
+    # these slices never taken. So if this is re-audited, the guard that must REMAIN for the
+    # deletion below to stay safe is the `ys.size == 0` one above. Not the trim refusals, and
+    # not the gate.
+    #
+    # The `if sat_values.size == 0 or value_values.size == 0` that restated the predicate here
+    # was dead in BOTH arms, not just the `or`, and was deleted on 2026-11-11. If it is ever
+    # argued back in, price it against what it stood in front of: `np.percentile` of an empty
+    # slice raises IndexError, not a quiet wrong answer.
     sat_values = primary_sat[local_mask]
     value_values = primary_value[local_mask]
-    if sat_values.size == 0 or value_values.size == 0:
-        return local_mask
 
     sat_floor = max(18.0, float(np.percentile(sat_values, 20)) - 18.0)
     value_floor = max(68.0, float(np.percentile(value_values, 20)) - 26.0)
@@ -533,9 +585,12 @@ def _split_component_via_local_support(
     # cannot be built. `[SP-local-6]` holds the two slices to one mask through the
     # percentile floor they feed.
     #
-    # The same identity-dead `or` still stands in `_reclaim_localized_child_mask`
-    # (`if sat_values.size == 0 or value_values.size == 0`), which this pass did not
-    # touch and the census in docs/testing/subsystems/15-adapters.md does not list.
+    # The same identity-dead `or` stood in `_reclaim_localized_child_mask`
+    # (`if sat_values.size == 0 or value_values.size == 0`); it was DELETED on 2026-11-11,
+    # whole `if` and both arms, because the `ys.size == 0` guard earlier in that function
+    # tests the identical predicate and returns first. This one is kept because its killer is
+    # a different shape — an area floor, not an emptiness gate — and `[SP-local-6]` pins
+    # the two slices together.
     if len(primary_sat_values) == 0:
         debug["reason"] = "empty_support_values"
         return [], debug
@@ -641,7 +696,7 @@ def _split_component_via_local_support(
         # equals the whole component and the `> int(active_area * 0.8)` guard above
         # `continue`s on every candidate first - measured, the pipeline's own rows read
         # `grown` = 36 x `active_area`, `grown_mask_count` 0, `insufficient_grown_masks`, and
-        # a detector raising unless that piece count is 1 passes all 335 adapter tests. Keep
+        # a detector raising unless that piece count is 1 passed all 335 adapter tests. Keep
         # this as the CONTRACT for a caller that hands over a multi-piece mask, which is the
         # only way the duplicate can arise.
         if any(_component_overlap_ratio(grown, existing)[0] >= 0.74 for existing in grown_masks):
@@ -791,7 +846,11 @@ def _split_component_via_color_distance(
         # pixels is what the loop wants. Six further percentile calls carry the same
         # precondition - two in _reclaim_localized_child_mask and four in
         # _split_component_via_local_support, which together are every percentile-family call
-        # in this file besides this one (counted from the AST, not by eye).
+        # in this file besides this one (counted from the AST, not by eye). The two in
+        # _reclaim_localized_child_mask no longer have a guard ADJACENT to them: the `if`
+        # that sat there was dead in both arms and was deleted on 2026-11-11. Their
+        # precondition is upheld earlier in that function instead, by its own
+        # `ys.size == 0` guard, which tests the identical predicate on the same mask.
         if len(active_distances) == 0:
             continue
         threshold = float(np.percentile(active_distances, 46)) + 0.018
