@@ -73,7 +73,17 @@ jobs:
               echo "pre-release flag OK -- $version published as a pre-release"
               ;;
             *)
-              echo "stable version -- no pre-release suffix"
+              # THE INVERSE ARM, and it is not symmetric with the one above. A stable
+              # version published WITH the pre-release flag is never offered to
+              # default-store users at all -- the release looks published and reaches
+              # nobody, which is the quieter of the two failures and the harder to
+              # notice. RELEASE_CHECKLIST.md claims this step refuses both directions;
+              # until 2026-11-11 it policed only one.
+              if [ "$IS_PRERELEASE" = "true" ]; then
+                echo "::error::version '$version' has no pre-release suffix but the GitHub release is marked as a pre-release -- default-store users would never be offered it. Untick 'Set as a pre-release', or give the manifest and tag a -beta/-rc suffix."
+                exit 1
+              fi
+              echo "stable version -- no pre-release suffix, not flagged as one"
               ;;
           esac
 
