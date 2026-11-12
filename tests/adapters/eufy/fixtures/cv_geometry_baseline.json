@@ -761,8 +761,13 @@
         },
         {
          "accepted": false,
+         "active_area": 30165,
          "method": "local_support",
-         "reason": "no_split"
+         "opened_support_area": 27304,
+         "reason": "insufficient_support_components",
+         "required_score": 2,
+         "scored_support_area": 21964,
+         "support_component_count": 1
         },
         {
          "accepted": false,
@@ -816,8 +821,47 @@
         },
         {
          "accepted": false,
+         "active_area": 9534,
+         "grown_areas": [
+          9534,
+          9534,
+          9534
+         ],
+         "grown_mask_count": 0,
          "method": "local_support",
-         "reason": "no_split"
+         "opened_support_area": 3999,
+         "reason": "insufficient_grown_masks",
+         "required_score": 2,
+         "scored_support_area": 4391,
+         "seed_areas": [
+          246,
+          717,
+          119,
+          213,
+          314,
+          292,
+          467,
+          294,
+          9,
+          9,
+          16,
+          9,
+          12,
+          16,
+          17,
+          55,
+          9,
+          304,
+          14,
+          455,
+          12,
+          315,
+          16,
+          12,
+          9,
+          48
+         ],
+         "support_component_count": 26
         },
         {
          "accepted": false,
