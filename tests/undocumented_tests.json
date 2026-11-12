@@ -21,7 +21,6 @@
     "tests/unit/test_phased_job_store.py",
     "tests/unit/test_phased_job_wiring.py",
     "tests/unit/test_shipped_font_support.py",
-    "tests/unit/test_step_types.py",
-    "tests/unit/test_user_fonts.py"
+    "tests/unit/test_step_types.py"
   ]
 }

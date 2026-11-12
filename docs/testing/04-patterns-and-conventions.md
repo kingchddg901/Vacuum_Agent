@@ -279,6 +279,28 @@ regex, which would also silence the behavioral excepts above and leave
 half-excluded branches under `--cov-branch`. The full convention is in
 [subsystems/README](subsystems/README.md#coverage-conventions-apply-everywhere).
 
+## 100.00% is LINE coverage — a multi-condition `if` hides inside it
+
+coverage.py records lines and arcs, not **conditions**. A one-line `or` chain
+reads fully covered as soon as either arc out of it is taken, so a module can
+publish 100.00% with conditions that were never evaluated — Python
+short-circuits the rest of the chain, so they are not merely untested, they did
+not run.
+
+Measured in `user_fonts.py`'s `build_catalog`, which this release range took from
+88.64% to 100.00%. Its symlink containment rule is written three times — about
+the drop-in **directory**, about `font.json`, and about each **face file** — and
+deleting either of the first two left `tests/unit/test_user_fonts.py` at 30
+passed, exit 0. What made that null robust was the denominator rather than the
+two runs: `os.symlink` appeared **exactly once** in the whole test tree, and it
+linked a descriptor, so no test anywhere could reach the other two arms. `UF-11`
+is now parametrised over all three sites, one cell each, and each cell reddens
+only on its own.
+
+So a 100.00% over a predicate with several conditions is not evidence about any
+one of them. The instrument that answers is still an ablation per clause — one
+per condition, not one per line.
+
 ## Standing gates on things that are not code
 
 Five committed gates, holding ground that no ordinary test can. They divide into two
@@ -599,6 +621,23 @@ synthetic trees in `tmp_path` (via the `COVERS_ROOT` override) — the lying tes
 cannot live in the real suite, which is why that override exists. `CG-1` is the
 bite; `CG-2` is the control, and without it `CG-1` would pass just as happily if
 the gate failed on everything.
+
+⚠ **`CG-1` is a DISJUNCTIVE detector, and the SPAN half shipped with no test that
+could see it go.** `CG-1`'s lying test trips both halves at once, so ablating
+either one alone leaves it green — measured: replacing the SPAN verdict
+(`if uncovered:`) with `if False:` left every one of this file's eleven cases
+green at exit 0, while the same edit on REACH (`if not hit:`) reddened `CG-7`
+alone. The string `CG-1` asserts, `UNCOVERED`, comes from a `print` the gate
+emits **unconditionally** two lines above the failure it appends, so it fenced
+the diagnostic and not the verdict: with SPAN disabled the gate printed
+`UNCOVERED [...]` and then `all 1 declaration(s) hold … together they leave no
+line of it uncovered` underneath it — a false all-clear below the evidence
+against it. `CG-9` closes that: a declaring test that *enters* its symbol and
+leaves one arm unrun, the shape only SPAN can fail. All three cells are
+measured — SPAN reddens `CG-9` alone, REACH reddens `CG-7` alone, and `CG-1`
+goes red only under the double mutant. Its fixture needs an explicit `else` arm,
+because a bare `if` with no else leaves `missing_lines` empty and SPAN reads only
+`missing_lines`, never the arcs.
 
 ### The generated `Mocking` column
 

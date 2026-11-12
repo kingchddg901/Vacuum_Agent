@@ -11,21 +11,36 @@ tmp_path -- the lying test cannot live in the real suite, which is exactly why t
 script takes a `COVERS_ROOT` override. Each case asserts the EXIT CODE and the
 reason, because a gate that fails for the wrong reason is not fenced either.
 
-[CG-1] a test that does NOT execute its named symbol -> exit 1, UNCOVERED
+[CG-1] a test that does NOT execute its named symbol -> exit 1 (DISJUNCTIVE, see below)
 [CG-2] the honest version of the same tree -> exit 0
 [CG-3] a symbol that does not exist in the target -> exit 1, "does not exist"
 [CG-4] a target with no `::symbol` (a line number, say) -> exit 1, MALFORMED
 [CG-5] zero declarations -> exit 1, not a pass over an empty set
 [CG-6] symbol_span resolves module functions and Class.method, and None for neither
-[CG-7] a liar sharing a symbol with an HONEST test -> exit 1 (the v1 hole)
+[CG-7] a liar sharing a symbol with an HONEST test -> exit 1 (the v1 hole); fences
+       REACH, and stays green when SPAN stops failing
 [CG-8] the gate leaves no coverage data in the tree it was pointed at (it used to,
        and then choked on its own leftovers on the next run)
+[CG-9] a test that ENTERS its symbol and leaves part of the span unrun -> exit 1;
+       fences SPAN, the half the module docstring says the gate exists for, and
+       stays green when REACH stops failing
 
 [CG-7] IS THE ONE THE SUITE DID NOT HAVE. [CG-1] passed against v1 of the gate too,
 because its lying test was ALONE in its group; an ablation on the real repo -- a
 real marker repointed at a symbol its test never calls -- found that four honest
 tests covered the span on the liar's behalf and the gate reported ok. One red input
 was not enough, and the shape that was missing is the mixed group.
+
+[CG-9] IS THE ONE IT DID NOT HAVE EITHER, and a pre-release audit found it the same
+way -- by ablation, not by reading. CG-1's tree trips BOTH halves at once, so it is
+a DISJUNCTIVE detector, and all three cells were measured: disabling the SPAN
+failure (`if uncovered:` -> `if False:`) reddens CG-9 ALONE, disabling the REACH
+failure (`if not hit:`) reddens CG-7 ALONE, and only the DOUBLE mutant reddens CG-1
+-- which is why eleven green cases sat over a missing SPAN verdict. The header row
+above USED TO SAY CG-1 asserts "UNCOVERED", and that named a string the gate
+`print`s UNCONDITIONALLY, two lines above the failure it was taken for. So "each
+case asserts the EXIT CODE and the reason" did not hold for CG-1, and the reason
+CG-9 asserts is the failure block's own sentence, never the diagnostic line.
 
 NOT FENCED HERE, named rather than left silent: the `no-sysmon-context` guard in
 `run_coverage`. Forcing that warning means overriding the measurement core the gate
@@ -49,7 +64,14 @@ SCRIPT = REPO / "scripts" / "check_covers.py"
 
 # The module under test in the synthetic tree. `used` is executed by the honest
 # test; `never_used` is not executed by anything, which is what makes a claim on it
-# a lie the gate has to catch.
+# a lie the gate has to catch. `branchy` is entered but not finished, which is the
+# only shape that isolates the SPAN half -- see [CG-9].
+#
+# THE ELSE-ARM IS LOAD-BEARING. A bare `if` with no else (`out = "neg"` first, then
+# `if n > 0: out = "pos"`) leaves `missing_lines` EMPTY when the test calls it with
+# 1 -- the gate reports `ok` and exits 0 even at HEAD, because it sets
+# `branch = True` but SPAN reads only `missing_lines`, never the arcs. An explicit
+# else-arm is a missing STATEMENT, which is what SPAN can actually see.
 _SRC = '''\
 def used(n):
     doubled = n * 2
@@ -59,6 +81,14 @@ def used(n):
 def never_used(n):
     tripled = n * 3
     return tripled
+
+
+def branchy(n):
+    if n > 0:
+        out = "pos"
+    else:
+        out = "neg"
+    return out
 '''
 
 
@@ -164,6 +194,18 @@ def test_honestly_calls_used():
 @pytest.mark.covers("pkg/thing.py::used")
 def test_rides_along_and_never_calls_used():
     assert never_used(2) == 6
+'''
+
+# LID-11's SHAPE, and the mirror of _RIDER. One honest-looking test, one symbol, and
+# the test really does enter it -- so REACH is satisfied and only SPAN can object.
+_HALF_SPAN = '''\
+import pytest
+from pkg.thing import branchy
+
+
+@pytest.mark.covers("pkg/thing.py::branchy")
+def test_enters_branchy_but_leaves_an_arm_unrun():
+    assert branchy(1) == "pos"
 '''
 
 
@@ -290,6 +332,59 @@ def test_cg7_a_liar_sharing_a_symbol_with_an_honest_test_still_fails():
     assert "test_rides_along_and_never_calls_used" in proc.stdout, proc.stdout
     # and the honest one must NOT be blamed
     assert "test_honestly_calls_used  reaches" in proc.stdout, proc.stdout
+
+
+def test_cg9_a_test_that_enters_its_symbol_but_leaves_a_line_unrun_still_fails():
+    """[CG-9] The SPAN half, which nothing in this file could see go.
+
+    This is LID-11's shape verbatim -- "the test does enter but its named lines
+    stay missed" -- i.e. the shape the module docstring says the whole gate exists
+    for, and until a pre-release audit ablated it, the half with no test that could
+    detect its removal. Measured: with the SPAN failure disabled, every one of the
+    eleven cases that existed before this one stays GREEN and this one goes red,
+    while the same edit on REACH reddens CG-7 and leaves this one green. CG-1
+    cannot stand in for it: its lying test trips both halves at once, so it only
+    goes red under the double mutant.
+
+    THE REASON ASSERTED IS THE FAILURE BLOCK'S OWN SENTENCE, not `UNCOVERED`. The
+    gate prints `UNCOVERED [...]` from an UNCONDITIONAL `print` two lines above the
+    failure it appends, so with the verdict disabled the diagnostic survives and
+    the summary below it reads `all 1 declaration(s) hold ... together they leave
+    no line of it uncovered` -- a false summary printed underneath the evidence
+    against it. Asserting the string `UNCOVERED` would have fenced the print, not
+    the verdict, which is exactly how the gap got in.
+
+    The division of labour is asserted both ways round: REACH must still report
+    the declaring test as reaching the symbol (so this is not CG-1 again under a
+    new name), and the false summary must be absent.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        root = _tree(Path(td), _HALF_SPAN)
+        proc = _run(root)
+
+    assert "NEVER REACHES IT" not in proc.stdout, (
+        f"REACH must be satisfied here -- the test does call branchy. If it is not, "
+        f"this case is re-testing CG-1.\nstdout:\n{proc.stdout}"
+    )
+    assert "test_enters_branchy_but_leaves_an_arm_unrun  reaches" in proc.stdout, (
+        f"REACH must report the declaring test as reaching the symbol.\n"
+        f"stdout:\n{proc.stdout}"
+    )
+    assert proc.returncode == 1, (
+        f"a declaration whose named lines stay missed must fail the gate even "
+        f"though the test enters the symbol.\nstdout:\n{proc.stdout}\n"
+        f"stderr:\n{proc.stderr}"
+    )
+    assert "these lines stayed UNCOVERED when those tests ran" in proc.stdout, (
+        f"the SPAN failure block is the reason this case fences; the `UNCOVERED "
+        f"[...]` diagnostic above it is printed unconditionally and does not "
+        f"discriminate.\nstdout:\n{proc.stdout}"
+    )
+    assert "declaration(s) hold" not in proc.stdout, (
+        f"the gate printed its all-clear summary under a failing claim.\n"
+        f"stdout:\n{proc.stdout}"
+    )
 
 
 def test_cg8_the_gate_leaves_no_coverage_data_behind():

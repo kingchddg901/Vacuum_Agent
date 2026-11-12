@@ -631,6 +631,57 @@ class TestLocaleRequirementsDegradation:
 # [UF-10..13] build_catalog, which "never raises"
 # ---------------------------------------------------------------------------
 
+def _escaping_dropin(tmp_path, fonts, site):
+    """Plant ONE drop-in that reaches OUTSIDE the fonts directory by symlink.
+
+    ``site`` names which of ``build_catalog``'s three containment copies --
+    ``os.path.islink(dir_path)``, ``os.path.islink(desc_path)``,
+    ``os.path.islink(p)`` -- is the only thing standing between this drop-in
+    and the catalog. Everything else about it is deliberately VALID, and that
+    is the whole difficulty of the fixture: it must have its own id (a copy of
+    ``atkinson``'s would be dropped by the id dedup instead, so the ablation
+    would come back dead) and its faces must be present (a missing face would
+    discard it first, for the same reason). Returns the id it planted, which
+    must never reach the catalog.
+    """
+    font_id = {
+        "descriptor": "linkedfont",
+        "directory": "linkeddir",
+        "face": "linkedface",
+    }[site]
+    desc = {
+        "id": font_id,
+        "family": "Linked Sans",
+        "faces": [{"file": "Linked-Regular.woff2", "weight": 400}],
+    }
+    if site == "descriptor":
+        # Real directory, real face file; the DESCRIPTOR is the pointer out.
+        outside = tmp_path / "elsewhere.json"
+        outside.write_text(json.dumps(desc), encoding="utf-8")
+        here = fonts / font_id
+        here.mkdir()
+        (here / "Linked-Regular.woff2").write_bytes(b"\x00fake")
+        os.symlink(str(outside), str(here / "font.json"))
+    elif site == "directory":
+        # A complete, self-consistent drop-in that simply LIVES somewhere else
+        # -- nothing inside it is a link, so only the folder check can see it.
+        outside = tmp_path / "outside-dropin"
+        outside.mkdir()
+        (outside / "font.json").write_text(json.dumps(desc), encoding="utf-8")
+        (outside / "Linked-Regular.woff2").write_bytes(b"\x00fake")
+        os.symlink(str(outside), str(fonts / font_id), target_is_directory=True)
+    else:
+        # Directory and descriptor both real; the FACE FILE is the pointer out,
+        # and it exists, so `os.path.isfile` follows the link and says yes.
+        outside = tmp_path / "Linked-Regular.woff2"
+        outside.write_bytes(b"\x00fake")
+        here = fonts / font_id
+        here.mkdir()
+        (here / "font.json").write_text(json.dumps(desc), encoding="utf-8")
+        os.symlink(str(outside), str(here / "Linked-Regular.woff2"))
+    return font_id
+
+
 class TestBuildCatalogDegradation:
     def test_uf10_a_missing_fonts_directory_catalogues_nothing(self, tmp_path):
         """[UF-10] The ordinary case for every user who never dropped a font in.
@@ -642,43 +693,55 @@ class TestBuildCatalogDegradation:
         assert build_catalog(str(missing), str(tmp_path / "locales")) == 0
         assert not missing.exists(), "the discovery path created the directory"
 
-    def test_uf11_a_descriptor_that_is_not_a_regular_file_is_skipped(self, tmp_path):
-        """[UF-11] Two shapes: no `font.json` at all, and one that is a SYMLINK.
+    @pytest.mark.parametrize("site", ["descriptor", "directory", "face"])
+    def test_uf11_a_drop_in_reached_by_symlink_is_skipped(self, tmp_path, site):
+        """[UF-11] Containment, at all THREE places build_catalog checks it.
 
-        The symlink arm is a containment rule, not a tidiness one. A symlinked
-        descriptor is a pointer OUT of the fonts directory, and the whole trust
-        model here is that a drop-in describes itself from inside its own folder.
-        The same check is applied to the face files.
+        (Was `test_uf11_a_descriptor_that_is_not_a_regular_file_is_skipped`,
+        which fenced the descriptor copy alone.)
 
-        The good font is catalogued in the same call, so this is a skip and not
-        a bail-out -- a refusal that also dropped the valid font would satisfy
-        any assertion about the bad one alone.
+        This is a containment rule, not a tidiness one. A symlink is a pointer
+        OUT of the fonts directory, and the whole trust model here is that a
+        drop-in describes itself, and carries its own faces, from inside its own
+        folder. `build_catalog` says so three times -- about the drop-in
+        DIRECTORY, about `font.json`, and about each FACE FILE -- and each copy
+        gets its own cell here, because each is independently deletable.
 
-        THE LINKED DROP-IN IS OTHERWISE COMPLETE, and that took two corrections.
-        Written with a COPY of the good descriptor it shared the id "atkinson",
-        so deleting the islink guard changed nothing -- the entry was read and
-        then dropped by the id dedup. Written without face files beside it, the
-        missing-face check would have discarded it just as silently. Either flaw
-        alone makes this arm untestable while looking tested, and the ablation
-        came back DEAD until both were fixed. It now has its own id and its own
-        faces, so the only thing standing between it and the catalog is the
-        symlink check: remove that and the count goes 1 -> 2.
+        TWO OF THE THREE WERE UNFENCED UNTIL A PRE-RELEASE AUDIT ABLATED THEM,
+        in a module this release range published at 100.00%, and the percentage
+        is not wrong -- it is measuring something else. coverage.py records
+        LINES and ARCS, not CONDITIONS: a one-line `or` chain reads fully
+        covered as soon as either arc out of it is taken, so two of three
+        conditions can go unevaluated at 100.00%. (Python short-circuits them,
+        so `os.path.islink(dir_path)` is not even reached when
+        `not DIR_RE.match(sub)` is already true.) What makes the null robust is
+        the denominator rather than the two runs: before this parametrisation
+        `os.symlink` appeared EXACTLY ONCE in the whole test tree, in this test,
+        and it linked a descriptor -- so no test anywhere could reach the other
+        two arms.
+
+        THE DIVISION OF LABOUR IS MEASURED, one cell per site: deleting
+        `or os.path.islink(dir_path)` reddens `[directory]` alone, deleting
+        `or os.path.islink(desc_path)` reddens `[descriptor]` alone, and
+        deleting `or os.path.islink(p)` reddens `[face]` alone.
+
+        The good font is catalogued in the same call, so each cell is a skip and
+        not a bail-out -- a refusal that also dropped the valid font would
+        satisfy any assertion about the bad one alone.
+
+        THE LINKED DROP-IN MUST BE OTHERWISE COMPLETE, which took two
+        corrections on the descriptor arm and would have cost the same two on
+        each of the others: with a COPY of the good descriptor it shares the id
+        "atkinson" and the id dedup drops it, and with no face files beside it
+        the missing-face check discards it. Either flaw alone makes an arm
+        untestable while looking tested, and the ablation came back DEAD until
+        both were fixed. See `_escaping_dropin`, which is where that now lives.
         """
         fonts = tmp_path / "fonts"
         fonts.mkdir()
-        (fonts / "empty").mkdir()                        # no font.json
+        (fonts / "empty").mkdir()                        # no font.json at all
 
-        outside = tmp_path / "elsewhere.json"
-        outside.write_text(json.dumps({
-            "id": "linkedfont",
-            "family": "Linked Sans",
-            "faces": [{"file": "Linked-Regular.woff2", "weight": 400}],
-        }), encoding="utf-8")
-        linked = fonts / "linked"
-        linked.mkdir()
-        (linked / "Linked-Regular.woff2").write_bytes(b"\x00fake")
-        os.symlink(str(outside), str(linked / "font.json"))
-
+        escaping = _escaping_dropin(tmp_path, fonts, site)
         _write_font_dir(str(fonts))                      # the good one
 
         loc = _locales_dir(tmp_path)
@@ -689,12 +752,14 @@ class TestBuildCatalogDegradation:
             count = build_catalog(str(fonts), loc)
 
         assert count == 1, (
-            "expected only the good drop-in, got %d -- a descriptor reached from "
-            "OUTSIDE the fonts directory by symlink was catalogued" % count
+            "expected only the good drop-in, got %d -- a drop-in whose %s was "
+            "reached from OUTSIDE the fonts directory by symlink was catalogued"
+            % (count, site)
         )
         written = json.loads((fonts / "catalog.json").read_text(encoding="utf-8"))
         assert [e["id"] for e in written] == ["atkinson"], (
-            "catalogued %r" % ([e["id"] for e in written],)
+            "catalogued %r; %r escaped containment via its %s"
+            % ([e["id"] for e in written], escaping, site)
         )
 
     def test_uf12_an_unreadable_descriptor_is_warned_and_skipped(
