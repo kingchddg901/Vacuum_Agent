@@ -1694,6 +1694,7 @@
     "floor_hardwood": "Паркетная доска",
     "floor_laminate": "Ламинат",
     "floor_tile": "Плитка",
+    "floor_rotation_deg": "{deg}°",
     "floor_material_none": "По умолчанию",
     "floor_marble": "Мрамор",
     "floor_granite": "Гранит",

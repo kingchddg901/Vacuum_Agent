@@ -494,6 +494,7 @@ class RoomMapManager:
         enabled_room_ids: list[int] | list[str] | None = None,
         floor_types: dict[int, str] | None = None,
         floor_materials: dict[int, str] | None = None,
+        floor_rotations: dict[int, float] | None = None,
         adopted_room_ids: set[str] | None = None,
     ) -> dict[str, Any]:
         """Convert discovered rooms into managed room configuration and save it.
@@ -551,6 +552,7 @@ class RoomMapManager:
             enabled_room_ids=enabled_room_ids,
             floor_types=floor_types or {},
             floor_materials=floor_materials or {},
+            floor_rotations=floor_rotations or {},
             adopted_room_ids=adopted_room_ids,
             # include_unscoped=False: only rejections that KNOW their map reach a
             # write boundary. The legacy flat list still suppresses new_rooms (safe,

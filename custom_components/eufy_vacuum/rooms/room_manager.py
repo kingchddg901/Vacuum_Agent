@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from typing import Any
 
 from ..models.models import RoomConfig
@@ -41,6 +43,23 @@ def _existing_by_slug(existing_rooms: dict[str, Any]) -> dict[str, dict[str, Any
     return {slug: rooms[0] for slug, rooms in by_slug.items() if len(rooms) == 1}
 
 
+def _as_rotation(value: object, fallback: float) -> float:
+    """Degrees as a float, or ``fallback``.
+
+    NOT normalised into a range here: the store should hold what the user chose, and
+    the card's ``normalizeFloorRotationDeg`` wraps it at the point of use. Coercing a
+    junk payload to 0 would silently straighten a room the user had turned, so a
+    failure keeps what is already stored.
+    """
+    try:
+        out = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(out):   # NaN and both infinities
+        return fallback
+    return out
+
+
 def build_managed_rooms(
     *,
     discovered_rooms: list[dict[str, Any]],
@@ -49,6 +68,7 @@ def build_managed_rooms(
     enabled_room_ids: list[int] | list[str] | None = None,
     floor_types: dict[int, str] | None = None,
     floor_materials: dict[int, str] | None = None,
+    floor_rotations: dict[int, float] | None = None,
     rejected_rooms: set[int] | list[int] | None = None,
     adopted_room_ids: set[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
@@ -114,6 +134,13 @@ def build_managed_rooms(
     UNTIL 2026-08-24 (R14/C60), and this docstring conceded it further down
     while stating the opposite here — a contradiction inside one docstring, which
     is why neither half was trusted enough to check. Both halves now hold.
+    ``floor_rotations`` is the per-ROOM map-texture angle in degrees and follows
+    ``floor_materials``' rules exactly: absent leaves a room's angle untouched, an
+    explicit value sets it, 0 is a REAL value meaning “as authored”, and it never
+    gates ``is_configured``. It is per room rather than per material on purpose --
+    rotation describes the HOUSE, so two rooms sharing one material routinely want
+    different angles.
+
     ``floor_materials`` is the APPEARANCE map and is deliberately unlike
     ``floor_types``: absent leaves a room's material untouched, an explicit empty
     string clears it, and supplying one NEVER gates ``is_configured`` -- choosing a
@@ -138,6 +165,7 @@ def build_managed_rooms(
     new_room_defaults = new_room_defaults or {}
     floor_types = floor_types or {}
     floor_materials = floor_materials or {}
+    floor_rotations = floor_rotations or {}
     rejected_ids = _normalize_enabled_room_ids(rejected_rooms) if rejected_rooms else set()
     explicit_enabled_ids = _normalize_enabled_room_ids(enabled_room_ids)
     has_explicit_enabled_ids = enabled_room_ids is not None
@@ -221,6 +249,21 @@ def build_managed_rooms(
             floor_material = str(existing.get("floor_material", ""))
         else:
             floor_material = str(floor_material_entry or "").strip()
+
+        # floor_rotation: same three rules as floor_material above -- absent means
+        # UNCHANGED, explicit means set, and it never gates is_configured. 0 is a
+        # REAL value here (“as authored”), so the test is `is None` and a float()
+        # that fails falls back to the existing value rather than silently
+        # straightening a room to 0 because a bad payload arrived.
+        floor_rotation_entry = floor_rotations.get(room_id)
+        if floor_rotation_entry is None:
+            floor_rotation_entry = floor_rotations.get(str(room_id))
+        if floor_rotation_entry is None:
+            floor_rotation = _as_rotation(existing.get("floor_rotation"), 0.0)
+        else:
+            floor_rotation = _as_rotation(
+                floor_rotation_entry, _as_rotation(existing.get("floor_rotation"), 0.0)
+            )
 
         # Calling build_managed_rooms with a room ID in enabled_room_ids is the
         # user's explicit approval — but CRUD-3: is_configured also requires a
@@ -309,6 +352,7 @@ def build_managed_rooms(
             profile_name=str(_default("profile_name", DEFAULT_ROOM_PROFILE_NAME)),
             floor_type=floor_type,
             floor_material=floor_material,
+            floor_rotation=floor_rotation,
             clean_mode=str(_default("clean_mode", "vacuum")),
             fan_speed=str(_default("fan_speed", "")),
             water_level=str(_default("water_level", "")),

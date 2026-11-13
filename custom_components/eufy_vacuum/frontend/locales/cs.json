@@ -1925,6 +1925,7 @@
     "floor_hardwood": "Tvrdé dřevo",
     "floor_laminate": "Laminát",
     "floor_tile": "Dlažba",
+    "floor_rotation_deg": "{deg}°",
     "floor_material_none": "Výchozí",
     "floor_marble": "Mramor",
     "floor_granite": "Žula",

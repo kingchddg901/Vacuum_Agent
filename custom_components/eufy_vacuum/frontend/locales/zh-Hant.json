@@ -2288,6 +2288,7 @@
     "floor_hardwood": "實木地板",
     "floor_laminate": "超耐磨地板",
     "floor_tile": "磁磚",
+    "floor_rotation_deg": "{deg}°",
     "floor_material_none": "預設",
     "floor_marble": "大理石",
     "floor_granite": "花崗岩",

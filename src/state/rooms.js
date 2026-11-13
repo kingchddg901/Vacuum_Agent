@@ -27,7 +27,7 @@
  *   vacuum_entity_id, map_id, room_id, room_name, slug,
  *   order, profile_name, clean_mode, fan_speed, water_level,
  *   clean_intensity, clean_passes, edge_mopping, floor_type,
- *   floor_material,
+ *   floor_material, floor_rotation,
  *   carpet, grants_access_to, rules
  *
  * ORDER SOURCE OF TRUTH
@@ -605,6 +605,7 @@ export function applyRoomsState(proto) {
 
     const floorType = String(attrs.floor_type ?? "");
     const floorMaterial = String(attrs.floor_material ?? "");
+    const floorRotation = Number(attrs.floor_rotation ?? 0) || 0;
     const floorTypeLabel = attrs.floor_type_label ?? null;
     const carpetType = String(attrs.carpet_type ?? "");
     const carpetTypeLabel = attrs.carpet_type_label ?? null;
@@ -722,6 +723,10 @@ export function applyRoomsState(proto) {
       // not -- so a removed drop-in degrades to the room's own floor rather than
       // rendering flat, and the stored value is left alone.
       floor_material: floorMaterial,
+      // Per ROOM, not per material: rotation describes the HOUSE, so two rooms
+      // sharing a material routinely want different angles. Map only -- cards
+      // stretch one mask rather than tiling, so there is no grid to turn.
+      floor_rotation: floorRotation,
       carpet_type: carpetType,
       carpet_type_label: carpetTypeLabel,
       clean_mode: cleanMode,

@@ -2380,6 +2380,7 @@
     "floor_hardwood": "עץ מלא",
     "floor_laminate": "למינציה",
     "floor_tile": "אריחים",
+    "floor_rotation_deg": "{deg}°",
     "floor_material_none": "ברירת מחדל",
     "floor_marble": "שיש",
     "floor_granite": "גרניט",

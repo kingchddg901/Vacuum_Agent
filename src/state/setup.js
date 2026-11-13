@@ -78,6 +78,10 @@ export function applySetupState(proto) {
         // carries the carpet-water-off guarantee and stays a closed vocabulary.
         // "" is a real value here — it means "clear the material".
         floorMaterials:   {},     // String(room_id) → material id or ""
+        // Degrees. 0 is a REAL value (“as authored”), not an absence -- an
+        // untouched room is absent from this map entirely, which is what tells
+        // the backend to leave its angle alone.
+        floorRotations:   {},     // String(room_id) → degrees
         saving:           false,
         configuredMapIds: {},     // String(map_id) → true
       };
@@ -140,6 +144,12 @@ export function applySetupState(proto) {
 
   proto.setSetupRoomFloorMaterial = function (roomId, material) {
     this._ensureSetupRoomEditor().floorMaterials[String(roomId)] = material ?? "";
+  };
+
+  proto.setSetupRoomFloorRotation = function (roomId, degrees) {
+    const n = Number(degrees);
+    this._ensureSetupRoomEditor().floorRotations[String(roomId)] =
+      Number.isFinite(n) ? n : 0;
   };
 
   proto.setSetupRoomEditorSaving = function (saving) {
@@ -297,5 +307,9 @@ export function applySetupState(proto) {
      overwrite materials the room editor set. */
   proto.setupRoomEditorFloorMaterialsMap = function () {
     return { ...this._ensureSetupRoomEditor().floorMaterials };
+  };
+
+  proto.setupRoomEditorFloorRotationsMap = function () {
+    return { ...this._ensureSetupRoomEditor().floorRotations };
   };
 }

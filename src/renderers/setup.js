@@ -123,6 +123,7 @@ export function applySetupRenderers(proto) {
     );
     const floorTypesMap = state.setupRoomEditorFloorTypesMap?.() ?? {};
     const floorMaterialsMap = state.setupRoomEditorFloorMaterialsMap?.() ?? {};
+    const floorRotationsMap = state.setupRoomEditorFloorRotationsMap?.() ?? {};
     // Drop-in materials only. With none installed this is empty and the second
     // chip row is not rendered AT ALL -- not an empty row, no markup -- so an
     // install without drop-ins produces byte-identical output to before.
@@ -614,6 +615,32 @@ export function applySetupRenderers(proto) {
                 </div>`
               : "";
 
+            // ROTATION. Quarter turns only as a CONTROL, while the stored field is a
+            // free float -- so a dial or a slider can replace these chips later with
+            // no migration and no schema change. Quarter turns cover the case that
+            // prompted this (planks and grout running the other way in one room);
+            // a diagonal or herringbone floor needs the free angle the DATA already
+            // allows, which is why the model was not quantised to match the UI.
+            //
+            // Shown only when the room will actually tile something: a room with no
+            // textured floor has no grid to turn, so the control would do nothing
+            // and say otherwise.
+            const chosenRotation = Number(
+              floorRotationsMap[roomId] ?? room.floor_rotation ?? 0) || 0;
+            const rotationChipsHtml = materialChipsHtml || chosenMaterial
+              ? `<div class="evcc-setup-floor-chips">
+                  ${[0, 90, 180, 270].map((deg) => `
+                    <button class="evcc-setup-floor-chip ${chosenRotation === deg ? "active" : ""}"
+                            data-action="setup-set-floor-rotation"
+                            data-room-id="${roomId}"
+                            data-floor-rotation="${deg}"
+                            ${saving ? "disabled" : ""}>
+                      ${this.escapeHtml(this.t("setup.floor_rotation_deg", { deg }))}
+                    </button>
+                  `).join("")}
+                </div>`
+              : "";
+
             return `
               <div class="evcc-setup-room-row ${enabled ? "" : "excluded"}">
                 <div class="evcc-setup-room-row-top">
@@ -628,6 +655,7 @@ export function applySetupRenderers(proto) {
                 </div>
                 ${enabled ? `<div class="evcc-setup-floor-chips">${chipsHtml}</div>` : ""}
                 ${enabled ? materialChipsHtml : ""}
+                ${enabled ? rotationChipsHtml : ""}
               </div>
             `;
           }).join("");

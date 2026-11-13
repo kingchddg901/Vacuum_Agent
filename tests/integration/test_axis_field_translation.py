@@ -256,3 +256,64 @@ async def test_axt_7_floor_material_defaults_to_empty_not_missing(hass, manager)
     assert "floor_material" in attrs
     assert attrs["floor_material"] == ""
     assert attrs["floor_type"], "the appearance field must not disturb floor_type"
+
+
+async def test_axt_8_the_switch_exposes_floor_rotation(hass, manager):
+    """[AXT-8] THE SAME HOP AGAIN, for the per-room map-texture angle.
+
+    Third field across this dict, and the first two both shipped broken here, so it
+    gets its own gate rather than trusting that the lesson stuck.
+
+    Rotation is PER ROOM because it describes the house: the planks in a hallway and a
+    living room routinely run different ways, which the per-material
+    --evcc-floor-<type>-map-rotate token could never express.
+    """
+    clear_registry()
+    setup_map(manager, _VAC, _MAP, count=2)
+    _register(_VAC, block=EUFY_BLOCK, vocabulary=_EUFY_VOCAB)
+
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    rooms["1"]["floor_rotation"] = 90.0
+
+    entity = EufyVacuumRoomEntity(
+        coordinator_key="eufy_vacuum",
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        room_id=1,
+        room_data={"name": "Kitchen"},
+        unique_suffix="probe",
+    )
+    entity.hass = hass
+    attrs = entity.extra_state_attributes
+
+    assert attrs["floor_rotation"] == 90.0, (
+        "the card builds its map paint key from this attribute; without it every room "
+        "paints at the theme-wide angle and the per-room control does nothing"
+    )
+
+
+async def test_axt_9_floor_rotation_defaults_to_zero_not_missing(hass, manager):
+    """[AXT-9] A room that never set one surfaces 0.0, not an absent key.
+
+    0 means "as authored", which is exactly what every room written before the field
+    means. The card does `Number(attrs.floor_rotation ?? 0) || 0`, so an absent key
+    would work by luck; publishing a real 0 keeps the consumer's check total and keeps
+    "never set" and "set back to 0" the same shape on the wire.
+    """
+    clear_registry()
+    setup_map(manager, _VAC, _MAP, count=2)
+    _register(_VAC, block=EUFY_BLOCK, vocabulary=_EUFY_VOCAB)
+
+    entity = EufyVacuumRoomEntity(
+        coordinator_key="eufy_vacuum",
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        room_id=1,
+        room_data={"name": "Kitchen"},
+        unique_suffix="probe",
+    )
+    entity.hass = hass
+    attrs = entity.extra_state_attributes
+
+    assert attrs["floor_rotation"] == 0.0
+    assert isinstance(attrs["floor_rotation"], float)

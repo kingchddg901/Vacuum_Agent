@@ -176,6 +176,11 @@ _SETUP_SAVE_ROOMS_SCHEMA = vol.Schema(
         # is not installed is harmless -- resolveFloorType falls through to
         # floor_type and leaves the stored value alone, so reinstalling restores it.
         vol.Optional("floor_materials"): vol.Schema({cv.string: cv.string}),
+        # floor_rotations is APPEARANCE ONLY and deliberately UNBOUNDED: any angle is
+        # meaningful (a herringbone floor is not a quarter turn), and the card wraps
+        # into [-180, 180) at the point of use. Rejecting values here would only move
+        # the wrap somewhere less visible.
+        vol.Optional("floor_rotations"): vol.Schema({cv.string: vol.Coerce(float)}),
     }
 )
 _SETUP_DELETE_MAP_SCHEMA = vol.Schema(
@@ -459,6 +464,7 @@ def register(hass: HomeAssistant) -> None:
                     # the active chip: the renderer reads room.floor_material and
                     # this list is where that room comes from.
                     "floor_material": str(room.get("floor_material", "")),
+                    "floor_rotation": float(room.get("floor_rotation", 0) or 0),
                 }
                 for rid, room in rooms_dict.items()
                 if isinstance(room, dict)
@@ -482,6 +488,7 @@ def register(hass: HomeAssistant) -> None:
             enabled_room_ids=data.get("enabled_room_ids"),
             floor_types=data.get("floor_types") or {},
             floor_materials=data.get("floor_materials") or {},
+            floor_rotations=data.get("floor_rotations") or {},
         )
         if result.get("saved") is False:
             # This service supports_response=True -- the refusal reaches the caller

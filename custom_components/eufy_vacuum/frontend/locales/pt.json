@@ -1615,6 +1615,7 @@
     "floor_hardwood": "Madeira maciça",
     "floor_laminate": "Laminado",
     "floor_tile": "Azulejo",
+    "floor_rotation_deg": "{deg}°",
     "floor_material_none": "Padrão",
     "floor_marble": "Mármore",
     "floor_granite": "Granito",

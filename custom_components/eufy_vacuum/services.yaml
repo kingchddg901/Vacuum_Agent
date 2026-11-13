@@ -204,6 +204,17 @@ save_managed_rooms:
       required: false
       selector:
         object: {}
+    floor_rotations:
+      name: Floor rotations
+      description: >
+        Dict mapping room_id to the map texture angle in degrees. Per ROOM, not
+        per material: the planks in a hallway and a living room routinely run
+        different ways. Appearance only, and the map only - room cards stretch a
+        single mask rather than tiling it, so there is no grid to turn. 0 means
+        as-authored. Omit a room to leave its angle unchanged.
+      required: false
+      selector:
+        object: {}
 
 reconcile_room:
   name: Reconcile room identity

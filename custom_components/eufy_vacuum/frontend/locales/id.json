@@ -1925,6 +1925,7 @@
     "floor_hardwood": "Kayu Keras",
     "floor_laminate": "Laminasi",
     "floor_tile": "Ubin",
+    "floor_rotation_deg": "{deg}°",
     "floor_material_none": "Bawaan",
     "floor_marble": "Marmer",
     "floor_granite": "Granit",

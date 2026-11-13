@@ -1616,6 +1616,7 @@
     "floor_hardwood": "Parquet",
     "floor_laminate": "Stratifié",
     "floor_tile": "Carrelage",
+    "floor_rotation_deg": "{deg}°",
     "floor_material_none": "Par défaut",
     "floor_marble": "Marbre",
     "floor_granite": "Granit",

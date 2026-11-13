@@ -143,6 +143,11 @@ _SAVE_MANAGED_ROOMS_SCHEMA = vol.Schema(
         # is not installed is harmless -- resolveFloorType falls through to
         # floor_type and leaves the stored value alone, so reinstalling restores it.
         vol.Optional("floor_materials"): vol.Schema({cv.string: cv.string}),
+        # floor_rotations is APPEARANCE ONLY and deliberately UNBOUNDED: any angle is
+        # meaningful (a herringbone floor is not a quarter turn), and the card wraps
+        # into [-180, 180) at the point of use. Rejecting values here would only move
+        # the wrap somewhere less visible.
+        vol.Optional("floor_rotations"): vol.Schema({cv.string: vol.Coerce(float)}),
     }
 )
 

@@ -14,7 +14,7 @@
 // which is what this is.
 //
 // The Python hops are fenced by tests/integration/test_room_crud.py (the writer) and
-// tests/unit/test_room_entity_floor_material.py (the attribute dict).
+// tests/integration/test_axis_field_translation.py [AXT-6/7] (the attribute dict).
 //
 // Coverage:
 //   [RFMR-1] _normalizeRoom carries attrs.floor_material onto the room object

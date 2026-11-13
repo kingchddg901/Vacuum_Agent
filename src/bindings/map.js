@@ -445,18 +445,29 @@ export function applyMapBindings(proto) {
         carpet_type: room?.carpet_type ?? room?.carpetType ?? "",
         floor_material: room?.floor_material ?? room?.floorMaterial ?? "",
       });
-      if (ft && room.name != null) floorByName.set(norm(room.name), ft);
+      // THE PAINT KEY IS (material, rotation), not material. Rotation is per
+      // ROOM, so two rooms can share a material and still need separately
+      // decoded tiles -- the texture and mask caches already key on rotate, so
+      // this costs a cache entry per distinct angle rather than a redesign.
+      const rot = normalizeFloorRotationDeg(
+        Number(room?.floor_rotation ?? room?.floorRotation ?? 0) || 0);
+      if (ft && room.name != null) floorByName.set(norm(room.name), `${ft}|${rot}`);
     }
-    const floorTypeByRid = [];
+    const paintKeyByRid = [];
     const ridNames = (rd && rd.room_names) || {};
     for (const ridStr of Object.keys(ridNames)) {
-      const ft = floorByName.get(norm(ridNames[ridStr]));
+      const paintKey = floorByName.get(norm(ridNames[ridStr]));
       const ridNum = Number(ridStr);
-      if (ft && Number.isFinite(ridNum)) floorTypeByRid[ridNum] = ft;
+      if (paintKey && Number.isFinite(ridNum)) paintKeyByRid[ridNum] = paintKey;
     }
     // "default" = no floor type set -> stays flat (palette); only real, textured types paint.
-    const presentTypes = [...new Set(floorTypeByRid.filter(Boolean))]
-      .filter((ft) => ft !== "default" && getPrimaryTextureUrl(ft));
+    // Each entry is `${floorType}|${degrees}`; split at the LAST bar so a material
+    // id containing one could never shift the angle into the type.
+    const presentTypes = [...new Set(paintKeyByRid.filter(Boolean))]
+      .filter((k) => {
+        const ft = String(k).slice(0, String(k).lastIndexOf("|"));
+        return ft !== "default" && getPrimaryTextureUrl(ft);
+      });
 
     // Supersample the ~360px raster to ~1200px so the mask detail survives.
     const S = Math.max(1, Math.min(4, Math.round(1200 / Math.max(W, H)) || 1));
@@ -507,7 +518,7 @@ export function applyMapBindings(proto) {
     // a texture's resolved colours/opacity/scale changing. texSig carries each ready type's
     // texKey (ft|size|scale|colorSig), so a LIVE editor tweak to a floor colour repaints the
     // map — the ft-name list alone never changed on a recolour, leaving the floor image stale.
-    const floorKey = `${rd.version}|${CW}x${CH}|${paletteSig}|${floorTypeByRid.join(",")}`
+    const floorKey = `${rd.version}|${CW}x${CH}|${paletteSig}|${paintKeyByRid.join(",")}`
       + `|${texSig}`;
     let cache = this._vaFloorImageCache;
     if (!cache || cache.key !== floorKey) {
@@ -521,8 +532,8 @@ export function applyMapBindings(proto) {
           const rid = ridAtFinal[rowBase + ((ox / S) | 0)];
           if (rid <= 0) continue;        // outside every room -> transparent
           const o = (oRow + ox) * 4;
-          const ft = floorTypeByRid[rid];
-          const tex = ft ? ready.get(ft) : null;
+          const paintKey = paintKeyByRid[rid];
+          const tex = paintKey ? ready.get(paintKey) : null;
           if (tex) {
             // 1:1 map-space sample (tex is CW×CH from a native-res mask) -> crisp + continuous.
             data[o] = tex.data[o]; data[o + 1] = tex.data[o + 1];
@@ -552,13 +563,18 @@ export function applyMapBindings(proto) {
     const ready = new Map();
     const readySigs = [];   // texKeys of the types ready THIS frame (encode color/opacity/scale)
 
-    for (const ft of presentTypes) {
+    for (const paintKey of presentTypes) {
+      const bar = paintKey.lastIndexOf("|");
+      const ft = paintKey.slice(0, bar);
+      const roomRotate = Number(paintKey.slice(bar + 1)) || 0;
       const entry = FLOOR_TEXTURE_REGISTRY[ft];
       if (!entry || !Array.isArray(entry.layers) || !entry.layers.length) continue;
 
       // Per-material feature scale + the map-texture rotation (token overrides / global).
       const scale = this._resolveFloorScale(ft, host);
-      const rotate = this._resolveFloorRotation(ft, host);
+      // The ROOM's angle wins when set; 0 falls back to the token/global, so an
+      // untouched room still follows a theme-wide rotation exactly as before.
+      const rotate = roomRotate || this._resolveFloorRotation(ft, host);
 
       // Resolve each layer's color + opacity now (cheap getComputedStyle reads) -> colorSig.
       const resolved = entry.layers.map((layer) => ({
@@ -570,7 +586,7 @@ export function applyMapBindings(proto) {
       const texKey = `${ft}|${W}x${H}|${scale}|${rotate}|${colorSig}`;
 
       const cachedTex = this._floorTexCache.get(texKey);
-      if (cachedTex) { ready.set(ft, cachedTex); readySigs.push(texKey); continue; }
+      if (cachedTex) { ready.set(paintKey, cachedTex); readySigs.push(texKey); continue; }
 
       // Need every layer's mask decoded to a luminance array.
       const lumArrays = [];
@@ -611,7 +627,7 @@ export function applyMapBindings(proto) {
         })),
       );
       this._floorTexCache.set(texKey, tex);
-      ready.set(ft, tex);
+      ready.set(paintKey, tex);
       readySigs.push(texKey);
     }
 

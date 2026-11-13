@@ -329,6 +329,19 @@ export function applySetupBindings(proto) {
     });
 
     /* -------------------------------------------------------
+       SET FLOOR ROTATION — per ROOM, because rotation describes the
+       HOUSE: two rooms sharing a material routinely run different ways.
+       "0" is a REAL value (as authored), so this does not guard on the
+       value being truthy any more than the material chips above do.
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-set-floor-rotation']", "click", (e) => {
+      const roomId = e.currentTarget.dataset.roomId;
+      if (!roomId) return;
+      card._state.setSetupRoomFloorRotation?.(roomId, e.currentTarget.dataset.floorRotation ?? 0);
+      card._scheduleRender();
+    });
+
+    /* -------------------------------------------------------
        SAVE ROOMS — persist enabled list + floor types
        ------------------------------------------------------- */
     card._onAll("[data-action='setup-save-rooms']", "click", async (e) => {
@@ -344,6 +357,7 @@ export function applySetupBindings(proto) {
         const enabledRoomIds = card._state.setupRoomEditorEnabledIds?.() ?? [];
         const floorTypes     = card._state.setupRoomEditorFloorTypesMap?.() ?? {};
         const floorMaterials = card._state.setupRoomEditorFloorMaterialsMap?.() ?? {};
+        const floorRotations = card._state.setupRoomEditorFloorRotationsMap?.() ?? {};
 
         // RP-005/RF-02 belt-and-braces: the Save button is disabled at zero
         // selection, but a stale DOM or keyboard activation could still land
@@ -359,6 +373,7 @@ export function applySetupBindings(proto) {
           enabledRoomIds,
           floorTypes,
           floorMaterials,
+          floorRotations,
         );
 
         card._state.markSetupMapConfigured?.(mapId);

@@ -171,6 +171,7 @@ export function applySetupActions(proto) {
     enabledRoomIds,
     floorTypes,
     floorMaterials,
+    floorRotations,
   ) {
     const result = await this.callService(
       DOMAIN,
@@ -185,6 +186,11 @@ export function applySetupActions(proto) {
         // indistinguishable from that but needlessly widens the payload.
         ...(floorMaterials && Object.keys(floorMaterials).length
           ? { floor_materials: floorMaterials }
+          : {}),
+        // Same rule, same reason: an ABSENT room keeps its angle, so an empty
+        // map and no key at all must stay indistinguishable.
+        ...(floorRotations && Object.keys(floorRotations).length
+          ? { floor_rotations: floorRotations }
           : {}),
       },
       true,

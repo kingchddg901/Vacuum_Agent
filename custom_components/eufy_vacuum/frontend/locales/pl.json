@@ -1925,6 +1925,7 @@
     "floor_hardwood": "Parkiet",
     "floor_laminate": "Panele",
     "floor_tile": "Płytki",
+    "floor_rotation_deg": "{deg}°",
     "floor_material_none": "Domyślny",
     "floor_marble": "Marmur",
     "floor_granite": "Granit",

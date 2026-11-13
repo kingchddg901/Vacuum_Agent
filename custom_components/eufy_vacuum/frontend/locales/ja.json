@@ -2288,6 +2288,7 @@
     "floor_hardwood": "無垢材",
     "floor_laminate": "ラミネート",
     "floor_tile": "タイル",
+    "floor_rotation_deg": "{deg}°",
     "floor_material_none": "デフォルト",
     "floor_marble": "大理石",
     "floor_granite": "御影石",

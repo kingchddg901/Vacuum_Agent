@@ -952,6 +952,7 @@
     "step_save_rooms": "Configure rooms",  // setup wizard step 3 heading (save/configure rooms)
     "step_calibrate_map": "Calibrate map",  // setup wizard step: align the imported map with the robot's own
     "step_set_dock_position": "Set dock position",  // setup wizard step: mark where the dock sits on the map
+    "floor_rotation_deg": "{deg}°",  // Chip in the room setup list, rotation row: turns this room's floor texture by that many degrees on the map. Appearance only. 0 means as-authored.
     "floor_material_none": "Default",  // Chip in the room setup list, FIRST in the drop-in material row: this room uses its floor TYPE's own look rather than an installed custom material. Appearance only - it does not change how the room is cleaned.
     "floor_hardwood": "Hardwood",  // floor type
     "floor_laminate": "Laminate",  // floor type

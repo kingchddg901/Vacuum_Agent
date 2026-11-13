@@ -174,6 +174,7 @@ class RoomRecord(TypedDict, total=False):
     profile_name: Optional[str]
     floor_type: str             # "hardwood"|"laminate"|"tile"|"marble"|"granite"|"concrete"|"carpet_low_pile"|"carpet_high_pile"
     floor_material: str         # APPEARANCE ONLY - a drop-in material id, or absent
+    floor_rotation: float       # APPEARANCE ONLY - map-texture angle in degrees, or absent
     clean_mode: str
     fan_speed: str
     water_level: str
@@ -242,6 +243,21 @@ class RoomConfig:
     # value alone so reinstalling it restores the look.
     floor_material: str = ""
 
+    # APPEARANCE ONLY, and PER ROOM rather than per material, which is the whole
+    # point: rotation is a fact about the HOUSE. The planks in the hallway run one
+    # way and in the living room another, so a per-material angle -- which is what
+    # the --evcc-floor-<type>-map-rotate token already offered -- could never
+    # express it; every room sharing a material would turn together.
+    #
+    # Degrees, 0 = as authored. Wrapped into [-180, 180) by the card's
+    # normalizeFloorRotationDeg before use, so any value is safe to store; it is
+    # NOT normalised here because the store should hold what the user chose.
+    #
+    # Like floor_material it NEVER gates is_configured -- turning a texture is not
+    # approving a room -- and it affects the MAP only: room cards stretch a single
+    # mask to fit rather than tiling it, so there is no grid to turn.
+    floor_rotation: float = 0.0
+
     clean_mode: str = "vacuum"
     fan_speed: str = ""
     water_level: str = ""
@@ -293,6 +309,8 @@ class RoomConfig:
         (``_finalize_room_update``, ``apply_capability_gate``,
         ``apply_room_profile_to_config``); this makes the fourth agree with them.
 
+        ``floor_rotation`` is the third, for the same reason: 0 means “as authored”.
+
         ``floor_material`` is the second axis with that property and gets the same
         treatment for the same reason: empty means “no material, use floor_type’s
         own look”, which is exactly what ABSENT means for every room written before
@@ -300,7 +318,7 @@ class RoomConfig:
         every room on the next rebuild and make “never set” indistinguishable from
         “set and cleared” in the store.
 
-        Only these two, deliberately. ``fan_speed`` / ``water_level`` /
+        Only these three, deliberately. ``fan_speed`` / ``water_level`` /
         ``clean_intensity`` are read all over with ``room.get(field, "")``, so
         dropping their empties would be a behaviour change across many call sites for
         no defect; ``path_type`` is the axis whose empty value has to be
@@ -312,6 +330,11 @@ class RoomConfig:
             result.pop("path_type", None)
         if not result.get("floor_material"):
             result.pop("floor_material", None)
+        # Third axis with the same property: 0 means “as authored”, which is exactly
+        # what ABSENT means for every room written before the field existed. Carrying
+        # the zero would stamp a meaningless key onto every room on the next rebuild.
+        if not result.get("floor_rotation"):
+            result.pop("floor_rotation", None)
         return result
 
 
