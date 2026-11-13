@@ -30,6 +30,7 @@ import { mapStyles } from "../styles/map.js";
 import { foundationTokens } from "../styles/foundation.js";
 import { ensureLocalesLoaded } from "../i18n/index.js";
 import { ensureFontFacesInDocument } from "../styles/fonts.js";
+import { ensureUserMaterialsLoaded } from "../textures/ensure-user-materials.js";
 
 // live:FONT-1 -- the faces must be registered on the DOCUMENT (Chromium ignores
 // @font-face inside shadow trees). Idempotent; every entry calls it so the faces
@@ -218,6 +219,7 @@ class EufyVacuumMap extends HTMLElement {
      ========================================================= */
 
   connectedCallback() {
+    this._loadUserMaterials();
     this._loadAnimalSvg();
     this._scheduleRender();
     this._scheduleLiveMapRefresh();
@@ -229,6 +231,17 @@ class EufyVacuumMap extends HTMLElement {
     if (this._livePosePollTimer) { clearInterval(this._livePosePollTimer); this._livePosePollTimer = null; }
     this._state?.flushMapTransform?.();   // persist a last-moment pan/zoom + kill its pending timer
     this._bindings?._teardownMapResize?.();   // drop the map container ResizeObserver
+  }
+
+  // live:UMAT-1 -- THIS is the bundle the defect lived in. The map host is loaded
+  // by a DYNAMIC import of its own served URL, so it never shared the panel's
+  // registry: a drop-in saved onto a room drew the room's plain floor_type and
+  // nothing anywhere reported a problem. Re-render on arrival, because the
+  // catalogue lands after the first paint.
+  _loadUserMaterials() {
+    ensureUserMaterialsLoaded("eufy-vacuum-map").then((added) => {
+      if (added && added.length) this._scheduleRender();
+    });
   }
 
   _loadAnimalSvg() {

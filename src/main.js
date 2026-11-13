@@ -1,13 +1,7 @@
 // Root custom element for the Eufy Vacuum Command Center Lovelace card.
 
 import { CARD_NAME, CARD_VERSION }            from "./constants.js";
-import { FLOOR_TEXTURE_REGISTRY } from "./textures/floor-texture-registry.js";
-import {
-  fetchUserMaterialCatalog,
-  mergeUserMaterials,
-  setUserMaterials,
-} from "./textures/user-materials.js";
-import { rebuildThemeTokens } from "./theme-tokens/index.js";
+import { ensureUserMaterialsLoaded } from "./textures/ensure-user-materials.js";
 import { VacuumCardState }                    from "./state/index.js";
 import { VIEWPORT_MOBILE_MAX_WIDTH }          from "./state/viewport.js";  // temp layout probe
 import { VacuumCardRenderers }                from "./renderers/index.js";
@@ -2269,54 +2263,22 @@ class EufyVacuumCommandCenter extends HTMLElement {
      =========================================================
      Fetches catalog.json, written at startup by
      custom_components/eufy_vacuum/user_materials.py from
-     config/eufy_vacuum/materials/<id>/. Same once-flag shape as the
-     animal loader above, and for the same reason: several card
-     instances and repeated connectedCallbacks must not re-merge.
+     config/eufy_vacuum/materials/<id>/.
 
-     ORDER MATTERS. The registry merge has to land BEFORE the token
-     rebuild, because resolvedTheme()'s "0b" seed walks
-     FLOOR_TEXTURE_REGISTRY and seeds colorToken <- colorDefault,
-     gated on THEME_TOKEN_MAP membership. Rebuild first and the
-     tokens exist with nothing to seed from; merge first and the
-     editor controls come up populated with no extra work.
-
-     rebuildThemeTokens() is called EXPLICITLY rather than relying on
-     the document event setUserMaterials dispatches. The event is a
-     convenience for anything else that changes the list; correctness
-     must not depend on a listener being attached yet.
-
-     A missing or empty catalogue is the COMMON case -- the directory
-     is created empty at startup -- so it is a quiet no-op, never a
-     warning.
+     THE MECHANISM MOVED to textures/ensure-user-materials.js --
+     the ordering rule, the once-guard and why a missing catalogue
+     is a quiet no-op all live there now, because all THREE bundles
+     need them and this class exists in only one of them.
      ========================================================= */
 
+  // live:UMAT-1 -- ONE implementation, in textures/ensure-user-materials.js, because
+  // the three bundles each need this and three copies would drift. The guard lives
+  // there (a module-level promise) rather than on this class: the class is only in
+  // the panel bundle, and the thing being guarded is PER BUNDLE, not per card.
   _loadUserMaterials() {
-    if (EufyVacuumCommandCenter._userMaterialsLoaded) return;
-    EufyVacuumCommandCenter._userMaterialsLoaded = true;
-    fetchUserMaterialCatalog()
-      .then((rows) => {
-        if (!rows || !rows.length) return;
-        const { added, skipped, materials } = mergeUserMaterials(
-          FLOOR_TEXTURE_REGISTRY,
-          rows,
-        );
-        if (skipped.length) {
-          console.warn(
-            "[eufy-vacuum-command-center] drop-in material(s) skipped:",
-            skipped.join(", "),
-          );
-        }
-        if (!added.length) return;
-        setUserMaterials(materials);
-        rebuildThemeTokens();
-        this._scheduleRender();
-      })
-      .catch((err) =>
-        console.warn(
-          "[eufy-vacuum-command-center] drop-in materials failed to load:",
-          err,
-        )
-      );
+    ensureUserMaterialsLoaded("eufy-vacuum-command-center").then((added) => {
+      if (added && added.length) this._scheduleRender();
+    });
   }
 
   disconnectedCallback() {
