@@ -99,13 +99,18 @@ test("[TPU-4] the grid renders a card for the drop-in, after the shipped ones", 
   const proto = {};
   applyThemePreviewRenderers(proto);
 
+  // A card is identified by whichever SLOT carries its key: a shipped type goes in
+  // floor_type, a drop-in in floor_material, because resolveFloorType honours a
+  // drop-in id only there. Reading floor_type alone would report the drop-in as
+  // missing even when it rendered correctly — [CFM-5] pins the slots themselves.
   const seen = [];
   const card = {
     t: (k) => k,
     tVocabRaw: (_f, v, fb) => fb ?? String(v),
     renderRoomCard: (room) => {
-      seen.push(room.floor_type);
-      return `<div data-ft="${room.floor_type}"></div>`;
+      const key = room.floor_material || room.floor_type;
+      seen.push(key);
+      return `<div data-ft="${key}"></div>`;
     },
   };
   Object.setPrototypeOf(card, proto);

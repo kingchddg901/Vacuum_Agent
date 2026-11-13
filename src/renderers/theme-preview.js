@@ -304,18 +304,24 @@ export function applyThemePreviewRenderers(proto) {
     // which is the whole purpose of the panel.
     const dropIns = currentUserMaterials()
       .filter((m) => m && typeof m.id === "string" && m.id)
-      .map((m) => this._renderFloorPreviewCard(m.id, m.name || m.id));
+      .map((m) => this._renderFloorPreviewCard(m.id, m.name || m.id, true));
 
     const cards = [...shipped, ...dropIns].join("");
 
     return `<div class="evcc-theme-preview-ftx-card-grid" inert>${cards}</div>`;
   };
 
-  proto._renderFloorPreviewCard = function (floorTypeKey, name) {
+  // `asMaterial` picks WHICH SLOT the key goes in, and it is not cosmetic:
+  // resolveFloorType honours a drop-in id ONLY in floor_material. Passing one as
+  // floor_type walks the shipped-vocabulary chain, matches nothing and returns
+  // "default" -- which is why the first drop-in preview card rendered flat while
+  // its controls moved real tokens.
+  proto._renderFloorPreviewCard = function (floorTypeKey, name, asMaterial) {
     return this.renderRoomCard({
       id:         `preview-ftx-${floorTypeKey}`,
       name:       name ?? floorTypeKey,
-      floor_type: floorTypeKey,
+      floor_type:     asMaterial ? "" : floorTypeKey,
+      floor_material: asMaterial ? floorTypeKey : "",
       enabled:    true,
       order:      1,
       // Always render the material here even when room-card textures are toggled off — a
@@ -338,7 +344,7 @@ export function applyThemePreviewRenderers(proto) {
   proto._renderThemePreviewFloorTextureUser = function (materialId) {
     const found = currentUserMaterials().find((m) => m && m.id === materialId);
     return this._renderFloorPreviewCard(
-      materialId, (found && found.name) || materialId);
+      materialId, (found && found.name) || materialId, true);
   };
 
   proto._renderThemePreviewFloorTextureTile       = _floorCard("tile");

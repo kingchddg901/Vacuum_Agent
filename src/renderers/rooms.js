@@ -1698,6 +1698,19 @@ proto.renderRoomCard = function (room, state) {
       ""
     );
 
+    // APPEARANCE ONLY, and carried here for the same reason floorType is: this is
+    // the ROOM CARD's own view model, and _renderFloorTextureLayer resolves the
+    // texture from THIS object, not from the state-layer room. Omitting it meant a
+    // room with a drop-in material selected rendered its plain floor_type on every
+    // card -- the map had already been fixed, so the two surfaces disagreed about
+    // the same room. Never gates `carpet` below: that is sourced from floor_type,
+    // which keeps the carpet-water-off guarantee out of a user-named material.
+    const floorMaterial = String(
+      room?.floor_material ??
+      room?.floorMaterial ??
+      ""
+    );
+
     const carpet = Boolean(
       room?.carpet ??
       (() => {
@@ -1752,6 +1765,7 @@ proto.renderRoomCard = function (room, state) {
       edgeMopping,
       edgeMoppingLabel: room?.edge_mopping_label ?? room?.edgeMoppingLabel ?? details?.edge_mopping_label ?? null,
       floorType,
+      floorMaterial,
       floorTypeLabel: room?.floor_type_label ?? room?.floorTypeLabel ?? null,
       carpetType,
       carpetTypeLabel: room?.carpet_type_label ?? room?.carpetTypeLabel ?? null,
