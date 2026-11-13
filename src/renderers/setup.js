@@ -625,10 +625,24 @@ export function applySetupRenderers(proto) {
             // the other way, but a diagonal or herringbone floor is laid at 45 and had
             // no chip for the one angle it actually wants.
             //
-            // The set runs the full circle rather than stopping at 135. For a symmetric
-            // tiled mask 180+x often looks like x, but "often" is not "always" -- an
-            // asymmetric mask or a directional highlight distinguishes them -- and
-            // dropping chips to save width would remove angles that already work.
+            // THE SET RUNS THE FULL CIRCLE rather than stopping at 135, and whether
+            // x and x+180 are distinguishable depends on the MATERIAL -- measured, not
+            // assumed, after a sweep of all eight angles on wood and then on marble:
+            //
+            //   * A mask that is anisotropic NOISE collapses the pair, always. Not
+            //     "usually": a real image's power spectrum is centrosymmetric, so a
+            //     texture whose look is spectrum-determined is IDENTICAL at x+180.
+            //     Rotating it yields different noise with the same direction, which is
+            //     invisible. Wood grain, concrete micro and carpet detail are this.
+            //   * A mask carrying COHERENT FEATURES breaks the pair, because features
+            //     are phase structure and 180 degrees is exactly what inverts phase.
+            //     Marble's veins fork and taper; slate's cleft and highlight likewise.
+            //
+            // So the materials most worth rotating are precisely the ones that need all
+            // eight, and trimming to four would cost them their distinct angles. Note a
+            // POINTWISE pixel difference does NOT predict this -- it rates wood grain
+            // more asymmetric than marble veins, the opposite of what renders -- so do
+            // not "verify" this with an RMS diff and conclude the chips are redundant.
             //
             // Shown only when the room will actually tile something: a room with no
             // textured floor has no grid to turn, so the control would do nothing
