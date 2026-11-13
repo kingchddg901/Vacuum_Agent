@@ -87,6 +87,19 @@ jobs:
               ;;
           esac
 
+      # The archive below is custom_components/eufy_vacuum/ taken WHOLE, so anything
+      # parked in it is downloaded by every user. From 2026-07-04 to 2026-11-12 that was
+      # 20,002,815 bytes of generator source photographs no renderer loads -- 68% of the
+      # 2.6.1 download -- because nothing compared the tree against the registry. This is
+      # the same gate node-tests.yml runs on push; it repeats here because release is where
+      # the cost actually lands, and it needs no npm install (node builtins + one import).
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Assert every shipped texture is referenced by the registry
+        run: node scripts/check-texture-assets.mjs
+
       - name: Build eufy_vacuum.zip (contents at root, no wrapping folder)
         run: |
           cd custom_components/eufy_vacuum

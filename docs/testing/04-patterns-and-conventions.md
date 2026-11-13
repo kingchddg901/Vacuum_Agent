@@ -303,20 +303,27 @@ per condition, not one per line.
 
 ## Standing gates on things that are not code
 
-Five committed gates, holding ground that no ordinary test can. They divide into two
+Nine committed gates, holding ground that no ordinary test can. They divide into two
 kinds, and the distinction matters when you touch one:
 
-**Ratchets** — *mock debt* and *documentation* — are SHRINK-ONLY: the number may fall
-freely, and raising it is meant to be harder than fixing the thing it measures.
+**Ratchets** — *mock debt*, *pragmas*, the *register*, *annotations* and *documentation* —
+are SHRINK-ONLY: the number may fall freely, and raising it is meant to be harder than
+fixing the thing it measures.
 
-**Absolute gates** — *front-page links*, the *register*, and *screenshot freshness* —
-have no allowance. They pass or they do not.
+**Absolute gates** — *front-page links*, *screenshot freshness*, *covers* and *shipped
+texture references* — have no allowance. They pass or they do not.
 
 > This heading read **"The two ratchets (mock debt, doc coverage)"** and opened *"Two
 > committed gates"* while three were listed beneath it. Each new gate was appended
 > without touching the frame above, so the count was wrong for as long as the section
 > had been growing — the same accretion failure the register ratchet exists to catch,
 > in the prose describing it.
+>
+> **It then happened again.** The count read *five* with **eight** gates listed below it,
+> and both kind-lists were short: the register was filed as absolute while its own
+> heading calls it a ratchet, and pragmas, annotations and covers appeared in neither.
+> Corrected 2026-11-12 when the texture gate became the ninth. If you add a tenth, the
+> count and the two lists above are the thing to touch, not just a new `###` below.
 
 ### Mock ratchet — `tests/test_mock_ratchet.py`
 
@@ -638,6 +645,51 @@ measured — SPAN reddens `CG-9` alone, REACH reddens `CG-7` alone, and `CG-1`
 goes red only under the double mutant. Its fixture needs an explicit `else` arm,
 because a bare `if` with no else leaves `missing_lines` empty and SPAN reads only
 `missing_lines`, never the arcs.
+
+### Shipped texture references — `scripts/check-texture-assets.test.mjs`
+
+`custom_components/eufy_vacuum/textures/` is **inside the release payload**:
+`release.yml` zips the contents of `custom_components/eufy_vacuum/` whole, minus
+bytecode. So a file parked in that directory is downloaded by every user whether or
+not any renderer asks for it, and until 2026-11-12 nothing checked.
+
+It had already happened, for four months. The commit that re-authored carpet and
+granite as split base+detail masks moved rendering onto the masks and left the three
+full-colour source photographs behind: **20,002,815 bytes, 78.1% of all texture bytes
+and ~68% of the 29,462,699-byte 2.6.1 download**, referenced by nothing in the
+package — the only consumer is `scripts/gen_floor_masks.py`, which is not shipped
+either. Rendering was never affected, which is why it produced no symptom for anyone
+to report: the 18 greyscale masks all shipped and all worked. The sources now live
+under `authoring/texture-sources/`.
+
+The gate is **bidirectional**, and the second half is worth as much as the first:
+
+| finding | meaning |
+|---|---|
+| `unreferenced` | ships to every user, no renderer loads it — the defect above |
+| `missing` | the registry names a mask that is not on disk — that material renders as nothing |
+
+**The registry is imported, not parsed.** A regex over
+`src/textures/floor-texture-registry.js` would drift from it silently, which is the
+same failure shape as the thing being guarded; importing makes the expectation the
+real closed set (`layers[].url`, `masks[].url`, `baseTexture`, with the module's own
+`?v=` cache-bust suffix stripped — `CTA-4` is the cell that fails if the stripping
+goes, and it would otherwise fire on all 18 masks at once, which is the shape of a
+gate that gets deleted rather than fixed).
+
+`CTA-1` runs against the real tracked tree and is the gate; `CTA-2`..`CTA-7` are
+synthetic and exist because a gate nobody has reddened is a preference. `CTA-1` was
+ablation-proven on the actual historical defect — copying
+`texture-floor-granite-light.png` back into `textures/granite/` took the CLI to exit 1
+naming that file, and reddened `CTA-1` **alone** while the other six stayed green.
+
+```bash
+npm run check:textures      # 18 file(s) on disk, 18 referenced by the registry
+```
+
+It runs in `node-tests.yml` (whose path filter now includes
+`custom_components/eufy_vacuum/textures/**`, or a stray PNG added there alone would not
+have triggered it) and again in `release.yml` before the zip is built.
 
 ### The generated `Mocking` column
 

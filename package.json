@@ -18,7 +18,8 @@
     "harness:locales": "node harness/build.mjs && node harness/shoot-locales.mjs",
     "test:harness": "node harness/build.mjs && playwright test -c harness/playwright.config.mjs",
     "test:units": "node --test \"src/**/*.test.mjs\"",
-    "check:i18n": "node scripts/check-i18n.mjs"
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "check:textures": "node scripts/check-texture-assets.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

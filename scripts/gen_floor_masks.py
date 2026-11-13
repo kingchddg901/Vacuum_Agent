@@ -53,7 +53,8 @@ and two shipped masks no generator produces at all —
 concrete/concrete-broad-mask.png and tile/grout-mask.png. The three photographic
 sources the splits read are likewise read-only —
 carpet/texture-floor-carpet-low.png, carpet/texture-floor-carpet-high.png,
-granite/texture-floor-granite-light.png.
+granite/texture-floor-granite-light.png -- which live under authoring/texture-sources/,
+NOT under custom_components/, because that directory ships to every user verbatim.
 
 ⚠ the two orphan masks were missing from this list when it was rewritten on
 2026-08-24 — it under-claimed what is protected, which errs safe but is still
@@ -101,6 +102,14 @@ import numpy as np
 from PIL import Image
 
 TEXTURES = Path(__file__).resolve().parents[1] / "custom_components" / "eufy_vacuum" / "textures"
+# The three photographic SOURCES live OUTSIDE custom_components/ on purpose. The release
+# zip is the contents of custom_components/eufy_vacuum/ taken whole (release.yml), so a
+# build input stored under textures/ ships to every user: 20,002,815 bytes of photos that
+# no renderer loads, 68% of the 2.6.1 download, inert since 0383410b (2026-07-04) moved
+# rendering to the split masks. Nothing in the shipped package reads them -- this generator
+# is the only consumer and it is not shipped either. scripts/check-texture-assets.mjs now
+# fails if an unreferenced file reappears under textures/.
+SOURCES = Path(__file__).resolve().parents[1] / "authoring" / "texture-sources"
 # All masks are authored at 2048x2048, and every mask must match that canvas.
 #
 # ⚠ was: "the per-room mask-position 'shift' is calibrated for that canvas, so every mask
@@ -190,7 +199,7 @@ def gen_split_from_photo(check: bool, src_name: str, out_dir_name: str, prefix: 
     colour as a uniform veil — the concrete-micro lesson)."""
     from PIL import ImageFilter
 
-    src = TEXTURES / src_name
+    src = SOURCES / src_name
     print(f"[{prefix}] split  <-  {src.name}")
     img = Image.open(src).convert("L").resize((SIZE, SIZE), Image.LANCZOS)
     base_r = max(1, round(SIZE * base_blur))

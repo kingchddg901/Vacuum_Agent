@@ -267,7 +267,10 @@ nothing), then `npm run build:deploy` (bumps the asset hash → cache-bust). Gen
 
 - `gen_tile_base` — inverts the grout grid → white tile faces + dark grout channels.
 - `gen_concrete_micro` — black field + sparse aggregate specks.
-- `gen_split_from_photo` — frequency-splits the carpet/granite **photos** into a broad **base**
+- `gen_split_from_photo` — frequency-splits the carpet/granite **photos** (which live under
+  `authoring/texture-sources/`, **not** under `custom_components/` — that directory is the
+  release payload taken whole, so a build input stored there ships to every user) into a
+  broad **base**
   (heavy blur, mostly-white) + a bold **detail** (band-pass + darkening gamma → mostly-black
   with bold weave/aggregate). This is how carpet_low/high and granite_light were rescued from
   the flat single-photo trap.
