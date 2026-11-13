@@ -74,6 +74,10 @@ export function applySetupState(proto) {
         loadingMapId:     null,   // map_id currently fetching rooms
         enabled:          {},     // String(room_id) → bool
         floorTypes:       {},     // String(room_id) → string
+        // APPEARANCE ONLY, and separate from floorTypes on purpose: floor_type
+        // carries the carpet-water-off guarantee and stays a closed vocabulary.
+        // "" is a real value here — it means "clear the material".
+        floorMaterials:   {},     // String(room_id) → material id or ""
         saving:           false,
         configuredMapIds: {},     // String(map_id) → true
       };
@@ -132,6 +136,10 @@ export function applySetupState(proto) {
 
   proto.setSetupRoomFloorType = function (roomId, floorType) {
     this._ensureSetupRoomEditor().floorTypes[String(roomId)] = floorType;
+  };
+
+  proto.setSetupRoomFloorMaterial = function (roomId, material) {
+    this._ensureSetupRoomEditor().floorMaterials[String(roomId)] = material ?? "";
   };
 
   proto.setSetupRoomEditorSaving = function (saving) {
@@ -281,5 +289,13 @@ export function applySetupState(proto) {
   /* Collect floor types dict: String(room_id) → floor_type_string. */
   proto.setupRoomEditorFloorTypesMap = function () {
     return { ...this._ensureSetupRoomEditor().floorTypes };
+  };
+
+  /* Collect floor MATERIALS dict: String(room_id) → material id ("" clears).
+     Only rooms the user actually touched appear, because the backend reads an
+     ABSENT room as “leave it alone” — sending every room would let this view
+     overwrite materials the room editor set. */
+  proto.setupRoomEditorFloorMaterialsMap = function () {
+    return { ...this._ensureSetupRoomEditor().floorMaterials };
   };
 }

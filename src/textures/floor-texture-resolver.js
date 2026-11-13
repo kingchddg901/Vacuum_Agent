@@ -29,7 +29,26 @@
  * @param {{ floor_type?: string, carpet_type?: string }} room - Raw room data object.
  * @returns {string} Canonical floor type key (e.g. "tile", "wood", "carpet_low").
  */
+import { FLOOR_TEXTURE_REGISTRY } from "./floor-texture-registry.js";
+
 export function resolveFloorType(room) {
+  // APPEARANCE FIRST. floor_material is the optional second field: it selects a
+  // look and nothing else. floor_type stays the closed eight-value vocabulary that
+  // carries the carpet-water-off guarantee (no_water_value, plus
+  // startswith("carpet") at fourteen sites), so a material a stranger named can
+  // never decide whether a room gets mopped.
+  //
+  // Membership is checked against the LIVE registry rather than trusted, because a
+  // material can be removed from config/eufy_vacuum/materials/ between saves. An
+  // unknown value falls through to the floor_type chain below, which is what keeps
+  // the room looking like something rather than rendering as `default`, and it
+  // leaves the stored value UNTOUCHED so putting the material back restores it.
+  const material = String(room?.floor_material ?? room?.floorMaterial ?? "").trim();
+  if (material && material !== "default"
+      && Object.prototype.hasOwnProperty.call(FLOOR_TEXTURE_REGISTRY, material)) {
+    return material;
+  }
+
   const raw     = String(room?.floor_type  ?? "").toLowerCase().trim();
   const carpetRaw = String(room?.carpet_type ?? "").toLowerCase().trim();
 

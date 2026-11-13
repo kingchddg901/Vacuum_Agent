@@ -169,6 +169,13 @@ _SETUP_SAVE_ROOMS_SCHEMA = vol.Schema(
         vol.Optional("map_id"): cv.string,
         vol.Optional("enabled_room_ids"): _enabled_room_ids_validator,
         vol.Optional("floor_types"): vol.Schema({cv.string: cv.string}),
+        # floor_materials is APPEARANCE ONLY and is NOT validated against a value
+        # list here on purpose: the valid set is whatever is installed in
+        # config/eufy_vacuum/materials/, which this process learns at startup and a
+        # user can change without restarting the card. An id naming a material that
+        # is not installed is harmless -- resolveFloorType falls through to
+        # floor_type and leaves the stored value alone, so reinstalling restores it.
+        vol.Optional("floor_materials"): vol.Schema({cv.string: cv.string}),
     }
 )
 _SETUP_DELETE_MAP_SCHEMA = vol.Schema(
@@ -470,6 +477,7 @@ def register(hass: HomeAssistant) -> None:
             map_id=data["map_id"],
             enabled_room_ids=data.get("enabled_room_ids"),
             floor_types=data.get("floor_types") or {},
+            floor_materials=data.get("floor_materials") or {},
         )
         if result.get("saved") is False:
             # This service supports_response=True -- the refusal reaches the caller

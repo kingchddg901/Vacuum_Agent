@@ -1603,6 +1603,7 @@
     "floor_hardwood": "Legno",
     "floor_laminate": "Laminato",
     "floor_tile": "Piastrelle",
+    "floor_material_none": "Predefinito",
     "floor_marble": "Marmo",
     "floor_granite": "Granito",
     "floor_concrete": "Cemento",

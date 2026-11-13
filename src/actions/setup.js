@@ -160,7 +160,18 @@ export function applySetupActions(proto) {
    * @param {number[]} enabledRoomIds - rooms to keep; omitted rooms are excluded
    * @param {Object<string,string>} floorTypes - String(room_id) → floor_type
    */
-  proto.saveSetupRooms = async function (vacuumEntityId, mapId, enabledRoomIds, floorTypes) {
+  // ⚠ THIS WRAPPER IS THE LAYER THAT SILENTLY DROPS A PARAMETER. It destructures a
+  // fixed argument list and builds the service payload by hand, so a caller passing
+  // something this signature does not name is discarded without a word — no error,
+  // no log, and the service simply never sees it. A card→service parameter needs all
+  // three layers: the caller, this wrapper, and services.yaml.
+  proto.saveSetupRooms = async function (
+    vacuumEntityId,
+    mapId,
+    enabledRoomIds,
+    floorTypes,
+    floorMaterials,
+  ) {
     const result = await this.callService(
       DOMAIN,
       SERVICE_SETUP_SAVE_ROOMS,
@@ -169,6 +180,12 @@ export function applySetupActions(proto) {
         map_id:            String(mapId),
         enabled_room_ids:  enabledRoomIds,
         floor_types:       floorTypes,
+        // Omitted entirely when empty: the backend reads an ABSENT room as
+        // “leave its material alone”, and sending {} every save would be
+        // indistinguishable from that but needlessly widens the payload.
+        ...(floorMaterials && Object.keys(floorMaterials).length
+          ? { floor_materials: floorMaterials }
+          : {}),
       },
       true,
     );

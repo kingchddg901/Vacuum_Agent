@@ -316,6 +316,19 @@ export function applySetupBindings(proto) {
     });
 
     /* -------------------------------------------------------
+       SET FLOOR MATERIAL — appearance chip, drop-ins only
+       The empty-string value is the “none” chip and is REAL, so this
+       deliberately does not guard on the value being truthy the way
+       floor-type does above — that guard would make clearing impossible.
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-set-floor-material']", "click", (e) => {
+      const roomId = e.currentTarget.dataset.roomId;
+      if (!roomId) return;
+      card._state.setSetupRoomFloorMaterial?.(roomId, e.currentTarget.dataset.floorMaterial ?? "");
+      card._scheduleRender();
+    });
+
+    /* -------------------------------------------------------
        SAVE ROOMS — persist enabled list + floor types
        ------------------------------------------------------- */
     card._onAll("[data-action='setup-save-rooms']", "click", async (e) => {
@@ -330,6 +343,7 @@ export function applySetupBindings(proto) {
       try {
         const enabledRoomIds = card._state.setupRoomEditorEnabledIds?.() ?? [];
         const floorTypes     = card._state.setupRoomEditorFloorTypesMap?.() ?? {};
+        const floorMaterials = card._state.setupRoomEditorFloorMaterialsMap?.() ?? {};
 
         // RP-005/RF-02 belt-and-braces: the Save button is disabled at zero
         // selection, but a stale DOM or keyboard activation could still land
@@ -344,6 +358,7 @@ export function applySetupBindings(proto) {
           mapId,
           enabledRoomIds,
           floorTypes,
+          floorMaterials,
         );
 
         card._state.markSetupMapConfigured?.(mapId);

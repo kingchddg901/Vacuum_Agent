@@ -1616,6 +1616,7 @@
     "floor_hardwood": "Madera maciza",
     "floor_laminate": "Laminado",
     "floor_tile": "Baldosa",
+    "floor_material_none": "Predeterminado",
     "floor_marble": "Mármol",
     "floor_granite": "Granito",
     "floor_concrete": "Hormigón",

@@ -1921,6 +1921,7 @@
     "floor_hardwood": "Sert Ahşap",
     "floor_laminate": "Laminat",
     "floor_tile": "Fayans",
+    "floor_material_none": "Varsayılan",
     "floor_marble": "Mermer",
     "floor_granite": "Granit",
     "floor_concrete": "Beton",

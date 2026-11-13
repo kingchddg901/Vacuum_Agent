@@ -48,6 +48,7 @@ def build_managed_rooms(
     existing_rooms: dict[str, Any] | None = None,
     enabled_room_ids: list[int] | list[str] | None = None,
     floor_types: dict[int, str] | None = None,
+    floor_materials: dict[int, str] | None = None,
     rejected_rooms: set[int] | list[int] | None = None,
     adopted_room_ids: set[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
@@ -113,6 +114,11 @@ def build_managed_rooms(
     UNTIL 2026-08-24 (R14/C60), and this docstring conceded it further down
     while stating the opposite here — a contradiction inside one docstring, which
     is why neither half was trusted enough to check. Both halves now hold.
+    ``floor_materials`` is the APPEARANCE map and is deliberately unlike
+    ``floor_types``: absent leaves a room's material untouched, an explicit empty
+    string clears it, and supplying one NEVER gates ``is_configured`` -- choosing a
+    look is not approving a room.
+
     ``floor_types`` gates ``is_configured`` (CRUD-3): a room reaching this
     function via ``enabled_room_ids`` without a supplied floor_type entry is
     NOT auto-confirmed — a previously-confirmed room stays confirmed across a
@@ -131,6 +137,7 @@ def build_managed_rooms(
     existing_rooms = existing_rooms or {}
     new_room_defaults = new_room_defaults or {}
     floor_types = floor_types or {}
+    floor_materials = floor_materials or {}
     rejected_ids = _normalize_enabled_room_ids(rejected_rooms) if rejected_rooms else set()
     explicit_enabled_ids = _normalize_enabled_room_ids(enabled_room_ids)
     has_explicit_enabled_ids = enabled_room_ids is not None
@@ -194,6 +201,26 @@ def build_managed_rooms(
         if floor_type_entry is None:
             floor_type_entry = floor_types.get(str(room_id))
         floor_type = floor_type_entry or str(existing.get("floor_type", "hardwood"))
+
+        # floor_material: APPEARANCE ONLY, and three things differ from floor_type
+        # above, each of them load-bearing.
+        #
+        # ABSENT MEANS UNCHANGED. A save that does not mention a room must not
+        # clear its material, because the setup view and the room editor save
+        # different subsets and either would otherwise wipe the other's work.
+        # EXPLICIT EMPTY MEANS CLEAR, which is how a user removes one -- so the
+        # test is `is None`, not falsiness; `or` would make "" mean "keep".
+        #
+        # AND IT MUST NOT GATE is_configured. Supplying floor_type is the user's
+        # explicit approval of a room (CRUD-3); picking a LOOK is not, and a room
+        # must never become configured because someone changed its appearance.
+        floor_material_entry = floor_materials.get(room_id)
+        if floor_material_entry is None:
+            floor_material_entry = floor_materials.get(str(room_id))
+        if floor_material_entry is None:
+            floor_material = str(existing.get("floor_material", ""))
+        else:
+            floor_material = str(floor_material_entry or "").strip()
 
         # Calling build_managed_rooms with a room ID in enabled_room_ids is the
         # user's explicit approval — but CRUD-3: is_configured also requires a
@@ -281,6 +308,7 @@ def build_managed_rooms(
             order=int(existing.get("order", index)),
             profile_name=str(_default("profile_name", DEFAULT_ROOM_PROFILE_NAME)),
             floor_type=floor_type,
+            floor_material=floor_material,
             clean_mode=str(_default("clean_mode", "vacuum")),
             fan_speed=str(_default("fan_speed", "")),
             water_level=str(_default("water_level", "")),

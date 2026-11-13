@@ -18,6 +18,9 @@ Coverage targets
        (grants are map-scoped room IDs; nothing to strip cross-map).
 [RC-9] remove_map clears run_profiles/queue/onboarding (RP-016/RF-20 --
        PER_MAP_STORES coverage), leaving sibling maps' buckets untouched.
+[RC-FM-*] floor_material is APPEARANCE ONLY and behaves unlike floor_type:
+        absent leaves it untouched, an explicit empty string clears it, and
+        supplying one never gates is_configured.
 [RC-16] R16: adding a new PER_MAP_STORES entry cannot crash remove_map. The
         flag name is on the tuple row itself; nothing has to be hand-maintained
         in a sibling dict, and an ablation that puts back the sibling-dict
@@ -634,3 +637,104 @@ def test_rc17_remove_map_clears_the_payloads_bucket(rmm):
     assert "other_map" in mgr.data["payloads"][_VAC], (
         "a sibling map's payload must be untouched — the sweep is per (vacuum, map)"
     )
+
+
+# ---------------------------------------------------------------------------
+# floor_material — the second field
+#
+# floor_type stays a closed eight-value vocabulary because it carries the
+# carpet-water-off guarantee. floor_material selects a LOOK, so its save semantics
+# differ in three ways and each is load-bearing: absence must not clear (the setup
+# view and the room editor save different subsets), an explicit empty must clear
+# (that is how a user removes one), and it must never gate is_configured (choosing
+# an appearance is not approving a room).
+# ---------------------------------------------------------------------------
+
+
+def _discovered():
+    return [
+        {"room_id": 1, "map_id": _MAP, "name": "Kitchen"},
+        {"room_id": 2, "map_id": _MAP, "name": "Hall"},
+    ]
+
+
+def _build(existing, **kw):
+    from custom_components.eufy_vacuum.rooms.room_manager import build_managed_rooms
+
+    return build_managed_rooms(
+        discovered_rooms=_discovered(),
+        existing_rooms=existing,
+        enabled_room_ids=[1, 2],
+        floor_types={1: "tile", 2: "hardwood"},
+        new_room_defaults={},
+        **kw,
+    )
+
+
+def test_floor_material_is_stored_when_supplied():
+    """[RC-FM-1] A supplied material lands on the room and nowhere else."""
+    out = _build({}, floor_materials={1: "slate"})
+    assert out["1"]["floor_material"] == "slate"
+    assert out["1"]["floor_type"] == "tile", "floor_type must be untouched"
+    assert out["2"].get("floor_material", "") == "", "room 2 was not given one"
+
+
+def test_absent_floor_materials_leaves_existing_untouched():
+    """[RC-FM-2] A save that does not mention materials must not clear them.
+
+    The setup view and the room editor save different subsets of room state; if
+    absence meant "clear", either would silently wipe the other's work.
+    """
+    first = _build({}, floor_materials={1: "slate", 2: "bamboo"})
+    again = _build(first)                      # no floor_materials at all
+    assert again["1"]["floor_material"] == "slate"
+    assert again["2"]["floor_material"] == "bamboo"
+
+
+def test_explicit_empty_clears_the_material():
+    """[RC-FM-3] An explicit \"\" is how a user removes one.
+
+    This is why the lookup tests ``is None`` rather than falsiness -- an ``or``
+    would fold "" into "keep", and clearing would be impossible.
+    """
+    first = _build({}, floor_materials={1: "slate", 2: "bamboo"})
+    cleared = _build(first, floor_materials={1: ""})
+    assert cleared["1"].get("floor_material", "") == ""
+    assert cleared["2"]["floor_material"] == "bamboo", "only room 1 was cleared"
+
+
+def test_string_keyed_room_ids_are_accepted():
+    """[RC-FM-4] Service payloads arrive JSON-keyed, so the map may be string-keyed."""
+    out = _build({}, floor_materials={"1": "slate"})
+    assert out["1"]["floor_material"] == "slate"
+
+
+def test_floor_material_does_not_gate_is_configured():
+    """[RC-FM-5] Choosing a LOOK is not approving a room.
+
+    Supplying floor_type is the user's explicit approval (CRUD-3). A room given
+    only a material, with no floor_type entry this call, must not become
+    configured by it.
+    """
+    from custom_components.eufy_vacuum.rooms.room_manager import build_managed_rooms
+
+    out = build_managed_rooms(
+        discovered_rooms=_discovered(),
+        existing_rooms={},
+        enabled_room_ids=[1, 2],
+        floor_types={},
+        new_room_defaults={},
+        floor_materials={1: "slate"},
+    )
+    assert out["1"]["floor_material"] == "slate"
+    assert out["1"]["is_configured"] is False
+
+
+def test_empty_material_is_absent_from_the_stored_dict():
+    """[RC-FM-6] Empty is dropped, so it is indistinguishable from never-set.
+
+    RoomConfig.as_dict drops it exactly as it drops path_type. Carrying the empty
+    would stamp a meaningless key onto every room on the next rebuild.
+    """
+    out = _build({})
+    assert "floor_material" not in out["1"], out["1"]

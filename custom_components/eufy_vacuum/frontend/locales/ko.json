@@ -2284,6 +2284,7 @@
     "floor_hardwood": "원목",
     "floor_laminate": "강화마루",
     "floor_tile": "타일",
+    "floor_material_none": "기본값",
     "floor_marble": "대리석",
     "floor_granite": "화강암",
     "floor_concrete": "콘크리트",

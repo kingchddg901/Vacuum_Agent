@@ -546,6 +546,10 @@ def _normalize_floor_type(floor_type: str | None) -> str:
     "concrete", "carpet_low_pile", "carpet_high_pile".
     Legacy value "carpet" is migrated to "carpet_low_pile".
     """
+    # REPLICA RN0P2VT0 — the underscored half of the reserved-name list in
+    # user_materials.py::RESERVED_NAMES. A drop-in material id may not equal, prefix
+    # or be prefixed by any of these. Adding a value to ``allowed`` below means
+    # adding it there too.
     raw = str(floor_type or "hardwood").strip().lower()
     if raw == "carpet":
         return "carpet_low_pile"

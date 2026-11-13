@@ -65,12 +65,24 @@ ENCODED_SEP_RE = re.compile(r"%2e|%2f|%5c", re.IGNORECASE)
 
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
+# anchor: RN0P2VT0  the reserved floor-type names a drop-in id must not collide
+# with — the replica set. Declared here because this is the copy that DOES the
+# checking and the one whose comment carries the reasoning; the other two are the
+# vocabularies it is derived from, in two languages.
+#
 # ⚠ REPLICA of the floor vocabulary. The authoritative list is JS -- the keys of
 # FLOOR_TEXTURE_REGISTRY (src/textures/floor-texture-registry.js), surfaced hyphenated by
 # floorTypeNames() -- and Python cannot import it. Both spellings are reserved because a
 # custom id is compared against names the card will mint tokens for, and the persisted
 # vocabulary in profiles/room_profiles.py::_normalize_floor_type uses the underscored
 # form. Adding a shipped material means adding it here too; see docs/dev/00c-replicas.md.
+#
+# WHY A MISS IS SILENT, which is what makes this worth anchoring: a shipped
+# material added to the registry but NOT added here leaves its name available to a
+# drop-in. The drop-in then mints --evcc-floor-<name>-* keys that already exist,
+# assertUniqueTokenKeys throws, and the initial rebuild() is unguarded -- so the
+# card never defines. Nothing fails until someone installs a material with that
+# exact name, so no test here can see the gap; the register is the instrument.
 RESERVED_NAMES: tuple[str, ...] = (
     # registry keys, hyphenated (what floorTypeNames() returns)
     "carpet-high", "carpet-low", "concrete", "granite-light", "marble", "tile", "wood",

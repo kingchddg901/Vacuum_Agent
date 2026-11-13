@@ -77,6 +77,7 @@ export function applyFloorTextureSurface(proto) {
     return resolveFloorType({
       floor_type:  room?.floor_type  ?? room?.floorType  ?? "",
       carpet_type: room?.carpet_type ?? room?.carpetType ?? "",
+      floor_material: room?.floor_material ?? room?.floorMaterial ?? "",
     });
   };
 
@@ -91,6 +92,7 @@ export function applyFloorTextureSurface(proto) {
     const floorType = resolveFloorType({
       floor_type:  normalizedRoom?.floorType  ?? "",
       carpet_type: normalizedRoom?.carpetType ?? "",
+      floor_material: normalizedRoom?.floorMaterial ?? normalizedRoom?.floor_material ?? "",
     });
 
     const entry = FLOOR_TEXTURE_REGISTRY[floorType] ?? FLOOR_TEXTURE_REGISTRY.default;

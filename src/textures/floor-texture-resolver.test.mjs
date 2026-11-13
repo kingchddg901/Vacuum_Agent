@@ -3,11 +3,13 @@
 // Coverage (src/textures/floor-texture-resolver.js):
 //   [RFT-*]  resolveFloorType    - spec format, legacy combined, aliases, direct keys, fallback.
 //   [ROT-*]  normalizeFloorRotationDeg - non-finite -> 0, 0.1° quantise, wrap to [-180,180).
+//   [RFM-*]  floor_material - the APPEARANCE field; takes precedence, falls through
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { resolveFloorType, normalizeFloorRotationDeg } from "./floor-texture-resolver.js";
+import { FLOOR_TEXTURE_REGISTRY } from "./floor-texture-registry.js";
 
 /* ---------------------------------------------------------------------------
    resolveFloorType
@@ -86,4 +88,47 @@ test("[ROT-4] quantises to 0.1° so getComputedStyle noise can't churn the cache
   assert.equal(normalizeFloorRotationDeg(45.03), 45);
   assert.equal(normalizeFloorRotationDeg(45.12), 45.1);
   assert.equal(normalizeFloorRotationDeg(45.17), 45.2);
+});
+
+/* ---------------------------------------------------------------------------
+   floor_material — the second field
+
+   floor_type stays the closed eight-value vocabulary carrying the
+   carpet-water-off guarantee; floor_material selects a LOOK and nothing else.
+   These pin the precedence and, more importantly, the FALL-THROUGH: a material
+   can be deleted from config/eufy_vacuum/materials/ between saves, and when it
+   is, the room must keep looking like its floor_type rather than rendering as
+   `default` — and the stored value must be left alone so putting the material
+   back restores it.
+   --------------------------------------------------------------------------- */
+
+test("[RFM-1] a known floor_material wins over floor_type", () => {
+  FLOOR_TEXTURE_REGISTRY.__rfm_probe = { layers: [], masks: [], baseTexture: null };
+  try {
+    assert.equal(resolveFloorType({ floor_type: "tile", floor_material: "__rfm_probe" }), "__rfm_probe");
+    assert.equal(resolveFloorType({ floor_type: "tile", floorMaterial: "__rfm_probe" }), "__rfm_probe");
+  } finally {
+    delete FLOOR_TEXTURE_REGISTRY.__rfm_probe;
+  }
+});
+
+test("[RFM-2] an UNKNOWN floor_material falls through to floor_type", () => {
+  // The material was removed. The room keeps its floor_type appearance rather than
+  // going flat, and nothing here rewrites the stored value.
+  assert.equal(resolveFloorType({ floor_type: "tile", floor_material: "deleted-material" }), "tile");
+  assert.equal(resolveFloorType({ floor_type: "carpet", carpet_type: "high", floor_material: "gone" }), "carpet_high");
+});
+
+test("[RFM-3] empty, whitespace and absent all fall through", () => {
+  assert.equal(resolveFloorType({ floor_type: "marble", floor_material: "" }), "marble");
+  assert.equal(resolveFloorType({ floor_type: "marble", floor_material: "   " }), "marble");
+  assert.equal(resolveFloorType({ floor_type: "marble" }), "marble");
+  assert.equal(resolveFloorType({ floor_type: "marble", floor_material: null }), "marble");
+});
+
+test("[RFM-4] floor_material may not be \"default\"", () => {
+  // `default` is the registry's fallback entry, not a material. Accepting it would
+  // let a room select the untextured entry explicitly, which is indistinguishable
+  // from a broken material and would hide the fall-through above.
+  assert.equal(resolveFloorType({ floor_type: "tile", floor_material: "default" }), "tile");
 });

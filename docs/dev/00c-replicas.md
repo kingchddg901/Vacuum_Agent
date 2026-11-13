@@ -436,6 +436,45 @@ and **not** `[VCW-2]`; ablating the publish-hop copy reddens `[VCW-2]` and **not
 landing in one copy and not the other is precisely the failure this register was built
 for — and it was one ablation away from happening here.
 
+### `RN0P2VT0` — the reserved floor-type names a drop-in id must not collide with · **3 copies**
+
+A drop-in floor material (`config/eufy_vacuum/materials/<id>/`) has its theme tokens
+MINTED from its id by rule — `--evcc-floor-<id>-<suffix>`. The id is therefore a
+namespace, and `user_materials.py::id_conflict` refuses one that equals, prefixes, or is
+prefixed by any shipped floor-type name.
+
+| Copy | Language | Holds |
+|---|---|---|
+| `user_materials.py::RESERVED_NAMES` (primary) | Python | both spellings, and does the checking |
+| `floor-texture-registry.js` keys | JS | the hyphenated names `floorTypeNames()` surfaces |
+| `room_profiles.py::_normalize_floor_type::allowed` | Python | the underscored PERSISTED values |
+
+**Python cannot import the registry**, which is why the list is restated rather than
+derived. That alone would make it a duplicate; what makes it a SET worth anchoring is
+the shape of a miss.
+
+**A miss is silent, and it is silent twice over.** Add a shipped material to the registry
+and forget `RESERVED_NAMES`, and nothing fails: the name simply stays available to a
+drop-in. The failure arrives later and elsewhere — when somebody installs a material
+with that exact name, its minted `--evcc-floor-<name>-*` keys duplicate the shipped
+ones, `assertUniqueTokenKeys` throws, and the initial `rebuild()` in
+`src/theme-tokens/index.js` is **unguarded**, so the card never defines. No test here
+can see the gap, because the gap is an absence conditional on a file nobody has written
+yet. The prefix half is worse still: a material named `carpet` would not collide with
+any key, it would make a scoped theme import clear `carpet-high`'s and `carpet-low`'s
+tokens, since that import deletes by raw `--evcc-floor-<name>-` prefix.
+
+**Declared at** `RESERVED_NAMES`, the copy that does the checking and whose comment
+carries the reasoning. The other two are the vocabularies it is derived from, in two
+languages — neither can be deleted in favour of the other, because one is what the card
+renders and the other is what is written to storage.
+
+Recorded 2026-11-12 when the drop-in material path landed, i.e. at the fix rather than
+after it — the set did not exist until an id could be chosen by someone other than the
+maintainer.
+
+---
+
 ## Finding sets: four ways to ask, and three axes to judge
 
 Derived 2026-08-18 and **tested before being written down** — five mixed candidates run

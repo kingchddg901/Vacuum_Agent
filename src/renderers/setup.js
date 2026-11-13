@@ -30,6 +30,8 @@
 import { resolveCodedLabel } from "../state/coded-label.js";
 import { entityDisplayName } from "../state/entity-display-name.js";
 
+import { currentUserMaterials } from "../textures/user-materials.js";
+
 const FLOOR_TYPE_OPTIONS = [
   { value: "hardwood",         label: "Hardwood"         },
   { value: "laminate",         label: "Laminate"         },
@@ -120,6 +122,11 @@ export function applySetupRenderers(proto) {
       (state.setupRoomEditorEnabledIds?.() ?? []).map(String),
     );
     const floorTypesMap = state.setupRoomEditorFloorTypesMap?.() ?? {};
+    const floorMaterialsMap = state.setupRoomEditorFloorMaterialsMap?.() ?? {};
+    // Drop-in materials only. With none installed this is empty and the second
+    // chip row is not rendered AT ALL -- not an empty row, no markup -- so an
+    // install without drop-ins produces byte-identical output to before.
+    const userMaterials = currentUserMaterials();
 
     const importedMaps = (vacuumEntry?.maps ?? []).filter((m) => m.imported);
 
@@ -580,6 +587,33 @@ export function applySetupRenderers(proto) {
               </button>
             `).join("");
 
+            // APPEARANCE row. Separate from the floor-type chips above because
+            // floor_type carries the carpet-water-off guarantee and stays a
+            // closed vocabulary; this only picks a look. The “none” chip sends an
+            // empty string, which is a REAL value meaning “clear it”.
+            const chosenMaterial =
+              floorMaterialsMap[roomId] ?? room.floor_material ?? "";
+            const materialChipsHtml = userMaterials.length
+              ? `<div class="evcc-setup-floor-chips">
+                  <button class="evcc-setup-floor-chip ${chosenMaterial ? "" : "active"}"
+                          data-action="setup-set-floor-material"
+                          data-room-id="${roomId}"
+                          data-floor-material=""
+                          ${saving ? "disabled" : ""}>
+                    ${this.t("setup.floor_material_none")}
+                  </button>
+                  ${userMaterials.map((m) => `
+                    <button class="evcc-setup-floor-chip ${chosenMaterial === m.id ? "active" : ""}"
+                            data-action="setup-set-floor-material"
+                            data-room-id="${roomId}"
+                            data-floor-material="${this.escapeHtml(String(m.id))}"
+                            ${saving ? "disabled" : ""}>
+                      ${this.escapeHtml(String(m.name ?? m.id))}
+                    </button>
+                  `).join("")}
+                </div>`
+              : "";
+
             return `
               <div class="evcc-setup-room-row ${enabled ? "" : "excluded"}">
                 <div class="evcc-setup-room-row-top">
@@ -593,6 +627,7 @@ export function applySetupRenderers(proto) {
                   <span class="evcc-setup-room-name">${roomName}</span>
                 </div>
                 ${enabled ? `<div class="evcc-setup-floor-chips">${chipsHtml}</div>` : ""}
+                ${enabled ? materialChipsHtml : ""}
               </div>
             `;
           }).join("");

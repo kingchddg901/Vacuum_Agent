@@ -1600,6 +1600,7 @@
     "floor_hardwood": "Hardhout",
     "floor_laminate": "Laminaat",
     "floor_tile": "Tegel",
+    "floor_material_none": "Standaard",
     "floor_marble": "Marmer",
     "floor_granite": "Graniet",
     "floor_concrete": "Beton",

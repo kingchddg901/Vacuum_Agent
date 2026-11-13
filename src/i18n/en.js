@@ -1759,6 +1759,7 @@ export const en = {
   "setup.step_set_dock_position": "Set dock position",  // setup wizard step: mark where the dock sits on the map
   // Floor-type option labels (the room floor-type picker; FLOOR_TYPE_OPTIONS in
   // setup.js). Keyed by floor value, rendered via t().
+  "setup.floor_material_none": "Default",  // Chip in the room setup list, FIRST in the drop-in material row: this room uses its floor TYPE's own look rather than an installed custom material. Appearance only - it does not change how the room is cleaned.
   "setup.floor_hardwood": "Hardwood",  // floor type
   "setup.floor_laminate": "Laminate",  // floor type
   "setup.floor_tile": "Tile",  // floor type

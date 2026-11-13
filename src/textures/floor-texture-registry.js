@@ -35,6 +35,11 @@ const _T = "/eufy_vacuum/textures";
 const _ASSET_VER = (typeof __ASSET_VER__ !== "undefined") ? __ASSET_VER__ : "dev";
 const _Q = `?v=${_ASSET_VER}`;
 
+/* REPLICA RN0P2VT0 — these keys are the hyphenated half of the reserved-name
+   list in custom_components/eufy_vacuum/user_materials.py::RESERVED_NAMES, which a
+   drop-in material id is checked against. Python cannot import this file, so
+   ADDING AN ENTRY HERE MEANS ADDING ITS NAME THERE TOO — otherwise the name stays
+   available to a drop-in, whose minted tokens then collide with these. */
 /* === FLOOR TEXTURE REGISTRY === */
 
 export const FLOOR_TEXTURE_REGISTRY = {

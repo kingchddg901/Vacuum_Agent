@@ -193,6 +193,15 @@ save_managed_rooms:
         laminate, tile, marble, granite, concrete, carpet_low_pile,
         carpet_high_pile.
       required: false
+    floor_materials:
+      name: Floor materials
+      description: >
+        Dict mapping room_id to a drop-in material id from
+        config/eufy_vacuum/materials/. Appearance only - it does not change
+        how a room is cleaned, and it never affects the carpet water-off
+        behaviour, which is driven by floor_type. Omit a room to leave its
+        material unchanged; pass an empty string to clear it.
+      required: false
       selector:
         object: {}
 

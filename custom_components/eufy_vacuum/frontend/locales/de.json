@@ -1600,6 +1600,7 @@
     "floor_hardwood": "Holz",
     "floor_laminate": "Laminat",
     "floor_tile": "Fliesen",
+    "floor_material_none": "Standard",
     "floor_marble": "Marmor",
     "floor_granite": "Granit",
     "floor_concrete": "Beton",

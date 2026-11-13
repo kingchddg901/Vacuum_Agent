@@ -136,6 +136,13 @@ _SAVE_MANAGED_ROOMS_SCHEMA = vol.Schema(
         # save_managed_rooms(floor_types=...)); the schema was just missing
         # the field services.yaml already documented.
         vol.Optional("floor_types"): vol.Schema({cv.string: cv.string}),
+        # floor_materials is APPEARANCE ONLY and is NOT validated against a value
+        # list here on purpose: the valid set is whatever is installed in
+        # config/eufy_vacuum/materials/, which this process learns at startup and a
+        # user can change without restarting the card. An id naming a material that
+        # is not installed is harmless -- resolveFloorType falls through to
+        # floor_type and leaves the stored value alone, so reinstalling restores it.
+        vol.Optional("floor_materials"): vol.Schema({cv.string: cv.string}),
     }
 )
 

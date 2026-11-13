@@ -173,6 +173,7 @@ class RoomRecord(TypedDict, total=False):
     order: int
     profile_name: Optional[str]
     floor_type: str             # "hardwood"|"laminate"|"tile"|"marble"|"granite"|"concrete"|"carpet_low_pile"|"carpet_high_pile"
+    floor_material: str         # APPEARANCE ONLY - a drop-in material id, or absent
     clean_mode: str
     fan_speed: str
     water_level: str
@@ -224,6 +225,23 @@ class RoomConfig:
     # use floor_type.startswith("carpet") rather than a separate flag.
     floor_type: str = "hardwood"
 
+    # APPEARANCE ONLY. The id of a drop-in material from
+    # config/eufy_vacuum/materials/, or empty for "use floor_type's own look".
+    #
+    # DELIBERATELY NOT floor_type. That field is a CLOSED eight-value vocabulary
+    # and it carries a safety property: the carpet-water-off guarantee is sourced
+    # from it by no_water_value and by startswith("carpet") at fourteen sites,
+    # twelve of them case-sensitive. Widening it to admit user-named materials
+    # would put that guarantee in the hands of whoever names a drop-in -- a
+    # material called "Carpet-Bamboo" would read as carpet to four subsystems and
+    # not to the other twelve. Keeping appearance in a second field means a
+    # drop-in cannot reach it at all.
+    #
+    # Unknown values are SAFE: resolveFloorType checks the live registry and falls
+    # through to floor_type when the material is not installed, leaving the stored
+    # value alone so reinstalling it restores the look.
+    floor_material: str = ""
+
     clean_mode: str = "vacuum"
     fan_speed: str = ""
     water_level: str = ""
@@ -265,7 +283,7 @@ class RoomConfig:
     def as_dict(self) -> dict[str, Any]:
         """Return the room config as a dictionary.
 
-        ``path_type`` is dropped when empty. This dataclass is the REBUILD writer —
+        ``path_type`` and ``floor_material`` are dropped when empty. This dataclass is the REBUILD writer —
         every room re-created by ``maps/map_manager.rebuild_map_bucket`` and
         ``rooms/room_manager.build_managed_rooms`` goes through it — and it is the
         one path that never consults a brand catalog, so an empty axis written here
@@ -275,7 +293,14 @@ class RoomConfig:
         (``_finalize_room_update``, ``apply_capability_gate``,
         ``apply_room_profile_to_config``); this makes the fourth agree with them.
 
-        Only this axis, deliberately. ``fan_speed`` / ``water_level`` /
+        ``floor_material`` is the second axis with that property and gets the same
+        treatment for the same reason: empty means “no material, use floor_type’s
+        own look”, which is exactly what ABSENT means for every room written before
+        the field existed. Carrying the empty would stamp a meaningless key onto
+        every room on the next rebuild and make “never set” indistinguishable from
+        “set and cleared” in the store.
+
+        Only these two, deliberately. ``fan_speed`` / ``water_level`` /
         ``clean_intensity`` are read all over with ``room.get(field, "")``, so
         dropping their empties would be a behaviour change across many call sites for
         no defect; ``path_type`` is the axis whose empty value has to be
@@ -285,6 +310,8 @@ class RoomConfig:
         result = asdict(self)
         if not result.get("path_type"):
             result.pop("path_type", None)
+        if not result.get("floor_material"):
+            result.pop("floor_material", None)
         return result
 
 

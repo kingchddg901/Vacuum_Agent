@@ -2436,6 +2436,7 @@
     "floor_hardwood": "خشب صلب",
     "floor_laminate": "لامينيت",
     "floor_tile": "بلاط",
+    "floor_material_none": "افتراضي",
     "floor_marble": "رخام",
     "floor_granite": "جرانيت",
     "floor_concrete": "خرسانة",

@@ -1921,6 +1921,7 @@
     "floor_hardwood": "Parkiet",
     "floor_laminate": "Panele",
     "floor_tile": "Płytki",
+    "floor_material_none": "Domyślny",
     "floor_marble": "Marmur",
     "floor_granite": "Granit",
     "floor_concrete": "Beton",

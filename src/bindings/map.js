@@ -443,6 +443,7 @@ export function applyMapBindings(proto) {
       const ft = resolveFloorType({
         floor_type:  room?.floor_type  ?? room?.floorType  ?? "",
         carpet_type: room?.carpet_type ?? room?.carpetType ?? "",
+        floor_material: room?.floor_material ?? room?.floorMaterial ?? "",
       });
       if (ft && room.name != null) floorByName.set(norm(room.name), ft);
     }
