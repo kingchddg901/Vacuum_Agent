@@ -47,6 +47,14 @@ import { CHIP_TOKENS           } from "./chips.js";
 import { ROOM_CARD_TOKENS      } from "./room-cards.js";
 import { MAP_TOKENS            } from "./map.js";
 import { FLOOR_TEXTURE_TOKENS  } from "./floor-textures.js";
+import {
+  buildUserFloorTokenRegistry,
+  buildUserFloorGroupOrder,
+} from "./user-floors.js";
+import {
+  currentUserMaterials,
+  USER_MATERIAL_EVENT,
+} from "../textures/user-materials.js";
 import { QUEUE_ORDERING_TOKENS } from "./queue-ordering.js";
 import { STATUS_TOKENS         } from "./status.js";
 import { LEARNING_TOKENS       } from "./learning.js";
@@ -161,18 +169,25 @@ function rebuild() {
   const { parent: animalParent, perAnimal } = buildAnimalTokenSets(animals);
   const animalSubgroupTokens = perAnimal.flatMap((g) => g.tokens);
 
+  // Drop-in floor materials mint their editor controls the same way the animal section
+  // does. Floors were the hand-authored half (53 literals in floor-textures.js), which
+  // is why a dropped-in material could not have controls without someone editing source.
+  const userFloorTokens = buildUserFloorTokenRegistry(currentUserMaterials());
+
   const groupedTokenSets = [
     ...STATIC_BEFORE_ANIMALS,
     animalParent,
     animalSubgroupTokens,
     ...STATIC_AFTER_ANIMALS,
+    userFloorTokens,
   ];
 
   const flat = groupedTokenSets.flat();
   assertUniqueTokenKeys(flat);
 
   const animalGroupOrder = buildAnimalGroupOrder(animals);
-  const groupList = buildThemeGroups(animalGroupOrder);
+  const groupList = buildThemeGroups(animalGroupOrder)
+    .concat(buildUserFloorGroupOrder(currentUserMaterials()));
 
   THEME_TOKEN_REGISTRY = flat;
   THEME_TOKEN_MAP      = Object.freeze(
@@ -187,6 +202,23 @@ function rebuild() {
   THEME_GROUPS         = groupList;
 }
 
+/**
+ * Rebuild the four exports now.
+ *
+ * Exported because the drop-in material catalogue is fetched ASYNCHRONOUSLY and the
+ * document event is only a convenience: correctness must not depend on a DOM event
+ * existing. The caller sets the material list and calls this, which also makes the whole
+ * path exercisable outside a browser — the first attempt here verified in node, where
+ * `document` is undefined, so the listener never ran and the check read as "no tokens
+ * minted" when the minting was fine.
+ *
+ * Deliberately NOT called from user-materials.js: that would make the import cycle
+ * real. Orchestration belongs at the call site.
+ */
+export function rebuildThemeTokens() {
+  rebuild();
+}
+
 // Initial build with the fallback list. The dynamic rebuild on
 // 'animal-svg-registered' will overwrite this once animals actually
 // register — typically before the editor is opened, since main.js
@@ -199,6 +231,15 @@ if (typeof document !== "undefined" && document.addEventListener) {
       rebuild();
     } catch (err) {
       console.warn("[theme-tokens] rebuild on animal-svg-registered failed:", err);
+    }
+  });
+  // Same shape for drop-in floor materials: the catalogue is fetched asynchronously, so
+  // the first build runs without it and this rebuilds once it lands.
+  document.addEventListener(USER_MATERIAL_EVENT, () => {
+    try {
+      rebuild();
+    } catch (err) {
+      console.warn(`[theme-tokens] rebuild on ${USER_MATERIAL_EVENT} failed:`, err);
     }
   });
 }

@@ -1,6 +1,13 @@
 // Root custom element for the Eufy Vacuum Command Center Lovelace card.
 
 import { CARD_NAME, CARD_VERSION }            from "./constants.js";
+import { FLOOR_TEXTURE_REGISTRY } from "./textures/floor-texture-registry.js";
+import {
+  fetchUserMaterialCatalog,
+  mergeUserMaterials,
+  setUserMaterials,
+} from "./textures/user-materials.js";
+import { rebuildThemeTokens } from "./theme-tokens/index.js";
 import { VacuumCardState }                    from "./state/index.js";
 import { VIEWPORT_MOBILE_MAX_WIDTH }          from "./state/viewport.js";  // temp layout probe
 import { VacuumCardRenderers }                from "./renderers/index.js";
@@ -2171,6 +2178,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // registered we schedule a re-render so any <animal-svg> elements that
     // were upgraded before the registry was populated get a fresh paint.
     this._loadAnimalSvg();
+    this._loadUserMaterials();
 
     // Panel mode: browsers throttle microtasks in background tabs, so the
     // Promise.resolve() render scheduling in _scheduleRender() may not fire
@@ -2253,6 +2261,61 @@ class EufyVacuumCommandCenter extends HTMLElement {
       .then(() => this._scheduleRender())
       .catch((err) =>
         console.warn("[eufy-vacuum-command-center] animal-svg load failed:", err)
+      );
+  }
+
+  /* =========================================================
+     DROP-IN FLOOR MATERIALS
+     =========================================================
+     Fetches catalog.json, written at startup by
+     custom_components/eufy_vacuum/user_materials.py from
+     config/eufy_vacuum/materials/<id>/. Same once-flag shape as the
+     animal loader above, and for the same reason: several card
+     instances and repeated connectedCallbacks must not re-merge.
+
+     ORDER MATTERS. The registry merge has to land BEFORE the token
+     rebuild, because resolvedTheme()'s "0b" seed walks
+     FLOOR_TEXTURE_REGISTRY and seeds colorToken <- colorDefault,
+     gated on THEME_TOKEN_MAP membership. Rebuild first and the
+     tokens exist with nothing to seed from; merge first and the
+     editor controls come up populated with no extra work.
+
+     rebuildThemeTokens() is called EXPLICITLY rather than relying on
+     the document event setUserMaterials dispatches. The event is a
+     convenience for anything else that changes the list; correctness
+     must not depend on a listener being attached yet.
+
+     A missing or empty catalogue is the COMMON case -- the directory
+     is created empty at startup -- so it is a quiet no-op, never a
+     warning.
+     ========================================================= */
+
+  _loadUserMaterials() {
+    if (EufyVacuumCommandCenter._userMaterialsLoaded) return;
+    EufyVacuumCommandCenter._userMaterialsLoaded = true;
+    fetchUserMaterialCatalog()
+      .then((rows) => {
+        if (!rows || !rows.length) return;
+        const { added, skipped, materials } = mergeUserMaterials(
+          FLOOR_TEXTURE_REGISTRY,
+          rows,
+        );
+        if (skipped.length) {
+          console.warn(
+            "[eufy-vacuum-command-center] drop-in material(s) skipped:",
+            skipped.join(", "),
+          );
+        }
+        if (!added.length) return;
+        setUserMaterials(materials);
+        rebuildThemeTokens();
+        this._scheduleRender();
+      })
+      .catch((err) =>
+        console.warn(
+          "[eufy-vacuum-command-center] drop-in materials failed to load:",
+          err,
+        )
       );
   }
 

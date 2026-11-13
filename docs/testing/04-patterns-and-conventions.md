@@ -691,6 +691,50 @@ It runs in `node-tests.yml` (whose path filter now includes
 `custom_components/eufy_vacuum/textures/**`, or a stray PNG added there alone would not
 have triggered it) and again in `release.yml` before the zip is built.
 
+### Drop-in floor materials — `tests/unit/test_user_materials.py`
+
+A drop-in material is **user-supplied content that reaches the renderer**, so
+`custom_components/eufy_vacuum/user_materials.py` is the only thing between a
+stranger's directory and the card. Two of its failure modes are SILENT, and they are
+what the tests are built around:
+
+| failure | why nothing would complain |
+|---|---|
+| wrong canvas | the per-type feature scales are tuned to 2048×2048 and the decode path never reads the bitmap's own width, so another size MISALIGNS rather than erroring |
+| RGB instead of greyscale | the compositor reads luminance only, so a colour mask costs ~3× the bytes and renders identically — which is how 20 MB of unreferenced RGB shipped inert for four months until `d902c5af` |
+
+Both are readable from 26 bytes of PNG `IHDR`, so refusing them needs no decoder and
+no Pillow (which is an optional dependency here — the manifest declares none). That is
+`png_header()`, pinned by `UMAT-20`.
+
+**The file is the evidence, never the descriptor.** That is `user_fonts.py`'s governing
+sentence applied to masks, and the parametrised cases build a REAL PNG differing in
+exactly one property each, so a refusal cannot come from the file being unreadable for
+some unrelated reason.
+
+**The id is a namespace, and containment is the point.** Token names are minted
+`--evcc-floor-<id>-<suffix>`, so an id equal to a shipped floor type mints keys that
+already exist and `assertUniqueTokenKeys` *throws* — with the initial `rebuild()`
+unguarded, which takes the card down. A PREFIX is worse and less obvious: the
+scoped-theme import clears by raw prefix, so a material called `carpet` would wipe
+`carpet-high`'s and `carpet-low`'s tokens on import. `UMAT-10..12` cover equal,
+prefixes, and prefixed-by.
+
+**Containment, not pattern-matching.** `contained_path()` resolves the path and tests
+where it LANDS, then walks every component refusing symlinks — a symlinked *directory*
+defeats a check on the leaf alone, which is why `user_fonts.py` refuses `islink` at
+three separate places. A regex is a denylist of spellings; it cannot see a symlink and
+it cannot see whatever it is later loosened to admit.
+
+The card half is covered separately and does NOT re-validate — the backend already
+did, against the files, and two validators drifting apart is worse than one:
+`src/textures/user-materials.test.mjs` (`UM-1..8`) for catalogue-row → registry entry,
+and `src/theme-tokens/user-floors.test.mjs` (`UF-FLOOR-1..7`) for the minted editor
+controls. `UM-5` and `UF-FLOOR-3` both exist for one trap: **no per-material
+`-opacity-card` token may be emitted**, because it sits above the global
+`--evcc-floor-texture-opacity-card` master in the render's `var()` fallback chain and
+would shadow it for anyone who set it.
+
 ### The generated `Mocking` column
 
 Each subsystem coverage table carries a `Mocking` cell derived from the same

@@ -41,6 +41,7 @@ from homeassistant.helpers.start import async_at_started
 
 from ._frontend_url import cards_module_url, panel_js_url
 from .user_fonts import build_catalog
+from .user_materials import build_catalog as build_material_catalog
 from .panels import (
     DEFAULT_PANEL_TITLE,
     PANEL_ICON,
@@ -153,7 +154,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     integration_dir = os.path.dirname(__file__)
 
-    def _prepare_static_dirs() -> tuple[str, str, str, str, str]:
+    def _prepare_static_dirs() -> tuple[str, str, str, str, str, str]:
         """Create the served directories and regenerate the auto-indexes.
 
         All filesystem work (makedirs / listdir / open) lives here so it runs in
@@ -237,17 +238,37 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         os.makedirs(user_fonts_dir, exist_ok=True)
         build_catalog(user_fonts_dir, shipped_locales_dir)
 
+        # Drop-in floor materials: config/eufy_vacuum/materials/<id>/ holding a
+        # material.json plus its greyscale masks. Same reasoning as the fonts above --
+        # the config dir survives an update and the integration dir does not, and the
+        # integration dir is also the release payload, so a mask parked there would
+        # ship to every user. build_material_catalog() validates each drop-in against
+        # the file itself (2048x2048, 8-bit, greyscale) rather than its descriptor's
+        # claims, and writes catalog.json for the card to read. Never raises: a broken
+        # drop-in is logged and skipped so it cannot stop startup.
+        materials_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "materials")
+        os.makedirs(materials_dir, exist_ok=True)
+        build_material_catalog(
+            materials_dir, os.path.join(integration_dir, "textures")
+        )
+
         return (
             maps_dir,
             os.path.join(integration_dir, "textures"),
             frontend_dir,
             locales_dir,
             user_fonts_dir,
+            materials_dir,
         )
 
-    maps_dir, textures_dir, frontend_dir, locales_dir, user_fonts_dir = (
-        await hass.async_add_executor_job(_prepare_static_dirs)
-    )
+    (
+        maps_dir,
+        textures_dir,
+        frontend_dir,
+        locales_dir,
+        user_fonts_dir,
+        materials_dir,
+    ) = await hass.async_add_executor_job(_prepare_static_dirs)
     fonts_dir = os.path.join(frontend_dir, "fonts")
 
     await hass.http.async_register_static_paths(
@@ -266,6 +287,13 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             # woff2 files ride heuristic caching, which is acceptable churn for
             # a user-supplied asset that can change under the same name.
             StaticPathConfig("/eufy_vacuum/user_fonts", user_fonts_dir, cache_headers=False),
+            # Drop-in materials: cache OFF for the same reason as the fonts above --
+            # a user iterating on a descriptor or re-exporting a mask must see the
+            # change on refresh, and these are user-supplied assets that can change
+            # under the same name.
+            StaticPathConfig(
+                "/eufy_vacuum/user_materials", materials_dir, cache_headers=False
+            ),
             StaticPathConfig("/eufy_vacuum/locales", locales_dir, cache_headers=False),
         ]
     )
