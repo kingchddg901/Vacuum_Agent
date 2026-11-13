@@ -30,6 +30,8 @@
  */
 
 import { animalEditorGroupLabel, ANIMAL_PARENT_GROUP } from "../theme-tokens/index.js";
+import { userFloorGroupLabel } from "../theme-tokens/user-floors.js";
+import { currentUserMaterials, USER_MATERIAL_EVENT } from "../textures/user-materials.js";
 
 /* =========================================================
    STATIC PREVIEW ENTRIES (non-animal groups)
@@ -184,7 +186,39 @@ function buildAnimalSubgroupEntries(animals) {
 }
 
 /* =========================================================
-   LIVE REGISTRY (rebuilds on animal-svg-registered)
+   DYNAMIC ENTRIES (per drop-in material)
+   =========================================================
+
+   Same problem the animals above already solve, and solved the same way: a
+   dropped-in material's token group exists only at RUNTIME, so it cannot be
+   enumerated in STATIC_PREVIEW_ENTRIES. Without an entry the editor shows the
+   group's controls with NO contextual preview beside them -- the sliders move
+   real tokens and nothing on screen answers, which reads as the render being
+   broken rather than the preview simply being absent.
+
+   The group label is IMPORTED from user-floors.js, never restated: it is the
+   key both halves must agree on, and a mismatch is silent in exactly this way.
+   ========================================================= */
+
+function buildUserFloorPreviewEntries(materials) {
+  const out = {};
+  for (const material of Array.isArray(materials) ? materials : []) {
+    if (!material || typeof material.id !== "string" || !material.id) continue;
+    const display = material.name || material.id;
+    out[userFloorGroupLabel(material)] = {
+      method:     "_renderThemePreviewFloorTextureUser",
+      methodArgs: [material.id],
+      titleKey:   "theme_preview.group.floor_user.title",
+      titleVars:  { material: display },
+      descKey:    "theme_preview.group.floor_user.desc",
+      descVars:   { material: display },
+    };
+  }
+  return out;
+}
+
+/* =========================================================
+   LIVE REGISTRY (rebuilds on animal-svg-registered + drop-in load)
    ========================================================= */
 
 function buildRegistry() {
@@ -192,17 +226,22 @@ function buildRegistry() {
   return Object.freeze({
     ...STATIC_PREVIEW_ENTRIES,
     ...buildAnimalSubgroupEntries(animals),
+    ...buildUserFloorPreviewEntries(currentUserMaterials()),
   });
 }
 
 export let THEME_PREVIEW_REGISTRY = buildRegistry();
 
 if (typeof document !== "undefined" && document.addEventListener) {
-  document.addEventListener("animal-svg-registered", () => {
+  const rebuild = () => {
     try {
       THEME_PREVIEW_REGISTRY = buildRegistry();
     } catch (err) {
       console.warn("[theme-preview-registry] rebuild failed:", err);
     }
-  });
+  };
+  document.addEventListener("animal-svg-registered", rebuild);
+  // The catalogue lands AFTER first paint, so the registry built at module
+  // evaluation time cannot contain a drop-in. Same contract as the animals.
+  document.addEventListener(USER_MATERIAL_EVENT, rebuild);
 }

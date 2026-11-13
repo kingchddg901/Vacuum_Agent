@@ -1835,6 +1835,10 @@
         "desc": "Los colores base y de acento controlan las líneas de lechada y la cara de la baldosa en las superficies de tarjeta y mapa.",
         "title": "Vista previa de suelo de baldosa"
       },
+      "floor_user": {
+        "desc": "Un material propio instalado en config/eufy_vacuum/materials/. Sus tokens de color y opacidad tiñen cada máscara de forma independiente, igual que los materiales incluidos.",
+        "title": "Vista previa de {material}"
+      },
       "floor_wood": {
         "desc": "Los colores base y de acento controlan la veta de la madera, las líneas de juntas y las capas de profundidad direccional.",
         "title": "Vista previa de suelo de madera"

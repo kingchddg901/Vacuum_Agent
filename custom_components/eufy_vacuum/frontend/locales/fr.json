@@ -1835,6 +1835,10 @@
         "desc": "Les couleurs de base et d'accent contrôlent les lignes de joint et la face du carreau sur les surfaces de carte et de plan.",
         "title": "Aperçu du sol carrelé"
       },
+      "floor_user": {
+        "desc": "Un matériau ajouté dans config/eufy_vacuum/materials/. Ses jetons de couleur et d'opacité teintent chaque masque indépendamment, comme ceux d'un matériau fourni.",
+        "title": "Aperçu de {material}"
+      },
       "floor_wood": {
         "desc": "Les couleurs de base et d'accent contrôlent le grain du bois, les lignes de joint et les couches de profondeur directionnelle.",
         "title": "Aperçu du sol en bois"

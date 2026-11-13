@@ -1819,6 +1819,10 @@
         "desc": "Basis- en accentkleuren bepalen de voeglijnen en het tegeloppervlak op kaart- en kamerkaartoppervlakken.",
         "title": "Voorbeeld tegelvloer"
       },
+      "floor_user": {
+        "desc": "Een eigen materiaal in config/eufy_vacuum/materials/. De kleur- en dekkingstokens per laag kleuren elk masker afzonderlijk, net als bij een meegeleverd materiaal.",
+        "title": "Voorbeeld van {material}"
+      },
       "floor_wood": {
         "desc": "Basis- en accentkleuren bepalen de houtnerf, naadlijnen en directionele dieptelagen.",
         "title": "Voorbeeld houtvloer"

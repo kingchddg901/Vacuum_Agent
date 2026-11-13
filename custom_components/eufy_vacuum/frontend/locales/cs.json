@@ -1130,6 +1130,10 @@
         "desc": "Základní a akcentová barva ovládají spárovací linie a plochu dlaždice na povrchu karty a mapy.",
         "title": "Náhled dlaždicové podlahy"
       },
+      "floor_user": {
+        "desc": "Vlastní materiál nainstalovaný v config/eufy_vacuum/materials/. Tokeny barvy a krytí jednotlivých vrstev tónují každou masku nezávisle, stejně jako u dodaných materiálů.",
+        "title": "Náhled {material}"
+      },
       "floor_wood": {
         "desc": "Základní a akcentová barva ovládají kresbu dřeva, linie spár a vrstvy směrové hloubky.",
         "title": "Náhled dřevěné podlahy"

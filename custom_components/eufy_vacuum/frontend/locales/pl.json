@@ -1130,6 +1130,10 @@
         "desc": "Kolory bazowy i akcentu sterują liniami fug i licem płytek na powierzchni karty i mapy.",
         "title": "Podgląd podłogi z płytek"
       },
+      "floor_user": {
+        "desc": "Własny materiał zainstalowany w config/eufy_vacuum/materials/. Tokeny koloru i krycia każdej warstwy barwią każdą maskę niezależnie, dokładnie jak w materiałach wbudowanych.",
+        "title": "Podgląd {material}"
+      },
       "floor_wood": {
         "desc": "Kolory bazowy i akcentu sterują usłojeniem drewna, liniami łączeń i kierunkowymi warstwami głębi.",
         "title": "Podgląd podłogi drewnianej"

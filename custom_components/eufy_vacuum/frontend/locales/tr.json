@@ -1130,6 +1130,10 @@
         "desc": "Taban ve vurgu renkleri, kart ve harita yüzeylerindeki derz çizgilerini ve fayans yüzeyini kontrol eder.",
         "title": "Fayans Zemin Önizlemesi"
       },
+      "floor_user": {
+        "desc": "config/eufy_vacuum/materials/ içine eklenen bir malzeme. Katman renk ve opaklık belirteçleri, hazır malzemelerde olduğu gibi her maskeyi ayrı ayrı renklendirir.",
+        "title": "{material} Önizlemesi"
+      },
       "floor_wood": {
         "desc": "Taban ve vurgu renkleri, ahşap damarını, ek yeri çizgilerini ve yönlü derinlik katmanlarını kontrol eder.",
         "title": "Ahşap Zemin Önizlemesi"

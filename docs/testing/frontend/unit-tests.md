@@ -172,6 +172,7 @@ now delegate) so they could be unit-tested off the render path.
 | `maintenance-clock-candidate-value.test.mjs` | 3 | `MCV-*` — a candidate's reading is rounded to one decimal. The same picker read "414 min" on a Dreame and "206.618888888889 h" on a Roborock; non-numeric states pass through untouched. |
 | `room-estimate-allocated.test.mjs` | 2 | `CARD-2` clause 2 — the room-estimate modal's ALLOCATED-source labeling (not just `default`). |
 | `metrics-edge-mopping-capability.test.mjs` | 2 | `CARD-8` — the "Edge Mopping" subtitle chip must be capability-gated, not shown whenever `edge_mopping` is truthy. |
+| `theme-preview-user-materials.test.mjs` | 5 | `[TPU-*]` — a token group with no preview is a control surface that answers nothing. A drop-in mints its own editor group and 14 tokens, and all of that worked — but `THEME_PREVIEW_REGISTRY` is a static map keyed by group NAME listing the seven shipped floor types, and the preview grid is a curated shipped-only order, so the group mounted with no preview beside it and no swatch in the grid. Reads as “the render is not driving”: every control present, nothing responding, and no error — a missing key is simply a group without a preview, which is correct for the many that have none. Pins the animal pattern the floors now follow; each of the three pieces reddens its own case (entry → 1/2/3/5, grid → 4, renderer → 2). |
 
 ### `src/actions/` — service-call wrappers (failure/refusal surfacing)
 

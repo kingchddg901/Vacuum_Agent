@@ -1822,6 +1822,10 @@
         "desc": "I colori base e accento controllano le linee di fuga e la faccia della piastrella sulle superfici della scheda e della mappa.",
         "title": "Anteprima pavimento in piastrelle"
       },
+      "floor_user": {
+        "desc": "Un materiale aggiunto in config/eufy_vacuum/materials/. I suoi token di colore e opacità tingono ogni maschera in modo indipendente, esattamente come quelli di un materiale incluso.",
+        "title": "Anteprima di {material}"
+      },
       "floor_wood": {
         "desc": "I colori base e accento controllano la venatura del legno, le linee di giunzione e gli strati di profondità direzionale.",
         "title": "Anteprima pavimento in legno"

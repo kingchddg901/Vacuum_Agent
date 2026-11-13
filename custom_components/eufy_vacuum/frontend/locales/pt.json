@@ -1834,6 +1834,10 @@
         "desc": "As cores base e de destaque controlam as linhas de junta e a face do azulejo nas superfícies do cartão e do mapa.",
         "title": "Pré-visualização de Piso de Azulejo"
       },
+      "floor_user": {
+        "desc": "Um material adicionado em config/eufy_vacuum/materials/. Os seus tokens de cor e opacidade tingem cada máscara de forma independente, tal como num material incluído.",
+        "title": "Pré-visualização de {material}"
+      },
       "floor_wood": {
         "desc": "As cores base e de destaque controlam o veio da madeira, as linhas de junta e as camadas de profundidade direcional.",
         "title": "Pré-visualização de Piso de Madeira"

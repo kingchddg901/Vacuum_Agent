@@ -1130,6 +1130,10 @@
         "desc": "Warna dasar dan aksen mengatur garis nat dan permukaan ubin pada permukaan kartu dan peta.",
         "title": "Pratinjau Lantai Ubin"
       },
+      "floor_user": {
+        "desc": "Material tambahan yang dipasang di config/eufy_vacuum/materials/. Token warna dan opasitas tiap lapisannya mewarnai setiap mask secara terpisah, persis seperti material bawaan.",
+        "title": "Pratinjau {material}"
+      },
       "floor_wood": {
         "desc": "Warna dasar dan aksen mengatur serat kayu, garis sambungan, dan lapisan kedalaman berarah.",
         "title": "Pratinjau Lantai Kayu"

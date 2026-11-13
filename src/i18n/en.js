@@ -1970,6 +1970,8 @@ export const en = {
   "theme_preview.group.chips.title": "Chip Preview",
   "theme_preview.group.floor.desc": "Live swatches show each material's overlay on the card surface. Opacity, scale, and tint tokens update in real time.",
   "theme_preview.group.floor.title": "Floor Texture Preview",
+  "theme_preview.group.floor_user.desc": "A dropped-in material installed in config/eufy_vacuum/materials/. Its layer colour and opacity tokens tint each mask independently, exactly as a shipped material's do.",
+  "theme_preview.group.floor_user.title": "{material} Preview",
   "theme_preview.group.floor_carpet_high.desc": "Base color tints the high-pile carpet texture layer on the card surface.",
   "theme_preview.group.floor_carpet_high.title": "Carpet High Pile Preview",
   "theme_preview.group.floor_carpet_low.desc": "Base color tints the low-pile carpet texture layer on the card surface.",

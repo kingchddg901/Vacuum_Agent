@@ -2622,6 +2622,10 @@
         "desc": "Live swatches show each material's overlay on the card surface. Opacity, scale, and tint tokens update in real time.",
         "title": "Floor Texture Preview"
       },
+      "floor_user": {
+        "desc": "A dropped-in material installed in config/eufy_vacuum/materials/. Its layer colour and opacity tokens tint each mask independently, exactly as a shipped material's do.",
+        "title": "{material} Preview"
+      },
       "floor_carpet_high": {
         "desc": "Base color tints the high-pile carpet texture layer on the card surface.",
         "title": "Carpet High Pile Preview"

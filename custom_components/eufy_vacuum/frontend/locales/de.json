@@ -1819,6 +1819,10 @@
         "desc": "Basis- und Akzentfarben steuern die Fugenlinien und die Fliesenoberfläche auf Karten- und Kartenflächen.",
         "title": "Vorschau Fliesenboden"
       },
+      "floor_user": {
+        "desc": "Ein eigenes Material in config/eufy_vacuum/materials/. Seine Farb- und Deckkraft-Tokens färben jede Maske unabhängig, genau wie bei mitgelieferten Materialien.",
+        "title": "{material}-Vorschau"
+      },
       "floor_wood": {
         "desc": "Basis- und Akzentfarben steuern die Holzmaserung, die Nahtlinien und die richtungsabhängigen Tiefenschichten.",
         "title": "Vorschau Holzboden"

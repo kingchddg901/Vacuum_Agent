@@ -13,6 +13,7 @@
 import { THEME_PREVIEW_REGISTRY } from "./theme-preview-registry.js";
 import { animalDisplayName } from "../theme-tokens/animals.js";
 import { floorTypeDisplayName } from "../theme-tokens/floor-scope.js";
+import { currentUserMaterials } from "../textures/user-materials.js";
 
 /**
  * Mix theme preview renderer methods onto the given prototype.
@@ -292,10 +293,20 @@ export function applyThemePreviewRenderers(proto) {
 
   proto._renderThemePreviewFloorTextures = function () {
     // tVocabRaw: the name is handed to renderRoomCard, which escapes it.
-    const cards = FLOOR_PREVIEW_ORDER
+    const shipped = FLOOR_PREVIEW_ORDER
       .map((key) => this._renderFloorPreviewCard(
-        key, floorTypeDisplayName(key, (f, v, fb) => this.tVocabRaw(f, v, fb))))
-      .join("");
+        key, floorTypeDisplayName(key, (f, v, fb) => this.tVocabRaw(f, v, fb))));
+
+    // Drop-ins APPEND rather than join the curated order: that order is a look
+    // decision (roughly hard to soft) and a user-supplied material cannot be
+    // placed in it by rule. Omitting them entirely was the defect -- this grid
+    // is the only place a material's overlay can be judged against the others,
+    // which is the whole purpose of the panel.
+    const dropIns = currentUserMaterials()
+      .filter((m) => m && typeof m.id === "string" && m.id)
+      .map((m) => this._renderFloorPreviewCard(m.id, m.name || m.id));
+
+    const cards = [...shipped, ...dropIns].join("");
 
     return `<div class="evcc-theme-preview-ftx-card-grid" inert>${cards}</div>`;
   };
@@ -320,6 +331,16 @@ export function applyThemePreviewRenderers(proto) {
     return this._renderFloorPreviewCard(
       key, floorTypeDisplayName(key, (f, v, fb) => this.tVocabRaw(f, v, fb)));
   };
+  // ONE parameterized renderer for every drop-in, exactly as the animals do it:
+  // their names are not known at authoring time either. The id IS the registry
+  // key, so renderRoomCard resolves the material through the same path a real
+  // room takes -- a preview that took a different path would not be a preview.
+  proto._renderThemePreviewFloorTextureUser = function (materialId) {
+    const found = currentUserMaterials().find((m) => m && m.id === materialId);
+    return this._renderFloorPreviewCard(
+      materialId, (found && found.name) || materialId);
+  };
+
   proto._renderThemePreviewFloorTextureTile       = _floorCard("tile");
   proto._renderThemePreviewFloorTextureWood       = _floorCard("wood");
   proto._renderThemePreviewFloorTextureMarble     = _floorCard("marble");
