@@ -709,6 +709,71 @@ def test_string_keyed_room_ids_are_accepted():
     assert out["1"]["floor_material"] == "slate"
 
 
+def test_floor_rotation_is_stored_when_supplied():
+    """[RC-FR-1] A supplied angle lands on the room and nowhere else."""
+    out = _build({}, floor_rotations={1: 45.0})
+    assert out["1"]["floor_rotation"] == 45.0
+    assert out["1"]["floor_type"] == "tile", "floor_type must be untouched"
+    assert out["2"].get("floor_rotation", 0) == 0, "room 2 was not given one"
+
+
+def test_absent_floor_rotations_leaves_existing_untouched():
+    """[RC-FR-2] A save that does not mention rotations must not straighten them."""
+    first = _build({}, floor_rotations={1: 90.0, 2: 45.0})
+    again = _build(first)                      # no floor_rotations at all
+    assert again["1"]["floor_rotation"] == 90.0
+    assert again["2"]["floor_rotation"] == 45.0
+
+
+def test_explicit_zero_straightens_the_room():
+    """[RC-FR-3] 0 is a REAL value, not an absence.
+
+    This is the one that makes `is None` load-bearing rather than stylistic: an
+    `or` would fold 0 into "keep" and a user could never turn a room back.
+    """
+    first = _build({}, floor_rotations={1: 90.0, 2: 45.0})
+    straightened = _build(first, floor_rotations={1: 0})
+    assert straightened["1"].get("floor_rotation", 0) == 0
+    assert straightened["2"]["floor_rotation"] == 45.0, "only room 1 was straightened"
+
+
+def test_floor_rotation_accepts_string_keys_and_free_angles():
+    """[RC-FR-4] JSON-keyed payloads, and any angle -- not just the chips' eighths.
+
+    The CONTROL offers eighth turns; the FIELD is a free float. A test that only
+    ever passed multiples of 45 could not tell the two apart.
+    """
+    out = _build({}, floor_rotations={"1": 37.5})
+    assert out["1"]["floor_rotation"] == 37.5
+
+
+def test_junk_rotation_keeps_the_existing_angle():
+    """[RC-FR-5] A payload that will not coerce must not silently straighten a room.
+
+    Coercing junk to 0 would look like a deliberate choice the user did not make.
+    """
+    first = _build({}, floor_rotations={1: 90.0})
+    for junk in ("abc", None, {}, float("nan"), float("inf")):
+        out = _build(first, floor_rotations={1: junk})
+        assert out["1"]["floor_rotation"] == 90.0, f"{junk!r} must keep the stored angle"
+
+
+def test_floor_rotation_does_not_gate_is_configured():
+    """[RC-FR-6] Turning a texture is not approving a room."""
+    from custom_components.eufy_vacuum.rooms.room_manager import build_managed_rooms
+
+    out = build_managed_rooms(
+        discovered_rooms=_discovered(),
+        existing_rooms={},
+        enabled_room_ids=[1, 2],
+        floor_types={},
+        new_room_defaults={},
+        floor_rotations={1: 90.0},
+    )
+    assert out["1"]["floor_rotation"] == 90.0
+    assert out["1"]["is_configured"] is False
+
+
 def test_floor_material_does_not_gate_is_configured():
     """[RC-FM-5] Choosing a LOOK is not approving a room.
 

@@ -4999,7 +4999,7 @@ ${r}
                     </button>
                   `).join("")}
                 </div>`:"",Ge=Number(oe[W]??X.floor_rotation??0)||0,Qt=De||de?`<div class="evcc-setup-floor-chips">
-                  ${[0,90,180,270].map(ze=>`
+                  ${[0,45,90,135,180,225,270,315].map(ze=>`
                     <button class="evcc-setup-floor-chip ${Ge===ze?"active":""}"
                             data-action="setup-set-floor-rotation"
                             data-room-id="${W}"

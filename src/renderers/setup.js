@@ -615,12 +615,20 @@ export function applySetupRenderers(proto) {
                 </div>`
               : "";
 
-            // ROTATION. Quarter turns only as a CONTROL, while the stored field is a
-            // free float -- so a dial or a slider can replace these chips later with
-            // no migration and no schema change. Quarter turns cover the case that
-            // prompted this (planks and grout running the other way in one room);
-            // a diagonal or herringbone floor needs the free angle the DATA already
-            // allows, which is why the model was not quantised to match the UI.
+            // ROTATION. Eighth turns as a CONTROL, while the stored field stays a free
+            // float -- so a dial can replace these chips later with no migration and no
+            // schema change, and the backend schema stays unbounded (vol.Coerce(float),
+            // not a vol.In list) so it never has to be widened to match a UI decision.
+            // That separation is why adding 45s here was a one-line change.
+            //
+            // 45s earn their place: the quarter turns cover planks and grout running
+            // the other way, but a diagonal or herringbone floor is laid at 45 and had
+            // no chip for the one angle it actually wants.
+            //
+            // The set runs the full circle rather than stopping at 135. For a symmetric
+            // tiled mask 180+x often looks like x, but "often" is not "always" -- an
+            // asymmetric mask or a directional highlight distinguishes them -- and
+            // dropping chips to save width would remove angles that already work.
             //
             // Shown only when the room will actually tile something: a room with no
             // textured floor has no grid to turn, so the control would do nothing
@@ -629,7 +637,7 @@ export function applySetupRenderers(proto) {
               floorRotationsMap[roomId] ?? room.floor_rotation ?? 0) || 0;
             const rotationChipsHtml = materialChipsHtml || chosenMaterial
               ? `<div class="evcc-setup-floor-chips">
-                  ${[0, 90, 180, 270].map((deg) => `
+                  ${[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => `
                     <button class="evcc-setup-floor-chip ${chosenRotation === deg ? "active" : ""}"
                             data-action="setup-set-floor-rotation"
                             data-room-id="${roomId}"
