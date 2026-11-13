@@ -97,6 +97,20 @@ export function entryFromCatalogRow(row, assetVer) {
     entry: {
       // NOT a -opacity-card token; see the warning above.
       opacityDefault: Number.isFinite(Number(row.opacity)) ? Number(row.opacity) : 0.99,
+      // THE MATERIAL'S OWN FEATURE SCALE, on the ENTRY rather than beside it,
+      // because the entry is the only part that reaches the registry -- and the
+      // registry is what the map resolver reads. It sat on the outer object from
+      // 1a183bb2 until it was wired, which is why every drop-in silently took the
+      // global default however carefully its descriptor was authored.
+      //
+      // A shipped material's equivalent is its FLOOR_TEXTURE_MASK_SCALE_BY_TYPE
+      // row; a drop-in cannot be in that table, so it declares instead. null means
+      // "not declared" and falls through, which is NOT the same as 0 -- a zero or
+      // negative scale would collapse the tiling, so it is refused here rather than
+      // clamped into something that looks deliberate.
+      mapScale: Number.isFinite(Number(row.scale)) && Number(row.scale) > 0
+        ? Number(row.scale)
+        : null,
       layers,
       masks: layers.map((l) => ({ url: l.url })),
       baseTexture: primary ? primary.url : null,

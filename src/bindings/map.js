@@ -828,7 +828,14 @@ export function applyMapBindings(proto) {
      the underscored resolveFloorType() key (carpet_low) is normalized before lookup.
      Clamped to a sane range so a bad value can't explode the tiling. */
   proto._resolveFloorScale = function (floorType, host) {
-    let s = FLOOR_TEXTURE_MASK_SCALE_BY_TYPE[floorType];
+    // PRECEDENCE, widest-reaching last: the material's own declaration, then the
+    // per-type table, then the global -- and a theme token beats all three below.
+    // The first two are mutually exclusive in practice (only a drop-in declares
+    // mapScale, only a shipped type has a table row), so the order between them is
+    // a statement of intent rather than a tiebreak: a material that says what it
+    // needs is more authoritative than a default it was never consulted about.
+    let s = FLOOR_TEXTURE_REGISTRY[floorType]?.mapScale;
+    if (!(typeof s === "number" && s > 0)) s = FLOOR_TEXTURE_MASK_SCALE_BY_TYPE[floorType];
     if (!(typeof s === "number" && s > 0)) s = FLOOR_TEXTURE_MASK_SCALE;
     try {
       if (host && typeof getComputedStyle === "function") {
