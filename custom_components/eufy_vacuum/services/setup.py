@@ -455,6 +455,10 @@ def register(hass: HomeAssistant) -> None:
                     "room_id": int(room.get("room_id", rid)),
                     "name": str(room.get("name", f"Room {rid}")),
                     "floor_type": str(room.get("floor_type", "hardwood")),
+                    # Without this the setup view cannot show a SAVED material as
+                    # the active chip: the renderer reads room.floor_material and
+                    # this list is where that room comes from.
+                    "floor_material": str(room.get("floor_material", "")),
                 }
                 for rid, room in rooms_dict.items()
                 if isinstance(room, dict)

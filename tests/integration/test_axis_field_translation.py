@@ -192,3 +192,67 @@ async def test_axt_4_5_the_switch_exposes_the_value_under_the_canonical_name(
     assert [o["value"] for o in attrs["clean_intensity_options"]] == [
         o["value"] for o in vocabulary[f"{stored_field}_options"]
     ], "the picker's options must resolve to the brand's declared list"
+
+
+async def test_axt_6_the_switch_exposes_floor_material(hass, manager):
+    """[AXT-6] THE SAME HOP, for the appearance field — and it was broken on a live box.
+
+    floor_material was stored correctly by build_managed_rooms and read correctly by
+    the card's resolveFloorType, and selecting a material did NOTHING, because the
+    value never travelled between them: the room entity's attribute dict is built
+    from an explicit field list and the new field was not in it. The card reads a
+    room's settings from THESE ATTRIBUTES, so a field absent here cannot reach the
+    renderer however correctly it is stored.
+
+    Both ends had tests. Both passed. That is this file's whole thesis: testing the
+    two pieces either side of a hop is not testing the hop.
+    """
+    clear_registry()
+    setup_map(manager, _VAC, _MAP, count=2)
+    _register(_VAC, block=EUFY_BLOCK, vocabulary=_EUFY_VOCAB)
+
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    rooms["1"]["floor_material"] = "slate"
+
+    entity = EufyVacuumRoomEntity(
+        coordinator_key="eufy_vacuum",
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        room_id=1,
+        room_data={"name": "Kitchen"},
+        unique_suffix="probe",
+    )
+    entity.hass = hass
+    attrs = entity.extra_state_attributes
+
+    assert attrs["floor_material"] == "slate", (
+        "the card reads room settings off these attributes; without this the chip "
+        "renders but selecting a material changes nothing"
+    )
+
+
+async def test_axt_7_floor_material_defaults_to_empty_not_missing(hass, manager):
+    """[AXT-7] A room that never set one surfaces "", not an absent key.
+
+    Absent would work by luck downstream (falsy either way) but leaves every consumer
+    relying on a missing key rather than a value, and makes “never set” and “cleared”
+    different shapes on the wire for no reason.
+    """
+    clear_registry()
+    setup_map(manager, _VAC, _MAP, count=2)
+    _register(_VAC, block=EUFY_BLOCK, vocabulary=_EUFY_VOCAB)
+
+    entity = EufyVacuumRoomEntity(
+        coordinator_key="eufy_vacuum",
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        room_id=1,
+        room_data={"name": "Kitchen"},
+        unique_suffix="probe",
+    )
+    entity.hass = hass
+    attrs = entity.extra_state_attributes
+
+    assert "floor_material" in attrs
+    assert attrs["floor_material"] == ""
+    assert attrs["floor_type"], "the appearance field must not disturb floor_type"

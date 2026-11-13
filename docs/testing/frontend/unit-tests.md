@@ -99,6 +99,7 @@ derivations — no DOM, no hass.
 | `review-exclude-reason.test.mjs` | 5 | The review exclude-reason resolver — preset chip passes its value, "custom" passes the user's trimmed text (falls back to the literal `custom`). |
 | `hidden-regions.test.mjs` | 4 | Per-map user-drawn masks — accessor, draw gate, rect conversion. |
 | `map-stale.test.mjs` | 4 | `CARD-2` clause 1: the map-stale selectors driving the dim treatment + "last seen" badge (no snapshot → not stale; fresh source → not stale). |
+| `rooms-floor-material-reachability.test.mjs` | 4 | `[RFMR-*]` — a REACHABILITY test, not a behaviour one. `floor_material` was written correctly and read correctly and still did nothing on the live box, because `_normalizeRoom` rebuilds the room object field by field and the new field was not in the list — so the value never travelled between two ends that both had passing tests. A test of either end cannot see a missing hop: the producer test builds its own input, the consumer test builds its own room. `[RFMR-4]` closes the loop by feeding the normalised room to `resolveFloorType`, so attributes-in → rendered-key-out is pinned on the card side; the python half of the same hop is `[AXT-6/7]`. |
 | `steps-order-leading-break.test.mjs` | 3 | Regression (`CARD-6` clause 1): `insertChargeStep` / `insertWaitStep` refuse a leading/trailing break (unsupported positions). |
 | `map-room-labels.test.mjs` | 2 | Per-vacuum map room-label visibility toggle. |
 

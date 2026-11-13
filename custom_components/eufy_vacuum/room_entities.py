@@ -330,6 +330,12 @@ class EufyVacuumRoomEntity(Entity):
             "last_job_mode": history_entry.get("last_job_mode"),
             "profile_name": room.get("profile_name", "vacuum_quick"),
             "floor_type": room.get("floor_type", "hardwood"),
+            # APPEARANCE ONLY, and published for the same reason floor_type is:
+            # the card reads a room's settings from THESE ATTRIBUTES, not from a
+            # service response, so a field absent here cannot reach the renderer
+            # however correctly it is stored. Empty means “use floor_type's own
+            # look”, which is what every room written before the field says.
+            "floor_material": room.get("floor_material", ""),
             "clean_mode": effective.get("clean_mode"),
             "fan_speed": effective.get("fan_speed"),
             "water_level": effective.get("water_level"),

@@ -27,6 +27,7 @@
  *   vacuum_entity_id, map_id, room_id, room_name, slug,
  *   order, profile_name, clean_mode, fan_speed, water_level,
  *   clean_intensity, clean_passes, edge_mopping, floor_type,
+ *   floor_material,
  *   carpet, grants_access_to, rules
  *
  * ORDER SOURCE OF TRUTH
@@ -603,6 +604,7 @@ export function applyRoomsState(proto) {
     const profileSubtitle = attrs.profile_subtitle ?? null;
 
     const floorType = String(attrs.floor_type ?? "");
+    const floorMaterial = String(attrs.floor_material ?? "");
     const floorTypeLabel = attrs.floor_type_label ?? null;
     const carpetType = String(attrs.carpet_type ?? "");
     const carpetTypeLabel = attrs.carpet_type_label ?? null;
@@ -715,6 +717,11 @@ export function applyRoomsState(proto) {
       profile_name: profileName,
       floor_type: floorType,
       floor_type_label: floorTypeLabel,
+      // Appearance only. resolveFloorType prefers it when it names a material
+      // the registry actually has, and falls through to floor_type when it does
+      // not -- so a removed drop-in degrades to the room's own floor rather than
+      // rendering flat, and the stored value is left alone.
+      floor_material: floorMaterial,
       carpet_type: carpetType,
       carpet_type_label: carpetTypeLabel,
       clean_mode: cleanMode,
