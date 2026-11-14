@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kingchddg901/Vacuum_Agent/material-pack.schema.json",
+  "title": "Vacuum Agent drop-in floor material",
+  "description": "GENERATED from custom_components/eufy_vacuum/user_materials.py by scripts/material_pack_contract.py --schema. Do not hand-edit. Passing this schema is NECESSARY, NOT SUFFICIENT: canvas size, PNG colour type and bit depth are read from the files and are not expressible here. Run `python scripts/material_pack_contract.py <dir>` for the whole contract.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "layers"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": 1,
+      "description": "Exactly 1. Any other value rejects the pack."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+      "not": {
+        "enum": [
+          "carpet-high",
+          "carpet-low",
+          "concrete",
+          "granite-light",
+          "marble",
+          "tile",
+          "wood",
+          "carpet_high_pile",
+          "carpet_low_pile",
+          "granite",
+          "hardwood",
+          "laminate",
+          "default"
+        ]
+      },
+      "description": "The namespace. Mints every token name, is the registry key, and is what a room's stored floor_material references \u2014 the one irreversible commitment in the pack. Must not EQUAL, PREFIX, or BE PREFIXED BY (hyphen-separated) any reserved name: carpet-high, carpet-low, concrete, granite-light, marble, tile, wood, carpet_high_pile, carpet_low_pile, granite, hardwood, laminate, default"
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name. Defaults to id. The only string a user sees."
+    },
+    "family": {
+      "type": "string",
+      "description": "Free-text grouping, e.g. stone / wood / glass. Never validated."
+    },
+    "scale": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Feature scale. Clamped to 0.02..2 at render (bindings/map.js). <=0 is dropped to null."
+    },
+    "opacity": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "layers": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "suffix",
+          "color",
+          "opacity"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "suffix": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,23}$",
+            "description": "Mints --evcc-floor-<id>-<suffix>. Unique within the pack."
+          },
+          "file": {
+            "type": "string",
+            "pattern": "^[\\w][\\w.-]*\\.png$",
+            "description": "A PNG in this pack's own directory. Mutually exclusive with 'from'."
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[a-z_]+/[\\w][\\w.-]*\\.png$",
+            "description": "Borrow a SHIPPED mask: '<dir>/<file>.png'. Mutually exclusive with 'file'."
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$",
+            "description": "#rrggbb or #rrggbbaa"
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "primary": {
+            "type": "boolean",
+            "description": "At most ONE layer in the pack may set this true."
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "file"
+            ],
+            "not": {
+              "required": [
+                "from"
+              ]
+            }
+          },
+          {
+            "required": [
+              "from"
+            ],
+            "not": {
+              "required": [
+                "file"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "presets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tokens": {
+            "type": "object"
+          },
+          "colors": {
+            "type": "object"
+          }
+        },
+        "description": "Every key in 'tokens' and 'colors' MUST start with --evcc-floor-<id>- . One stray key rejects the whole pack, not just the preset."
+      }
+    }
+  }
+}
