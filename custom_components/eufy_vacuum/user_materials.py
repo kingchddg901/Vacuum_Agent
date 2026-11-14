@@ -306,6 +306,18 @@ def validate_material(
             "borrowed": borrowed,
             "path": rel,
             "primary": layer.get("primary") is True,
+            # PER-LAYER FEATURE SCALE, optional. Coerced exactly as the material-level
+            # `scale` is (desc below) rather than refused, so there is ONE rule for the
+            # concept instead of two: a non-number becomes None and falls back. A layer
+            # that declares one tiles at its own rate while its siblings keep the
+            # material's -- which is what lets a plank-joint overlay sit at the room's
+            # scale over a board face at the board's.
+            "scale": (
+                float(layer["scale"])
+                if isinstance(layer.get("scale"), (int, float))
+                and not isinstance(layer.get("scale"), bool)
+                else None
+            ),
         })
 
     primaries = [l for l in layers if l["primary"]]

@@ -47,6 +47,7 @@ silently skipping it.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import io
 import json
@@ -104,6 +105,17 @@ def build_schema(um) -> dict:
             "primary": {
                 "type": "boolean",
                 "description": "At most ONE layer in the pack may set this true.",
+            },
+            "scale": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": (
+                    "OPTIONAL per-layer feature scale, overriding the material's for "
+                    "this layer only. MAP PATH ONLY - the room card cover-fits every "
+                    "layer and reads no scale at all. Absent means 'follow the "
+                    "material'. Lets a plank-joint overlay tile at the room's scale "
+                    "over a board face at the board's."
+                ),
             },
         },
         "oneOf": [
@@ -224,6 +236,17 @@ def _decode_grey(path: str):
     return out
 
 
+def mask_stats(path: str):
+    """``(mean, std)`` of a mask's luminance, or ``None`` if it could not be measured."""
+    try:
+        img = _decode_grey(path)
+    except Exception:
+        return None
+    if img is None:
+        return None
+    return float(img.mean()), float(img.std())
+
+
 def contrast(path: str):
     """Standard deviation of a mask's luminance, or None if it could not be measured."""
     try:
@@ -327,6 +350,58 @@ def check_pack(dir_path: str, textures_dir: str, quiet: bool = False) -> int:
         )
     elif not quiet:
         print(f"    primary {primary['suffix']!r} ({chosen}) contrast {std:.1f} - OK")
+
+    # EVERY layer, not just the primary. The primary check looks at ONE mask and so
+    # cannot see the two ways a legal pack still renders wrong, both measured on a real
+    # export 2026-11-14 (ma-stone-wood-test: 4 of its 6 masks were constant fills, and
+    # the checker passed it clean):
+    #
+    #   * a CONSTANT-255 mask below the top is fully opaque -- layerAlpha is
+    #     (255/255) * opacity -- so it paints over every layer beneath it. That pack's
+    #     `heart` was byte-identical to its `ground` and sat above both grain masks, so
+    #     the entire material rendered as one flat colour. Layer 0 is EXEMPT: a solid
+    #     ground is the legitimate bottom of the stack.
+    #   * a CONSTANT-0 mask reveals nothing at all -- an inert layer and a 2048-square
+    #     file that draws nothing.
+    #
+    # Both are warnings, never refusals: a deliberately solid layer is a legal choice,
+    # and only the author can say whether it was meant.
+    seen_hash: dict[str, str] = {}
+    for i, layer in enumerate(entry["layers"]):
+        lroot = textures_dir if layer["borrowed"] else dir_path
+        lpath = um.contained_path(lroot, layer["path"])
+        if not os.path.isabs(lpath) or not os.path.isfile(lpath):
+            continue
+
+        digest = hashlib.md5(io.open(lpath, "rb").read()).hexdigest()
+        twin = seen_hash.get(digest)
+        if twin is not None:
+            warns.append(
+                f"layers {twin!r} and {layer['suffix']!r} are BYTE-IDENTICAL masks - "
+                "one of them is almost certainly not the mask that was intended."
+            )
+        else:
+            seen_hash[digest] = layer["suffix"]
+
+        st = mask_stats(lpath)
+        if st is None:
+            continue
+        mean, lstd = st
+        if lstd != 0.0:
+            continue
+        alpha = mean / 255.0 * float(layer["opacity"])
+        if mean >= 254.0 and i > 0 and alpha >= 0.99:
+            warns.append(
+                f"layer {layer['suffix']!r} (#{i}) is a CONSTANT fill at luminance "
+                f"{mean:.0f} with opacity {layer['opacity']}, so its alpha is "
+                f"{alpha:.2f} - it is FULLY OPAQUE and paints over every one of the "
+                f"{i} layer(s) below it. Only layer 0 may legitimately be solid."
+            )
+        elif mean <= 1.0:
+            warns.append(
+                f"layer {layer['suffix']!r} (#{i}) is a CONSTANT fill at luminance "
+                f"{mean:.0f} - it reveals nothing and draws no pixels."
+            )
 
     for w in warns:
         print(f"    WARN: {w}")

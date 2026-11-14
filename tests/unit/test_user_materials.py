@@ -30,6 +30,10 @@ LEGEND
   UMAT-18  build_catalog writes catalog.json and skips the broken one
   UMAT-19  build_catalog never raises on an unreadable directory
   UMAT-20  png_header reads IHDR without a decoder
+  UMAT-22  a per-layer `scale` is coerced exactly as the material-level one is --
+           number through, anything else to None. ONE rule for the concept, so a
+           generator never has to remember which level refuses and which coerces.
+           `True` is an int in Python and must NOT pass as a scale.
   UMAT-21  a layer with NO opacity at all is refused -- the requiredness is
            LOAD-BEARING for a line that never mentions it: user-materials.js:94 reads
            ``Number(l.opacity)`` bare, no finite guard and no fallback. It is safe only
@@ -274,3 +278,34 @@ def test_png_header_reads_ihdr_without_a_decoder(tmp_path):
     assert um.png_header(_png(640, 480, 2, 3)) == (640, 480, 8, 2)
     assert um.png_header(b"too short") is None
     assert um.png_header(b"\x89PNG\r\n\x1a\n" + b"\x00" * 40) is None
+
+
+def test_per_layer_scale_is_coerced_not_refused(tmp_path):
+    """[UMAT-22] A layer may declare its own feature scale; the map tiles that layer at
+    it while its siblings keep the material's. Coerced like the material-level `scale`
+    rather than refused -- two rules for one concept is how a generator ships a pack that
+    half-works.
+
+    BITE: drop the isinstance guard and ``"0.3"`` arrives as the string; drop the bool
+    guard and ``True`` becomes 1.0, which is a legal scale and would silently retile a
+    layer twenty times coarser than intended.
+    """
+    d = _descriptor()
+    d["layers"][0]["scale"] = 0.3
+    entry = _material(tmp_path, d)
+    assert entry is not None, "a numeric per-layer scale must be accepted"
+    assert entry["layers"][0]["scale"] == 0.3
+
+    for bad in ("0.3", None, True, False, [], {}):
+        d = _descriptor()
+        d["layers"][0]["scale"] = bad
+        entry = _material(tmp_path, d)
+        assert entry is not None, f"{bad!r} must COERCE, never refuse the whole pack"
+        assert entry["layers"][0]["scale"] is None, (
+            f"{bad!r} is not a number and must fall back to the material, not become one"
+        )
+
+    d = _descriptor()                      # absent key
+    d["layers"][0].pop("scale", None)
+    entry = _material(tmp_path, d)
+    assert entry["layers"][0]["scale"] is None

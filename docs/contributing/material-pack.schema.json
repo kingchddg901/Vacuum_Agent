@@ -96,6 +96,11 @@
           "primary": {
             "type": "boolean",
             "description": "At most ONE layer in the pack may set this true."
+          },
+          "scale": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "OPTIONAL per-layer feature scale, overriding the material's for this layer only. MAP PATH ONLY - the room card cover-fits every layer and reads no scale at all. Absent means 'follow the material'. Lets a plank-joint overlay tile at the room's scale over a board face at the board's."
           }
         },
         "oneOf": [

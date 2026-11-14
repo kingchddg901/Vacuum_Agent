@@ -93,6 +93,11 @@ export function entryFromCatalogRow(row, assetVer) {
       opacityToken: tokenFor(id, l.suffix, "opacity"),
       opacityDefault: Number(l.opacity),
       primary: l.primary === true,
+      // PER-LAYER FEATURE SCALE, map path only. build_catalog writes an explicit null
+      // for every layer that does not declare one, so _declared() is LOAD-BEARING here:
+      // Number(null) is 0 and 0 is finite, which would hand every layer scale 0 and
+      // clamp the whole floor to 0.02. null means "follow the material", never zero.
+      mapScale: _declared(l.scale),
     });
   }
 

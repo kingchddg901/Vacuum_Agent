@@ -79,6 +79,31 @@ takes **your** colour, opacity and token; you are borrowing geometry, not appear
 Paths are resolved and contained. Absolute paths, `..`, backslashes, percent-encoded
 separators and symlinks are all refused.
 
+### Per-layer `scale` — two rates in one material
+
+A layer may declare its own `scale`, overriding the material's **for that layer only**:
+
+```json
+{ "suffix": "joint", "file": "joints.png", "color": "#2a2420",
+  "opacity": 0.8, "scale": 0.19 }
+```
+
+This exists so a **plank-joint overlay can tile at the room's scale over a board face at
+the board's**. Absent means follow the material — and absent is written into the
+catalogue as an explicit `null`, so a reader must treat null as undeclared and never as
+`0` (see the third silence above).
+
+| rule | |
+|---|---|
+| precedence | a declared layer `scale` beats the material's **and the theme token** |
+| why | the token is a per-MATERIAL dial; if it outranked a layer that stated its own rate, the overlay would collapse onto the board the moment anyone touched it |
+| clamp | the same `0.02 .. 2` as the material's — a layer cannot reach a rate a material could not |
+| coercion | identical to the material-level `scale`: a non-number becomes `null`, never a refusal. `true` is **not** a number here, though Python would call it one |
+| **surface** | **MAP ONLY.** The room card cover-fits every layer and reads no scale at all; the SVG map polygon hardcodes an 8×8 tile and ignores it too. A joints overlay is a map-path property — the card shows the material, not the floor layout |
+
+Nothing that exists today changes: a pack declaring no per-layer scales resolves every
+layer to the material's exactly as before, and the theme token still governs all of them.
+
 ## The three requirements a schema cannot express
 
 The validator reads these out of each PNG's IHDR rather than believing the descriptor,

@@ -39,6 +39,9 @@ import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 // cite marble at 0.11 as the example; marble's entry is 0.05 today — read the table, never the
 // prose, for the live numbers.
 const FLOOR_TEXTURE_MASK_SCALE = 0.05; // global fallback (all materials at 0.05 for now)
+// The sane tiling range, in ONE place: both the per-material resolve and the per-LAYER
+// override below clamp to it, so a layer cannot reach a scale a material could not.
+const FLOOR_SCALE_MIN = 0.02, FLOOR_SCALE_MAX = 2;
 const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   // Keys MUST match resolveFloorType()'s output — e.g. granite resolves to "granite_light",
   // carpet to "carpet_low"/"carpet_high". A wrong key silently falls back to the global scale.
@@ -577,13 +580,31 @@ export function applyMapBindings(proto) {
       const rotate = roomRotate || this._resolveFloorRotation(ft, host);
 
       // Resolve each layer's color + opacity now (cheap getComputedStyle reads) -> colorSig.
+      //
+      // PER-LAYER SCALE. A layer that declares its own `scale` tiles at that rate while
+      // its siblings keep the material's -- which is what lets a plank-joint overlay sit
+      // at the ROOM's scale over a board face at the BOARD's. Absent (null) means follow
+      // the material, so NOTHING that exists today changes: a pack with no per-layer
+      // scales resolves to the material scale on every layer exactly as before, and the
+      // theme token still governs all of them.
+      //
+      // A DECLARED layer scale beats the token on purpose. The token is a per-MATERIAL
+      // dial; if it overrode a layer that stated its own rate, declaring one could never
+      // survive a user touching the dial and the overlay would collapse back onto the
+      // board. Same intent _resolveFloorScale already states for material-over-default:
+      // something that says what it needs outranks a default it was never consulted about.
       const resolved = entry.layers.map((layer) => ({
         url: String(layer.url),
         color: this._resolveFloorColor(layer.colorToken, layer.colorDefault, host),
         opacity: this._resolveFloorOpacity(layer.opacityToken, layer.opacityDefault, host),
+        scale: this._resolveLayerScale(layer.mapScale, scale),
       }));
       const colorSig = resolved.map((r) => `${r.color.join(",")}:${r.opacity}`).join("|");
-      const texKey = `${ft}|${W}x${H}|${scale}|${rotate}|${colorSig}`;
+      // THE COMPOSITED cache is keyed per MATERIAL, so it must carry every layer's scale.
+      // Keying it on the material scale alone would collide two materials that differ
+      // only in one layer's rate and serve the wrong floor from cache.
+      const scaleSig = resolved.map((r) => r.scale).join(",");
+      const texKey = `${ft}|${W}x${H}|${scaleSig}|${rotate}|${colorSig}`;
 
       const cachedTex = this._floorTexCache.get(texKey);
       if (cachedTex) { ready.set(paintKey, cachedTex); readySigs.push(texKey); continue; }
@@ -592,7 +613,7 @@ export function applyMapBindings(proto) {
       const lumArrays = [];
       let allLoaded = true;
       for (const r of resolved) {
-        const maskKey = `${r.url}|${W}x${H}|${scale}|${rotate}`;
+        const maskKey = `${r.url}|${W}x${H}|${r.scale}|${rotate}`;
         const lum = this._floorMaskCache.get(maskKey);
         if (lum) { lumArrays.push(lum); continue; }
         allLoaded = false;
@@ -601,7 +622,7 @@ export function applyMapBindings(proto) {
           // ALWAYS cache a result (real luminance, or a zero-fill sentinel on failure) so a
           // missing/broken PNG degrades to "layer reveals nothing" (base shows through) instead
           // of never caching -> re-kicking every render -> an infinite render loop.
-          this._enqueueMaskDecode(r.url, W, H, scale, rotate)
+          this._enqueueMaskDecode(r.url, W, H, r.scale, rotate)
             .then((arr) => { this._floorMaskCache.set(maskKey, arr || new Uint8ClampedArray(W * H)); })
             .catch(() => { this._floorMaskCache.set(maskKey, new Uint8ClampedArray(W * H)); })
             .finally(() => {
@@ -860,7 +881,23 @@ export function applyMapBindings(proto) {
         if (v) { const n = parseFloat(v); if (Number.isFinite(n) && n > 0) s = n; }
       }
     } catch (_e) { /* keep default */ }
-    return Math.max(0.02, Math.min(2, s));
+    return Math.max(FLOOR_SCALE_MIN, Math.min(FLOOR_SCALE_MAX, s));
+  };
+
+  /* The scale ONE LAYER tiles at. `materialScale` is whatever _resolveFloorScale already
+     settled for the material (token > declared > per-type > global); a layer that declares
+     its own positive `mapScale` overrides it for itself only, clamped to the same range.
+
+     A DECLARED LAYER SCALE BEATS THE THEME TOKEN, deliberately. The token is a per-material
+     dial, so if it outranked a layer that stated its own rate, a plank-joint overlay would
+     collapse back onto the board the moment anyone touched the dial. Absent (null, and
+     build_catalog writes null for every layer that does not declare one) means FOLLOW THE
+     MATERIAL -- never zero, which is what Number(null) would have made it. */
+  proto._resolveLayerScale = function (layerMapScale, materialScale) {
+    if (typeof layerMapScale === "number" && layerMapScale > 0) {
+      return Math.max(FLOOR_SCALE_MIN, Math.min(FLOOR_SCALE_MAX, layerMapScale));
+    }
+    return materialScale;
   };
 
   /* Map-texture rotation in degrees: a per-type token `--evcc-floor-<type>-map-rotate`

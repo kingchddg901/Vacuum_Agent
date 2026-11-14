@@ -28,8 +28,15 @@ What its packs look like, measured from real exports:
 | wood | 6 | `ground` `early` `late` `heart` `mineral` `knot` |
 | glass | 7 | `ground` + `cane-a` … `cane-f` (the cane count is capped at 6) |
 
-Stone and glass are measured from real exports; wood is read from the generator's own
-layer list. Wood declares `early` primary, glass declares `ground`, stone declares `base`.
+All three are measured from real exports. Wood declares `early` primary, glass declares
+`ground`, stone declares `base`.
+
+A wood export's six layers are not six *working* layers: on the first one measured, only
+`early` and `late` carried content. `ground` was a solid fill (legitimate — it is the
+board colour at the bottom of the stack), but `heart` was **byte-identical to it** and
+sat *above* both grain masks, so at luminance 255 and opacity 1 it was fully opaque and
+painted over all the grain; `mineral` and `knot` were solid black and drew nothing. The
+checker now warns on all of it — run it before you judge a material by eye.
 
 **Writing one by hand** is still fully supported and nothing below assumes a generator.
 

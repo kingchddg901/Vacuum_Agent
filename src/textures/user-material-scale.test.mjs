@@ -24,6 +24,9 @@
 //   [UMS-3] it is distinguishable from the global default (the test can actually fail)
 //   [UMS-4] absent / zero / negative / non-numeric fall through rather than collapse
 //   [UMS-5] a theme token still overrides a declared scale
+//   [UMS-6] a LAYER's declared scale overrides the material's, for that layer only
+//   [UMS-7] an undeclared layer scale follows the material and is never ZERO
+//   [UMS-8] a declared layer scale survives the catalogue hop as entry.layers[].mapScale
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -128,4 +131,48 @@ test("[UMS-5] a theme token still overrides a declared scale", () => {
     globalThis.getComputedStyle = realGCS;
     delete FLOOR_TEXTURE_REGISTRY.scaley;
   }
+});
+
+// PER-LAYER SCALE. The point is two rates inside ONE material: a plank-joint overlay at
+// the ROOM's scale over a board face at the BOARD's. The resolution is deliberately not
+// the same precedence as the material's -- see _resolveLayerScale.
+//
+// BITE for each: [UMS-6] fails if the layer value is ignored or if the clamp is dropped;
+// [UMS-7] fails if null is ever coerced with Number() (that would read 0, finite, and
+// clamp the whole floor to 0.02); [UMS-8] fails if the field is dropped at the catalogue
+// hop, which is where `scale` was lost for its first six months.
+test("[UMS-6] a layer's declared scale overrides the material's", () => {
+  const proto = mapProto();
+  const card = Object.create(proto);
+
+  assert.equal(card._resolveLayerScale(0.3, DECLARED), 0.3,
+    "a positive layer scale wins over whatever the material settled on");
+  assert.equal(card._resolveLayerScale(9, DECLARED), 2,
+    "and is clamped to the same max as the material's — a layer cannot escape the range");
+  assert.equal(card._resolveLayerScale(0.001, DECLARED), 0.02,
+    "clamped at the bottom too");
+});
+
+test("[UMS-7] an undeclared layer scale follows the material, never zero", () => {
+  const proto = mapProto();
+  const card = Object.create(proto);
+
+  // build_catalog writes an explicit null for every layer that declares no scale.
+  for (const absent of [null, undefined, 0, -1, "0.3", NaN]) {
+    assert.equal(card._resolveLayerScale(absent, DECLARED), DECLARED,
+      `${JSON.stringify(absent)} must fall through to the material, not become a scale`);
+  }
+});
+
+test("[UMS-8] a declared layer scale survives the catalogue hop", () => {
+  const built = entryFromCatalogRow(row({
+    layers: [
+      { suffix: "base", color: "#555B60", opacity: 0.9, borrowed: false, path: "a.png", scale: null },
+      { suffix: "joint", color: "#222222", opacity: 0.8, borrowed: false, path: "b.png", scale: 0.3 },
+    ],
+  }));
+  assert.equal(built.entry.layers[0].mapScale, null,
+    "an undeclared layer carries null — NOT 0, which Number(null) would have produced");
+  assert.equal(built.entry.layers[1].mapScale, 0.3,
+    "a declared one reaches the registry entry the map resolver reads");
 });
