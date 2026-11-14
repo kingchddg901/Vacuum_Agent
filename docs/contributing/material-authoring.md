@@ -25,7 +25,11 @@ What its packs look like, measured from real exports:
 | family | layers | suffixes |
 |---|---|---|
 | stone | 5 | `base` `major` `minor` `micro` `web` |
+| wood | 6 | `ground` `early` `late` `heart` `mineral` `knot` |
 | glass | 7 | `ground` + `cane-a` … `cane-f` (the cane count is capped at 6) |
+
+Stone and glass are measured from real exports; wood is read from the generator's own
+layer list. Wood declares `early` primary, glass declares `ground`, stone declares `base`.
 
 **Writing one by hand** is still fully supported and nothing below assumes a generator.
 
