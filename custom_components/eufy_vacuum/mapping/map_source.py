@@ -763,7 +763,15 @@ def render_data_from_storage(map_data: dict[str, Any]) -> dict[str, Any] | None:
         "ro_height": ro_h,
         "ro_dx": ro_dx,            # raster -> main-grid integer offset
         "ro_dy": ro_dy,
-        "res": res,
+        "res": res,                # CENTIMETRES per cell -- see res_m
+        # METRES per raster cell. `res` IS NOT A SHARED UNIT ACROSS BRANDS: this one is
+        # cm, Roborock's and Dreame's are mm, and all three land in a field of the same
+        # name in the same payload shape. Measured 2026-11-14 -- alfred res 5, ivy 50,
+        # robin 50, all three physically 5 cm -- so a consumer reading `res` naively is
+        # 10x out on two brands of three and cannot tell from the value. `res_m` is the
+        # normalized one: every producer converts HERE, where the unit is known, and the
+        # card reads only this. Nothing may infer a unit from `res` downstream.
+        "res_m": round(res / 100.0, 6),
         "flip_y": True,            # render flips top-bottom
         "rid_shift": 2,            # room id = byte >> rid_shift
         "catch_all_rid": _CATCH_ALL_RID,

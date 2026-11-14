@@ -118,6 +118,18 @@ def build_schema(um) -> dict:
                     "features drift apart as they tile."
                 ),
             },
+            "sample_m": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": (
+                    "OPTIONAL per-layer PHYSICAL sample size: how many METRES of real "
+                    "floor one tile of THIS mask covers. Outranks this layer's 'scale' "
+                    "wherever the map knows its own resolution. Prefer it over 'scale' "
+                    "for a mask cut from a different patch than its siblings - two masks "
+                    "cut from the SAME area given the same sample_m register on every "
+                    "map, which a matched pair of raster scales only does by accident."
+                ),
+            },
         },
         "oneOf": [
             {"required": ["file"], "not": {"required": ["from"]}},
@@ -172,6 +184,17 @@ def build_schema(um) -> dict:
             "scale": {
                 "type": "number", "exclusiveMinimum": 0,
                 "description": "Feature scale. Clamped to 0.02..2 at render (bindings/map.js). <=0 is dropped to null.",
+            },
+            "sample_m": {
+                "type": "number", "exclusiveMinimum": 0,
+                "description": (
+                    "PHYSICAL sample size: how many METRES of real floor one tile of "
+                    "this material's masks covers. THE PREFERRED WAY TO SIZE A PACK - "
+                    "'scale' is a raster multiplier that only means anything against the "
+                    "one map it was tuned on, while this means the same on every map and "
+                    "the card derives the scale from that map's own resolution. The "
+                    "default for every layer that does not declare its own."
+                ),
             },
             "opacity": opacity,
             "layers": {
@@ -282,6 +305,138 @@ def contrast(path: str):
 FLAT_PRIMARY_STD = 1.5
 
 
+# --- PHYSICAL SAMPLE SIZE ---------------------------------------------------
+# A declared `sample_m` is turned into a raster scale at render by
+#   scale = sample_m / (MASK_CANVAS_PX * metres_per_canvas_pixel)
+# and then clamped to 0.02..2, so a sample size outside a band set by the MAP silently
+# becomes a different one. The band is wide but it is not unbounded: a 30 cm floor tile
+# cannot be drawn, because a 2048 px mask shown in 24 canvas pixels is not a texture.
+#
+# THE REFERENCE MAP IS MEASURED, NOT ASSUMED. All three of the development vacuums report
+# 5 cm per raster cell (2026-11-14: alfred res 5 cm, ivy 50 mm, robin 50 mm -- the field
+# is `res` on all three and its UNIT is not, which is why the payload now carries `res_m`).
+#
+# BUT THE BAND IS NOT SET BY RESOLUTION ALONE, and the first version of this check assumed
+# it was. The card SUPERSAMPLES the raster toward ~1200 px --
+#     S = max(1, min(4, round(1200 / max(W, H))))        (src/bindings/map.js)
+# -- and divides the cell size by S, so metres-per-canvas-pixel depends on the raster's
+# PIXEL WIDTH as much as on its resolution. Same three boxes, same 5 cm/cell, two bands:
+#     alfred 256x245 -> S=4 -> 0.0125   m/px -> 0.512..51.2 m per tile
+#     robin  253x227 -> S=4 -> 0.0125   m/px -> 0.512..51.2 m
+#     ivy    397x387 -> S=3 -> 0.016667 m/px -> 0.683..68.3 m
+# So a 0.6 m slab is representable on two of his robots and clamps on the third -- and S
+# flips 4 -> 3 the moment max(W, H) crosses 343, so it can change on ONE robot as the map
+# grows. Checking only S=4 passed exactly the sizes most likely to bite. The check now
+# sweeps the plausible S range and reports the WORST case, and the message names the raster
+# width rather than blaming resolution, which was the wrong cause to send an author after.
+# REPLICA RNTA1EGS -- the twins are user_materials.CANVAS (the enforcing copy),
+# bindings/map.js MASK_CANVAS_PX and gen_floor_masks.SIZE.
+MASK_CANVAS_PX = 2048
+_RES_M = 0.05                   # metres per raster cell, measured on all three boxes
+# THE S VALUES A REAL HOME CAN PRODUCE, which is NOT every S the formula allows. Inverting
+# S = round(1200 / max(W, H)) at 5 cm/cell gives the raster width each S needs, and then
+# the floor it spans:
+#     S=4  max(W,H) <= 342    -> up to  17 m across
+#     S=3  343..480           ->  17..24 m
+#     S=2  481..1714          ->  24..86 m     -- a very large house still reaches this
+#     S=1  >= 1715            ->  86 m+        -- not a home
+# Sweeping S=1 as well made a correct 5 ft board (1.524 m) warn, because at 0.05 m/px it
+# clamps -- a warning that fires on good input is worse than none, since it teaches the
+# author to skip the whole block. So the envelope stops at 2 and says why.
+_SUPERSAMPLES = (4, 3, 2)
+_SCALE_MIN, _SCALE_MAX = 0.02, 2.0
+
+#: The common case, quoted when one number has to stand in for the band.
+REF_M_PER_CANVAS_PX = _RES_M / 4
+
+
+def sample_m_to_scale(sample_m: float, m_per_px: float = REF_M_PER_CANVAS_PX) -> float:
+    """The raster scale a physical sample size resolves to. Mirrors `_scaleFromSampleM`."""
+    return sample_m / (MASK_CANVAS_PX * m_per_px)
+
+
+#: How far the drawn size must miss the declared one before it is worth saying. A size that
+#: lands a hair outside the clamp is still clamped, but being 2% out is not something anyone
+#: can see on a map, and a warning that fires on a materially correct pack teaches the author
+#: to skip the whole block -- which costs the warnings that DO matter. A 1.0 m sample clamps
+#: to 1.02 m at S=2 and was the case that showed this. JUDGEMENT, not a measurement: nothing
+#: has been measured about where a tiling error becomes visible, and if that is ever done,
+#: this number should move to match it rather than the other way round.
+_CLAMP_TOLERANCE = 0.05
+
+
+def clamping_supersamples(sample_m: float) -> list[tuple[int, float, float]]:
+    """``(S, resolved_scale, metres_actually_drawn)`` for every supersample at which this
+    size clamps to something MATERIALLY different. Empty when it survives all of them --
+    which is the only honest form of "this size is fine", since a size can be representable
+    at one S and not another."""
+    out: list[tuple[int, float, float]] = []
+    for s in _SUPERSAMPLES:
+        m_per_px = _RES_M / s
+        scale = sample_m_to_scale(sample_m, m_per_px)
+        if _SCALE_MIN <= scale <= _SCALE_MAX:
+            continue
+        kept = min(max(scale, _SCALE_MIN), _SCALE_MAX)
+        drawn = kept * MASK_CANVAS_PX * m_per_px
+        if abs(drawn - sample_m) / sample_m >= _CLAMP_TOLERANCE:
+            out.append((s, scale, drawn))
+    return out
+
+
+def _sample_m_warnings(entry: dict, dir_path: str) -> list[str]:
+    """Report what each declared `sample_m` actually resolves to, and flag the ones the
+    render clamps. A size that clamps is the failure this check exists to catch: nothing
+    errors, the floor simply tiles at a rate the author did not ask for."""
+    out: list[str] = []
+    raw = _raw_desc(dir_path)
+
+    # Declared-but-dropped, same shape as the `scale` check above: coerced, never refused,
+    # so a string "1.52" vanishes in silence unless something says it did.
+    if entry.get("sample_m") is None and "sample_m" in raw:
+        out.append("'sample_m' was declared but did not survive validation - it is "
+                   "coerced, never refused. Must be a positive JSON number, in METRES.")
+    raw_layers = raw.get("layers") if isinstance(raw.get("layers"), list) else []
+    for i, lay in enumerate(entry.get("layers") or []):
+        declared = isinstance(raw_layers[i], dict) and "sample_m" in raw_layers[i] \
+            if i < len(raw_layers) else False
+        if lay.get("sample_m") is None and declared:
+            out.append(f"layer {i} ({lay['suffix']}): 'sample_m' declared but did not "
+                       "survive validation - must be a positive JSON number, in METRES.")
+
+    sizes = [("material", entry.get("sample_m"))]
+    sizes += [(f"layer {i} ({l['suffix']})", l.get("sample_m"))
+              for i, l in enumerate(entry.get("layers") or [])]
+    for where, val in sizes:
+        if not isinstance(val, float):
+            continue
+        # EVERY supersample it breaks at, not just the commonest one. A size that is fine
+        # at S=4 and clamps at S=3 is the dangerous case precisely because it ships clean.
+        bad = clamping_supersamples(val)
+        if not bad:
+            continue
+        worst = ", ".join(
+            f"S={s} draws {drawn:.2f} m (scale {scale:.4f} clamped)" for s, scale, drawn in bad
+        )
+        ok = [s for s in _SUPERSAMPLES if s not in {b[0] for b in bad}]
+        where_ok = (f" It is correct at S={'/'.join(map(str, ok))}, which is why this can "
+                    "look right on one robot and wrong on another.") if ok else ""
+        out.append(
+            f"{where}: sample_m {val} m WILL be clamped on a 5 cm/cell map at "
+            f"{len(bad)} of {len(_SUPERSAMPLES)} supersample factors - {worst}.{where_ok} "
+            "S = max(1, min(4, round(1200 / max(W, H)))), so this is set by the raster's "
+            "PIXEL WIDTH, and it can change on one robot as the map grows."
+        )
+
+    # The two kinds of sizing in one pack is not an error -- the physical one simply wins
+    # wherever a resolution is known -- but an author who tuned a scale and then added a
+    # sample size has a number that no longer does anything, and should hear it once.
+    if isinstance(entry.get("sample_m"), float) and isinstance(entry.get("scale"), float):
+        out.append(f"both sample_m ({entry['sample_m']} m) and scale ({entry['scale']}) "
+                   "are declared. sample_m wins on any map that knows its resolution; "
+                   "scale is then only the fallback for one that does not.")
+    return out
+
+
 # ---------------------------------------------------------------------------
 # CHECK
 # ---------------------------------------------------------------------------
@@ -333,6 +488,7 @@ def check_pack(dir_path: str, textures_dir: str, quiet: bool = False) -> int:
     if isinstance(scale, float) and not (0.02 <= scale <= 2.0):
         warns.append(f"scale {scale} is outside 0.02..2 and WILL be clamped at render "
                      "(bindings/map.js) — the declared value is not what you get.")
+    warns.extend(_sample_m_warnings(entry, dir_path))
 
     primary = next((l for l in entry["layers"] if l["primary"]), entry["layers"][0])
     chosen = "declared" if any(l["primary"] for l in entry["layers"]) else "defaulted to layer 0"

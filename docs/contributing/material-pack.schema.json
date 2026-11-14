@@ -50,6 +50,11 @@
       "exclusiveMinimum": 0,
       "description": "Feature scale. Clamped to 0.02..2 at render (bindings/map.js). <=0 is dropped to null."
     },
+    "sample_m": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "PHYSICAL sample size: how many METRES of real floor one tile of this material's masks covers. THE PREFERRED WAY TO SIZE A PACK - 'scale' is a raster multiplier that only means anything against the one map it was tuned on, while this means the same on every map and the card derives the scale from that map's own resolution. The default for every layer that does not declare its own."
+    },
     "opacity": {
       "type": "number",
       "minimum": 0.0,
@@ -101,6 +106,11 @@
             "type": "number",
             "exclusiveMinimum": 0,
             "description": "OPTIONAL per-layer feature scale, overriding the material's for this layer only. MAP PATH ONLY - the room card cover-fits every layer and reads no scale at all. Absent means 'follow the material'. For a mask that is NOT the same physical sample as its siblings; two cut from the SAME area must share a scale or their features drift apart as they tile."
+          },
+          "sample_m": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "OPTIONAL per-layer PHYSICAL sample size: how many METRES of real floor one tile of THIS mask covers. Outranks this layer's 'scale' wherever the map knows its own resolution. Prefer it over 'scale' for a mask cut from a different patch than its siblings - two masks cut from the SAME area given the same sample_m register on every map, which a matched pair of raster scales only does by accident."
           }
         },
         "oneOf": [

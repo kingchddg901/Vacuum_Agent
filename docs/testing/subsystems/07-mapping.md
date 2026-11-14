@@ -387,6 +387,29 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   > tick's sample to POSE-5 and retries. `return` vs `continue` inside that except is
   > deliberately not asserted — RP-015 makes slugs unique per map, so no second room
   > with that slug exists for a `continue` to reach.
+- **`res_m`** (`RESM-*`, unit, `test_render_res_m.py`) — **one unit for the raster cell
+  size, asserted across all three brands at once.** The `room_pixels_v1` payload has always
+  carried a `res` field from every producer, and they do not agree on what it means: Eufy's
+  is centimetres, Roborock's and Dreame's are millimetres. Measured 2026-11-14 — alfred 5,
+  ivy 50, robin 50, all three physically 5 cm per cell, in a field of one name holding two
+  units. Nothing on the card read it, so nothing was wrong; the first consumer would have
+  been 10× out on two brands of three with no value on the wire to tell them apart.
+  `res_m` is the normalised field, converted at each producer where the unit is known.
+  > **Why this file is cross-brand rather than three brand tests.** The defect it guards is
+  > ONE producer forgetting to convert, and a brand-scoped test is blind to exactly that —
+  > it passes on whichever brand its author had in mind. `[RESM-1]` therefore asserts
+  > EQUALITY across the three rather than three literals, which would invite whoever broke
+  > it to edit the matching constant. `[RESM-2]` doubles each device's own resolution in its
+  > own native unit: a producer returning a hardcoded `0.05` passes `[RESM-1]` and dies
+  > here. `[RESM-3]` pins that `res` itself is UNCHANGED. **Measured 2026-11-14: nothing in
+  > shipped code reads that field** — grepping `src/`, the three built bundles and
+  > `custom_components/` finds only the producers writing it, and the pose overlays project
+  > through `map_data["resolution"]` and the Roborock parser's own `ImageDimensions.to_img`.
+  > So the reason to keep it is not internal dependence (an earlier draft of this note said
+  > three call sites trusted it, which was false) but that `get_map_render_data` is a public
+  > service whose response an automation may already read. Its lack of consumers is worth
+  > recording: if `res` is ever retired, `[RESM-3]` is where that is established.
+  > All three ablation-proven, including the realistic slip of swapping the two conversions.
 - **`roborock_raw_map`** (`RRD-*`, unit, `test_roborock_raw_map.py`) — the pure Roborock
   v1 raw-map segment decoder, no HA/device: `decode_roborock_v1_segments` (a well-formed
   IMAGE block → resolved room-id raster + dims + ids; no-IMAGE / empty / truncated / garbage

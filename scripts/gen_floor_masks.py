@@ -124,8 +124,15 @@ SOURCES = Path(__file__).resolve().parents[1] / "authoring" / "texture-sources"
 # constants tuned by eye against 2048, and the decode path never reads the bitmap's own
 # width. A mask at another canvas changes tile PERIOD and feature SIZE together, and two
 # same-material layers authored at different canvases desynchronize — silent misalignment,
-# no error. Nothing in tests, CI or the build asserts mask dimensions, so a hand-authored
-# replacement at the wrong canvas ships green.
+# no error. THAT IS NOW ASSERTED, and this comment used to say the opposite: a drop-in at
+# another size is refused by user_materials.py, and src/textures/floor-mask-canvas.test.mjs
+# [FMC-1] reads all 18 shipped PNG headers under `npm run test:units`. Changing SIZE here
+# and regenerating does NOT ship green any more -- it turns [FMC-1] red naming every file.
+# It also no longer only desynchronizes layers: the card divides a real-world measurement
+# by this number (see RNTA1EGS), so a disagreeing copy silently mis-sizes every material
+# that declares a physical sample size.
+# REPLICA RNTA1EGS -- the twins are user_materials.CANVAS (the enforcing copy),
+# bindings/map.js MASK_CANVAS_PX and material_pack_contract.MASK_CANVAS_PX.
 SIZE = 2048
 
 

@@ -164,7 +164,8 @@ your editor saved it as RGB it will be refused — export as 8-bit greyscale.
 | `layers` | yes | 1–8 layer objects, bottom to top |
 | `opacity` | no | 0–1, the material's overall card opacity. Defaults to `0.99` |
 | `presets` | no | See [Presets](#presets) |
-| `scale` | no | Feature scale on the map — how big the mask's detail is once tiled. Roughly 0.02–2; smaller is finer. Defaults to `0.05` |
+| `sample_m` | no | **How many metres of real floor one tile of your masks covers.** A 5 ft board sample is `1.524`. The preferred way to size a material — see [How big is it?](#how-big-is-it) |
+| `scale` | no | Raster feature scale on the map, roughly 0.02–2; smaller is finer. The fallback where no map resolution is known. Defaults to `0.05` |
 | `family` | no | Descriptive metadata only — see [Known gaps](#known-gaps) |
 
 ### Each layer
@@ -231,34 +232,87 @@ called `wood-dark` would be wiped by an import of `wood`.
 
 Pick something distinctive. `slate`, `terrazzo`, `cork_dark` are all fine.
 
-## Feature scale
+## How big is it?
 
-`scale` sets how large the mask's detail is once it is tiled across the map. It is
-the number that decides whether your stone reads as slabs or as gravel, and it is
-independent of the mask itself — the same 2048² image at `0.05` and at `0.4` is
-the same picture at two sizes.
+A material has to be tiled across the map, and something has to decide how big one tile
+is. The honest way to answer that is to say **how much real floor your mask covers**:
 
-Sensible range is about `0.02` to `2`; values outside that are clamped. The default
-is `0.05`, which is what every shipped material except concrete and the carpets uses.
+```json
+{ "schema": 1, "id": "oak-wide", "sample_m": 1.524, "layers": [ ... ] }
+```
 
-Precedence, in case you are fighting it:
+`sample_m` is in metres. A 5 ft board is `1.524`. A 1.2 m sheet of four 30 cm tiles is
+`1.2`. If your mask is a sheet of four boards side by side, give the width of the *sheet*,
+not of one board — it is the width of the image, whatever is in it.
 
-1. A theme token `--evcc-floor-<id>-map-scale`, if set
-2. Your `scale` in `material.json`
-3. The global default
+The card works out the rest. It knows how many centimetres of floor one map cell is (every
+one of the three supported brands reports it), so the same material lands at the right
+size on a dense raster and a coarse one without you touching anything.
 
-It affects the **map** only. Room cards and the theme preview stretch **every layer**
-to fit the card (`mask-size: cover`, one element per layer) rather than tiling, so scale
-does not apply there — judge it on the map.
+### Why not just a number?
+
+Because `scale` — the older way — is a multiplier on a 2048 px image, and what it looks
+like depends entirely on whose map it is being drawn on. A scale tuned by eye bakes *your*
+map into the material. It still works, and it is still the fallback for a hand-drawn or CV
+backdrop that has no real-world scale at all, but prefer the physical one.
+
+There is a second, quieter reason. **Two masks cut from the same patch of floor must tile
+at the same rate** or they drift apart: plank joints sliding off the boards they cut, a
+stain sliding off the slab it stains. With `sample_m` they simply declare the same number
+and they register, on every map, with nobody checking. With `scale` it held only as long
+as two hand-tuned numbers happened to agree.
+
+### Limits
+
+The derived tile is clamped, and where the limit falls depends on the map — on how many
+pixels wide its raster is, not only on how fine it is. On the three development vacuums,
+all reporting 5 cm per cell, it is **0.51 m – 51.2 m** on two of them and **0.68 m – 68.3 m**
+on the third, because the card supersamples a smaller raster harder, and a very large home
+can reach **1.02 m – 102 m**.
+
+**Anything from about 1 m to 51 m per tile is safe on every map.** Below 1 m is the risky
+zone: it can look right on one robot and come out coarser on another, and coarser again as
+a map grows. A 5 ft board at `1.524` is comfortably inside; a 30 cm tile is not, and should
+be authored as a sheet.
+
+Below the floor a 2048 px image is being shown in fewer than ~41 screen pixels, which is
+not a texture any more. Author that as a sheet of several tiles and give the sheet's width.
+`scripts/material_pack_contract.py` checks every supersample factor and tells you which
+ones a declared size clamps at, and what it will actually draw as.
+
+### Precedence, in case you are fighting it
+
+A **layer** that declares its own `sample_m` or `scale` uses it, full stop — not even a
+theme token overrides that, because the token is a per-material dial and an overlay that
+could be dragged onto its own base by it would be useless. For everything else:
+
+1. A theme token `--evcc-floor-<id>-map-scale`, if set — the escape hatch
+2. A theme token `--evcc-floor-<id>-sample-m`
+3. Your `sample_m` in `material.json`
+4. Your `scale` in `material.json`
+5. The per-family default, then the global `0.05`
+
+**If the map seems not to react to a `sample_m` you just added, check for a leftover
+`--evcc-floor-<id>-map-scale`** — for a material with no per-layer sizes it outranks
+everything below it, so that there is always one dial guaranteed to win.
+
+If your material id contains an underscore (`cork_dark` is a legal id), the sizing and
+rotation tokens are read under **both** `--evcc-floor-cork_dark-sample-m` and
+`--evcc-floor-cork-dark-sample-m`. Prefer the underscored form: it matches the colour
+tokens, and it is the only one a pack **preset** may use — the validator scopes presets to
+the raw id and rejects the whole material for a key outside it.
+
+### It is a map property
+
+Sizing affects the **map** only. Room cards and the theme preview stretch **every layer**
+to fit the card (`mask-size: cover`, one element per layer) rather than tiling, so neither
+`sample_m` nor `scale` applies there — judge it on the map. A material can look perfect on
+the card and wrong on the map for exactly this reason: the card is a swatch and makes no
+claim about size.
 
 Not to be confused with the single-mask surface: the **SVG map polygon** fill paints one
 layer, untinted — the one marked `"primary": true`, else layer 0. That is the only place
 a single mask stands in for the whole material.
-
-**Leaving `scale` out is normal and correct.** An undeclared scale falls through to a
-default that was tuned by eye, and a physically accurate number can easily look worse
-than it. Set it only when you have looked at your material on the map and want it
-different.
 
 ## Rotation
 
@@ -353,11 +407,13 @@ Stated here rather than left to be discovered:
 
 - **`family` does nothing.** It is accepted and stored as descriptive metadata, but no
   renderer reads it. Set it or omit it; nothing changes either way.
-- **`scale` has no editor slider.** The descriptor value is honoured (see below), and
-  a theme setting `--evcc-floor-<id>-map-scale` by hand overrides it, but that token is
-  not minted as a control in the theme editor the way the per-layer colours are — so
-  tuning tile size means editing the descriptor and restarting, rather than dragging a
-  slider and watching it.
+- **Neither sizing key has an editor slider.** The descriptor value is honoured, and
+  setting `--evcc-floor-<id>-map-scale` or `--evcc-floor-<id>-sample-m` by hand overrides
+  it, but neither token is minted as a control in the theme editor the way the per-layer
+  colours are — so tuning tile size means editing the theme (or the descriptor and
+  restarting), rather than dragging a slider and watching it. `sample_m` makes this less
+  painful than it was: a measurement is something you can be right about first time,
+  where a raster multiplier could only be arrived at by trying.
 - **No per-material card-opacity token.** A material's own card opacity comes from the
   descriptor's `opacity`, deliberately: a per-material `-opacity-card` token would sit
   above the global master in the fallback chain and shadow it for anyone who set it.

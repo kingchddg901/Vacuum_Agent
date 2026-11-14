@@ -52,6 +52,23 @@ from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
+# anchor: RNTA1EGS  the mask canvas -- one number, four places
+#
+# Restated as `MASK_CANVAS_PX` in src/bindings/map.js, as `SIZE` in
+# scripts/gen_floor_masks.py, and as `MASK_CANVAS_PX` in scripts/material_pack_contract.py.
+# It cannot be imported across those runtimes, and nothing derives it -- it is a decision
+# about how masks are authored, restated wherever that decision is acted on.
+#
+# WHY IT BECAME LOAD-BEARING. It used to only have to be CONSISTENT: a mask at another
+# canvas changes tile period and feature size together, so two layers from different
+# canvases drift apart with no error. Since `sample_m`, the card divides a REAL-WORLD
+# MEASUREMENT by it --
+#     scale = sample_m / (MASK_CANVAS_PX x metres_per_canvas_pixel)
+# -- so a copy that disagrees no longer merely desynchronizes two layers: it makes that
+# arithmetic stop describing the file it is applied to, silently, for every material that
+# states a physical size. The check below is what makes 2048 true of DROP-INS;
+# src/textures/floor-mask-canvas.test.mjs is what makes it true of the SHIPPED set, which
+# nothing checked until 2026-11-14.
 CANVAS = 2048
 MAX_LAYERS = 8          # marble is the shipped maximum at 4; slate needs 7
 
@@ -112,6 +129,50 @@ def png_header(data: bytes) -> tuple[int, int, int, int] | None:
     if width <= 0 or height <= 0:
         return None
     return (width, height, data[24], data[25])
+
+
+def declared_number(value: Any, *, allow_zero: bool = False) -> float | None:
+    """A DECLARED finite number, else ``None``. ONE rule for every optional numeric a
+    descriptor may carry (``scale``, ``sample_m``, ``opacity``, material OR layer level).
+
+    Coerce, never refuse: a generator that emits a junk value for one optional field
+    should ship a material that falls back, not a pack that half-exists. The traps, each
+    of which has a test:
+
+    - ``True`` is an ``int`` in Python, so a bare ``isinstance(v, (int, float))`` lets it
+      through as 1.0 -- a legal scale, twenty times coarser than any real one.
+    - ``"0.3"`` is not a number. The material level used to accept only numbers while the
+      layer level did the same thing in different words; one helper is now the rule.
+    - ``0`` and negatives are not quantities for a SIZE. Both a tile size and a feature
+      scale are positive by construction, and ``Number(null) === 0`` on the card means a
+      zero arriving downstream is indistinguishable from an absent key -- so it is refused
+      HERE, where the two are still distinguishable. ``allow_zero`` is for ``opacity``,
+      where 0 is a legal declared value (fully transparent) and must survive.
+    - ``NaN`` and ``Infinity`` ARE valid JSON to Python's parser and are emitted straight
+      back out by ``json.dump`` as bare ``NaN`` / ``Infinity`` tokens -- which no browser's
+      ``JSON.parse`` accepts. One such value anywhere in the descriptor therefore makes
+      the whole of ``catalog.json`` unreadable, and the card's fetch catches that and
+      returns ``[]``: EVERY drop-in material on the box disappears, not just the bad one,
+      with nothing logged at either end. That is why non-finite is refused here rather
+      than clamped, and why ``opacity`` now comes through this function too -- it was the
+      last numeric that did not, and so the last door into that failure.
+    - A huge INT (``10**400``, which JSON parses as a Python int rather than ``inf``)
+      makes ``float()`` raise ``OverflowError`` -- an ``ArithmeticError``, so nothing on
+      the path catches it: it escapes ``validate_material``, escapes ``build_catalog``
+      (whose docstring promises it never raises) and reaches ``async_setup``, taking the
+      whole integration down over one malformed optional field. Hence the try.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        out = float(value)
+    except (OverflowError, ValueError):     # an int too large to be a float
+        return None
+    if out != out or out in (float("inf"), float("-inf")):      # NaN != NaN
+        return None
+    if out < 0 or (out == 0 and not allow_zero):
+        return None
+    return out
 
 
 def contained_path(base_dir: str, rel: str) -> str:
@@ -306,19 +367,22 @@ def validate_material(
             "borrowed": borrowed,
             "path": rel,
             "primary": layer.get("primary") is True,
-            # PER-LAYER FEATURE SCALE, optional. Coerced exactly as the material-level
-            # `scale` is (desc below) rather than refused, so there is ONE rule for the
-            # concept instead of two: a non-number becomes None and falls back. A layer
-            # that declares one tiles at its own rate while its siblings keep the
-            # material's. For masks that are NOT the same physical sample as their
-            # siblings: two cut from the SAME area must share a scale, or their features
-            # drift apart as they tile.
-            "scale": (
-                float(layer["scale"])
-                if isinstance(layer.get("scale"), (int, float))
-                and not isinstance(layer.get("scale"), bool)
-                else None
-            ),
+            # PER-LAYER FEATURE SCALE, optional -- a RASTER multiplier, unitless, tuned
+            # by eye. A layer that declares one tiles at its own rate while its siblings
+            # keep the material's. For masks that are NOT the same physical sample as
+            # their siblings: two cut from the SAME area must share a scale, or their
+            # features drift apart as they tile.
+            "scale": declared_number(layer.get("scale")),
+            # PER-LAYER PHYSICAL SAMPLE SIZE, optional: the real-world width of ONE tile
+            # of this mask, in METRES. Says what the mask IS rather than how hard to
+            # shrink it, so the card can derive the raster scale from the map's own
+            # resolution instead of being told a number tuned against one map.
+            #
+            # It also makes REGISTRATION automatic, which `scale` could only ever make
+            # possible: two masks cut from the same physical area declare the same
+            # sample_m and therefore resolve to the same rate on every map, with nobody
+            # having to notice that they must match.
+            "sample_m": declared_number(layer.get("sample_m")),
         })
 
     primaries = [l for l in layers if l["primary"]]
@@ -357,8 +421,15 @@ def validate_material(
         "id": material_id,
         "name": str(desc.get("name") or material_id),
         "family": str(desc.get("family") or "") or None,
-        "scale": float(desc["scale"]) if isinstance(desc.get("scale"), (int, float)) else None,
-        "opacity": float(desc["opacity"]) if isinstance(desc.get("opacity"), (int, float)) else None,
+        "scale": declared_number(desc.get("scale")),
+        # The material's physical sample size in METRES -- the default for every layer
+        # that does not declare its own. See the layer-level note above.
+        "sample_m": declared_number(desc.get("sample_m")),
+        # `allow_zero` because a declared 0 is a legal card opacity (fully transparent)
+        # and is honoured; only an undeclared one falls back to 0.99. The LAYER-level
+        # opacity is checked separately by _layer_problem, whose `0.0 <= x <= 1.0` already
+        # rejects NaN -- this was the one numeric with no finiteness guard at all.
+        "opacity": declared_number(desc.get("opacity"), allow_zero=True),
         "dir": name,
         "layers": layers,
         "presets": presets,

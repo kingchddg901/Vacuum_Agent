@@ -1293,7 +1293,11 @@ def dreame_render_data_from_mapdata(
         "rid_shift": 0,              # each byte already holds the resolved room id
         "catch_all_rid": 255,
         "flip_y": bool(flip_y),
-        "res": int(round(grid_size)),   # mm/px; pose-overlay coord mapping only
+        "res": int(round(grid_size)),   # MILLIMETRES per cell -- see res_m
+        # METRES per raster cell -- the normalized twin of `res`, which is cm on Eufy and
+        # mm here and on Roborock (see map_source.py for the measurement). Converted at
+        # the producer, where the unit is known; the card reads only this.
+        "res_m": round(grid_size / 1000.0, 6),
         "room_pixels": base64.b64encode(room_bytes).decode("ascii"),
         "room_names": {str(k): str(v) for k, v in names.items()},
         "version": version,

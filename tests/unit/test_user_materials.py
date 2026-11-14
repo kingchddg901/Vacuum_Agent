@@ -309,3 +309,116 @@ def test_per_layer_scale_is_coerced_not_refused(tmp_path):
     d["layers"][0].pop("scale", None)
     entry = _material(tmp_path, d)
     assert entry["layers"][0]["scale"] is None
+
+
+def test_umat_23_declared_number_is_one_rule_for_every_optional_quantity(tmp_path):
+    """[UMAT-23] ``scale`` and ``sample_m``, at material OR layer level, pass through the
+    SAME coercion — ``declared_number``.
+
+    WHY ONE HELPER AND NOT FOUR EXPRESSIONS. The four used to be three: the material-level
+    ``scale`` tested ``isinstance(v, (int, float))`` and the layer-level one added a bool
+    guard, so ``"scale": true`` became 1.0 at the top and None one level down. Nobody would
+    write that on purpose, but a GENERATOR emitting a field it could not compute is exactly
+    how it arrives, and 1.0 is a legal scale — twenty times coarser than any real one, on a
+    material that looks authored. Four spellings of one rule is four chances to diverge.
+
+    BITE, each clause independently:
+      - drop the bool guard   -> ``True`` becomes 1.0 and the floor retiles
+      - drop the isinstance   -> ``"1.52"`` arrives as a string the card does arithmetic on
+      - drop the ``> 0``      -> 0 survives, and ``Number(null) === 0`` on the card means
+                                 a declared zero is then indistinguishable from an absent
+                                 key, which is the exact confusion this rule exists to end
+      - drop the NaN/inf test -> both pass ``isinstance`` and neither is a quantity
+    """
+    assert um.declared_number(1.52) == 1.52
+    assert um.declared_number(3) == 3.0, "an int is a number"
+
+    for bad in (True, False, "1.52", None, [], {}, 0, 0.0, -1, -0.5,
+                float("nan"), float("inf"), float("-inf")):
+        assert um.declared_number(bad) is None, f"{bad!r} is not a declared quantity"
+
+    # ...and it is the rule the descriptor ACTUALLY runs, at both levels, for both fields.
+    d = _descriptor()
+    d["sample_m"] = 1.524
+    d["layers"][0]["sample_m"] = 0.9
+    entry = _material(tmp_path, d)
+    assert entry is not None
+    assert entry["sample_m"] == 1.524
+    assert entry["layers"][0]["sample_m"] == 0.9
+
+    for bad in (True, "1.52", 0, -1):
+        d = _descriptor()
+        d["sample_m"] = bad
+        d["layers"][0]["sample_m"] = bad
+        entry = _material(tmp_path, d)
+        assert entry is not None, f"sample_m {bad!r} must COERCE, never refuse the pack"
+        assert entry["sample_m"] is None and entry["layers"][0]["sample_m"] is None, (
+            f"sample_m {bad!r} must fall back, not become a size"
+        )
+
+    d = _descriptor()                      # absent at both levels
+    d.pop("sample_m", None)
+    d["layers"][0].pop("sample_m", None)
+    entry = _material(tmp_path, d)
+    assert entry["sample_m"] is None and entry["layers"][0]["sample_m"] is None, (
+        "an undeclared sample_m must be an explicit null in the catalogue -- the card's "
+        "_declared() reads it, and an absent key there would be Number(undefined) = NaN"
+    )
+
+
+def test_umat_24_declared_number_never_raises_and_never_emits_non_json(tmp_path):
+    """[UMAT-24] Two inputs that reach ``catalog.json`` through an OPTIONAL field and take
+    down far more than the pack that carried them. Both were found by review, both measured.
+
+    NaN / Infinity. Python's ``json`` parses the bare literals ``NaN`` and ``Infinity`` by
+    default and ``json.dump`` writes them straight back out -- and no browser's
+    ``JSON.parse`` accepts either. ``fetchUserMaterialCatalog`` does ``await res.json()``
+    inside a try that returns ``[]``, so ONE such value in ONE descriptor makes the whole
+    catalogue unreadable and EVERY drop-in material on the box disappears, with nothing
+    logged at either end. The failure is maximally far from its cause.
+
+    A huge int. ``10**400`` is a Python ``int``, not ``inf``, and ``float()`` on it raises
+    ``OverflowError`` -- an ``ArithmeticError``, so none of the ``ValueError`` handlers on
+    the path catch it. It escapes ``validate_material``, escapes ``build_catalog`` (whose
+    docstring promises it never raises) and reaches ``async_setup``: no panel, no room
+    cards, no vacuum entities, over one malformed optional field.
+
+    BITE: drop the ``out != out`` test and the opacity case writes a bare ``NaN`` token;
+    drop the try and the int case raises instead of returning None. Both assert on the
+    REAL ``build_catalog`` output, not on the helper alone, because the helper being right
+    is worth nothing if a field routes around it -- which is exactly what ``opacity`` did.
+    """
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        assert um.declared_number(bad) is None
+        assert um.declared_number(bad, allow_zero=True) is None
+
+    assert um.declared_number(10 ** 400) is None, "must not raise -- build_catalog never does"
+    assert um.declared_number(-(10 ** 400)) is None
+
+    # 0 is a legal DECLARED opacity (fully transparent) and must survive, while it is not
+    # a legal size -- one helper, two callers, and the difference is explicit.
+    assert um.declared_number(0, allow_zero=True) == 0.0
+    assert um.declared_number(0) is None
+
+    # ...and the catalogue it actually writes must be parseable by a browser, which is the
+    # property that matters. `json.loads(..., parse_constant=...)` is how we detect the
+    # tokens a JS JSON.parse would reject.
+    import json as _json
+
+    def _refuse(token):
+        raise AssertionError(f"catalog.json contains the non-JSON token {token!r}")
+
+    for field, value in (("opacity", float("nan")), ("opacity", float("inf")),
+                         ("scale", float("nan")), ("sample_m", float("inf"))):
+        d = _descriptor()
+        d[field] = value
+        entry = _material(tmp_path, d)
+        assert entry is not None, f"{field}={value!r} must COERCE, never refuse the pack"
+        assert entry[field] is None, f"{field}={value!r} must not survive validation"
+        _json.loads(_json.dumps([entry]), parse_constant=_refuse)
+
+    for field in ("opacity", "scale", "sample_m"):
+        d = _descriptor()
+        d[field] = 10 ** 400
+        entry = _material(tmp_path, d)        # the assertion is that this RETURNS at all
+        assert entry is not None and entry[field] is None

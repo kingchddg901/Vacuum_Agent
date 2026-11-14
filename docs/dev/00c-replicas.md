@@ -1258,6 +1258,50 @@ never saw it.*
 
 ---
 
+### `RNTA1EGS` — the mask canvas, 2048 · **4 copies, 2 of them gates**
+
+| Site | Kind |
+|---|---|
+| `custom_components/eufy_vacuum/user_materials.py` `CANVAS` | **primary** — and the only copy that REFUSES, for drop-ins |
+| `src/bindings/map.js` `MASK_CANVAS_PX` | the consumer: it divides a real-world measurement by this |
+| `scripts/gen_floor_masks.py` `SIZE` | the producer of the shipped set |
+| `scripts/material_pack_contract.py` `MASK_CANVAS_PX` | the pack checker's clamp warning |
+
+Four runtimes — a Home Assistant integration, a browser bundle, and two dev scripts — so
+there is nothing to import from. Nothing derives it either: it is a decision about how
+masks are authored, restated wherever that decision is acted on.
+
+**It changed class on 2026-11-14 without the number changing.** Before `sample_m`, the
+copies only had to be CONSISTENT: `_decodeMaskLum` fills at the bitmap's native resolution
+and never reads its width, so a mask at another canvas changes tile period and feature size
+together and two layers from different canvases drift apart — silently, but only relative
+to each other. Now the card computes
+
+```
+scale = sample_m / (MASK_CANVAS_PX × metres_per_canvas_pixel)
+```
+
+so a disagreeing copy makes that arithmetic stop describing the file it is applied to, for
+every material that states a physical size. The number became an **input to a measurement**
+rather than a shared convention.
+
+**Two of the four copies are gates, and they cover different halves.** `user_materials.py`
+refuses a drop-in at any other size, with the reason in the warning it logs. The shipped
+set had nothing — the top of `bindings/map.js` said so in as many words ("nothing enforces
+that canvas … no test, CI step or build step asserts mask dimensions") and that comment
+stood for months. `src/textures/floor-mask-canvas.test.mjs` [FMC-1] now reads all 18 shipped
+PNG headers and names any that disagree; ablation-proven by rewriting one IHDR width to
+1024. It is a **fence, not a member** — it asserts the value rather than re-stating a rule,
+so moving the canvas turns it red, which is the behaviour wanted.
+
+**Observational**, but with a mutation flavour the others lack: nothing is written wrong,
+yet every map drawn from a mis-sized pack is wrong by a factor nobody can see, and the
+fallback that hides it is correct behaviour.
+
+**Declared at** `user_materials.CANVAS`.
+
+---
+
 ## Observational vs MUTATION replicas
 
 A replica set that decides **what to display or bind** is bad when it diverges: someone

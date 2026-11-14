@@ -21,16 +21,20 @@ import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 // mask pattern DOWN so features are smaller + tile denser (more per room). 1.0 = native (too
 // big); lower = finer/denser.
 //
-// ⚠ THESE NUMBERS ARE TUNED BY EYE AGAINST A 2048² MASK, AND NOTHING ENFORCES THAT CANVAS.
-// Every shipped mask is authored at 2048² (scripts/gen_floor_masks.py, `SIZE`), but that is an
-// authoring convention, not a checked invariant. This comment used to state "the 2048² masks"
-// as if the size were guaranteed; nothing on the mask path reads it. `_decodeMaskLum` below
-// fills at the bitmap's NATIVE resolution with a repeat pattern and applies `scale` through
-// `pat.setTransform` — the decoded mask's own width never enters the calculation — and no test,
-// CI step or build step asserts mask dimensions. So a mask authored at another canvas changes tile PERIOD and feature
-// SIZE together, and two same-material layers from different canvases desynchronize: silent
-// misalignment, no error, ships green. If a mask ever arrives at a different size, either
-// re-author it to 2048² or re-tune every constant below.
+// ⚠ THESE NUMBERS ARE TUNED BY EYE AGAINST A 2048² MASK, and `_decodeMaskLum` below never
+// reads the bitmap's own width: it fills at NATIVE resolution with a repeat pattern and
+// applies `scale` through `pat.setTransform`, so a mask at another canvas changes tile PERIOD
+// and feature SIZE together, and two same-material layers from different canvases
+// desynchronize — silent misalignment, no error.
+//
+// THAT IS NOW A CHECKED INVARIANT, NOT A CONVENTION, and this comment used to say the
+// opposite. A drop-in is refused outright at a size other than 2048² (`user_materials.py`,
+// `CANVAS`, with the reason stated in the warning it logs), and `floor-mask-canvas.test.mjs`
+// asserts the same of all 18 shipped masks against the PNG headers. The physical scale path
+// below DEPENDS on it: `MASK_CANVAS_PX` is what turns a sample size in metres into a raster
+// scale, so if the canvas is ever unpinned, that arithmetic silently stops describing the
+// mask it is applied to. See `docs/dev/00c-replicas.md` — the 2048 here, in `user_materials.py`
+// and in `gen_floor_masks.py` are ONE number in three places.
 //
 // PER-MATERIAL: materials read best at different feature sizes — granite's fine speckle
 // vanishes to a flat dark field when shrunk as far as a broad-veined material can take. So each
@@ -42,6 +46,14 @@ const FLOOR_TEXTURE_MASK_SCALE = 0.05; // global fallback (all materials at 0.05
 // The sane tiling range, in ONE place: both the per-material resolve and the per-LAYER
 // override below clamp to it, so a layer cannot reach a scale a material could not.
 const FLOOR_SCALE_MIN = 0.02, FLOOR_SCALE_MAX = 2;
+// The mask canvas every material is authored at, enforced by user_materials.py for drop-ins
+// and by floor-mask-canvas.test.mjs for the shipped set (see the ⚠ above). Read ONLY by the
+// REPLICA RNTA1EGS -- the twins are user_materials.CANVAS (which ENFORCES it for drop-ins),
+// gen_floor_masks.SIZE and material_pack_contract.MASK_CANVAS_PX.
+// physical scale path: a tile of a mask spans `MASK_CANVAS_PX * scale` canvas pixels, so this
+// is the bridge between "how many metres of floor this mask depicts" and "what scale to tile
+// it at". Nothing else may assume it — `_decodeMaskLum` still works at whatever width it gets.
+const MASK_CANVAS_PX = 2048;
 const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   // Keys MUST match resolveFloorType()'s output — e.g. granite resolves to "granite_light",
   // carpet to "carpet_low"/"carpet_high". A wrong key silently falls back to the global scale.
@@ -514,7 +526,15 @@ export function applyMapBindings(proto) {
     // resolution (see _decodeMaskLum) so the fine grain/plank-seam detail survives — the
     // detail is what makes it read as a floor. Map-space + native-tiled -> continuous across
     // same-type rooms. (Downscaling the masks to map size averaged the detail to flat.)
-    const { ready, texSig } = this._ensureFloorTextures(presentTypes, CW, CH, canvas);
+    // METRES OF FLOOR PER CANVAS PIXEL — the one number that makes a physical sample size
+    // mean anything. `res_m` is the payload's brand-NORMALIZED cell size (the raw `res`
+    // beside it is cm on Eufy and mm on Roborock/Dreame — never read that one); the
+    // supersample S divides it because the masks are composited at CW×CH, not W×H.
+    // Absent on a map with no device scale (hand-drawn, CV): null, and every material
+    // falls back to its raster scale exactly as before.
+    const resM = Number(rd.res_m);
+    const mPerPx = Number.isFinite(resM) && resM > 0 ? resM / S : null;
+    const { ready, texSig } = this._ensureFloorTextures(presentTypes, CW, CH, canvas, mPerPx);
 
     // Cache the composited floor ImageData (like _drawVaRender's) so zoom/select re-renders
     // just re-stamp it. Busts on version, size/scale, palette (theme), the rid->type map, or
@@ -558,7 +578,7 @@ export function applyMapBindings(proto) {
      an async mask decode that re-renders on completion. Two caches on the binding: raw
      mask luminance (theme-independent, keyed by URL+size) and the composited texture
      (theme-dependent, keyed by resolved colors/opacities). */
-  proto._ensureFloorTextures = function (presentTypes, W, H, host) {
+  proto._ensureFloorTextures = function (presentTypes, W, H, host, mPerPx) {
     this._floorMaskCache = this._floorMaskCache || new Map();    // maskKey -> Uint8ClampedArray lum
     this._floorMaskPending = this._floorMaskPending || new Set();
     this._floorTexCache = this._floorTexCache || new Map();      // texKey -> composited {data}
@@ -574,7 +594,7 @@ export function applyMapBindings(proto) {
       if (!entry || !Array.isArray(entry.layers) || !entry.layers.length) continue;
 
       // Per-material feature scale + the map-texture rotation (token overrides / global).
-      const scale = this._resolveFloorScale(ft, host);
+      const scale = this._resolveFloorScale(ft, host, mPerPx);
       // The ROOM's angle wins when set; 0 falls back to the token/global, so an
       // untouched room still follows a theme-wide rotation exactly as before.
       const rotate = roomRotate || this._resolveFloorRotation(ft, host);
@@ -587,7 +607,11 @@ export function applyMapBindings(proto) {
       // from the SAME area must share a scale or their features drift apart as they tile:
       // plank joints are cut into the very board whose grain sits under them, same 5x5 ft
       // of floor, so they belong at ONE rate and giving them their own would MISREGISTER
-      // the cut from the boards it cuts. Absent (null) means follow
+      // the cut from the boards it cuts. THE PHYSICAL PATH RETIRES THAT HAZARD rather
+      // than restating it: joints and grain both declaring the SAME `sample_m` register
+      // by construction on every map, so nobody has to notice they must match. Per-layer
+      // raster scale stays for the case it was built for -- a mask genuinely cut from a
+      // different patch, on a map with no resolution to derive from. Absent (null) means follow
       // the material, so NOTHING that exists today changes: a pack with no per-layer
       // scales resolves to the material scale on every layer exactly as before, and the
       // theme token still governs all of them.
@@ -601,7 +625,7 @@ export function applyMapBindings(proto) {
         url: String(layer.url),
         color: this._resolveFloorColor(layer.colorToken, layer.colorDefault, host),
         opacity: this._resolveFloorOpacity(layer.opacityToken, layer.opacityDefault, host),
-        scale: this._resolveLayerScale(layer.mapScale, scale),
+        scale: this._resolveLayerScale(layer.mapScale, scale, layer.sampleM, mPerPx),
       }));
       const colorSig = resolved.map((r) => `${r.color.join(",")}:${r.opacity}`).join("|");
       // THE COMPOSITED cache is keyed per MATERIAL, so it must carry every layer's scale.
@@ -863,25 +887,134 @@ export function applyMapBindings(proto) {
     return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 1;
   };
 
+  /* Read a per-material theme token under BOTH spellings of the material segment.
+
+     TWO NAMING RULES MEET HERE AND THEY DISAGREE. The shipped floor types are underscored
+     keys with hyphenated token segments (`carpet_low` -> `--evcc-floor-carpet-low-*`), and
+     the three sizing/rotation reads have always hyphenated to match. But a DROP-IN's tokens
+     are minted by `tokenFor` (src/textures/user-materials.js) from the RAW id, and the
+     python validator scopes a pack's presets to `--evcc-floor-<raw id>-` and REFUSES THE
+     WHOLE MATERIAL for a key outside it. An id may contain `_` (ID_RE allows it, and the
+     authoring doc blesses `cork_dark`), so for such a material the two halves demand
+     opposite spellings: a preset naming the token the card reads is rejected outright,
+     and one naming the token the namespace demands is accepted and silently inert.
+
+     Reading both spellings is the smallest honest fix: strictly additive, it cannot break
+     a theme that already works, and it makes the documented token name work for every id.
+     Raw wins when both are set, because that is the one `tokenFor` mints.
+
+     THIS DOES NOT CLOSE THE UNDERLYING MISMATCH, which is wider than these three tokens
+     and older than this change: `floorTypeNames()` (src/theme-tokens/floor-scope.js) also
+     hyphenates every registry key including merged drop-ins, so an underscored material's
+     own colour tokens are classified as unknown by the theme-scope machinery and dropped
+     from a scoped export. Fixing THAT means choosing one spelling for a drop-in's token
+     segment, which renames persisted keys. Not done here on purpose. */
+  function _floorToken(host, floorType, suffix) {
+    const raw = String(floorType);
+    const hyphenated = raw.replace(/_/g, "-");
+    const style = getComputedStyle(host);
+    for (const seg of hyphenated === raw ? [raw] : [raw, hyphenated]) {
+      const v = style.getPropertyValue(`--evcc-floor-${seg}-${suffix}`).trim();
+      if (v) return v;
+    }
+    return "";
+  }
+
+  /* THE PHYSICAL PATH. A material may say how much real floor one tile of its masks
+     covers -- `sample_m`, in METRES -- instead of (or as well as) a raster `scale`.
+
+     WHY IT EXISTS. A raster scale is only meaningful against the map it was tuned on: it
+     is a multiplier on a 2048px bitmap, and what that looks like depends entirely on how
+     many centimetres of floor one map cell happens to be. Tuning one by eye therefore
+     encodes the tuner's map into the material. A sample size encodes the MASK instead, so
+     the same pack lands at the right size on a 5 cm/cell raster and a 2 cm/cell one
+     without anyone touching it -- and two masks cut from the same physical area REGISTER
+     by construction, which a hand-matched pair of scales could only ever do by accident.
+
+     THE ARITHMETIC, in one place. One tile of the mask spans `MASK_CANVAS_PX * scale`
+     canvas pixels, and one canvas pixel is `mPerPx` metres of floor. So a tile covers
+     `MASK_CANVAS_PX * scale * mPerPx` metres, and the scale that makes that equal
+     `sampleM` is `sampleM / (MASK_CANVAS_PX * mPerPx)`.
+
+     THE CLAMP IS A REAL CEILING AND FLOOR, not a sanity guard -- and the metres it maps to
+     depend on S, so they are a property of the MAP and not of this function. At 5 cm/cell:
+     S=4 gives about 0.51..51.2 m per tile, S=3 gives 0.68..68.3, S=2 gives 1.02..102. A
+     30 cm floor tile cannot be expressed at any of them, because a 2048px mask shown in
+     24 canvas pixels is not a texture; a 0.6 m slab is fine at S=4 and clamps at S=3, which
+     is the same material reading differently on two robots. Safe everywhere is ~1..51 m.
+     `material_pack_contract.py` sweeps the S range at pack time so an author hears it there
+     rather than by looking at a map that silently reads too coarse.
+
+     `!(n > 0)` not `n <= 0`: NaN fails the first and passes nothing, which is the point. */
+  proto._scaleFromSampleM = function (sampleM, mPerPx) {
+    if (!(typeof sampleM === "number" && sampleM > 0)) return null;
+    if (!(typeof mPerPx === "number" && mPerPx > 0)) return null;
+    const s = sampleM / (MASK_CANVAS_PX * mPerPx);
+    if (!Number.isFinite(s)) return null;
+    return Math.max(FLOOR_SCALE_MIN, Math.min(FLOOR_SCALE_MAX, s));
+  };
+
+  /* A material's declared sample size, with a theme token able to override it.
+
+     THE TOKEN IS THE POINT OF THE DIAL CHANGING UNITS. `--evcc-floor-<type>-map-scale`
+     asks the user for a raster multiplier -- a number with no meaning outside this code.
+     `--evcc-floor-<type>-sample-m` asks how wide the real thing is, which is a question
+     someone standing on the floor can answer with a tape measure. Both still work; see
+     the precedence note on _resolveFloorScale for which wins and why. */
+  proto._resolveFloorSampleM = function (floorType, host) {
+    let m = FLOOR_TEXTURE_REGISTRY[floorType]?.sampleM;
+    try {
+      if (host && typeof getComputedStyle === "function") {
+        const v = _floorToken(host, floorType, "sample-m");
+        if (v) { const n = parseFloat(v); if (Number.isFinite(n) && n > 0) m = n; }
+      }
+    } catch (_e) { /* keep the declaration */ }
+    return typeof m === "number" && m > 0 ? m : null;
+  };
+
   /* Per-material mask feature scale (see FLOOR_TEXTURE_MASK_SCALE_BY_TYPE): a theme token
      `--evcc-floor-<type>-map-scale` overrides the per-type default, which overrides the global.
      The token segment is hyphenated (carpet-low) to match the --evcc-floor-* convention, so
      the underscored resolveFloorType() key (carpet_low) is normalized before lookup.
-     Clamped to a sane range so a bad value can't explode the tiling. */
-  proto._resolveFloorScale = function (floorType, host) {
+     Clamped to a sane range so a bad value can't explode the tiling.
+
+     FULL PRECEDENCE, strongest first:
+       1. `--evcc-floor-<type>-map-scale`  theme token, a raster multiplier
+       2. `--evcc-floor-<type>-sample-m`   theme token, metres per tile  -> derived
+       3. the material's declared `sample_m`                            -> derived
+       4. the material's declared `scale` (drop-ins)
+       5. FLOOR_TEXTURE_MASK_SCALE_BY_TYPE (shipped types)
+       6. FLOOR_TEXTURE_MASK_SCALE (global)
+     with 2 and 3 skipped whenever the map carries no resolution.
+
+     WHY THE RASTER TOKEN STILL BEATS THE PHYSICAL ONE, even though a fact normally
+     outranks a tuning: it is the escape hatch. If the derived size is wrong -- a mask that
+     does not depict what it claims, a map whose resolution is off -- the user needs one
+     dial that is guaranteed to win, and it has to be the one that was already documented
+     as the override. The cost is a trap worth knowing: a map-scale token set while tuning
+     by eye keeps winning after a sample size arrives, and the floor appears not to react.
+     CLEAR THE map-scale TOKEN when you adopt a sample size. The authoring doc says so too. */
+  proto._resolveFloorScale = function (floorType, host, mPerPx) {
     // PRECEDENCE, widest-reaching last: the material's own declaration, then the
     // per-type table, then the global -- and a theme token beats all three below.
     // The first two are mutually exclusive in practice (only a drop-in declares
     // mapScale, only a shipped type has a table row), so the order between them is
     // a statement of intent rather than a tiebreak: a material that says what it
     // needs is more authoritative than a default it was never consulted about.
-    let s = FLOOR_TEXTURE_REGISTRY[floorType]?.mapScale;
+    //
+    // THE PHYSICAL SAMPLE SIZE OUTRANKS ALL THREE, when the map's resolution is known.
+    // `sample_m` says what the mask IS; every number below says how hard to shrink it on
+    // the one map someone happened to tune against. A fact outranks a tuning. When it is
+    // absent, or the map carries no resolution (a hand-drawn or CV backdrop has none),
+    // this falls through to exactly the ladder that shipped before -- so no material
+    // authored without a sample size changes.
+    let s = this._scaleFromSampleM(this._resolveFloorSampleM(floorType, host), mPerPx);
+    if (!(typeof s === "number" && s > 0)) s = FLOOR_TEXTURE_REGISTRY[floorType]?.mapScale;
     if (!(typeof s === "number" && s > 0)) s = FLOOR_TEXTURE_MASK_SCALE_BY_TYPE[floorType];
     if (!(typeof s === "number" && s > 0)) s = FLOOR_TEXTURE_MASK_SCALE;
     try {
       if (host && typeof getComputedStyle === "function") {
-        const seg = String(floorType).replace(/_/g, "-");
-        const v = getComputedStyle(host).getPropertyValue(`--evcc-floor-${seg}-map-scale`).trim();
+        const v = _floorToken(host, floorType, "map-scale");
         if (v) { const n = parseFloat(v); if (Number.isFinite(n) && n > 0) s = n; }
       }
     } catch (_e) { /* keep default */ }
@@ -896,8 +1029,17 @@ export function applyMapBindings(proto) {
      dial, so if it outranked a layer that stated its own rate, that rate could not survive
      anyone touching the dial and declaring one would be pointless. Absent (null, and
      build_catalog writes null for every layer that does not declare one) means FOLLOW THE
-     MATERIAL -- never zero, which is what Number(null) would have made it. */
-  proto._resolveLayerScale = function (layerMapScale, materialScale) {
+     MATERIAL -- never zero, which is what Number(null) would have made it.
+
+     A LAYER'S OWN `sample_m` OUTRANKS ITS OWN `scale`, for the reason _resolveFloorScale
+     gives: the sample size is what the mask is, the scale is what someone tuned. Both are
+     per-layer escapes from the material; the physical one is simply the better-founded
+     of the two. A layer declaring NEITHER follows the material -- which may itself have
+     resolved physically, so a pack that states one sample size at the top gets every layer
+     registered against it without naming the layers at all. */
+  proto._resolveLayerScale = function (layerMapScale, materialScale, layerSampleM, mPerPx) {
+    const physical = this._scaleFromSampleM(layerSampleM, mPerPx);
+    if (physical !== null) return physical;
     if (typeof layerMapScale === "number" && layerMapScale > 0) {
       return Math.max(FLOOR_SCALE_MIN, Math.min(FLOOR_SCALE_MAX, layerMapScale));
     }
@@ -907,15 +1049,14 @@ export function applyMapBindings(proto) {
   /* Map-texture rotation in degrees: a per-type token `--evcc-floor-<type>-map-rotate`
      overrides the global `--evcc-floor-texture-map-rotate` (0 = as-authored). Spins the whole
      tiled grid relative to the map so directional materials (wood planks, tile grout) can be
-     made to run the way they do in the actual home. Same hyphenated-segment convention as scale. */
+     made to run the way they do in the actual home. Same segment convention as scale --
+     both spellings, via _floorToken; see the note there for why an id may need either. */
   proto._resolveFloorRotation = function (floorType, host) {
     let deg = 0;
     try {
       if (host && typeof getComputedStyle === "function") {
-        const cs = getComputedStyle(host);
-        const seg = String(floorType).replace(/_/g, "-");
-        const v = (cs.getPropertyValue(`--evcc-floor-${seg}-map-rotate`).trim()
-          || cs.getPropertyValue("--evcc-floor-texture-map-rotate").trim());
+        const v = (_floorToken(host, floorType, "map-rotate")
+          || getComputedStyle(host).getPropertyValue("--evcc-floor-texture-map-rotate").trim());
         if (v) { const n = parseFloat(v); if (Number.isFinite(n)) deg = n; }
       }
     } catch (_e) { /* keep 0 */ }

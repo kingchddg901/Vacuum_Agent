@@ -245,7 +245,11 @@ def roborock_render_data(
         "ro_dy": 0,
         "raw_top": int(decoded.get("top", 0) or 0),
         "raw_left": int(decoded.get("left", 0) or 0),
-        "res": int(decoded.get("res", 50)),  # roborock map/50 -> 50 mm/px; pose-only, calibrate on device
+        "res": int(decoded.get("res", 50)),  # MILLIMETRES per cell (roborock map/50) -- see res_m
+        # METRES per raster cell -- the normalized twin of `res`, which is cm on Eufy and
+        # mm here and on Dreame (see map_source.py for the measurement). Converted at the
+        # producer, where the unit is known; the card reads only this.
+        "res_m": round(int(decoded.get("res", 50)) / 1000.0, 6),
         "flip_y": bool(decoded.get("flip_y", DEFAULT_FLIP_Y)),
         "rid_shift": int(decoded.get("rid_shift", 0)),
         "catch_all_rid": int(decoded.get("catch_all_rid", CATCH_ALL_RID)),

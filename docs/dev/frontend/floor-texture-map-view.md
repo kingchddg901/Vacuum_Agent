@@ -195,6 +195,28 @@ A theme token **`--evcc-floor-<type>-map-scale`** overrides the per-type default
 global). `_resolveFloorScale` reads it; the token segment is **hyphenated** (`carpet-low`) to
 match the `--evcc-floor-*` convention, so the underscored resolver key is normalised first.
 
+### The raster scale is no longer the only way in
+
+A drop-in may declare **`sample_m`** instead — how many METRES of real floor one tile of its
+masks covers — and `_resolveFloorScale` derives the raster scale from the map's own
+resolution:
+
+```
+scale = sample_m / (MASK_CANVAS_PX × metres_per_canvas_pixel)        MASK_CANVAS_PX = 2048
+metres_per_canvas_pixel = rd.res_m / S                               S = the supersample
+```
+
+`rd.res_m` is the payload's brand-NORMALISED cell size. ⚠ **Do not read `rd.res` instead** —
+it is centimetres on Eufy and millimetres on Roborock and Dreame, measured 2026-11-14 (alfred
+5, ivy 50, robin 50, all three physically 5 cm). `res_m` exists because of that; nothing on
+the card may infer a unit from `res`.
+
+Full precedence, strongest first: the `map-scale` token, a `sample-m` token, a declared
+`sample_m`, a declared `scale`, the table above, the global. Per layer, a layer's own
+`sample_m` then its own `scale` outrank whatever the material resolved to — including the
+token. Everything authored before `sample_m` resolves exactly as it did; a map with no
+resolution (hand-drawn, CV) skips the physical steps entirely.
+
 > **Gotcha:** the JS keys MUST match `resolveFloorType()`'s output — `granite_light` (not
 > `granite`), `carpet_low`/`carpet_high`. A wrong key **fails silently** to the global default.
 > "A wide scale sweep changes nothing" almost always means the layer isn't rendering at all

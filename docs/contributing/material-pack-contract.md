@@ -57,7 +57,8 @@ schema is the stricter of the two here, deliberately).
 | `id` | string | `^[a-z0-9][a-z0-9_-]{0,31}$`, plus the reserved rule below | **REFUSED** |
 | `name` | string | display name; defaults to `id` | coerced with `str()` |
 | `family` | string | free text (`stone`, `wood`, `glass`) | never validated, never used for behaviour |
-| `scale` | **number** | feature scale, must be `> 0` | **SILENTLY DROPPED** — see below |
+| `sample_m` | **number** | **metres of real floor one tile covers.** The preferred way to size a pack — see [Sizing a pack physically](#sizing-a-pack-physically) | **SILENTLY DROPPED** — see below |
+| `scale` | **number** | raster feature scale, must be `> 0`. The fallback where no map resolution is known | **SILENTLY DROPPED** — see below |
 | `opacity` | **number** | `0..1`, the material's own card opacity | **SILENTLY DROPPED** |
 | `layers` | array | 1 to 8 entries | **REFUSED** |
 | `presets` | array | see Presets | **REFUSED** on a stray token |
@@ -72,12 +73,95 @@ schema is the stricter of the two here, deliberately).
 | `color` | string | `#rrggbb` or `#rrggbbaa` | **REFUSED** |
 | `opacity` | number | `0 <= x <= 1` | **REFUSED** |
 | `primary` | boolean | at most **one** layer in the pack | **REFUSED** if two |
+| `sample_m` | number | metres of real floor one tile of **this mask** covers | **SILENTLY DROPPED** |
+| `scale` | number | raster feature scale for this layer only | **SILENTLY DROPPED** |
 
 `file` and `from` are mutually exclusive — exactly one per layer. A `from` layer still
 takes **your** colour, opacity and token; you are borrowing geometry, not appearance.
 
 Paths are resolved and contained. Absolute paths, `..`, backslashes, percent-encoded
 separators and symlinks are all refused.
+
+## Sizing a pack physically
+
+**`sample_m` is how many metres of real floor one tile of your masks covers.** A 5 ft
+board sample is `1.524`. That is the whole idea: say what the mask *is*, and the card
+works out how to tile it.
+
+```json
+{ "schema": 1, "id": "oak-wide", "sample_m": 1.524, "layers": [ ... ] }
+```
+
+### Why this and not `scale`
+
+`scale` is a multiplier on a 2048 px bitmap. What it looks like depends entirely on how
+many centimetres of floor one map cell happens to be — so a scale tuned by eye encodes
+*the tuner's map* into the material, and the same pack reads too coarse or too fine on
+anyone else's. A sample size means the same thing everywhere, and the card derives the
+scale from each map's own resolution:
+
+```
+scale = sample_m / (2048 × metres_per_canvas_pixel)
+```
+
+**And it makes registration automatic.** Two masks cut from the same physical area — plank
+joints and the grain of the boards they cut — declare the same `sample_m` and therefore
+land at the same rate on every map, with nobody having to notice that they must match.
+Under raster scales that only held while two hand-tuned numbers happened to agree.
+
+### The band is real, and it is set by the map
+
+The derived scale is clamped to `0.02 .. 2`, and the metres that range represents are set
+by the map — **by its pixel width as much as its resolution.** The card supersamples the
+raster toward ~1200 px, `S = max(1, min(4, round(1200 / max(W, H))))`, and divides the cell
+size by `S`. All three development vacuums report 5 cm/cell and still land on two bands:
+
+| raster | S | floor spanned | per tile |
+|---|---|---|---|
+| ≤ 342 px (alfred 256×245, robin 253×227) | 4 | ≤ 17 m | **0.51 – 51.2 m** |
+| 343–480 px (ivy 397×387) | 3 | 17–24 m | **0.68 – 68.3 m** |
+| 481–1714 px | 2 | 24–86 m | **1.02 – 102 m** |
+
+So a **0.6 m slab is representable on two of his robots and clamps on the third** — and `S`
+flips 4 → 3 the moment `max(W, H)` crosses 343, so it can change on one robot as the map
+grows. **Safe at every plausible `S`: about 1.0 m to 51 m per tile.** Below the floor a
+2048 px mask is shown in fewer than ~41 canvas pixels, which is not a texture any more;
+author that material as a *sheet of several tiles* and give the sheet's width as `sample_m`.
+
+`scripts/material_pack_contract.py` checks every supersample factor, not just the common
+one, and names the ones a declared size clamps at — a size that is fine at `S=4` and clamps
+at `S=3` is the dangerous case precisely because it otherwise ships clean.
+
+### When a map has no resolution
+
+A hand-drawn or CV backdrop carries no device scale. There is nothing to derive from, so
+the card falls back to `scale`, then to the per-family default, then to the global. That
+is why `scale` is **not deprecated** — declare both if you want a sensible look there too.
+
+### Precedence
+
+**A layer is resolved first, and anything it declares itself wins outright:**
+
+1. the layer's own `sample_m`
+2. the layer's own `scale`
+3. otherwise, whatever the MATERIAL resolved to —
+
+4. theme token `--evcc-floor-<id>-map-scale` — the raster escape hatch
+5. theme token `--evcc-floor-<id>-sample-m`
+6. the material's `sample_m`
+7. the material's `scale`
+8. `FLOOR_TEXTURE_MASK_SCALE_BY_TYPE` (shipped materials only)
+9. the global default, `0.05`
+
+**The escape hatch does not reach inside a layer that declared a rate**, and that is
+deliberate: the token is a per-MATERIAL dial, so if it outranked a layer's own rate, an
+overlay would collapse onto the board the moment anyone touched the dial. Say it the other
+way round and it is easy to get wrong — an earlier draft of this list claimed the token
+"always wins", which `[UMS-12]` disproves.
+
+**The trap:** for a material with no per-layer declarations, a `map-scale` token left over
+from tuning by eye keeps winning after you add a `sample_m`, and the floor appears not to
+react. Clear the token when you adopt a size.
 
 ### Per-layer `scale` — two rates in one material
 
@@ -91,12 +175,15 @@ A layer may declare its own `scale`, overriding the material's **for that layer 
 This is for a mask that is **not the same physical sample as its siblings** — a broad
 stain over a fine speckle, say.
 
-**It is NOT for plank joints.** Joints are cut into the very board whose grain sits under
-them: the same 5×5 ft of floor, so the two masks are already consistent at one rate and
-giving the cut its own would misregister it from the boards it cuts. Two masks of the
-same area must share a scale. (The feature was first justified by that case and the
-justification was wrong — the lever for a repeat that reads too busy is the MATERIAL's
-scale, coarser.)
+**Prefer a per-layer `sample_m`.** It expresses the same thing by saying what the mask is,
+and it is the only form that survives being looked at on a map other than yours.
+
+**Neither is for plank joints.** Joints are cut into the very board whose grain sits under
+them: the same 5×5 ft of floor, so the two masks belong at one rate and giving the cut its
+own would misregister it from the boards it cuts. Two masks of the same area must share a
+rate — which a shared `sample_m` guarantees and a matched pair of scales only approximates.
+(The feature was first justified by the joints case and that justification was wrong — the
+lever for a repeat that reads too busy is the MATERIAL's size, bigger.)
 
 Absent means follow the material — and absent is written into the
 catalogue as an explicit `null`, so a reader must treat null as undeclared and never as
@@ -104,8 +191,8 @@ catalogue as an explicit `null`, so a reader must treat null as undeclared and n
 
 | rule | |
 |---|---|
-| precedence | a declared layer `scale` beats the material's **and the theme token** |
-| why | the token is a per-MATERIAL dial; if it outranked a layer that stated its own rate, the overlay would collapse onto the board the moment anyone touched it |
+| precedence | within a layer: its own `sample_m`, then its own `scale`, then whatever the material resolved to (token included) |
+| why | the token is a per-MATERIAL dial; if it outranked a layer that stated its own rate, the overlay would collapse onto the board the moment anyone touched it. So a layer declaring anything outranks the material's token — that is the one place the escape hatch does not reach |
 | clamp | the same `0.02 .. 2` as the material's — a layer cannot reach a rate a material could not |
 | coercion | identical to the material-level `scale`: a non-number becomes `null`, never a refusal. `true` is **not** a number here, though Python would call it one |
 | **surface** | **MAP ONLY.** The room card cover-fits every layer and reads no scale at all; the SVG map polygon hardcodes an 8×8 tile and ignores it too. A joints overlay is a map-path property — the card shows the material, not the floor layout |
@@ -163,11 +250,17 @@ exactly how `scale` shipped inert from `1a183bb2` until it was wired.
 Emit them as JSON numbers. The checker warns when a declared `scale` or `opacity` fails
 to survive validation.
 
-**But prefer omitting both.** `scale` is RULED fine as it stands (2026-11-14): an
-undeclared scale falls through to a default tuned by eye, and a physically accurate
-number — which only a generator that knows the mask's real-world size can compute — can
-easily look worse than it. Declare `scale` only to override a look you have judged on the
-map. `opacity` likewise defaults to `0.99`.
+**Prefer `sample_m` over `scale`.** This paragraph used to say the opposite — that `scale`
+was ruled fine as it stood (2026-11-14) and a physically accurate number could easily look
+worse than a default tuned by eye. That ruling was made and then reopened the same day,
+once the eye-tuned number had been measured: it had been chosen to *eliminate* the repeat,
+which stretched one 5 ft board across a 12 ft room and made every plank two and a half
+times too long. The default it was replacing had been within spitting distance of the
+physical truth all along; what read as wallpaper was the mask having no plank joints, not
+the scale. So: declare `sample_m`, which only a generator that knows the mask's real-world
+size can compute — and that is exactly the generator writing these packs.
+
+`opacity` likewise defaults to `0.99` and is still best omitted.
 
 ### The third silence: absent and `null` are not the same thing
 
@@ -190,12 +283,9 @@ is recorded here because the shape recurs: a value that EXISTS reading as a decl
 `src/bindings/map.js` clamps to `0.02 .. 2`. A declared `9.0` is accepted by the
 backend and then becomes `2` on screen. The checker warns; the integration does not.
 
-Precedence, highest first:
-
-1. theme token `--evcc-floor-<id>-map-scale`
-2. the pack's own `scale`
-3. `FLOOR_TEXTURE_MASK_SCALE_BY_TYPE` (shipped materials only)
-4. the global default, `0.05`
+The same clamp applies to a scale **derived** from `sample_m`, where it is a physical
+limit rather than a sanity guard — see [Sizing a pack physically](#sizing-a-pack-physically)
+for the band and what falls outside it. Full precedence is listed there.
 
 ## The id is a namespace, and it is the one irreversible commitment
 
@@ -343,7 +433,10 @@ Three layers, and the shipped values to start from:
 | `grain` | `#3a2409` | 0.76 | `wood/wood-grain-mask.png` |
 | `seam` | `#3a2409` | 0.70 | `wood/wood-seam-mask.png` |
 
-`scale`: **0.05** — wood's entry in `FLOOR_TEXTURE_MASK_SCALE_BY_TYPE`.
+**Sizing:** emit `sample_m`. Shipped wood's `0.05` entry in
+`FLOOR_TEXTURE_MASK_SCALE_BY_TYPE` works out to about **1.28 m per tile** on a 5 cm/cell
+map, which is a believable board sample and is why it never looked badly wrong — a 5 ft
+board is `1.524`. Give the real figure rather than the number that reproduces the default.
 
 Note the alpha on the base colour (`cf`): `#rrggbbaa` is accepted and shipped wood uses
 it. Note also that shipped wood points `grain` and `seam` at the **same**
@@ -519,7 +612,7 @@ render paths, and the esbuild bundle boundary. Written down, not started.
   "id": "glass-float",
   "name": "Float Glass",
   "family": "glass",
-  "scale": 0.35,
+  "sample_m": 8.96,
   "opacity": 0.55,
   "layers": [
     { "suffix": "pane",  "file": "pane.png",  "color": "#AEC6CF", "opacity": 0.30 },
@@ -530,14 +623,19 @@ render paths, and the esbuild bundle boundary. Written down, not started.
 }
 ```
 
-Note `bevel` as primary rather than `pane`, and `scale` well above the `0.05` default —
-glass reads as large panes, not as gravel.
+Note `bevel` as primary rather than `pane`, and a `sample_m` of nearly 9 m — glass reads
+as large panes, not as gravel. (That is the old `scale: 0.35` stated physically: a tile
+spanning most of a room rather than a fraction of one.)
 
 ## Checklist for the generator
 
-1. **Omit `scale` and `opacity`** unless you are overriding a look you have judged on
-   the map. If you do emit them, emit **JSON numbers**, never strings.
-2. Keep any declared `scale` inside `0.02 .. 2` or accept the clamp.
+1. **Emit `sample_m`** — the metres of real floor one tile of your masks covers. You are
+   the only party that knows it, and without it the pack is sized by a number someone
+   tuned by eye against one map. Emit **JSON numbers**, never strings. Omit `opacity`
+   unless you are overriding a look you have judged on the map.
+2. Keep `sample_m` inside roughly **1 .. 51 m** per tile (safe at every supersample) or
+   checker tells you what it will actually draw as. Keep any declared `scale` inside
+   `0.02 .. 2`, same deal.
 3. Pick the id **once**, and never change it for a published pack.
 4. Mark a **structural** layer `"primary": true` — do not rely on layer 0 — **unless
    the material is a partition**, where no single mask carries the structure. Glass is

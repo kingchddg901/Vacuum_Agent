@@ -98,6 +98,11 @@ export function entryFromCatalogRow(row, assetVer) {
       // Number(null) is 0 and 0 is finite, which would hand every layer scale 0 and
       // clamp the whole floor to 0.02. null means "follow the material", never zero.
       mapScale: _declared(l.scale),
+      // PER-LAYER PHYSICAL SAMPLE SIZE, in METRES — the real-world width of one tile of
+      // this mask. Outranks `mapScale` where the map's own resolution is known, because
+      // it states a FACT about the mask instead of a number tuned against one map.
+      // Same explicit-null trap as above; `_declared` is load-bearing for the same reason.
+      sampleM: _declared(l.sample_m),
     });
   }
 
@@ -139,6 +144,17 @@ export function entryFromCatalogRow(row, assetVer) {
       mapScale: Number.isFinite(Number(row.scale)) && Number(row.scale) > 0
         ? Number(row.scale)
         : null,
+      // THE MATERIAL'S PHYSICAL SAMPLE SIZE, in METRES: how much real floor one tile of
+      // its masks covers. The default for every layer that does not declare its own, and
+      // on the ENTRY for the same reason mapScale is — the entry is the part that travels.
+      //
+      // This is the number that makes the tiling DERIVABLE rather than eyeballed. A raster
+      // `scale` only means anything against the map it was tuned on; a sample size means
+      // the same thing on every map, and the card turns it into a scale using that map's
+      // own metres-per-cell. Still null for everything authored before it existed, which
+      // is why `mapScale` stays and is NOT deprecated — it is the fallback for a map whose
+      // resolution is unknown (a hand-drawn or CV backdrop has no device scale at all).
+      sampleM: _declared(row.sample_m),
       layers,
       masks: layers.map((l) => ({ url: l.url })),
       baseTexture: primary ? primary.url : null,
