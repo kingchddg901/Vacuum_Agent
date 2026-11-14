@@ -11,6 +11,7 @@
 //   [UM-6] a shipped key is never overwritten by a drop-in
 //   [UM-7] a malformed row is skipped, not merged half-built
 //   [UM-8] a missing/failed catalogue fetch yields [], not a throw
+//   [UM-9] an UNDECLARED scale/opacity (catalogue null) falls back, it does not become 0
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -113,4 +114,29 @@ test("[UM-8] a failed catalogue fetch yields [] rather than throwing", async () 
     await fetchUserMaterialCatalog(async () => ({ ok: true, json: async () => [row()] })),
     [row()],
   );
+});
+
+// [UM-9] build_catalog writes an explicit `null` for a top-level scale/opacity the
+// descriptor does not declare (user_materials.py:347-348). Number(null) is 0 and 0 IS
+// finite, so a bare Number.isFinite test accepted it as a declared zero -- and the card
+// multiplies every layer span by that number, so a drop-in rendered untextured on room
+// cards while the map (which reads the PER-LAYER opacity instead) rendered it correctly.
+//
+// BITE: revert `_declared(row.opacity) ?? 0.99` to the bare
+// `Number.isFinite(Number(row.opacity)) ? Number(row.opacity) : 0.99` and the first
+// assertion reads 0.
+test("[UM-9] an undeclared scale/opacity falls back rather than becoming 0", () => {
+  const built = entryFromCatalogRow(row({ opacity: null, scale: null }));
+
+  assert.equal(built.entry.opacityDefault, 0.99,
+    "catalogue null means UNDECLARED; 0 would make every card layer span invisible");
+  assert.equal(built.scale, null, "an undeclared scale stays null, not 0");
+  assert.equal(built.entry.mapScale, null, "and never reaches the map as a zero scale");
+
+  // A DECLARED zero is a real value and must survive.
+  assert.equal(entryFromCatalogRow(row({ opacity: 0 })).entry.opacityDefault, 0,
+    "an explicitly declared 0 is honoured, only null/undefined falls back");
+
+  // A declared number is untouched -- slate and bamboo were never affected.
+  assert.equal(entryFromCatalogRow(row({ opacity: 0.99 })).entry.opacityDefault, 0.99);
 });

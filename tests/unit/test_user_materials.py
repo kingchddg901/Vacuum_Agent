@@ -30,6 +30,14 @@ LEGEND
   UMAT-18  build_catalog writes catalog.json and skips the broken one
   UMAT-19  build_catalog never raises on an unreadable directory
   UMAT-20  png_header reads IHDR without a decoder
+  UMAT-21  a layer with NO opacity at all is refused -- the requiredness is
+           LOAD-BEARING for a line that never mentions it: user-materials.js:94 reads
+           ``Number(l.opacity)`` bare, no finite guard and no fallback. It is safe only
+           because this check cannot let a layer through without one. Relaxing it to
+           "optional, defaults to 1" would reintroduce the top-level null bug one level
+           down -- Number(null) is 0, 0 is finite, and every card layer span would
+           multiply to invisible. [UM-9] in user-materials.test.mjs guards the TOP-LEVEL
+           path and would not catch it.
 """
 
 from __future__ import annotations
@@ -228,10 +236,11 @@ def test_preset_may_not_escape_its_namespace(tmp_path):
         ("UMAT-16", lambda d: d["layers"][0].update(opacity=4)),
         ("UMAT-16", lambda d: d["layers"][0].update(opacity="loads")),
         ("UMAT-17", lambda d: d.update(layers=[d["layers"][0], dict(d["layers"][0])])),
+        ("UMAT-21", lambda d: d["layers"][0].pop("opacity")),
     ],
 )
 def test_descriptor_shape_is_enforced(tmp_path, legend, mutate):
-    """[UMAT-15..17] Caps, ranges and uniqueness."""
+    """[UMAT-15..17, 21] Caps, ranges, uniqueness -- and that opacity is REQUIRED."""
     d = _descriptor()
     mutate(d)
     assert _material(tmp_path, d) is None, legend

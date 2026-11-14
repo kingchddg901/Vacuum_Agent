@@ -64,6 +64,15 @@ export function tokenFor(id, suffix, kind) {
  *   carried only so the URL shape matches.
  * @returns {{key:string, entry:object, presets:Array}|null}
  */
+/* A catalogue number that was actually DECLARED, else null.
+   Guards the Number(null) === 0 trap: build_catalog emits an explicit null for an
+   undeclared `scale`/`opacity`, and 0 is a legal value for neither to be confused with. */
+function _declared(v) {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function entryFromCatalogRow(row, assetVer) {
   if (!row || typeof row !== "object") return null;
   const id = typeof row.id === "string" ? row.id : "";
@@ -93,10 +102,24 @@ export function entryFromCatalogRow(row, assetVer) {
     key: id,
     name: typeof row.name === "string" && row.name ? row.name : id,
     family: typeof row.family === "string" ? row.family : null,
-    scale: Number.isFinite(Number(row.scale)) ? Number(row.scale) : null,
+    scale: _declared(row.scale),
     entry: {
       // NOT a -opacity-card token; see the warning above.
-      opacityDefault: Number.isFinite(Number(row.opacity)) ? Number(row.opacity) : 0.99,
+      //
+      // `?? 0.99` IS NOT ENOUGH AND NEITHER IS Number.isFinite. build_catalog writes
+      // "opacity": null for a descriptor that does not declare one (user_materials.py:348,
+      // an explicit null rather than an absent key) -- and Number(null) is 0, which IS
+      // finite. So the bare isFinite test yielded opacityDefault 0, and the card's
+      // `entry.opacityDefault ?? 0.85` cannot rescue it because ?? only catches
+      // null/undefined, not 0. Every layer span then computed opacity 0 and the room card
+      // rendered untextured while the MAP rendered correctly -- the map reads the PER-LAYER
+      // opacityToken/opacityDefault (bindings/map.js:583) and never this field, so the two
+      // surfaces disagreed about one room with nothing logged.
+      //
+      // Hit by every Material Author export (they declare no top-level opacity); slate and
+      // bamboo declare 0.99 and were unaffected, which is what made it look brand-specific.
+      // A DECLARED 0 is still honoured -- only null/undefined falls back.
+      opacityDefault: _declared(row.opacity) ?? 0.99,
       // THE MATERIAL'S OWN FEATURE SCALE, on the ENTRY rather than beside it,
       // because the entry is the only part that reaches the registry -- and the
       // registry is what the map resolver reads. It sat on the outer object from
