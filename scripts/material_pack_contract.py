@@ -113,8 +113,9 @@ def build_schema(um) -> dict:
                     "OPTIONAL per-layer feature scale, overriding the material's for "
                     "this layer only. MAP PATH ONLY - the room card cover-fits every "
                     "layer and reads no scale at all. Absent means 'follow the "
-                    "material'. Lets a plank-joint overlay tile at the room's scale "
-                    "over a board face at the board's."
+                    "material'. For a mask that is NOT the same physical sample as its "
+                    "siblings; two cut from the SAME area must share a scale or their "
+                    "features drift apart as they tile."
                 ),
             },
         },

@@ -582,8 +582,12 @@ export function applyMapBindings(proto) {
       // Resolve each layer's color + opacity now (cheap getComputedStyle reads) -> colorSig.
       //
       // PER-LAYER SCALE. A layer that declares its own `scale` tiles at that rate while
-      // its siblings keep the material's -- which is what lets a plank-joint overlay sit
-      // at the ROOM's scale over a board face at the BOARD's. Absent (null) means follow
+      // its siblings keep the material's. It is for masks that are NOT the same physical
+      // sample as their siblings -- a broad stain over a fine speckle, say. Two masks cut
+      // from the SAME area must share a scale or their features drift apart as they tile:
+      // plank joints are cut into the very board whose grain sits under them, same 5x5 ft
+      // of floor, so they belong at ONE rate and giving them their own would MISREGISTER
+      // the cut from the boards it cuts. Absent (null) means follow
       // the material, so NOTHING that exists today changes: a pack with no per-layer
       // scales resolves to the material scale on every layer exactly as before, and the
       // theme token still governs all of them.
@@ -889,8 +893,8 @@ export function applyMapBindings(proto) {
      its own positive `mapScale` overrides it for itself only, clamped to the same range.
 
      A DECLARED LAYER SCALE BEATS THE THEME TOKEN, deliberately. The token is a per-material
-     dial, so if it outranked a layer that stated its own rate, a plank-joint overlay would
-     collapse back onto the board the moment anyone touched the dial. Absent (null, and
+     dial, so if it outranked a layer that stated its own rate, that rate could not survive
+     anyone touching the dial and declaring one would be pointless. Absent (null, and
      build_catalog writes null for every layer that does not declare one) means FOLLOW THE
      MATERIAL -- never zero, which is what Number(null) would have made it. */
   proto._resolveLayerScale = function (layerMapScale, materialScale) {

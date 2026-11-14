@@ -88,8 +88,17 @@ A layer may declare its own `scale`, overriding the material's **for that layer 
   "opacity": 0.8, "scale": 0.19 }
 ```
 
-This exists so a **plank-joint overlay can tile at the room's scale over a board face at
-the board's**. Absent means follow the material — and absent is written into the
+This is for a mask that is **not the same physical sample as its siblings** — a broad
+stain over a fine speckle, say.
+
+**It is NOT for plank joints.** Joints are cut into the very board whose grain sits under
+them: the same 5×5 ft of floor, so the two masks are already consistent at one rate and
+giving the cut its own would misregister it from the boards it cuts. Two masks of the
+same area must share a scale. (The feature was first justified by that case and the
+justification was wrong — the lever for a repeat that reads too busy is the MATERIAL's
+scale, coarser.)
+
+Absent means follow the material — and absent is written into the
 catalogue as an explicit `null`, so a reader must treat null as undeclared and never as
 `0` (see the third silence above).
 

@@ -133,9 +133,9 @@ test("[UMS-5] a theme token still overrides a declared scale", () => {
   }
 });
 
-// PER-LAYER SCALE. The point is two rates inside ONE material: a plank-joint overlay at
-// the ROOM's scale over a board face at the BOARD's. The resolution is deliberately not
-// the same precedence as the material's -- see _resolveLayerScale.
+// PER-LAYER SCALE. Two rates inside ONE material, for masks that are not the same
+// physical sample as their siblings. The resolution is deliberately not the same
+// precedence as the material's -- see _resolveLayerScale.
 //
 // BITE for each: [UMS-6] fails if the layer value is ignored or if the clamp is dropped;
 // [UMS-7] fails if null is ever coerced with Number() (that would read 0, finite, and

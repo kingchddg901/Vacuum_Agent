@@ -310,8 +310,9 @@ def validate_material(
             # `scale` is (desc below) rather than refused, so there is ONE rule for the
             # concept instead of two: a non-number becomes None and falls back. A layer
             # that declares one tiles at its own rate while its siblings keep the
-            # material's -- which is what lets a plank-joint overlay sit at the room's
-            # scale over a board face at the board's.
+            # material's. For masks that are NOT the same physical sample as their
+            # siblings: two cut from the SAME area must share a scale, or their features
+            # drift apart as they tile.
             "scale": (
                 float(layer["scale"])
                 if isinstance(layer.get("scale"), (int, float))
