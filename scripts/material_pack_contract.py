@@ -378,7 +378,9 @@ def check_pack(dir_path: str, textures_dir: str, quiet: bool = False) -> int:
         if twin is not None:
             warns.append(
                 f"layers {twin!r} and {layer['suffix']!r} are BYTE-IDENTICAL masks - "
-                "one of them is almost certainly not the mask that was intended."
+                "on a hand-authored pack that is almost always the wrong file; from a "
+                "generator with a FIXED layer set it is two tiers that collapsed to the "
+                "same constant on this board."
             )
         else:
             seen_hash[digest] = layer["suffix"]
@@ -395,12 +397,16 @@ def check_pack(dir_path: str, textures_dir: str, quiet: bool = False) -> int:
                 f"layer {layer['suffix']!r} (#{i}) is a CONSTANT fill at luminance "
                 f"{mean:.0f} with opacity {layer['opacity']}, so its alpha is "
                 f"{alpha:.2f} - it is FULLY OPAQUE and paints over every one of the "
-                f"{i} layer(s) below it. Only layer 0 may legitimately be solid."
+                f"{i} layer(s) below it. Only layer 0 may legitimately be solid. "
+                "(A generator publishing a FIXED layer set emits this deliberately - "
+                "see docs/contributing/material-authoring.md before filing it.)"
             )
         elif mean <= 1.0:
             warns.append(
                 f"layer {layer['suffix']!r} (#{i}) is a CONSTANT fill at luminance "
-                f"{mean:.0f} - it reveals nothing and draws no pixels."
+                f"{mean:.0f} - it reveals nothing and draws no pixels. "
+                "(Expected from a generator with a FIXED layer set - see "
+                "docs/contributing/material-authoring.md.)"
             )
 
     for w in warns:

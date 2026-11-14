@@ -31,12 +31,24 @@ What its packs look like, measured from real exports:
 All three are measured from real exports. Wood declares `early` primary, glass declares
 `ground`, stone declares `base`.
 
-A wood export's six layers are not six *working* layers: on the first one measured, only
-`early` and `late` carried content. `ground` was a solid fill (legitimate — it is the
-board colour at the bottom of the stack), but `heart` was **byte-identical to it** and
-sat *above* both grain masks, so at luminance 255 and opacity 1 it was fully opaque and
-painted over all the grain; `mineral` and `knot` were solid black and drew nothing. The
-checker now warns on all of it — run it before you judge a material by eye.
+**A generator may publish a FIXED layer set**, the same suffixes every time, so that a
+reader never has to work out which layers a given pack happens to have. Dead layers are
+the price: on a board with no mineral streak and no knot, those masks ship as constant
+fills that draw nothing, and a tier that saturates ships as a constant fill that covers
+everything below it. A wood export measured this way had only `early` and `late` carrying
+content out of six.
+
+**So the checker's constant-fill and byte-identical warnings are expected output for such
+a pack, not a defect report.** They are still worth reading — on a hand-authored pack
+they almost always mean a mistake — but on a fixed-set generator they are describing the
+contract. Check the generator's intent before filing anything.
+
+One number worth keeping, because the obvious fix is worse than the symptom: on that
+board the real render's mean colour is `#553218`, and the pack as it ships composites to
+`#5a3418` — a distance of 5.2. Dropping the saturating layer gives `#ad8354` (134.1) and
+moving it below the grain `#b28654` (140.0), both about twice too light, because the
+bright grain mask swamps whatever sits beneath it. Flat-but-right-hue beats
+grain-with-wrong-hue.
 
 **Writing one by hand** is still fully supported and nothing below assumes a generator.
 
