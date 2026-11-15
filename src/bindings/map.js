@@ -12,7 +12,7 @@
 
 import { VIEWS } from "../render-cycle.js";
 import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N } from "../cards/map-room-color.js";
-import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl } from "../textures/floor-texture-registry.js";
+import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl, tilesAcrossFloor } from "../textures/floor-texture-registry.js";
 import { resolveFloorType, normalizeFloorRotationDeg } from "../textures/floor-texture-resolver.js";
 import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 
@@ -46,6 +46,19 @@ const FLOOR_TEXTURE_MASK_SCALE = 0.05; // global fallback (all materials at 0.05
 // The sane tiling range, in ONE place: both the per-material resolve and the per-LAYER
 // override below clamp to it, so a layer cannot reach a scale a material could not.
 const FLOOR_SCALE_MIN = 0.02, FLOOR_SCALE_MAX = 2;
+
+/* HOW MUCH SLACK A FITTED MATERIAL GETS AROUND ITS ROOM, as a fraction of the room's
+   bounding box ON EACH SIDE. A fitted material is composited into a buffer the size of
+   the room rather than the whole canvas -- full-canvas per (room, material) is ~4.7 MB
+   at S=3 and the texture caches have no eviction at all, so ten distinctly-fitted rooms
+   would hold ~47 MB for the session. Sized to the room it is ~400 KB.
+
+   The margin exists so a placement can be nudged without immediately running out of
+   buffer. Past it there is no error: the area beyond the fit reads luminance 0, which
+   the compositor already treats as "this layer reveals nothing", so the room's base
+   colour creeps in at the edge you dragged away from. That is a legible signal rather
+   than a crash, and it says you have gone past what the buffer holds. */
+const ROOM_FIT_MARGIN = 0.05;
 // The mask canvas every material is authored at, enforced by user_materials.py for drop-ins
 // and by floor-mask-canvas.test.mjs for the shipped set (see the ⚠ above). Read ONLY by the
 // REPLICA RNTA1EGS -- the twins are user_materials.CANVAS (which ENFORCES it for drop-ins),
@@ -460,29 +473,33 @@ export function applyMapBindings(proto) {
         carpet_type: room?.carpet_type ?? room?.carpetType ?? "",
         floor_material: room?.floor_material ?? room?.floorMaterial ?? "",
       });
-      // THE PAINT KEY IS (material, rotation), not material. Rotation is per
-      // ROOM, so two rooms can share a material and still need separately
-      // decoded tiles -- the texture and mask caches already key on rotate, so
-      // this costs a cache entry per distinct angle rather than a redesign.
+      // A PAINT JOB IS (material, rotation), not material. Rotation is per ROOM, so two
+      // rooms can share a material and still need separately decoded tiles -- the texture
+      // and mask caches already key on rotate, so this costs a cache entry per distinct
+      // angle rather than a redesign.
+      //
+      // IT IS AN OBJECT, NOT A BAR-JOINED STRING, and that is load-bearing. It used to be
+      // `${ft}|${rot}`, parsed back in TWO places with `lastIndexOf("|")` -- a spelling
+      // chosen so a material id containing a bar could not shift the angle into the type.
+      // That works for exactly two fields and fails silently for three: append anything
+      // and the rotation lands inside `ft`, the registry lookup misses, and the room falls
+      // back to flat palette with nothing logged. Carrying fields removes the parse
+      // instead of guarding it, which is what lets a fit box join them below.
       const rot = normalizeFloorRotationDeg(
         Number(room?.floor_rotation ?? room?.floorRotation ?? 0) || 0);
-      if (ft && room.name != null) floorByName.set(norm(room.name), `${ft}|${rot}`);
+      if (ft && room.name != null) {
+        floorByName.set(norm(room.name), { ft, rotate: rot, key: `${ft}|${rot}` });
+      }
     }
-    const paintKeyByRid = [];
+    const jobByRid = [];
     const ridNames = (rd && rd.room_names) || {};
     for (const ridStr of Object.keys(ridNames)) {
-      const paintKey = floorByName.get(norm(ridNames[ridStr]));
+      const spec = floorByName.get(norm(ridNames[ridStr]));
       const ridNum = Number(ridStr);
-      if (paintKey && Number.isFinite(ridNum)) paintKeyByRid[ridNum] = paintKey;
+      if (spec && Number.isFinite(ridNum)) jobByRid[ridNum] = spec;
     }
-    // "default" = no floor type set -> stays flat (palette); only real, textured types paint.
-    // Each entry is `${floorType}|${degrees}`; split at the LAST bar so a material
-    // id containing one could never shift the angle into the type.
-    const presentTypes = [...new Set(paintKeyByRid.filter(Boolean))]
-      .filter((k) => {
-        const ft = String(k).slice(0, String(k).lastIndexOf("|"));
-        return ft !== "default" && getPrimaryTextureUrl(ft);
-      });
+    // Jobs are finalised AFTER the rid raster is decoded, because a FITTED material needs
+    // its room's bounding box and nothing upstream carries one.
 
     // Supersample the ~360px raster to ~1200px so the mask detail survives.
     const S = Math.max(1, Math.min(4, Math.round(1200 / Math.max(W, H)) || 1));
@@ -522,6 +539,67 @@ export function applyMapBindings(proto) {
       }
     }
 
+    // PER-ROOM BOUNDING BOXES, in the same FINAL (post-flip, post-offset) raster coords
+    // ridAtFinal is indexed by. Nothing upstream has one: the payload carries width,
+    // height, the ro_* offsets, res, flip_y, rid_shift, catch_all_rid, room_pixels and
+    // room_names, and no bbox anywhere. One extra pass over a ~360x360 raster.
+    const bboxByRid = [];
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) {
+        const rid = ridAtFinal[row + x];
+        if (rid <= 0) continue;
+        const b = bboxByRid[rid];
+        if (!b) { bboxByRid[rid] = { x0: x, y0: y, x1: x, y1: y }; continue; }
+        if (x < b.x0) b.x0 = x; else if (x > b.x1) b.x1 = x;
+        if (y > b.y1) b.y1 = y;                 // rows ascend, so y0 is already minimal
+      }
+    }
+
+    /* The canvas-space box a fitted material is composited into: the room's bbox scaled
+       by the supersample, grown by ROOM_FIT_MARGIN on each side, and CLAMPED to the
+       canvas -- the clamp is what keeps the buffer bounded on a room that reaches an
+       edge, and costs only the slack it could not have used anyway. */
+    const fitBoxFor = (b) => {
+      const w = (b.x1 - b.x0 + 1) * S, h = (b.y1 - b.y0 + 1) * S;
+      const mx = Math.round(w * ROOM_FIT_MARGIN), my = Math.round(h * ROOM_FIT_MARGIN);
+      const x = Math.max(0, b.x0 * S - mx), y = Math.max(0, b.y0 * S - my);
+      return {
+        x, y,
+        w: Math.max(1, Math.min(CW - x, w + 2 * mx)),
+        h: Math.max(1, Math.min(CH - y, h + 2 * my)),
+      };
+    };
+
+    // "default" = no floor type set -> stays flat (palette); only real, textured types paint.
+    //
+    // A TILED material gets ONE job for the whole map -- that shared (0,0)-anchored grid is
+    // what makes planks run through a doorway. A FITTED one gets a job per fit box, so two
+    // rooms that happen to occupy the same box share a texture and every other room gets
+    // its own. Keying on the BOX rather than the rid keeps that sharing deterministic.
+    const jobsByKey = new Map();
+    const jobForRid = [];
+    for (let rid = 0; rid < jobByRid.length; rid++) {
+      const spec = jobByRid[rid];
+      if (!spec || spec.ft === "default" || !getPrimaryTextureUrl(spec.ft)) continue;
+      let job;
+      if (tilesAcrossFloor(FLOOR_TEXTURE_REGISTRY[spec.ft])) {
+        job = { key: spec.key, ft: spec.ft, rotate: spec.rotate, fit: null };
+      } else {
+        const b = bboxByRid[rid];
+        if (!b) continue;                        // a named room with no pixels this frame
+        const fit = fitBoxFor(b);
+        job = {
+          key: `${spec.key}@${fit.x},${fit.y},${fit.w},${fit.h}`,
+          ft: spec.ft, rotate: spec.rotate, fit,
+        };
+      }
+      const existing = jobsByKey.get(job.key);
+      if (existing) job = existing; else jobsByKey.set(job.key, job);
+      jobForRid[rid] = job;
+    }
+    const jobs = [...jobsByKey.values()];
+
     // Composite each present material at the canvas res, with the masks drawn at NATIVE
     // resolution (see _decodeMaskLum) so the fine grain/plank-seam detail survives — the
     // detail is what makes it read as a floor. Map-space + native-tiled -> continuous across
@@ -534,15 +612,15 @@ export function applyMapBindings(proto) {
     // falls back to its raster scale exactly as before.
     const resM = Number(rd.res_m);
     const mPerPx = Number.isFinite(resM) && resM > 0 ? resM / S : null;
-    const { ready, texSig } = this._ensureFloorTextures(presentTypes, CW, CH, canvas, mPerPx);
+    const { ready, texSig } = this._ensureFloorTextures(jobs, CW, CH, canvas, mPerPx);
 
     // Cache the composited floor ImageData (like _drawVaRender's) so zoom/select re-renders
     // just re-stamp it. Busts on version, size/scale, palette (theme), the rid->type map, or
     // a texture's resolved colours/opacity/scale changing. texSig carries each ready type's
     // texKey (ft|size|scale|colorSig), so a LIVE editor tweak to a floor colour repaints the
     // map — the ft-name list alone never changed on a recolour, leaving the floor image stale.
-    const floorKey = `${rd.version}|${CW}x${CH}|${paletteSig}|${paintKeyByRid.join(",")}`
-      + `|${texSig}`;
+    const ridSig = Array.from(jobForRid, (j) => (j ? j.key : "")).join(",");
+    const floorKey = `${rd.version}|${CW}x${CH}|${paletteSig}|${ridSig}|${texSig}`;
     let cache = this._vaFloorImageCache;
     if (!cache || cache.key !== floorKey) {
       const img = cctx.createImageData(CW, CH);
@@ -555,12 +633,25 @@ export function applyMapBindings(proto) {
           const rid = ridAtFinal[rowBase + ((ox / S) | 0)];
           if (rid <= 0) continue;        // outside every room -> transparent
           const o = (oRow + ox) * 4;
-          const paintKey = paintKeyByRid[rid];
-          const tex = paintKey ? ready.get(paintKey) : null;
+          const job = jobForRid[rid];
+          const tex = job ? ready.get(job.key) : null;
+          // A TILED texture is CW×CH and samples 1:1 in map space -> crisp and continuous
+          // across rooms. A FITTED one is only its own box, so the sample is offset into
+          // it; outside the box there is nothing to read and the room falls back to its
+          // flat colour, which is what a placement dragged past the margin looks like.
+          let t = -1;
           if (tex) {
-            // 1:1 map-space sample (tex is CW×CH from a native-res mask) -> crisp + continuous.
-            data[o] = tex.data[o]; data[o + 1] = tex.data[o + 1];
-            data[o + 2] = tex.data[o + 2]; data[o + 3] = 255;
+            if (!job.fit) t = o;
+            else {
+              const fx = ox - job.fit.x, fy = oy - job.fit.y;
+              if (fx >= 0 && fy >= 0 && fx < job.fit.w && fy < job.fit.h) {
+                t = ((fy * job.fit.w) + fx) * 4;
+              }
+            }
+          }
+          if (t >= 0) {
+            data[o] = tex.data[t]; data[o + 1] = tex.data[t + 1];
+            data[o + 2] = tex.data[t + 2]; data[o + 3] = 255;
           } else {
             const c = flatColor(rid);
             data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
@@ -578,7 +669,7 @@ export function applyMapBindings(proto) {
      an async mask decode that re-renders on completion. Two caches on the binding: raw
      mask luminance (theme-independent, keyed by URL+size) and the composited texture
      (theme-dependent, keyed by resolved colors/opacities). */
-  proto._ensureFloorTextures = function (presentTypes, W, H, host, mPerPx) {
+  proto._ensureFloorTextures = function (jobs, W, H, host, mPerPx) {
     this._floorMaskCache = this._floorMaskCache || new Map();    // maskKey -> Uint8ClampedArray lum
     this._floorMaskPending = this._floorMaskPending || new Set();
     this._floorTexCache = this._floorTexCache || new Map();      // texKey -> composited {data}
@@ -586,10 +677,13 @@ export function applyMapBindings(proto) {
     const ready = new Map();
     const readySigs = [];   // texKeys of the types ready THIS frame (encode color/opacity/scale)
 
-    for (const paintKey of presentTypes) {
-      const bar = paintKey.lastIndexOf("|");
-      const ft = paintKey.slice(0, bar);
-      const roomRotate = Number(paintKey.slice(bar + 1)) || 0;
+    for (const job of jobs) {
+      const ft = job.ft;
+      const roomRotate = job.rotate;
+      // THE BUFFER THIS JOB COMPOSITES INTO. A tiled material fills the whole canvas, so
+      // its texels line up with the map 1:1. A fitted one fills only its room's box.
+      const tw = job.fit ? job.fit.w : W;
+      const th = job.fit ? job.fit.h : H;
       const entry = FLOOR_TEXTURE_REGISTRY[ft];
       if (!entry || !Array.isArray(entry.layers) || !entry.layers.length) continue;
 
@@ -631,17 +725,22 @@ export function applyMapBindings(proto) {
       // THE COMPOSITED cache is keyed per MATERIAL, so it must carry every layer's scale.
       // Keying it on the material scale alone would collide two materials that differ
       // only in one layer's rate and serve the wrong floor from cache.
-      const scaleSig = resolved.map((r) => r.scale).join(",");
-      const texKey = `${ft}|${W}x${H}|${scaleSig}|${rotate}|${colorSig}`;
+      //
+      // A FITTED job carries NO scale in its identity, because it reads none: its size is
+      // the room's box, derived, not resolved. That is also why the documented
+      // `--evcc-floor-<type>-map-scale` escape hatch -- rank 1 of the tiling ladder and
+      // "guaranteed to win" -- cannot silently defeat a fit. It is never consulted.
+      const scaleSig = job.fit ? "fit" : resolved.map((r) => r.scale).join(",");
+      const texKey = `${ft}|${tw}x${th}|${scaleSig}|${rotate}|${colorSig}`;
 
       const cachedTex = this._floorTexCache.get(texKey);
-      if (cachedTex) { ready.set(paintKey, cachedTex); readySigs.push(texKey); continue; }
+      if (cachedTex) { ready.set(job.key, cachedTex); readySigs.push(texKey); continue; }
 
       // Need every layer's mask decoded to a luminance array.
       const lumArrays = [];
       let allLoaded = true;
       for (const r of resolved) {
-        const maskKey = `${r.url}|${W}x${H}|${r.scale}|${rotate}`;
+        const maskKey = `${r.url}|${tw}x${th}|${job.fit ? "fit" : r.scale}|${rotate}`;
         const lum = this._floorMaskCache.get(maskKey);
         if (lum) { lumArrays.push(lum); continue; }
         allLoaded = false;
@@ -650,9 +749,9 @@ export function applyMapBindings(proto) {
           // ALWAYS cache a result (real luminance, or a zero-fill sentinel on failure) so a
           // missing/broken PNG degrades to "layer reveals nothing" (base shows through) instead
           // of never caching -> re-kicking every render -> an infinite render loop.
-          this._enqueueMaskDecode(r.url, W, H, r.scale, rotate)
-            .then((arr) => { this._floorMaskCache.set(maskKey, arr || new Uint8ClampedArray(W * H)); })
-            .catch(() => { this._floorMaskCache.set(maskKey, new Uint8ClampedArray(W * H)); })
+          this._enqueueMaskDecode(r.url, tw, th, r.scale, rotate, !!job.fit)
+            .then((arr) => { this._floorMaskCache.set(maskKey, arr || new Uint8ClampedArray(tw * th)); })
+            .catch(() => { this._floorMaskCache.set(maskKey, new Uint8ClampedArray(tw * th)); })
             .finally(() => {
               this._floorMaskPending.delete(maskKey);
               this.card._scheduleRender?.();
@@ -666,7 +765,7 @@ export function applyMapBindings(proto) {
       const baseIdx = entry.layers.findIndex((l) => l.role === "base");
       const base = resolved[baseIdx >= 0 ? baseIdx : 0].color;
       const tex = compositeFloorTexture(
-        W, H, base,
+        tw, th, base,
         // Fold the color's own alpha (8-hex / oklch can carry one) into the layer opacity —
         // that's what the CSS card does implicitly, so the material tones match.
         resolved.map((r, i) => ({
@@ -676,7 +775,7 @@ export function applyMapBindings(proto) {
         })),
       );
       this._floorTexCache.set(texKey, tex);
-      ready.set(paintKey, tex);
+      ready.set(job.key, tex);
       readySigs.push(texKey);
     }
 
@@ -686,7 +785,7 @@ export function applyMapBindings(proto) {
   /* Load a grayscale mask PNG and downscale it to W×H, returning a per-texel luminance
      array (0..255; white reveals). Same-origin (served by HA), so the canvas read is not
      tainted. Async — the caller re-renders when it resolves. */
-  proto._decodeMaskLum = async function (url, W, H, scale = FLOOR_TEXTURE_MASK_SCALE, rotate = 0) {
+  proto._decodeMaskLum = async function (url, W, H, scale = FLOOR_TEXTURE_MASK_SCALE, rotate = 0, fit = false) {
     if (typeof document === "undefined") return null;
     // RETRY: HTMLImageElement.decode() rejects intermittently ("The source image cannot be
     // decoded") when a burst of large (2048²) masks decode at once — the failing set is random
@@ -720,6 +819,35 @@ export function applyMapBindings(proto) {
         // Fill at NATIVE resolution (repeat-pattern), NOT downscaled to W×H. Downscaling the fine
         // grain/seam detail (1-3px in the 2048 mask) to map size averages it to nothing -> flat.
         // Native res keeps it crisp and the pattern wraps for canvases larger than the mask.
+        // A FITTED MATERIAL IS NOT A TRANSLATED TILING, and this is the fork. The pattern
+        // path below fills the whole buffer by repeating, so no matrix can stop it -- the
+        // e,f translation slots move the tiling, they do not end it. A fit is therefore a
+        // different draw: ONE drawImage, cover-scaled so the shorter axis still spans the
+        // box, centred. Nothing repeats and there is no wrap join to show, which is why a
+        // non-seamless mask is safe here and is exactly why this is the drop-in default.
+        if (fit) {
+          const sw = src.width || src.naturalWidth || 0;
+          const sh = src.height || src.naturalHeight || 0;
+          if (!(sw > 0 && sh > 0)) return null;
+          // EXACT COVER AT ANY ANGLE. Rotation is a per-room dial that already exists, so
+          // a fitted material has to honour it or a room set to 90 degrees would quietly
+          // stop rotating. The cover factor is computed in the SOURCE's frame: rotating
+          // the box by -angle gives an axis-aligned extent of
+          //     bw = W|cos| + H|sin|,  bh = W|sin| + H|cos|
+          // and covering THAT covers the box itself. Using the rotated image's own
+          // bounding box instead would under-scale and leave the corners empty, because
+          // a rect's AABB is larger than the rect.  At 0 degrees this reduces exactly to
+          // max(W/sw, H/sh), so the common case is not paying for the general one.
+          const rad = ((rotate || 0) * Math.PI) / 180;
+          const ac = Math.abs(Math.cos(rad)), as = Math.abs(Math.sin(rad));
+          const k = Math.max((W * ac + H * as) / sw, (W * as + H * ac) / sh);
+          const dw = sw * k, dh = sh * k;
+          cx.save();
+          cx.translate(W / 2, H / 2);
+          if (rad) cx.rotate(rad);
+          cx.drawImage(src, -dw / 2, -dh / 2, dw, dh);
+          cx.restore();
+        } else {
         const pat = cx.createPattern(src, "repeat");
         if (!pat) return null;
         // Scale (+ optional rotate) the pattern so features tile denser/finer instead of one
@@ -736,6 +864,7 @@ export function applyMapBindings(proto) {
         }
         cx.fillStyle = pat;
         cx.fillRect(0, 0, W, H);
+        }
         const d = cx.getImageData(0, 0, W, H).data;
         const n = W * H;
         const lum = new Uint8ClampedArray(n);
@@ -760,10 +889,10 @@ export function applyMapBindings(proto) {
      browser's decoder (and HA's static server under the burst) drop a random couple each load
      ("The source image cannot be decoded"). Serialize to a small pool so the burst can't
      overwhelm either; each job still retries internally. */
-  proto._enqueueMaskDecode = function (url, W, H, scale, rotate = 0) {
+  proto._enqueueMaskDecode = function (url, W, H, scale, rotate = 0, fit = false) {
     if (!this._maskDecodeQueue) { this._maskDecodeQueue = []; this._maskDecodeActive = 0; }
     return new Promise((resolve, reject) => {
-      this._maskDecodeQueue.push({ url, W, H, scale, rotate, resolve, reject });
+      this._maskDecodeQueue.push({ url, W, H, scale, rotate, fit, resolve, reject });
       this._pumpMaskDecodeQueue();
     });
   };
@@ -773,7 +902,7 @@ export function applyMapBindings(proto) {
     while (this._maskDecodeActive < MAX && this._maskDecodeQueue.length) {
       const job = this._maskDecodeQueue.shift();
       this._maskDecodeActive++;
-      this._decodeMaskLum(job.url, job.W, job.H, job.scale, job.rotate)
+      this._decodeMaskLum(job.url, job.W, job.H, job.scale, job.rotate, job.fit)
         .then(job.resolve, job.reject)
         .finally(() => { this._maskDecodeActive--; this._pumpMaskDecodeQueue(); });
     }

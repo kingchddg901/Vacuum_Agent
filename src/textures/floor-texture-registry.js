@@ -307,6 +307,50 @@ for (const _entry of Object.values(FLOOR_TEXTURE_REGISTRY)) {
  * @param {string} floorType - Canonical floor type key (e.g. "tile", "wood").
  * @returns {string|null} Absolute path to the primary texture PNG, or null if none.
  */
+/**
+ * Does this material TILE across the whole floor, or is it FITTED once per room?
+ *
+ * Two populations, and the default differs for each -- which is the point, not an
+ * inconsistency.
+ *
+ * SHIPPED MATERIALS ALWAYS TILE. They are authored here, against this canvas, for exactly
+ * this job: `gen_floor_masks.py` builds them to wrap (the wood generator divides plank
+ * width into SIZE so whole columns meet), and the whole map is one continuous floor
+ * because of it. Nothing about them is in doubt, so none of them carries a flag and none
+ * needs one -- `userMaterial` is absent on all eight, and that absence is the test.
+ *
+ * A DROP-IN IS ART UNLESS IT CLAIMS OTHERWISE. Its author cannot know a map's resolution,
+ * a stranger's room sizes or their aspect, and a seamless edge is the hardest thing to
+ * arrange and easiest to forget -- measured on the five packs installed on the
+ * development machine, three of five do not tile, all three of them generator exports.
+ * So `tileable: true` is an opt-IN, and it is a claim about the files rather than a
+ * preference about the look.
+ *
+ * WHY NOT ONE RULE FOR BOTH. Defaulting the shipped set to fitted would re-lay every
+ * existing floor on every existing map at a stroke, to fix a problem they do not have.
+ * Defaulting drop-ins to tiling is what is there today and is wrong three times in five.
+ * The discriminator is which side authored the mask, so `userMaterial` is the right test
+ * and not a proxy for one.
+ *
+ * A MISSING entry tiles: that is the behaviour that existed before any of this, and an
+ * unresolvable type should not be the thing that changes how a floor is laid.
+ *
+ * TAKES THE ENTRY, NOT THE KEY, deliberately. Reading the module-level registry here
+ * would make this answer depend on whether `ensureUserMaterialsLoaded` had finished --
+ * three bundles each load that catalogue once, asynchronously, and a drop-in is simply
+ * absent until it does. An absent entry reads as "unknown", which returns true, which
+ * means a floor could be laid tiled on the first paint and fitted on the next with
+ * nothing to show for it. The caller already holds the entry; pass it.
+ *
+ * @param {object|null|undefined} entry - a FLOOR_TEXTURE_REGISTRY entry
+ * @returns {boolean} true to tile across the map, false to fit once per room
+ */
+export function tilesAcrossFloor(entry) {
+  if (!entry) return true;
+  if (!entry.userMaterial) return true;
+  return entry.tileable === true;
+}
+
 export function getPrimaryTextureUrl(floorType) {
   const entry = FLOOR_TEXTURE_REGISTRY[floorType];
   if (!entry) return null;

@@ -22,6 +22,10 @@ import {
   fetchUserMaterialCatalog,
   tokenFor,
 } from "./user-materials.js";
+import {
+  FLOOR_TEXTURE_REGISTRY,
+  tilesAcrossFloor,
+} from "./floor-texture-registry.js";
 
 const row = (over = {}) => ({
   id: "slate",
@@ -169,5 +173,60 @@ test("[UM-10] tileable crosses the catalogue hop as a strict boolean", () => {
   for (const junk of ["true", "false", 1, "yes", [], {}, "0"]) {
     assert.equal(entryFromCatalogRow(row({ tileable: junk })).entry.tileable, false,
       `${JSON.stringify(junk)} is not the literal true and must not make the claim`);
+  }
+});
+
+// [UM-11] THE ONE LINE THAT DECIDES HOW EVERY FLOOR IS LAID, so it is tested away from
+// the render path where it would be invisible among the rest.
+//
+// The default differs by population on purpose. Shipped masks are authored HERE, against
+// this canvas, to wrap -- the wood generator divides plank width into SIZE so whole
+// columns meet -- and the map is one continuous floor because of it. A drop-in's author
+// knows none of that and cannot: not the map's resolution, not a stranger's room sizes.
+// Measured on the five packs installed on the development machine, three of five do not
+// tile, and all three are generator exports.
+//
+// BITE, and each of these is a real way to get it wrong:
+//   - drop the userMaterial test  -> all eight SHIPPED types become fitted, re-laying
+//                                    every floor on every existing map to fix a problem
+//                                    they do not have. This is the expensive one.
+//   - `entry.tileable` truthily   -> "false" and 0 tile; the Python side already narrowed
+//                                    that and this end must not widen it back.
+//   - unknown type returns false  -> a key that is not in the registry at all changes how
+//                                    a floor is laid, which is not its business.
+test("[UM-11] shipped materials always tile; a drop-in tiles only when it claims to", () => {
+  // Every shipped entry, read from the registry rather than listed, so a type added
+  // tomorrow is covered tomorrow and not whenever someone remembers this test.
+  const shipped = Object.values(FLOOR_TEXTURE_REGISTRY).filter((e) => !e.userMaterial);
+  assert.ok(shipped.length >= 8, `expected the shipped set, found ${shipped.length}`);
+  for (const e of shipped) {
+    assert.equal(tilesAcrossFloor(e), true,
+      "a shipped material must keep tiling -- fitting it re-lays every existing map");
+  }
+
+  // A drop-in, built through the real catalogue hop: art by default, tiling on the claim.
+  assert.equal(tilesAcrossFloor(entryFromCatalogRow(row()).entry), false,
+    "a drop-in making no claim is ART");
+  assert.equal(tilesAcrossFloor(entryFromCatalogRow(row({ tileable: true })).entry), true,
+    "and tiles when it claims to");
+
+  // TRUTHINESS IS NOT THE TEST, and these are hand-built entries ON PURPOSE. Routing junk
+  // through entryFromCatalogRow cannot reach this clause -- that hop already narrows to
+  // `=== true`, so every junk value arrives as a plain false and `!!false` agrees. Ablating
+  // this function to `!!entry.tileable` stayed GREEN until the entries were built directly,
+  // which is the whole reason the exported function defends itself: it takes an entry from
+  // whoever holds one, and the catalogue hop is not the only way to hold one.
+  for (const junk of ["true", "false", 1, "yes", [], {}, "0"]) {
+    assert.equal(tilesAcrossFloor({ userMaterial: true, tileable: junk }), false,
+      `${JSON.stringify(junk)} is not the literal true`);
+  }
+  assert.equal(tilesAcrossFloor({ userMaterial: true, tileable: true }), true);
+  assert.equal(tilesAcrossFloor({ userMaterial: true }), false, "absent on a drop-in is ART");
+
+  // A MISSING entry keeps the behaviour that existed before any of this. This matters
+  // because the drop-in catalogue loads asynchronously: until it lands, its entry is
+  // simply absent, and absent must not mean "fit".
+  for (const absent of [undefined, null, 0, ""]) {
+    assert.equal(tilesAcrossFloor(absent), true);
   }
 });
