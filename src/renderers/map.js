@@ -286,11 +286,21 @@ export function applyMapRenderers(proto) {
                so it is not offered on either of those. -->
           ${(() => {
             if (!vaActive || typeof this._renderFloorPlacementSection !== "function") return "";
-            if (!Array.isArray(segments) || selectedIds.size !== 1) return "";
-            const only = [...selectedIds][0];
-            const seg = segments.find((x) => String(x.segment_id) === String(only));
-            if (!seg) return "";
-            const body = this._renderFloorPlacementSection(state, seg, state.mapActionStatus?.());
+            // THE ROOM, from whichever handle this map actually has. A map with CV
+            // segments offers a single selected one; a raster map (room_pixels rids)
+            // has no segments at all, and there the room editor is the only selection
+            // that exists. Taking either means the control appears on both.
+            let room = state.activeEditorRoom?.() ?? null;
+            if (!room && Array.isArray(segments) && selectedIds.size === 1) {
+              const only = [...selectedIds][0];
+              const seg = segments.find((x) => String(x.segment_id) === String(only));
+              const rid = seg ? state.roomIdForSegment?.(seg.segment_id) : null;
+              if (rid != null) {
+                room = rooms.find((r) => String(r.id ?? r.room_id) === String(rid)) ?? null;
+              }
+            }
+            if (!room) return "";
+            const body = this._renderFloorPlacementSection(state, room, state.mapActionStatus?.());
             return body ? `<div class="evcc-map-fit-panel">${body}</div>` : "";
           })()}
 
@@ -1706,19 +1716,27 @@ export function applyMapRenderers(proto) {
      shares one map-space grid anchored at (0,0); there is nothing to place, and a dial
      that moves while nothing changes reads as a broken render rather than a disabled
      feature. */
-  /* The selected segment's room, IF its material is one that gets placed.
+  /* The room being placed, IF its material is one that gets placed.
 
-     Returns null for every other case rather than a disabled control: no selection, a
-     segment with no room, a room with no material, or a material that TILES. The last
-     is the one worth naming -- a tiled material shares one map-space grid and has
-     nothing to place, so offering the control would be offering a dial that cannot
-     move anything. */
-  proto._floorPlacementTarget = function (state, selectedSeg) {
-    const roomId = state.roomIdForSegment?.(selectedSeg.segment_id);
-    if (roomId == null) return null;
-    const rooms = state.getRoomsForActiveMap?.() ?? [];
-    const room = rooms.find((r) => String(r.id ?? r.room_id) === String(roomId));
+     IT TAKES A ROOM, NOT A SEGMENT, and that is the fix for the bug this whole control
+     had. It was gated on a single selected SVG segment -- and the development map has
+     ZERO segments. Its rooms come from the room_pixels raster rids (ten of them in
+     room_names), so the polygon layer is empty, nothing is selectable there, and the
+     panel could never appear however correct everything behind it was. Measured in the
+     running card: segments 0, selectedSegmentIds [], renderData present 256x245.
+
+     That was the third surface I attached this to without checking it could fire on
+     real data: a list with no map, a view that draws the camera backdrop instead of the
+     floor, and a gate the map cannot satisfy. Keying on the ROOM uses the same bridge
+     the floor draw itself uses, so if the floor can be drawn the control can be shown.
+
+     Returns null for every other case rather than a disabled control: no room, no
+     material, or a material that TILES -- the last because a tiled material shares one
+     map-space grid and has nothing to place, so the dial could not move anything. */
+  proto._floorPlacementTarget = function (state, room) {
     if (!room) return null;
+    const roomId = room.id ?? room.room_id;
+    if (roomId == null) return null;
 
     const ft = resolveFloorType({
       floor_type: room.floor_type ?? room.floorType ?? "",
@@ -1739,9 +1757,9 @@ export function applyMapRenderers(proto) {
     };
   };
 
-  proto._renderFloorPlacementSection = function (state, selectedSeg, actionStatus) {
-    if (!selectedSeg || typeof this._floorPlacementTarget !== "function") return "";
-    const target = this._floorPlacementTarget(state, selectedSeg);
+  proto._renderFloorPlacementSection = function (state, room, actionStatus) {
+    if (typeof this._floorPlacementTarget !== "function") return "";
+    const target = this._floorPlacementTarget(state, room);
     if (!target) return "";
 
     const { roomId, roomName, fit, dirty } = target;
