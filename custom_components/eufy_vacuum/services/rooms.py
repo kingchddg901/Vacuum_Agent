@@ -148,6 +148,12 @@ _SAVE_MANAGED_ROOMS_SCHEMA = vol.Schema(
         # into [-180, 180) at the point of use. Rejecting values here would only move
         # the wrap somewhere less visible.
         vol.Optional("floor_rotations"): vol.Schema({cv.string: vol.Coerce(float)}),
+        # floor_fits is APPEARANCE ONLY and per ROOM, like floor_rotations beside it:
+        # where a FITTED material sits in that room. The inner shape is NOT constrained
+        # here -- `_as_fit` clamps every value into a range that is renderable by
+        # construction and drops anything it cannot read, so a schema that refused the
+        # whole call would turn a typo in one room into a failed save for all of them.
+        vol.Optional("floor_fits"): vol.Schema({cv.string: dict}),
     }
 )
 

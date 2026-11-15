@@ -181,6 +181,10 @@ _SETUP_SAVE_ROOMS_SCHEMA = vol.Schema(
         # into [-180, 180) at the point of use. Rejecting values here would only move
         # the wrap somewhere less visible.
         vol.Optional("floor_rotations"): vol.Schema({cv.string: vol.Coerce(float)}),
+        # floor_fits: the per-ROOM placement of a FITTED material, same shape rules as
+        # floor_rotations beside it. The inner dict is not constrained here; `_as_fit`
+        # clamps into a range that is renderable by construction.
+        vol.Optional("floor_fits"): vol.Schema({cv.string: dict}),
     }
 )
 _SETUP_DELETE_MAP_SCHEMA = vol.Schema(

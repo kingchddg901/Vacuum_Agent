@@ -6,6 +6,7 @@ import pytest
 
 from custom_components.eufy_vacuum.rooms.room_defaults import resolve_new_room_defaults
 from custom_components.eufy_vacuum.rooms.room_manager import (
+    _as_fit,
     _normalize_enabled_room_ids,
     build_managed_rooms,
     build_room_selection_summary,
@@ -634,3 +635,82 @@ def test_rm_c60_1_an_explicit_approval_call_is_unchanged():
         # no floor_types -> CRUD-3 withholds confirmation
     )
     assert unapproved["9"]["is_configured"] is False
+
+
+def test_rm_fit_1_a_placement_is_clamped_never_refused():
+    """[RM-FIT-1] ``_as_fit`` coerces a fitted material's placement into a range that is
+    renderable BY CONSTRUCTION, and returns ``{}`` for the default.
+
+    Clamping rather than refusing is safe here in a way it would not be for a size:
+    ``tx``/``ty`` are normalised to the slack that exists, so +/-1 runs the mask's edge up
+    to the room's edge and every value in between still covers the room. There is no
+    out-of-range that could expose the floor, so there is nothing a refusal would protect.
+
+    ``{}`` for the identity is what lets ``RoomConfig.to_dict`` drop the key, which keeps
+    "never placed" indistinguishable from "placed and put back" -- the same property
+    ``floor_material``, ``path_type`` and ``floor_rotation`` each needed.
+
+    BITE:
+      - drop the finite guard  -> NaN and the infinities reach HA's store, which writes
+                                  them back as bare JSON tokens no browser's JSON.parse
+                                  accepts; the card's fetch then fails WHOLESALE and every
+                                  room's config disappears, not just this one's
+      - drop the clamp         -> a scale of 1e9 asks for a 2-billion-pixel draw
+      - return the identity    -> every room gains a meaningless key on the next rebuild
+      - keep a junk payload    -> a bad call straightens a room the user had placed
+    """
+    assert _as_fit({}, {}) == {}
+    assert _as_fit({"tx": 0, "ty": 0, "scale": 1}, {}) == {}, "the identity stores as absent"
+
+    assert _as_fit({"tx": 0.5}, {}) == {"tx": 0.5}
+    assert _as_fit({"tx": 0.5, "ty": -0.25, "scale": 1.5}, {}) == {
+        "tx": 0.5, "ty": -0.25, "scale": 1.5,
+    }
+
+    # Clamped into the renderable range, both ends, all three axes.
+    assert _as_fit({"tx": 9, "ty": -9, "scale": 1e9}, {}) == {"tx": 1.0, "ty": -1.0, "scale": 4.0}
+    assert _as_fit({"scale": 0}, {}) == {"scale": 0.25}
+
+    # Non-finite is DROPPED to the default, never clamped: it would otherwise survive
+    # float() and poison the whole store.
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        assert _as_fit({"tx": bad, "ty": bad, "scale": bad}, {}) == {}
+    assert _as_fit({"scale": 10 ** 400}, {}) == {}, "an int too large for float is not a scale"
+
+    # A NUMERIC STRING IS ACCEPTED, matching `_as_rotation` beside it rather than
+    # `declared_number` on the drop-in side, which refuses one. The divergence is
+    # deliberate and the reason differs by side: a descriptor is written by a GENERATOR,
+    # where a stringified number means a field it could not compute, while this arrives
+    # from a service call a person may have typed in YAML, where `tx: "0.5"` means
+    # exactly what it says. Two adjacent coercers disagreeing is the trap declared_number
+    # was built to end, so this one follows its own neighbour.
+    assert _as_fit({"tx": "0.5"}, {}) == {"tx": 0.5}
+
+    # A junk VALUE falls back per key; a junk PAYLOAD keeps what is stored.
+    assert _as_fit({"tx": None, "ty": [1], "scale": {}}, {}) == {}
+    keep = {"tx": 0.25}
+    for payload in ("nope", 5, None, [], object()):
+        assert _as_fit(payload, keep) is keep, f"{payload!r} must not clear a placement"
+
+
+def test_rm_fit_2_absent_means_unchanged_and_explicit_means_set():
+    """[RM-FIT-2] The same three rules ``floor_material`` and ``floor_rotation`` follow:
+    absent means UNCHANGED, explicit means set, and it never gates approval.
+
+    An explicit ``{}`` is a REAL value -- back to centred, exact cover -- so the test has
+    to be ``is None`` and not falsiness. Getting that wrong makes clearing a placement
+    impossible: the room would keep the last one forever with no way to say otherwise.
+    """
+    disc = [_disc(1, name="Study")]
+    existing = {"1": {"room_id": 1, "name": "Study", "floor_fit": {"tx": 0.4}}}
+    base = dict(new_room_defaults=_EUFY_DEFAULTS, discovered_rooms=disc,
+                existing_rooms=existing)
+
+    kept = build_managed_rooms(**base)
+    assert kept["1"].get("floor_fit") == {"tx": 0.4}, "absent means UNCHANGED"
+
+    cleared = build_managed_rooms(**base, floor_fits={1: {}})
+    assert not cleared["1"].get("floor_fit"), "an explicit {} clears it"
+
+    placed = build_managed_rooms(**base, floor_fits={"1": {"ty": -0.6, "scale": 2}})
+    assert placed["1"]["floor_fit"] == {"ty": -0.6, "scale": 2.0}, "str room ids resolve too"

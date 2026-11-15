@@ -43,6 +43,42 @@ def _existing_by_slug(existing_rooms: dict[str, Any]) -> dict[str, dict[str, Any
     return {slug: rooms[0] for slug, rooms in by_slug.items() if len(rooms) == 1}
 
 
+_FIT_BOUNDS = {"tx": (-1.0, 1.0, 0.0), "ty": (-1.0, 1.0, 0.0), "scale": (0.25, 4.0, 1.0)}
+
+
+def _as_fit(value: object, fallback: dict) -> dict:
+    """A fitted material's placement, or ``fallback``.
+
+    Returns ``{}`` for the default -- centred at exact cover -- so the payload rule can
+    drop it and "never set" stays indistinguishable from "set back to default".
+
+    CLAMPED, not refused, because every value in range is renderable by construction:
+    ``tx``/``ty`` are normalised to the slack that exists (+/-1 reaches the room's edge),
+    so there is no out-of-range that could expose the floor. A junk PAYLOAD keeps what is
+    stored rather than straightening a room the user had placed -- the same rule
+    ``_as_rotation`` follows and for the same reason.
+
+    Non-finite is dropped rather than clamped: ``NaN`` and the infinities survive
+    ``float()``, and HA's store writes them straight back out as bare JSON tokens that
+    no browser's ``JSON.parse`` accepts.
+    """
+    if not isinstance(value, dict):
+        return fallback
+    out: dict[str, float] = {}
+    for key, (lo, hi, default) in _FIT_BOUNDS.items():
+        raw = value.get(key, default)
+        try:
+            num = float(raw)  # type: ignore[arg-type]
+        except (TypeError, ValueError, OverflowError):
+            num = default
+        if not math.isfinite(num):
+            num = default
+        num = min(max(num, lo), hi)
+        if num != default:
+            out[key] = num
+    return out
+
+
 def _as_rotation(value: object, fallback: float) -> float:
     """Degrees as a float, or ``fallback``.
 
@@ -69,6 +105,7 @@ def build_managed_rooms(
     floor_types: dict[int, str] | None = None,
     floor_materials: dict[int, str] | None = None,
     floor_rotations: dict[int, float] | None = None,
+    floor_fits: dict[int, dict] | None = None,
     rejected_rooms: set[int] | list[int] | None = None,
     adopted_room_ids: set[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
@@ -166,6 +203,7 @@ def build_managed_rooms(
     floor_types = floor_types or {}
     floor_materials = floor_materials or {}
     floor_rotations = floor_rotations or {}
+    floor_fits = floor_fits or {}
     rejected_ids = _normalize_enabled_room_ids(rejected_rooms) if rejected_rooms else set()
     explicit_enabled_ids = _normalize_enabled_room_ids(enabled_room_ids)
     has_explicit_enabled_ids = enabled_room_ids is not None
@@ -265,6 +303,19 @@ def build_managed_rooms(
                 floor_rotation_entry, _as_rotation(existing.get("floor_rotation"), 0.0)
             )
 
+        # floor_fit: the same three rules again -- absent means UNCHANGED, explicit
+        # means set, and it never gates is_configured. An explicit {} is a real value
+        # here (back to centred, exact cover), so the test is `is None`.
+        floor_fit_entry = floor_fits.get(room_id)
+        if floor_fit_entry is None:
+            floor_fit_entry = floor_fits.get(str(room_id))
+        existing_fit = existing.get("floor_fit")
+        existing_fit = existing_fit if isinstance(existing_fit, dict) else {}
+        if floor_fit_entry is None:
+            floor_fit = existing_fit
+        else:
+            floor_fit = _as_fit(floor_fit_entry, existing_fit)
+
         # Calling build_managed_rooms with a room ID in enabled_room_ids is the
         # user's explicit approval — but CRUD-3: is_configured also requires a
         # supplied floor_type entry THIS call, unless the room was already
@@ -353,6 +404,7 @@ def build_managed_rooms(
             floor_type=floor_type,
             floor_material=floor_material,
             floor_rotation=floor_rotation,
+            floor_fit=floor_fit,
             clean_mode=str(_default("clean_mode", "vacuum")),
             fan_speed=str(_default("fan_speed", "")),
             water_level=str(_default("water_level", "")),

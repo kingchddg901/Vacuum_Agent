@@ -440,6 +440,25 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   > must turn red, and every one of the eight claims goes red under at least one. One
   > expectation in that sweep was the HARNESS's own error, not a dead claim: `[MPCS-5]`'s
   > inputs miss the band by 924% and 105%, so no plausible tolerance can hide them.
+- **floor placement** (`RM-FIT-*`, unit, `test_room_manager.py`) — **where a FITTED
+  material sits in a room**, as `floor_rotation` is for its angle. `[RM-FIT-1]` pins that
+  `_as_fit` CLAMPS rather than refuses — safe here in a way it would not be for a size,
+  because `tx`/`ty` are normalised to the slack that exists, so every value in range still
+  covers the room and a refusal would protect nothing — and that non-finite is DROPPED
+  rather than clamped, since `NaN` survives `float()` and HA's store writes it back as a
+  bare JSON token that makes the card's whole fetch fail, taking every room's config with
+  it. `[RM-FIT-2]` pins the three rules `floor_material` and `floor_rotation` already
+  follow: absent means UNCHANGED, explicit means set, never gates approval. An explicit
+  `{}` is a REAL value there — back to centred, exact cover — so the test is `is None` and
+  not falsiness; getting that wrong makes a placement impossible to clear.
+  > A numeric STRING is accepted here and refused by `declared_number` on the drop-in
+  > side, which looks like the divergence that function exists to prevent and is not. The
+  > sides differ in who writes the value: a descriptor comes from a GENERATOR, where a
+  > stringified number means a field it could not compute, while this arrives from a
+  > service call a person may have typed in YAML, where `tx: "0.5"` means what it says.
+  > It follows `_as_rotation`, its own neighbour, rather than a helper in another module.
+  > Four ablations red: no finite guard, no clamp, the identity not dropped, and `is None`
+  > weakened to falsiness.
 - **`roborock_raw_map`** (`RRD-*`, unit, `test_roborock_raw_map.py`) — the pure Roborock
   v1 raw-map segment decoder, no HA/device: `decode_roborock_v1_segments` (a well-formed
   IMAGE block → resolved room-id raster + dims + ids; no-IMAGE / empty / truncated / garbage

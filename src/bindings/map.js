@@ -13,6 +13,7 @@
 import { VIEWS } from "../render-cycle.js";
 import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N } from "../cards/map-room-color.js";
 import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl, tilesAcrossFloor } from "../textures/floor-texture-registry.js";
+import { resolveFit } from "../textures/floor-fit.js";
 import { resolveFloorType, normalizeFloorRotationDeg } from "../textures/floor-texture-resolver.js";
 import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 
@@ -487,8 +488,28 @@ export function applyMapBindings(proto) {
       // instead of guarding it, which is what lets a fit box join them below.
       const rot = normalizeFloorRotationDeg(
         Number(room?.floor_rotation ?? room?.floorRotation ?? 0) || 0);
+      // WHERE A FITTED MATERIAL SITS IN THIS ROOM. Only a fitted one reads it; a tiled
+      // one has a shared map-space grid and nothing to place. Normalised at the source so
+      // the cache key is stable across renders -- an object identity or a float formatted
+      // two ways would rebuild the whole CW x CH image every frame, because the outer draw
+      // is deliberately unguarded and only the key compare makes it cheap.
+      const rawFit = room?.floor_fit ?? room?.floorFit;
+      const fitNum = (v, dflt, lo, hi) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(Math.max(n, lo), hi) : dflt;
+      };
+      const place = (rawFit && typeof rawFit === "object")
+        ? {
+            tx: fitNum(rawFit.tx, 0, -1, 1),
+            ty: fitNum(rawFit.ty, 0, -1, 1),
+            scale: fitNum(rawFit.scale, 1, 0.25, 4),
+          }
+        : { tx: 0, ty: 0, scale: 1 };
+      const placeSig = `${place.tx.toFixed(4)},${place.ty.toFixed(4)},${place.scale.toFixed(4)}`;
       if (ft && room.name != null) {
-        floorByName.set(norm(room.name), { ft, rotate: rot, key: `${ft}|${rot}` });
+        floorByName.set(norm(room.name), {
+          ft, rotate: rot, place, placeSig, key: `${ft}|${rot}`,
+        });
       }
     }
     const jobByRid = [];
@@ -561,13 +582,18 @@ export function applyMapBindings(proto) {
        canvas -- the clamp is what keeps the buffer bounded on a room that reaches an
        edge, and costs only the slack it could not have used anyway. */
     const fitBoxFor = (b) => {
-      const w = (b.x1 - b.x0 + 1) * S, h = (b.y1 - b.y0 + 1) * S;
-      const mx = Math.round(w * ROOM_FIT_MARGIN), my = Math.round(h * ROOM_FIT_MARGIN);
+      const rw = (b.x1 - b.x0 + 1) * S, rh = (b.y1 - b.y0 + 1) * S;
+      const mx = Math.round(rw * ROOM_FIT_MARGIN), my = Math.round(rh * ROOM_FIT_MARGIN);
       const x = Math.max(0, b.x0 * S - mx), y = Math.max(0, b.y0 * S - my);
+      // rx/ry/rw/rh: the ROOM's own rect INSIDE the buffer. The draw covers the box (so
+      // the margin is real slack to pan into) but measures its freedom against the ROOM,
+      // because the room is the only part that is ever sampled -- everything outside it
+      // fails the per-pixel rid test and is never read.
       return {
         x, y,
-        w: Math.max(1, Math.min(CW - x, w + 2 * mx)),
-        h: Math.max(1, Math.min(CH - y, h + 2 * my)),
+        w: Math.max(1, Math.min(CW - x, rw + 2 * mx)),
+        h: Math.max(1, Math.min(CH - y, rh + 2 * my)),
+        rx: b.x0 * S - x, ry: b.y0 * S - y, rw, rh,
       };
     };
 
@@ -590,8 +616,8 @@ export function applyMapBindings(proto) {
         if (!b) continue;                        // a named room with no pixels this frame
         const fit = fitBoxFor(b);
         job = {
-          key: `${spec.key}@${fit.x},${fit.y},${fit.w},${fit.h}`,
-          ft: spec.ft, rotate: spec.rotate, fit,
+          key: `${spec.key}@${fit.x},${fit.y},${fit.w},${fit.h}+${spec.placeSig}`,
+          ft: spec.ft, rotate: spec.rotate, fit, place: spec.place,
         };
       }
       const existing = jobsByKey.get(job.key);
@@ -684,6 +710,7 @@ export function applyMapBindings(proto) {
       // its texels line up with the map 1:1. A fitted one fills only its room's box.
       const tw = job.fit ? job.fit.w : W;
       const th = job.fit ? job.fit.h : H;
+      const fitSpec = job.fit ? { ...job.fit, ...job.place } : null;
       const entry = FLOOR_TEXTURE_REGISTRY[ft];
       if (!entry || !Array.isArray(entry.layers) || !entry.layers.length) continue;
 
@@ -730,7 +757,7 @@ export function applyMapBindings(proto) {
       // the room's box, derived, not resolved. That is also why the documented
       // `--evcc-floor-<type>-map-scale` escape hatch -- rank 1 of the tiling ladder and
       // "guaranteed to win" -- cannot silently defeat a fit. It is never consulted.
-      const scaleSig = job.fit ? "fit" : resolved.map((r) => r.scale).join(",");
+      const scaleSig = job.fit ? `fit:${job.key.slice(job.key.indexOf("@"))}` : resolved.map((r) => r.scale).join(",");
       const texKey = `${ft}|${tw}x${th}|${scaleSig}|${rotate}|${colorSig}`;
 
       const cachedTex = this._floorTexCache.get(texKey);
@@ -740,7 +767,7 @@ export function applyMapBindings(proto) {
       const lumArrays = [];
       let allLoaded = true;
       for (const r of resolved) {
-        const maskKey = `${r.url}|${tw}x${th}|${job.fit ? "fit" : r.scale}|${rotate}`;
+        const maskKey = `${r.url}|${tw}x${th}|${job.fit ? scaleSig : r.scale}|${rotate}`;
         const lum = this._floorMaskCache.get(maskKey);
         if (lum) { lumArrays.push(lum); continue; }
         allLoaded = false;
@@ -749,7 +776,7 @@ export function applyMapBindings(proto) {
           // ALWAYS cache a result (real luminance, or a zero-fill sentinel on failure) so a
           // missing/broken PNG degrades to "layer reveals nothing" (base shows through) instead
           // of never caching -> re-kicking every render -> an infinite render loop.
-          this._enqueueMaskDecode(r.url, tw, th, r.scale, rotate, !!job.fit)
+          this._enqueueMaskDecode(r.url, tw, th, r.scale, rotate, fitSpec)
             .then((arr) => { this._floorMaskCache.set(maskKey, arr || new Uint8ClampedArray(tw * th)); })
             .catch(() => { this._floorMaskCache.set(maskKey, new Uint8ClampedArray(tw * th)); })
             .finally(() => {
@@ -828,24 +855,26 @@ export function applyMapBindings(proto) {
         if (fit) {
           const sw = src.width || src.naturalWidth || 0;
           const sh = src.height || src.naturalHeight || 0;
-          if (!(sw > 0 && sh > 0)) return null;
-          // EXACT COVER AT ANY ANGLE. Rotation is a per-room dial that already exists, so
-          // a fitted material has to honour it or a room set to 90 degrees would quietly
-          // stop rotating. The cover factor is computed in the SOURCE's frame: rotating
-          // the box by -angle gives an axis-aligned extent of
-          //     bw = W|cos| + H|sin|,  bh = W|sin| + H|cos|
-          // and covering THAT covers the box itself. Using the rotated image's own
-          // bounding box instead would under-scale and leave the corners empty, because
-          // a rect's AABB is larger than the rect.  At 0 degrees this reduces exactly to
-          // max(W/sw, H/sh), so the common case is not paying for the general one.
-          const rad = ((rotate || 0) * Math.PI) / 180;
-          const ac = Math.abs(Math.cos(rad)), as = Math.abs(Math.sin(rad));
-          const k = Math.max((W * ac + H * as) / sw, (W * as + H * ac) / sh);
-          const dw = sw * k, dh = sh * k;
+          // ALL the geometry lives in resolveFit (textures/floor-fit.js) -- cover factor,
+          // centre, and how far a placement may pan before it would stop covering the
+          // room. It is pure arithmetic and it is TESTED there, which this draw could
+          // never be: node has no canvas, which is why nothing in this function has ever
+          // had a test. What is left here is four canvas calls over numbers already checked.
+          const g = resolveFit({
+            W, H, sw, sh,
+            rx: fit.rx, ry: fit.ry, rw: fit.rw, rh: fit.rh,
+            rad: ((rotate || 0) * Math.PI) / 180,
+            scale: fit.scale, tx: fit.tx, ty: fit.ty,
+          });
+          if (!g) return null;
           cx.save();
-          cx.translate(W / 2, H / 2);
+          cx.translate(g.cx, g.cy);
+          const rad = ((rotate || 0) * Math.PI) / 180;
           if (rad) cx.rotate(rad);
-          cx.drawImage(src, -dw / 2, -dh / 2, dw, dh);
+          // After the rotate this IS the source frame, so a pan runs along the mask's own
+          // axes -- drag "along the planks" and they slide lengthwise, not diagonally.
+          if (g.panX || g.panY) cx.translate(g.panX, g.panY);
+          cx.drawImage(src, -g.dw / 2, -g.dh / 2, g.dw, g.dh);
           cx.restore();
         } else {
         const pat = cx.createPattern(src, "repeat");

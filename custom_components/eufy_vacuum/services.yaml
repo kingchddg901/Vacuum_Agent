@@ -215,6 +215,23 @@ save_managed_rooms:
       required: false
       selector:
         object: {}
+    floor_fits:
+      name: Floor placements
+      description: >
+        Dict mapping room_id to where a FITTED material sits in that room -
+        {"tx": 0, "ty": 0, "scale": 1}. Only a material that is fitted reads it: a
+        drop-in that makes no "tileable" claim is scaled to cover the room once
+        rather than tiled, and this is how you choose which part of it you see.
+        tx and ty are normalised to the slack that exists, not to pixels - plus or
+        minus 1 pans until the mask's edge reaches the room's edge, so any value in
+        range still covers the room and the number does not change meaning when the
+        map's resolution does. scale multiplies the cover, 1 being exact. Appearance
+        only, and the map only. An empty dict is the default (centred, exact cover);
+        omit a room to leave its placement unchanged. Rotation is NOT here - it is
+        floor_rotations above, which works for tiled and fitted alike.
+      required: false
+      selector:
+        object: {}
 
 reconcile_room:
   name: Reconcile room identity

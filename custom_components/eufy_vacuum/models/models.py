@@ -175,6 +175,7 @@ class RoomRecord(TypedDict, total=False):
     floor_type: str             # "hardwood"|"laminate"|"tile"|"marble"|"granite"|"concrete"|"carpet_low_pile"|"carpet_high_pile"
     floor_material: str         # APPEARANCE ONLY - a drop-in material id, or absent
     floor_rotation: float       # APPEARANCE ONLY - map-texture angle in degrees, or absent
+    floor_fit: dict             # APPEARANCE ONLY - {tx,ty,scale} for a FITTED material, or absent
     clean_mode: str
     fan_speed: str
     water_level: str
@@ -258,6 +259,22 @@ class RoomConfig:
     # mask to fit rather than tiling it, so there is no grid to turn.
     floor_rotation: float = 0.0
 
+    # WHERE A FITTED MATERIAL SITS IN THIS ROOM: {"tx", "ty", "scale"}, empty for the
+    # default (centred, exact cover). Only a material that is FITTED reads it -- a
+    # tiled one has a shared map-space grid and nothing to place -- so this is the
+    # per-room half of a drop-in's appearance, as floor_rotation is for its angle.
+    #
+    # `tx`/`ty` are NORMALISED to the slack that exists, not to pixels or to percent:
+    # +/-1 pans until the mask's edge reaches the ROOM's edge, so every value in range
+    # is guaranteed to still cover the room and there is no case to handle where it
+    # does not. That also makes the stored number independent of the raster's
+    # resolution and of the supersample, both of which move with the map.
+    #
+    # Rotation is deliberately NOT in here. It already exists per room as
+    # floor_rotation and works for tiled and fitted alike; a second angle would be two
+    # dials for one effect and the store would have to say which won.
+    floor_fit: dict = field(default_factory=dict)
+
     clean_mode: str = "vacuum"
     fan_speed: str = ""
     water_level: str = ""
@@ -335,6 +352,11 @@ class RoomConfig:
         # the zero would stamp a meaningless key onto every room on the next rebuild.
         if not result.get("floor_rotation"):
             result.pop("floor_rotation", None)
+        # Fourth, and the same property again: an empty placement IS the default
+        # (centred, exact cover), which is exactly what ABSENT means for every room
+        # written before the field existed.
+        if not result.get("floor_fit"):
+            result.pop("floor_fit", None)
         return result
 
 
