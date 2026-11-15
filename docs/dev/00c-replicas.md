@@ -1267,6 +1267,10 @@ never saw it.*
 | `scripts/gen_floor_masks.py` `SIZE` | the producer of the shipped set |
 | `scripts/material_pack_contract.py` `MASK_CANVAS_PX` | the pack checker's clamp warning |
 
+Pinned by `tests/unit/test_material_pack_scale_contract.py` `[MPCS-1]`, which reads all
+four declarations out of their own files and asserts they agree — so this set no longer
+depends on anyone noticing the note. Ablated: editing the `map.js` copy alone turns it red.
+
 Four runtimes — a Home Assistant integration, a browser bundle, and two dev scripts — so
 there is nothing to import from. Nothing derives it either: it is a decision about how
 masks are authored, restated wherever that decision is acted on.

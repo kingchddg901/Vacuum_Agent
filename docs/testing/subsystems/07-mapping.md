@@ -410,6 +410,36 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   > service whose response an automation may already read. Its lack of consumers is worth
   > recording: if `res` is ever retired, `[RESM-3]` is where that is established.
   > All three ablation-proven, including the realistic slip of swapping the two conversions.
+- **physical sample size** (`MPCS-*`, unit, `test_material_pack_scale_contract.py`) — **the
+  arithmetic that turns a declared `sample_m` into a raster scale, and the 2048 canvas the
+  whole derivation stands on.** `scripts/material_pack_contract.py` warns an author when a
+  declared physical size will be CLAMPED rather than drawn, and it shipped with no test: the
+  sweep was ablated once by hand, and that evidence does not survive the session. A gate
+  nobody can show firing reads as coverage while being indistinguishable from one that cannot
+  fail. `[MPCS-1]` reads all four `RNTA1EGS` declarations of the mask canvas out of their own
+  files and asserts they agree — the replica note's weakness was that it fires only if
+  someone notices, and `gen_floor_masks.py` is read as TEXT because importing it would pull
+  numpy/Pillow, which are optional dependencies this suite does not declare. `[MPCS-3]` is
+  the defect the pre-ship review caught: a 0.6 m sample is representable at S=4 and clamped
+  at S=3 and S=2, so the band depends on the raster's PIXEL WIDTH and not only on how fine
+  it is — a single-S check calls 0.6 m fine, and it is, on two of the three development
+  vacuums. `[MPCS-5]` catches a raster `scale` value published as a `sample_m`: the two sit
+  side by side in one descriptor and nothing about the number says which it is.
+  > **Why `[MPCS-6]` asserts SILENCE.** Sweeping S=1 as well once made a correct 5 ft board
+  > warn, and a warning that fires on good input teaches the author to skip the whole block,
+  > which costs the warnings that do matter. S=1 needs a raster ~1715 px wide — 86 m across,
+  > not a home. Re-adding it turns `[MPCS-6]` red, which is why the envelope is stated as a
+  > test rather than only as a comment. `[MPCS-7]` straddles `_CLAMP_TOLERANCE` from both
+  > sides: 1.0 m clamps by 2.4% and is NOT reported, 0.96 m clamps to the same 1.024 m by
+  > 6.7% and is — a tolerance tested on one side only cannot be shown to still reject
+  > anything. `[MPCS-8]` pins that the report carries the metres that will be DRAWN, since a
+  > report echoing the request back would be unactionable while looking identical in shape.
+  > Ablation-proven, 11 cases over 8 claims: eight edits to the checker and the replica
+  > sites — canvas moved, sweep narrowed to one S, S=1 re-added, tolerance set to 0 and to
+  > 0.5, upper clamp removed, drawn size replaced by the request — each naming the ids it
+  > must turn red, and every one of the eight claims goes red under at least one. One
+  > expectation in that sweep was the HARNESS's own error, not a dead claim: `[MPCS-5]`'s
+  > inputs miss the band by 924% and 105%, so no plausible tolerance can hide them.
 - **`roborock_raw_map`** (`RRD-*`, unit, `test_roborock_raw_map.py`) — the pure Roborock
   v1 raw-map segment decoder, no HA/device: `decode_roborock_v1_segments` (a well-formed
   IMAGE block → resolved room-id raster + dims + ids; no-IMAGE / empty / truncated / garbage
