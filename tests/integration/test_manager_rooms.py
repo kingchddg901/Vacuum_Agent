@@ -898,5 +898,69 @@ def test_rm_fit_3_update_room_fields_tells_absent_from_cleared(manager):
     )
     assert rooms["1"]["floor_fit"] == {"tx": 1.0, "scale": 4.0}
 
+
+def test_rm_rot_1_update_room_fields_can_straighten_a_room(manager):
+    """[RM-ROT-1] `floor_rotation` on the TARGETED per-room service.
+
+    This field is OLDER than the placement panel -- the setup editor has written it for
+    a long time -- but it had NO path through `update_room_fields`. Rotation was
+    therefore only reachable from a full-screen modal that COVERS the map, so the one
+    control that changes how a floor sits could not be used while looking at the floor.
+    The turn buttons in the map-side placement panel are why the service, its voluptuous
+    schema and the manager each had to learn the field.
+
+    IT DELIBERATELY DOES NOT USE THE `_UNSET` SENTINEL that `floor_fit` and `color` use
+    beside it, and that is not an inconsistency: a rotation has no "clear" distinct from
+    a value, because 0.0 IS the cleared state and is expressible. `None` is therefore
+    free to mean "leave it alone". `floor_fit` cannot do that -- `{}` (clear) and absent
+    are both falsy, so it needs a sentinel to tell them apart.
+
+    BITE:
+      - test falsiness (`if floor_rotation:`) instead of `is not None` -> STRAIGHTENING
+        A ROOM BECOMES IMPOSSIBLE. 0 reads as "nothing supplied", so a room turned to
+        315 can never be turned back, and the button appears to do nothing at exactly
+        one of its eight positions. That is the case this test exists for.
+      - forget `**rot_kwargs` in the handler -> the service accepts the field and
+        silently drops it; the save looks fine and the angle reverts on the next load.
+      - coerce junk to 0 instead of keeping the stored angle -> a malformed payload
+        silently straightens a room the user had turned.
+    """
+    from tests._factories import VAC
+    from .conftest import setup_map
+
+    setup_map(manager, VAC, "rot1", count=2)
+    rooms = manager.data["maps"][VAC]["rot1"]["rooms"]
+
+    # Set one.
+    out = manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="rot1", room_id=1, floor_rotation=45,
+    )
+    assert out.get("updated") is not False
+    assert rooms["1"]["floor_rotation"] == 45.0
+
+    # ABSENT leaves it alone -- a control that only pans must not straighten the room.
+    manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="rot1", room_id=1, fan_speed="Max",
+    )
+    assert rooms["1"]["floor_rotation"] == 45.0,         "a field this call never mentioned must survive it"
+
+    # ZERO IS A VALUE, NOT AN ABSENCE. This is the whole reason the check is
+    # `is not None`; under a falsy test the room would stay at 45 forever.
+    manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="rot1", room_id=1, floor_rotation=0,
+    )
+    assert not rooms["1"].get("floor_rotation"), "0 must actually straighten the room"
+
+    # Junk KEEPS the stored angle rather than coercing to 0 -- `_as_rotation`'s contract,
+    # and the opposite of what a bare float() would do.
+    manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="rot1", room_id=1, floor_rotation=135,
+    )
+    for junk in ("banana", float("nan"), float("inf")):
+        manager.update_room_fields(
+            vacuum_entity_id=VAC, map_id="rot1", room_id=1, floor_rotation=junk,
+        )
+        assert rooms["1"]["floor_rotation"] == 135.0,             f"{junk!r} must keep the stored angle, not straighten the room"
+
     # And it is per ROOM: room 2 was never mentioned and must be untouched.
     assert not rooms["2"].get("floor_fit")

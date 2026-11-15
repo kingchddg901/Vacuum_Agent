@@ -144,6 +144,62 @@ async def test_update_room_fields_service_updates_fan_speed(hass, manager_with_s
     assert manager_with_services.data["maps"][_VAC][_MAP]["rooms"]["1"]["fan_speed"] == "quiet"
 
 
+async def test_sr_rot_1_update_room_fields_service_carries_floor_rotation(
+    hass, manager_with_services
+):
+    """[SR-ROT-1] the floor_rotation field survives the SERVICE hop, not just the manager.
+
+    [RM-ROT-1] drives `manager.update_room_fields` directly, so it is structurally blind
+    to the one layer between a button and the store: the handler, which assembles kwargs
+    by hand. A field can be declared in services.yaml, accepted by the voluptuous schema,
+    and still be dropped on the floor there -- the call returns ok, the save looks like it
+    worked, and the angle reverts on the next load. That is this file's job.
+
+    BITE: delete `**rot_kwargs` from `_handle_update_room_fields` and this goes red while
+    every manager-level test stays green.
+    """
+    setup_map(manager_with_services, _VAC, _MAP, count=2)
+    rooms = manager_with_services.data["maps"][_VAC][_MAP]["rooms"]
+
+    result = await hass.services.async_call(
+        DOMAIN,
+        "update_room_fields",
+        {
+            "vacuum_entity_id": _VAC,
+            "map_id": _MAP,
+            "room_id": 1,
+            "floor_rotation": 45,
+        },
+        blocking=True,
+        return_response=True,
+    )
+    assert result.get("ok") is not False
+    assert rooms["1"]["floor_rotation"] == 45.0
+
+    # ABSENT must not straighten it -- the whole point of the None-means-absent rule, and
+    # the failure a caller that only pans would otherwise cause.
+    await hass.services.async_call(
+        DOMAIN,
+        "update_room_fields",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": 1, "fan_speed": "quiet"},
+        blocking=True,
+        return_response=True,
+    )
+    assert rooms["1"]["floor_rotation"] == 45.0,         "a call that never mentioned the angle must not change it"
+
+    # ZERO IS A VALUE. Under a falsy check this is the assertion that fails: the room
+    # would be stuck at 45 and the turn button would do nothing at exactly one of its
+    # eight positions.
+    await hass.services.async_call(
+        DOMAIN,
+        "update_room_fields",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": 1, "floor_rotation": 0},
+        blocking=True,
+        return_response=True,
+    )
+    assert not rooms["1"].get("floor_rotation"), "0 must straighten the room"
+
+
 async def test_update_room_fields_service_updates_clean_passes(hass, manager_with_services):
     """[SR-3] update_room_fields service writes clean_passes to room config."""
     setup_map(manager_with_services, _VAC, _MAP, count=2)

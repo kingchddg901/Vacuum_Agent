@@ -306,6 +306,7 @@ export function applyMapState(proto) {
       // within a map -- carrying a draft across a switch would place room 3 of the new
       // map with room 3 of the old one's numbers, which is wrong and looks deliberate.
       this._floorFitDrafts = null;
+      this._floorRotDrafts = null;
       this._floorPlacementRoomId = null;
       this._furnishedModeOverlay = null;
       if (data?.map_id !== oldMapId) {
@@ -1561,6 +1562,31 @@ export function applyMapState(proto) {
 
   /** Throw the draft away and fall back to what is stored. */
   proto.discardFloorFitDrafts = function () { this._floorFitDrafts = null; };
+
+  /* A ROOM'S UNSAVED FLOOR ANGLE.
+     Separate from the fit draft because `floor_rotation` is its own stored field, not an
+     axis of `floor_fit` -- it predates the placement work, the setup editor writes it,
+     and the draw reads it to rotate the mask. Kept as a draft for the same reason the fit
+     is: the turn buttons must repaint the floor on the next frame rather than wait for
+     the service round-trip and the attribute push back, which is the lag that made an
+     earlier version of this panel feel like it had no feedback at all.
+     `null` means no draft -- distinct from a draft of 0, which is a real angle. */
+  proto._floorRotDrafts = null;
+
+  proto.floorRotDraft = function (roomId) {
+    const d = this._floorRotDrafts;
+    if (!d) return null;
+    const v = d[String(roomId)];
+    return typeof v === "number" ? v : null;
+  };
+
+  proto.setFloorRotDraft = function (roomId, deg) {
+    if (!this._floorRotDrafts) this._floorRotDrafts = {};
+    const n = Number(deg);
+    if (Number.isFinite(n)) this._floorRotDrafts[String(roomId)] = n;
+  };
+
+  proto.discardFloorRotDrafts = function () { this._floorRotDrafts = null; };
 
   /** Room ids with an open draft, so a save knows what to send and a UI knows to offer. */
   proto.floorFitDraftRoomIds = function () {

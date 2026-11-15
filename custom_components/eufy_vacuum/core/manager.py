@@ -106,6 +106,7 @@ from ..rooms.access_graph import structural_issue_key
 from ..rooms.room_discovery import discover_rooms_payload
 from ..rooms.room_manager import (
     _as_fit,
+    _as_rotation,
     build_managed_rooms,
     build_room_selection_summary,
 )
@@ -2093,6 +2094,7 @@ class EufyVacuumManager:
         edge_mopping: bool | None = None,
         color: str | None | Any = _UNSET,
         floor_fit: dict | None | Any = _UNSET,
+        floor_rotation: float | None = None,
         is_dock_room: bool | None = None,
         is_transition: bool | None = None,
         grants_access_to: list[int] | list[str] | None = None,
@@ -2183,6 +2185,21 @@ class EufyVacuumManager:
             existing_fit = room.get("floor_fit")
             updates["floor_fit"] = _as_fit(
                 floor_fit, existing_fit if isinstance(existing_fit, dict) else {},
+            )
+
+        # floor_rotation takes None-means-absent rather than the _UNSET sentinel, and the
+        # difference is not an inconsistency with `floor_fit` above: a rotation has no
+        # "clear" distinct from a value. 0.0 IS the cleared state and is expressible, so
+        # None is free to mean "leave it alone". `floor_fit` cannot do that because `{}`
+        # (clear) and absent are both falsy and it must tell them apart.
+        #
+        # `_as_rotation` deliberately does NOT wrap into a range -- the store holds what
+        # the user chose and the card wraps at the point of use -- so a junk payload keeps
+        # the stored angle instead of silently straightening a room the user had turned.
+        if floor_rotation is not None:
+            prev = room.get("floor_rotation")
+            updates["floor_rotation"] = _as_rotation(
+                floor_rotation, float(prev) if isinstance(prev, (int, float)) else 0.0,
             )
 
         if is_dock_room is not None:

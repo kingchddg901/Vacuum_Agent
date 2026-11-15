@@ -180,6 +180,10 @@ _UPDATE_ROOM_FIELDS_SCHEMA = vol.Schema(
         # into a range that is renderable by construction and drops what it
         # cannot read, so one bad axis does not fail the whole call.
         vol.Optional("floor_fit"): vol.Any(dict, None),
+        # Unbounded on purpose: `_as_rotation` keeps the stored angle on junk rather
+        # than straightening the room, and the card wraps into [-180, 180) at the point
+        # of use. Constraining it here would reject a legitimate 360 from a turn control.
+        vol.Optional("floor_rotation"): vol.Any(vol.Coerce(float), None),
         vol.Optional("is_dock_room"): cv.boolean,
         vol.Optional("is_transition"): cv.boolean,
         vol.Optional("grants_access_to"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
@@ -290,6 +294,11 @@ async def _handle_update_room_fields(hass: HomeAssistant, call: ServiceCall) -> 
     # Same absent-vs-present distinction, same reason: a control that only moves
     # the placement must not clear it by omission, and `{}` must survive as a clear.
     fit_kwargs = {"floor_fit": data["floor_fit"]} if "floor_fit" in data else {}
+    # Same absent-vs-present rule once more: a control that only pans must not
+    # straighten the room by omission.
+    rot_kwargs = (
+        {"floor_rotation": data["floor_rotation"]} if "floor_rotation" in data else {}
+    )
     try:
         result = manager.update_room_fields(
             vacuum_entity_id=data["vacuum_entity_id"],
@@ -308,6 +317,7 @@ async def _handle_update_room_fields(hass: HomeAssistant, call: ServiceCall) -> 
             rules=data.get("rules"),
             **color_kwargs,
             **fit_kwargs,
+            **rot_kwargs,
         )
     except Exception as err:
         raise HomeAssistantError(f"Failed to update room fields: {err}") from err

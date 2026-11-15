@@ -12,7 +12,7 @@
 import { roomFillCss, normalizeHex } from "../cards/map-room-color.js";
 import { animalDisplayName } from "../theme-tokens/animals.js";
 import { FLOOR_TEXTURE_REGISTRY, tilesAcrossFloor } from "../textures/floor-texture-registry.js";
-import { resolveFloorType } from "../textures/floor-texture-resolver.js";
+import { resolveFloorType, normalizeFloorRotationDeg } from "../textures/floor-texture-resolver.js";
 import { MIN_FIT_SCALE, MAX_FIT_SCALE, normalizeFit } from "../textures/floor-fit.js";
 
 /* =========================================================
@@ -1745,11 +1745,22 @@ export function applyMapRenderers(proto) {
     // at a bound it cannot cross. A stored sub-cover placement is real (one existed
     // before the bound did), so this is not hypothetical. `saved` stays raw because it
     // answers a different question: what is actually in storage.
+    // The angle, draft-first for the same reason the placement is. It is NOT part of
+    // `fit`: `floor_rotation` is its own stored field, written by the setup editor long
+    // before this panel existed, and folding it into the fit dict here would put it on a
+    // save path that does not carry it.
+    const rotDraft = state?.floorRotDraft?.(rawId);
+    const rotation = normalizeFloorRotationDeg(
+      rotDraft != null
+        ? rotDraft
+        : (Number(room.floor_rotation ?? room.floorRotation ?? 0) || 0));
+
     return {
       roomId:   String(rawId),
       roomName: String(room.name ?? room.room_name ?? rawId),
       fit:      normalizeFit(dirty ? draft : saved),
       saved,
+      rotation,
       dirty,
     };
   };
@@ -1808,6 +1819,15 @@ export function applyMapRenderers(proto) {
         data-action="floor-fit-step" data-step="${n}">${label}</button>`;
     const num = (v) => (Number(v) || 0).toFixed(2);
 
+    // TURN, at 45-degree set points. Rotation was previously reachable only from the
+    // setup editor -- a full-screen modal that COVERS the map -- so the one control that
+    // changes how a floor sits could not be used while looking at the floor. Unbounded by
+    // design: the angle wraps, so there is no end to disable a button at.
+    const turn = (delta, glyph, label) => `
+      <button class="evcc-map-config-btn" data-action="floor-fit-rotate"
+        data-room-id="${roomId}" data-delta="${delta}"
+        title="${this.escapeHtml(label)}">${glyph}</button>`;
+
     return `
       <div class="evcc-map-config-section evcc-floor-place-panel">
         <div class="evcc-map-config-section-title">${this.t("setup.floor_fit")}</div>
@@ -1819,6 +1839,12 @@ export function applyMapRenderers(proto) {
           <div class="evcc-map-nudge-row">${mv(0, -1, "↑", this.t("map.nudge_up"))}</div>
           <div class="evcc-map-nudge-row">${mv(-1, 0, "←", this.t("map.nudge_left"))}${mv(1, 0, "→", this.t("map.nudge_right"))}</div>
           <div class="evcc-map-nudge-row">${mv(0, 1, "↓", this.t("map.nudge_down"))}</div>
+        </div>
+        <div class="evcc-compose-tools">
+          ${turn(-45, "⟲", this.t("map.rotate_left"))}
+          ${turn(45, "⟳", this.t("map.rotate_right"))}
+          <span class="evcc-map-config-adj-meta">${this.escapeHtml(
+            this.t("setup.floor_rotation_deg", { deg: Math.round(t.rotation) }))}</span>
         </div>
         <div class="evcc-compose-tools">
           ${zoom(1.1, "+", this.t("setup.floor_fit_zoom_in"), curScale >= MAX_FIT_SCALE)}

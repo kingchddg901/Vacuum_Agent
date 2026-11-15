@@ -486,8 +486,16 @@ export function applyMapBindings(proto) {
       // and the rotation lands inside `ft`, the registry lookup misses, and the room falls
       // back to flat palette with nothing logged. Carrying fields removes the parse
       // instead of guarding it, which is what lets a fit box join them below.
+      // THE DRAFT WINS, exactly as it does for the placement below: the turn buttons
+      // write a draft so the floor repaints on the next frame, and the stored angle is
+      // untouched until the debounced save lands. `rot` flows into the job key, so the
+      // texture cache busts on its own. A draft of 0 is a REAL angle (a room turned back
+      // to square), hence the null test rather than a falsy one.
+      const rotDraft = state?.floorRotDraft?.(room?.id ?? room?.room_id);
       const rot = normalizeFloorRotationDeg(
-        Number(room?.floor_rotation ?? room?.floorRotation ?? 0) || 0);
+        rotDraft != null
+          ? rotDraft
+          : (Number(room?.floor_rotation ?? room?.floorRotation ?? 0) || 0));
       // WHERE A FITTED MATERIAL SITS IN THIS ROOM. Only a fitted one reads it; a tiled
       // one has a shared map-space grid and nothing to place. Normalised at the source so
       // the cache key is stable across renders -- an object identity or a float formatted
@@ -1886,6 +1894,16 @@ export function applyMapBindings(proto) {
     const liveFitFor = (roomId) =>
       this.card._state.floorFitDraft?.(roomId) ?? savedFitFor(roomId);
 
+    // The ANGLE, draft-first. `?? 0` on the stored side only -- a DRAFT of 0 is a real
+    // angle (a room turned back to square) and must not fall through to the stored value.
+    const liveRotFor = (roomId) => {
+      const d = this.card._state.floorRotDraft?.(roomId);
+      if (d != null) return d;
+      const rooms = this.card._state.getRoomsForActiveMap?.() ?? [];
+      const r = rooms.find((x) => String(x.id ?? x.room_id) === String(roomId));
+      return Number(r?.floor_rotation ?? r?.floorRotation ?? 0) || 0;
+    };
+
     /* AUTO-SAVE, DEBOUNCED. There is no Save button: a placement is judged by eye, so
        committing it is not a decision worth a second click. The debounce exists because
        a nudge is a BURST -- somebody taps an arrow eight times -- and one service call
@@ -1955,6 +1973,44 @@ export function applyMapBindings(proto) {
           scale: (Number(cur.scale) || 1) * mult,
         }, savedFitFor(roomId));
         scheduleFitSave(roomId);
+        this.card._scheduleRender();
+      });
+    });
+
+    /* TURN, debounced like the pan and for the same reason: a burst of taps is one
+       adjustment. Its own timer, because rotation and placement are different stored
+       fields and coalescing them would make one control's debounce swallow the other's
+       write. `floor_rotation` had NO path through `update_room_fields` before this --
+       only the setup editor's whole-room save wrote it -- so the service, its schema and
+       the manager each learned the field to make this button possible. */
+    const scheduleRotSave = (roomId) => {
+      clearTimeout(this._floorRotSaveTimer);
+      this._floorRotSaveTimer = setTimeout(async () => {
+        const deg = this.card._state.floorRotDraft?.(roomId);
+        if (deg == null) return;
+        this.card._state.setMapActionStatus?.({ type: "floor-fit-save", status: "busy" });
+        this.card._scheduleRender();
+        try {
+          await this.card._actions.updateRoomFields?.(roomId, { floor_rotation: deg });
+          this.card._state.setMapActionStatus?.(null);
+        } catch (_err) {
+          this.card._state.setMapActionStatus?.({ type: "floor-fit-save", status: "error" });
+        }
+        this.card._scheduleRender();
+      }, 700);
+    };
+
+    root.querySelectorAll("[data-action='floor-fit-rotate']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const roomId = btn.dataset.roomId;
+        const delta = Number(btn.dataset.delta);
+        if (!roomId || !Number.isFinite(delta)) return;
+        // Wrapped HERE, not in the store: `_as_rotation` on the backend deliberately keeps
+        // whatever it is given rather than straightening a room on junk, so the card is
+        // what holds the angle in [-180, 180) and a full turn comes back to 0.
+        const next = normalizeFloorRotationDeg(liveRotFor(roomId) + delta);
+        this.card._state.setFloorRotDraft?.(roomId, next);
+        scheduleRotSave(roomId);
         this.card._scheduleRender();
       });
     });

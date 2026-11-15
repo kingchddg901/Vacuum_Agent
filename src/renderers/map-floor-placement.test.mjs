@@ -21,6 +21,7 @@
 // [MFP-3] no material, "default", or a missing room yields null rather than a dead control
 // [MFP-4] the draft wins over the saved placement, and `dirty` says which is in force
 // [MFP-5] the saved placement survives when no draft is open -- the reload case
+// [MFP-6] the ANGLE is reported draft-first, and a draft of 0 is a real angle
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -52,10 +53,11 @@ function makeRenderer() {
 
 /** A state with NO segment support at all -- every segment accessor throws. A raster map
  *  genuinely has none; this makes "it quietly fell back to segments" impossible to pass. */
-function makeState({ draft = null } = {}) {
+function makeState({ draft = null, rotDraft = null } = {}) {
   const boom = (name) => () => { throw new Error(`segment API used: ${name}`); };
   return {
     floorFitDraft: () => draft,
+    floorRotDraft: () => rotDraft,
     mapSegments: boom("mapSegments"),
     selectedSegmentIds: boom("selectedSegmentIds"),
     roomIdForSegment: boom("roomIdForSegment"),
@@ -148,4 +150,42 @@ test("[MFP-5] with no draft, the SAVED placement is what the control shows", () 
 
   // A room that was never placed shows the default rather than undefined.
   assert.deepEqual(r._floorPlacementTarget(makeState(), room()).fit, {});
+});
+
+test("[MFP-6] the angle is reported draft-first, and a draft of ZERO is a real angle", () => {
+  // Rotation reaches the panel so the turn buttons can show what they are turning. It is
+  // NOT folded into `fit`: `floor_rotation` is its own stored field that the setup editor
+  // has written since long before this panel, and putting it in the fit dict would send
+  // it down a save path that does not carry it.
+  const r = makeRenderer();
+
+  assert.equal(r._floorPlacementTarget(makeState(), room()).rotation, 0,
+    "an unturned room reports 0, not undefined");
+  assert.equal(r._floorPlacementTarget(makeState(), room({ floor_rotation: 45 })).rotation, 45);
+
+  // The draft wins while the buttons are being pressed, so the readout tracks the floor
+  // rather than the last saved value.
+  assert.equal(
+    r._floorPlacementTarget(makeState({ rotDraft: 135 }), room({ floor_rotation: 45 })).rotation,
+    135, "an open rotation draft is what the panel shows");
+
+  // THE CASE THE `!= null` TEST EXISTS FOR: turning a room back to square produces a
+  // draft of 0, which is falsy. Under a truthiness test it would fall through to the
+  // STORED angle and the room would appear to refuse to straighten -- the same defect
+  // shape the backend's `is not None` guards, here on the read side.
+  assert.equal(
+    r._floorPlacementTarget(makeState({ rotDraft: 0 }), room({ floor_rotation: 315 })).rotation,
+    0, "a draft of 0 must not fall through to the stored angle");
+
+  // Wrapped into [-180, 180) at the point of use, so a full turn comes back to 0 rather
+  // than accumulating -- the store deliberately keeps whatever it was given.
+  assert.equal(r._floorPlacementTarget(makeState({ rotDraft: 360 }), room()).rotation, 0);
+  assert.equal(r._floorPlacementTarget(makeState({ rotDraft: 405 }), room()).rotation, 45);
+  assert.equal(r._floorPlacementTarget(makeState({ rotDraft: -45 }), room()).rotation, -45);
+
+  // Junk degrades to 0 rather than reaching a canvas transform as NaN.
+  for (const junk of ["x", null, undefined, {}]) {
+    assert.equal(r._floorPlacementTarget(makeState(), room({ floor_rotation: junk })).rotation, 0,
+      `${JSON.stringify(junk) ?? String(junk)} is not an angle`);
+  }
 });

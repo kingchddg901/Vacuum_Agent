@@ -397,11 +397,24 @@ update_room_fields:
         claim is scaled to cover the room once rather than tiled, and this chooses
         which part of it you see. tx and ty are normalised to the slack that exists,
         not to pixels - plus or minus 1 pans until the mask's edge reaches the room's
-        edge, so any value in range still covers the room and the number does not
-        change meaning when the map's resolution does. scale multiplies the cover,
-        1 being exact. An empty dict puts it back to centred at exact cover; omit the
-        field entirely to leave the placement alone. Rotation is not here - that is
-        floor_rotations on save_managed_rooms, and it works for tiled and fitted alike.
+        edge, so the pan keeps its meaning when the map's resolution changes. At or
+        above exact cover any value in range still covers the room; below it the
+        material is deliberately smaller than the room and roams inside it. scale
+        multiplies the cover, 1 being exact. An empty dict puts it back to centred at
+        exact cover; omit the field entirely to leave the placement alone. Rotation is
+        the separate floor_rotation field below.
+      required: false
+    floor_rotation:
+      name: Floor rotation
+      description: >
+        The angle of this room's floor material, in degrees. Appearance only, and it
+        applies to tiled and fitted materials alike - a tiled one turns its whole
+        shared grid, a fitted one turns the mask inside the room. 0 is as-authored.
+        Supply it to set the angle and omit it to leave the angle alone; 0 is a VALUE
+        here, not an absence, so sending 0 straightens a room that was turned. The
+        angle is not wrapped on the way in - the card wraps it into -180 to 180 at the
+        point of use - and a value that cannot be read as a number keeps whatever is
+        already stored rather than silently straightening the room.
       required: false
       selector:
         object: {}
