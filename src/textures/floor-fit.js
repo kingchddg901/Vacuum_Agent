@@ -22,8 +22,10 @@
  * actually exists: +/-1 pans until the mask's edge reaches the ROOM's edge. Three things
  * fall out of that and none of them is free any other way:
  *
- *   - every value in range still covers the room BY CONSTRUCTION, so there is no
- *     out-of-range case to detect, clamp or render differently;
+ *   - AT OR ABOVE EXACT COVER (scale >= 1), every value in range still covers the room BY
+ *     CONSTRUCTION, so there is no out-of-range case to detect, clamp or render
+ *     differently. Below cover the user has explicitly asked not to fill the room -- the
+ *     pan still runs edge-to-edge, it simply has a smaller mask to run;
  *   - the stored number keeps its meaning when the raster resolution or the supersample
  *     changes, both of which move with the map and neither of which the user chose;
  *   - a bigger `scale` buys more pan range automatically, because slack is derived
@@ -49,20 +51,20 @@
 /**
  * The scale range a PLACEMENT may use.
  *
- * The floor is 1 = exact cover, and it is 1 because of what `resolveFit` guarantees:
- * "every value in range still covers the room BY CONSTRUCTION". Below cover that
- * sentence is false, and it fails in two ways at once that look like separate bugs --
- * the material no longer fills the room (bare floor shows through), and `slackX`
- * correctly floors at 0, so `panX = tx * 0` and the arrows go dead while the readout
- * still shows `x -1.00`. Measured on the live box at `0.30x`: a room 9/10 bare and a
- * pan of -1.00 that moved nothing.
+ * The floor is BELOW exact cover on purpose. This control is also how a material gets
+ * LOOKED AT: a room is a few hundred canvas pixels, so a 2048 mask arrives downsampled
+ * and zooming out is the only way to see what the mask actually is. Covering the room is
+ * what the DEFAULT does, not a rule the control enforces.
  *
- * `resolveFit` itself still floors slack at 0 -- that is correct DEFENCE against junk or
- * stored data, and [FFIT-5] pins it. This constant is what stops a CONTROL from steering
- * into that state deliberately. The two are different jobs: one cannot produce a negative
- * pan, the other cannot ask for one.
+ * Below cover the room is deliberately not filled -- bare floor shows through, and that
+ * is the user's choice rather than a defect. What is NOT acceptable is what used to come
+ * with it: `slackX` floored at 0, so `panX = tx * 0` and the arrows went dead while the
+ * readout still read `x -1.00` (measured live at `0.30x`: a room 9/10 bare and a pan of
+ * -1.00 that moved nothing). That was the real bug, and it is fixed in `resolveFit` by
+ * measuring slack as a DISTANCE, so the pan is alive at every scale in this range --
+ * which is what lets this floor go back down safely.
  */
-export const MIN_FIT_SCALE = 1;
+export const MIN_FIT_SCALE = 0.25;
 export const MAX_FIT_SCALE = 4;
 
 /**
@@ -165,8 +167,16 @@ export function resolveFit(o) {
   const bw = rw * ac + rh * as;
   const bh = rw * as + rh * ac;
 
-  const slackX = Math.max(0, (dw - bw) / 2);
-  const slackY = Math.max(0, (dh - bh) / 2);
+  // SLACK IS A DISTANCE: how far the mask's edge is from the room's edge. One sentence
+  // covers both regimes, which is why `tx = +/-1` keeps its meaning at every scale --
+  // above cover the mask OVERHANGS and pans until its edge reaches the room's; below
+  // cover it is SMALLER than the room and roams inside until its edge reaches the room's.
+  // `Math.abs`, not `Math.max(0, ...)`: the old form was right that slack must never go
+  // NEGATIVE (that would invert the pan and move the mask the wrong way), but it bought
+  // that by collapsing the whole sub-cover range to zero, which is what killed the arrows.
+  // Taking the magnitude gets the same no-inversion guarantee with the travel intact.
+  const slackX = Math.abs(dw - bw) / 2;
+  const slackY = Math.abs(dh - bh) / 2;
 
   return {
     k, dw, dh,

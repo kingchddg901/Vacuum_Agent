@@ -118,11 +118,18 @@ test("[FFIT-5] scale buys pan range, and slack never goes negative", () => {
   assert.ok(zoom.slackX > base.slackX && zoom.slackY > base.slackY, "zooming in frees the pan");
   assert.equal(zoom.k, base.k * 2);
 
-  // Below the cover the room genuinely cannot be covered; slack must floor at 0 rather
-  // than go negative and invert the pan, which would move the mask the wrong way.
-  const small = resolveFit({ W, H, sw: MASK, sh: MASK, rw: r.rw, rh: r.rh, scale: 0.25 });
-  assert.ok(small.slackX >= 0 && small.slackY >= 0);
-  assert.equal(small.panX, 0, "no slack means no pan, not a negative one");
+  // BELOW COVER the room is deliberately not filled, but the pan must stay ALIVE --
+  // collapsing its travel to zero there is what made the arrows dead while the readout
+  // still read `x -1.00`. Slack is a DISTANCE (|dw - bw| / 2), so it is never negative
+  // (which would invert the pan) and never zero merely for being under cover.
+  //
+  // This clause used to assert `small.panX === 0` WITHOUT PASSING tx -- so panX was
+  // `0 * slack` and the assertion held for any slack whatsoever. It could not have failed
+  // for the reason it gave. tx is passed now, which is the whole point.
+  const small = resolveFit({ W, H, sw: MASK, sh: MASK, rw: r.rw, rh: r.rh, scale: 0.25, tx: -1 });
+  assert.ok(small.slackX > 0 && small.slackY > 0, "a sub-cover mask still has somewhere to go");
+  assert.ok(small.panX < 0, "and tx = -1 actually moves it");
+  assert.ok(small.dw < r.rw, "precondition: this scale really is below cover");
 });
 
 test("[FFIT-6] junk falls back to the identity rather than reaching a transform as NaN", () => {
@@ -146,37 +153,44 @@ test("[FFIT-6] junk falls back to the identity rather than reaching a transform 
   assert.equal(resolveFit({ W, H, sw: 0, sh: 0 }), null, "an undecoded source yields null");
 });
 
-test("[FFIT-7] normalizeFit floors the scale at exact cover, and that revives the pan", () => {
-  // THE REAL CASE, off the live box: a placement saved at 0.30x with tx/ty at the stops.
-  // The room drew 9/10 bare and `x -1.00` moved the mask not at all -- the pan was not
-  // ignored, it was multiplying a slack of 0. Both symptoms have one cause and one fix.
+test("[FFIT-7] the pan is alive at EVERY scale in the legal range, and junk cannot widen it", () => {
+  // THE REAL DEFECT, off the live box: a placement saved at 0.30x with the pan at its
+  // stops drew a room 9/10 bare AND `x -1.00` moved the mask not at all. Two symptoms,
+  // one cause -- slack was `max(0, dw - bw)`, which is zero for every scale under cover.
+  //
+  // The first fix floored the SCALE at 1 so that state was unreachable. That was wrong
+  // for this control: zooming out is how a material gets inspected, because a room is a
+  // few hundred canvas pixels and a 2048 mask arrives heavily downsampled. So the range
+  // is back and the GEOMETRY carries the guarantee instead.
   const r = ROOMS[0], { W, H } = buf(r);
-  const stored = { tx: -1, ty: -1, scale: 0.3 };
+  const fit = (over) => resolveFit({ W, H, sw: MASK, sh: MASK, rw: r.rw, rh: r.rh, ...over });
 
-  const raw = resolveFit({ W, H, sw: MASK, sh: MASK, rw: r.rw, rh: r.rh, ...stored });
-  // `===` not assert.equal: a dead pan is `-1 * 0` = NEGATIVE zero, and strict equal
-  // uses Object.is, which separates -0 from 0. The distinction is noise here and the
-  // failure it produces ("+ -0 / - 0") reads like a real disagreement.
-  assert.ok(raw.panX === 0, "precondition: below cover there is no slack to pan into");
-  assert.ok(raw.dw < r.rw, "precondition: below cover the mask is narrower than the room");
+  for (const scale of [MIN_FIT_SCALE, 0.3, 0.5, 0.95, 1, 1.5, MAX_FIT_SCALE]) {
+    const g = fit({ scale, tx: -1, ty: 1 });
+    assert.ok(g.slackX > 0 && g.slackY > 0, `scale ${scale}: slack collapsed`);
+    assert.ok(g.panX < 0 && g.panY > 0, `scale ${scale}: the arrows cannot move the mask`);
+    // Never negative -- that would invert the pan and send the mask the wrong way.
+    assert.ok(g.slackX >= 0 && g.slackY >= 0, `scale ${scale}: slack went negative`);
+  }
 
-  const fixed = resolveFit({ W, H, sw: MASK, sh: MASK, rw: r.rw, rh: r.rh,
-                             ...normalizeFit(stored) });
-  assert.equal(normalizeFit(stored).scale, MIN_FIT_SCALE, "0.30 is lifted to exact cover");
-  assert.ok(fixed.slackX > 0 && fixed.slackY > 0, "and the slack comes back");
-  assert.ok(fixed.panX < 0, "so tx = -1 actually moves the mask, and in the right direction");
-  assert.ok(fixed.dw >= r.rw && fixed.dh >= r.rh, "and the room is covered again");
+  // The sub-cover range really is sub-cover, or the loop above proves nothing.
+  assert.ok(fit({ scale: 0.3 }).dw < r.rw, "0.3 must actually fail to cover");
+  assert.ok(fit({ scale: 1 }).dw >= r.rw, "...and 1 must cover");
 
-  // ABLATION -- the bound has to be able to answer both ways, or it proves nothing.
-  assert.notEqual(raw.panX, fixed.panX,
-    "if these agree the clamp did nothing and this test cannot fail");
+  // ABLATION: the OLD slack formula must fail the loop, or this test would have passed
+  // on the shipped bug. Recomputed here from the same inputs rather than mocked.
+  const g = fit({ scale: 0.3, tx: -1 });
+  const bw = r.rw;                                  // rad 0, so the room's extent is its width
+  assert.equal(Math.max(0, (g.dw - bw) / 2), 0, "the old formula gave zero slack here");
+  assert.ok(g.slackX > 0, "...and the new one does not -- that difference IS the fix");
 
-  // The stops and the ceiling.
+  // The bounds, and the stops.
   assert.deepEqual(normalizeFit({ tx: -9, ty: 9, scale: 99 }),
     { tx: -1, ty: 1, scale: MAX_FIT_SCALE });
+  assert.equal(normalizeFit({ scale: 0.01 }).scale, MIN_FIT_SCALE);
 
-  // ABSENT STAYS ABSENT. Writing a default in here would turn "never placed" into
-  // "placed at the default" and lose the distinction the storage layer keeps with _UNSET.
+  // ABSENT STAYS ABSENT. Writing a default here would turn "never placed" into "placed at
+  // the default" and lose the distinction the storage layer keeps with _UNSET.
   assert.deepEqual(normalizeFit({}), {});
   assert.deepEqual(normalizeFit({ tx: 0.5 }), { tx: 0.5 }, "no scale key invented");
   for (const junk of [null, undefined, [], [1], "x", 7]) {

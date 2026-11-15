@@ -131,14 +131,20 @@ test("[MFP-5] with no draft, the SAVED placement is what the control shows", () 
   assert.deepEqual(t.fit, { tx: 1, scale: 1.5 });
   assert.equal(t.dirty, false);
 
-  // ...but `fit` is NORMALISED, so a placement stored BELOW exact cover -- which was
-  // reachable before the scale floor existed, and one real room held 0.30 -- is reported
-  // at the floor, matching what the draw actually paints. `saved` still reports the raw
-  // stored value, because "what is in storage" is a different question from "what is on
-  // screen" and conflating them is how a readout comes to contradict the floor under it.
-  const legacy = r._floorPlacementTarget(makeState(), room({ floor_fit: { tx: -1, scale: 0.3 } }));
-  assert.equal(legacy.fit.scale, 1, "a sub-cover stored scale reports at the floor");
-  assert.equal(legacy.saved.scale, 0.3, "while `saved` still tells the truth about storage");
+  // A SUB-COVER scale is legal and is reported AS STORED -- zooming out below cover is how
+  // a material gets inspected, so 0.30 is a real placement, not one to be corrected.
+  const sub = r._floorPlacementTarget(makeState(), room({ floor_fit: { tx: -1, scale: 0.3 } }));
+  assert.equal(sub.fit.scale, 0.3, "a sub-cover placement is honoured, not lifted");
+
+  // ...but `fit` IS normalised, so a value outside the range the control can author is
+  // reported at the bound, matching what the draw actually paints. `saved` still reports
+  // the raw stored value, because "what is in storage" is a different question from "what
+  // is on screen", and conflating them is how a readout comes to contradict the floor
+  // under it.
+  const absurd = r._floorPlacementTarget(makeState(), room({ floor_fit: { tx: -9, scale: 0.01 } }));
+  assert.equal(absurd.fit.scale, 0.25, "below the bound it reports at the bound");
+  assert.equal(absurd.fit.tx, -1, "and the pan clamps to its stop");
+  assert.equal(absurd.saved.scale, 0.01, "while `saved` still tells the truth about storage");
 
   // A room that was never placed shows the default rather than undefined.
   assert.deepEqual(r._floorPlacementTarget(makeState(), room()).fit, {});
