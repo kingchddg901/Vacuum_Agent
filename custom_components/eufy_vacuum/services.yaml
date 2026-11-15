@@ -389,6 +389,23 @@ update_room_fields:
       required: false
       selector:
         text: {}
+    floor_fit:
+      name: Floor placement
+      description: >
+        Where a FITTED material sits in this room - {"tx": 0, "ty": 0, "scale": 1}.
+        Only a material that is fitted reads it: a drop-in that makes no "tileable"
+        claim is scaled to cover the room once rather than tiled, and this chooses
+        which part of it you see. tx and ty are normalised to the slack that exists,
+        not to pixels - plus or minus 1 pans until the mask's edge reaches the room's
+        edge, so any value in range still covers the room and the number does not
+        change meaning when the map's resolution does. scale multiplies the cover,
+        1 being exact. An empty dict puts it back to centred at exact cover; omit the
+        field entirely to leave the placement alone. Rotation is not here - that is
+        floor_rotations on save_managed_rooms, and it works for tiled and fitted alike.
+      required: false
+      selector:
+        object: {}
+
     grants_access_to:
       name: Grants access to
       description: Downstream room IDs this room logically leads to.

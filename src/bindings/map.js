@@ -493,7 +493,13 @@ export function applyMapBindings(proto) {
       // the cache key is stable across renders -- an object identity or a float formatted
       // two ways would rebuild the whole CW x CH image every frame, because the outer draw
       // is deliberately unguarded and only the key compare makes it cheap.
-      const rawFit = room?.floor_fit ?? room?.floorFit;
+      // THE DRAFT WINS WHILE ONE IS OPEN. This is what makes the nudge controls a live
+      // control rather than a form field: the floor repaints on the next frame and the
+      // stored placement is untouched until somebody commits it. The draft flows into
+      // `placeSig` -> the job key -> `floorKey`, so the outer image cache busts on its
+      // own and no extra invalidation is needed.
+      const draftFit = state?.floorFitDraft?.(room?.id ?? room?.room_id);
+      const rawFit = draftFit ?? room?.floor_fit ?? room?.floorFit;
       const fitNum = (v, dflt, lo, hi) => {
         const n = Number(v);
         return Number.isFinite(n) ? Math.min(Math.max(n, lo), hi) : dflt;
@@ -1863,6 +1869,100 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='compose-clear']").forEach((btn) => {
       this.card._on(btn, "click", () => {
         this.card._state.clearComposeDraft();
+        this.card._scheduleRender();
+      });
+    });
+
+    /* ----------------------------------------------------------------
+       FLOOR PLACEMENT -- where a FITTED material sits in a room.
+
+       Every one of these writes a DRAFT that the floor draw reads, so the map repaints
+       on the next frame and nothing is stored until Save. That is the whole reason
+       these controls are here and not in the setup room editor, which has no map: a pan
+       you cannot see is a form field, not a control.
+       ---------------------------------------------------------------- */
+    const savedFitFor = (roomId) => {
+      const rooms = this.card._state.getRoomsForActiveMap?.() ?? [];
+      const r = rooms.find((x) => String(x.id ?? x.room_id) === String(roomId));
+      return (r?.floor_fit ?? r?.floorFit) || {};
+    };
+    const liveFitFor = (roomId) =>
+      this.card._state.floorFitDraft?.(roomId) ?? savedFitFor(roomId);
+
+    root.querySelectorAll("[data-action='floor-fit-move']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const roomId = btn.dataset.roomId;
+        if (!roomId) return;
+        // The step is read HERE rather than baked into the button, because the step
+        // buttons and the arrows re-render together and a stale arrow would otherwise
+        // carry the previous step silently.
+        const pan = (this.card._state.floorFitStep?.() ?? 3) * 0.02;
+        const cur = liveFitFor(roomId);
+        this.card._state.setFloorFitDraft?.(roomId, {
+          tx: (Number(cur.tx) || 0) + (Number(btn.dataset.dx) || 0) * pan,
+          ty: (Number(cur.ty) || 0) + (Number(btn.dataset.dy) || 0) * pan,
+        }, savedFitFor(roomId));
+        this.card._scheduleRender();
+      });
+    });
+
+    root.querySelectorAll("[data-action='floor-fit-zoom']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const roomId = btn.dataset.roomId;
+        const mult = Number(btn.dataset.mult);
+        if (!roomId || !Number.isFinite(mult) || mult <= 0) return;
+        const cur = liveFitFor(roomId);
+        this.card._state.setFloorFitDraft?.(roomId, {
+          scale: (Number(cur.scale) || 1) * mult,
+        }, savedFitFor(roomId));
+        this.card._scheduleRender();
+      });
+    });
+
+    root.querySelectorAll("[data-action='floor-fit-step']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.setFloorFitStep?.(Number(btn.dataset.step ?? 3));
+        this.card._scheduleRender();
+      });
+    });
+
+    root.querySelectorAll("[data-action='floor-fit-reset']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const roomId = btn.dataset.roomId;
+        if (!roomId) return;
+        // An EMPTY draft, not a discard: discarding falls back to the SAVED placement,
+        // which is the opposite of what Centre asks for.
+        this.card._state.resetFloorFitDraft?.(roomId);
+        this.card._scheduleRender();
+      });
+    });
+
+    root.querySelectorAll("[data-action='floor-fit-discard']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.discardFloorFitDrafts?.();
+        this.card._scheduleRender();
+      });
+    });
+
+    root.querySelectorAll("[data-action='floor-fit-save']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const roomId = btn.dataset.roomId;
+        if (!roomId) return;
+        const fit = this.card._state.floorFitDraft?.(roomId);
+        if (fit == null) return;
+        this.card._state.setMapActionStatus?.({ type: "floor-fit-save", status: "busy" });
+        this.card._scheduleRender();
+        try {
+          // update_room_fields, NOT save_managed_rooms: this one touches a single named
+          // room, while that one rewrites the map's whole room configuration from the
+          // caller's payload. A dial being dragged on a map must not be able to take
+          // the room list with it.
+          await this.card._actions.updateRoomFields?.(roomId, { floor_fit: fit });
+          this.card._state.discardFloorFitDrafts?.();
+          this.card._state.setMapActionStatus?.(null);
+        } catch (_err) {
+          this.card._state.setMapActionStatus?.({ type: "floor-fit-save", status: "error" });
+        }
         this.card._scheduleRender();
       });
     });

@@ -301,6 +301,10 @@ export function applyMapState(proto) {
       this._mascotDwellState = null;   // fresh dwell tracking for the new map/layout
       this._furnishedArtDraft = null;  // new map/layout → reseed the art draft from its saved transform
       this._furnishedArtDraftKey = null;
+      // A floor placement is scoped to ONE map's rooms, and room ids are only unique
+      // within a map -- carrying a draft across a switch would place room 3 of the new
+      // map with room 3 of the old one's numbers, which is wrong and looks deliberate.
+      this._floorFitDrafts = null;
       this._furnishedModeOverlay = null;
       if (data?.map_id !== oldMapId) {
         // Reset the PINNED pan/zoom only on a genuine switch between two REAL maps —
@@ -1506,6 +1510,69 @@ export function applyMapState(proto) {
   };
 
   // Nudge step size (pct). Fine=1 / Med=3 / Coarse=7; move + resize scale by it.
+  /* ============================================================
+     FLOOR PLACEMENT DRAFT -- what makes the nudge controls a LIVE control.
+
+     `_drawVaFloorRender` reads this in preference to the room's saved `floor_fit`, so
+     a nudge repaints the floor on the next frame and the saved value is untouched
+     until somebody commits it. That is the whole difference between a control and a
+     form field, and it is the half I left out first time round: the persisted
+     placement landed without it, so every button changed an invisible draft and the
+     floor sat still.
+
+     Modelled on `_furnishedArtDraft`, which solved the same problem for the art
+     overlay -- draft seeded from the saved value, renderer reads the draft, an
+     explicit save commits it, a map switch discards it.
+
+     Keyed by ROOM, not by material: two rooms sharing a material place it
+     independently, which is the entire point of fitting per room.
+     ============================================================ */
+  proto._floorFitDrafts = null;
+
+  /** The placement in force for a room: the draft if one is open, else null. */
+  proto.floorFitDraft = function (roomId) {
+    const d = this._floorFitDrafts;
+    return d ? (d[String(roomId)] ?? null) : null;
+  };
+
+  /** Merge a patch into a room's draft, seeding from `saved` on the first touch.
+   *  MERGED because each control moves one axis -- a pan after a zoom keeps the zoom. */
+  proto.setFloorFitDraft = function (roomId, patch, saved) {
+    if (!this._floorFitDrafts) this._floorFitDrafts = {};
+    const key = String(roomId);
+    const base = this._floorFitDrafts[key]
+      ?? (saved && typeof saved === "object" ? { ...saved } : {});
+    const next = { ...base };
+    for (const [k, lo, hi] of [["tx", -1, 1], ["ty", -1, 1], ["scale", 0.25, 4]]) {
+      if (!(patch && k in patch)) continue;
+      const n = Number(patch[k]);
+      if (Number.isFinite(n)) next[k] = Math.min(Math.max(n, lo), hi);
+    }
+    this._floorFitDrafts[key] = next;
+  };
+
+  /** Back to centred, exact cover -- an EMPTY draft, not a discard. Discarding would
+   *  fall back to the SAVED placement, which is the opposite of what a reset asks. */
+  proto.resetFloorFitDraft = function (roomId) {
+    if (!this._floorFitDrafts) this._floorFitDrafts = {};
+    this._floorFitDrafts[String(roomId)] = {};
+  };
+
+  /** Throw the draft away and fall back to what is stored. */
+  proto.discardFloorFitDrafts = function () { this._floorFitDrafts = null; };
+
+  /** Room ids with an open draft, so a save knows what to send and a UI knows to offer. */
+  proto.floorFitDraftRoomIds = function () {
+    return this._floorFitDrafts ? Object.keys(this._floorFitDrafts) : [];
+  };
+
+  proto._floorFitStep = 3;
+  proto.floorFitStep = function () { return this._floorFitStep; };
+  proto.setFloorFitStep = function (n) {
+    const v = Number(n);
+    this._floorFitStep = Number.isFinite(v) && v > 0 ? v : 3;
+  };
+
   proto._composeStep = 3;
   proto.composeStep = function () { return this._composeStep; };
   proto.setComposeStep = function (n) { this._composeStep = Number(n) || 3; };

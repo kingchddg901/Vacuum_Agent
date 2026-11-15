@@ -459,6 +459,18 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   > It follows `_as_rotation`, its own neighbour, rather than a helper in another module.
   > Four ablations red: no finite guard, no clamp, the identity not dropped, and `is None`
   > weakened to falsiness.
+  >
+  > `[RM-FIT-3]` (integration, `test_manager_rooms.py`) covers the TARGETED service,
+  > `update_room_fields`, which is what a placement control on the map writes through —
+  > deliberately not `save_managed_rooms`, which rewrites a map's whole room
+  > configuration from the caller's payload and is the most destructive in the area. A
+  > dial being dragged must not be able to take the room list with it. The `_UNSET`
+  > sentinel is the mechanism and is load-bearing exactly as it already is for `color`:
+  > an ABSENT key leaves the placement alone (an automation touching only `fan_speed`
+  > must not wipe it) while a PRESENT `{}` is a clear. Falsiness cannot tell those apart
+  > and the one it loses is the clear, which makes Centre impossible. Two ablations red:
+  > the sentinel weakened to falsiness, and `_as_fit` removed so an unclamped non-finite
+  > value reaches the store.
 - **`roborock_raw_map`** (`RRD-*`, unit, `test_roborock_raw_map.py`) — the pure Roborock
   v1 raw-map segment decoder, no HA/device: `decode_roborock_v1_segments` (a well-formed
   IMAGE block → resolved room-id raster + dims + ids; no-IMAGE / empty / truncated / garbage

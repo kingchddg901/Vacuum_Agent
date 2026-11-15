@@ -11,6 +11,8 @@
 
 import { roomFillCss, normalizeHex } from "../cards/map-room-color.js";
 import { animalDisplayName } from "../theme-tokens/animals.js";
+import { FLOOR_TEXTURE_REGISTRY, tilesAcrossFloor } from "../textures/floor-texture-registry.js";
+import { resolveFloorType } from "../textures/floor-texture-resolver.js";
 
 /* =========================================================
    VACUUM STATE → ANIMAL POSE
@@ -1350,6 +1352,7 @@ export function applyMapRenderers(proto) {
           </div>
 
           <div class="evcc-map-config-side-panel">
+            ${this._renderFloorPlacementSection(state, selectedSeg, actionStatus)}
             ${furnishedOn ? this._renderFurnishedToolbar(state, actionStatus) : ""}
             ${isCustom
               ? this._renderComposerToolbar(state)
@@ -1676,6 +1679,103 @@ export function applyMapRenderers(proto) {
      Upload a to-scale home render, pick a render mode (live/art/blend), and align the
      art over the live map (nudge/scale/rotate; pointer-drag on the art itself). Matches
      the composer toolbar UX. Only shown when the furnished layout is active. */
+  /* WHERE A FITTED MATERIAL SITS IN THE SELECTED ROOM.
+
+     It lives HERE, in the config side panel, and not in the setup room editor where the
+     material and rotation controls are -- because that editor is a list with no map, and
+     a pan you cannot see is not a control. The floor is drawn two feet to the left of
+     this panel, and the draft these buttons write is what the floor draw reads, so every
+     press repaints immediately and nothing is stored until Save.
+
+     Shown only when the selected room's material is actually FITTED. A tiled material
+     shares one map-space grid anchored at (0,0); there is nothing to place, and a dial
+     that moves while nothing changes reads as a broken render rather than a disabled
+     feature. */
+  /* The selected segment's room, IF its material is one that gets placed.
+
+     Returns null for every other case rather than a disabled control: no selection, a
+     segment with no room, a room with no material, or a material that TILES. The last
+     is the one worth naming -- a tiled material shares one map-space grid and has
+     nothing to place, so offering the control would be offering a dial that cannot
+     move anything. */
+  proto._floorPlacementTarget = function (state, selectedSeg) {
+    const roomId = state.roomIdForSegment?.(selectedSeg.segment_id);
+    if (roomId == null) return null;
+    const rooms = state.getRoomsForActiveMap?.() ?? [];
+    const room = rooms.find((r) => String(r.id ?? r.room_id) === String(roomId));
+    if (!room) return null;
+
+    const ft = resolveFloorType({
+      floor_type: room.floor_type ?? room.floorType ?? "",
+      carpet_type: room.carpet_type ?? room.carpetType ?? "",
+      floor_material: room.floor_material ?? room.floorMaterial ?? "",
+    });
+    if (!ft || ft === "default") return null;
+    if (tilesAcrossFloor(FLOOR_TEXTURE_REGISTRY[ft])) return null;
+
+    const draft = state.floorFitDraft?.(roomId);
+    const saved = (room.floor_fit ?? room.floorFit) || {};
+    return {
+      roomId: String(roomId),
+      roomName: String(room.name ?? roomId),
+      saved,
+      fit: draft ?? saved,
+      dirty: draft != null,
+    };
+  };
+
+  proto._renderFloorPlacementSection = function (state, selectedSeg, actionStatus) {
+    if (!selectedSeg || typeof this._floorPlacementTarget !== "function") return "";
+    const target = this._floorPlacementTarget(state, selectedSeg);
+    if (!target) return "";
+
+    const { roomId, roomName, fit, dirty } = target;
+    const step = state.floorFitStep?.() ?? 3;
+    const pan = step * 0.02;
+    const busy = actionStatus?.type === "floor-fit-save" && actionStatus?.status === "busy";
+
+    const mv = (dx, dy, glyph, label) => `
+      <button class="evcc-map-nudge-btn" data-action="floor-fit-move"
+        data-room-id="${roomId}" data-dx="${dx}" data-dy="${dy}"
+        title="${this.escapeHtml(label)}" ${busy ? "disabled" : ""}>${glyph}</button>`;
+    const zoom = (mult, glyph, label) => `
+      <button class="evcc-map-config-btn" data-action="floor-fit-zoom"
+        data-room-id="${roomId}" data-mult="${mult}"
+        title="${this.escapeHtml(label)}" ${busy ? "disabled" : ""}>${glyph}</button>`;
+    const stepBtn = (n, label) => `
+      <button class="evcc-map-config-btn${step === n ? " evcc-map-config-btn--primary" : ""}"
+        data-action="floor-fit-step" data-step="${n}" ${busy ? "disabled" : ""}>${label}</button>`;
+
+    const num = (v) => (Number(v) || 0).toFixed(2);
+    return `
+      <div class="evcc-map-config-section">
+        <div class="evcc-map-config-section-title">
+          ${this.t("setup.floor_fit")} <em>${this.escapeHtml(roomName)}</em>
+        </div>
+        <div class="evcc-compose-tools">
+          ${stepBtn(1, this.t("map.compose_step_fine"))}${stepBtn(3, this.t("map.compose_step_med"))}${stepBtn(7, this.t("map.compose_step_coarse"))}
+        </div>
+        <div class="evcc-map-nudge-pad">
+          <div class="evcc-map-nudge-row">${mv(0, -1, "↑", this.t("map.nudge_up"))}</div>
+          <div class="evcc-map-nudge-row">${mv(-1, 0, "←", this.t("map.nudge_left"))}${mv(1, 0, "→", this.t("map.nudge_right"))}</div>
+          <div class="evcc-map-nudge-row">${mv(0, 1, "↓", this.t("map.nudge_down"))}</div>
+        </div>
+        <div class="evcc-compose-tools">
+          ${zoom(1.1, "+", this.t("setup.floor_fit_zoom_in"))}
+          ${zoom(1 / 1.1, "−", this.t("setup.floor_fit_zoom_out"))}
+          <button class="evcc-map-config-btn" data-action="floor-fit-reset"
+            data-room-id="${roomId}" ${busy ? "disabled" : ""}>${this.t("setup.floor_fit_reset")}</button>
+        </div>
+        <div class="evcc-map-config-adj-meta">x ${num(fit.tx)} · y ${num(fit.ty)} · ${(Number(fit.scale) || 1).toFixed(2)}×</div>
+        ${dirty ? `
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn evcc-map-config-btn--primary${busy ? " evcc-map-config-btn--busy" : ""}"
+            data-action="floor-fit-save" data-room-id="${roomId}" ${busy ? "disabled" : ""}>${this.t("common.save")}</button>
+          <button class="evcc-map-config-btn" data-action="floor-fit-discard" ${busy ? "disabled" : ""}>${this.t("common.cancel")}</button>
+        </div>` : ""}
+      </div>`;
+  };
+
   proto._renderFurnishedToolbar = function (state, actionStatus) {
     const hasArt = Boolean(state.furnishedHomeArtUrl?.());
     const mode   = state.furnishedRenderMode?.() ?? "live";

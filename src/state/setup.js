@@ -164,9 +164,14 @@ export function applySetupState(proto) {
 
   /* A PLACEMENT IS MERGED, NOT REPLACED. Each control moves one axis and the others
      must survive it, so a pan after a zoom does not silently reset the zoom. Values are
-     clamped to the renderable range HERE as well as in the backend, because the
-     renderer reads this draft directly while the editor is open -- the save is not the
-     only consumer, and an unclamped draft would show a preview the save would not keep.
+     clamped to the renderable range HERE as well as in the backend, so a draft can
+     never hold a value the save would refuse to keep.
+
+     THIS DRAFT IS NOT RENDERED, and an earlier version of this comment claimed it was.
+     It cannot be: the setup room editor is a LIST, with no map beside it. The live
+     control is on the map and reads the separate draft in state/map.js. These controls
+     earn their place by batching several rooms before one save, and they show their
+     values so they are not silent -- but nothing here moves a floor until it is saved.
 
      tx/ty are fractions of the slack that exists, so +/-1 is the room's own edge and
      anything past it is the same picture; scale multiplies the cover, 1 being exact. */

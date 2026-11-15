@@ -104,7 +104,11 @@ from ..queue.queue_engine import (
 from ..queue.dispatch_engines import get_dispatch_engine
 from ..rooms.access_graph import structural_issue_key
 from ..rooms.room_discovery import discover_rooms_payload
-from ..rooms.room_manager import build_managed_rooms, build_room_selection_summary
+from ..rooms.room_manager import (
+    _as_fit,
+    build_managed_rooms,
+    build_room_selection_summary,
+)
 from ..timestamp_utils import parse_timestamp, utc_now_iso
 from .capabilities import detect_capabilities
 from .storage import EufyVacuumStorage
@@ -2088,6 +2092,7 @@ class EufyVacuumManager:
         clean_passes: int | None = None,
         edge_mopping: bool | None = None,
         color: str | None | Any = _UNSET,
+        floor_fit: dict | None | Any = _UNSET,
         is_dock_room: bool | None = None,
         is_transition: bool | None = None,
         grants_access_to: list[int] | list[str] | None = None,
@@ -2164,6 +2169,21 @@ class EufyVacuumManager:
         # as "". The render paths defensively re-validate, so a stray direct value can't crash them.
         if color is not _UNSET:
             updates["color"] = color if color else None
+
+        # floor_fit takes the SENTINEL for the same reason `color` above does, and it is
+        # the reason this service exists for it at all: an absent key means "leave the
+        # placement alone", while a present `{}` means "back to centred, exact cover".
+        # Falsiness cannot tell those apart, and the one that would be lost is the clear.
+        #
+        # THIS is the service a placement control should use, not save_managed_rooms --
+        # that one rewrites a map's whole room configuration from the caller's payload
+        # and is the most destructive in the area. A dial being dragged on a map must not
+        # be able to take the room list with it.
+        if floor_fit is not _UNSET:
+            existing_fit = room.get("floor_fit")
+            updates["floor_fit"] = _as_fit(
+                floor_fit, existing_fit if isinstance(existing_fit, dict) else {},
+            )
 
         if is_dock_room is not None:
             updates["is_dock_room"] = bool(is_dock_room)

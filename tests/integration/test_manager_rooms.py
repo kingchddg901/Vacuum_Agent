@@ -838,3 +838,65 @@ async def test_gate_still_rejects_a_new_violation_on_a_dirty_graph(manager):
     assert 3 not in (
         manager.data["maps"][_VAC][_MAP]["rooms"]["5"].get("grants_access_to") or []
     )
+
+
+def test_rm_fit_3_update_room_fields_tells_absent_from_cleared(manager):
+    """[RM-FIT-3] `floor_fit` on the TARGETED per-room service, and the sentinel that
+    makes it usable as a live control.
+
+    THIS is the service a placement control writes through, and the choice matters:
+    `save_managed_rooms` rewrites a map's whole room configuration from the caller's
+    payload and is the most destructive service in the area. A dial being dragged on a
+    map must not be able to take the room list with it.
+
+    The sentinel is the whole mechanism. An ABSENT key means "leave the placement
+    alone" -- an automation touching only fan_speed must not wipe a room's placement --
+    while a PRESENT `{}` means "back to centred, exact cover". Falsiness cannot tell
+    those apart, and the one that would be lost is the clear, so `_UNSET` is load-bearing
+    exactly as it already is for `color`.
+
+    BITE:
+      - drop the sentinel, test falsiness -> Centre becomes impossible: an explicit {}
+        reads as "nothing supplied" and the old placement survives the reset
+      - forget the kwarg in the handler   -> the service accepts the field and silently
+        drops it; the save appears to work and the map reverts on the next load
+      - pass it through without `_as_fit` -> an unclamped or non-finite value reaches
+        HA's store, and a bare NaN token there fails the card's whole fetch
+    """
+    from tests._factories import VAC
+    from .conftest import setup_map
+
+    setup_map(manager, VAC, "fit1", count=2)
+    rooms = manager.data["maps"][VAC]["fit1"]["rooms"]
+
+    # Set one.
+    out = manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="fit1", room_id=1,
+        floor_fit={"tx": 0.5, "ty": -0.25, "scale": 1.5},
+    )
+    assert out.get("updated") is not False
+    assert rooms["1"]["floor_fit"] == {"tx": 0.5, "ty": -0.25, "scale": 1.5}
+
+    # ABSENT leaves it alone -- the automation-touching-fan_speed case.
+    manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="fit1", room_id=1, fan_speed="Max",
+    )
+    assert rooms["1"]["floor_fit"] == {"tx": 0.5, "ty": -0.25, "scale": 1.5}, \
+        "a field this call never mentioned must survive it"
+
+    # PRESENT and empty is a CLEAR, not an absence.
+    manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="fit1", room_id=1, floor_fit={},
+    )
+    assert not rooms["1"].get("floor_fit"), "an explicit {} must put it back to centred"
+
+    # Clamped and sanitised on the way in -- the store is the last place a non-finite
+    # value can be stopped before it becomes a bare JSON token.
+    manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="fit1", room_id=1,
+        floor_fit={"tx": 99, "ty": float("nan"), "scale": 1e9},
+    )
+    assert rooms["1"]["floor_fit"] == {"tx": 1.0, "scale": 4.0}
+
+    # And it is per ROOM: room 2 was never mentioned and must be untouched.
+    assert not rooms["2"].get("floor_fit")

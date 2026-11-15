@@ -176,6 +176,10 @@ _UPDATE_ROOM_FIELDS_SCHEMA = vol.Schema(
         vol.Optional("clean_passes"): vol.Coerce(int),
         vol.Optional("edge_mopping"): cv.boolean,
         vol.Optional("color"): _hex_color_or_none,
+        # The inner shape is not constrained here; `_as_fit` clamps every value
+        # into a range that is renderable by construction and drops what it
+        # cannot read, so one bad axis does not fail the whole call.
+        vol.Optional("floor_fit"): vol.Any(dict, None),
         vol.Optional("is_dock_room"): cv.boolean,
         vol.Optional("is_transition"): cv.boolean,
         vol.Optional("grants_access_to"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
@@ -283,6 +287,9 @@ async def _handle_update_room_fields(hass: HomeAssistant, call: ServiceCall) -> 
     # untouched" (key absent) from "clear the override" (key present, value None) — an automation
     # touching only fan_speed must not wipe a room's color.
     color_kwargs = {"color": data["color"]} if "color" in data else {}
+    # Same absent-vs-present distinction, same reason: a control that only moves
+    # the placement must not clear it by omission, and `{}` must survive as a clear.
+    fit_kwargs = {"floor_fit": data["floor_fit"]} if "floor_fit" in data else {}
     try:
         result = manager.update_room_fields(
             vacuum_entity_id=data["vacuum_entity_id"],
@@ -300,6 +307,7 @@ async def _handle_update_room_fields(hass: HomeAssistant, call: ServiceCall) -> 
             grants_access_to=data.get("grants_access_to"),
             rules=data.get("rules"),
             **color_kwargs,
+            **fit_kwargs,
         )
     except Exception as err:
         raise HomeAssistantError(f"Failed to update room fields: {err}") from err
