@@ -342,6 +342,41 @@ export function applySetupBindings(proto) {
     });
 
     /* -------------------------------------------------------
+       NUDGE / ZOOM A FITTED MATERIAL'S PLACEMENT.
+
+       The arithmetic is done in the RENDERER, which already holds the current value and
+       the chosen step, so each button carries the absolute result it would produce
+       rather than a direction to apply here. That keeps the two halves from disagreeing
+       about what "one step" means, and it is why the handler is a merge of a patch and
+       not an increment -- a stale DOM then writes a stale value, which is visible, in
+       preference to compounding an increment that is invisible.
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-nudge-floor-fit']", "click", (e) => {
+      const roomId = e.currentTarget.dataset.roomId;
+      if (!roomId) return;
+      let patch = null;
+      try { patch = JSON.parse(e.currentTarget.dataset.fitPatch || "null"); } catch (_err) { patch = null; }
+      if (!patch || typeof patch !== "object") return;
+      card._state.setSetupRoomFloorFit?.(roomId, patch);
+      card._scheduleRender();
+    });
+
+    card._onAll("[data-action='setup-set-floor-fit-step']", "click", (e) => {
+      card._state.setSetupRoomEditorFloorFitStep?.(e.currentTarget.dataset.fitStep);
+      card._scheduleRender();
+    });
+
+    /* Back to centred, exact cover. Writes an EMPTY object rather than deleting the
+       room's entry: absent means "leave whatever is stored alone", which is the opposite
+       of what this button asks for. */
+    card._onAll("[data-action='setup-reset-floor-fit']", "click", (e) => {
+      const roomId = e.currentTarget.dataset.roomId;
+      if (!roomId) return;
+      card._state.resetSetupRoomFloorFit?.(roomId);
+      card._scheduleRender();
+    });
+
+    /* -------------------------------------------------------
        SAVE ROOMS — persist enabled list + floor types
        ------------------------------------------------------- */
     card._onAll("[data-action='setup-save-rooms']", "click", async (e) => {
@@ -358,6 +393,7 @@ export function applySetupBindings(proto) {
         const floorTypes     = card._state.setupRoomEditorFloorTypesMap?.() ?? {};
         const floorMaterials = card._state.setupRoomEditorFloorMaterialsMap?.() ?? {};
         const floorRotations = card._state.setupRoomEditorFloorRotationsMap?.() ?? {};
+        const floorFits      = card._state.setupRoomEditorFloorFitsMap?.() ?? {};
 
         // RP-005/RF-02 belt-and-braces: the Save button is disabled at zero
         // selection, but a stale DOM or keyboard activation could still land
@@ -374,6 +410,7 @@ export function applySetupBindings(proto) {
           floorTypes,
           floorMaterials,
           floorRotations,
+          floorFits,
         );
 
         card._state.markSetupMapConfigured?.(mapId);
