@@ -288,3 +288,73 @@ def test_rebuild_map_bucket_survives_a_stored_room_id_that_will_not_int(bad_room
 
     assert set(rooms) == {"21"}
     assert rooms["21"]["clean_passes"] == 3, "the slug carry does not depend on the id"
+
+
+def test_map_appearance_survives_a_rebuild():
+    """[MAP-5e] A rebuild must not erase how a room LOOKS.
+
+    This reconstructs each RoomConfig field by field, so a field it does not NAME comes
+    back at its default -- and `to_dict` then drops that default from the payload,
+    because empty means "never set" for all three appearance axes. The result is a
+    rebuild that silently wipes a room's entire look while preserving everything about
+    how it is cleaned: no error, nothing logged, and the room reads as though it had
+    never been styled.
+
+    It named `floor_type` and `color` and MISSED `floor_material`, `floor_rotation` and
+    `floor_fit`. Measured on the live box 2026-11-15: a room given a drop-in material,
+    an angle and a placement read back with rotation and placement both None.
+    `floor_material` survived only because no rebuild had run since it was set, which is
+    exactly why this is hard to notice -- the erasure happens on a later, unrelated
+    discovery pass rather than at the moment of saving.
+
+    BITE: drop any one of the three lines from the rebuild and this reddens on that
+    field alone. It is cheap to write and nothing else covers it: the CRUD tests check
+    what a SAVE writes, not what a REBUILD carries, and those are different code paths
+    that happen to agree only when someone remembers to make them.
+    """
+    data: dict = {}
+    b = ensure_map_bucket(data=data, vacuum_entity_id=_VAC, map_id="ap1")
+    b["rooms"] = {
+        "1": {
+            "room_id": 1, "name": "Study", "enabled": True,
+            "floor_type": "carpet_low_pile",
+            "floor_material": "ma-stone-wood-test",
+            "floor_rotation": 90.0,
+            "floor_fit": {"tx": 0.5, "scale": 1.5},
+            "color": "#112233",
+            "clean_mode": "mop",
+        },
+    }
+    rooms = rebuild_map_bucket(
+        data=data, vacuum_entity_id=_VAC, map_id="ap1",
+        discovered_rooms=[{"room_id": 1, "name": "Study"}],
+    )["rooms"]
+
+    assert rooms["1"]["floor_material"] == "ma-stone-wood-test"
+    assert rooms["1"]["floor_rotation"] == 90.0
+    assert rooms["1"]["floor_fit"] == {"tx": 0.5, "scale": 1.5}
+    # ...and the two that already worked must keep working.
+    assert rooms["1"]["floor_type"] == "carpet_low_pile"
+    assert rooms["1"]["color"] == "#112233"
+    assert rooms["1"]["clean_mode"] == "mop"
+
+
+def test_map_appearance_absent_stays_absent_after_a_rebuild():
+    """[MAP-5f] The other half: a room that was never styled must not GAIN the keys.
+
+    All three are dropped from the payload when empty, so "never set" and "set and
+    cleared" stay indistinguishable in the store -- the property each of those fields
+    was given deliberately. Carrying them forward must not stamp an empty value onto
+    every room on the next rebuild, which is the failure mode the drop rule exists to
+    prevent and the easiest one to reintroduce while fixing [MAP-5e].
+    """
+    data: dict = {}
+    b = ensure_map_bucket(data=data, vacuum_entity_id=_VAC, map_id="ap2")
+    b["rooms"] = {"1": {"room_id": 1, "name": "Hall", "enabled": True}}
+    rooms = rebuild_map_bucket(
+        data=data, vacuum_entity_id=_VAC, map_id="ap2",
+        discovered_rooms=[{"room_id": 1, "name": "Hall"}],
+    )["rooms"]
+
+    for key in ("floor_material", "floor_rotation", "floor_fit"):
+        assert key not in rooms["1"], f"{key} must stay ABSENT, not become an empty value"

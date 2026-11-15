@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import copy
 from typing import Any
 
@@ -339,6 +340,17 @@ def rebuild_map_bucket(
         _prev_grants = previous.get("grants_access_to")
         _prev_rules = previous.get("rules")
 
+        def _prev_float(key: str, fallback: float, _prev=previous) -> float:
+            """A stored float carried forward, or `fallback`. Never raises: the value
+            was coerced on the way in, but a store written by an older build -- or by
+            hand -- can hold anything, and a rebuild that throws takes the whole map
+            with it rather than one field."""
+            try:
+                out = float(_prev.get(key, fallback))
+            except (TypeError, ValueError):
+                return fallback
+            return out if math.isfinite(out) else fallback
+
         def _prev_or_brand(key: str, fallback: Any, _prev=previous) -> Any:
             """An existing value wins; else the brand's default profile; else the field
             default. Mirrors build_managed_rooms._default exactly — same precedence,
@@ -359,6 +371,28 @@ def rebuild_map_bucket(
             order=int(previous.get("order", index)),
             profile_name=str(_prev_or_brand("profile_name", DEFAULT_ROOM_PROFILE_NAME)),
             floor_type=floor_type,
+            # APPEARANCE, carried forward from `previous` exactly as `color` is below.
+            #
+            # ALL THREE WERE MISSING, and the cost is the same for each: this rebuild
+            # names fields one by one, so one it does not name is reconstructed at its
+            # DEFAULT -- and `RoomConfig.to_dict` then drops that default from the
+            # payload, because empty means "never set" for all three. The result is a
+            # rebuild that silently erases a room's whole appearance while preserving
+            # everything about how it is cleaned, with nothing logged and no error. A
+            # user sets a material, turns its grain, places it, and a later rebuild puts
+            # the room back to a bare floor_type.
+            #
+            # Measured on the live box 2026-11-15: `floor_rotation` and `floor_fit` both
+            # read None on a room that had been given both. `floor_material` survived
+            # only because no rebuild had run since it was set.
+            #
+            # Nothing is re-coerced here. Every one of these was clamped and sanitised on
+            # the way IN (`_as_rotation`, `_as_fit`, the drop-in id check), so re-running
+            # that work would be a second place for the rules to drift. Carry the value.
+            floor_material=str(previous.get("floor_material") or ""),
+            floor_rotation=_prev_float("floor_rotation", 0.0),
+            floor_fit=dict(previous.get("floor_fit") or {})
+                if isinstance(previous.get("floor_fit"), dict) else {},
             clean_mode=str(_prev_or_brand("clean_mode", "vacuum")),
             fan_speed=str(_prev_or_brand("fan_speed", "")),
             water_level=str(_prev_or_brand("water_level", "")),

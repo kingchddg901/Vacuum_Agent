@@ -278,6 +278,22 @@ export function applyMapRenderers(proto) {
 
           <div class="evcc-map-tooltip" aria-hidden="true"></div>
 
+          <!-- FLOOR PLACEMENT. It lives HERE and nowhere else, because this is the only
+               view that mounts evcc-map-render-canvas -- the VA raster, which is the
+               thing being placed. The config view has a map but draws the camera
+               backdrop; the setup room editor has no map at all. A control beside a
+               surface that cannot show its effect is the defect, not a convenience,
+               so it is not offered on either of those. -->
+          ${(() => {
+            if (!vaActive || typeof this._renderFloorPlacementSection !== "function") return "";
+            if (!Array.isArray(segments) || selectedIds.size !== 1) return "";
+            const only = [...selectedIds][0];
+            const seg = segments.find((x) => String(x.segment_id) === String(only));
+            if (!seg) return "";
+            const body = this._renderFloorPlacementSection(state, seg, state.mapActionStatus?.());
+            return body ? `<div class="evcc-map-fit-panel">${body}</div>` : "";
+          })()}
+
           <!-- Zoom controls. Absolute-positioned over the map. CSS-styled
                as a small floating toolbar; see styles/map.js -->
           <div class="evcc-map-zoom-toolbar" aria-label="${this.t("map.zoom_controls_aria")}">
@@ -1352,7 +1368,6 @@ export function applyMapRenderers(proto) {
           </div>
 
           <div class="evcc-map-config-side-panel">
-            ${this._renderFloorPlacementSection(state, selectedSeg, actionStatus)}
             ${furnishedOn ? this._renderFurnishedToolbar(state, actionStatus) : ""}
             ${isCustom
               ? this._renderComposerToolbar(state)

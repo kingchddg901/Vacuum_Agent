@@ -219,6 +219,36 @@ export const mapStyles = `
      readout reflects state.mapZoom() as a percentage.
      ========================================================= */
 
+  /* FLOOR PLACEMENT PANEL. Floats over the map on the LEFT, opposite the zoom
+     toolbar, because it is the only control whose effect is the map itself -- the
+     floor repaints under it on every press, so it has to sit beside the floor and
+     not over it. Appears only when exactly one room is selected and its material is
+     fitted; there is nothing to place otherwise. */
+  .evcc-map-fit-panel {
+    position:        absolute;
+    left:            10px;
+    bottom:          10px;
+    max-width:       15rem;
+    padding:         4px 6px;
+    background:      var(--evcc-map-tooltip-bg, rgba(20, 30, 50, 0.85));
+    border:          1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
+    border-radius:   6px;
+    backdrop-filter: blur(4px);
+    z-index:         10;
+    pointer-events:  auto;
+    user-select:     none;
+  }
+
+  /* The section inside it is styled for the config SIDE PANEL, which is wider and
+     opaque. Strip the chrome it brings so it reads as part of this panel rather than
+     a card floating inside another card. */
+  .evcc-map-fit-panel .evcc-map-config-section {
+    margin:     0;
+    padding:    0;
+    border:     none;
+    background: transparent;
+  }
+
   .evcc-map-zoom-toolbar {
     position:        absolute;
     right:           10px;
