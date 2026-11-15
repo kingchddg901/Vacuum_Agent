@@ -317,3 +317,76 @@ async def test_axt_9_floor_rotation_defaults_to_zero_not_missing(hass, manager):
 
     assert attrs["floor_rotation"] == 0.0
     assert isinstance(attrs["floor_rotation"], float)
+
+
+async def test_axt_10_the_switch_exposes_floor_fit(hass, manager):
+    """[AXT-10] THE SAME HOP A FOURTH TIME, and this one shipped broken.
+
+    The first three fields across this dict each had to learn it; `floor_fit` was
+    written, clamped, persisted, carried through a map rebuild and read back out of
+    `.storage` with the right numbers in it -- and it vanished on every page reload,
+    because the card does not read the store. It rebuilds its rooms from THESE
+    ATTRIBUTES, and this was not among them. Both ends were correct and the value never
+    arrived, which is precisely the failure the comment beside `floor_material` already
+    describes.
+
+    So the gate is the HOP, not the storage. Storage was never the problem.
+    """
+    clear_registry()
+    setup_map(manager, _VAC, _MAP, count=2)
+    _register(_VAC, block=EUFY_BLOCK, vocabulary=_EUFY_VOCAB)
+
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    rooms["1"]["floor_fit"] = {"tx": 0.4, "ty": -0.2, "scale": 1.3}
+
+    entity = EufyVacuumRoomEntity(
+        coordinator_key="eufy_vacuum",
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        room_id=1,
+        room_data={"name": "Kitchen"},
+        unique_suffix="probe",
+    )
+    entity.hass = hass
+    attrs = entity.extra_state_attributes
+
+    assert attrs["floor_fit"] == {"tx": 0.4, "ty": -0.2, "scale": 1.3}, (
+        "the floor draw reads a room's placement from this attribute; without it the "
+        "value is on disk and invisible to the only code that draws it, so every "
+        "reload looks like the save was lost"
+    )
+
+
+async def test_axt_11_floor_fit_defaults_to_an_empty_dict_not_missing(hass, manager):
+    """[AXT-11] A room that was never placed surfaces `{}`, not an absent key.
+
+    Empty means centred at exact cover, which is what every room written before the
+    field means. The card guards with a shape test, so an absent key would work by
+    luck; publishing a real `{}` keeps every consumer able to treat it as a placement
+    without first asking whether there is one.
+
+    It must also be a COPY. The attribute dict is handed out on every state read, and
+    returning the stored object would let a consumer's merge write back into the
+    manager's data -- a placement that changes with nobody touching it.
+    """
+    clear_registry()
+    setup_map(manager, _VAC, _MAP, count=2)
+    _register(_VAC, block=EUFY_BLOCK, vocabulary=_EUFY_VOCAB)
+
+    entity = EufyVacuumRoomEntity(
+        coordinator_key="eufy_vacuum",
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        room_id=1,
+        room_data={"name": "Kitchen"},
+        unique_suffix="probe",
+    )
+    entity.hass = hass
+    assert entity.extra_state_attributes["floor_fit"] == {}
+
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    stored = {"tx": 0.4}
+    rooms["1"]["floor_fit"] = stored
+    published = entity.extra_state_attributes["floor_fit"]
+    published["tx"] = 0.9
+    assert stored["tx"] == 0.4, "the published dict must be a copy, not the stored one"

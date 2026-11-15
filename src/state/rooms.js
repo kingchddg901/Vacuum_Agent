@@ -27,7 +27,7 @@
  *   vacuum_entity_id, map_id, room_id, room_name, slug,
  *   order, profile_name, clean_mode, fan_speed, water_level,
  *   clean_intensity, clean_passes, edge_mopping, floor_type,
- *   floor_material, floor_rotation,
+ *   floor_material, floor_rotation, floor_fit,
  *   carpet, grants_access_to, rules
  *
  * ORDER SOURCE OF TRUTH
@@ -606,6 +606,12 @@ export function applyRoomsState(proto) {
     const floorType = String(attrs.floor_type ?? "");
     const floorMaterial = String(attrs.floor_material ?? "");
     const floorRotation = Number(attrs.floor_rotation ?? 0) || 0;
+    // WHERE A FITTED MATERIAL SITS. Published by room_entities.py for the same reason
+    // floor_material and floor_rotation are: this object IS the room as far as every
+    // renderer is concerned, and a field missing here cannot reach the floor draw
+    // however correctly the backend stored it.
+    const floorFit = (attrs.floor_fit && typeof attrs.floor_fit === "object"
+      && !Array.isArray(attrs.floor_fit)) ? { ...attrs.floor_fit } : {};
     const floorTypeLabel = attrs.floor_type_label ?? null;
     const carpetType = String(attrs.carpet_type ?? "");
     const carpetTypeLabel = attrs.carpet_type_label ?? null;
@@ -727,6 +733,9 @@ export function applyRoomsState(proto) {
       // sharing a material routinely want different angles. Map only -- cards
       // stretch one mask rather than tiling, so there is no grid to turn.
       floor_rotation: floorRotation,
+      // Only a FITTED material reads it -- a tiled one shares one map-space grid and
+      // has nothing to place. Empty means centred at exact cover.
+      floor_fit: floorFit,
       carpet_type: carpetType,
       carpet_type_label: carpetTypeLabel,
       clean_mode: cleanMode,

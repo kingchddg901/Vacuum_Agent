@@ -341,6 +341,14 @@ class EufyVacuumRoomEntity(Entity):
             # reach the renderer however correctly it is stored. 0 means “as
             # authored”, which is what every room written before the field says.
             "floor_rotation": float(room.get("floor_rotation", 0) or 0),
+            # And the third, for the THIRD time the same reason. A placement was
+            # stored correctly, survived the rebuild, and still vanished on every
+            # reload -- because the card rebuilds its rooms from THESE attributes and
+            # this one was not among them. The value was on disk the whole time and
+            # invisible to the only code that draws it. `{}` is the default and means
+            # centred at exact cover, which is what every room written before the
+            # field says.
+            "floor_fit": dict(room.get("floor_fit") or {}),
             "clean_mode": effective.get("clean_mode"),
             "fan_speed": effective.get("fan_speed"),
             "water_level": effective.get("water_level"),
