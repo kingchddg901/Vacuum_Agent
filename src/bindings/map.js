@@ -13,7 +13,7 @@
 import { VIEWS } from "../render-cycle.js";
 import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N } from "../cards/map-room-color.js";
 import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl, tilesAcrossFloor } from "../textures/floor-texture-registry.js";
-import { resolveFit } from "../textures/floor-fit.js";
+import { resolveFit, normalizeFit } from "../textures/floor-fit.js";
 import { resolveFloorType, normalizeFloorRotationDeg } from "../textures/floor-texture-resolver.js";
 import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 
@@ -500,17 +500,14 @@ export function applyMapBindings(proto) {
       // own and no extra invalidation is needed.
       const draftFit = state?.floorFitDraft?.(room?.id ?? room?.room_id);
       const rawFit = draftFit ?? room?.floor_fit ?? room?.floorFit;
-      const fitNum = (v, dflt, lo, hi) => {
-        const n = Number(v);
-        return Number.isFinite(n) ? Math.min(Math.max(n, lo), hi) : dflt;
-      };
-      const place = (rawFit && typeof rawFit === "object")
-        ? {
-            tx: fitNum(rawFit.tx, 0, -1, 1),
-            ty: fitNum(rawFit.ty, 0, -1, 1),
-            scale: fitNum(rawFit.scale, 1, 0.25, 4),
-          }
-        : { tx: 0, ty: 0, scale: 1 };
+      // Clamped through the SHARED bound, not a local copy of the numbers. The `0.25`
+      // that used to sit here had a twin in `setFloorFitDraft`, which is how a control
+      // and the draw it feeds came to permit a scale BELOW cover: there the material
+      // stops filling the room and `resolveFit`'s slack correctly floors at 0, so the
+      // arrows go dead while the readout still reads `x -1.00`. Normalising HERE as well
+      // as at the draft matters for placements ALREADY STORED below cover -- they predate
+      // the bound and must still render covered rather than bare.
+      const place = { tx: 0, ty: 0, scale: 1, ...normalizeFit(rawFit) };
       const placeSig = `${place.tx.toFixed(4)},${place.ty.toFixed(4)},${place.scale.toFixed(4)}`;
       if (ft && room.name != null) {
         floorByName.set(norm(room.name), {
@@ -1889,6 +1886,37 @@ export function applyMapBindings(proto) {
     const liveFitFor = (roomId) =>
       this.card._state.floorFitDraft?.(roomId) ?? savedFitFor(roomId);
 
+    /* AUTO-SAVE, DEBOUNCED. There is no Save button: a placement is judged by eye, so
+       committing it is not a decision worth a second click. The debounce exists because
+       a nudge is a BURST -- somebody taps an arrow eight times -- and one service call
+       per tap would be eight writes for one adjustment. The draft is kept until the
+       write resolves so the floor does not flicker back while HA's state catches up. */
+    const scheduleFitSave = (roomId) => {
+      clearTimeout(this._floorFitSaveTimer);
+      this._floorFitSaveTimer = setTimeout(async () => {
+        const fit = this.card._state.floorFitDraft?.(roomId);
+        if (fit == null) return;
+        this.card._state.setMapActionStatus?.({ type: "floor-fit-save", status: "busy" });
+        this.card._scheduleRender();
+        try {
+          // update_room_fields, NOT save_managed_rooms: one named room, where that one
+          // rewrites the map's whole room configuration from the caller's payload.
+          await this.card._actions.updateRoomFields?.(roomId, { floor_fit: fit });
+          this.card._state.setMapActionStatus?.(null);
+        } catch (_err) {
+          this.card._state.setMapActionStatus?.({ type: "floor-fit-save", status: "error" });
+        }
+        this.card._scheduleRender();
+      }, 700);
+    };
+
+    root.querySelectorAll("[data-action='floor-place-room']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.setFloorPlacementRoomId?.(btn.dataset.roomId);
+        this.card._scheduleRender();
+      });
+    });
+
     root.querySelectorAll("[data-action='floor-fit-move']").forEach((btn) => {
       this.card._on(btn, "click", () => {
         const roomId = btn.dataset.roomId;
@@ -1902,6 +1930,7 @@ export function applyMapBindings(proto) {
           tx: (Number(cur.tx) || 0) + (Number(btn.dataset.dx) || 0) * pan,
           ty: (Number(cur.ty) || 0) + (Number(btn.dataset.dy) || 0) * pan,
         }, savedFitFor(roomId));
+        scheduleFitSave(roomId);
         this.card._scheduleRender();
       });
     });
@@ -1915,6 +1944,7 @@ export function applyMapBindings(proto) {
         this.card._state.setFloorFitDraft?.(roomId, {
           scale: (Number(cur.scale) || 1) * mult,
         }, savedFitFor(roomId));
+        scheduleFitSave(roomId);
         this.card._scheduleRender();
       });
     });
@@ -1933,36 +1963,7 @@ export function applyMapBindings(proto) {
         // An EMPTY draft, not a discard: discarding falls back to the SAVED placement,
         // which is the opposite of what Centre asks for.
         this.card._state.resetFloorFitDraft?.(roomId);
-        this.card._scheduleRender();
-      });
-    });
-
-    root.querySelectorAll("[data-action='floor-fit-discard']").forEach((btn) => {
-      this.card._on(btn, "click", () => {
-        this.card._state.discardFloorFitDrafts?.();
-        this.card._scheduleRender();
-      });
-    });
-
-    root.querySelectorAll("[data-action='floor-fit-save']").forEach((btn) => {
-      this.card._on(btn, "click", async () => {
-        const roomId = btn.dataset.roomId;
-        if (!roomId) return;
-        const fit = this.card._state.floorFitDraft?.(roomId);
-        if (fit == null) return;
-        this.card._state.setMapActionStatus?.({ type: "floor-fit-save", status: "busy" });
-        this.card._scheduleRender();
-        try {
-          // update_room_fields, NOT save_managed_rooms: this one touches a single named
-          // room, while that one rewrites the map's whole room configuration from the
-          // caller's payload. A dial being dragged on a map must not be able to take
-          // the room list with it.
-          await this.card._actions.updateRoomFields?.(roomId, { floor_fit: fit });
-          this.card._state.discardFloorFitDrafts?.();
-          this.card._state.setMapActionStatus?.(null);
-        } catch (_err) {
-          this.card._state.setMapActionStatus?.({ type: "floor-fit-save", status: "error" });
-        }
+        scheduleFitSave(roomId);
         this.card._scheduleRender();
       });
     });

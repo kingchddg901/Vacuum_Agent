@@ -890,6 +890,7 @@
     "empty_rendering_hint": "正在從裝置的房間資料繪製地圖 — 請稍候。",
     "empty_rendering_title": "正在繪製地圖…",
     "empty_upload_hint": "上傳並分析地圖圖片以啟用地圖檢視。",
+    "floor_place_pick_room": "請選擇上方的房間。",
     "floor_plan_alt": "樓層平面圖",
     "furnished_align": "對齊圖像",
     "furnished_align_hint": "在地圖上拖曳圖像，或在此微調。縮放並旋轉以對齊。",

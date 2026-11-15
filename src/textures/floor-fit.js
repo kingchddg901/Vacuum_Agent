@@ -46,6 +46,51 @@
  * under-scales and leaves the corners empty, because a rect's AABB is larger than the
  * rect. At rad = 0 this reduces exactly to max(w/sw, h/sh).
  */
+/**
+ * The scale range a PLACEMENT may use.
+ *
+ * The floor is 1 = exact cover, and it is 1 because of what `resolveFit` guarantees:
+ * "every value in range still covers the room BY CONSTRUCTION". Below cover that
+ * sentence is false, and it fails in two ways at once that look like separate bugs --
+ * the material no longer fills the room (bare floor shows through), and `slackX`
+ * correctly floors at 0, so `panX = tx * 0` and the arrows go dead while the readout
+ * still shows `x -1.00`. Measured on the live box at `0.30x`: a room 9/10 bare and a
+ * pan of -1.00 that moved nothing.
+ *
+ * `resolveFit` itself still floors slack at 0 -- that is correct DEFENCE against junk or
+ * stored data, and [FFIT-5] pins it. This constant is what stops a CONTROL from steering
+ * into that state deliberately. The two are different jobs: one cannot produce a negative
+ * pan, the other cannot ask for one.
+ */
+export const MIN_FIT_SCALE = 1;
+export const MAX_FIT_SCALE = 4;
+
+/**
+ * Clamp a placement to the range a placement may legally hold.
+ *
+ * Exported because TWO callers must agree and they are in different modules: the draft
+ * setter (so the control cannot author an illegal placement) and the floor draw (so a
+ * placement ALREADY STORED below cover -- which existed before this bound did -- renders
+ * covered rather than bare). Centralising the question rather than the numbers: a second
+ * copy of `0.25` was exactly how the control and the draw came to disagree.
+ *
+ * ABSENT STAYS ABSENT. A missing axis is not 0 and a missing scale is not 1: the draw
+ * treats absent as its own default, and writing one in here would turn "never placed"
+ * into "placed at the default", which is the distinction `_UNSET` exists to keep.
+ */
+export function normalizeFit(fit) {
+  const out = {};
+  if (!fit || typeof fit !== "object" || Array.isArray(fit)) return out;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  for (const [k, lo, hi] of [["tx", -1, 1], ["ty", -1, 1],
+                             ["scale", MIN_FIT_SCALE, MAX_FIT_SCALE]]) {
+    if (!(k in fit)) continue;
+    const n = Number(fit[k]);
+    if (Number.isFinite(n)) out[k] = clamp(n, lo, hi);
+  }
+  return out;
+}
+
 export function coverFactor(w, h, sw, sh, rad = 0) {
   if (!(sw > 0 && sh > 0)) return 0;
   const ac = Math.abs(Math.cos(rad)), as = Math.abs(Math.sin(rad));

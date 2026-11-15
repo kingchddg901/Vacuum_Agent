@@ -891,6 +891,7 @@
     "empty_rendering_hint": "Kreslím mapu z dat o místnostech ze zařízení — okamžik.",
     "empty_rendering_title": "Vykreslování mapy…",
     "empty_upload_hint": "Nahrajte a analyzujte obrázek mapy pro zapnutí zobrazení mapy.",
+    "floor_place_pick_room": "Vyberte místnost výše.",
     "floor_plan_alt": "Půdorys",
     "furnished_align": "Zarovnat grafiku",
     "furnished_align_hint": "Přetáhněte grafiku na mapě nebo ji posuňte zde. Změňte velikost a otočte pro sladění.",

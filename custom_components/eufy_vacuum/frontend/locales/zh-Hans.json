@@ -890,6 +890,7 @@
     "empty_rendering_hint": "正在根据设备的房间数据绘制地图 — 请稍候。",
     "empty_rendering_title": "正在渲染地图…",
     "empty_upload_hint": "上传并分析地图图片以启用地图视图。",
+    "floor_place_pick_room": "请在上方选择一个房间。",
     "floor_plan_alt": "平面图",
     "furnished_align": "对齐图稿",
     "furnished_align_hint": "在地图上拖动图稿，或在此微调。缩放并旋转以匹配。",

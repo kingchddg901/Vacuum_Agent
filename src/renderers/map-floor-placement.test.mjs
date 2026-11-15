@@ -110,7 +110,11 @@ test("[MFP-4] the draft wins over the saved placement, and dirty says which", ()
   const dirty = r._floorPlacementTarget(makeState({ draft }), room({ floor_fit: saved }));
   assert.deepEqual(dirty.fit, draft, "the draft is what the floor is drawing");
   assert.deepEqual(dirty.saved, saved, "...and the saved value is still reported");
-  assert.equal(dirty.dirty, true, "which is what offers Save and Cancel");
+  // No longer "what offers Save and Cancel" -- the panel AUTO-SAVES on adjust and has
+  // neither button. `dirty` is still load-bearing INSIDE the resolver (it is what
+  // picks draft over saved) and is reported so a caller can say which value is in
+  // force; it no longer gates a control.
+  assert.equal(dirty.dirty, true, "a draft is open, so the draft is what is in force");
 
   // An EMPTY draft is a real placement -- "back to centred" -- not an absent one.
   const reset = r._floorPlacementTarget(makeState({ draft: {} }), room({ floor_fit: saved }));
@@ -123,9 +127,18 @@ test("[MFP-5] with no draft, the SAVED placement is what the control shows", () 
   // invisible: dropped by a map rebuild, then absent from the entity attributes the card
   // builds its rooms from. By the time it reaches this function it must simply be used.
   const r = makeRenderer();
-  const t = r._floorPlacementTarget(makeState(), room({ floor_fit: { tx: 1, scale: 0.5 } }));
-  assert.deepEqual(t.fit, { tx: 1, scale: 0.5 });
+  const t = r._floorPlacementTarget(makeState(), room({ floor_fit: { tx: 1, scale: 1.5 } }));
+  assert.deepEqual(t.fit, { tx: 1, scale: 1.5 });
   assert.equal(t.dirty, false);
+
+  // ...but `fit` is NORMALISED, so a placement stored BELOW exact cover -- which was
+  // reachable before the scale floor existed, and one real room held 0.30 -- is reported
+  // at the floor, matching what the draw actually paints. `saved` still reports the raw
+  // stored value, because "what is in storage" is a different question from "what is on
+  // screen" and conflating them is how a readout comes to contradict the floor under it.
+  const legacy = r._floorPlacementTarget(makeState(), room({ floor_fit: { tx: -1, scale: 0.3 } }));
+  assert.equal(legacy.fit.scale, 1, "a sub-cover stored scale reports at the floor");
+  assert.equal(legacy.saved.scale, 0.3, "while `saved` still tells the truth about storage");
 
   // A room that was never placed shows the default rather than undefined.
   assert.deepEqual(r._floorPlacementTarget(makeState(), room()).fit, {});

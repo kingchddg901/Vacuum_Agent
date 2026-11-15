@@ -3,6 +3,7 @@
 
 import { mascotFacingSign, commitFacing } from "./mascot-facing.js";
 import { accumulateTrail } from "./live-trail.js";
+import { normalizeFit } from "../textures/floor-fit.js";
 
 // Smallest slice of the scaled map content (in container px) that must stay
 // inside the viewport. The pinned translate is stored in absolute container px,
@@ -305,6 +306,7 @@ export function applyMapState(proto) {
       // within a map -- carrying a draft across a switch would place room 3 of the new
       // map with room 3 of the old one's numbers, which is wrong and looks deliberate.
       this._floorFitDrafts = null;
+      this._floorPlacementRoomId = null;
       this._furnishedModeOverlay = null;
       if (data?.map_id !== oldMapId) {
         // Reset the PINNED pan/zoom only on a genuine switch between two REAL maps —
@@ -1542,12 +1544,11 @@ export function applyMapState(proto) {
     const key = String(roomId);
     const base = this._floorFitDrafts[key]
       ?? (saved && typeof saved === "object" ? { ...saved } : {});
-    const next = { ...base };
-    for (const [k, lo, hi] of [["tx", -1, 1], ["ty", -1, 1], ["scale", 0.25, 4]]) {
-      if (!(patch && k in patch)) continue;
-      const n = Number(patch[k]);
-      if (Number.isFinite(n)) next[k] = Math.min(Math.max(n, lo), hi);
-    }
+    // The BASE is normalised too, not just the patch: it can come from a SAVED placement
+    // authored before the scale floor existed (one real one did -- 0.30x), and a patch
+    // that only touches `tx` would otherwise carry that sub-cover scale forward untouched
+    // and keep the arrows dead for a reason the user just tried to fix.
+    const next = { ...base, ...normalizeFit(base), ...normalizeFit(patch) };
     this._floorFitDrafts[key] = next;
   };
 
@@ -1564,6 +1565,19 @@ export function applyMapState(proto) {
   /** Room ids with an open draft, so a save knows what to send and a UI knows to offer. */
   proto.floorFitDraftRoomIds = function () {
     return this._floorFitDrafts ? Object.keys(this._floorFitDrafts) : [];
+  };
+
+  /* WHICH ROOM THE PLACEMENT PANEL IS ADJUSTING.
+
+     Its own selection, deliberately not the room editor's. The editor is a full-screen
+     modal that COVERS THE MAP -- so keying the panel on it put the control and the floor
+     it changes on opposite sides of an overlay, which is the fourth surface this control
+     was attached to without a person being able to see both at once. A panel in the side
+     column sits BESIDE the map, so the floor repaints where you can watch it. */
+  proto._floorPlacementRoomId = null;
+  proto.floorPlacementRoomId = function () { return this._floorPlacementRoomId; };
+  proto.setFloorPlacementRoomId = function (id) {
+    this._floorPlacementRoomId = id == null ? null : String(id);
   };
 
   proto._floorFitStep = 3;

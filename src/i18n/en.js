@@ -771,6 +771,7 @@ export const en = {
   "map.empty_rendering_hint": "Drawing the map from the device's room data — one moment.",
   "map.empty_rendering_title": "Rendering the map…",
   "map.empty_upload_hint": "Upload and analyze a map image to enable map view.",
+  "map.floor_place_pick_room": "Select a room above.",  // Hint in the Placement panel beside the map when SEVERAL rooms on this map carry a fitted material and none is chosen yet -- the room picker sits directly above it. Same sentence as room_rules.select_room_above; a separate key because that one is named for its own consumer, and the 17 translations here are seeded from it.
   "map.floor_plan_alt": "Floor plan",  // alt text on the map <img>; describes the floor-plan image for screen readers
   "map.furnished_align": "Align art",
   "map.furnished_align_hint": "Drag the art on the map, or nudge it here. Scale + rotate to match.",

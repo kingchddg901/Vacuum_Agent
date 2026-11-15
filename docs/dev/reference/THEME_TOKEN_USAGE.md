@@ -8,7 +8,7 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **425** · consumer `var()` uses **2385**
+- Catalog **425** · consumer `var()` uses **2390**
 - **277** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
 - `var()` → non-catalog tokens **13** · dynamic `var(--evcc-…${…})` sites **3**
 
@@ -16,7 +16,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 > - **98** `animal` — `src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`
 > - **38** `floor-material` — `src/renderers/floor-texture-surface.js` and `src/bindings/map.js` build `--evcc-floor-${type}-…` from the material key
 > - **12** `room-fill` — `src/cards/map-room-color.js` — `roomFillTokenName(i)` builds `--evcc-room-fill-N`, 1-based and wrapping at 12 (contract pinned by MRC-1..MRC-7)
-- **Token CSS coverage 98.8%** — 1438/1456 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
+- **Token CSS coverage 98.8%** — 1440/1458 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
 
 ---
 
@@ -246,6 +246,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js (padding)
 
 **`--evcc-panel-bg`** — Panel BG · default `var(--evcc-surface-panel)` src/styles/foundation.js
+- src/styles/map.js
 - src/styles/run-profiles.js
 - src/styles/saved-zones.js
 - src/styles/theme-preview.js
@@ -487,6 +488,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-shadow-card`** — Shadow Card · default —
 - src/styles/learning.js (--evcc-learning-panel-shadow)
+- src/styles/map.js (box-shadow)
 - src/styles/order.js
 - src/styles/rooms.js (box-shadow)
 - src/styles/run-profiles.js (box-shadow)
@@ -1802,6 +1804,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-radius-panel`** — Radius Panel · default —
 - src/styles/learning.js (border-radius)
+- src/styles/map.js (border-radius)
 - src/styles/room-access.js (border-radius)
 - src/styles/rooms.js (border-radius)
 - src/styles/run-profiles.js (border-radius)

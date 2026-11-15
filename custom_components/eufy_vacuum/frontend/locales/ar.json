@@ -895,6 +895,7 @@
     "empty_rendering_hint": "جارٍ رسم الخريطة من بيانات غرف الجهاز — لحظة واحدة.",
     "empty_rendering_title": "جارٍ عرض الخريطة…",
     "empty_upload_hint": "ارفع صورة خريطة وحلّلها لتفعيل عرض الخريطة.",
+    "floor_place_pick_room": "اختر غرفة من الأعلى.",
     "floor_plan_alt": "مخطط الطابق",
     "furnished_align": "محاذاة الرسم",
     "furnished_align_hint": "اسحب الرسم على الخريطة، أو حرّكه هنا. غيّر الحجم ودوّره للمطابقة.",

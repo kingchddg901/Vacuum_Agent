@@ -208,6 +208,20 @@ export function applyRoomsRenderers(proto) {
           </div>
 
           <div class="evcc-rooms-sidecol">
+            ${/* MAP ONLY -- and the sidecol is SHARED. isMapViewActive swaps the MAIN
+                  column between the map and the room-card GRID; this column renders in
+                  both. Ungated, the panel therefore appeared beside the cards too, and
+                  with no chrome of its own: its markup borrows .evcc-map-config-section,
+                  which is a ROW in the map-config sidebar (border-bottom, no background,
+                  no radius), so in this column it drew as a bare block with a stray
+                  hairline above every room card. Gated the way _renderZonePanel below
+                  already is. Beside the map, never over it: the floor repaints under
+                  every adjust and watching it happen is the entire point. Returns ""
+                  when no room on this map has a FITTED material, so it costs nothing
+                  where it would do nothing. */""}
+            ${(state.isMapViewActive?.() ?? false) && typeof this.renderFloorPlacementPanel === "function"
+              ? this.renderFloorPlacementPanel(state)
+              : ""}
             ${typeof this.renderRunProfilesPanel === "function"
               ? this.renderRunProfilesPanel(state)
               : ""}

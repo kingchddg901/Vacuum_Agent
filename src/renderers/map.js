@@ -13,6 +13,7 @@ import { roomFillCss, normalizeHex } from "../cards/map-room-color.js";
 import { animalDisplayName } from "../theme-tokens/animals.js";
 import { FLOOR_TEXTURE_REGISTRY, tilesAcrossFloor } from "../textures/floor-texture-registry.js";
 import { resolveFloorType } from "../textures/floor-texture-resolver.js";
+import { MIN_FIT_SCALE, MAX_FIT_SCALE, normalizeFit } from "../textures/floor-fit.js";
 
 /* =========================================================
    VACUUM STATE → ANIMAL POSE
@@ -278,31 +279,6 @@ export function applyMapRenderers(proto) {
 
           <div class="evcc-map-tooltip" aria-hidden="true"></div>
 
-          <!-- FLOOR PLACEMENT. It lives HERE and nowhere else, because this is the only
-               view that mounts evcc-map-render-canvas -- the VA raster, which is the
-               thing being placed. The config view has a map but draws the camera
-               backdrop; the setup room editor has no map at all. A control beside a
-               surface that cannot show its effect is the defect, not a convenience,
-               so it is not offered on either of those. -->
-          ${(() => {
-            if (!vaActive || typeof this._renderFloorPlacementSection !== "function") return "";
-            // THE ROOM, from whichever handle this map actually has. A map with CV
-            // segments offers a single selected one; a raster map (room_pixels rids)
-            // has no segments at all, and there the room editor is the only selection
-            // that exists. Taking either means the control appears on both.
-            let room = state.activeEditorRoom?.() ?? null;
-            if (!room && Array.isArray(segments) && selectedIds.size === 1) {
-              const only = [...selectedIds][0];
-              const seg = segments.find((x) => String(x.segment_id) === String(only));
-              const rid = seg ? state.roomIdForSegment?.(seg.segment_id) : null;
-              if (rid != null) {
-                room = rooms.find((r) => String(r.id ?? r.room_id) === String(rid)) ?? null;
-              }
-            }
-            if (!room) return "";
-            const body = this._renderFloorPlacementSection(state, room, state.mapActionStatus?.());
-            return body ? `<div class="evcc-map-fit-panel">${body}</div>` : "";
-          })()}
 
           <!-- Zoom controls. Absolute-positioned over the map. CSS-styled
                as a small floating toolbar; see styles/map.js -->
@@ -1704,87 +1680,138 @@ export function applyMapRenderers(proto) {
      Upload a to-scale home render, pick a render mode (live/art/blend), and align the
      art over the live map (nudge/scale/rotate; pointer-drag on the art itself). Matches
      the composer toolbar UX. Only shown when the furnished layout is active. */
-  /* WHERE A FITTED MATERIAL SITS IN THE SELECTED ROOM.
+  /* THE FLOOR PLACEMENT PANEL, for the side column beside the map.
 
-     It lives HERE, in the config side panel, and not in the setup room editor where the
-     material and rotation controls are -- because that editor is a list with no map, and
-     a pan you cannot see is not a control. The floor is drawn two feet to the left of
-     this panel, and the draft these buttons write is what the floor draw reads, so every
-     press repaints immediately and nothing is stored until Save.
+     It carries its OWN room picker rather than borrowing a selection, because the two
+     selections this card already has are both unusable for it: the room editor is a
+     modal that covers the map, and the SVG segment list is empty on a raster map (the
+     development map has zero segments; its rooms come from room_pixels rids). Both were
+     tried. A panel beside the map with its own picker is the only arrangement where the
+     control and the floor it changes are visible at the same time.
 
-     Shown only when the selected room's material is actually FITTED. A tiled material
-     shares one map-space grid anchored at (0,0); there is nothing to place, and a dial
-     that moves while nothing changes reads as a broken render rather than a disabled
-     feature. */
-  /* The room being placed, IF its material is one that gets placed.
-
-     IT TAKES A ROOM, NOT A SEGMENT, and that is the fix for the bug this whole control
-     had. It was gated on a single selected SVG segment -- and the development map has
-     ZERO segments. Its rooms come from the room_pixels raster rids (ten of them in
-     room_names), so the polygon layer is empty, nothing is selectable there, and the
-     panel could never appear however correct everything behind it was. Measured in the
-     running card: segments 0, selectedSegmentIds [], renderData present 256x245.
-
-     That was the third surface I attached this to without checking it could fire on
-     real data: a list with no map, a view that draws the camera backdrop instead of the
-     floor, and a gate the map cannot satisfy. Keying on the ROOM uses the same bridge
-     the floor draw itself uses, so if the floor can be drawn the control can be shown.
-
-     Returns null for every other case rather than a disabled control: no room, no
-     material, or a material that TILES -- the last because a tiled material shares one
-     map-space grid and has nothing to place, so the dial could not move anything. */
+     THERE IS NO SAVE BUTTON. Every adjust writes the draft -- which the floor draw reads,
+     so the repaint is immediate -- and schedules a debounced write. A placement is a
+     thing you judge by eye, so committing it is not a decision worth a second click. */
+  /**
+   * Is this ROOM's floor one that can be placed, and where is it placed right now?
+   *
+   * TAKES A ROOM, deliberately, and consults nothing else. The control was attached to
+   * three surfaces in a row that could not show it, and the last of those keyed on a
+   * selected SVG SEGMENT -- while the development map has ZERO segments (its rooms come
+   * from `room_pixels` raster rids), so the polygon layer is empty, nothing there is
+   * selectable, and the panel could never appear however correct every layer behind it
+   * was. [MFP-1] hands this a state whose every segment accessor THROWS, so reaching for
+   * one again is red rather than silently working only on maps that have them.
+   *
+   * The tile/fit question is asked exactly as the floor draw asks it in bindings/map.js:
+   * resolveFloorType over the same three fields, then tilesAcrossFloor on the registry
+   * ENTRY. A TILED material shares one (0,0)-anchored grid across the whole map, so there
+   * is nothing per-room to place and this returns null rather than a dead control.
+   *
+   * @returns {null|{roomId: string, roomName: string, fit: object, saved: object,
+   *                 dirty: boolean}} null when this room has nothing to place.
+   */
   proto._floorPlacementTarget = function (state, room) {
-    if (!room) return null;
-    const roomId = room.id ?? room.room_id;
-    if (roomId == null) return null;
+    if (!room || typeof room !== "object") return null;
+
+    const rawId = room.id ?? room.room_id;
+    if (rawId == null || String(rawId) === "") return null;  // unkeyable -> unsaveable
 
     const ft = resolveFloorType({
-      floor_type: room.floor_type ?? room.floorType ?? "",
-      carpet_type: room.carpet_type ?? room.carpetType ?? "",
+      floor_type:     room.floor_type     ?? room.floorType     ?? "",
+      carpet_type:    room.carpet_type    ?? room.carpetType    ?? "",
       floor_material: room.floor_material ?? room.floorMaterial ?? "",
     });
-    if (!ft || ft === "default") return null;
+    if (ft === "default") return null;                       // flat palette fill, no texture
+    // An unknown type yields no entry, and tilesAcrossFloor answers TRUE for that -- so an
+    // unresolved material fails closed into "nothing to place" rather than a live control
+    // over a floor that is not being fitted.
     if (tilesAcrossFloor(FLOOR_TEXTURE_REGISTRY[ft])) return null;
 
-    const draft = state.floorFitDraft?.(roomId);
-    const saved = (room.floor_fit ?? room.floorFit) || {};
+    // The stored placement, shape-guarded: these arrive as entity ATTRIBUTES, and an
+    // array is the one truthy non-placement a bare typeof check would let through.
+    const savedRaw = room.floor_fit ?? room.floorFit;
+    const saved = (savedRaw && typeof savedRaw === "object" && !Array.isArray(savedRaw))
+      ? savedRaw : {};
+
+    // An OPEN draft wins, and an EMPTY one is a real placement ("back to centred"), not an
+    // absent one -- so the test is against null, never truthiness.
+    const draft = state?.floorFitDraft?.(rawId);
+    const dirty = draft != null;
+
+    // `fit` is NORMALISED, `saved` is not. The readout and the zoom-button disable both
+    // read `fit`, and the floor draw normalises too -- so an un-normalised `fit` would
+    // print "0.30x" under a floor painted at exact cover, and leave the "-" button live
+    // at a bound it cannot cross. A stored sub-cover placement is real (one existed
+    // before the bound did), so this is not hypothetical. `saved` stays raw because it
+    // answers a different question: what is actually in storage.
     return {
-      roomId: String(roomId),
-      roomName: String(room.name ?? roomId),
+      roomId:   String(rawId),
+      roomName: String(room.name ?? room.room_name ?? rawId),
+      fit:      normalizeFit(dirty ? draft : saved),
       saved,
-      fit: draft ?? saved,
-      dirty: draft != null,
+      dirty,
     };
   };
 
-  proto._renderFloorPlacementSection = function (state, room, actionStatus) {
-    if (typeof this._floorPlacementTarget !== "function") return "";
-    const target = this._floorPlacementTarget(state, room);
-    if (!target) return "";
+  proto.renderFloorPlacementPanel = function (state) {
+    const rooms = state.getRoomsForActiveMap?.() ?? [];
+    const placeable = rooms.filter((r) => this._floorPlacementTarget(state, r));
+    if (!placeable.length) return "";
 
-    const { roomId, roomName, fit, dirty } = target;
+    // One placeable room needs no picker; several do. The stored choice may name a room
+    // that has since changed material, so it is validated against the list, not trusted.
+    const wantId = state.floorPlacementRoomId?.();
+    const room = placeable.find((r) => String(r.id ?? r.room_id) === String(wantId))
+      ?? (placeable.length === 1 ? placeable[0] : null);
+
+    const picker = placeable.length > 1
+      ? `<div class="evcc-floor-place-rooms">${placeable.map((r) => {
+          const id = String(r.id ?? r.room_id);
+          const on = room && String(room.id ?? room.room_id) === id;
+          return `<button class="evcc-map-config-btn${on ? " evcc-map-config-btn--primary" : ""}"
+                    data-action="floor-place-room" data-room-id="${id}"
+                    >${this.escapeHtml(String(r.name ?? id))}</button>`;
+        }).join("")}</div>`
+      : "";
+
+    if (!room) {
+      return `<div class="evcc-map-config-section evcc-floor-place-panel">
+        <div class="evcc-map-config-section-title">${this.t("setup.floor_fit")}</div>
+        ${picker}
+        <div class="evcc-map-config-adj-meta">${this.t("map.floor_place_pick_room")}</div>
+      </div>`;
+    }
+
+    const t = this._floorPlacementTarget(state, room);
+    const roomId = t.roomId;
+    const fit = t.fit;
     const step = state.floorFitStep?.() ?? 3;
     const pan = step * 0.02;
-    const busy = actionStatus?.type === "floor-fit-save" && actionStatus?.status === "busy";
+    const saving = state.mapActionStatus?.()?.type === "floor-fit-save"
+      && state.mapActionStatus?.()?.status === "busy";
 
     const mv = (dx, dy, glyph, label) => `
       <button class="evcc-map-nudge-btn" data-action="floor-fit-move"
         data-room-id="${roomId}" data-dx="${dx}" data-dy="${dy}"
-        title="${this.escapeHtml(label)}" ${busy ? "disabled" : ""}>${glyph}</button>`;
-    const zoom = (mult, glyph, label) => `
+        title="${this.escapeHtml(label)}">${glyph}</button>`;
+    // DISABLED AT THE BOUND rather than silently no-op. 1x is exact cover: below it the
+    // material stops filling the room and the pan arrows go dead too (slack floors at 0),
+    // which reads as three broken controls instead of one honest limit.
+    const curScale = Number(fit.scale) || 1;
+    const zoom = (mult, glyph, label, off) => `
       <button class="evcc-map-config-btn" data-action="floor-fit-zoom"
         data-room-id="${roomId}" data-mult="${mult}"
-        title="${this.escapeHtml(label)}" ${busy ? "disabled" : ""}>${glyph}</button>`;
+        title="${this.escapeHtml(label)}"${off ? " disabled" : ""}>${glyph}</button>`;
     const stepBtn = (n, label) => `
       <button class="evcc-map-config-btn${step === n ? " evcc-map-config-btn--primary" : ""}"
-        data-action="floor-fit-step" data-step="${n}" ${busy ? "disabled" : ""}>${label}</button>`;
-
+        data-action="floor-fit-step" data-step="${n}">${label}</button>`;
     const num = (v) => (Number(v) || 0).toFixed(2);
+
     return `
-      <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">
-          ${this.t("setup.floor_fit")} <em>${this.escapeHtml(roomName)}</em>
-        </div>
+      <div class="evcc-map-config-section evcc-floor-place-panel">
+        <div class="evcc-map-config-section-title">${this.t("setup.floor_fit")}</div>
+        ${picker}
         <div class="evcc-compose-tools">
           ${stepBtn(1, this.t("map.compose_step_fine"))}${stepBtn(3, this.t("map.compose_step_med"))}${stepBtn(7, this.t("map.compose_step_coarse"))}
         </div>
@@ -1794,22 +1821,16 @@ export function applyMapRenderers(proto) {
           <div class="evcc-map-nudge-row">${mv(0, 1, "↓", this.t("map.nudge_down"))}</div>
         </div>
         <div class="evcc-compose-tools">
-          ${zoom(1.1, "+", this.t("setup.floor_fit_zoom_in"))}
-          ${zoom(1 / 1.1, "−", this.t("setup.floor_fit_zoom_out"))}
+          ${zoom(1.1, "+", this.t("setup.floor_fit_zoom_in"), curScale >= MAX_FIT_SCALE)}
+          ${zoom(1 / 1.1, "−", this.t("setup.floor_fit_zoom_out"), curScale <= MIN_FIT_SCALE)}
           <button class="evcc-map-config-btn" data-action="floor-fit-reset"
-            data-room-id="${roomId}" ${busy ? "disabled" : ""}>${this.t("setup.floor_fit_reset")}</button>
+            data-room-id="${roomId}">${this.t("setup.floor_fit_reset")}</button>
         </div>
         <div class="evcc-map-config-adj-meta">${this.escapeHtml(
           this.t("setup.floor_fit_readout", {
             x: num(fit.tx), y: num(fit.ty),
             scale: (Number(fit.scale) || 1).toFixed(2),
-          }))}</div>
-        ${dirty ? `
-        <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn evcc-map-config-btn--primary${busy ? " evcc-map-config-btn--busy" : ""}"
-            data-action="floor-fit-save" data-room-id="${roomId}" ${busy ? "disabled" : ""}>${this.t("common.save")}</button>
-          <button class="evcc-map-config-btn" data-action="floor-fit-discard" ${busy ? "disabled" : ""}>${this.t("common.cancel")}</button>
-        </div>` : ""}
+          }))}${saving ? " · " + this.escapeHtml(this.t("common.saving")) : ""}</div>
       </div>`;
   };
 

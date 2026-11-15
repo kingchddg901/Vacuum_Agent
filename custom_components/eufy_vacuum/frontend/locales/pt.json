@@ -634,6 +634,7 @@
     "empty_rendering_hint": "A desenhar o mapa a partir dos dados das divisões do dispositivo — um momento.",
     "empty_rendering_title": "A desenhar o mapa…",
     "empty_upload_hint": "Carregue e analise uma imagem de mapa para ativar a vista do mapa.",
+    "floor_place_pick_room": "Selecione uma divisão acima.",
     "floor_plan_alt": "Planta",
     "furnished_align": "Alinhar arte",
     "furnished_align_hint": "Arraste a arte no mapa, ou ajuste-a aqui. Dimensione + rode para coincidir.",

@@ -891,6 +891,7 @@
     "empty_rendering_hint": "Rysowanie mapy na podstawie danych o pokojach z urządzenia — chwileczkę.",
     "empty_rendering_title": "Renderowanie mapy…",
     "empty_upload_hint": "Prześlij i przeanalizuj obraz mapy, aby włączyć widok mapy.",
+    "floor_place_pick_room": "Wybierz pokój powyżej.",
     "floor_plan_alt": "Plan pomieszczeń",
     "furnished_align": "Wyrównaj grafikę",
     "furnished_align_hint": "Przeciągnij grafikę na mapie lub przesuń ją tutaj. Skaluj i obróć, aby dopasować.",

@@ -599,6 +599,28 @@ export const mapStyles = `
   .evcc-rooms-sidecol > .evcc-run-profiles-panel {
     flex: 0 0 auto;
   }
+
+  /* The floor-placement panel borrows .evcc-map-config-section for its internals (flex
+     column + gap), but that class is a ROW in the map-config sidebar -- border-bottom,
+     no background, no radius -- so on its own it rendered here as a bare block with a
+     stray hairline. The chrome is re-established at this higher specificity rather than
+     by renaming the shared internals, which the config view still needs as a row. */
+  .evcc-rooms-sidecol > .evcc-floor-place-panel {
+    flex:          0 0 auto;
+    box-sizing:    border-box;
+    padding:       14px;
+    border-radius: var(--evcc-radius-panel, 16px);
+    border:        1px solid var(--evcc-border-default);
+    background:    var(--evcc-surface-panel, var(--evcc-panel-bg, #1c2127));
+    box-shadow:    var(--evcc-shadow-card, 0 6px 14px rgba(0, 0, 0, 0.14));
+  }
+
+  /* The room picker. Wraps, because a map can carry ten rooms and the column is 300px. */
+  .evcc-floor-place-rooms {
+    display:   flex;
+    flex-wrap: wrap;
+    gap:       6px;
+  }
   .evcc-zone-panel {
     box-sizing:     border-box;
     display:        flex;

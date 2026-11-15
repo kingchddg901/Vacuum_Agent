@@ -634,6 +634,7 @@
     "empty_rendering_hint": "Dessin de la carte à partir des données de pièces de l'appareil — un instant.",
     "empty_rendering_title": "Rendu de la carte…",
     "empty_upload_hint": "Importez et analysez une image de carte pour activer la vue carte.",
+    "floor_place_pick_room": "Sélectionnez une pièce ci-dessus.",
     "floor_plan_alt": "Plan d'étage",
     "furnished_align": "Aligner l'illustration",
     "furnished_align_hint": "Faites glisser l'illustration sur la carte, ou ajustez-la ici. Mettez à l'échelle et faites pivoter pour correspondre.",

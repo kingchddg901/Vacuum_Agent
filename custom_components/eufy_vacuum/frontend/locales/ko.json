@@ -890,6 +890,7 @@
     "empty_rendering_hint": "기기의 방 데이터로 지도를 그리는 중 — 잠시만요.",
     "empty_rendering_title": "지도 렌더링 중…",
     "empty_upload_hint": "지도 보기를 사용하려면 지도 이미지를 업로드하고 분석하세요.",
+    "floor_place_pick_room": "위에서 방을 선택하세요.",
     "floor_plan_alt": "평면도",
     "furnished_align": "아트 정렬",
     "furnished_align_hint": "지도 위에서 아트를 드래그하거나 여기서 미세 조정하세요. 크기와 회전을 맞추세요.",

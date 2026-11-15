@@ -628,6 +628,7 @@
     "empty_rendering_hint": "Die Karte wird aus den Raumdaten des Geräts gezeichnet — einen Moment.",
     "empty_rendering_title": "Karte wird gezeichnet…",
     "empty_upload_hint": "Lade ein Kartenbild hoch und analysiere es, um die Kartenansicht zu aktivieren.",
+    "floor_place_pick_room": "Wähle oben einen Raum aus.",
     "floor_plan_alt": "Grundriss",
     "furnished_align": "Grafik ausrichten",
     "furnished_align_hint": "Ziehe die Grafik auf der Karte oder verschiebe sie hier. Skaliere und drehe sie zur Anpassung.",

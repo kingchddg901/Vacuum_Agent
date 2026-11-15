@@ -634,6 +634,7 @@
     "empty_rendering_hint": "Dibujando el mapa a partir de los datos de habitaciones del dispositivo; un momento.",
     "empty_rendering_title": "Generando el mapa…",
     "empty_upload_hint": "Sube y analiza una imagen de mapa para habilitar la vista de mapa.",
+    "floor_place_pick_room": "Selecciona una habitación arriba.",
     "floor_plan_alt": "Plano de planta",
     "furnished_align": "Alinear ilustración",
     "furnished_align_hint": "Arrastra la ilustración sobre el mapa, o ajústala aquí. Escala y rota para que coincida.",

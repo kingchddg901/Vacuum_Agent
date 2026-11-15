@@ -891,6 +891,7 @@
     "empty_rendering_hint": "Harita, cihazın oda verilerinden çiziliyor — bir saniye.",
     "empty_rendering_title": "Harita çiziliyor…",
     "empty_upload_hint": "Harita görünümünü etkinleştirmek için bir harita resmi yükleyip analiz edin.",
+    "floor_place_pick_room": "Yukarıdan bir oda seçin.",
     "floor_plan_alt": "Kat planı",
     "furnished_align": "Görseli hizala",
     "furnished_align_hint": "Görseli haritanın üzerinde sürükleyin ya da buradan ittirin. Eşleştirmek için ölçeklendirin ve döndürün.",

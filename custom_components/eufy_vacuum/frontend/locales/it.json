@@ -630,6 +630,7 @@
     "empty_rendering_hint": "Disegno della mappa dai dati delle stanze del dispositivo — un momento.",
     "empty_rendering_title": "Disegno della mappa…",
     "empty_upload_hint": "Carica e analizza un'immagine di mappa per abilitare la vista mappa.",
+    "floor_place_pick_room": "Seleziona una stanza sopra.",
     "floor_plan_alt": "Pianta",
     "furnished_align": "Allinea arte",
     "furnished_align_hint": "Trascina l'arte sulla mappa, oppure spostala qui. Scala e ruota per farla combaciare.",

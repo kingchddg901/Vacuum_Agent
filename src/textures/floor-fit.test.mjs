@@ -24,12 +24,15 @@
  * [FFIT-5] scale buys pan range, and a scale below cover cannot produce negative slack.
  * [FFIT-6] junk and absent values fall back to the identity rather than NaN, which would
  *          reach a canvas transform and blank the room with nothing logged.
+ * [FFIT-7] normalizeFit holds the scale at or above exact cover, so a CONTROL cannot
+ *          steer into the state [FFIT-5] defends against -- where the room is part bare
+ *          and the pan arrows are dead because slack is legitimately 0.
  */
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { coverFactor, resolveFit } from "./floor-fit.js";
+import { coverFactor, resolveFit, normalizeFit, MIN_FIT_SCALE, MAX_FIT_SCALE } from "./floor-fit.js";
 
 const MASK = 2048;
 
@@ -138,4 +141,44 @@ test("[FFIT-6] junk falls back to the identity rather than reaching a transform 
   }
   assert.equal(resolveFit({ W: 0, H: 0, sw: MASK, sh: MASK }), null, "a degenerate buffer yields null");
   assert.equal(resolveFit({ W, H, sw: 0, sh: 0 }), null, "an undecoded source yields null");
+});
+
+test("[FFIT-7] normalizeFit floors the scale at exact cover, and that revives the pan", () => {
+  // THE REAL CASE, off the live box: a placement saved at 0.30x with tx/ty at the stops.
+  // The room drew 9/10 bare and `x -1.00` moved the mask not at all -- the pan was not
+  // ignored, it was multiplying a slack of 0. Both symptoms have one cause and one fix.
+  const r = ROOMS[0], { W, H } = buf(r);
+  const stored = { tx: -1, ty: -1, scale: 0.3 };
+
+  const raw = resolveFit({ W, H, sw: MASK, sh: MASK, rw: r.rw, rh: r.rh, ...stored });
+  // `===` not assert.equal: a dead pan is `-1 * 0` = NEGATIVE zero, and strict equal
+  // uses Object.is, which separates -0 from 0. The distinction is noise here and the
+  // failure it produces ("+ -0 / - 0") reads like a real disagreement.
+  assert.ok(raw.panX === 0, "precondition: below cover there is no slack to pan into");
+  assert.ok(raw.dw < r.rw, "precondition: below cover the mask is narrower than the room");
+
+  const fixed = resolveFit({ W, H, sw: MASK, sh: MASK, rw: r.rw, rh: r.rh,
+                             ...normalizeFit(stored) });
+  assert.equal(normalizeFit(stored).scale, MIN_FIT_SCALE, "0.30 is lifted to exact cover");
+  assert.ok(fixed.slackX > 0 && fixed.slackY > 0, "and the slack comes back");
+  assert.ok(fixed.panX < 0, "so tx = -1 actually moves the mask, and in the right direction");
+  assert.ok(fixed.dw >= r.rw && fixed.dh >= r.rh, "and the room is covered again");
+
+  // ABLATION -- the bound has to be able to answer both ways, or it proves nothing.
+  assert.notEqual(raw.panX, fixed.panX,
+    "if these agree the clamp did nothing and this test cannot fail");
+
+  // The stops and the ceiling.
+  assert.deepEqual(normalizeFit({ tx: -9, ty: 9, scale: 99 }),
+    { tx: -1, ty: 1, scale: MAX_FIT_SCALE });
+
+  // ABSENT STAYS ABSENT. Writing a default in here would turn "never placed" into
+  // "placed at the default" and lose the distinction the storage layer keeps with _UNSET.
+  assert.deepEqual(normalizeFit({}), {});
+  assert.deepEqual(normalizeFit({ tx: 0.5 }), { tx: 0.5 }, "no scale key invented");
+  for (const junk of [null, undefined, [], [1], "x", 7]) {
+    assert.deepEqual(normalizeFit(junk), {}, `${JSON.stringify(junk) ?? String(junk)} is not a fit`);
+  }
+  // A non-finite value is dropped, not clamped to a bound -- NaN would survive Math.min.
+  assert.deepEqual(normalizeFit({ scale: NaN, tx: "abc" }), {});
 });
