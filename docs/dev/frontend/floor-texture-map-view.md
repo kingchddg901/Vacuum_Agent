@@ -29,9 +29,16 @@ Two things happen before any material is touched:
   **not** `"default"` **and** `getPrimaryTextureUrl(ft)` returns a URL — every other room
   falls back to the flat palette fill, in the same pass. So "no floor type set" and "type
   with no assets" degrade identically and silently to the flat render.
-- **Supersample.** The ~360 px raster is drawn at `S = clamp(round(1200 / max(W,H)), 1, 4)`,
-  so the canvas is `CW×CH = W·S × H·S` and the mask detail survives. Every cache key below
-  is in CW×CH, not W×H.
+- **Supersample.** The raster is drawn at `S = supersampleFactor(W, H)` =
+  `max(1, round(SUPERSAMPLE_TARGET_PX / max(W,H)))` with `SUPERSAMPLE_TARGET_PX = 1200`
+  (`src/textures/floor-fit.js`), so the canvas is `CW×CH = W·S × H·S` and the mask detail
+  survives. Every cache key below is in CW×CH, not W×H.
+  > **There is no `min(4, …)` any more** (removed 2026-11-15). It was a cap stated in the
+  > wrong unit — the target is an output *size*, the cap bounded the *multiplier* — so the
+  > two disagreed for every raster under ~300 texels: a 256-wide map reached 1024 rather
+  > than the documented target, and a 60-wide one reached 240. It bounded nothing at the
+  > top either, because `W · round(TARGET/W) ≈ TARGET` makes the formula self-bounding.
+  > Pinned by `[FFIT-9]`, which goes red if the cap returns.
 
 Each material is built by `compositeFloorTexture` (`src/textures/floor-texture-compositor.js`
 — pure, unit-tested) from the `FLOOR_TEXTURE_REGISTRY` entry — layers composited

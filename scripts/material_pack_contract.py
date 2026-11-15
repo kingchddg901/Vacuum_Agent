@@ -52,6 +52,7 @@ import importlib.util
 import io
 import json
 import logging
+import math
 import os
 import sys
 import zlib
@@ -337,7 +338,7 @@ FLAT_PRIMARY_STD = 1.5
 #
 # BUT THE BAND IS NOT SET BY RESOLUTION ALONE, and the first version of this check assumed
 # it was. The card SUPERSAMPLES the raster toward ~1200 px --
-#     S = max(1, min(4, round(1200 / max(W, H))))        (src/bindings/map.js)
+#     S = max(1, round(1200 / max(W, H)))        (src/textures/floor-fit.js)
 # -- and divides the cell size by S, so metres-per-canvas-pixel depends on the raster's
 # PIXEL WIDTH as much as on its resolution. Same three boxes, same 5 cm/cell, two bands:
 #     alfred 256x245 -> S=4 -> 0.0125   m/px -> 0.512..51.2 m per tile
@@ -355,14 +356,38 @@ _RES_M = 0.05                   # metres per raster cell, measured on all three 
 # THE S VALUES A REAL HOME CAN PRODUCE, which is NOT every S the formula allows. Inverting
 # S = round(1200 / max(W, H)) at 5 cm/cell gives the raster width each S needs, and then
 # the floor it spans:
-#     S=4  max(W,H) <= 342    -> up to  17 m across
-#     S=3  343..480           ->  17..24 m
-#     S=2  481..1714          ->  24..86 m     -- a very large house still reaches this
-#     S=1  >= 1715            ->  86 m+        -- not a home
-# Sweeping S=1 as well made a correct 5 ft board (1.524 m) warn, because at 0.05 m/px it
-# clamps -- a warning that fires on good input is worse than none, since it teaches the
-# author to skip the whole block. So the envelope stops at 2 and says why.
-_SUPERSAMPLES = (4, 3, 2)
+# UPDATED 2026-11-15, because the `min(4, ...)` cap this inversion was built on is GONE
+# (src/textures/floor-fit.js; it was stated in the wrong unit and undershot the stated target
+# for every raster below ~300 texels). S is no longer bounded above at 4, so a SMALL home now
+# reaches 5, 6, 8 -- and two of the three development boxes moved:
+#     alfred 256x245 -> S=5 (was 4) -> 0.01     m/px -> 0.41..41.0 m per tile
+#     robin  253x227 -> S=5 (was 4) -> 0.01     m/px -> 0.41..41.0 m
+#     ivy    397x387 -> S=3 (unchanged) -> 0.016667 m/px -> 0.68..68.3 m
+# THE SET IS NOW DERIVED, NOT WRITTEN DOWN. It was written down, and the number that set its
+# upper bound WAS the cap -- so removing the cap would have left a tuple silently measuring a
+# factor his own robots had stopped using, with every check still green. Deriving it from the
+# same formula the card runs means the next change to that formula cannot leave this behind.
+_HOME_RASTER_PX = (142, 800)    # ~7 m to ~40 m across at 5 cm/cell: a studio to a very large house.
+#  ^ the OLD comment put S=2's upper bound at 1714 px (~86 m). That was wrong BEFORE today:
+#    round(1200/801) = 1, so 801 px and up was never S=2. Corrected while re-deriving.
+
+
+def _supersample(long_px: int) -> int:
+    """Mirrors `supersampleFactor` in src/textures/floor-fit.js.
+
+    `math.floor(x + 0.5)`, NOT `round`: JS `Math.round` breaks .5 upward while Python's
+    `round` is banker's, so they disagree on exactly the half-integers this lands on."""
+    return max(1, math.floor(1200 / long_px + 0.5) or 1)
+
+
+# S=1 IS DELIBERATELY EXCLUDED, and it is the one judgement left in here. Sweeping it made a
+# correct 5 ft board (1.524 m) warn, because at 0.05 m/px it clamps -- and a warning that fires
+# on good input is worse than none, since it teaches the author to skip the whole block. A
+# raster needing S=1 is 86 m across, which is not a home.
+_SUPERSAMPLES = tuple(sorted(
+    {_supersample(px) for px in range(_HOME_RASTER_PX[0], _HOME_RASTER_PX[1] + 1)} - {1},
+    reverse=True,
+))
 _SCALE_MIN, _SCALE_MAX = 0.02, 2.0
 
 #: The common case, quoted when one number has to stand in for the band.
@@ -474,7 +499,7 @@ def _sample_m_warnings(entry: dict, dir_path: str) -> list[str]:
         out.append(
             f"{where}: sample_m {val} m WILL be clamped on a 5 cm/cell map at "
             f"{len(bad)} of {len(_SUPERSAMPLES)} supersample factors - {worst}.{where_ok} "
-            "S = max(1, min(4, round(1200 / max(W, H)))), so this is set by the raster's "
+            "S = max(1, round(1200 / max(W, H))), so this is set by the raster's "
             "PIXEL WIDTH, and it can change on one robot as the map grows."
         )
 

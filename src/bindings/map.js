@@ -13,7 +13,7 @@
 import { VIEWS } from "../render-cycle.js";
 import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N } from "../cards/map-room-color.js";
 import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl, tilesAcrossFloor } from "../textures/floor-texture-registry.js";
-import { resolveFit, normalizeFit, screenDeltaToCanvas } from "../textures/floor-fit.js";
+import { resolveFit, normalizeFit, screenDeltaToCanvas, supersampleFactor } from "../textures/floor-fit.js";
 import { resolveFloorType, normalizeFloorRotationDeg } from "../textures/floor-texture-resolver.js";
 import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 
@@ -533,8 +533,11 @@ export function applyMapBindings(proto) {
     // Jobs are finalised AFTER the rid raster is decoded, because a FITTED material needs
     // its room's bounding box and nothing upstream carries one.
 
-    // Supersample the ~360px raster to ~1200px so the mask detail survives.
-    const S = Math.max(1, Math.min(4, Math.round(1200 / Math.max(W, H)) || 1));
+    // Supersample the raster so the mask detail survives -- see supersampleFactor, which
+    // is where the arithmetic and the reason the old `min(4, ...)` is gone both live. It is
+    // in floor-fit.js for the same reason resolveFit is: this function has no test and
+    // cannot have one (node has no canvas), so the numbers it depends on are tested there.
+    const S = supersampleFactor(W, H);
     const CW = W * S, CH = H * S;
     canvas.width = CW;
     canvas.height = CH;

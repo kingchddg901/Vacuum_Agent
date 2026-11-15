@@ -113,18 +113,28 @@ Under raster scales that only held while two hand-tuned numbers happened to agre
 
 The derived scale is clamped to `0.02 .. 2`, and the metres that range represents are set
 by the map — **by its pixel width as much as its resolution.** The card supersamples the
-raster toward ~1200 px, `S = max(1, min(4, round(1200 / max(W, H))))`, and divides the cell
-size by `S`. All three development vacuums report 5 cm/cell and still land on two bands:
+raster toward ~1200 px, `S = max(1, round(1200 / max(W, H)))`, and divides the cell size by
+`S`. All three development vacuums report 5 cm/cell and still land on different bands:
 
 | raster | S | floor spanned | per tile |
 |---|---|---|---|
-| ≤ 342 px (alfred 256×245, robin 253×227) | 4 | ≤ 17 m | **0.51 – 51.2 m** |
-| 343–480 px (ivy 397×387) | 3 | 17–24 m | **0.68 – 68.3 m** |
-| 481–1714 px | 2 | 24–86 m | **1.02 – 102 m** |
+| 142–160 px | 8 | 7.1–8.0 m | **0.26 – 25.6 m** |
+| 161–184 px | 7 | 8.1–9.2 m | **0.29 – 29.3 m** |
+| 185–218 px | 6 | 9.2–10.9 m | **0.34 – 34.1 m** |
+| 219–266 px (alfred 256×245, robin 253×227) | 5 | 11.0–13.3 m | **0.41 – 41.0 m** |
+| 267–342 px | 4 | 13.4–17.1 m | **0.51 – 51.2 m** |
+| 343–480 px (ivy 397×387) | 3 | 17.2–24.0 m | **0.68 – 68.3 m** |
+| 481–800 px | 2 | 24.1–40.0 m | **1.02 – 102 m** |
 
-So a **0.6 m slab is representable on two of his robots and clamps on the third** — and `S`
-flips 4 → 3 the moment `max(W, H)` crosses 343, so it can change on one robot as the map
-grows. **Safe at every plausible `S`: about 1.0 m to 51 m per tile.** Below the floor a
+> **Two corrections, 2026-11-15.** The `min(4, …)` cap is gone (see
+> [floor-texture-map-view.md](../dev/frontend/floor-texture-map-view.md)), so **alfred and
+> robin moved from `S=4` to `S=5`** and small homes now reach 6, 7 and 8. Separately, the
+> old table gave `S=2` as `481–1714 px`; the true upper bound is **800 px**, because
+> `round(1200/801) = 1`. That second error predated the cap change.
+
+So a **0.6 m slab is representable on one of his robots and clamps on the others** — and `S`
+flips the moment `max(W, H)` crosses a boundary, so it can change on one robot as the map
+grows. **Safe at every plausible `S`: about 1.0 m to 25 m per tile.** Below the floor a
 2048 px mask is shown in fewer than ~41 canvas pixels, which is not a texture any more;
 author that material as a *sheet of several tiles* and give the sheet's width as `sample_m`.
 

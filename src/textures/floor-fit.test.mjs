@@ -35,7 +35,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { coverFactor, resolveFit, normalizeFit, screenDeltaToCanvas,
-         MIN_FIT_SCALE, MAX_FIT_SCALE } from "./floor-fit.js";
+         MIN_FIT_SCALE, MAX_FIT_SCALE, supersampleFactor, SUPERSAMPLE_TARGET_PX } from "./floor-fit.js";
 
 const MASK = 2048;
 
@@ -240,4 +240,46 @@ test("[FFIT-8] an arrow moves the mask the way the SCREEN reads it, at every map
   assert.deepEqual(screenDeltaToCanvas(1, 0, -90), screenDeltaToCanvas(1, 0, 270));
   assert.deepEqual(screenDeltaToCanvas(1, 0, 90.4), screenDeltaToCanvas(1, 0, 90));
   assert.deepEqual(screenDeltaToCanvas(1, 0, null), [1, 0], "absent rotation is identity");
+});
+
+test("[FFIT-9] the supersample reaches its stated TARGET, and is self-bounding without a cap", () => {
+  // THE INPUT THAT MAKES THIS RED is restoring `Math.min(4, ...)` at the call site, which
+  // is what shipped until 2026-11-15. It was a cap stated in the wrong UNIT: the target is
+  // an output SIZE in canvas pixels, the cap bounded the MULTIPLIER, and the two disagree
+  // for every raster below ~300 texels.
+  const near = (got, want, tol, msg) =>
+    assert.ok(Math.abs(got - want) <= tol, `${msg}: got ${got}, wanted ~${want} (+-${tol})`);
+
+  // His map, measured on the box 2026-11-15. Under the cap this was 4 -> a 1024 canvas,
+  // 15% short of the ~1200 the comment one line above it promised.
+  assert.equal(supersampleFactor(256, 245), 5, "a 256-texel raster must reach the target, not stop at 4x");
+  near(256 * supersampleFactor(256, 245), SUPERSAMPLE_TARGET_PX, 100, "256 raster canvas");
+
+  // The smaller the raster, the worse the cap missed -- 60 texels reached 240, five times short.
+  assert.equal(supersampleFactor(60, 60), 20, "a tiny raster must still reach the target");
+  near(60 * supersampleFactor(60, 60), SUPERSAMPLE_TARGET_PX, 100, "60 raster canvas");
+
+  // THE CLAIM THAT DROPPING THE CAP IS SAFE, asserted rather than argued: the formula is
+  // self-bounding, so no cap is needed to keep the canvas finite. Sweep the real range.
+  let worst = 0, at = 0;
+  for (let W = 20; W < 1400; W++) {
+    const px = W * supersampleFactor(W, W);
+    if (px > worst) { worst = px; at = W; }
+  }
+  assert.ok(worst <= 1700, `canvas must stay bounded without a cap; worst ${worst} at W=${at}`);
+  // 1600 at W=800 -- and W=800 is ABOVE where the old cap ever applied, which is the point:
+  // the cap bounded nothing at the top and only undershot at the bottom.
+  assert.equal(worst, 1600, "the bound is set by the formula, not by any cap");
+
+  // The long axis governs, so a wide thin raster is not supersampled by its short side.
+  assert.equal(supersampleFactor(240, 1200), supersampleFactor(1200, 240), "long axis governs");
+  assert.equal(supersampleFactor(1200, 240), 1, "a raster already at target is not upscaled");
+
+  // A raster LARGER than the target is left alone rather than shrunk.
+  assert.equal(supersampleFactor(2400, 2400), 1, "never below 1 -- a big raster is not downsampled here");
+
+  // Junk degrades to 1 rather than reaching canvas.width as NaN/0, which would paint nothing.
+  for (const [w, h] of [[0, 0], [NaN, NaN], [-5, -5], [null, null], ["x", "x"], [undefined, undefined]]) {
+    assert.equal(supersampleFactor(w, h), 1, `${String(w)}x${String(h)} must fall back to 1`);
+  }
 });

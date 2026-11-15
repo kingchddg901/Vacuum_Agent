@@ -127,6 +127,38 @@ export function screenDeltaToCanvas(dx, dy, rotDeg) {
   }
 }
 
+/** The supersample target, in canvas pixels on the long axis. */
+export const SUPERSAMPLE_TARGET_PX = 1200;
+
+/**
+ * How many canvas pixels per raster texel, so the mask detail survives the draw.
+ *
+ * A room raster is a few hundred texels; a mask is 2048. Drawing the floor at raster
+ * resolution averages the grain away, so the canvas is supersampled to roughly
+ * SUPERSAMPLE_TARGET_PX on its long axis and the mask arrives with detail intact.
+ *
+ * WHY THERE IS NO `min(4, ...)` HERE ANY MORE. There was, and it was stated in the wrong
+ * UNIT: the target is an output SIZE, and the cap bounded the MULTIPLIER, so the two
+ * disagreed for every raster below ~300 texels and the smaller the raster the worse the
+ * miss -- a 256-wide map (his, measured 2026-11-15) reached 1024 instead of ~1200, and a
+ * 60-wide one reached 240 instead of 1200, five times short of the number written in the
+ * comment directly above it.
+ *
+ * Dropping it does NOT uncap the canvas, which is the thing a cap would be FOR: this
+ * formula is self-bounding, because W x round(TARGET/W) is approximately TARGET by
+ * construction. The largest canvas dimension over W in [20, 1400) is 1600 WITH the cap and
+ * 1600 WITHOUT it -- the same number, reached at W=800 where the cap never applied. So the
+ * cap bounded nothing at the top and only ever undershot at the bottom.
+ *
+ * @param {number} W raster width in texels   @param {number} H raster height in texels
+ * @returns {number} integer >= 1
+ */
+export function supersampleFactor(W, H) {
+  const long = Math.max(Number(W) || 0, Number(H) || 0);
+  if (!(long > 0)) return 1;
+  return Math.max(1, Math.round(SUPERSAMPLE_TARGET_PX / long) || 1);
+}
+
 export function coverFactor(w, h, sw, sh, rad = 0) {
   if (!(sw > 0 && sh > 0)) return 0;
   const ac = Math.abs(Math.cos(rad)), as = Math.abs(Math.sin(rad));
