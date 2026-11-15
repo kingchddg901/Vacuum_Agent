@@ -2292,6 +2292,7 @@
     "floor_fit": "位置",
     "floor_fit_zoom_in": "放大材质，显示更少",
     "floor_fit_zoom_out": "缩小材质，显示更多",
+    "floor_fit_readout": "横 {x} · 纵 {y} · {scale}×",
     "floor_fit_reset": "居中",
     "floor_material_none": "默认",
     "floor_marble": "大理石",

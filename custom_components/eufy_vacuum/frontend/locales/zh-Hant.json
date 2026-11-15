@@ -2292,6 +2292,7 @@
     "floor_fit": "位置",
     "floor_fit_zoom_in": "放大材質，顯示更少",
     "floor_fit_zoom_out": "縮小材質，顯示更多",
+    "floor_fit_readout": "橫 {x} · 縱 {y} · {scale}×",
     "floor_fit_reset": "置中",
     "floor_material_none": "預設",
     "floor_marble": "大理石",

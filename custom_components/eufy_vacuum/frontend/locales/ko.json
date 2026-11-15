@@ -2292,6 +2292,7 @@
     "floor_fit": "배치",
     "floor_fit_zoom_in": "재질을 확대해 일부만 표시",
     "floor_fit_zoom_out": "재질을 축소해 더 많이 표시",
+    "floor_fit_readout": "가로 {x} · 세로 {y} · {scale}×",
     "floor_fit_reset": "가운데로",
     "floor_material_none": "기본값",
     "floor_marble": "대리석",

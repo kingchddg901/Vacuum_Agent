@@ -2384,6 +2384,7 @@
     "floor_fit": "מיקום",
     "floor_fit_zoom_in": "הצגת פחות מהחומר",
     "floor_fit_zoom_out": "הצגת יותר מהחומר",
+    "floor_fit_readout": "אופקי {x} · אנכי {y} · {scale}×",
     "floor_fit_reset": "מרכוז",
     "floor_material_none": "ברירת מחדל",
     "floor_marble": "שיש",

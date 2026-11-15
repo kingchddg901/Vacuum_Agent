@@ -1604,6 +1604,7 @@
     "floor_fit": "Platzierung",
     "floor_fit_zoom_in": "Weniger vom Material zeigen",
     "floor_fit_zoom_out": "Mehr vom Material zeigen",
+    "floor_fit_readout": "x {x} · y {y} · {scale}×",
     "floor_fit_reset": "Zentrieren",
     "floor_material_none": "Standard",
     "floor_marble": "Marmor",

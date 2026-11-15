@@ -2292,6 +2292,7 @@
     "floor_fit": "配置",
     "floor_fit_zoom_in": "素材を拡大して一部を表示",
     "floor_fit_zoom_out": "素材を縮小して広く表示",
+    "floor_fit_readout": "横 {x} · 縦 {y} · {scale}×",
     "floor_fit_reset": "中央に戻す",
     "floor_material_none": "デフォルト",
     "floor_marble": "大理石",

@@ -1604,6 +1604,7 @@
     "floor_fit": "Plaatsing",
     "floor_fit_zoom_in": "Minder van het materiaal tonen",
     "floor_fit_zoom_out": "Meer van het materiaal tonen",
+    "floor_fit_readout": "x {x} · y {y} · {scale}×",
     "floor_fit_reset": "Centreren",
     "floor_material_none": "Standaard",
     "floor_marble": "Marmer",

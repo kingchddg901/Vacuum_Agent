@@ -699,6 +699,11 @@ export function applySetupRenderers(proto) {
                       data-action="setup-set-floor-fit-step"
                       data-fit-step="${n}"
                       ${saving ? "disabled" : ""}>${this.escapeHtml(label)}</button>`;
+            // THE READOUT IS WHY THIS ROW IS NOT SILENT. There is no map on this tab,
+            // so a press changes nothing you can see -- that was the whole defect. It
+            // cannot show you the floor, but it can show you WHERE you are, and that it
+            // moved. The live control is on the map; this row batches several rooms
+            // before one save, and the numbers are what make it usable for that.
             const placed = Number(fit.tx) || Number(fit.ty) || (Number(fit.scale) || 1) !== 1;
             const fitHtml = isFitted
               ? `<div class="evcc-setup-floor-chips" data-fit-row="${roomId}">
@@ -716,6 +721,12 @@ export function applySetupRenderers(proto) {
                               data-action="setup-reset-floor-fit"
                               data-room-id="${roomId}"
                               ${saving ? "disabled" : ""}>${this.escapeHtml(this.t("setup.floor_fit_reset"))}</button>` : ""}
+                  <span class="evcc-setup-floor-readout">${this.escapeHtml(
+                    this.t("setup.floor_fit_readout", {
+                      x: (Number(fit.tx) || 0).toFixed(2),
+                      y: (Number(fit.ty) || 0).toFixed(2),
+                      scale: (Number(fit.scale) || 1).toFixed(2),
+                    }))}</span>
                 </div>`
               : "";
 
